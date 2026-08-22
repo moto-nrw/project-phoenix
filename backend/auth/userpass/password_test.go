@@ -13,6 +13,8 @@ import (
 // =============================================================================
 
 func TestHashPassword_DefaultParams(t *testing.T) {
+	t.Parallel()
+
 	password := "securePassword123!"
 
 	hash, err := HashPassword(password, nil)
@@ -26,6 +28,8 @@ func TestHashPassword_DefaultParams(t *testing.T) {
 }
 
 func TestHashPassword_CustomParams(t *testing.T) {
+	t.Parallel()
+
 	password := "testPassword"
 	params := &PasswordParams{
 		Memory:      32 * 1024, // 32MB (smaller for faster tests)
@@ -44,6 +48,8 @@ func TestHashPassword_CustomParams(t *testing.T) {
 }
 
 func TestHashPassword_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
 	// Empty password should still hash (validation is caller's responsibility)
 	hash, err := HashPassword("", nil)
 	require.NoError(t, err)
@@ -51,6 +57,8 @@ func TestHashPassword_EmptyPassword(t *testing.T) {
 }
 
 func TestHashPassword_UniqueHashes(t *testing.T) {
+	t.Parallel()
+
 	// Same password should produce different hashes due to random salt
 	password := "samePassword"
 
@@ -64,6 +72,8 @@ func TestHashPassword_UniqueHashes(t *testing.T) {
 }
 
 func TestHashPassword_LongPassword(t *testing.T) {
+	t.Parallel()
+
 	// Very long passwords should work
 	password := strings.Repeat("a", 1000)
 
@@ -73,6 +83,8 @@ func TestHashPassword_LongPassword(t *testing.T) {
 }
 
 func TestHashPassword_UnicodePassword(t *testing.T) {
+	t.Parallel()
+
 	// Unicode passwords should work
 	password := "пароль密码🔐"
 
@@ -91,6 +103,8 @@ func TestHashPassword_UnicodePassword(t *testing.T) {
 // =============================================================================
 
 func TestVerifyPassword_CorrectPassword(t *testing.T) {
+	t.Parallel()
+
 	password := "correctPassword123"
 	hash, err := HashPassword(password, nil)
 	require.NoError(t, err)
@@ -101,6 +115,8 @@ func TestVerifyPassword_CorrectPassword(t *testing.T) {
 }
 
 func TestVerifyPassword_IncorrectPassword(t *testing.T) {
+	t.Parallel()
+
 	password := "originalPassword"
 	hash, err := HashPassword(password, nil)
 	require.NoError(t, err)
@@ -111,6 +127,8 @@ func TestVerifyPassword_IncorrectPassword(t *testing.T) {
 }
 
 func TestVerifyPassword_CaseSensitive(t *testing.T) {
+	t.Parallel()
+
 	password := "CaseSensitive"
 	hash, err := HashPassword(password, nil)
 	require.NoError(t, err)
@@ -122,6 +140,8 @@ func TestVerifyPassword_CaseSensitive(t *testing.T) {
 }
 
 func TestVerifyPassword_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
 	// Hash an empty password
 	hash, err := HashPassword("", nil)
 	require.NoError(t, err)
@@ -138,6 +158,8 @@ func TestVerifyPassword_EmptyPassword(t *testing.T) {
 }
 
 func TestVerifyPassword_SimilarPasswords(t *testing.T) {
+	t.Parallel()
+
 	password := "password123"
 	hash, err := HashPassword(password, nil)
 	require.NoError(t, err)
@@ -168,6 +190,8 @@ func TestVerifyPassword_SimilarPasswords(t *testing.T) {
 // =============================================================================
 
 func TestVerifyPassword_InvalidHashFormat(t *testing.T) {
+	t.Parallel()
+
 	testCases := []struct {
 		name string
 		hash string
@@ -191,16 +215,22 @@ func TestVerifyPassword_InvalidHashFormat(t *testing.T) {
 }
 
 func TestVerifyPassword_InvalidHash_TooFewParts(t *testing.T) {
+	t.Parallel()
+
 	_, err := VerifyPassword("password", "$argon2id$v=19$m=65536")
 	assert.ErrorIs(t, err, ErrInvalidHash)
 }
 
 func TestVerifyPassword_InvalidHash_WrongAlgorithm(t *testing.T) {
+	t.Parallel()
+
 	_, err := VerifyPassword("password", "$bcrypt$v=19$m=65536,t=3,p=2$c2FsdA$aGFzaA")
 	assert.ErrorIs(t, err, ErrInvalidHash)
 }
 
 func TestVerifyPassword_IncompatibleVersion(t *testing.T) {
+	t.Parallel()
+
 	// Create a hash with a fake incompatible version (v=18 instead of v=19)
 	_, err := VerifyPassword("password", "$argon2id$v=18$m=65536,t=3,p=2$c2FsdA$aGFzaA")
 	assert.ErrorIs(t, err, ErrIncompatibleVersion)
@@ -211,6 +241,8 @@ func TestVerifyPassword_IncompatibleVersion(t *testing.T) {
 // =============================================================================
 
 func TestDefaultParams(t *testing.T) {
+	t.Parallel()
+
 	params := DefaultParams()
 
 	assert.Equal(t, uint32(64*1024), params.Memory, "Default memory should be 64MB")
@@ -225,6 +257,8 @@ func TestDefaultParams(t *testing.T) {
 // =============================================================================
 
 func TestHashAndVerify_RoundTrip(t *testing.T) {
+	t.Parallel()
+
 	testPasswords := []string{
 		"simplePassword",
 		"with spaces in it",
@@ -246,6 +280,8 @@ func TestHashAndVerify_RoundTrip(t *testing.T) {
 }
 
 func TestHashAndVerify_WithCustomParams(t *testing.T) {
+	t.Parallel()
+
 	password := "testPassword"
 	params := &PasswordParams{
 		Memory:      32 * 1024,
@@ -269,6 +305,8 @@ func TestHashAndVerify_WithCustomParams(t *testing.T) {
 // =============================================================================
 
 func TestConstantTimeComparison(t *testing.T) {
+	t.Parallel()
+
 	// This test ensures the password verification uses constant-time comparison
 	// by verifying that both correct and incorrect passwords complete
 	// (actual timing attack testing would require benchmarks)

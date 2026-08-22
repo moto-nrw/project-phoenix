@@ -40,6 +40,12 @@ interface FieldConfig {
     includeEmpty?: boolean;
     emptyLabel?: string;
   }>;
+  /**
+   * Extra props merged into `component` before the form's own props. Keeps a
+   * shared custom field reusable with different presets (e.g. a per-room
+   * default colour) without wrapping it in a second component.
+   */
+  componentProps?: Record<string, unknown>;
   // Grid layout
   colSpan?: 1 | 2;
   autoComplete?: string;
@@ -79,6 +85,12 @@ interface FormField {
     includeEmpty?: boolean;
     emptyLabel?: string;
   }>;
+  /**
+   * Extra props merged into `component` before the form's own props. Keeps a
+   * shared custom field reusable with different presets (e.g. a per-room
+   * default colour) without wrapping it in a second component.
+   */
+  componentProps?: Record<string, unknown>;
   helperText?: string;
   autoComplete?: string;
   colSpan?: 1 | 2;
@@ -320,6 +332,7 @@ export function configToFormSection(section: SectionConfig): FormSection {
       options: field.options,
       validation: field.validation,
       component: field.component,
+      componentProps: field.componentProps,
       helperText: field.helperText,
       autoComplete: field.autoComplete,
       colSpan: field.colSpan,

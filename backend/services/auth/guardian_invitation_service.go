@@ -245,11 +245,8 @@ func schoolLogoURLFromSettings(settingsJSON string) string {
 // mapping, and guardian role assignment. Updates the GuardianProfile to
 // link to the new account. Public route, caller wraps in WithAdminTx.
 func (s *guardianInvitationService) Accept(ctx context.Context, token string, data GuardianInvitationAcceptData) (*authModels.Account, error) {
-	if data.Password != data.ConfirmPassword {
-		return nil, &AuthError{Op: opGuardianInviteAccept, Err: ErrPasswordMismatch}
-	}
-	if err := ValidatePasswordStrength(data.Password); err != nil {
-		return nil, &AuthError{Op: opGuardianInviteAccept, Err: err}
+	if err := validateGuardianAcceptPassword(data); err != nil {
+		return nil, err
 	}
 
 	invitation, err := s.fetchValidInvitation(ctx, token)
@@ -257,50 +254,19 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		return nil, err
 	}
 
-	// Reject invitations for soft-deleted schools. Mirrors staff service.
-	if invitation.TenantID > 0 && s.SchoolRepo != nil {
-		school, schoolErr := s.SchoolRepo.FindByIDForShare(ctx, invitation.TenantID)
-		if schoolErr != nil {
-			return nil, &AuthError{Op: opGuardianInviteAccept, Err: schoolErr}
-		}
-		if school == nil || school.IsDeleted() {
-			return nil, &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationTenantDeleted}
-		}
-	}
-
-	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	profile, emailAddress, err := s.guardianAcceptTarget(ctx, invitation)
 	if err != nil {
-		return nil, &AuthError{Op: opGuardianInviteAccept, Err: err}
+		return nil, err
 	}
-	if profile == nil || profile.Email == nil || strings.TrimSpace(*profile.Email) == "" {
-		return nil, &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("guardian profile missing email")}
-	}
-	emailAddress := strings.ToLower(strings.TrimSpace(*profile.Email))
 
 	passwordHash, err := HashPassword(data.Password)
 	if err != nil {
 		return nil, &AuthError{Op: opGuardianInviteAccept, Err: err}
 	}
 
-	tenantCtx := tenant.WithTenantID(ctx, invitation.TenantID)
-
-	var account *authModels.Account
-	txErr := s.txHandler.RunInTx(tenantCtx, func(txCtx context.Context, _ bun.Tx) error {
-		acc, innerErr := s.createOrFindAccount(txCtx, emailAddress, passwordHash)
-		if innerErr != nil {
-			return innerErr
-		}
-		if innerErr := s.linkProfileToAccount(txCtx, profile, acc.ID, invitation.TenantID, opGuardianInviteAccept); innerErr != nil {
-			return innerErr
-		}
-		if innerErr := s.InvitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
-			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
-		}
-		account = acc
-		return nil
-	})
-	if txErr != nil {
-		return nil, txErr
+	account, err := s.acceptGuardianInvitation(ctx, invitation, profile, emailAddress, passwordHash)
+	if err != nil {
+		return nil, err
 	}
 
 	s.getLogger().Info("guardian invitation accepted",
@@ -309,35 +275,93 @@ func (s *guardianInvitationService) Accept(ctx context.Context, token string, da
 		slog.Int64("guardian_profile_id", profile.ID),
 	)
 
-	// Backfill guardian_account_id on every pre-account
-	// enrollment.requests row matching this email (case-insensitive,
-	// cross-tenant). Best-effort, the accept itself stays committed
-	// even if this fails. Runs in its own admin tx; the parent's
-	// /me/enrollments query reads via guardian_account_id, so without
-	// this step legacy submissions wouldn't surface in the dashboard.
-	if s.EnrollmentBackfiller != nil {
-		backfillErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-			n, err := s.EnrollmentBackfiller.BackfillGuardianAccountID(adminCtx, account.ID, emailAddress)
-			if err != nil {
-				return err
-			}
-			if n > 0 {
-				s.getLogger().Info("guardian invitation accept: claimed pre-account enrollments",
-					slog.Int64("account_id", account.ID),
-					slog.Int("rows_claimed", n),
-				)
-			}
-			return nil
-		})
-		if backfillErr != nil {
-			s.getLogger().Warn("guardian invitation accept: enrollment backfill failed",
-				slog.Int64("account_id", account.ID),
-				slog.String("error", backfillErr.Error()),
-			)
+	return account, nil
+}
+
+func validateGuardianAcceptPassword(data GuardianInvitationAcceptData) error {
+	if data.Password != data.ConfirmPassword {
+		return &AuthError{Op: opGuardianInviteAccept, Err: ErrPasswordMismatch}
+	}
+	if err := ValidatePasswordStrength(data.Password); err != nil {
+		return &AuthError{Op: opGuardianInviteAccept, Err: err}
+	}
+	return nil
+}
+
+func (s *guardianInvitationService) guardianAcceptTarget(ctx context.Context, invitation *authModels.GuardianInvitation) (*userModels.GuardianProfile, string, error) {
+	if invitation.TenantID > 0 && s.SchoolRepo != nil {
+		school, err := s.SchoolRepo.FindByIDForShare(ctx, invitation.TenantID)
+		if err != nil {
+			return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: err}
+		}
+		if school == nil || school.IsDeleted() {
+			return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationTenantDeleted}
 		}
 	}
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, invitation.GuardianProfileID)
+	if err != nil {
+		return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: err}
+	}
+	if profile == nil || profile.Email == nil || strings.TrimSpace(*profile.Email) == "" {
+		return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: fmt.Errorf("guardian profile missing email")}
+	}
+	return profile, strings.ToLower(strings.TrimSpace(*profile.Email)), nil
+}
 
-	return account, nil
+func (s *guardianInvitationService) acceptGuardianInvitation(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, emailAddress, passwordHash string) (*authModels.Account, error) {
+	var account *authModels.Account
+	err := s.txHandler.RunInTx(tenant.WithTenantID(ctx, invitation.TenantID), func(txCtx context.Context, _ bun.Tx) error {
+		acc, innerErr := s.createOrFindAccount(txCtx, emailAddress, passwordHash)
+		if innerErr != nil {
+			return innerErr
+		}
+		if innerErr = s.linkProfileToAccount(txCtx, profile, acc.ID, invitation.TenantID, opGuardianInviteAccept); innerErr != nil {
+			return innerErr
+		}
+		if innerErr = s.InvitationRepo.MarkAsAccepted(txCtx, invitation.ID); innerErr != nil {
+			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
+		}
+		if innerErr = s.backfillEnrollmentRequests(txCtx, acc.ID, emailAddress); innerErr != nil {
+			return &AuthError{Op: opGuardianInviteAccept, Err: innerErr}
+		}
+		account = acc
+		return nil
+	})
+	return account, err
+}
+
+// backfillEnrollmentRequests claims pre-account enrollment requests inside
+// the accept transaction, where the newly inserted account is visible to the
+// guardian_account_id foreign key. A savepoint preserves the existing
+// best-effort contract without leaving the surrounding transaction aborted.
+func (s *guardianInvitationService) backfillEnrollmentRequests(ctx context.Context, accountID int64, emailAddress string) error {
+	if s.EnrollmentBackfiller == nil {
+		return nil
+	}
+
+	rowsClaimed := 0
+	backfillErr := tenant.WithSavepoint(ctx, func(savepointCtx context.Context) error {
+		var err error
+		rowsClaimed, err = s.EnrollmentBackfiller.BackfillGuardianAccountID(savepointCtx, accountID, emailAddress)
+		return err
+	})
+	if backfillErr != nil {
+		if errors.Is(backfillErr, tenant.ErrSavepointControl) {
+			return backfillErr
+		}
+		s.getLogger().Warn("guardian invitation accept: enrollment backfill failed",
+			slog.Int64("account_id", accountID),
+			slog.String("error", backfillErr.Error()),
+		)
+		return nil
+	}
+	if rowsClaimed > 0 {
+		s.getLogger().Info("guardian invitation accept: claimed pre-account enrollments",
+			slog.Int64("account_id", accountID),
+			slog.Int("rows_claimed", rowsClaimed),
+		)
+	}
+	return nil
 }
 
 // createOrFindAccount returns the existing auth.accounts row for this email

@@ -65,6 +65,8 @@ func sampleMasterData() *parentService.ChildMasterData {
 }
 
 func TestGetMasterData_ReturnsProjectedChildData(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{masterData: sampleMasterData()}
 	rs := &Resource{ParentService: fake}
 	req := parentRequestWithStudentID(http.MethodGet, "/children/42/master-data", "", "42")
@@ -82,6 +84,8 @@ func TestGetMasterData_ReturnsProjectedChildData(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_ForwardsPathAndJSONValue(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeParentService{updateMasterData: sampleMasterData()}
 	rs := &Resource{ParentService: fake}
 	req := parentRequestWithStudentID(
@@ -106,6 +110,8 @@ func TestUpdateMasterDataField_ForwardsPathAndJSONValue(t *testing.T) {
 }
 
 func TestUpdateMasterDataField_RejectsMissingTargetOrBadBody(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{}}
 
 	req := parentRequestWithStudentID(http.MethodPatch, "/children/42/master-data//", `{}`, "42")
@@ -123,6 +129,8 @@ func TestUpdateMasterDataField_RejectsMissingTargetOrBadBody(t *testing.T) {
 }
 
 func TestSubmitAndListMasterDataRequests(t *testing.T) {
+	t.Parallel()
+
 	row := &usersModels.StudentDataChangeRequest{
 		Model:    modelBase.Model{ID: 901, CreatedAt: time.Date(2026, 6, 24, 12, 0, 0, 0, time.UTC)},
 		Target:   usersModels.DataChangeTargetPerson,
@@ -157,6 +165,8 @@ func TestSubmitAndListMasterDataRequests(t *testing.T) {
 }
 
 func TestSubmitMasterDataRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ParentService: &fakeParentService{submitErr: parentService.ErrMasterDataDuplicatePending}}
 	req := parentRequestWithStudentID(
 		http.MethodPost,

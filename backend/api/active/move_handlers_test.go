@@ -46,6 +46,8 @@ func withStaffMoveContext(req *http.Request) *http.Request {
 }
 
 func TestMoveStudentsToActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		var capturedActiveGroupID int64
@@ -123,7 +125,9 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		assert.Equal(t, "Students Not Present", body["status"])
 	})
 
-	t.Run("rejects regular staff outside source student scope", func(t *testing.T) {
+	// #2329: the handler no longer decides per student — it hands the caller's
+	// staff identity to the service and surfaces the service's refusal.
+	t.Run("surfaces a service-side move refusal as 403", func(t *testing.T) {
 		calledMove := false
 		rs := &Resource{
 			PersonService: moveAuthPersonService{
@@ -155,7 +159,7 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 		assert.True(t, calledMove)
 	})
 
-	t.Run("allows target supervisor to move open transit students into supervised target", func(t *testing.T) {
+	t.Run("moves students the service authorizes", func(t *testing.T) {
 		calledMove := false
 		targetGroupID := int64(99)
 		targetRoomID := int64(77)
@@ -239,6 +243,8 @@ func TestMoveStudentsToActiveGroup(t *testing.T) {
 }
 
 func TestMoveStudentsToTransit(t *testing.T) {
+	t.Parallel()
+
 	t.Run("moves selected students", func(t *testing.T) {
 		var capturedStudentIDs []int64
 		rs := &Resource{

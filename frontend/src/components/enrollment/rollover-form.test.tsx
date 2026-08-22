@@ -19,8 +19,9 @@ vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
   return { ...(await importOriginal<object>()), ...dateTimePickerMock() };
 });
 
-const { mockCreateRollover } = vi.hoisted(() => ({
+const { mockCreateRollover, mockFetchRolloverPreview } = vi.hoisted(() => ({
   mockCreateRollover: vi.fn(),
+  mockFetchRolloverPreview: vi.fn(),
 }));
 
 vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
@@ -28,6 +29,7 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
   return {
     ...actual,
     createRollover: mockCreateRollover,
+    fetchRolloverPreview: mockFetchRolloverPreview,
   };
 });
 
@@ -96,6 +98,16 @@ function makeResult(): RolloverResult {
 describe("RolloverForm", () => {
   beforeEach(() => {
     mockCreateRollover.mockReset();
+    mockFetchRolloverPreview.mockReset();
+    mockFetchRolloverPreview.mockResolvedValue({
+      carry_candidate_count: 4,
+      carried_count: 3,
+      review_count: 1,
+      review_by_reason: { grade_above_max: 1 },
+      excluded_count: 2,
+      excluded_by_status: { withdrawn: 2 },
+      request_count: 3,
+    });
   });
 
   it("pre-fills the form from the source phase", () => {
@@ -305,5 +317,84 @@ describe("RolloverForm", () => {
       unknown
     >;
     expect(input.rollover_bumps_grade).toBe(false);
+  });
+});
+
+describe("RolloverForm preview", () => {
+  beforeEach(() => {
+    mockCreateRollover.mockReset();
+    mockFetchRolloverPreview.mockReset();
+  });
+
+  it("shows carried, review and excluded counts from the preview", async () => {
+    mockFetchRolloverPreview.mockResolvedValue({
+      carry_candidate_count: 4,
+      carried_count: 3,
+      review_count: 1,
+      review_by_reason: { grade_above_max: 1 },
+      excluded_count: 2,
+      excluded_by_status: { withdrawn: 2 },
+      request_count: 3,
+    });
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(await screen.findByText("Werden übernommen")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Manuell zu prüfen")).toBeInTheDocument();
+    expect(screen.getByText("Nicht übernommen")).toBeInTheDocument();
+    expect(screen.getByText(/Zurückgezogen: 2/)).toBeInTheDocument();
+    expect(mockFetchRolloverPreview).toHaveBeenCalledWith("42", true);
+  });
+
+  it("refetches the preview when the grade-bump toggle flips", async () => {
+    mockFetchRolloverPreview.mockResolvedValue({
+      carry_candidate_count: 4,
+      carried_count: 4,
+      review_count: 0,
+      review_by_reason: {},
+      excluded_count: 0,
+      excluded_by_status: {},
+      request_count: 3,
+    });
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+    await screen.findByText("Werden übernommen");
+
+    fireEvent.click(
+      screen.getByLabelText(/Klassenstufe automatisch um 1 erhöhen/),
+    );
+
+    await waitFor(() => {
+      expect(mockFetchRolloverPreview).toHaveBeenLastCalledWith("42", false);
+    });
+  });
+
+  it("shows a notice instead of counts when the preview fails", async () => {
+    mockFetchRolloverPreview.mockRejectedValue(
+      new Error("Quellphase wurde bereits fortgeführt"),
+    );
+    render(
+      <RolloverForm
+        source={makeSourcePhase()}
+        onCancel={vi.fn()}
+        onSuccess={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByText("Quellphase wurde bereits fortgeführt"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Werden übernommen")).not.toBeInTheDocument();
   });
 });

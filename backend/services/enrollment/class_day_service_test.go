@@ -19,6 +19,8 @@ import (
 )
 
 func TestClassDayWeekdayKey(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "mon", classDayWeekdayKey(timezone.NewDate(2026, 8, 3)))
 	assert.Equal(t, "tue", classDayWeekdayKey(timezone.NewDate(2026, 8, 4)))
 	assert.Equal(t, "wed", classDayWeekdayKey(timezone.NewDate(2026, 8, 5)))
@@ -29,6 +31,8 @@ func TestClassDayWeekdayKey(t *testing.T) {
 }
 
 func TestBuildClassDayReportProjection(t *testing.T) {
+	t.Parallel()
+
 	rows := []ClassRosterRow{
 		{
 			StudentID:  1,
@@ -38,16 +42,16 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 			OfferingsByDay: map[string][]string{
 				"wed": {"Ganztag"},
 			},
-			PickupByDay:  map[string]string{"wed": "15:00"},
-			ArrivalByDay: map[string]string{"wed": "07:30"},
-			Departure:    "Wird abgeholt",
+			PickupByDay:    map[string]string{"wed": "15:00"},
+			ArrivalByDay:   map[string]string{"wed": "07:30"},
+			DepartureByDay: map[string]string{"wed": "wird abgeholt"},
 		},
 		{
-			StudentID:  2,
-			FirstName:  "Finn",
-			LastName:   "Becker",
-			Registered: false,
-			Departure:  "Geht alleine",
+			StudentID:      2,
+			FirstName:      "Finn",
+			LastName:       "Becker",
+			Registered:     false,
+			DepartureByDay: map[string]string{"mon": "geht alleine"},
 		},
 		{
 			StudentID:  3,
@@ -70,14 +74,14 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 
 	assert.True(t, report.Rows[0].StaysToday)
 	assert.Equal(t, []string{"Ganztag"}, report.Rows[0].Offerings)
-	// The effective (materialized-plan) pickup time beats the form answer.
+	// The effective projected pickup time beats the form answer.
 	assert.Equal(t, "16:00", report.Rows[0].Pickup)
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
 	// The day-specific departure is the ONLY source on a school day.
 	assert.Equal(t, "Abholung", report.Rows[0].Departure)
-	// The roster's week summary ("Geht alleine" here) must NOT leak onto the
-	// day sheet: it is never empty and floors at "Geht alleine", so a child
-	// without any per-day plan renders as explicit "Keine Angabe" instead.
+	// The roster's per-day map must NOT leak onto the day sheet: it is never
+	// empty and floors at "geht alleine", so a child without any per-day plan
+	// renders as explicit "Keine Angabe" instead.
 	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[2].Departure)
 
@@ -93,11 +97,13 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 }
 
 func TestBuildClassDayReportWeekend(t *testing.T) {
+	t.Parallel()
+
 	rows := []ClassRosterRow{{
 		StudentID:      1,
 		Registered:     true,
 		OfferingsByDay: map[string][]string{"mon": {"Ganztag"}},
-		Departure:      "Mo: Bus, Di: Abholung",
+		DepartureByDay: map[string]string{"mon": "fährt Bus", "tue": "wird abgeholt"},
 	}}
 
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil, nil)
@@ -107,8 +113,8 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 	require.Len(t, report.Rows, 1)
 	assert.False(t, report.Rows[0].StaysToday)
 	// Kein Schultag: keine Übergabe, also auch keine Abgangs-Aussage — die
-	// Wochen-Zusammenfassung des Rosters darf nicht ins Einzeltag-Feld
-	// durchsickern (auch nicht für Nicht-UI-Consumer des Endpoints).
+	// Tageswerte des Rosters dürfen nicht ins Einzeltag-Feld durchsickern
+	// (auch nicht für Nicht-UI-Consumer des Endpoints).
 	assert.Equal(t, "", report.Rows[0].Departure)
 	// Kein Schultag: nur der Klassenverband ist eine ehrliche Zahl.
 	assert.Equal(t, ClassDayTotals{Students: 1}, report.Totals)
@@ -144,6 +150,8 @@ func (r *fakeClassDayStatusRepo) FindActiveByStudentIDsAndDate(_ context.Context
 }
 
 func TestClassDayPhasesReturnsEveryActiveCoveringPhase(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
 		{Model: baseModels.Model{ID: 1}, Name: "Altjahr", ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
 		{Model: baseModels.Model{ID: 2}, Name: "Schuljahr", IsActive: true, ServiceStartDate: timezone.NewDate(2026, 8, 1), ServiceEndDate: timezone.NewDate(2027, 7, 31)},
@@ -165,6 +173,8 @@ func TestClassDayPhasesReturnsEveryActiveCoveringPhase(t *testing.T) {
 }
 
 func TestClassDayPhasesNoneCovering(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{phases: []*enrollmentModels.Phase{
 		{Model: baseModels.Model{ID: 1}, ServiceStartDate: timezone.NewDate(2025, 8, 1), ServiceEndDate: timezone.NewDate(2026, 7, 31)},
 	}}}}
@@ -176,6 +186,8 @@ func TestClassDayPhasesNoneCovering(t *testing.T) {
 }
 
 func TestMergeClassDayRostersUnionsRegistrations(t *testing.T) {
+	t.Parallel()
+
 	schoolYear := []ClassRosterRow{
 		{StudentID: 1, LastName: "Anders", Registered: true, EnrollmentSummary: "Ganztag", OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}, PickupByDay: map[string]string{"wed": "16:00"}},
 		{StudentID: 2, LastName: "Becker", Registered: false, EnrollmentSummary: "Keine Anmeldung"},
@@ -198,6 +210,8 @@ func TestMergeClassDayRostersUnionsRegistrations(t *testing.T) {
 }
 
 func TestClassDayRequiresConfiguredDependencies(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{PhaseRepo: &fakeClassDayPhaseRepo{}}}
 
 	_, err := svc.ClassDay(context.Background(), "1a", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
@@ -207,6 +221,8 @@ func TestClassDayRequiresConfiguredDependencies(t *testing.T) {
 }
 
 func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
+	t.Parallel()
+
 	svc := classRosterTestService(
 		[]*userModels.Student{
 			{Model: baseModels.Model{ID: 1}, PersonID: 11, SchoolClass: "1a"},
@@ -281,6 +297,8 @@ func wireClassDayDeps(svc *reportService) {
 }
 
 func TestClassDayCancellationsUseCareDayService(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
 		1: scheduleService.CareDayCancelled,
 		2: scheduleService.CareDayScheduled,
@@ -297,6 +315,8 @@ func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 }
 
 func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
+	t.Parallel()
+
 	rows := []ClassRosterRow{{
 		StudentID:      1,
 		Registered:     true,
@@ -327,6 +347,8 @@ func (r *capturingChildOfferingRepo) ListByRequestChildIDsAtDate(_ context.Conte
 }
 
 func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
+	t.Parallel()
+
 	svc := classRosterTestService(
 		[]*userModels.Student{{Model: baseModels.Model{ID: 1}, PersonID: 11, SchoolClass: "1a"}},
 		map[int64]*userModels.Person{11: {FirstName: "Mila", LastName: "Anders"}},
@@ -344,6 +366,8 @@ func TestClassRosterOfferingDatePinsSelection(t *testing.T) {
 }
 
 func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
 		{StudentID: 1, Status: activeModels.StudentStatusDayExcused},
 		{StudentID: 1, Status: activeModels.StudentStatusDaySick},
@@ -359,6 +383,8 @@ func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 }
 
 func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
+	t.Parallel()
+
 	// The status set is an extension point: a value the precedence map does
 	// not know yet still means "reported for the day" and must survive —
 	// silently dropping it would put a reported-absent child under "bleibt
@@ -377,6 +403,8 @@ func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
 }
 
 func TestClassDayDepartureRendersSingleDay(t *testing.T) {
+	t.Parallel()
+
 	pickupAndBus := &userModels.Student{
 		AllowedDepartureModes: userModels.AllowedDepartureModes{
 			"fri": {userModels.DepartureBus, userModels.DeparturePickup},
@@ -402,6 +430,8 @@ func TestClassDayDepartureRendersSingleDay(t *testing.T) {
 }
 
 func TestClassDayDepartureNamesOnlyCompanionsOnTheSheet(t *testing.T) {
+	t.Parallel()
+
 	// A Laufgemeinschaft may pair children of different classes, and the
 	// class-day sheet is scoped to one class: a companion from 4c must not
 	// surface on the 1a sheet, a classmate already listed there may.
@@ -432,8 +462,10 @@ func TestClassDayDepartureNamesOnlyCompanionsOnTheSheet(t *testing.T) {
 }
 
 func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
+	t.Parallel()
+
 	// Real classDayDeparture output, not a hand-built impossible state: the
-	// roster row carries the never-empty week summary the real builder
+	// roster row carries the never-empty per-day map the real builder
 	// produces, the day map carries what classDayDeparture actually returns
 	// for a day the plan does not cover.
 	monOnly := &userModels.Student{
@@ -443,8 +475,8 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	}
 	noPlan := &userModels.Student{}
 	rows := []ClassRosterRow{
-		{StudentID: 1, Registered: true, Departure: "Mo: Bus"},
-		{StudentID: 2, Registered: true, Departure: "Geht alleine"},
+		{StudentID: 1, Registered: true, DepartureByDay: map[string]string{"mon": "fährt Bus"}},
+		{StudentID: 2, Registered: true, DepartureByDay: map[string]string{"wed": "geht alleine"}},
 	}
 	departures := map[int64]string{
 		1: classDayDeparture(monOnly, "wed", nil, nil),
@@ -454,7 +486,7 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, departures, nil, nil, nil)
 
 	require.Len(t, report.Rows, 2)
-	// A Wednesday sheet must neither print the Monday-only week summary nor
+	// A Wednesday sheet must neither print a Monday-only roster value nor
 	// fabricate "Geht alleine" for a child without any plan.
 	assert.Equal(t, "Keine Angabe", report.Rows[0].Departure)
 	assert.Equal(t, "Keine Angabe", report.Rows[1].Departure)
@@ -491,6 +523,8 @@ func (f *fakeClassDayAccessLogRepo) ExistsSince(_ context.Context, actorAccountI
 }
 
 func TestRecordClassDayViewAuditDedupesPerActorClassAndDate(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeClassDayAccessLogRepo{}
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{DataAccessLogRepo: repo}}
 	report := &ClassDayReport{SchoolClass: "1a", Date: timezone.NewDate(2026, 8, 5)}
@@ -511,6 +545,8 @@ func TestRecordClassDayViewAuditDedupesPerActorClassAndDate(t *testing.T) {
 }
 
 func TestClassDayRequiresSchoolClass(t *testing.T) {
+	t.Parallel()
+
 	svc := &reportService{}
 
 	_, err := svc.ClassDay(context.Background(), "  ", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")

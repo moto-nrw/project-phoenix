@@ -13,6 +13,8 @@ func ci(id int64, start, end int, startHHMM string) SubstituteConflictInstance {
 }
 
 func TestDetectSubstituteTimeConflicts_EmptyInputs(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, DetectSubstituteTimeConflicts(nil, nil))
 	assert.Nil(t, DetectSubstituteTimeConflicts(
 		[]SubstituteConflictInstance{ci(1, 840, 900, "14:00")},
@@ -25,6 +27,8 @@ func TestDetectSubstituteTimeConflicts_EmptyInputs(t *testing.T) {
 }
 
 func TestDetectSubstituteTimeConflicts_OverlapCases(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		target       SubstituteConflictInstance
@@ -95,6 +99,8 @@ func TestDetectSubstituteTimeConflicts_OverlapCases(t *testing.T) {
 }
 
 func TestDetectSubstituteTimeConflicts_SameInstanceIgnored(t *testing.T) {
+	t.Parallel()
+
 	// When an ID appears in both targets and foreigns (shouldn't happen
 	// because the caller pre-filters, but be defensive), it must not flag
 	// itself as a conflict.
@@ -107,6 +113,8 @@ func TestDetectSubstituteTimeConflicts_SameInstanceIgnored(t *testing.T) {
 }
 
 func TestDetectSubstituteTimeConflicts_MultipleTargetsMultipleForeigns(t *testing.T) {
+	t.Parallel()
+
 	// Tgt1 14:00–15:00, Tgt2 16:00–17:00.
 	// Foreign A 14:30–15:30 → overlaps Tgt1 only.
 	// Foreign B 16:30–17:30 → overlaps Tgt2 only.
@@ -132,6 +140,8 @@ func TestDetectSubstituteTimeConflicts_MultipleTargetsMultipleForeigns(t *testin
 }
 
 func TestMinutesOfTime(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 0, MinutesOfTime(0, 0))
 	assert.Equal(t, 60, MinutesOfTime(1, 0))
 	assert.Equal(t, 90, MinutesOfTime(1, 30))

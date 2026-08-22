@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ClockIcon, EnvelopeOpenIcon } from "@phosphor-icons/react/ssr";
 import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "./moto-concepts";
 
@@ -35,5 +36,20 @@ describe("MOTO_CONCEPTS", () => {
     expect(MOTO_CONCEPTS.excused.tone).toBe("purple");
     expect(MOTO_CONCEPTS.schoolyard.tone).toBe("orange");
     expect(MOTO_CONCEPTS.utilization.tone).toBe("gold");
+  });
+
+  it("renders passkeys as a clean outline without a duotone fill", () => {
+    expect(MOTO_CONCEPTS.passkeys.weight).toBe("regular");
+  });
+
+  it("represents pickup changes as a time change", () => {
+    expect(MOTO_CONCEPTS.pickup.icon).toBe(ClockIcon);
+    expect(MOTO_CONCEPTS.pickup.tone).toBe("gold");
+  });
+
+  it("represents parent letters as received post", () => {
+    expect(MOTO_CONCEPTS.news.label).toBe("Elternbriefe");
+    expect(MOTO_CONCEPTS.news.icon).toBe(EnvelopeOpenIcon);
+    expect(MOTO_CONCEPTS.news.tone).toBe("blue");
   });
 });

@@ -9,6 +9,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -21,7 +22,66 @@ func (s *Service) CleanupExpiredTokens(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, &AuthError{Op: "cleanup expired tokens", Err: err}
 	}
+	if recErr := s.reconcileRevokedSessions(ctx); recErr != nil {
+		s.getLogger().Warn("revocation follow-up reconciliation failed",
+			slog.Any("error", recErr),
+		)
+	}
 	return count, nil
+}
+
+func (s *Service) reconcileRevokedSessions(ctx context.Context) error {
+	if s.db == nil {
+		return nil
+	}
+	return tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), s.db, func(adminCtx context.Context, _ bun.Tx) error {
+		seen := map[int64]struct{}{}
+		queue := func(ids []int64) {
+			for _, id := range ids {
+				if id > 0 {
+					seen[id] = struct{}{}
+				}
+			}
+		}
+		if s.repos.Token != nil {
+			inactive, err := s.repos.Token.ListInactiveAccountIDsWithLiveTokens(adminCtx)
+			if err != nil {
+				return err
+			}
+			queue(inactive)
+		}
+		for accountID := range seen {
+			if err := s.wipeAccountWideIndependently(adminCtx, accountID, "account_deactivated", "", ""); err != nil {
+				return err
+			}
+		}
+		if s.repos.AuthEvent == nil {
+			if s.repos.PushSubscription == nil {
+				return nil
+			}
+			return s.repos.PushSubscription.DeleteOrphanedSubscriptions(adminCtx)
+		}
+		pending, err := s.repos.AuthEvent.ListPendingAccountWideWipes(adminCtx, time.Time{})
+		if err != nil {
+			return err
+		}
+		for _, wipe := range pending {
+			if _, already := seen[wipe.AccountID]; already {
+				continue
+			}
+			reason := wipe.Reason
+			if !isAccountWideRevocation(reason) {
+				reason = "administrative_revoke"
+			}
+			if err := s.finishScheduledAccountWideWipe(adminCtx, wipe.AccountID, reason, "", "", true); err != nil {
+				return err
+			}
+		}
+		if s.repos.PushSubscription == nil {
+			return nil
+		}
+		return s.repos.PushSubscription.DeleteOrphanedSubscriptions(adminCtx)
+	})
 }
 
 // CleanupExpiredPasswordResetTokens removes expired password reset tokens
@@ -51,16 +111,47 @@ func (s *Service) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
 
 // RevokeAllTokens revokes all tokens for an account
 func (s *Service) RevokeAllTokens(ctx context.Context, accountID int) error {
-	if err := s.repos.Token.DeleteByAccountID(ctx, int64(accountID)); err != nil {
+	return s.RevokeAllTokensWithReason(ctx, accountID, "administrative_revoke")
+}
+
+func (s *Service) RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error {
+	if isAccountWideRevocation(reason) {
+		if err := s.scheduleAccountWideRevoke(ctx, int64(accountID), reason, "", ""); err != nil {
+			return &AuthError{Op: "revoke all tokens", Err: err}
+		}
+		return nil
+	}
+	var revoked []*auth.Token
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		tokens, txErr := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), reason, "", "")
+		if txErr != nil {
+			return txErr
+		}
+		revoked = tokens
+		return nil
+	})
+	if err != nil {
 		return &AuthError{Op: "revoke all tokens", Err: err}
 	}
+	s.queuePushCleanup(ctx, int64(accountID), revoked, reason)
 	return nil
 }
 
 // RevokeTokensByTenantID deletes all refresh tokens for a given tenant.
 // Used during soft-delete to immediately cut off session refresh for all users of the school.
 func (s *Service) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	count, err := s.repos.Token.DeleteByTenantID(ctx, tenantID)
+	count := 0
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		deleted, err := s.repos.Token.DeleteByTenantIDReturning(txCtx, tenantID)
+		if err != nil {
+			return err
+		}
+		if err := s.auditRevokedTokens(txCtx, deleted, "tenant_deleted", "", ""); err != nil {
+			return err
+		}
+		count = len(deleted)
+		return nil
+	})
 	if err != nil {
 		return 0, &AuthError{Op: "revoke tokens by tenant", Err: err}
 	}

@@ -35,12 +35,12 @@ Diese Liste beschreibt die Screenshots, die später für die Web-Dokumentation e
 - Raumformular mit `Raumname`, `Kategorie`, `Gebäude`, `Etage`, `Farbe`
 - Gruppenformular mit `Gruppenname`, `Gruppenraum`, `Gruppenleitung`
 - Aktivitätsformular mit `Name`, `Kategorie`, `Maximale Teilnehmer`, `Hauptbetreuer`
-- Go-live-Checkliste mit Kindersuche, aktueller Aufsicht, Räumen und Zeiterfassung
+- Go-live-Checkliste mit Alle Kinder, aktueller Aufsicht, Räumen und Zeiterfassung
 
 ## Im OGS-Alltag
 
-- `Kindersuche`
-- Kindersuche mit aktiven Filtern
+- `Alle Kinder`
+- Alle Kinder mit aktiven Filtern
 - Kindkarte mit Status und Abholzeit
 - `Aktuelle Aufsicht`
 - Bereich `Jetzt geplant`

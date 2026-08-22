@@ -19,18 +19,13 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, db)
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)
 
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
-	})
-
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())
 	return router
 }
 
 func TestValidateGuardianInvitation_NotFound(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	req := testutil.NewJSONRequest(t, "GET", "/auth/guardian-invitations/invalid-token-12345", nil)
@@ -41,6 +36,7 @@ func TestValidateGuardianInvitation_NotFound(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{
@@ -56,6 +52,7 @@ func TestAcceptGuardianInvitation_NotFound(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{
@@ -70,6 +67,7 @@ func TestAcceptGuardianInvitation_BadRequest_MissingPassword(t *testing.T) {
 }
 
 func TestAcceptGuardianInvitation_BadRequest_PasswordMismatch(t *testing.T) {
+	t.Parallel()
 	router := setupGuardianInvitationRouter(t)
 
 	body := map[string]any{

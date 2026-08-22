@@ -33,18 +33,18 @@ func createActiveService(t *testing.T, db *bun.DB) active.Service {
 // =============================================================================
 
 func TestActiveService_GetActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active group when found", func(t *testing.T) {
 		// ARRANGE - create prerequisites
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "get-active-group")
 		room := testpkg.CreateTestRoom(t, db, "Test Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, room.ID, activeGroup.ID)
 
 		// ACT
 		result, err := service.GetActiveGroup(ctx, activeGroup.ID)
@@ -82,11 +82,12 @@ func TestActiveService_GetActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns multiple groups by IDs", func(t *testing.T) {
 		// ARRANGE
@@ -95,7 +96,6 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Multi Room")
 		group1 := testpkg.CreateTestActiveGroup(t, db, activity1.ID, room.ID)
 		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, group1.ID, group2.ID)
 
 		// ACT
 		result, err := service.GetActiveGroupsByIDs(ctx, []int64{group1.ID, group2.ID})
@@ -121,7 +121,6 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "partial")
 		room := testpkg.CreateTestRoom(t, db, "Partial Room")
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
 
 		// ACT
 		result, err := service.GetActiveGroupsByIDs(ctx, []int64{group.ID, 99999999})
@@ -138,17 +137,17 @@ func TestActiveService_GetActiveGroupsByIDs(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CreateActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates active group successfully", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "create-active")
 		room := testpkg.CreateTestRoom(t, db, "Create Room")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 		now := time.Now()
 		activityID := activity.ID
@@ -166,7 +165,6 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 		assert.Greater(t, group.ID, int64(0))
-		defer testpkg.CleanupActivityFixtures(t, db, group.ID)
 	})
 
 	t.Run("returns error for nil group", func(t *testing.T) {
@@ -183,18 +181,18 @@ func TestActiveService_CreateActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_UpdateActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates active group successfully", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "update-active")
 		room := testpkg.CreateTestRoom(t, db, "Update Room")
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
 
 		// Modify group
 		group.TimeoutMinutes = 60
@@ -230,6 +228,29 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 	})
+
+	t.Run("rejects moving open visits into a room below their occupancy", func(t *testing.T) {
+		activity := testpkg.CreateTestActivityGroup(t, db, "capacity-group-move")
+		sourceRoom := testpkg.CreateTestRoom(t, db, "Capacity Group Source")
+		targetRoom := testpkg.CreateTestRoom(t, db, "Capacity Group Target")
+		capacity := 1
+		targetRoom.Capacity = &capacity
+		_, err := db.NewUpdate().Model(targetRoom).Column("capacity").WherePK().Exec(ctx)
+		require.NoError(t, err)
+		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, sourceRoom.ID)
+		studentA := testpkg.CreateTestStudent(t, db, "Capacity", "GroupA", "1a")
+		studentB := testpkg.CreateTestStudent(t, db, "Capacity", "GroupB", "1a")
+		testpkg.CreateTestVisit(t, db, studentA.ID, group.ID, time.Now().Add(-time.Hour), nil)
+		testpkg.CreateTestVisit(t, db, studentB.ID, group.ID, time.Now().Add(-time.Hour), nil)
+
+		group.RoomID = targetRoom.ID
+		err = service.UpdateActiveGroup(ctx, group)
+
+		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
+		persisted, findErr := service.GetActiveGroup(ctx, group.ID)
+		require.NoError(t, findErr)
+		assert.Equal(t, sourceRoom.ID, persisted.RoomID)
+	})
 }
 
 // =============================================================================
@@ -237,18 +258,18 @@ func TestActiveService_UpdateActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_DeleteActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes active group successfully", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "delete-active")
 		room := testpkg.CreateTestRoom(t, db, "Delete Room")
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 
 		// ACT
 		err := service.DeleteActiveGroup(ctx, group.ID)
@@ -298,18 +319,18 @@ func TestActiveService_DeleteActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ListActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active groups with no options", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "list-active")
 		room := testpkg.CreateTestRoom(t, db, "List Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		result, err := service.ListActiveGroups(ctx, nil)
@@ -340,8 +361,7 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "list-paginated")
 		room := testpkg.CreateTestRoom(t, db, "List Paginated Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		options := base.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -361,18 +381,18 @@ func TestActiveService_ListActiveGroups(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns groups for room", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "room-find")
 		room := testpkg.CreateTestRoom(t, db, "Find Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		result, err := service.FindActiveGroupsByRoomID(ctx, room.ID)
@@ -421,18 +441,18 @@ func TestActiveService_FindActiveGroupsByRoomID(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns active groups for activity group ID", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "group-find")
 		room := testpkg.CreateTestRoom(t, db, "Group Find Room")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		result, err := service.FindActiveGroupsByGroupID(ctx, activity.ID)
@@ -463,17 +483,17 @@ func TestActiveService_FindActiveGroupsByGroupID(t *testing.T) {
 }
 
 func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns device-scoped active group when present", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "device-room-match")
 		room := testpkg.CreateTestRoom(t, db, "Device Room")
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-match")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, activity.CategoryID, room.ID)
 
 		activityID := activity.ID
 		activeGroup := &activeModels.Group{
@@ -485,7 +505,6 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 			TimeoutMinutes: 30,
 		}
 		require.NoError(t, service.CreateActiveGroup(ctx, activeGroup))
-		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID)
 
 		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
 		require.NoError(t, err)
@@ -496,7 +515,6 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 	t.Run("returns nil when no active group matches device", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "No Match Device Room")
 		device := testpkg.CreateTestDevice(t, db, "svc-device-room-miss")
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID, room.ID)
 
 		found, err := service.FindDeviceActiveGroupInRoom(ctx, room.ID, device.ID)
 		require.NoError(t, err)
@@ -509,18 +527,18 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndActiveGroupSession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ends session successfully", func(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, "end-session")
 		room := testpkg.CreateTestRoom(t, db, "End Session Room")
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
 
 		// ACT
 		err := service.EndActiveGroupSession(ctx, group.ID)
@@ -548,11 +566,12 @@ func TestActiveService_EndActiveGroupSession(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with visits", func(t *testing.T) {
 		// ARRANGE
@@ -560,8 +579,7 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Visits Room")
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		student := testpkg.CreateTestStudent(t, db, "Visit", "Student", "1a")
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, visit.ID)
+		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
 		result, err := service.GetActiveGroupWithVisits(ctx, activeGroup.ID)
@@ -589,11 +607,12 @@ func TestActiveService_GetActiveGroupWithVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns group with supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -602,7 +621,6 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Super", "Visor")
 		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, staff.ID)
 
 		// ACT
 		result, err := service.GetActiveGroupWithSupervisors(ctx, activeGroup.ID)
@@ -631,11 +649,12 @@ func TestActiveService_GetActiveGroupWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetDashboardAnalytics(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns dashboard analytics", func(t *testing.T) {
 		// ACT
@@ -656,7 +675,6 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 		require.NoError(t, err)
 
 		student := testpkg.CreateTestStudent(t, db, "Excused", "Dashboard", "ED1")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		excused := true
 		_, err = db.NewUpdate().
@@ -680,18 +698,18 @@ func TestActiveService_GetDashboardAnalytics(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns unclaimed groups", func(t *testing.T) {
 		// ARRANGE - create group without supervisors (unclaimed)
 		activity := testpkg.CreateTestActivityGroup(t, db, "unclaimed")
 		room := testpkg.CreateTestRoom(t, db, "Unclaimed Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
+		testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
 		_, err := service.GetUnclaimedActiveGroups(ctx)
@@ -704,11 +722,12 @@ func TestActiveService_GetUnclaimedActiveGroups(t *testing.T) {
 }
 
 func TestActiveService_ClaimActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("claims group successfully", func(t *testing.T) {
 		// ARRANGE
@@ -716,7 +735,6 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "Claim Room")
 		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Claim", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID, staff.ID)
 
 		// ACT
 		supervisor, err := service.ClaimActiveGroup(ctx, group.ID, staff.ID, "supervisor")
@@ -731,7 +749,6 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 	t.Run("returns error for non-existent group", func(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Claim", "NoGroup")
-		defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 		// ACT
 		result, err := service.ClaimActiveGroup(ctx, 99999999, staff.ID, "supervisor")
@@ -747,11 +764,12 @@ func TestActiveService_ClaimActiveGroup(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_CleanupAbandonedSessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("cleans up old sessions", func(t *testing.T) {
 		// ACT - cleanup sessions older than 24 hours
@@ -782,11 +800,12 @@ func uniqueName(prefix string) string {
 // =============================================================================
 
 func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("starts session with multiple supervisors", func(t *testing.T) {
 		// ARRANGE
@@ -795,7 +814,6 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, uniqueName("session-device"))
 		staff1 := testpkg.CreateTestStaff(t, db, "Session", "Supervisor1")
 		staff2 := testpkg.CreateTestStaff(t, db, "Session", "Supervisor2")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
 
 		roomID := room.ID
 
@@ -812,7 +830,6 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("empty-supervisors"))
 		device := testpkg.CreateTestDevice(t, db, uniqueName("empty-device"))
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID)
 
 		// ACT
 		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{}, nil)
@@ -826,7 +843,6 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 		// ARRANGE
 		activity := testpkg.CreateTestActivityGroup(t, db, uniqueName("bad-supervisor"))
 		device := testpkg.CreateTestDevice(t, db, uniqueName("bad-device"))
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID)
 
 		// ACT
 		result, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{99999999}, nil)
@@ -842,16 +858,16 @@ func TestActiveService_StartActivitySessionWithSupervisors(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ProcessSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
 		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-no-session"))
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID)
 
 		// ACT
 		result, err := service.ProcessSessionTimeout(ctx, device.ID)
@@ -867,7 +883,6 @@ func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Timeout Room"))
 		device := testpkg.CreateTestDevice(t, db, uniqueName("timeout-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Timeout", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -890,16 +905,16 @@ func TestActiveService_ProcessSessionTimeout(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ValidateSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-no-session"))
-		defer testpkg.CleanupActivityFixtures(t, db, iotDevice.ID)
 
 		// ACT
 		err := service.ValidateSessionTimeout(ctx, iotDevice.ID, 30)
@@ -914,7 +929,6 @@ func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Validate Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("validate-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Validate", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -933,16 +947,16 @@ func TestActiveService_ValidateSessionTimeout(t *testing.T) {
 }
 
 func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when device has no active session", func(t *testing.T) {
 		// ARRANGE
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-no-session"))
-		defer testpkg.CleanupActivityFixtures(t, db, iotDevice.ID)
 
 		// ACT
 		info, err := service.GetSessionTimeoutInfo(ctx, iotDevice.ID)
@@ -958,7 +972,6 @@ func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Info Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("info-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Info", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -982,11 +995,12 @@ func TestActiveService_GetSessionTimeoutInfo(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndDailySessions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ends daily sessions successfully", func(t *testing.T) {
 		// ACT
@@ -1003,11 +1017,12 @@ func TestActiveService_EndDailySessions(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_ForceStartActivitySession(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("force starts session for activity", func(t *testing.T) {
 		// ARRANGE
@@ -1015,7 +1030,6 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Force Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("force-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Force", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -1035,7 +1049,6 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Force Existing Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("force-existing-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Force", "Existing")
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -1059,11 +1072,12 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ends session and all active visits", func(t *testing.T) {
 		// ARRANGE
@@ -1073,7 +1087,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervisor")
 		student1 := testpkg.CreateTestStudent(t, db, "EndVisit", "Student1", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "EndVisit", "Student2", "1b")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID, student1.ID, student2.ID)
 
 		roomID := room.ID
 
@@ -1138,7 +1151,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("End No Visits Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("end-no-visits-device"))
 		staff := testpkg.CreateTestStaff(t, db, "EndNo", "Visits")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -1164,7 +1176,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, uniqueName("Already Ended Room"))
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("already-ended-device"))
 		staff := testpkg.CreateTestStaff(t, db, "Already", "Ended")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff.ID)
 
 		roomID := room.ID
 
@@ -1191,7 +1202,6 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, uniqueName("end-supervisors-device"))
 		staff1 := testpkg.CreateTestStaff(t, db, "Super1", "Visor1")
 		staff2 := testpkg.CreateTestStaff(t, db, "Super2", "Visor2")
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, iotDevice.ID, staff1.ID, staff2.ID)
 
 		roomID := room.ID
 
@@ -1230,11 +1240,12 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 // =============================================================================
 
 func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("ends multiple sessions with visits and supervisors", func(t *testing.T) {
 		// ARRANGE - Create multiple active sessions
@@ -1246,7 +1257,6 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		device2 := testpkg.CreateTestDevice(t, db, uniqueName("daily-device-2"))
 		staff := testpkg.CreateTestStaff(t, db, "Daily", "Staff")
 		student := testpkg.CreateTestStudent(t, db, "Daily", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room1.ID, room2.ID, device1.ID, device2.ID, staff.ID, student.ID)
 
 		roomID1 := room1.ID
 		roomID2 := room2.ID

@@ -41,6 +41,13 @@ const (
 	// per-student detail-cache invalidation.
 	EventBulkStudentCheckOut EventType = "bulk_student_checkout"
 
+	// Bulk check-in counterpart of EventBulkStudentCheckOut. Used when many
+	// visits become live at once (activity reopen restoring a snapshot) so
+	// clients get one location-cache invalidation instead of N student_checkin
+	// events. Same payload contract as the checkout batch: StudentIDs on
+	// group-scoped topics only, GroupIDs for OGS list scoping.
+	EventBulkStudentCheckIn EventType = "bulk_student_checkin"
+
 	// Activity session lifecycle events
 	EventActivityStart  EventType = "activity_start"
 	EventActivityEnd    EventType = "activity_end"
@@ -70,7 +77,10 @@ const (
 	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
 
 	// Tenant-wide refresh event — tells every client of the tenant to re-fetch
-	// dashboard counts. Broadcast via BroadcastToTenant (issue #2057; it was
+	// dashboard counts. Attendance/activity emitters also use this legacy wire
+	// type for their combined supervision refresh during rolling deploys; those
+	// events carry ActiveGroupID and Reason in addition to GroupIDs (#2115).
+	// Broadcast via BroadcastToTenant (issue #2057; it was
 	// BroadcastToAll before, which fanned every school's check-in traffic out to
 	// every OTHER school's clients). Carries GroupIDs (educational group ids,
 	// never student identity) when the emitting site knows them, so clients can
@@ -109,14 +119,16 @@ const (
 	// clients re-fetch their permission-scoped time-tracking views.
 	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
 
-	// Active supervision refresh event — tenant-wide signal that the active
-	// supervision view is stale regardless of whether the cause was IoT, NFC,
-	// timetable operations, or another lifecycle action.
+	// Active supervision refresh event — normally a tenant-wide signal that the
+	// active supervision view is stale regardless of whether the cause was IoT,
+	// NFC, timetable operations, or another lifecycle action. Attendance hot
+	// paths also send a group-scoped copy during rolling deploys so the previous
+	// frontend release keeps its timetable roster live (#2115).
 	//
 	// Carries NO child identity (#2085), for the same reason
 	// arrival_schedule_changed and pickup_schedule_changed are id-less: it
 	// reaches every staff client of the school, so a student id would let a
-	// colleague outside gdpr.student_data_scope = group_supervisors_only read
+	// client without student read access (guest/guardian, #2329) read
 	// off the raw SSE stream which child had just moved — the very thing the
 	// API responses redact for that person. It may carry the active_group_id,
 	// instance_id and a reason: room/session/instance scope, never who.
@@ -218,19 +230,18 @@ type Event struct {
 // event-specific GDPR contract and must not expose sensitive data.
 type EventData struct {
 	// Student-related fields (for check-in/check-out events)
-	StudentID   *string `json:"student_id,omitempty"`
-	StudentName *string `json:"student_name,omitempty"`
+	StudentID *string `json:"student_id,omitempty"`
 
-	// StudentIDs carries the affected students on a bulk_student_checkout event
-	// (whole-session end). The client adds each to its per-student
+	// StudentIDs carries the affected students on a bulk_student_checkout or
+	// bulk_student_checkin event. The client adds each to its per-student
 	// detail-cache invalidation set; the refetch itself is topic-driven.
 	StudentIDs *[]string `json:"student_ids,omitempty"`
 
 	// GroupIDs carries the affected educational (OGS) group ids on
-	// dashboard_counts_changed / student_checkin / student_checkout /
-	// bulk_student_checkout (#2057). Group ids only — NEVER student identity —
+	// active_supervision_changed / dashboard_counts_changed / student_checkin / student_checkout /
+	// bulk_student_checkout / bulk_student_checkin (#2057). Group ids only — NEVER student identity —
 	// so the tenant-wide dashboard_counts_changed stays GDPR-safe under
-	// gdpr.student_data_scope: it reveals "counts in group X changed", nothing
+	// student read access: it reveals "counts in group X changed", nothing
 	// about who. Clients scope their ogs-students-{gid} revalidation to these
 	// ids. Contract: absence of the field means "scope unknown → refresh
 	// broadly"; emitters MUST omit the field entirely (nil) instead of sending
@@ -267,7 +278,7 @@ type EventData struct {
 	// NOTE: ThreadID, StudentID, and Source (guardian account id) are all cleared
 	// for the staff fan-out by staffSafeParentMessage so an unauthorized staffer
 	// cannot observe which child/guardian — or which specific conversation — a
-	// thread concerns from raw SSE traffic (gdpr.student_data_scope =
+	// thread concerns from raw SSE traffic (student read access,
 	// group_supervisors_only). ThreadID is opaque, but a staffer who once opened a
 	// thread (or otherwise knows its URL) and later loses access to that child
 	// could still correlate future parent_message events to that conversation, so

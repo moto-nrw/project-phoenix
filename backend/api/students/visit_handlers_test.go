@@ -18,10 +18,11 @@ import (
 // =============================================================================
 
 func TestGetStudentCurrentLocation(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Location", "Test", "LT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_gets_student_location", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
@@ -40,11 +41,12 @@ func TestGetStudentCurrentLocation(t *testing.T) {
 }
 
 func TestGetStudentCurrentLocation_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_absent_for_student_without_visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Absent", "Student", "AB1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
 
@@ -61,10 +63,11 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentCurrentVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "Test", "VT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("error_when_no_current_visit", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
@@ -83,11 +86,12 @@ func TestGetStudentCurrentVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_null_when_no_visit", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
 
@@ -103,10 +107,11 @@ func TestGetStudentCurrentVisit_Extended(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentVisitHistory(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "History", "Test", "HT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_empty_history", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/visit-history", student.ID), nil)
@@ -124,10 +129,11 @@ func TestGetStudentVisitHistory(t *testing.T) {
 }
 
 func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Test", "DR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("with_start_date", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/visit-history?from=2024-01-01", student.ID), nil)
@@ -145,13 +151,14 @@ func TestGetStudentVisitHistory_WithDateRange(t *testing.T) {
 }
 
 func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create a student with an active visit to test visit history
 	student := testpkg.CreateTestStudent(t, tc.db, "Visit", "History", "VH1")
-	room := testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
-	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, room.ID, activityGroup.ID)
+	testpkg.CreateTestRoom(t, tc.db, "HistoryRoom")
+	testpkg.CreateTestActivityGroup(t, tc.db, "HistoryActivity")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/visit-history", student.ID), nil)
 
@@ -165,6 +172,8 @@ func TestGetStudentVisitHistory_WithVisits(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/invalid/in-group-room", nil)
@@ -174,6 +183,8 @@ func TestGetStudentInGroupRoom_InvalidStudentID(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/999999/in-group-room", nil)
@@ -183,10 +194,11 @@ func TestGetStudentInGroupRoom_NonexistentStudent(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "GroupRoom", "Test", "GR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -197,12 +209,13 @@ func TestGetStudentInGroupRoom_WithValidStudent(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_no_educational_group", func(t *testing.T) {
 		// Student without group assigned
 		student := testpkg.CreateTestStudent(t, tc.db, "NoEdGroup", "Student", "NEG1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -216,7 +229,6 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, tc.db, "NoRoomGroup")
 		student := testpkg.CreateTestStudent(t, tc.db, "NoRoom", "Student", "NR1")
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -232,12 +244,11 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoVisit", "Student", "NV1")
 
 		// Assign room to group using raw SQL to avoid BUN ORM syntax issues
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
 		testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -248,13 +259,14 @@ func TestGetStudentInGroupRoom_Extended(t *testing.T) {
 }
 
 func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher and group
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Room", "Auth")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "RoomAuthGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Room", "AuthStudent", "RA1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign teacher to group and student to group
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -269,16 +281,26 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code, "Teacher should access group room status. Body: %s", rr.Body.String())
 	})
 
-	t.Run("non_supervisor_forbidden", func(t *testing.T) {
-		// Create another teacher not supervising this group
-		otherTeacher, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, otherTeacher.ID)
+	t.Run("staff_outside_the_group_can_access", func(t *testing.T) {
+		// #2329: the room status is a read surface open to every staff member,
+		// supervision of the child's group no longer matters.
+		_, otherAccount := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Other", "Teacher")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(otherAccount.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		// Non-supervisor should be forbidden
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	})
+
+	t.Run("account_without_staff_record_forbidden", func(t *testing.T) {
+		// Guests and guardians hold users:read but no staff record in the tenant.
+		guest := testpkg.CreateTestAccount(t, tc.db, "group-room-guest@example.com")
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
+		claims := testutil.TeacherTestClaims(int(guest.ID))
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
+
 		testutil.AssertForbidden(t, rr)
 	})
 }
@@ -288,6 +310,8 @@ func TestGetStudentInGroupRoom_Authorization(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_in_group_room", func(t *testing.T) {
@@ -300,7 +324,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "checkin-device")
 
 		// Assign room to group
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", room.ID, group.ID)
 		require.NoError(t, err)
 
@@ -316,8 +340,6 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 
 		// Create visit to the active group
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -338,7 +360,7 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, tc.db, "diff-device")
 
 		// Assign group room to group
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx, "UPDATE education.groups SET room_id = ? WHERE id = ?", groupRoom.ID, group.ID)
 		require.NoError(t, err)
 
@@ -355,8 +377,6 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 		// Create visit to that different room
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
 
-		defer testpkg.CleanupActivityFixtures(t, tc.db, groupRoom.ID, visitRoom.ID, group.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
-
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -367,6 +387,8 @@ func TestGetStudentInGroupRoom_WithActiveVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("student_checked_in_with_room", func(t *testing.T) {
@@ -386,8 +408,6 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 
 		// Create visit
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
 
@@ -409,8 +429,6 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 		now := time.Now()
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now, nil)
 
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, device.ID)
-
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -430,8 +448,6 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 		checkOut := now.Add(-1 * time.Hour)
 		testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, now.Add(-2*time.Hour), &checkOut)
 
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, device.ID)
-
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
 
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -442,6 +458,8 @@ func TestGetStudentCurrentLocation_WithActiveVisit(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("returns_current_visit", func(t *testing.T) {
@@ -459,8 +477,6 @@ func TestGetStudentCurrentVisit_WithActiveVisit(t *testing.T) {
 		// Create active group and visit
 		activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 		testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now, nil)
-
-		defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, student.ID, activityGroup.ID, staff.ID, device.ID, activeGroup.ID)
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-visit", student.ID), nil)
 

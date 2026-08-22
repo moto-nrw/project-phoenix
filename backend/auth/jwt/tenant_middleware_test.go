@@ -12,6 +12,8 @@ import (
 )
 
 func TestTenantMiddleware_PopulatesContext(t *testing.T) {
+	t.Parallel()
+
 	// Create a handler that inspects the context values
 	var gotTenantID int64
 	var gotOrgID int64
@@ -45,6 +47,8 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 }
 
 func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		t.Fatal("handler should not be called when no claims present")
 	}))
@@ -58,6 +62,8 @@ func TestTenantMiddleware_NoClaims_Unauthorized(t *testing.T) {
 }
 
 func TestTenantMiddleware_ZeroTenantID_StillPasses(t *testing.T) {
+	t.Parallel()
+
 	// Old tokens without tenant_id should still be allowed through
 	// (the middleware sets 0, which is the default)
 	var gotTenantID int64
@@ -83,6 +89,8 @@ func TestTenantMiddleware_ZeroTenantID_StillPasses(t *testing.T) {
 }
 
 func TestTenantMiddleware_PlatformScope(t *testing.T) {
+	t.Parallel()
+
 	var gotIsPlatform bool
 
 	handler := jwtpkg.TenantMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

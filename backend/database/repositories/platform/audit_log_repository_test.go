@@ -1,28 +1,25 @@
 package platform_test
 
 import (
-	"context"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestOperatorAuditLogRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorAuditLogRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "audit@example.com", "Audit Operator")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	resourceID := int64(123)
 	entry := &platformModels.OperatorAuditLog{
@@ -45,27 +42,10 @@ func TestOperatorAuditLogRepository_Create(t *testing.T) {
 	assert.NotZero(t, entry.CreatedAt)
 
 	// Cleanup
-	defer cleanupTestAuditLog(t, db, entry.ID)
 
 	// Verify changes were stored
 	changes, err := entry.GetChanges()
 	require.NoError(t, err)
 	assert.Equal(t, "New Announcement", changes["title"])
 	assert.Equal(t, true, changes["active"])
-}
-
-func cleanupTestAuditLog(t *testing.T, db *bun.DB, logID int64) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewDelete().
-		Model((*platformModels.OperatorAuditLog)(nil)).
-		ModelTableExpr(`platform.operator_audit_log`).
-		Where("id = ?", logID).
-		Exec(ctx)
-	if err != nil {
-		t.Logf("cleanup audit log: %v", err)
-	}
 }

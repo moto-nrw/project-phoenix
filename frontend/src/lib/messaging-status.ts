@@ -10,14 +10,28 @@
  * compile until both are updated.
  */
 
+import { formatDate } from "~/lib/date-helpers";
+
 /** Who sent a message: the guardian, the OGS staff, or a system event. */
 type MessageSenderKind = "guardian" | "staff" | "system";
 
 /** A timeline entry kind: a plain message, a system event, or a request. */
 export type MessageKind = "message" | "event" | "request";
 
-/** The structured change-request types a guardian can submit. */
-type RequestType = "care_schedule";
+/**
+ * The structured change-request types a guardian can submit. `care_schedule` is
+ * the permanent weekly plan, `pickup_change` a single day's pickup time — two
+ * different promises to the parent, so they never share a label.
+ */
+type StructuredRequestType = "care_schedule" | "pickup_change";
+
+/** Every request_type token emitted on the shared message/event wire. */
+type WireRequestType =
+  | StructuredRequestType
+  | "master_data"
+  | "excused_absence"
+  | "sick_absence"
+  | "care_offering";
 
 /** The lifecycle status of a parent-OGS change request. */
 type RequestStatus = "offen" | "erledigt" | "abgelehnt" | "zurueckgezogen";
@@ -65,7 +79,7 @@ export interface ChatMessage {
   // older payload still renders as a bubble.
   readonly kind?: MessageKind;
   readonly event_type?: string;
-  readonly request_type?: RequestType;
+  readonly request_type?: WireRequestType;
   readonly request_status?: RequestStatus;
   // Deep-link reference to the underlying request row (e.g.
   // "users.student_data_change_requests" / "schedule.care_schedule_change_requests"
@@ -99,8 +113,9 @@ const PARENT_STATUS_I18N_KEYS: Record<RequestStatus, string> = {
   zurueckgezogen: "statusWithdrawn",
 };
 
-const PARENT_REQUEST_TYPE_I18N_KEYS: Record<RequestType, string> = {
+const PARENT_REQUEST_TYPE_I18N_KEYS: Record<StructuredRequestType, string> = {
   care_schedule: "requestTypeCareSchedule",
+  pickup_change: "requestTypePickupChange",
 };
 
 /** German label for the German-only staff portal. Unknown → "Offen". */
@@ -128,47 +143,26 @@ export function parentRequestStatusI18nKey(status?: string): string {
  */
 export function parentRequestTypeI18nKey(requestType?: string): string {
   return (
-    PARENT_REQUEST_TYPE_I18N_KEYS[requestType as RequestType] ??
+    PARENT_REQUEST_TYPE_I18N_KEYS[requestType as StructuredRequestType] ??
     "requestTitleFallback"
   );
 }
 
-/**
- * next-intl keys (parentOgsMessaging namespace) for a care-schedule diff entry's
- * label on the localized parents portal, keyed by the backend's `care_kind`
- * discriminator so the German `label` is never shown to a non-German guardian.
- * Care-schedule rows compose a weekday key (`diffWeekday{1..5}`) with one of these.
- */
-export const PARENT_DIFF_CARE_KIND_I18N_KEYS: Record<string, string> = {
-  arrival: "diffCareArrival",
-  pickup: "diffCarePickup",
-  departure_mode: "diffCareDepartureMode",
-};
-
-/**
- * next-intl keys (parentOgsMessaging namespace) for a departure-mode value on a
- * departure_mode diff row, keyed by the backend's raw mode key (`old_modes` /
- * `new_mode`) so the German `old`/`new` strings are never shown to a non-German
- * guardian. Unknown keys → fall back to the raw German `old`/`new`.
- */
-export const PARENT_DEPARTURE_MODE_I18N_KEYS: Record<string, string> = {
-  alone: "diffModeAlone",
-  bus: "diffModeBus",
-  pickup: "diffModePickup",
-  accompanied: "diffModeAccompanied",
-};
-
 const PARENT_REQUEST_CREATED_I18N_KEYS: Readonly<Record<string, string>> = {
   care_schedule: "eventRequestCreatedCareSchedule",
+  pickup_change: "eventRequestCreatedPickupChange",
   master_data: "eventRequestCreatedMasterData",
   excused_absence: "eventRequestCreatedExcusedAbsence",
+  sick_absence: "eventRequestCreatedSickAbsence",
   care_offering: "eventRequestCreatedCareOffering",
 };
 
 const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
   care_schedule: "eventRequestConfirmedCareSchedule",
+  pickup_change: "eventRequestConfirmedPickupChange",
   master_data: "eventRequestConfirmedMasterData",
   excused_absence: "eventRequestConfirmedExcusedAbsence",
+  sick_absence: "eventRequestConfirmedSickAbsence",
   care_offering: "eventRequestConfirmedCareOffering",
 };
 
@@ -181,13 +175,17 @@ const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
  * localize from fields — the caller then falls back to the raw German body
  * (matching the previous behavior for unknown events).
  */
-export function parentEventI18nDescriptor(message: {
-  readonly kind?: MessageKind;
-  readonly event_type?: string;
-  readonly request_status?: string;
-  readonly request_type?: string;
-  readonly decision_reason?: string;
-}): { key: string; values?: { reason: string } } | null {
+export function parentEventI18nDescriptor(
+  message: {
+    readonly kind?: MessageKind;
+    readonly event_type?: string;
+    readonly request_status?: string;
+    readonly request_type?: string;
+    readonly decision_reason?: string;
+    readonly payload?: Record<string, unknown>;
+  },
+  locale = "de-DE",
+): { key: string; values?: Record<string, string> } | null {
   if (message.kind !== "event") {
     return null;
   }
@@ -209,6 +207,20 @@ export function parentEventI18nDescriptor(message: {
   }
   switch (message.request_status) {
     case "erledigt": {
+      // Eine bestätigte Angebots-Änderung gilt ab einem Tag, den die OGS
+      // festlegt (#2484). Steht er im Payload, nennt die Meldung ihn — die
+      // Frage „ab wann?" ist die, die als nächstes gestellt wird.
+      const effectiveFrom = message.payload?.effective_from;
+      if (
+        message.request_type === "care_offering" &&
+        typeof effectiveFrom === "string" &&
+        effectiveFrom !== ""
+      ) {
+        return {
+          key: "eventRequestConfirmedCareOfferingDated",
+          values: { date: formatDate(effectiveFrom, false, locale) },
+        };
+      }
       const key = message.request_type
         ? PARENT_REQUEST_CONFIRMED_I18N_KEYS[message.request_type]
         : undefined;
@@ -247,22 +259,30 @@ export function parentEventI18nDescriptor(message: {
  * abgelehnt") rather than appending a German sentence; the full conversation
  * still renders the reason.
  */
-export function parentThreadPreviewI18nDescriptor(thread: {
-  readonly last_message_kind?: string;
-  readonly last_event_type?: string;
-  readonly last_request_type?: string;
-  readonly last_request_status?: string;
-}): { key: string; values?: { reason: string } } | null {
+export function parentThreadPreviewI18nDescriptor(
+  thread: {
+    readonly last_message_kind?: string;
+    readonly last_event_type?: string;
+    readonly last_request_type?: string;
+    readonly last_request_status?: string;
+    readonly last_message_payload?: Record<string, unknown>;
+  },
+  locale = "de-DE",
+): { key: string; values?: Record<string, string> } | null {
   if (thread.last_message_kind === "request") {
     return { key: parentRequestTypeI18nKey(thread.last_request_type) };
   }
   if (thread.last_message_kind === "event") {
-    return parentEventI18nDescriptor({
-      kind: "event",
-      event_type: thread.last_event_type,
-      request_status: thread.last_request_status,
-      request_type: thread.last_request_type,
-    });
+    return parentEventI18nDescriptor(
+      {
+        kind: "event",
+        event_type: thread.last_event_type,
+        request_status: thread.last_request_status,
+        request_type: thread.last_request_type,
+        payload: thread.last_message_payload,
+      },
+      locale,
+    );
   }
   return null;
 }

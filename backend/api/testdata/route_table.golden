@@ -10,6 +10,7 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/calendar/appointments/{appointmentId}
+DELETE /api/class-list-entries/{id}
 DELETE /api/display/{id}/
 DELETE /api/enrollment/admin/requests/{id}/
 DELETE /api/enrollment/admin/requests/{id}/children/{childId}
@@ -49,6 +50,7 @@ DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
 DELETE /api/students/{id}/documents/{documentId}
+DELETE /api/students/{id}/partial-absences/{partialAbsenceId}
 DELETE /api/students/{id}/photo
 DELETE /api/students/{id}/pickup-exceptions/{exceptionId}
 DELETE /api/students/{id}/pickup-notes/{noteId}
@@ -97,6 +99,7 @@ DELETE /operator/suggestions/{id}
 DELETE /operator/suggestions/{id}/comments/{commentId}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
+DELETE /parent/me/children/{studentId}/pickup-change-requests/{requestId}
 DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
 DELETE /parent/me/feedback/{postId}
 DELETE /parent/me/feedback/{postId}/comments/{commentId}
@@ -104,6 +107,7 @@ DELETE /parent/me/feedback/{postId}/vote
 DELETE /parent/me/notification-preferences/
 DELETE /parent/me/push/subscriptions
 GET /
+GET /api/absence-types/
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
 GET /api/active/combined/active
@@ -121,6 +125,7 @@ GET /api/active/groups/{id}/visits/display
 GET /api/active/mappings/combined/{combinedId}
 GET /api/active/mappings/group/{groupId}
 GET /api/active/schulhof/status
+GET /api/active/supervision-dashboard
 GET /api/active/supervisors/
 GET /api/active/supervisors/all
 GET /api/active/supervisors/group/{groupId}
@@ -159,10 +164,13 @@ GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-day/
 GET /api/class-day/classes
+GET /api/class-list-entries/
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
 GET /api/enrollment/admin/change-requests/
+GET /api/enrollment/admin/change-requests/list
+GET /api/enrollment/admin/change-requests/pending-count
 GET /api/enrollment/admin/change-requests/{id}/
 GET /api/enrollment/admin/reports/care-usage
 GET /api/enrollment/admin/requests/
@@ -173,6 +181,7 @@ GET /api/enrollment/admin/requests/{id}/delete-impact
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
+GET /api/enrollment/care-offerings/booking-stats
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
@@ -185,6 +194,7 @@ GET /api/enrollment/phases/{id}/
 GET /api/enrollment/phases/{id}/delete-impact
 GET /api/enrollment/phases/{id}/manual-bootstrap
 GET /api/enrollment/phases/{id}/review
+GET /api/enrollment/phases/{id}/rollover-preview
 GET /api/enrollment/requests/{statusToken}
 GET /api/enrollment/requests/{statusToken}/change-requests
 GET /api/enrollment/requests/{statusToken}/edit-bootstrap
@@ -216,6 +226,7 @@ GET /api/guardians/{id}
 GET /api/guardians/{id}/delete-preview
 GET /api/guardians/{id}/phone-numbers/
 GET /api/guardians/{id}/students
+GET /api/import/class-list-entries/template
 GET /api/import/opening-balances/template
 GET /api/import/students/template
 GET /api/import/teachers/template
@@ -247,6 +258,7 @@ GET /api/me/groups/activity
 GET /api/me/groups/supervised
 GET /api/me/groups/{groupID}/students
 GET /api/me/groups/{groupID}/visits
+GET /api/me/navigation
 GET /api/me/profile
 GET /api/me/profile/avatar/{filename}
 GET /api/me/staff
@@ -299,6 +311,7 @@ GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
 GET /api/staff/
 GET /api/staff/absences/pending
+GET /api/staff/absences/requests
 GET /api/staff/available
 GET /api/staff/available-for-substitution
 GET /api/staff/by-role
@@ -332,15 +345,13 @@ GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
-GET /api/students/care-schedule-change-requests
+GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
 GET /api/students/day-log
 GET /api/students/day-log/export
-GET /api/students/excused-absence-requests
-GET /api/students/master-data-change-requests
-GET /api/students/offering-change-requests
 GET /api/students/ogs-group-live
 GET /api/students/school-classes
+GET /api/students/status-days
 GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
@@ -354,6 +365,7 @@ GET /api/students/{id}/documents
 GET /api/students/{id}/documents/{documentId}/download
 GET /api/students/{id}/enrollment-extra-fields
 GET /api/students/{id}/in-group-room
+GET /api/students/{id}/partial-absences
 GET /api/students/{id}/photo/{filename}
 GET /api/students/{id}/pickup-schedules
 GET /api/students/{id}/privacy-consent
@@ -389,10 +401,12 @@ GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
+GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
 GET /api/timetable/operations/active-groups/{id}/roster
+GET /api/timetable/operations/active-sessions
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster
 GET /api/timetable/operations/planned-now
@@ -464,6 +478,7 @@ GET /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
 GET /operator/schools/{id}/persons
+GET /operator/schools/{id}/pwa-usage
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats
@@ -490,8 +505,10 @@ GET /parent/me/children/{studentId}/guardians
 GET /parent/me/children/{studentId}/master-data
 GET /parent/me/children/{studentId}/master-data/requests
 GET /parent/me/children/{studentId}/meal-plan
+GET /parent/me/children/{studentId}/pickup-change-requests
 GET /parent/me/children/{studentId}/related-accounts
 GET /parent/me/children/{studentId}/sick-note
+GET /parent/me/children/{studentId}/today
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
 GET /parent/me/feedback
@@ -524,6 +541,7 @@ PATCH /api/timetable/instances/{instance_id}/students/{student_id}
 PATCH /api/timetable/operations/instances/{id}/students/{student_id}/attendance
 PATCH /internal/metrics
 PATCH /parent/me/children/{studentId}/master-data/{target}/{field}
+POST /api/absence-types/
 POST /api/active/combined/
 POST /api/active/combined/{id}/end
 POST /api/active/groups/
@@ -556,6 +574,8 @@ POST /api/calendar/appointments
 POST /api/calendar/appointments/{appointmentId}/cancel
 POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
 POST /api/calendar/recipients/{recipientId}/response
+POST /api/class-list-entries/
+POST /api/class-list-entries/{id}/assign
 POST /api/display/
 POST /api/display/{id}/regenerate
 POST /api/emergency/snapshot/export
@@ -595,6 +615,8 @@ POST /api/guardians/students/{studentId}/invite
 POST /api/guardians/{id}/invite
 POST /api/guardians/{id}/phone-numbers/
 POST /api/guardians/{id}/phone-numbers/{phoneId}/set-primary
+POST /api/import/class-list-entries/import
+POST /api/import/class-list-entries/preview
 POST /api/import/opening-balances/import
 POST /api/import/opening-balances/preview
 POST /api/import/students/import
@@ -631,6 +653,7 @@ POST /api/parent-announcements/{announcementId}/remind
 POST /api/parent-announcements/{announcementId}/unpublish
 POST /api/platform/announcements/{id}/dismiss
 POST /api/platform/announcements/{id}/seen
+POST /api/pwa/usage
 POST /api/rooms/
 POST /api/rooms/export
 POST /api/schedules/check-conflict
@@ -668,15 +691,19 @@ POST /api/students/excused-absence-requests/{requestId}/decide
 POST /api/students/export
 POST /api/students/master-data-change-requests/{requestId}/decide
 POST /api/students/offering-change-requests/{requestId}/decide
+POST /api/students/offering-change-requests/{requestId}/preview
 POST /api/students/pickup-schedules/bulk
 POST /api/students/pickup-times/bulk
+POST /api/students/school-checkin/batch
 POST /api/students/status-days/bulk
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/documents
+POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
+POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
@@ -703,12 +730,14 @@ POST /api/timetable/instances/{id}/complete
 POST /api/timetable/instances/{id}/convert-to-series
 POST /api/timetable/instances/{id}/deviations
 POST /api/timetable/instances/{id}/move-staff
+POST /api/timetable/instances/{id}/reopen
 POST /api/timetable/instances/{id}/start
 POST /api/timetable/lists/export
 POST /api/timetable/lists/options
 POST /api/timetable/lists/preview
 POST /api/timetable/materialize
 POST /api/timetable/operations/instances/{id}/complete
+POST /api/timetable/operations/instances/{id}/reopen
 POST /api/timetable/operations/instances/{id}/start
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-in
 POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
@@ -718,6 +747,7 @@ POST /api/timetable/periods/bootstrap
 POST /api/timetable/planning-tracks/
 POST /api/timetable/planning-tracks/{id}/restore
 POST /api/timetable/shift-coverage
+POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
 POST /api/timetable/templates/{id}/split
@@ -802,6 +832,7 @@ POST /parent/me/children/{studentId}/care-offerings/requests
 POST /parent/me/children/{studentId}/care-offerings/requests/{requestId}/withdraw
 POST /parent/me/children/{studentId}/care-schedule/requests
 POST /parent/me/children/{studentId}/care-schedule/requests/{requestId}/withdraw
+POST /parent/me/children/{studentId}/guardians
 POST /parent/me/children/{studentId}/master-data/requests
 POST /parent/me/children/{studentId}/related-accounts
 POST /parent/me/children/{studentId}/sick-note
@@ -814,12 +845,14 @@ POST /parent/me/news/{announcementId}/acknowledge
 POST /parent/me/news/{announcementId}/read
 POST /parent/me/news/{announcementId}/respond
 POST /parent/me/push/subscriptions
+POST /parent/me/pwa-usage
 POST /school/auth/login
 POST /school/auth/mfa/enroll/confirm
 POST /school/auth/mfa/enroll/start
 POST /school/auth/mfa/resend
 POST /school/auth/mfa/verify
 POST /school/auth/switch-school
+PUT /api/absence-types/{id}
 PUT /api/active/combined/{id}
 PUT /api/active/groups/{id}
 PUT /api/active/supervisors/{id}
@@ -832,6 +865,7 @@ PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
 PUT /api/birthdays/opt-out
 PUT /api/calendar/appointments/{appointmentId}
+PUT /api/class-list-entries/{id}
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/
@@ -874,6 +908,7 @@ PUT /api/students/{id}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
+PUT /api/students/{id}/partial-absences/{partialAbsenceId}
 PUT /api/students/{id}/pickup-exceptions/{exceptionId}
 PUT /api/students/{id}/pickup-notes/{noteId}
 PUT /api/students/{id}/pickup-schedules

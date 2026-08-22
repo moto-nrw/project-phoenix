@@ -1141,6 +1141,18 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 		query = options.ApplyToQuery(query)
 	}
 
+	// Without an ORDER BY, PostgreSQL is free to return the same rows in a
+	// different order for every execution, so two LIMIT/OFFSET requests over the
+	// same selection can hand back the same child twice and never mention
+	// another one at all (#2218 review). Anything walking this list page by page
+	// — the Kindersuche does, once a selection exceeds one page — depends on a
+	// total order, so fall back to the primary key when the caller did not ask
+	// for a specific one. An explicit Sorting wins: it is then the caller's job
+	// to make it total.
+	if options == nil || options.Sorting == nil {
+		query = query.OrderExpr(`"student".id ASC`)
+	}
+
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -1598,6 +1610,44 @@ func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noW
 	return student, nil
 }
 
+// FindByIDsForUpdate fetches and locks the given student rows in one
+// SELECT … ORDER BY id FOR UPDATE. Ascending id order is the project-wide
+// student lock convention (see FindByIDForUpdateNoWait), so overlapping
+// batch callers serialize on their first shared row instead of deadlocking.
+// The class-writes shared gate is taken once for the whole batch, exactly
+// like the single-row lock does per row. Unknown or foreign ids are simply
+// absent from the returned map — callers re-validate per id.
+func (r *StudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	result := make(map[int64]*users.Student, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	if err := r.lockClassWritesShared(ctx); err != nil {
+		return nil, err
+	}
+
+	var students []*users.Student
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&students).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Where(`"student".id IN (?)`, bun.List(ids)).
+		OrderExpr(`"student".id ASC`).
+		For("UPDATE")
+
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find_by_ids_for_update", Err: err}
+	}
+	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		result[student.ID] = student
+	}
+	return result, nil
+}
+
 // applyCompanionLinkDays fills the non-persisted Student.DepartureCompanionDays
 // from users.student_companions, so Student.Validate() accepts an accompanied
 // weekday whose "mit wem" is answered by a link on THAT day instead of the
@@ -1725,7 +1775,11 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 	return urls, nil
 }
 
-// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection)
+// FindByNameAndClass retrieves students by first name, last name, and school
+// class (for import duplicate detection). Matching is case-insensitive and
+// trims BOTH sides: a stored name with surrounding whitespace must not slip
+// past the class-list duplicate guards (mirror of
+// ClassListEntryRepository.FindByNameAndClass).
 //
 // Alumni are excluded, matching the soft-delete default in List: graduation
 // keeps the student row around, and a graduate must not block the import of a
@@ -1738,9 +1792,9 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Model(&students).
 		ModelTableExpr(`users.students AS "student"`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`LOWER("person".first_name) = LOWER(?)`, firstName).
-		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
-		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass).
+		Where(`LOWER(BTRIM("person".first_name)) = LOWER(BTRIM(?))`, firstName).
+		Where(`LOWER(BTRIM("person".last_name)) = LOWER(BTRIM(?))`, lastName).
+		Where(`LOWER(BTRIM("student".school_class)) = LOWER(BTRIM(?))`, schoolClass).
 		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	query = base.WithTenantFilter(ctx, query, "student")

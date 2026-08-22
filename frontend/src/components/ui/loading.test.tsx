@@ -15,11 +15,11 @@ describe("Loading", () => {
     expect(screen.getByLabelText("Loading data...")).toBeInTheDocument();
   });
 
-  it("renders screen reader only message", () => {
+  it("renders a visible status message", () => {
     render(<Loading message="Please wait" />);
 
     expect(screen.getByText("Please wait")).toBeInTheDocument();
-    expect(screen.getByText("Please wait")).toHaveClass("sr-only");
+    expect(screen.getByText("Please wait")).not.toHaveClass("sr-only");
   });
 
   it("renders with fullPage styles by default", () => {
@@ -37,15 +37,14 @@ describe("Loading", () => {
     const output = screen.getByLabelText("Lädt...");
     expect(output.className).not.toContain("fixed");
     expect(output.className).toContain("flex");
-    expect(output.className).toContain("pt-24");
+    expect(output.className).toContain("min-h-40");
   });
 
-  it("renders skeleton elements", () => {
+  it("uses a neutral progress indicator when the future layout is unknown", () => {
     const { container } = render(<Loading />);
 
-    // Check that skeleton elements are rendered
-    const skeletons = container.querySelectorAll(".animate-pulse");
-    expect(skeletons.length).toBeGreaterThan(0);
+    expect(container.querySelector(".animate-pulse")).not.toBeInTheDocument();
+    expect(container.querySelector(".animate-spin")).toBeInTheDocument();
   });
 
   it("has proper aria-live attribute for accessibility", () => {
@@ -53,5 +52,6 @@ describe("Loading", () => {
 
     const output = screen.getByLabelText("Lädt...");
     expect(output).toHaveAttribute("aria-live", "polite");
+    expect(output).toHaveAttribute("aria-busy", "true");
   });
 });

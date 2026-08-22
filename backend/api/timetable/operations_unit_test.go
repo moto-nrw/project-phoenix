@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -36,13 +37,15 @@ import (
 )
 
 func TestOperationsPlannedNow(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		planned: []scheduleSvc.OperationPlannedInstance{{ID: 220, Title: "Lernzeit"}},
 	}
 	res := NewResource(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
 
-	rr := executeOperationRequest(router, http.MethodGet, "/planned-now?date=2026-05-10", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/planned-now?date=2026-05-10", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int64(120), service.lastAccountID)
@@ -50,12 +53,17 @@ func TestOperationsPlannedNow(t *testing.T) {
 	assert.Equal(t, "2026-05-10", service.lastDate.Format(dateLayout))
 	assert.Contains(t, rr.Body.String(), `"instances"`)
 
-	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=480&limit=5&include_roster=true", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?horizon_minutes=480&limit=5&include_roster=true", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, 480, service.lastPlannedOptions.HorizonMinutes)
 	assert.Equal(t, 5, service.lastPlannedOptions.Limit)
 	assert.True(t, service.lastPlannedOptions.IncludeRoster)
+
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?scope=past", nil)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, scheduleSvc.PlannedNowScopePast, service.lastPlannedOptions.Scope)
 }
 
 func testWorkdayNow() time.Time {
@@ -63,24 +71,34 @@ func testWorkdayNow() time.Time {
 }
 
 func TestOperationsPlannedNowValidationAndWiring(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{})
 	router := operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
-	rr := executeOperationRequest(router, http.MethodGet, "/planned-now", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/planned-now", nil)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
 	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
 	router = operationRouter(http.MethodGet, "/planned-now", res.operationsPlannedNow)
-	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?date=bad", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?date=bad", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?horizon_minutes=-1", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?horizon_minutes=-1", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	rr = executeOperationRequest(router, http.MethodGet, "/planned-now?include_roster=maybe", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?include_roster=maybe", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?scope=future", nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	rr = executeOperationRequest(t, router, http.MethodGet, "/planned-now?scope=past&date=2000-01-01", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestOperationsInstanceEndpoints(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 230}},
 		start: &scheduleSvc.StartInstanceResult{
@@ -98,17 +116,18 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 		method string
 		path   string
 		fn     http.HandlerFunc
+		body   any
 	}{
-		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster},
-		{"start", http.MethodPost, "/instances/231/start", res.operationsStart},
-		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete},
+		{"roster", http.MethodGet, "/instances/230/roster", res.operationsRoster, nil},
+		{"start", http.MethodPost, "/instances/231/start", res.operationsStart, nil},
+		{"complete", http.MethodPost, "/instances/232/complete", res.operationsComplete, map[string]any{"confirmed_present_student_ids": []int64{}}},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			router := operationRouter(tc.method, "/instances/{id}/"+lastPathSegment(tc.path), tc.fn)
 
-			rr := executeOperationRequest(router, tc.method, tc.path, nil)
+			rr := executeOperationRequest(t, router, tc.method, tc.path, tc.body)
 
 			assert.Equal(t, http.StatusOK, rr.Code)
 		})
@@ -116,7 +135,51 @@ func TestOperationsInstanceEndpoints(t *testing.T) {
 	assert.Equal(t, int64(232), service.lastInstanceID)
 }
 
+func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
+	t.Parallel()
+
+	started := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
+	started.ID = 231
+	service := &fakeOperationsService{
+		start: &scheduleSvc.StartInstanceResult{
+			Instance:      started,
+			ActiveGroupID: 341,
+		},
+	}
+	res := NewResource(Dependencies{OperationsService: service})
+	router := operationRouter(http.MethodPost, "/instances/{id}/reopen", res.operationsReopen)
+
+	cases := []struct {
+		name        string
+		isAdmin     bool
+		permissions []string
+		wantAdmin   bool
+	}{
+		{name: "wildcard admin without admin role", permissions: []string{"admin:*"}, wantAdmin: true},
+		{name: "full-access wildcard", permissions: []string{"*:*"}, wantAdmin: true},
+		{name: "literal admin role", isAdmin: true, permissions: []string{"schedules:manage"}, wantAdmin: true},
+		{name: "ordinary staff", permissions: []string{"schedules:manage"}, wantAdmin: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			service.lastIsAdmin = false
+			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
+			testutil.WithClaims(t, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
+			testutil.WithPermissions(tc.permissions...)(req)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+			assert.Equal(t, int64(120), service.lastAccountID)
+			assert.Equal(t, tc.wantAdmin, service.lastIsAdmin)
+		})
+	}
+}
+
 func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 241
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -157,7 +220,7 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 	roomID := int64(70)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":             "Freispiel",
 		"room_id":           roomID,
 		"activity_group_id": int64(71),
@@ -178,8 +241,9 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	guardianRepo := repositories.NewFactory(db).GuardianProfile
 	email := fmt.Sprintf("spontaneous-start-rollback-%d@test.local", time.Now().UnixNano())
@@ -192,7 +256,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	t.Cleanup(func() {
 		if probe.ID > 0 {
-			_ = guardianRepo.Delete(testpkg.TenantContext(1), probe.ID)
+			_ = guardianRepo.Delete(testpkg.Ctx(t), probe.ID)
 		}
 	})
 
@@ -235,7 +299,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(tenant.WithTenantID(r.Context(), 1)))
+			next.ServeHTTP(w, r.WithContext(tenant.WithTenantID(r.Context(), testpkg.Tenant(t))))
 		})
 	})
 	router.Use(tenant.TenantTxMiddleware(db))
@@ -250,7 +314,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	execute := func() *httptest.ResponseRecorder {
 		req := httptest.NewRequest(http.MethodPost, "/spontaneous/start", bytes.NewReader(body))
 		req.Header.Set("Content-Type", "application/json")
-		testutil.WithClaims(testutil.AdminTestClaims(120))(req)
+		testutil.WithClaims(t, testutil.AdminTestClaims(120))(req)
 		rr := httptest.NewRecorder()
 		router.ServeHTTP(rr, req)
 		return rr
@@ -259,7 +323,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	rr := execute()
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
-	_, err = guardianRepo.FindByID(testpkg.TenantContext(1), probe.ID)
+	_, err = guardianRepo.FindByID(testpkg.Ctx(t), probe.ID)
 	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound,
 		"a non-5xx start failure must roll back writes made before Start")
 
@@ -273,7 +337,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	}
 	t.Cleanup(func() {
 		if createProbe.ID > 0 {
-			_ = guardianRepo.Delete(testpkg.TenantContext(1), createProbe.ID)
+			_ = guardianRepo.Delete(testpkg.Ctx(t), createProbe.ID)
 		}
 	})
 	// Create now fails non-5xx before Start is reached; the wrapping in
@@ -287,7 +351,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 	rr = execute()
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	_, err = guardianRepo.FindByID(testpkg.TenantContext(1), createProbe.ID)
+	_, err = guardianRepo.FindByID(testpkg.Ctx(t), createProbe.ID)
 	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound,
 		"a non-5xx create failure must roll back activity resolution writes")
 }
@@ -302,6 +366,8 @@ func (s *rollbackProbeInstanceService) Create(ctx context.Context, req scheduleS
 }
 
 func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 242
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -338,7 +404,7 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "freispiel",
 		"room_id": int64(70),
 	})
@@ -352,6 +418,8 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing.T) {
+	t.Parallel()
+
 	createdInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusPlanned}
 	createdInstance.ID = 243
 	startedInstance := &schedule.ActivityInstance{Status: schedule.InstanceStatusActive}
@@ -386,7 +454,7 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "Neue Werkstatt",
 		"room_id": int64(70),
 	})
@@ -404,6 +472,8 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T) {
+	t.Parallel()
+
 	archivedAt := time.Now()
 	categoryRepo := &fakeOperationActivityCategoryRepo{
 		findByNameResult: &activityModels.Category{
@@ -437,7 +507,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "Neue Werkstatt",
 		"room_id": int64(70),
 	})
@@ -449,6 +519,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsArchivedCategory(t *testing.T
 }
 
 func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
+	t.Parallel()
+
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 7, 5, 44, 0, time.UTC))
 
 	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
@@ -457,6 +529,8 @@ func TestServerSpontaneousActivityWindowUsesBerlinServerTime(t *testing.T) {
 }
 
 func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
+	t.Parallel()
+
 	window := serverSpontaneousActivityWindow(time.Date(2026, 5, 12, 21, 45, 0, 0, time.UTC))
 
 	assert.Equal(t, "2026-05-12", window.date.Format(dateLayout))
@@ -465,6 +539,8 @@ func TestServerSpontaneousActivityWindowCapsLateWindowSameDay(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		InstanceService:   &mockInstanceService{},
@@ -477,7 +553,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"date":        "2026-05-11",
 		"start_time":  "14:00",
 		"end_time":    "15:00",
@@ -490,6 +566,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsStudents(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
+	t.Parallel()
+
 	const roomID int64 = 7
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
@@ -503,7 +581,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 	})
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"title":   "Freispiel",
 		"room_id": roomID,
 	})
@@ -513,6 +591,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsWeekend(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		InstanceService:   &mockInstanceService{},
@@ -526,7 +606,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"date":       "2026-05-11",
 		"start_time": "14:00",
 		"end_time":   "15:00",
@@ -539,6 +619,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsOccupiedRoom(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -552,7 +634,7 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"date":       "2026-05-11",
 		"start_time": "14:00",
 		"end_time":   "15:00",
@@ -565,6 +647,8 @@ func TestOperationsCreateAndStartSpontaneousRequiresSetting(t *testing.T) {
 }
 
 func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{}
 	res := NewResource(Dependencies{
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
@@ -579,7 +663,7 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 	res.Now = testWorkdayNow
 	router := operationRouter(http.MethodPost, "/spontaneous/start", res.operationsCreateAndStartSpontaneous)
 
-	rr := executeOperationRequest(router, http.MethodPost, "/spontaneous/start", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPost, "/spontaneous/start", map[string]any{
 		"date":       "2026-05-11",
 		"start_time": "14:00",
 		"end_time":   "15:00",
@@ -592,6 +676,8 @@ func TestOperationsCreateAndStartSpontaneousRejectsFixedScheduleCareConcept(t *t
 }
 
 func TestOperationsCapabilities(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -601,13 +687,15 @@ func TestOperationsCapabilities(t *testing.T) {
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
 
-	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/capabilities", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
 }
 
 func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -617,13 +705,15 @@ func TestOperationsCapabilitiesDefaultsToEnabled(t *testing.T) {
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
 
-	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/capabilities", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":true`)
 }
 
 func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
 		SettingsService: &fakeOperationSettingsService{
@@ -634,52 +724,56 @@ func TestOperationsCapabilitiesDisabledForFixedScheduleCareConcept(t *testing.T)
 	})
 	router := operationRouter(http.MethodGet, "/capabilities", res.operationsCapabilities)
 
-	rr := executeOperationRequest(router, http.MethodGet, "/capabilities", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/capabilities", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Contains(t, rr.Body.String(), `"web_spontaneous_activities_enabled":false`)
 }
 
 func TestOperationsRosterByActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 240}},
 	}
 	res := NewResource(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodGet, "/active-groups/{id}/roster", res.operationsRosterByActiveGroup)
 
-	rr := executeOperationRequest(router, http.MethodGet, "/active-groups/340/roster", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/active-groups/340/roster", nil)
 
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int64(340), service.lastActiveGroupID)
 
 	nilRes := NewResource(Dependencies{})
 	nilRouter := operationRouter(http.MethodGet, "/active-groups/{id}/roster", nilRes.operationsRosterByActiveGroup)
-	rr = executeOperationRequest(nilRouter, http.MethodGet, "/active-groups/340/roster", nil)
+	rr = executeOperationRequest(t, nilRouter, http.MethodGet, "/active-groups/340/roster", nil)
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
-	rr = executeOperationRequest(router, http.MethodGet, "/active-groups/nope/roster", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/active-groups/nope/roster", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
 func TestOperationsStudentEndpoints(t *testing.T) {
+	t.Parallel()
+
 	service := &fakeOperationsService{
 		roster: &scheduleSvc.OperationRoster{Instance: scheduleSvc.OperationRosterInstance{ID: 250}},
 	}
 	res := NewResource(Dependencies{OperationsService: service})
 
 	checkInRouter := operationRouter(http.MethodPost, "/instances/{id}/students/{student_id}/check-in", res.operationsCheckInStudent)
-	rr := executeOperationRequest(checkInRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
+	rr := executeOperationRequest(t, checkInRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int64(250), service.lastInstanceID)
 	assert.Equal(t, int64(350), service.lastStudentID)
 
 	checkOutRouter := operationRouter(http.MethodPost, "/instances/{id}/students/{student_id}/check-out", res.operationsCheckOutStudent)
-	rr = executeOperationRequest(checkOutRouter, http.MethodPost, "/instances/251/students/351/check-out", nil)
+	rr = executeOperationRequest(t, checkOutRouter, http.MethodPost, "/instances/251/students/351/check-out", nil)
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int64(251), service.lastInstanceID)
 	assert.Equal(t, int64(351), service.lastStudentID)
 
-	rr = executeOperationRequest(checkInRouter, http.MethodPost, "/instances/bad/students/350/check-in", nil)
+	rr = executeOperationRequest(t, checkInRouter, http.MethodPost, "/instances/bad/students/350/check-in", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	errorRouter := operationRouter(
@@ -687,7 +781,7 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 		"/instances/{id}/students/{student_id}/check-in",
 		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationConflict}}).operationsCheckInStudent,
 	)
-	rr = executeOperationRequest(errorRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
+	rr = executeOperationRequest(t, errorRouter, http.MethodPost, "/instances/250/students/350/check-in", nil)
 	assert.Equal(t, http.StatusConflict, rr.Code)
 
 	errorRouter = operationRouter(
@@ -695,11 +789,13 @@ func TestOperationsStudentEndpoints(t *testing.T) {
 		"/instances/{id}/students/{student_id}/check-out",
 		NewResource(Dependencies{OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationNotFound}}).operationsCheckOutStudent,
 	)
-	rr = executeOperationRequest(errorRouter, http.MethodPost, "/instances/250/students/350/check-out", nil)
+	rr = executeOperationRequest(t, errorRouter, http.MethodPost, "/instances/250/students/350/check-out", nil)
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
 
 func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
+	t.Parallel()
+
 	status := schedule.AttendanceStatusAbsent
 	service := &fakeOperationsService{
 		patchRow: &scheduleSvc.OperationRosterRow{StudentID: 360, Status: schedule.AttendanceStatusAbsent},
@@ -707,7 +803,7 @@ func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 	res := NewResource(Dependencies{OperationsService: service})
 	router := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 
-	rr := executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{
+	rr := executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{
 		"status": status,
 		"note":   "abgemeldet",
 	})
@@ -720,18 +816,20 @@ func TestOperationsPatchAttendanceValidatesAndDelegates(t *testing.T) {
 }
 
 func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
+	t.Parallel()
+
 	nilService := NewResource(Dependencies{})
 	nilRouter := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", nilService.operationsPatchAttendance)
-	rr := executeOperationRequest(nilRouter, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
+	rr := executeOperationRequest(t, nilRouter, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "present"})
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 
 	res := NewResource(Dependencies{OperationsService: &fakeOperationsService{}})
 	router := operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
 
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{})
+	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{})
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", "{bad json")
+	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", "{bad json")
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	res = NewResource(Dependencies{OperationsService: &fakeOperationsService{
@@ -740,7 +838,7 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 		},
 	}})
 	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"substatus": "sick"})
+	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"substatus": "sick"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "substatus")
 
@@ -748,17 +846,19 @@ func TestOperationsPatchAttendanceRejectsBadRequests(t *testing.T) {
 		OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationForbidden},
 	})
 	router = operationRouter(http.MethodPatch, "/instances/{id}/students/{student_id}/attendance", res.operationsPatchAttendance)
-	rr = executeOperationRequest(router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "absent"})
+	rr = executeOperationRequest(t, router, http.MethodPatch, "/instances/260/students/360/attendance", map[string]any{"status": "absent"})
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{OperationsService: &fakeOperationsService{err: scheduleSvc.ErrTimetableOperationForbidden}})
 	router := operationRouter(http.MethodGet, "/instances/{id}/roster", res.operationsRoster)
-	rr := executeOperationRequest(router, http.MethodGet, "/instances/abc/roster", nil)
+	rr := executeOperationRequest(t, router, http.MethodGet, "/instances/abc/roster", nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	rr = executeOperationRequest(router, http.MethodGet, "/instances/260/roster", nil)
+	rr = executeOperationRequest(t, router, http.MethodGet, "/instances/260/roster", nil)
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	errorCases := []struct {
@@ -771,6 +871,8 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 		{scheduleSvc.ErrInstanceNotFound, http.StatusNotFound},
 		{activeSvc.ErrStudentAlreadyActive, http.StatusConflict},
 		{activeSvc.ErrRoomConflict, http.StatusConflict},
+		{activeSvc.ErrRoomCapacityExceeded, http.StatusConflict},
+		{activeSvc.ErrActiveGroupAlreadyEnded, http.StatusConflict},
 		{activeSvc.ErrStudentNotFound, http.StatusNotFound},
 		{activeSvc.ErrVisitNotFound, http.StatusNotFound},
 		{activeSvc.ErrInvalidData, http.StatusBadRequest},
@@ -782,7 +884,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 			res := NewResource(Dependencies{OperationsService: &fakeOperationsService{err: tc.err}})
 			router := operationRouter(http.MethodGet, "/instances/{id}/roster", res.operationsRoster)
 
-			rr := executeOperationRequest(router, http.MethodGet, "/instances/260/roster", nil)
+			rr := executeOperationRequest(t, router, http.MethodGet, "/instances/260/roster", nil)
 
 			assert.Equal(t, tc.code, rr.Code)
 		})
@@ -791,6 +893,7 @@ func TestOperationsIDParsingAndErrorMapping(t *testing.T) {
 
 type fakeOperationsService struct {
 	planned  []scheduleSvc.OperationPlannedInstance
+	sessions []scheduleSvc.OperationActiveSession
 	roster   *scheduleSvc.OperationRoster
 	start    *scheduleSvc.StartInstanceResult
 	complete *schedule.ActivityInstance
@@ -857,6 +960,9 @@ type stubOpActiveService struct{}
 
 func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
 func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
+}
 
 type stubOpArrivalService struct{}
 
@@ -1015,6 +1121,11 @@ func (s *fakeOperationsService) PlannedNow(_ context.Context, accountID int64, i
 	return s.planned, s.err
 }
 
+func (s *fakeOperationsService) ActiveSessions(_ context.Context, date timezone.Date) ([]scheduleSvc.OperationActiveSession, error) {
+	s.lastDate = date
+	return s.sessions, s.err
+}
+
 func (s *fakeOperationsService) Start(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.StartInstanceResult, error) {
 	s.lastAccountID = accountID
 	s.lastIsAdmin = isAdmin
@@ -1041,6 +1152,13 @@ func (s *fakeOperationsService) Complete(_ context.Context, accountID int64, isA
 	s.lastIsAdmin = isAdmin
 	s.lastInstanceID = instanceID
 	return s.complete, s.err
+}
+
+func (s *fakeOperationsService) Reopen(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.StartInstanceResult, error) {
+	s.lastAccountID = accountID
+	s.lastIsAdmin = isAdmin
+	s.lastInstanceID = instanceID
+	return s.start, s.err
 }
 
 func (s *fakeOperationsService) Roster(_ context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleSvc.OperationRoster, error) {
@@ -1096,7 +1214,8 @@ func operationRouter(method, path string, handler http.HandlerFunc) chi.Router {
 	return router
 }
 
-func executeOperationRequest(router chi.Router, method, path string, body any) *httptest.ResponseRecorder {
+func executeOperationRequest(tb testing.TB, router chi.Router, method, path string, body any) *httptest.ResponseRecorder {
+	tb.Helper()
 	var reader *bytes.Reader
 	switch v := body.(type) {
 	case nil:
@@ -1111,13 +1230,15 @@ func executeOperationRequest(router chi.Router, method, path string, body any) *
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	testutil.WithClaims(testutil.AdminTestClaims(120))(req)
+	testutil.WithClaims(tb, testutil.AdminTestClaims(120))(req)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 	return rr
 }
 
 func TestSpontaneousStartWorkdayWindow_RejectsWeekend(t *testing.T) {
+	t.Parallel()
+
 	_, err := spontaneousStartWorkdayWindow(time.Date(2026, time.May, 9, 14, 0, 0, 0, timezone.Berlin))
 	require.ErrorIs(t, err, errTimetableWeekend)
 }

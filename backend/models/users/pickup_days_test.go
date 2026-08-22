@@ -6,6 +6,8 @@ import (
 )
 
 func TestPickupDaysValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		days    PickupDays
@@ -52,6 +54,8 @@ func TestPickupDaysValidate(t *testing.T) {
 }
 
 func TestPickupDaysHasAny(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		days PickupDays
@@ -73,6 +77,8 @@ func TestPickupDaysHasAny(t *testing.T) {
 }
 
 func TestPickupDaysNormalize(t *testing.T) {
+	t.Parallel()
+
 	days := PickupDays{
 		PickupDayMonday:    true,
 		PickupDayTuesday:   false,
@@ -100,6 +106,8 @@ func TestPickupDaysNormalize(t *testing.T) {
 }
 
 func TestPickupDaysFromLegacyStatus(t *testing.T) {
+	t.Parallel()
+
 	alone := PickupDaysFromLegacyStatus(PickupStatusGoesAlone)
 	if alone.HasAny() {
 		t.Fatalf("PickupDaysFromLegacyStatus(%q) = %#v, want no enabled days", PickupStatusGoesAlone, alone)
@@ -122,6 +130,8 @@ func TestPickupDaysFromLegacyStatus(t *testing.T) {
 }
 
 func TestPickupDaysLegacyPickupStatus(t *testing.T) {
+	t.Parallel()
+
 	if got := (PickupDays{}).LegacyPickupStatus(); got != PickupStatusGoesAlone {
 		t.Fatalf("empty PickupDays.LegacyPickupStatus() = %q, want %q", got, PickupStatusGoesAlone)
 	}

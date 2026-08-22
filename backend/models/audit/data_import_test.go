@@ -12,6 +12,8 @@ import (
 // =============================================================================
 
 func TestDataImport_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	di := DataImport{}
 
 	assert.Zero(t, di.ID)
@@ -30,6 +32,8 @@ func TestDataImport_DefaultValues(t *testing.T) {
 }
 
 func TestDataImport_WithValues(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	completed := now.Add(5 * time.Second)
 
@@ -70,6 +74,8 @@ func TestDataImport_WithValues(t *testing.T) {
 // =============================================================================
 
 func TestJSONBMap_Assignment(t *testing.T) {
+	t.Parallel()
+
 	m := JSONBMap{
 		"key1": "value1",
 		"key2": 42,
@@ -82,6 +88,8 @@ func TestJSONBMap_Assignment(t *testing.T) {
 }
 
 func TestJSONBMap_NilMap(t *testing.T) {
+	t.Parallel()
+
 	var m JSONBMap
 	assert.Nil(t, m)
 }

@@ -12,6 +12,7 @@ import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { DatabaseIndexSkeleton } from "./page-skeleton";
 
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -203,6 +204,10 @@ function DatabaseContent() {
 
   if (!session?.user) {
     redirect("/");
+  }
+
+  if (countsLoading && data === undefined) {
+    return <DatabaseIndexSkeleton />;
   }
 
   return (

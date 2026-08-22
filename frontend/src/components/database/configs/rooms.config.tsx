@@ -67,6 +67,16 @@ export const roomsConfig = defineEntityConfig<Room>({
             },
           },
           {
+            name: "capacity",
+            label: "Maximale Belegung",
+            type: "number",
+            required: false,
+            min: 1,
+            placeholder: "Keine Begrenzung",
+            helperText:
+              "Optional. Begrenzt die Anzahl der gleichzeitig eingecheckten Kinder in diesem Raum.",
+          },
+          {
             name: "color",
             label: "Farbe",
             type: "custom",
@@ -137,6 +147,13 @@ export const roomsConfig = defineEntityConfig<Room>({
               room.floor === undefined
                 ? "Nicht angegeben"
                 : `Etage ${room.floor}`,
+          },
+          {
+            label: "Maximale Belegung",
+            value: (room: Room) =>
+              room.capacity === undefined
+                ? "Keine Begrenzung"
+                : `${room.capacity} Plätze`,
           },
           {
             label: "Status",

@@ -74,6 +74,7 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 		response.HealthInfo = *student.HealthInfo
 	}
 	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
 		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
 	}
@@ -88,6 +89,13 @@ func populatePublicStudentFields(response *StudentResponse, student *users.Stude
 	// allowing both would drop the accompanied signal and return this child to
 	// legacy list/search/admin consumers as a self-goer (#1694).
 	response.PickupStatus = responsePickupStatus(student, allowed.LegacyPickupStatus())
+}
+
+func departureRuleConfigured(student *users.Student, allowed users.AllowedDepartureModes) bool {
+	if allowed.HasAny() || student.DepartureDays.HasAny() {
+		return true
+	}
+	return student.PickupStatus != nil && strings.TrimSpace(*student.PickupStatus) != ""
 }
 
 func responsePickupStatus(student *users.Student, derived string) string {
@@ -160,8 +168,8 @@ func populateStudentAddressFields(response *StudentResponse, student *users.Stud
 // populatePhotoFields fills the response with photo URL + consent metadata.
 //
 // hasFullAccess MUST mirror the predicate serveStudentPhoto uses internally
-// (authorize.CanReadStudent — i.e. admin OR all_staff scope OR caller
-// supervises the student's group): the byte-serving route 403s callers that
+// (authorize.CanReadStudent — i.e. admin or verified staff, #2329): the
+// byte-serving route 403s callers that
 // fail it, so emitting photo_url for rows the same session is forbidden to
 // fetch would let list/search responses hand out URLs that immediately bounce
 // to a broken-image fetch. The boolean PhotoConsentGiven flag is fine to
@@ -249,6 +257,7 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
 	allowed := student.AllowedDepartureModes.Normalize()
+	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
 		allowed = users.AllowedDepartureModesFromDeparture(student.DepartureDays)
 	}
@@ -292,7 +301,11 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	}
 
 	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
-		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		info := common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		if info.Location == common.YardLocationLabel {
+			info.RoomColor = common.ResolveYardRoomColor(ctx, activeService)
+		}
+		return info
 	}
 
 	// Handle non-checked-in states (checked_out or other)
@@ -619,7 +632,17 @@ func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *educ
 	return group
 }
 
-func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
+// filterStudentIDsByGroups keeps the student ids whose group is among groupIDs.
+// An empty groupIDs slice means "no group restriction" and returns the input
+// unchanged — the same meaning an absent group_id has everywhere else (#2218).
+func (rs *Resource) filterStudentIDsByGroups(ctx context.Context, studentIDs []int64, groupIDs []int64) ([]int64, error) {
+	if len(groupIDs) == 0 {
+		return studentIDs, nil
+	}
+	wanted := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		wanted[groupID] = struct{}{}
+	}
 	studentMap, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, err
@@ -627,7 +650,10 @@ func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []in
 	filtered := make([]int64, 0, len(studentMap))
 	for _, sid := range studentIDs {
 		student, ok := studentMap[sid]
-		if !ok || student.GroupID == nil || *student.GroupID != groupID {
+		if !ok || student.GroupID == nil {
+			continue
+		}
+		if _, wantedGroup := wanted[*student.GroupID]; !wantedGroup {
 			continue
 		}
 		filtered = append(filtered, sid)
@@ -666,7 +692,7 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 	if !matchesNameFilters(person, params.firstName, params.lastName) {
 		return nil
 	}
-	if !matchesGradeLevel(student.SchoolClass, params.gradeLevel) {
+	if !matchesGradeLevel(student.SchoolClass, params.gradeLevels) {
 		return nil
 	}
 

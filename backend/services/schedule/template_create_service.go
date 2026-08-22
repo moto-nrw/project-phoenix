@@ -40,12 +40,14 @@ type CreateTemplateInput struct {
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
 	Targets           []*activitiesModel.GroupTarget
-	// SourceCareOfferingIDs/SourceGradeLevels declare the offering-source rule
-	// (#2137, multi-source follow-up). With sources set, the roster is seeded
-	// from the union of the offerings' approved enrollments and StudentIDs
-	// must be empty.
+	// SourceCareOfferingIDs/SourceGradeLevels/SourceSchoolClasses declare the
+	// offering-source rule (#2137, multi-source follow-up, #2482). With
+	// sources set, the roster is seeded from the union of the offerings'
+	// approved enrollments and StudentIDs must be empty. Grade and class
+	// filter are mutually exclusive.
 	SourceCareOfferingIDs []int64
 	SourceGradeLevels     []int
+	SourceSchoolClasses   []string
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil = no list kind.
 	ListKind       *string
@@ -168,13 +170,19 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 	if in.RoomID <= 0 {
 		return errors.New("room id is required")
 	}
+	if in.MaxParticipants < 0 {
+		return errors.New("max participants cannot be negative")
+	}
 	if in.CalendarPeriodID != nil && *in.CalendarPeriodID <= 0 {
 		return errors.New("calendar period id must be positive when set")
 	}
 	if in.RosterValidFrom.IsZero() {
 		return errors.New("roster valid_from is required")
 	}
-	if err := validateOfferingSourceInput(in.SourceCareOfferingIDs, in.SourceGradeLevels, in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments); err != nil {
+	if err := validateOfferingSourceInput(
+		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.SourceSchoolClasses,
+		in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments,
+	); err != nil {
 		return err
 	}
 	return nil
@@ -187,10 +195,23 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 // Group.ValidateTargetGroup, which direct service callers bypass), and no
 // manual roster next to a source (the roster is derived, a snapshot would
 // silently drift).
-func validateOfferingSourceInput(sourceOfferingIDs []int64, gradeLevels []int, targetGroupType string, studentIDs []int64, weekdayAssignments []WeekdayRosterAssignment) error {
+// Callers persist the class filter as given; trimming and the nil-for-empty
+// canonicalization happen in activities.Group.ValidateTargetGroup (create)
+// and in the API layer (update), and matching normalizes at compare time.
+func validateOfferingSourceInput(
+	sourceOfferingIDs []int64,
+	gradeLevels []int,
+	schoolClasses []string,
+	targetGroupType string,
+	studentIDs []int64,
+	weekdayAssignments []WeekdayRosterAssignment,
+) error {
 	if len(sourceOfferingIDs) == 0 {
 		if len(gradeLevels) > 0 {
 			return fmt.Errorf("%w: source_grade_levels requires source_care_offering_ids", ErrOfferingSourceInvalid)
+		}
+		if len(schoolClasses) > 0 {
+			return fmt.Errorf("%w: source_school_classes requires source_care_offering_ids", ErrOfferingSourceInvalid)
 		}
 		return nil
 	}
@@ -219,6 +240,17 @@ func validateOfferingSourceInput(sourceOfferingIDs []int64, gradeLevels []int, t
 			return fmt.Errorf("%w: source_grade_levels must not contain duplicates", ErrOfferingSourceInvalid)
 		}
 		seenGrades[level] = true
+	}
+	// Same rule and wording as activities.Group.ValidateTargetGroup, which
+	// direct service callers bypass (#2482): the class filter is mutually
+	// exclusive with the Jahrgang filter, so no caller ever has to decide
+	// whether the two AND or OR.
+	normalizedClasses, err := activitiesModel.NormalizeSourceSchoolClasses(schoolClasses)
+	if err != nil {
+		return fmt.Errorf("%w: %s", ErrOfferingSourceInvalid, err.Error())
+	}
+	if len(gradeLevels) > 0 && len(normalizedClasses) > 0 {
+		return fmt.Errorf("%w: source_school_classes and source_grade_levels cannot be combined", ErrOfferingSourceInvalid)
 	}
 	if len(studentIDs) > 0 {
 		return fmt.Errorf("%w: student_ids must be empty when an offering source is set", ErrOfferingSourceInvalid)
@@ -300,6 +332,7 @@ func (s *TimetableDataService) createTemplateLocked(
 		TargetSchoolClass:     in.TargetSchoolClass,
 		SourceCareOfferingIDs: in.SourceCareOfferingIDs,
 		SourceGradeLevels:     in.SourceGradeLevels,
+		SourceSchoolClasses:   in.SourceSchoolClasses,
 		ListKind:              in.ListKind,
 		Notes:                 in.Notes,
 	}
@@ -347,6 +380,7 @@ func (s *TimetableDataService) createTemplateLocked(
 			TemplateID:       group.ID,
 			OfferingIDs:      in.SourceCareOfferingIDs,
 			GradeLevels:      in.SourceGradeLevels,
+			SchoolClasses:    in.SourceSchoolClasses,
 			CalendarPeriodID: in.CalendarPeriodID,
 			EffectiveFrom:    in.RosterValidFrom,
 		}); err != nil {

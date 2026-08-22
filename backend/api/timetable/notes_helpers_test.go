@@ -12,6 +12,8 @@ import (
 )
 
 func TestNormalizeNotes(t *testing.T) {
+	t.Parallel()
+
 	trimmed := "Raum erst ab 14 Uhr offen"
 
 	cases := []struct {
@@ -42,6 +44,8 @@ func TestNormalizeNotes(t *testing.T) {
 func ptr(s string) *string { return &s }
 
 func TestNullableStr_UnmarshalJSON(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted field leaves Set=false", func(t *testing.T) {
 		// A struct whose nullableStr field is absent from the JSON must keep the
 		// zero value (Set=false) so the split treats it as "inherit".

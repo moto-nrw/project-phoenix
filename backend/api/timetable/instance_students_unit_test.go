@@ -76,6 +76,9 @@ func (f *fakeRepo) List(context.Context, *modelsBase.QueryOptions) ([]*schedule.
 func (f *fakeRepo) FindByInstanceID(context.Context, int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
+func (f *fakeRepo) FindPresentInOtherActiveInstances(context.Context, int64, timezone.Date, []int64) ([]schedule.ParallelPresence, error) {
+	panic("unused")
+}
 func (f *fakeRepo) FindByInstanceIDs(context.Context, []int64) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }
@@ -86,6 +89,18 @@ func (f *fakeRepo) FindNotScheduledCandidatesByInstanceIDs(context.Context, []in
 	panic("unused")
 }
 func (f *fakeRepo) CountNonAbsentByInstanceIDs(context.Context, []int64) (map[int64]int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindByStudentIDsAndDate(context.Context, []int64, timezone.Date) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindCurrentCandidatesByStudentIDs(context.Context, []int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceFromCheckinBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceCheckoutBatch(context.Context, []schedule.InstanceStudentKey, time.Time) error {
 	panic("unused")
 }
 func (f *fakeRepo) FindByStudentAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*schedule.InstanceStudent, error) {
@@ -141,6 +156,15 @@ func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
 func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
 	panic("unused")
 }
+func (f *fakeRepo) ApplyPartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ReleasePartialAbsence(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
+}
 
 // -----------------------------------------------------------------------------
 // Router helpers
@@ -181,6 +205,8 @@ func run(router chi.Router, req *http.Request) *httptest.ResponseRecorder {
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_500_RepoNotWired(t *testing.T) {
+	t.Parallel()
+
 	// Resource with instanceStudentRepo == nil must return 500 rather than crash.
 	res := &Resource{}
 	router := unitRouter(res)
@@ -196,6 +222,8 @@ func TestPatchHandler_500_RepoNotWired(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -205,6 +233,8 @@ func TestPatchHandler_400_InvalidInstanceID(t *testing.T) {
 }
 
 func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -214,6 +244,8 @@ func TestPatchHandler_400_InvalidStudentID(t *testing.T) {
 }
 
 func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -222,6 +254,8 @@ func TestPatchHandler_400_ZeroInstanceID(t *testing.T) {
 }
 
 func TestPatchHandler_400_NegativeIDs(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -234,6 +268,8 @@ func TestPatchHandler_400_NegativeIDs(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_400_MalformedJSON(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -243,6 +279,8 @@ func TestPatchHandler_400_MalformedJSON(t *testing.T) {
 }
 
 func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -254,6 +292,8 @@ func TestPatchHandler_400_EmptyBody_MeansNoChanges(t *testing.T) {
 }
 
 func TestPatchHandler_400_BodyReadError(t *testing.T) {
+	t.Parallel()
+
 	// A broken reader forces io.ReadAll to return an error, exercising the
 	// "failed to read request body" branch.
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
@@ -267,6 +307,8 @@ func TestPatchHandler_400_BodyReadError(t *testing.T) {
 }
 
 func TestPatchHandler_400_NonStringNote(t *testing.T) {
+	t.Parallel()
+
 	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{InstanceStudentRepo: &fakeRepo{}})}}
 	router := unitRouter(res)
 
@@ -286,6 +328,8 @@ func (brokenReader) Close() error               { return nil }
 // -----------------------------------------------------------------------------
 
 func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
 			return nil, sql.ErrNoRows
@@ -300,6 +344,8 @@ func TestPatchHandler_404_NotFound_ErrNoRows(t *testing.T) {
 }
 
 func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	// DatabaseError wrapping sql.ErrNoRows — matches the wrapping style used
 	// by the repo layer. Covered by isNotFoundDBError's errors.As branch.
 	repo := &fakeRepo{
@@ -315,6 +361,8 @@ func TestPatchHandler_404_NotFound_WrappedDatabaseError(t *testing.T) {
 }
 
 func TestPatchHandler_404_NotFound_NilRowNilError(t *testing.T) {
+	t.Parallel()
+
 	// Repo returns (nil, nil) — row genuinely absent rather than DB error.
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
@@ -329,6 +377,8 @@ func TestPatchHandler_404_NotFound_NilRowNilError(t *testing.T) {
 }
 
 func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeRepo{
 		findByInstanceAndStudent: func(context.Context, int64, int64) (*schedule.InstanceStudent, error) {
 			return nil, errors.New("connection reset")
@@ -342,7 +392,52 @@ func TestPatchHandler_500_FindError_NotNotFound(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "load instance student failed")
 }
 
+type fakeRecoveryRepo struct {
+	lockAttendance func(ctx context.Context, instanceID int64) error
+}
+
+func (f *fakeRecoveryRepo) LockAttendance(ctx context.Context, instanceID int64) error {
+	if f.lockAttendance != nil {
+		return f.lockAttendance(ctx, instanceID)
+	}
+	return nil
+}
+
+func (f *fakeRecoveryRepo) LockOpenVisits(context.Context, int64) error { panic("unused") }
+func (f *fakeRecoveryRepo) LockOpenSupervisors(context.Context, int64) error {
+	panic("unused")
+}
+func (f *fakeRecoveryRepo) LockSupervisors(context.Context, []int64) error { panic("unused") }
+func (f *fakeRecoveryRepo) Restore(context.Context, int64, schedule.ActivityCompletionSnapshot, time.Time) error {
+	panic("unused")
+}
+
+func TestPatchHandler_500_LockAttendanceFails(t *testing.T) {
+	t.Parallel()
+
+	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
+	current.ID = 7
+	repo := &fakeRepo{currentState: current}
+	recovery := &fakeRecoveryRepo{
+		lockAttendance: func(context.Context, int64) error {
+			return errors.New("could not acquire lock")
+		},
+	}
+	res := &Resource{Dependencies: Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+		InstanceStudentRepo: repo,
+		RecoveryRepo:        recovery,
+	})}}
+	router := unitRouter(res)
+
+	w := run(router, patchRequest(t, "/instances/1/students/2", map[string]any{"status": "absent"}))
+	require.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "lock attendance failed")
+	assert.Equal(t, 0, repo.updateCalls, "lock failure must short-circuit before UPDATE")
+}
+
 func TestPatchHandler_500_UpdateError(t *testing.T) {
+	t.Parallel()
+
 	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
 	current.ID = 7
 	updateErr := errors.New("FK violation")
@@ -362,6 +457,8 @@ func TestPatchHandler_500_UpdateError(t *testing.T) {
 }
 
 func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
+	t.Parallel()
+
 	// The handler re-reads after update so the response body reflects post-
 	// write state. If that second read fails, the handler must return 500.
 	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
@@ -387,6 +484,8 @@ func TestPatchHandler_500_ReloadAfterUpdateFails(t *testing.T) {
 }
 
 func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	// Reload returns (nil, nil) — the handler guards against this edge case
 	// because mapAttendanceToResponse would panic on a nil row.
 	current := &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}
@@ -411,6 +510,8 @@ func TestPatchHandler_500_ReloadReturnsNil(t *testing.T) {
 }
 
 func TestPatchHandler_400_CrossFieldRuleAfterFind(t *testing.T) {
+	t.Parallel()
+
 	// The validation branch after FindByInstanceAndStudent only fires when
 	// the parsed patch is individually valid but violates the cross-field
 	// rule against the loaded current row. Seeding an 'expected' row and
@@ -430,6 +531,8 @@ func TestPatchHandler_400_CrossFieldRuleAfterFind(t *testing.T) {
 }
 
 func TestPatchHandler_200_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	// First read returns "present". Second read reflects the applied patch —
 	// mimicking the repo writing fields then re-reading them.
 	checkedInAt := time.Date(2026, 4, 20, 14, 0, 0, 0, time.UTC)
@@ -491,6 +594,8 @@ func TestPatchHandler_200_HappyPath(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestMapAttendanceToResponse_WithCheckedInAt(t *testing.T) {
+	t.Parallel()
+
 	ts := time.Date(2026, 4, 20, 14, 15, 30, 0, time.UTC)
 	excused := schedule.AttendanceSubstatusExcused
 	note := "Bus-Verspätung"
@@ -516,6 +621,8 @@ func TestMapAttendanceToResponse_WithCheckedInAt(t *testing.T) {
 }
 
 func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
+	t.Parallel()
+
 	row := &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected}
 	resp := mapAttendanceToResponse(row)
 	assert.Nil(t, resp.CheckedInAt)
@@ -528,6 +635,8 @@ func TestMapAttendanceToResponse_WithoutCheckedInAt(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestParseAttendancePatchRequest_AllFields(t *testing.T) {
+	t.Parallel()
+
 	status := schedule.AttendanceStatusAbsent
 	req := &PatchAttendanceRequest{
 		Status:    &status,
@@ -547,6 +656,8 @@ func TestParseAttendancePatchRequest_AllFields(t *testing.T) {
 }
 
 func TestParseAttendancePatchRequest_ClearsViaNull(t *testing.T) {
+	t.Parallel()
+
 	req := &PatchAttendanceRequest{
 		Substatus: json.RawMessage(`null`),
 		Note:      json.RawMessage(`null`),
@@ -560,6 +671,8 @@ func TestParseAttendancePatchRequest_ClearsViaNull(t *testing.T) {
 }
 
 func TestParseAttendancePatchRequest_TypeErrorsOnBothFields(t *testing.T) {
+	t.Parallel()
+
 	req := &PatchAttendanceRequest{
 		Substatus: json.RawMessage(`5`),
 		Note:      json.RawMessage(`{"x":1}`),
@@ -576,6 +689,8 @@ func TestParseAttendancePatchRequest_TypeErrorsOnBothFields(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestDecodePatchBody_Direct(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid body", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPatch, "/", strings.NewReader(`{"status":"present"}`))
 		w := httptest.NewRecorder()

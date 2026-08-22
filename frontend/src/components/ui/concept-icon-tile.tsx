@@ -1,5 +1,6 @@
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { cn } from "~/lib/utils";
 
 type ConceptIconTileVariant = "section" | "page" | "display";
@@ -25,6 +26,7 @@ const CONCEPT_ICON_TILE_VARIANTS: Record<
 interface ConceptIconTileProps {
   readonly concept: MotoConceptKey;
   readonly variant: ConceptIconTileVariant;
+  readonly tone?: MotoDuotoneTone;
   readonly className?: string;
 }
 
@@ -41,13 +43,14 @@ interface ConceptIconTileProps {
 export function ConceptIconTile({
   concept,
   variant,
+  tone,
   className,
 }: ConceptIconTileProps) {
   const { tile, iconSize } = CONCEPT_ICON_TILE_VARIANTS[variant];
 
   return (
     <div className={cn(tile, className)}>
-      <MotoConceptIcon concept={concept} size={iconSize} />
+      <MotoConceptIcon concept={concept} tone={tone} size={iconSize} />
     </div>
   );
 }

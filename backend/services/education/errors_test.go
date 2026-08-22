@@ -9,6 +9,8 @@ import (
 
 // TestEducationErrorVariables tests that error variables have correct messages
 func TestEducationErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -35,6 +37,8 @@ func TestEducationErrorVariables(t *testing.T) {
 
 // TestEducationErrorsAreDistinct ensures each error can be identified uniquely
 func TestEducationErrorsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrGroupNotFound,
 		ErrTeacherNotFound,
@@ -61,6 +65,8 @@ func TestEducationErrorsAreDistinct(t *testing.T) {
 
 // TestEducationError tests the EducationError custom error type
 func TestEducationError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error with underlying error", func(t *testing.T) {
 		underlyingErr := errors.New("database constraint violation")
 		educationErr := &EducationError{

@@ -5,10 +5,12 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { ISODatePicker } from "~/components/ui/date-picker";
-import { Loading } from "~/components/ui/loading";
+import { ISODateInput, ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { createLogger } from "~/lib/logger";
+import { isValidISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   staffStammdatenService,
   type StammdatenArbeitsvertrag,
@@ -163,6 +165,13 @@ export function PersonEditModal({
   const [firstName, setFirstName] = useState(person.firstName);
   const [lastName, setLastName] = useState(person.lastName);
   const [birthday, setBirthday] = useState(person.birthday ?? "");
+  const berlinToday = useBerlinToday();
+  const birthdayDay = birthday.slice(0, 10);
+  const [birthdayValid, setBirthdayValid] = useState(
+    () =>
+      birthday === "" ||
+      (isValidISODate(birthdayDay) && birthdayDay <= berlinToday),
+  );
   const [gender, setGender] = useState<string>(person.gender ?? "");
   const [note, setNote] = useState("");
   const { saving, error, run } = useSectionSave(onSaved);
@@ -187,11 +196,14 @@ export function PersonEditModal({
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
           />
-          <ISODatePicker
+          <ISODateInput
             label="Geburtsdatum"
             id="stammdaten-birthday"
             value={birthday}
             onChange={setBirthday}
+            onValidityChange={setBirthdayValid}
+            max={berlinToday}
+            maxDateError="Das Geburtsdatum darf nicht in der Zukunft liegen."
           />
           <SelectField
             id="stammdaten-gender"
@@ -206,7 +218,7 @@ export function PersonEditModal({
         <ModalFooter
           onClose={onClose}
           saving={saving}
-          disabled={!valid}
+          disabled={!valid || !birthdayValid}
           onSave={() =>
             void run("stammdaten_person_save_failed", () =>
               staffStammdatenService.updatePerson(
@@ -630,7 +642,9 @@ export function FinancialEditModal({
   return (
     <Modal isOpen onClose={onClose} title="Bank & Steuer bearbeiten">
       {loading ? (
-        <Loading fullPage={false} />
+        <SkeletonRegion label="Bank- und Steuerdaten werden geladen">
+          <FormSkeleton fields={3} />
+        </SkeletonRegion>
       ) : loadError ? (
         <p className="text-sm text-[#FF3130]">{loadError}</p>
       ) : (

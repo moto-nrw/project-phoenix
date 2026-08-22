@@ -10,9 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -131,13 +129,11 @@ type StudentDocumentService interface {
 }
 
 // StudentDocumentUserContext is the slice of the user context the document
-// service needs to answer "does this caller supervise this child". It is
-// authorize.StudentModifyUserContext, restated so the service depends on a
+// service needs to answer "is this caller verified staff". It is
+// authorize.StudentAccessUserContext, restated so the service depends on a
 // named interface rather than a package alias.
 type StudentDocumentUserContext interface {
 	GetCurrentStaff(ctx context.Context) (*userModels.Staff, error)
-	GetMyGroups(ctx context.Context) ([]*educationModels.Group, error)
-	GetMyActiveGroups(ctx context.Context) ([]*activeModels.Group, error)
 }
 
 type studentDocumentService struct {
@@ -172,10 +168,10 @@ func NewStudentDocumentService(
 }
 
 // requireStudentAccess enforces the per-child gate every other per-child
-// endpoint applies: admin, or supervisor of the child's group. The route gate
-// only proves the caller may reach documents at all — without this, a
-// supervisor holding users:update could read and delete the paperwork of every
-// child in the school, whatever gdpr.student_data_scope says.
+// endpoint applies: admin, or verified staff of the tenant (#2329). The route
+// gate only proves the caller may reach documents at all — without this, a
+// guest or guardian account could read and delete the paperwork of every
+// child in the school.
 //
 // It lives here rather than in the handler because the upload and download
 // routes deliberately run without the tenant-transaction middleware (a slow
@@ -186,13 +182,7 @@ func (s *studentDocumentService) requireStudentAccess(ctx context.Context, stude
 	if err != nil {
 		return nil, err
 	}
-	if authorize.HasAdminWildcard(actor.Permissions) {
-		return student, nil
-	}
-	if student.GroupID == nil {
-		return nil, ErrStudentDocumentNoAccess
-	}
-	if s.userContext == nil || !authorize.IsGroupSupervisor(ctx, *student.GroupID, s.userContext) {
+	if ok, _ := authorize.CanModifyStudent(ctx, actor.Permissions, student, s.userContext, "access documents of"); !ok {
 		return nil, ErrStudentDocumentNoAccess
 	}
 	return student, nil

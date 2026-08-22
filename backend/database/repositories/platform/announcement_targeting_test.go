@@ -10,44 +10,23 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // --- Cleanup helper for targeting tests ---
 
-func cleanupTargetingTestData(t *testing.T, db *bun.DB, announcementIDs []int64, accountIDs []int64, schoolIDs []int64, orgIDs []int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	for _, aID := range announcementIDs {
-		_, _ = db.NewRaw(`DELETE FROM platform.announcement_views WHERE announcement_id = ?`, aID).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM platform.announcements WHERE id = ?`, aID).Exec(ctx)
-	}
-	for _, accID := range accountIDs {
-		_, _ = db.NewRaw(`DELETE FROM auth.account_roles WHERE account_id = ?`, accID).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, accID).Exec(ctx)
-		_, _ = db.NewRaw(`DELETE FROM auth.accounts WHERE id = ?`, accID).Exec(ctx)
-	}
-	for _, sID := range schoolIDs {
-		_, _ = db.NewRaw(`DELETE FROM platform.schools WHERE id = ?`, sID).Exec(ctx)
-	}
-	for _, oID := range orgIDs {
-		_, _ = db.NewRaw(`DELETE FROM platform.organizations WHERE id = ?`, oID).Exec(ctx)
-	}
-}
-
 // --- Tests ---
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
 	operator := createTestOperator(t, db, "targeting-create@example.com", "Targeting Create Test")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := &platformModels.Announcement{
 		Title:           "Targeted Announcement",
@@ -63,7 +42,6 @@ func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 
 	err := annoRepo.Create(ctx, announcement)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	// Verify targeting arrays persisted correctly
 	found, err := annoRepo.FindByID(ctx, announcement.ID)
@@ -74,15 +52,17 @@ func TestAnnouncementTargeting_CreateWithTargetingArrays(t *testing.T) {
 	assert.Equal(t, []int64{300}, found.TargetTenantIDs)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
 	operator := createTestOperator(t, db, "targeting-empty@example.com", "Targeting Empty Test")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	announcement := &platformModels.Announcement{
 		Title:           "Global Announcement",
@@ -98,7 +78,6 @@ func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 
 	err := annoRepo.Create(ctx, announcement)
 	require.NoError(t, err)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
 
 	found, err := annoRepo.FindByID(ctx, announcement.ID)
 	require.NoError(t, err)
@@ -108,11 +87,14 @@ func TestAnnouncementTargeting_CreateWithEmptyArrays(t *testing.T) {
 	assert.Empty(t, found.TargetTenantIDs)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -138,13 +120,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{accountID},
-		[]int64{schoolID}, []int64{orgID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-
 	// Global announcements are visible in a valid tenant context.
 	unread, err := viewRepo.GetUnreadForUser(ctx, accountID, []string{}, schoolID, orgID)
 	require.NoError(t, err)
@@ -152,11 +127,14 @@ func TestAnnouncementTargeting_GetUnreadForUser_GlobalVisibleToAll(t *testing.T)
 	assert.Equal(t, announcement.ID, unread[0].ID)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -189,14 +167,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{userA, userB},
-		[]int64{schoolAID, schoolBID},
-		[]int64{orgAID, orgBID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-
 	// User A (in org A's school) should see it
 	unreadA, err := viewRepo.GetUnreadForUser(ctx, userA, []string{}, schoolAID, orgAID)
 	require.NoError(t, err)
@@ -208,11 +178,14 @@ func TestAnnouncementTargeting_GetUnreadForUser_OrgTargetedVisibility(t *testing
 	assert.Len(t, unreadB, 0, "user in org B should NOT see org-A-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -243,14 +216,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *test
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{userA, userB},
-		[]int64{schoolAID, schoolBID},
-		[]int64{orgAID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-
 	// User in school A should see it
 	unreadA, err := viewRepo.GetUnreadForUser(ctx, userA, []string{}, schoolAID, orgAID)
 	require.NoError(t, err)
@@ -262,11 +227,14 @@ func TestAnnouncementTargeting_GetUnreadForUser_TenantTargetedVisibility(t *test
 	assert.Len(t, unreadB, 0, "user in school B should NOT see school-A-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -298,14 +266,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{userA, userB},
-		[]int64{schoolAID, schoolBID},
-		[]int64{orgAID, orgBID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-
 	// User A is in org A → should see (org match)
 	unreadA, err := viewRepo.GetUnreadForUser(ctx, userA, []string{}, schoolAID, orgAID)
 	require.NoError(t, err)
@@ -317,11 +277,14 @@ func TestAnnouncementTargeting_GetUnreadForUser_ORUnion(t *testing.T) {
 	assert.Len(t, unreadB, 1, "user in school B should see announcement via tenant match")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -352,24 +315,19 @@ func TestAnnouncementTargeting_CountUnread_RespectsTargeting(t *testing.T) {
 	publishTestAnnouncement(t, db, ann1.ID)
 	publishTestAnnouncement(t, db, ann2.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{ann1.ID, ann2.ID},
-		[]int64{userA},
-		[]int64{schoolAID, schoolBID},
-		[]int64{orgAID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-
 	count, err := viewRepo.CountUnread(ctx, userA, []string{}, schoolAID, orgAID)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count, "should only count announcement targeting user's school")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -413,17 +371,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{userA, userB, userNoRole},
-		[]int64{schoolAID, schoolBID},
-		[]int64{orgAID, orgBID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-	defer cleanupTestRole(t, db, roleID)
-	defer cleanupTestAccountRole(t, db, userA, roleID)
-	defer cleanupTestAccountRole(t, db, userB, roleID)
-
 	// User A has role + is in org A → should see it
 	unreadA, err := viewRepo.GetUnreadForUser(ctx, userA, []string{roleName}, schoolAID, orgAID)
 	require.NoError(t, err)
@@ -449,13 +396,16 @@ func TestAnnouncementTargeting_GetUnreadForUser_RolesWithOrgTargeting(t *testing
 	assert.Equal(t, 0, countB)
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing.T) {
 	// Regression test: an account with BOTH a direct role match AND a custom role
 	// with matching base_role must see the announcement exactly once, not duplicated.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -492,18 +442,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, announcement.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{announcement.ID},
-		[]int64{userID},
-		[]int64{schoolID},
-		[]int64{orgID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-	defer cleanupTestRole(t, db, sysRoleID)
-	defer cleanupTestRole(t, db, customRoleID)
-	defer cleanupTestAccountRole(t, db, userID, sysRoleID)
-	defer cleanupTestAccountRole(t, db, userID, customRoleID)
-
 	// GetUnreadForUser should return the announcement exactly once
 	unread, err := viewRepo.GetUnreadForUser(ctx, userID, []string{"user", "gruppenleitung-dual-delivery"}, schoolID, orgID)
 	require.NoError(t, err)
@@ -522,13 +460,16 @@ func TestAnnouncementTargeting_GetUnreadForUser_DualRoleNotDuplicated(t *testing
 	assert.GreaterOrEqual(t, count, 1, "count should include the dual-matched announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t *testing.T) {
 	// Test: changing a custom role's base_role should change which announcements
 	// the user receives via the base_role expansion path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	viewRepo := platform.NewAnnouncementViewRepository(db)
 	annoRepo := platform.NewAnnouncementRepository(db)
 
@@ -576,16 +517,6 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 	require.NoError(t, err)
 	publishTestAnnouncement(t, db, annoUser.ID)
 
-	defer cleanupTargetingTestData(t, db,
-		[]int64{annoAdmin.ID, annoUser.ID},
-		[]int64{userID},
-		[]int64{schoolID},
-		[]int64{orgID},
-	)
-	defer cleanupTestOperator(t, db, operator.ID)
-	defer cleanupTestRole(t, db, customRoleID)
-	defer cleanupTestAccountRole(t, db, userID, customRoleID)
-
 	// With base_role = "user", the user should see "User Only" but NOT "Admin Only"
 	unread, err := viewRepo.GetUnreadForUser(ctx, userID, []string{"dynamic-role-test"}, schoolID, orgID)
 	require.NoError(t, err)
@@ -625,15 +556,17 @@ func TestAnnouncementTargeting_GetUnreadForUser_UpdateBaseRoleChangesDelivery(t 
 	assert.True(t, hasAdmin2, "after base_role change to 'admin', should see admin-targeted announcement")
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	orgRepo := platform.NewOrganizationRepository(db)
 
 	orgAID := createTestOrganization(t, db, "CountByIDs Org A")
 	orgBID := createTestOrganization(t, db, "CountByIDs Org B")
-	defer cleanupTargetingTestData(t, db, nil, nil, nil, []int64{orgAID, orgBID})
 
 	ctx := context.Background()
 
@@ -656,16 +589,18 @@ func TestOrganizationRepository_CountByIDs(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: platform announcements and the e-mail outbox are
+// tenant-less. Their fixtures reuse fixed operator e-mails (delete-then-insert)
+// and the assertions count rows the whole clone shares, so two of these tests
+// running side by side delete each other's operator and each other's rows.
 func TestSchoolRepository_CountByIDs(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	schoolRepo := platform.NewSchoolRepository(db)
 
 	orgID := createTestOrganization(t, db, "CountByIDs School Org")
 	schoolAID := createTestSchool(t, db, "CountByIDs School A", orgID)
 	schoolBID := createTestSchool(t, db, "CountByIDs School B", orgID)
-	defer cleanupTargetingTestData(t, db, nil, nil, []int64{schoolAID, schoolBID}, []int64{orgID})
 
 	ctx := context.Background()
 

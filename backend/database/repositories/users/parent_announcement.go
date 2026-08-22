@@ -599,6 +599,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 		SELECT acc.account_id,
 			min(acc.first_name) AS first_name,
 			min(acc.last_name) AS last_name,
+			COALESCE(min(locale_gp.portal_locale), 'de') AS portal_locale,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
 		FROM (
@@ -640,6 +641,8 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 			WHERE pt.announcement_id = ? AND pt.tenant_id = ? AND pt.target_type = 'pending_enrollment'
 				AND COALESCE(req.guardian_account_id, ea.id) IS NOT NULL
 		) acc
+		LEFT JOIN users.guardian_profiles locale_gp
+			ON locale_gp.account_id = acc.account_id AND locale_gp.tenant_id = ?
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = ? AND par.account_id = acc.account_id
 		GROUP BY acc.account_id, par.read_at, par.acknowledged_at
@@ -648,6 +651,7 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID, // student path
 		tenantID, tenantID, announcementID, tenantID, // pending path
+		tenantID,       // guardian locale
 		announcementID, // reads join
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "resolve parent announcement audience recipients", Err: err}
@@ -695,8 +699,8 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	return rows, nil
 }
 
-// CountUnreadForAccount counts the published, active, unexpired announcements
-// the account is targeted by but has not yet read, across the given tenants.
+// CountUnreadForAccount counts live announcements that still need attention:
+// unread letters, pending read confirmations, or unanswered open polls.
 func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
 	if len(tenantIDs) == 0 {
 		return 0, nil
@@ -704,10 +708,8 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 	var count int
 	reached := reachedPredicate("a.id", "a.tenant_id", "?")
 	openPoll := openPollForAccountPredicate("a", "a.tenant_id", "?")
-	// "Outstanding" is unread OR an open poll with a child still unanswered: a
-	// guardian who opened a poll but never answered must keep seeing the badge,
-	// otherwise the reminder value of the count disappears exactly for the people
-	// the school needs an answer from (#1371).
+	// Reading an actionable item must not clear its reminder. It stays outstanding
+	// until the requested confirmation or every required poll answer is stored.
 	sqlStr := `
 		SELECT COUNT(*)
 		FROM users.parent_announcements a
@@ -718,14 +720,18 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
 			AND (a.expires_at IS NULL OR a.expires_at > NOW())
-			AND (par.read_at IS NULL OR ` + openPoll + `)
+			AND (
+				par.read_at IS NULL
+				OR (a.requires_acknowledgement AND par.acknowledged_at IS NULL)
+				OR ` + openPoll + `
+			)
 			AND ` + reached
 	// Arg order: read-state join (acc), tenant set, the open-poll predicate's acc,
 	// then reachedPredicate's acc three times (student once, pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		accountID, bun.List(tenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count unread parent announcements", Err: err}
+		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: err}
 	}
 	return count, nil
 }
@@ -736,7 +742,8 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 // version the client loaded. published_at = ? already implies NOT NULL. Mirrors
 // announcementIsLive in the service, but evaluated in the same statement as the
 // write so a concurrent correction cannot slip a stale read/ack onto the
-// corrected wording.
+// corrected wording. Publication is already validated by the service and
+// version match; expiry is evaluated by PostgreSQL at statement time.
 //
 // Both methods gate the read/ack write on EXISTS(guard) AND return EXISTS(guard)
 // as their result, so the caller can tell a genuine no-op (guard missed — a
@@ -749,8 +756,8 @@ const liveVersionGuardCTE = `WITH guard AS (
 		WHERE a.id = ? AND a.tenant_id = ?
 			AND a.active
 			AND a.published_at = ?
-			AND a.published_at <= NOW()
-			AND (a.expires_at IS NULL OR a.expires_at > NOW())
+			AND a.published_at <= clock_timestamp()
+			AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())
 	)`
 
 // MarkRead upserts the account's read row for an announcement (idempotent: a
@@ -761,6 +768,7 @@ const liveVersionGuardCTE = `WITH guard AS (
 // applied or a prior read already existed) and false when the version guard
 // missed — the caller maps false to a stale conflict rather than a silent 200.
 func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
+	now := time.Now()
 	var live bool
 	if err := base.GetDB(ctx, r.DB).NewRaw(liveVersionGuardCTE+`,
 		ins AS (
@@ -771,7 +779,7 @@ func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, a
 		)
 		SELECT EXISTS (SELECT 1 FROM guard)`,
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
-		tenantID, announcementID, accountID, time.Now(), // insert values
+		tenantID, announcementID, accountID, now, // insert values
 	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
 	}

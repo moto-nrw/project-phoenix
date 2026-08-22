@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -48,6 +49,15 @@ func validateExceptionAuthor(source string, createdBy int64, createdByGuardian *
 	return nil
 }
 
+// Recurring pickup-schedule row sources (#2290). Unlike the exception
+// sources above, these describe WHERE the weekly Gehzeit came from. New
+// stored rows are staff-maintained. care_offering identifies legacy
+// materializations; current offering values are projected at read time.
+const (
+	PickupScheduleSourceStaff        = "staff"
+	PickupScheduleSourceCareOffering = "care_offering"
+)
+
 // Weekday constants (ISO 8601: Monday = 1, Friday = 5)
 const (
 	WeekdayMonday    = 1
@@ -83,7 +93,15 @@ type StudentPickupSchedule struct {
 	Weekday    int       `bun:"weekday,notnull" json:"weekday"`
 	PickupTime time.Time `bun:"pickup_time,notnull" json:"pickup_time"`
 	Notes      *string   `bun:"notes" json:"notes,omitempty"`
-	CreatedBy  int64     `bun:"created_by,notnull" json:"created_by"`
+	CreatedBy  int64     `bun:"created_by,nullzero" json:"created_by"`
+	// Source marks a stored staff override (default) or a legacy offering
+	// materialization. Read-time offering projections are synthetic and are
+	// never inserted into this table.
+	Source         string `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CareOfferingID *int64 `bun:"care_offering_id,nullzero" json:"care_offering_id,omitempty"`
+	// CareOfferingName is hydrated only on read-time projections. It is not
+	// persisted because the offering catalog remains the source of the name.
+	CareOfferingName string `bun:"-" json:"care_offering_name,omitempty"`
 }
 
 // Validate ensures pickup schedule data is valid
@@ -97,11 +115,23 @@ func (s *StudentPickupSchedule) Validate() error {
 	if s.PickupTime.IsZero() {
 		return errors.New("pickup_time is required")
 	}
-	if s.CreatedBy <= 0 {
+	if s.CreatedBy <= 0 && s.Source != PickupScheduleSourceCareOffering {
 		return errors.New(errMsgCreatedByRequired)
 	}
 	if s.Notes != nil && len(*s.Notes) > scheduleNotesMaxLength {
 		return errors.New("notes cannot exceed 500 characters")
+	}
+	switch s.Source {
+	case "":
+		s.Source = PickupScheduleSourceStaff
+	case PickupScheduleSourceStaff:
+		// no offering reference required
+	case PickupScheduleSourceCareOffering:
+		if s.CareOfferingID == nil || *s.CareOfferingID <= 0 {
+			return errors.New("care_offering_id is required for care_offering-sourced rows")
+		}
+	default:
+		return errors.New("invalid pickup schedule source")
 	}
 	return nil
 }
@@ -119,13 +149,48 @@ type StudentPickupException struct {
 	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
 	base.TenantModel
 
-	StudentID         int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate     timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	PickupTime        *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
-	Reason            *string       `bun:"reason" json:"reason,omitempty"`
-	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
-	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
-	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+	StudentID     int64         `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
+	PickupTime    *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
+	Reason        *string       `bun:"reason" json:"reason,omitempty"`
+	// ExcusedFrom turns this existing day-specific pickup override into the
+	// source for a partial excusal. PickupTime normally matches it, but may
+	// differ after an explicit pickup-time decision.
+	ExcusedFrom           *time.Time `bun:"excused_from" json:"excused_from,omitempty"`
+	ExcusedReason         *string    `bun:"excused_reason" json:"excused_reason,omitempty"`
+	ExcusedCreatedBy      *int64     `bun:"excused_created_by" json:"excused_created_by,omitempty"`
+	ExcusedOwnsPickupTime bool       `bun:"excused_owns_pickup_time,notnull,default:false" json:"excused_owns_pickup_time"`
+	// ExcusedAuto marks a partial excusal that was derived automatically from a
+	// pulled-forward pickup time (#2360). Auto rows always mirror PickupTime,
+	// carry no staff author, and are re-synced (or released) whenever the
+	// pickup exception changes. Manual partial absences keep ExcusedAuto false
+	// and are never touched by the sync.
+	ExcusedAuto       bool   `bun:"excused_auto,notnull,default:false" json:"excused_auto"`
+	Source            string `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
+	CreatedBy         int64  `bun:"created_by,nullzero" json:"created_by,omitempty"`
+	CreatedByGuardian *int64 `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
+}
+
+// HasManualPartialAbsence reports whether this exception carries a staff-set
+// partial excusal. Auto-derived excusals (ExcusedAuto) follow the pickup time
+// and must not lock the exception against edits the way a manual one does.
+func (e *StudentPickupException) HasManualPartialAbsence() bool {
+	return e.ExcusedFrom != nil && !e.ExcusedAuto
+}
+
+// NormalizeWallClockTimes re-anchors the TIME-column values onto the
+// canonical wall-clock reference date. The driver scans TIME columns onto
+// year 0, which bun would bind back out of range on a full-row update —
+// every writer that updates a loaded row must normalize first.
+func (e *StudentPickupException) NormalizeWallClockTimes() {
+	if e.PickupTime != nil {
+		clock := timezone.WallClock(*e.PickupTime)
+		e.PickupTime = &clock
+	}
+	if e.ExcusedFrom != nil {
+		clock := timezone.WallClock(*e.ExcusedFrom)
+		e.ExcusedFrom = &clock
+	}
 }
 
 // Validate ensures pickup exception data is valid
@@ -136,8 +201,31 @@ func (e *StudentPickupException) Validate() error {
 	if e.ExceptionDate.IsZero() {
 		return errors.New("exception_date is required")
 	}
-	if e.Reason != nil && len(*e.Reason) > scheduleReasonMaxLength {
+	if e.Reason != nil && utf8.RuneCountInString(*e.Reason) > scheduleReasonMaxLength {
 		return errors.New("reason cannot exceed 255 characters")
+	}
+	if e.ExcusedReason != nil && utf8.RuneCountInString(*e.ExcusedReason) > scheduleReasonMaxLength {
+		return errors.New("excused_reason cannot exceed 255 characters")
+	}
+	switch {
+	case e.ExcusedFrom == nil:
+		if e.ExcusedReason != nil || e.ExcusedCreatedBy != nil || e.ExcusedOwnsPickupTime || e.ExcusedAuto {
+			return errors.New("partial absence metadata requires excused_from")
+		}
+	case e.ExcusedAuto:
+		if e.ExcusedCreatedBy != nil {
+			return errors.New("auto partial absences must not carry excused_created_by")
+		}
+		if e.ExcusedOwnsPickupTime {
+			return errors.New("auto partial absences never own the pickup time")
+		}
+		if e.PickupTime == nil {
+			return errors.New("auto partial absences require a pickup time")
+		}
+	case e.ExcusedCreatedBy == nil || *e.ExcusedCreatedBy <= 0:
+		return errors.New("excused_created_by is required for partial absences")
+	case e.ExcusedOwnsPickupTime && e.PickupTime == nil:
+		return errors.New("owned partial-absence pickup time is required")
 	}
 	if err := validateExceptionAuthor(e.Source, e.CreatedBy, e.CreatedByGuardian); err != nil {
 		return err
@@ -178,6 +266,10 @@ type StudentPickupScheduleRepository interface {
 // StudentPickupExceptionRepository defines operations for managing student pickup exceptions
 type StudentPickupExceptionRepository interface {
 	base.Repository[*StudentPickupException]
+
+	// FindByIDForUpdate retrieves and locks an exception for an atomic
+	// invariant check followed by mutation.
+	FindByIDForUpdate(ctx context.Context, id any) (*StudentPickupException, error)
 
 	// FindByStudentID finds all pickup exceptions for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupException, error)

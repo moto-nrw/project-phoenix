@@ -160,6 +160,160 @@ describe("FormModal", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("blocks close icon, backdrop, and Escape while closeDisabled", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    );
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+  });
+
+  it("cancels a queued close when a save starts during the exit delay", async () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test">
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the 250ms exit delay: the request is now in flight
+    rerender(
+      <TestWrapper>
+        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
+  it("keeps the modal open when a save queued during the exit delay fails fast", async () => {
+    const onClose = vi.fn();
+    const modal = (closeDisabled: boolean) => (
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          closeDisabled={closeDisabled}
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the 250ms exit delay ...
+    rerender(modal(true));
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    // ... and the request fails fast, resetting closeDisabled before the
+    // queued close would have fired.
+    rerender(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
+  it("clears an earlier queued close when dismissed again during the exit delay", async () => {
+    const onClose = vi.fn();
+    const modal = (closeDisabled: boolean) => (
+      <TestWrapper>
+        <FormModal
+          isOpen={true}
+          onClose={onClose}
+          title="Test"
+          closeDisabled={closeDisabled}
+        >
+          <p>Content</p>
+        </FormModal>
+      </TestWrapper>
+    );
+    const { rerender } = render(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    // Dismiss twice in quick succession: without cleanup the first timer
+    // would keep running untracked next to the second one.
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    await act(async () => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+
+    // Save clicked within the exit delay ...
+    rerender(modal(true));
+    await act(async () => {
+      vi.advanceTimersByTime(50);
+    });
+    // ... and the request fails fast: only the tracked (newest) timer was
+    // cancelled — the first dismissal's timer must not close the modal now.
+    rerender(modal(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(400);
+    });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalEnter",
+    );
+  });
+
   it("should render footer when provided", async () => {
     render(
       <TestWrapper>

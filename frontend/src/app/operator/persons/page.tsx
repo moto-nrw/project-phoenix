@@ -9,10 +9,11 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { createLogger } from "~/lib/logger";
 import { PersonTags } from "~/components/operator/persons-table";
+import { SimpleEmptyState } from "../provisioning/provisioning-shared";
 import {
-  CardSkeletons,
-  SimpleEmptyState,
-} from "../provisioning/provisioning-shared";
+  SkeletonRegion,
+  CardGridSkeleton,
+} from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 
@@ -114,7 +115,13 @@ function OperatorPersonsPageContent() {
           description="Wählen Sie eine Schule aus, um deren Personen anzuzeigen."
         />
       ) : schoolPersonsLoading ? (
-        <CardSkeletons />
+        <SkeletonRegion label="Personen werden geladen">
+          <CardGridSkeleton
+            cards={6}
+            rowsPerCard={2}
+            className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+          />
+        </SkeletonRegion>
       ) : !schoolPersons || schoolPersons.length === 0 ? (
         <SimpleEmptyState
           title="Keine Personen"

@@ -7,6 +7,8 @@ import (
 )
 
 func TestStudentDeletionCountsTotal(t *testing.T) {
+	t.Parallel()
+
 	counts := StudentDeletionCounts{
 		TimetableAssignments: 1,
 		ActivityEnrollments:  2,

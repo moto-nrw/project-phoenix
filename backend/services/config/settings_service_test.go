@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"testing"
-	"time"
 
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -734,7 +733,7 @@ func TestGetSchema_DependsOn_UsesHiddenOperatorOnlyParent(t *testing.T) {
 		},
 	})
 
-	tenantID := int64(42)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	valueRepo := newMockValueRepo()
 	valueRepo.values[valueRepo.key(tenantID, "attendance.nfc_enabled")] = &config.SettingValue{
 		SettingKey: "attendance.nfc_enabled",
@@ -857,6 +856,8 @@ func schemaVisibility(schema *configSvc.SettingsSchema) map[string]bool {
 }
 
 func TestSettingsError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	inner := &configSvc.DefinitionNotFoundError{Key: "test"}
 	err := &configSvc.SettingsError{Op: "resolve", Err: inner}
 
@@ -866,12 +867,16 @@ func TestSettingsError_Unwrap(t *testing.T) {
 }
 
 func TestDefinitionNotFoundError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.DefinitionNotFoundError{Key: "missing.key"}
 	assert.Contains(t, err.Error(), "missing.key")
 	assert.ErrorIs(t, err, configSvc.ErrDefinitionNotFound)
 }
 
 func TestInvalidValueError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.InvalidValueError{Key: "test.key", Reason: "too small"}
 	assert.Contains(t, err.Error(), "test.key")
 	assert.Contains(t, err.Error(), "too small")
@@ -879,6 +884,8 @@ func TestInvalidValueError(t *testing.T) {
 }
 
 func TestPermissionDeniedError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"}
 	assert.Contains(t, err.Error(), "admin.setting")
 	assert.Contains(t, err.Error(), "config:manage")
@@ -2020,26 +2027,30 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a dedicated org + school to avoid polluting shared test state.
-	now := time.Now().UnixNano()
+	// IDs from the unique-tenant counter, not from time.Now().UnixNano(): two
+	// parallel tests entering this helper in the same microsecond collided on
+	// organizations_pkey (#2419).
+	orgID := testpkg.UniqueTestTenantID(t)
+	schoolID := testpkg.UniqueTestTenantID(t)
 	orgRepo := platformRepo.NewOrganizationRepository(db)
 	org := &platform.Organization{
-		Model:  modelBase.Model{ID: now},
-		Name:   fmt.Sprintf("LoginImgOrg %d", now),
-		Slug:   fmt.Sprintf("loginimg-org-%d", now),
+		Model:  modelBase.Model{ID: orgID},
+		Name:   fmt.Sprintf("LoginImgOrg %d", orgID),
+		Slug:   fmt.Sprintf("loginimg-org-%d", orgID),
 		Active: true,
 	}
 	require.NoError(t, orgRepo.Create(ctx, org))
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	school := &platform.School{
-		Model:          modelBase.Model{ID: now + 1},
+		Model:          modelBase.Model{ID: schoolID},
 		OrganizationID: org.ID,
-		Name:           fmt.Sprintf("LoginImgSchool %d", now),
-		Slug:           fmt.Sprintf("loginimg-%d", now),
-		Subdomain:      fmt.Sprintf("loginimg-%d", now),
+		Name:           fmt.Sprintf("LoginImgSchool %d", schoolID),
+		Slug:           fmt.Sprintf("loginimg-%d", schoolID),
+		Subdomain:      fmt.Sprintf("loginimg-%d", schoolID),
 		Active:         true,
 	}
 	require.NoError(t, schoolRepo.Create(ctx, school))
@@ -2051,13 +2062,14 @@ func setupLoginImageIntegrationTest(t *testing.T) (configSvc.SettingsService, *p
 	cleanup := func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, school.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-		_ = db.Close()
 	}
 
 	return svc, school, cleanup
 }
 
 func TestSetLoginImageURL_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2073,6 +2085,8 @@ func TestSetLoginImageURL_Success(t *testing.T) {
 }
 
 func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2092,13 +2106,14 @@ func TestSetLoginImageURL_ReplacesExisting(t *testing.T) {
 }
 
 func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
 	// Pre-populate the school with other settings via direct SQL
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	_, err := db.ExecContext(ctx,
 		`UPDATE platform.schools SET settings = '{"theme":"dark","lang":"de"}' WHERE id = ?`,
 		school.ID)
@@ -2115,6 +2130,8 @@ func TestSetLoginImageURL_PreservesOtherSettings(t *testing.T) {
 }
 
 func TestClearLoginImageURL_Success(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2132,6 +2149,8 @@ func TestClearLoginImageURL_Success(t *testing.T) {
 }
 
 func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
+	t.Parallel()
+
 	svc, school, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 
@@ -2141,6 +2160,8 @@ func TestClearLoginImageURL_NoExistingImage(t *testing.T) {
 }
 
 func TestSetLoginImageURL_NonexistentSchool(t *testing.T) {
+	t.Parallel()
+
 	svc, _, cleanup := setupLoginImageIntegrationTest(t)
 	defer cleanup()
 

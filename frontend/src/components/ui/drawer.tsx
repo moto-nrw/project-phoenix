@@ -78,7 +78,11 @@ const DrawerContent = React.forwardRef<
           // iOS-style drag handle, only on bottom sheet (matches the
           // original Vaul UX). Side panels are dismissed via close button
           // / overlay click.
-          <div className="mx-auto mt-4 h-1 w-12 rounded-full bg-gray-300" />
+          <div
+            data-drawer-handle="true"
+            aria-hidden="true"
+            className="mx-auto mt-4 h-1 w-12 rounded-full bg-gray-300"
+          />
         )}
         {children}
       </DrawerPrimitive.Content>

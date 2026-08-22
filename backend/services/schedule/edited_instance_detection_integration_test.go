@@ -7,7 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -30,7 +32,6 @@ func materializeSingleInstance(t *testing.T, s *scenarioSetup) *scheduleModels.A
 	require.NoError(t, err)
 	rows := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
 	require.Len(t, rows, 1)
-	s.registerCleanup("schedule.activity_instances", rows[0].ID)
 	return rows[0]
 }
 
@@ -61,6 +62,8 @@ func detectWindow(t *testing.T, s *scenarioSetup, includeDeletions bool) []sched
 }
 
 func TestDetectEditedInWindow_Pristine(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	materializeSingleInstance(t, s)
@@ -69,6 +72,8 @@ func TestDetectEditedInWindow_Pristine(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -84,6 +89,8 @@ func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_NotesEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -96,6 +103,8 @@ func TestDetectEditedInWindow_NotesEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_DescriptionEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -110,13 +119,14 @@ func TestDetectEditedInWindow_DescriptionEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
 
 	room2 := testpkg.CreateTestRoomForTenant(t, s.db, s.tenantID, "Turnraum-1875")
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room2.ID)
 	})
 	setInstanceColumn(t, s, inst.ID, "room_id", room2.ID)
 
@@ -126,6 +136,8 @@ func TestDetectEditedInWindow_RoomEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TimeMove(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -139,6 +151,8 @@ func TestDetectEditedInWindow_TimeMove(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -159,7 +173,142 @@ func TestDetectEditedInWindow_StudentRosterEdit(t *testing.T) {
 	assert.Equal(t, []string{scheduleSvc.EditedChangeStudents}, edited[0].Changes)
 }
 
+func TestDetectEditedInWindow_StudentRosterRemoval(t *testing.T) {
+	t.Parallel()
+
+	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+	defer s.runCleanup(t)
+	inst := materializeSingleInstance(t, s)
+
+	_, err := s.db.NewDelete().
+		Model((*scheduleModels.InstanceStudent)(nil)).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".instance_id = ?`, inst.ID).
+		Where(`"instance_student".student_id = ?`, s.students[0]).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	edited := detect(t, s)
+	require.Len(t, edited, 1)
+	assert.Equal(t, []string{scheduleSvc.EditedChangeStudents}, edited[0].Changes)
+}
+
+func TestDetectEditedInWindow_StatusDayAbsenceIsRosterMembership(t *testing.T) {
+	t.Parallel()
+
+	statuses := []struct {
+		name      string
+		status    string
+		substatus string
+	}{
+		{name: "sick", status: activeModels.StudentStatusDaySick, substatus: scheduleModels.AttendanceSubstatusSick},
+		{name: "excused", status: activeModels.StudentStatusDayExcused, substatus: scheduleModels.AttendanceSubstatusExcused},
+		{name: "class trip", status: activeModels.StudentStatusDayClassTrip, substatus: scheduleModels.AttendanceSubstatusFieldTrip},
+	}
+
+	for _, tc := range statuses {
+		t.Run(tc.name, func(t *testing.T) {
+			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+			defer s.runCleanup(t)
+			inst := materializeSingleInstance(t, s)
+
+			statusDay := &activeModels.StudentStatusDay{
+				StudentID:  s.students[0],
+				Date:       editWindowStart,
+				Status:     tc.status,
+				ReportedAt: time.Now(),
+				Source:     activeModels.StudentStatusSourcePlanned,
+			}
+			require.NoError(t, s.factory.StudentStatusDays.UpsertReported(s.ctx, statusDay))
+			s.extraCleanups = append(s.extraCleanups, func() {
+			})
+
+			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			before, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, before.Status)
+			require.NotNil(t, before.Substatus)
+			assert.Equal(t, tc.substatus, *before.Substatus)
+			require.NotNil(t, before.StudentStatusDayID)
+			assert.Equal(t, statusDay.ID, *before.StudentStatusDayID)
+
+			assert.Empty(t, detect(t, s), "a status-owned absence does not change roster membership")
+
+			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			require.NoError(t, err)
+			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
+			require.Len(t, regenerated, 1)
+
+			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusAbsent, after.Status)
+			require.NotNil(t, after.Substatus)
+			assert.Equal(t, tc.substatus, *after.Substatus)
+			require.NotNil(t, after.StudentStatusDayID)
+			assert.Equal(t, statusDay.ID, *after.StudentStatusDayID)
+		})
+	}
+}
+
+func TestDetectEditedInWindow_AttendanceStateDoesNotChangeRosterMembership(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		apply func(*scheduleModels.InstanceStudent)
+	}{
+		{name: "observed present", apply: func(row *scheduleModels.InstanceStudent) {
+			now := time.Now()
+			row.Status = scheduleModels.AttendanceStatusPresent
+			row.CheckedInAt = &now
+		}},
+		{name: "manual absent", apply: func(row *scheduleModels.InstanceStudent) {
+			now := time.Now()
+			row.Status = scheduleModels.AttendanceStatusAbsent
+			row.ManualStatusAt = &now
+		}},
+		{name: "not scheduled", apply: func(row *scheduleModels.InstanceStudent) {
+			row.Status = scheduleModels.AttendanceStatusExpected
+			row.NotScheduled = true
+		}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+			defer s.runCleanup(t)
+			inst := materializeSingleInstance(t, s)
+			studentRepo := scheduleRepo.NewInstanceStudentRepository(s.db)
+			row, err := studentRepo.FindByInstanceAndStudent(s.ctx, inst.ID, s.students[0])
+			require.NoError(t, err)
+			tc.apply(row)
+			require.NoError(t, studentRepo.Update(s.ctx, row))
+
+			edited := detect(t, s)
+			require.Len(t, edited, 1)
+			assert.Equal(t, []string{scheduleSvc.EditedChangeAttendance}, edited[0].Changes,
+				"unrestored attendance is a lost edit, but not a roster-membership change")
+			assert.NotContains(t, edited[0].Changes, scheduleSvc.EditedChangeStudents)
+
+			_, err = s.factory.Instance.ReplanWeek(s.ctx, editWindowStart, editWindowStart, &s.template.ID, nil)
+			require.NoError(t, err)
+			regenerated := listInstancesForDate(t, s.db, s.template.ID, editWindowStart)
+			require.Len(t, regenerated, 1)
+
+			after, err := studentRepo.FindByInstanceAndStudent(s.ctx, regenerated[0].ID, s.students[0])
+			require.NoError(t, err)
+			assert.Equal(t, scheduleModels.AttendanceStatusExpected, after.Status)
+			assert.False(t, after.NotScheduled)
+			assert.Nil(t, after.ManualStatusAt)
+			assert.Nil(t, after.CheckedInAt)
+		})
+	}
+}
+
 func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -179,6 +328,8 @@ func TestDetectEditedInWindow_StaffRosterEdit(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -189,7 +340,6 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 	setInstanceStaffAbsent(t, s, inst.ID, s.staffID)
 	subStaff := testpkg.CreateTestStaffForTenant(t, s.db, s.tenantID, "Ersatz", "Kraft-1875")
 	s.extraCleanups = append(s.extraCleanups, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, subStaff.ID)
 	})
 	sub := &scheduleModels.InstanceStaff{
 		InstanceID:   inst.ID,
@@ -208,6 +358,8 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 // resurrected by a following-series split, so it must be reported — but only
 // when the caller asks for deletions (a same-template re-plan preserves it).
 func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -224,7 +376,6 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 	_, err = s.db.NewDelete().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
@@ -245,6 +396,8 @@ func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
 }
 
 func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)
@@ -265,6 +418,8 @@ func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
 // detector must NOT report it as a lost `time` edit (the re-plan re-applies the
 // same exception). The old (weekday, start) slot map flagged it.
 func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 
@@ -279,7 +434,6 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 	exc.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_exceptions", exc.ID)
 
 	// Materialize so the occurrence lands at the exception-shifted 13:00 start.
 	materializeSingleInstance(t, s)
@@ -294,6 +448,8 @@ func TestDetectEditedInWindow_ExceptionShiftedStartNotFlagged(t *testing.T) {
 // map matched it on (weekday, start) and missed the loss; the date-aware
 // projection returns no slot, so it is correctly flagged as a lost `time` edit.
 func TestDetectEditedInWindow_OffRecurrenceDateFlagged(t *testing.T) {
+	t.Parallel()
+
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
 	inst := materializeSingleInstance(t, s)

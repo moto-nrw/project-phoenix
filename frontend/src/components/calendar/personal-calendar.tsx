@@ -39,6 +39,8 @@ interface PersonalCalendarProps {
    */
   readonly title: string;
   readonly subtitle?: string;
+  /** Titel/Untertitel als Karte rendern (Elternportal-Konvention). */
+  readonly cardHeader?: boolean;
   readonly events: readonly CalendarEvent[];
   readonly referenceDate?: Date;
   readonly weekStart?: Date;
@@ -383,6 +385,7 @@ function nextLabel(viewMode: CalendarViewMode): string {
 export function PersonalCalendar({
   title,
   subtitle,
+  cardHeader = false,
   events,
   referenceDate: rawReferenceDate,
   weekStart,
@@ -456,15 +459,26 @@ export function PersonalCalendar({
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
-        {subtitle ? (
-          <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
-        ) : null}
-      </div>
+      {cardHeader ? (
+        <header className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
+            {title}
+          </h1>
+          {subtitle ? (
+            <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
+          ) : null}
+        </header>
+      ) : (
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900">{title}</h1>
+          {subtitle ? (
+            <p className="mt-1 text-sm leading-6 text-gray-600">{subtitle}</p>
+          ) : null}
+        </div>
+      )}
       <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <div className="flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:flex-none">
             <Button
               type="button"
               variant="ghost"
@@ -476,7 +490,7 @@ export function PersonalCalendar({
             >
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </Button>
-            <div className="flex-1 px-2 text-center text-sm font-semibold text-gray-900 sm:min-w-52">
+            <div className="min-w-0 flex-1 truncate px-2 text-center text-sm font-semibold text-gray-900 sm:min-w-52">
               {label}
             </div>
             <Button
@@ -495,7 +509,7 @@ export function PersonalCalendar({
             type="button"
             variant="outline"
             size="compact"
-            className="flex-1 justify-center bg-white sm:flex-none"
+            className="shrink-0 justify-center bg-white"
             onClick={() => handleDateChange(new Date())}
           >
             Heute
@@ -503,7 +517,7 @@ export function PersonalCalendar({
         </div>
 
         <div className="flex flex-wrap items-center gap-2 xl:flex-nowrap xl:justify-end">
-          <div className="flex w-full items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:w-auto">
+          <div className="flex flex-1 items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 shadow-sm sm:flex-none">
             {viewOptions.map((option) => {
               const selected = option.mode === viewMode;
               return (

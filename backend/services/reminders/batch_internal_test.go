@@ -2,7 +2,6 @@ package reminders
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"maps"
 	"sync"
@@ -11,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -29,15 +27,6 @@ import (
 // fixture writing, not whether the two code paths agree.
 // =============================================================================
 
-type ctxStaffKey struct{}
-
-// ctxForStaff carries the caller identity that GetMyGroups resolves from the
-// context, standing in for JWT claims. ComputeBatch is deliberately called
-// WITHOUT it — that it works anyway is half the point of this package.
-func ctxForStaff(staffID int64) context.Context {
-	return context.WithValue(context.Background(), ctxStaffKey{}, staffID)
-}
-
 type world struct {
 	settingBools   map[string]bool
 	settingInts    map[string]int
@@ -50,15 +39,10 @@ type world struct {
 	attendanceIDs []int64
 	visitsByRoom  map[int64][]int64
 	roomsByStaff  map[int64][]int64
-	groupsByStaff map[int64][]int64
 
 	instances     []*scheduleModel.ActivityInstance
 	instanceStaff []*scheduleModel.InstanceStaff
 	roomNames     map[int64]string
-
-	// failGetMyGroups makes the JWT-bound path loud instead of silently empty,
-	// so a batch regression that falls back to it cannot pass unnoticed.
-	failGetMyGroups bool
 
 	mu    sync.Mutex
 	calls map[string]int
@@ -78,17 +62,15 @@ func newWorld() *world {
 			configModel.KeyTimetableOverdueThresholdMinutes:   5,
 		},
 		settingStrings: map[string]string{
-			configModel.KeyPresenceMode:     configModel.PresenceModeDetailed,
-			configModel.KeyStudentDataScope: configModel.StudentDataScopeGroupSupervisorsOnly,
+			configModel.KeyPresenceMode: configModel.PresenceModeDetailed,
 		},
-		students:      map[int64]*userModel.Student{},
-		persons:       map[int64]*userModel.Person{},
-		pickupTimes:   map[int64]*scheduleService.EffectivePickupTime{},
-		visitsByRoom:  map[int64][]int64{},
-		roomsByStaff:  map[int64][]int64{},
-		groupsByStaff: map[int64][]int64{},
-		roomNames:     map[int64]string{},
-		calls:         map[string]int{},
+		students:     map[int64]*userModel.Student{},
+		persons:      map[int64]*userModel.Person{},
+		pickupTimes:  map[int64]*scheduleService.EffectivePickupTime{},
+		visitsByRoom: map[int64][]int64{},
+		roomsByStaff: map[int64][]int64{},
+		roomNames:    map[int64]string{},
+		calls:        map[string]int{},
 	}
 }
 
@@ -153,11 +135,6 @@ func (w *world) supervises(staffID int64, roomIDs ...int64) *world {
 	return w
 }
 
-func (w *world) teaches(staffID int64, groupIDs ...int64) *world {
-	w.groupsByStaff[staffID] = append(w.groupsByStaff[staffID], groupIDs...)
-	return w
-}
-
 func (w *world) addInstance(id int64, title string, roomID int64, startMin, endMin int) *world {
 	inst := plannedInstance(title, roomID, startMin, endMin)
 	inst.ID = id
@@ -204,10 +181,8 @@ func (w *world) service() *service {
 		Student:           w,
 		Person:            worldPersons{w},
 		Supervision:       w,
-		Groups:            w,
 		BulkSupervision:   w,
 		BulkVisits:        w,
-		BulkGroups:        w,
 		BulkInstanceStaff: w,
 	}}
 }
@@ -300,21 +275,6 @@ func (w *world) ListStudentsPresentInRoom(_ context.Context, roomID int64) ([]in
 	return w.visitsByRoom[roomID], nil
 }
 
-// --- groupReader (JWT-bound) --------------------------------------------------
-
-func (w *world) GetMyGroups(ctx context.Context) ([]*educationModel.Group, error) {
-	w.hit("GetMyGroups")
-	if w.failGetMyGroups {
-		return nil, errors.New("GetMyGroups must not be reached from the batch path")
-	}
-	staffID, _ := ctx.Value(ctxStaffKey{}).(int64)
-	out := make([]*educationModel.Group, 0, len(w.groupsByStaff[staffID]))
-	for _, gid := range w.groupsByStaff[staffID] {
-		out = append(out, eduGroup(gid))
-	}
-	return out, nil
-}
-
 // --- bulk readers -------------------------------------------------------------
 
 func (w *world) ListActiveSupervisedRooms(_ context.Context) ([]activeModel.StaffRoomSupervision, error) {
@@ -331,24 +291,6 @@ func (w *world) ListActiveSupervisedRooms(_ context.Context) ([]activeModel.Staf
 func (w *world) ListOpenVisitStudentIDsByRoom(_ context.Context) (map[int64][]int64, error) {
 	w.hit("ListOpenVisitStudentIDsByRoom")
 	return w.visitsByRoom, nil
-}
-
-func (w *world) ListSupervisedGroupIDsByStaff(_ context.Context, staffIDs []int64, _ timezone.Date) ([]educationModel.StaffGroupID, error) {
-	w.hit("ListSupervisedGroupIDsByStaff")
-	wanted := make(map[int64]struct{}, len(staffIDs))
-	for _, id := range staffIDs {
-		wanted[id] = struct{}{}
-	}
-	var out []educationModel.StaffGroupID
-	for staffID, groups := range w.groupsByStaff {
-		if _, ok := wanted[staffID]; !ok {
-			continue
-		}
-		for _, gid := range groups {
-			out = append(out, educationModel.StaffGroupID{StaffID: staffID, GroupID: gid})
-		}
-	}
-	return out, nil
 }
 
 // --- adapters for the two colliding FindByIDs signatures ----------------------
@@ -407,7 +349,7 @@ func assertBatchMatchesCompute(t *testing.T, w *world, scopes []BatchScope) {
 
 		singles := make(map[int64]*Result, len(scopes))
 		for _, sc := range scopes {
-			single, serr := svc.Compute(ctxForStaff(sc.StaffID), sc.Scope)
+			single, serr := svc.Compute(ctx, sc.Scope)
 			require.NoError(t, serr)
 			singles[sc.StaffID] = single
 		}
@@ -450,6 +392,8 @@ func admin(staffID int64) BatchScope {
 }
 
 func TestComputeBatchMatchesCompute(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
@@ -462,14 +406,14 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 	overdue := nowMin - 20
 
 	// baseWorld: two rooms, two education groups, one child each, plus a child
-	// nobody supervises.
+	// in a room nobody supervises.
 	baseWorld := func() *world {
 		w := newWorld()
 		w.addStudent(1, 100, "Anna", "1a").addStudent(2, 200, "Ben", "2b").addStudent(3, 300, "Cem", "3c")
 		w.pickupAtMinute(1, soon).pickupAtMinute(2, late).pickupAtMinute(3, soon)
 		w.presentInRoom(10, 1).presentInRoom(20, 2).presentInRoom(30, 3)
-		w.supervises(7, 10).teaches(7, 100)
-		w.supervises(8, 20).teaches(8, 200)
+		w.supervises(7, 10)
+		w.supervises(8, 20)
 		w.addInstance(101, "Schach", 10, start, start+60)
 		w.addInstance(102, "Fußball", 20, overdue, overdue+90)
 		return w
@@ -479,52 +423,42 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{admin(1)})
 	})
 
-	t.Run("caregiver with one room and one group", func(t *testing.T) {
+	t.Run("caregiver with one room", func(t *testing.T) {
 		assertBatchMatchesCompute(t, baseWorld(), []BatchScope{caregiver(7)})
 	})
 
-	t.Run("all_staff scope widens the gate for everyone", func(t *testing.T) {
-		w := baseWorld()
-		w.settingStrings[configModel.KeyStudentDataScope] = configModel.StudentDataScopeAllStaff
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
-	})
-
-	t.Run("caregiver without supervision or groups sees nothing", func(t *testing.T) {
+	t.Run("caregiver without supervision sees nothing", func(t *testing.T) {
 		w := baseWorld()
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(99)})
 
 		// Asserted in absolute terms as well, not only against Compute: an
 		// equivalence check compares the two paths with each other and is blind
 		// to a bug they share. "Supervises nothing" turning into "sees
-		// everything" is the worst such bug, so it gets its own claim.
+		// everything" is the worst such bug, so it gets its own claim —
+		// especially now that the per-child read gate is gone (#2329) and
+		// supervision alone decides which children reach a caregiver.
 		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(99)})
 		require.NoError(t, err)
 		assert.Empty(t, batch[99].Reminders,
 			"a caregiver without a live supervision must see no activity and no child")
 	})
 
-	t.Run("caregiver supervising a room but teaching no group", func(t *testing.T) {
+	t.Run("caregiver sees every child in a supervised room, whatever group", func(t *testing.T) {
+		// Staff 9 supervises room 10 without any relation to the child's
+		// education group — since #2329 that is enough to read the child.
 		w := baseWorld()
 		w.supervises(9, 10)
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(9)})
-	})
 
-	t.Run("caregiver teaching a group but supervising no room", func(t *testing.T) {
-		w := baseWorld()
-		w.teaches(9, 100)
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(9)})
+		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{caregiver(9)})
+		require.NoError(t, err)
+		assert.NotEmpty(t, batch[9].Reminders,
+			"a room supervisor reads the children standing in their room")
 	})
 
 	t.Run("binary mode reads presence from attendance", func(t *testing.T) {
 		w := baseWorld()
 		w.settingStrings[configModel.KeyPresenceMode] = configModel.PresenceModeBinary
-		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
-	})
-
-	t.Run("binary mode with all_staff scope", func(t *testing.T) {
-		w := baseWorld()
-		w.settingStrings[configModel.KeyPresenceMode] = configModel.PresenceModeBinary
-		w.settingStrings[configModel.KeyStudentDataScope] = configModel.StudentDataScopeAllStaff
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
 	})
 
@@ -539,7 +473,6 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 	t.Run("two rooms sharing a child are deduplicated", func(t *testing.T) {
 		w := baseWorld()
 		w.supervises(7, 20)
-		w.teaches(7, 200)
 		w.presentInRoom(20, 1) // the same child is present in both rooms
 		assertBatchMatchesCompute(t, w, []BatchScope{caregiver(7)})
 	})
@@ -588,7 +521,7 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 		w.addInstance(103, "Theater", 20, start, start+60)
 		w.assignsInstance(7, 103, false)
 
-		single, err := w.service().Compute(ctxForStaff(7), Scope{StaffID: 7})
+		single, err := w.service().Compute(context.Background(), Scope{StaffID: 7})
 		require.NoError(t, err)
 		batch, err := w.service().ComputeBatch(context.Background(), []BatchScope{personalCaregiver(7)})
 		require.NoError(t, err)
@@ -675,6 +608,8 @@ func TestComputeBatchMatchesCompute(t *testing.T) {
 // directly. Both entry points share this helper, so the equivalence test cannot
 // see a mistake in it — they would simply be wrong together.
 func TestActivityRoomFilterNilOnlyForAdmins(t *testing.T) {
+	t.Parallel()
+
 	t.Run("admin gets no restriction", func(t *testing.T) {
 		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, nil))
 		assert.Nil(t, activityRoomFilter(Scope{IsAdmin: true}, []int64{10}))
@@ -696,6 +631,8 @@ func TestActivityRoomFilterNilOnlyForAdmins(t *testing.T) {
 }
 
 func TestComputeBatchScopeHandling(t *testing.T) {
+	t.Parallel()
+
 	w := newWorld()
 	svc := w.service()
 	ctx := context.Background()
@@ -759,17 +696,17 @@ func TestComputeBatchScopeHandling(t *testing.T) {
 // =============================================================================
 
 func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight")
 	}
 
-	// A world with many staff, each supervising their own room and teaching
-	// their own group, with a child due for pickup in it.
+	// A world with many staff, each supervising their own room, with a child
+	// due for pickup in it.
 	build := func(staffCount int) (*world, []BatchScope) {
 		w := newWorld()
-		// The batch must never reach the JWT-bound path; make that loud.
-		w.failGetMyGroups = true
 
 		scopes := make([]BatchScope, 0, staffCount)
 		for n := range staffCount {
@@ -783,7 +720,6 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 			w.pickupAtMinute(studentID, nowMin+5)
 			w.presentInRoom(roomID, studentID)
 			w.supervises(staffID, roomID)
-			w.teaches(staffID, groupID)
 			w.addInstance(int64(500+i), fmt.Sprintf("AG%d", i), roomID, nowMin+5, nowMin+65)
 
 			scopes = append(scopes, caregiver(staffID))
@@ -812,16 +748,12 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 	assert.Equal(t, oneCalls, manyCalls,
 		"the number of reads must not grow with the number of staff")
 
-	assert.Equal(t, 1, manyCalls["ListSupervisedGroupIDsByStaff"],
-		"supervised groups are resolved for all staff in one call")
 	assert.Equal(t, 1, manyCalls["ListActiveSupervisedRooms"])
 	assert.Equal(t, 1, manyCalls["ListOpenVisitStudentIDsByRoom"])
 	assert.Equal(t, 1, manyCalls["FindReadScopeByIDs"])
 	assert.Equal(t, 1, manyCalls["GetBulkEffectivePickupTimesForDate"])
 	assert.Equal(t, 1, manyCalls["Person.FindByIDs"])
 
-	assert.Zero(t, manyCalls["GetMyGroups"],
-		"the batch must never fall back to the JWT-bound group lookup")
 	assert.Zero(t, manyCalls["ListStudentsPresentInRoom"],
 		"no per-room query loop")
 	assert.Zero(t, manyCalls["GetStaffActiveSupervisions"],
@@ -837,6 +769,8 @@ func TestComputeBatchQueryCountIsFlatInStaffCount(t *testing.T) {
 // distinction would have to be re-derived from supervision data, which is how
 // two answers to one question start drifting apart.
 func TestBatchReportsPersonalAssignments(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")
@@ -875,6 +809,8 @@ func TestBatchReportsPersonalAssignments(t *testing.T) {
 }
 
 func TestAssignedActivitiesExpandOnlyUpcomingScope(t *testing.T) {
+	t.Parallel()
+
 	nowMin := minutesOfDay(timezone.Now())
 	if nowMin < 60 || nowMin > 1380 {
 		t.Skip("skipping near midnight: fixtures would wrap the day boundary")

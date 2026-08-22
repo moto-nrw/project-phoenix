@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -194,6 +195,8 @@ type GradeTransitionService struct {
 	visitRepo              activeModels.VisitRepository
 	attendanceRepo         activeModels.AttendanceRepository
 	classTeacherRepo       education.ClassTeacherRepository
+	classListEntryRepo     users.ClassListEntryRepository
+	classListEntryAudit    auditModels.ClassListEntryChangeRepository
 	rosterReconciler       RosterReconciler
 	offeringSourceResyncer OfferingSourceResyncer
 	db                     *bun.DB
@@ -224,6 +227,12 @@ type GradeTransitionServiceDependencies struct {
 	// resurrected. Wire both together.
 	ClassTeacherRepo education.ClassTeacherRepository
 	StaffRepo        users.StaffRepository
+	// ClassListEntryRepo lets apply/revert follow the class renames for the
+	// class-list-only entries (#2382) — same rationale as ClassTeacherRepo.
+	// Optional; nil disables the remap. ClassListEntryAudit records every
+	// rewrite (nil disables the trail for tests).
+	ClassListEntryRepo  users.ClassListEntryRepository
+	ClassListEntryAudit auditModels.ClassListEntryChangeRepository
 	// RosterReconciler reconciles already-materialized future timetable rosters
 	// on apply (drop graduates) and revert (restore reactivated students).
 	// Optional; nil disables reconciliation for tests that don't exercise it.
@@ -234,15 +243,17 @@ type GradeTransitionServiceDependencies struct {
 // NewGradeTransitionService creates a new grade transition service
 func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTransitionService {
 	return &GradeTransitionService{
-		transitionRepo:   deps.TransitionRepo,
-		studentRepo:      deps.StudentRepo,
-		personRepo:       deps.PersonRepo,
-		staffRepo:        deps.StaffRepo,
-		visitRepo:        deps.VisitRepo,
-		attendanceRepo:   deps.AttendanceRepo,
-		classTeacherRepo: deps.ClassTeacherRepo,
-		rosterReconciler: deps.RosterReconciler,
-		db:               deps.DB,
+		transitionRepo:      deps.TransitionRepo,
+		studentRepo:         deps.StudentRepo,
+		personRepo:          deps.PersonRepo,
+		staffRepo:           deps.StaffRepo,
+		visitRepo:           deps.VisitRepo,
+		attendanceRepo:      deps.AttendanceRepo,
+		classTeacherRepo:    deps.ClassTeacherRepo,
+		classListEntryRepo:  deps.ClassListEntryRepo,
+		classListEntryAudit: deps.ClassListEntryAudit,
+		rosterReconciler:    deps.RosterReconciler,
+		db:                  deps.DB,
 	}
 }
 
@@ -879,6 +890,13 @@ func (s *GradeTransitionService) executeApply(
 	// year's incoming cohort after this apply. Every rewrite lands in the
 	// transition's class-teacher ledger so the revert can replay it exactly.
 	if err := s.remapClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
+		return err
+	}
+
+	// The class-list-only entries (#2382) follow the same renames: promoted
+	// classes keep their entries, graduating classes lose them. Every rewrite
+	// lands in the transition's class-list-entry ledger for the revert.
+	if err := s.remapClassListEntries(ctx, transition.ID, transition.Mappings, accountID); err != nil {
 		return err
 	}
 
@@ -1529,6 +1547,14 @@ func (s *GradeTransitionService) executeRevert(
 	// touched have no ledger entry and stay untouched, and rows the admin
 	// deliberately removed since the apply stay removed.
 	if err := s.revertClassTeacherAssignments(ctx, transition.ID, transition.Mappings); err != nil {
+		return err
+	}
+
+	// The class-list-only entries (#2382) replay their recorded ledger
+	// backwards, mirroring the Klassenlehrer revert above: created rows are
+	// deleted, removed rows (promotions AND graduations) are restored, and
+	// entries the apply never touched stay untouched.
+	if err := s.revertClassListEntries(ctx, transition.ID, transition.Mappings, accountID); err != nil {
 		return err
 	}
 

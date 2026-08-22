@@ -185,6 +185,8 @@ func validInput() Input {
 }
 
 func TestUpdate_PublishedIsImmutable(t *testing.T) {
+	t.Parallel()
+
 	published := draftAnnouncement(false)
 	now := time.Now()
 	published.PublishedAt = &now
@@ -201,6 +203,8 @@ func TestUpdate_PublishedIsImmutable(t *testing.T) {
 }
 
 func TestUpdate_DraftStaysEditable(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{announcement: draftAnnouncement(false)}
 	svc := newTestService(repo, &fakeOutbox{})
 
@@ -213,6 +217,8 @@ func TestUpdate_DraftStaysEditable(t *testing.T) {
 }
 
 func TestCreate_RejectsPastExpiry(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{announcement: draftAnnouncement(false)}
 	svc := newTestService(repo, &fakeOutbox{})
 
@@ -227,6 +233,8 @@ func TestCreate_RejectsPastExpiry(t *testing.T) {
 }
 
 func TestUnpublish_CancelsPendingEmails(t *testing.T) {
+	t.Parallel()
+
 	published := draftAnnouncement(true)
 	now := time.Now()
 	published.PublishedAt = &now
@@ -243,6 +251,8 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 }
 
 func TestDelete_CancelsPendingEmails(t *testing.T) {
+	t.Parallel()
+
 	published := draftAnnouncement(true)
 	now := time.Now()
 	published.PublishedAt = &now
@@ -262,6 +272,8 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 }
 
 func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
+	t.Parallel()
+
 	poll := draftAnnouncement(false)
 	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
 	now := time.Now()
@@ -269,7 +281,7 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	repo := &fakeAnnouncementRepo{
 		announcement: poll,
 		reminders: []*usersModels.AnnouncementPollReminderRecipient{
-			{AccountID: 101, Email: ""},
+			{AccountID: 101, Email: "", PortalLocale: "en"},
 		},
 	}
 	notifier := &fakeNotifier{}
@@ -292,9 +304,14 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 	if len(notifier.events) != 1 || !slices.Equal(notifier.events[0].Audience.GuardianAccountIDs, []int64{101}) {
 		t.Fatalf("unexpected push recipients: %+v", notifier.events)
 	}
+	if notifier.events[0].Title != "Reminder: poll open" {
+		t.Fatalf("unexpected localized reminder title: %q", notifier.events[0].Title)
+	}
 }
 
 func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
+	t.Parallel()
+
 	poll := draftAnnouncement(false)
 	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
 	now := time.Now()
@@ -325,6 +342,8 @@ func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
 }
 
 func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -361,6 +380,8 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 }
 
 func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
 		audience: []*usersModels.AnnouncementRecipientStatus{
@@ -399,7 +420,43 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 	}
 }
 
+func TestPublish_GroupsGuardianPushesByPortalLocale(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAnnouncementRepo{
+		announcement: draftAnnouncement(false),
+		audience: []*usersModels.AnnouncementRecipientStatus{
+			{AccountID: 101, PortalLocale: "de"},
+			{AccountID: 202, PortalLocale: "en"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Notifier: notifier,
+		ParentsURL: "https://parents.example.test", Logger: slog.Default(),
+	})
+
+	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
+		t.Fatalf("publish failed: %v", err)
+	}
+	if len(notifier.events) != 2 {
+		t.Fatalf("expected one event per locale, got %d", len(notifier.events))
+	}
+	titles := make(map[string][]int64, len(notifier.events))
+	for _, event := range notifier.events {
+		titles[event.Title] = event.Audience.GuardianAccountIDs
+	}
+	if !slices.Equal(titles["Neue Elternmitteilung"], []int64{101}) {
+		t.Fatalf("unexpected German audience: %v", titles["Neue Elternmitteilung"])
+	}
+	if !slices.Equal(titles["New parent announcement"], []int64{202}) {
+		t.Fatalf("unexpected English audience: %v", titles["New parent announcement"])
+	}
+}
+
 func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
+	t.Parallel()
+
 	poll := draftAnnouncement(true)
 	poll.ResponseType = usersModels.ParentAnnouncementResponseSingleChoice
 	repo := &fakeAnnouncementRepo{
@@ -441,6 +498,8 @@ func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
 // enrollment mails: an absolute school-logo URL (uploaded image rewritten to the
 // public read endpoint) and the absolute moto footer logo.
 func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -475,6 +534,8 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 // A school without a configured logo still gets the moto footer logo; the school
 // logo degrades to "" so the template shows the plain fallback.
 func TestPublish_BrandingWithoutSchoolLogo(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -497,6 +558,8 @@ func TestPublish_BrandingWithoutSchoolLogo(t *testing.T) {
 }
 
 func TestPublish_NoEmailWithoutOptIn(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(false),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -515,6 +578,8 @@ func TestPublish_NoEmailWithoutOptIn(t *testing.T) {
 }
 
 func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -544,6 +609,8 @@ func TestPublish_RepublishDoesNotReEnqueue(t *testing.T) {
 // changed the title; the winner must honour the fresh state (no e-mail here),
 // never re-send with the stale opt-in / old title.
 func TestPublish_ConcurrentEditWins_UsesFreshRow(t *testing.T) {
+	t.Parallel()
+
 	edited := draftAnnouncement(false) // send_email flipped OFF by the concurrent edit
 	edited.Title = "Sommerfest (verschoben)"
 	repo := &fakeAnnouncementRepo{
@@ -569,6 +636,8 @@ func TestPublish_ConcurrentEditWins_UsesFreshRow(t *testing.T) {
 // tenant tx rolls the flip back) instead of publishing an invisible, immutable,
 // already-expired announcement.
 func TestPublish_ConcurrentEditExpires_RollsBack(t *testing.T) {
+	t.Parallel()
+
 	past := time.Now().Add(-time.Hour)
 	edited := draftAnnouncement(true)
 	edited.ExpiresAt = &past // concurrent edit expired it
@@ -606,6 +675,8 @@ func (failingOutbox) CancelPendingByRelatedEntity(_ context.Context, _ string, _
 // insert runs in the publish transaction, so a DB error aborts it and the commit
 // would fail anyway. Publish must surface the error, not report false success.
 func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeAnnouncementRepo{
 		announcement: draftAnnouncement(true),
 		recipients: []*usersModels.AnnouncementRecipient{
@@ -627,6 +698,8 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 }
 
 func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
+	t.Parallel()
+
 	render := NewAnnouncementRenderer(EmailConfig{})
 	msg, err := render(context.Background(), &platformModels.EmailOutbox{
 		Kind: platformModels.EmailKindParentAnnouncement,
@@ -660,6 +733,8 @@ func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 // The renderer must forward the logo URLs to the template so the header renders
 // the school logo and the footer renders the moto logo.
 func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
+	t.Parallel()
+
 	render := NewAnnouncementRenderer(EmailConfig{})
 	msg, err := render(context.Background(), &platformModels.EmailOutbox{
 		Kind: platformModels.EmailKindParentAnnouncement,

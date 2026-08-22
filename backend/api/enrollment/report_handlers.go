@@ -25,7 +25,31 @@ import (
 
 type careUsageExportRequest struct {
 	Format  listexport.Format             `json:"format"`
+	Layout  string                        `json:"layout"`
 	Filters careUsageExportFiltersRequest `json:"filters"`
+}
+
+// Care-usage export layouts (#2215): "detailed" keeps the one-block-per-child
+// record output, "compact" renders the class-roster-style table (one row per
+// child, weekday pickup columns). XLSX is always tabular regardless of layout.
+const (
+	careUsageLayoutDetailed = "detailed"
+	careUsageLayoutCompact  = "compact"
+)
+
+// careUsageExportParams embeds the service filters so existing callers keep
+// promoted-field access; Layout is presentation-only and never reaches the
+// service.
+type careUsageExportParams struct {
+	enrollmentService.CareUsageFilters
+	Layout string
+}
+
+// careUsageExportPayload carries the fetched report together with the
+// requested layout into the build step of the generic exportReport flow.
+type careUsageExportPayload struct {
+	report *enrollmentService.CareUsageReport
+	layout string
 }
 
 type classRosterExportRequest struct {
@@ -229,9 +253,14 @@ func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request
 
 func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request) {
 	exportReport(rs, w, r, parseCareUsageExportRequest,
-		func(ctx context.Context, filters enrollmentService.CareUsageFilters, actorAccountID int64, actorRole, format string) (*enrollmentService.CareUsageReport, error) {
-			return rs.ReportService.ExportCareUsage(ctx, filters, actorAccountID, actorRole, format)
-		}, buildCareUsageExportFile)
+		func(ctx context.Context, params careUsageExportParams, actorAccountID int64, actorRole, format string) (careUsageExportPayload, error) {
+			compact := params.Layout == careUsageLayoutCompact && format != string(listexport.FormatXLSX)
+			report, err := rs.ReportService.ExportCareUsage(ctx, params.CareUsageFilters, actorAccountID, actorRole, format, compact)
+			if err != nil {
+				return careUsageExportPayload{}, err
+			}
+			return careUsageExportPayload{report: report, layout: params.Layout}, nil
+		}, buildCareUsageExport)
 }
 
 func (rs *Resource) exportClassRosterReport(w http.ResponseWriter, r *http.Request) {
@@ -346,13 +375,13 @@ func parseCareOfferingIDsFromQuery(values []string) ([]int64, error) {
 	return ids, nil
 }
 
-func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollmentService.CareUsageFilters, error) {
+func parseCareUsageExportRequest(r *http.Request) (listexport.Format, careUsageExportParams, error) {
 	var body careUsageExportRequest
 	if r.Body != nil {
 		raw, _ := io.ReadAll(io.LimitReader(r.Body, 1<<16))
 		if len(raw) > 0 {
 			if err := json.Unmarshal(raw, &body); err != nil {
-				return "", enrollmentService.CareUsageFilters{}, fmt.Errorf("invalid export request body: %w", err)
+				return "", careUsageExportParams{}, fmt.Errorf("invalid export request body: %w", err)
 			}
 		}
 	}
@@ -363,16 +392,25 @@ func parseCareUsageExportRequest(r *http.Request) (listexport.Format, enrollment
 	switch format {
 	case listexport.FormatPDF, listexport.FormatDOCX, listexport.FormatXLSX:
 	default:
-		return "", enrollmentService.CareUsageFilters{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
+		return "", careUsageExportParams{}, fmt.Errorf("unsupported export format %q (use pdf, docx or xlsx)", format)
+	}
+	layout := strings.ToLower(strings.TrimSpace(body.Layout))
+	if layout == "" {
+		layout = careUsageLayoutDetailed
+	}
+	switch layout {
+	case careUsageLayoutDetailed, careUsageLayoutCompact:
+	default:
+		return "", careUsageExportParams{}, fmt.Errorf("unsupported export layout %q (use detailed or compact)", layout)
 	}
 	filters, err := body.Filters.toServiceFilters()
 	if err != nil {
-		return "", enrollmentService.CareUsageFilters{}, err
+		return "", careUsageExportParams{}, err
 	}
 	if filters.PhaseID <= 0 {
-		return "", enrollmentService.CareUsageFilters{}, errors.New("filters.phase_id is required")
+		return "", careUsageExportParams{}, errors.New("filters.phase_id is required")
 	}
-	return format, filters, nil
+	return format, careUsageExportParams{CareUsageFilters: filters, Layout: layout}, nil
 }
 
 func parseClassRosterExportRequest(r *http.Request) (listexport.Format, enrollmentService.ClassRosterFilters, error) {
@@ -560,11 +598,25 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 	return out
 }
 
-func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
-	filename := "Anmelde-Auswertung " + strings.TrimSpace(report.Phase.Name)
-	if strings.TrimSpace(report.Phase.Name) == "" {
-		filename = "Anmelde-Auswertung"
+// buildCareUsageExport dispatches on the requested layout: "compact" renders
+// the class-roster-style table for PDF/DOCX; everything else (including XLSX,
+// which is always tabular) takes the existing detailed path.
+func buildCareUsageExport(svc *listexport.RendererService, payload careUsageExportPayload, format listexport.Format) (listexport.File, error) {
+	if payload.layout == careUsageLayoutCompact && format != listexport.FormatXLSX {
+		return svc.Render(buildCareUsageCompactTableDocument(payload.report), format, careUsageExportFilename(payload.report)+" kompakt")
 	}
+	return buildCareUsageExportFile(svc, payload.report, format)
+}
+
+func careUsageExportFilename(report *enrollmentService.CareUsageReport) string {
+	if name := strings.TrimSpace(report.Phase.Name); name != "" {
+		return "Anmelde-Auswertung " + name
+	}
+	return "Anmelde-Auswertung"
+}
+
+func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
+	filename := careUsageExportFilename(report)
 	switch format {
 	case listexport.FormatDOCX:
 		return svc.RenderRecordsDOCX(buildCareUsageRecordDocument(report), filename)
@@ -575,6 +627,122 @@ func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmen
 	default:
 		return listexport.File{}, fmt.Errorf("unsupported export format %q", format)
 	}
+}
+
+// buildCareUsageCompactTableDocument renders the filtered care-usage report in
+// the compact class-roster layout (#2215): one row per child with weekday
+// pickup columns. Rows are sorted by target class; when the result spans more
+// than one class, each class gets a heading row (a new page in the PDF),
+// mirroring the "Alle Klassen" roster behavior.
+func buildCareUsageCompactTableDocument(report *enrollmentService.CareUsageReport) listexport.Document {
+	cols := []listexport.Column{
+		{ID: listexport.ColumnName, Label: "Name"},
+		{ID: listexport.ColumnSchoolClass, Label: "Zielklasse"},
+		{ID: listexport.ColumnWeeklyMonday, Label: "Montag"},
+		{ID: listexport.ColumnWeeklyTuesday, Label: "Dienstag"},
+		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
+		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
+		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
+		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
+	}
+	sorted := slices.Clone(report.Rows)
+	// The service sorts by child name; the stable re-sort keeps that order
+	// within each class section.
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return collation.CompareSchoolClasses(careUsageClassLabel(sorted[i]), careUsageClassLabel(sorted[j])) < 0
+	})
+	grouped := careUsageSpansMultipleClasses(sorted)
+	rows := make([]listexport.Row, 0, len(sorted))
+	currentClass := ""
+	for i, row := range sorted {
+		class := careUsageClassLabel(row)
+		if grouped && (i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0) {
+			currentClass = class
+			rows = append(rows, listexport.Row{GroupTitle: careUsageGroupTitle(class)})
+		}
+		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			listexport.ColumnName:             strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
+			listexport.ColumnSchoolClass:      class,
+			listexport.ColumnWeeklyMonday:     careUsageWeeklyCell(row, "mon"),
+			listexport.ColumnWeeklyTuesday:    careUsageWeeklyCell(row, "tue"),
+			listexport.ColumnWeeklyWednesday:  careUsageWeeklyCell(row, "wed"),
+			listexport.ColumnWeeklyThursday:   careUsageWeeklyCell(row, "thu"),
+			listexport.ColumnWeeklyFriday:     careUsageWeeklyCell(row, "fri"),
+			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel(careUsageGuardians(row)),
+		}})
+	}
+	return listexport.Document{
+		Title:       careUsageTitle(report),
+		Subtitle:    careUsageSubtitle(report),
+		GeneratedAt: time.Now(),
+		Filters:     careUsageFilterLabels(report),
+		Columns:     cols,
+		Rows:        rows,
+		Footer:      exportConfidentialityNote,
+	}
+}
+
+func careUsageClassLabel(row enrollmentService.CareUsageRow) string {
+	return schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)
+}
+
+// careUsageGroupTitle avoids "Klasse 1. Klasse" headings: grade-only labels
+// from gradeLabel already carry the word "Klasse" as a suffix, which the
+// shared prefix-based ClassGroupTitle helper cannot detect.
+func careUsageGroupTitle(class string) string {
+	if strings.Contains(strings.ToLower(class), "klasse") {
+		return class
+	}
+	return listexport.ClassGroupTitle(class)
+}
+
+// careUsageSpansMultipleClasses reports whether the class-sorted rows cover
+// more than one logical class (comparator equivalence, so "1a"/"1A" count as
+// one). Single-class results skip the group headings.
+func careUsageSpansMultipleClasses(sorted []enrollmentService.CareUsageRow) bool {
+	for i := 1; i < len(sorted); i++ {
+		if collation.CompareSchoolClasses(careUsageClassLabel(sorted[i]), careUsageClassLabel(sorted[0])) != 0 {
+			return true
+		}
+	}
+	return false
+}
+
+func careUsageWeeklyCell(row enrollmentService.CareUsageRow, day string) string {
+	careDays := row.CareDays
+	if careDays == nil {
+		careDays = row.EffectiveDays
+	}
+	return weeklyPickupCell(
+		containsReportDay(careDays, day),
+		row.SchedulePickupByDay[day],
+		row.PickupByDay[day],
+		careUsageDailyOfferingNames(row, day),
+	)
+}
+
+func careUsageDailyOfferingNames(row enrollmentService.CareUsageRow, day string) []string {
+	names := make([]string, 0, len(row.Offerings))
+	for _, offering := range row.Offerings {
+		if containsReportDay(offering.Days, day) {
+			names = append(names, offering.Name)
+		}
+	}
+	return normalizedClassRosterOfferingNames(names)
+}
+
+// careUsageGuardians prefers the enriched full contact list; rows built
+// without enrichment (older callers, tests) fall back to the submitting
+// guardian carried on the flat fields.
+func careUsageGuardians(row enrollmentService.CareUsageRow) []enrollmentService.ClassRosterGuardian {
+	if len(row.Guardians) > 0 {
+		return row.Guardians
+	}
+	return []enrollmentService.ClassRosterGuardian{{
+		Name:  strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
+		Email: row.GuardianEmail,
+		Phone: base.Deref(row.GuardianPhone),
+	}}
 }
 
 func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
@@ -597,7 +765,6 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 		{ID: listexport.ColumnWeeklyWednesday, Label: "Mittwoch"},
 		{ID: listexport.ColumnWeeklyThursday, Label: "Donnerstag"},
 		{ID: listexport.ColumnWeeklyFriday, Label: "Freitag"},
-		{ID: listexport.ColumnDeparture, Label: "Geh-/Abholweise"},
 		{ID: listexport.ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
 	}
 	rows := make([]listexport.Row, 0, len(report.Rows))
@@ -611,15 +778,21 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 			currentClass = class
 			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
+		name := strings.TrimSpace(row.FirstName + " " + row.LastName)
+		if row.ListEntry {
+			// Class-list-only entry (#2382): the child has no OGS record at
+			// all. The marker sits in the name cell because the roster table
+			// has no status column — every weekday cell stays "—".
+			name += " (" + enrollmentService.ClassListEntryNoCareLabel + ")"
+		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:             strings.TrimSpace(row.FirstName + " " + row.LastName),
+			listexport.ColumnName:             name,
 			listexport.ColumnSchoolClass:      row.SchoolClass,
 			listexport.ColumnWeeklyMonday:     classRosterWeeklyCell(row, "mon"),
 			listexport.ColumnWeeklyTuesday:    classRosterWeeklyCell(row, "tue"),
 			listexport.ColumnWeeklyWednesday:  classRosterWeeklyCell(row, "wed"),
 			listexport.ColumnWeeklyThursday:   classRosterWeeklyCell(row, "thu"),
 			listexport.ColumnWeeklyFriday:     classRosterWeeklyCell(row, "fri"),
-			listexport.ColumnDeparture:        row.Departure,
 			listexport.ColumnGuardianContacts: classRosterGuardianContactsLabel(row.Guardians),
 		}})
 	}
@@ -654,7 +827,11 @@ func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
 	if report == nil {
 		return "0 Kinder"
 	}
-	return fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+	subtitle := fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+	if report.Totals.ListEntries > 0 {
+		subtitle += fmt.Sprintf(", %d ohne Betreuung", report.Totals.ListEntries)
+	}
+	return subtitle
 }
 
 func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []string {
@@ -672,22 +849,47 @@ func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []stri
 	}
 }
 
+// classRosterWeeklyCell renders one weekday cell: the pickup time plus the
+// day's own Geh-/Abholregelung ("14:30 Uhr, wird abgeholt"). The former
+// summarized "Geh-/Abholweise" week column is folded in here per day (#2254);
+// days without care stay "—" and carry no departure text.
 func classRosterWeeklyCell(row enrollmentService.ClassRosterRow, day string) string {
-	parts := []string{}
-	offerings := classRosterDailyOfferings(row, day)
-	if len(offerings) > 0 {
-		parts = append(parts, strings.Join(offerings, "; "))
-	} else if containsReportDay(row.CareDays, day) {
-		parts = append(parts, "Betreuung")
+	isCareDay := containsReportDay(row.CareDays, day)
+	cell := weeklyPickupCell(
+		isCareDay,
+		row.SchedulePickupByDay[day],
+		row.PickupByDay[day],
+		classRosterDailyOfferings(row, day),
+	)
+	if !isCareDay {
+		return cell
 	}
-	pickup := strings.TrimSpace(row.PickupByDay[day])
-	if pickup != "" {
-		parts = append(parts, "bis "+pickup)
+	if rule := strings.TrimSpace(row.DepartureByDay[day]); rule != "" {
+		cell += ", " + rule
 	}
-	if len(parts) > 0 {
-		return strings.Join(parts, ", ")
+	return cell
+}
+
+// weeklyPickupCell renders one weekday cell of the roster-style tables
+// (class roster and compact care-usage export): "—" outside care days; the
+// maintained Kind-Gehzeit (manual rows and rolled-out Angebots-Gehzeiten)
+// outranks the enrollment-form snapshot (#2290); offering names are the
+// fallback for schools whose form encodes the care window in the offering
+// name ("Betreuung bis 14:30 Uhr") instead of a pickup-time field.
+func weeklyPickupCell(isCareDay bool, schedulePickup, snapshotPickup string, offeringNames []string) string {
+	if !isCareDay {
+		return "—"
 	}
-	return "nein"
+	if pickup := strings.TrimSpace(schedulePickup); pickup != "" {
+		return pickup + " Uhr"
+	}
+	if pickup := strings.TrimSpace(snapshotPickup); pickup != "" {
+		return pickup + " Uhr"
+	}
+	if len(offeringNames) > 0 {
+		return strings.Join(offeringNames, "; ")
+	}
+	return "Keine Abholzeit"
 }
 
 func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string) []string {
@@ -718,6 +920,24 @@ func classRosterDailyOfferings(row enrollmentService.ClassRosterRow, day string)
 	return names
 }
 
+func normalizedClassRosterOfferingNames(names []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out
+}
+
 func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterGuardian) string {
 	parts := make([]string, 0, len(guardians))
 	for _, guardian := range guardians {
@@ -739,24 +959,6 @@ func classRosterGuardianContactsLabel(guardians []enrollmentService.ClassRosterG
 		}
 	}
 	return strings.Join(parts, "; ")
-}
-
-func normalizedClassRosterOfferingNames(names []string) []string {
-	if len(names) == 0 {
-		return nil
-	}
-	seen := map[string]bool{}
-	out := make([]string, 0, len(names))
-	for _, name := range names {
-		name = strings.TrimSpace(name)
-		if name == "" || seen[name] {
-			continue
-		}
-		seen[name] = true
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out
 }
 
 func containsReportDay(days []string, needle string) bool {

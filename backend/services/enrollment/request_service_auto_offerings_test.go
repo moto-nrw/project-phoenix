@@ -11,6 +11,8 @@ import (
 )
 
 func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	primaryOfferingID := int64(101)
 	automaticOfferingID := int64(202)
@@ -52,6 +54,8 @@ func TestMaterializeOfferingSelectionsAddsAutomaticOfferingForMatchingGrade(t *t
 }
 
 func TestMaterializeOfferingSelectionsSkipsAutomaticOfferingForNonMatchingGrade(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(3)
 	primaryOfferingID := int64(303)
 	automaticOfferingID := int64(404)
@@ -85,6 +89,8 @@ func TestMaterializeOfferingSelectionsSkipsAutomaticOfferingForNonMatchingGrade(
 }
 
 func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	careOfferingID := int64(505)
 	lunchOfferingID := int64(606)
@@ -124,6 +130,8 @@ func TestMaterializeOfferingSelectionsRequiredLunchFollowsCareDays(t *testing.T)
 }
 
 func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *testing.T) {
+	t.Parallel()
+
 	nonCareOfferingID := int64(707)
 	lunchOfferingID := int64(808)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -157,6 +165,8 @@ func TestMaterializeOfferingSelectionsRequiredLunchIgnoresNonCareOfferings(t *te
 }
 
 func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t *testing.T) {
+	t.Parallel()
+
 	grade := int16(1)
 	primaryOfferingID := int64(901)
 	firstAutomaticID := int64(902)
@@ -206,6 +216,8 @@ func TestMaterializeOfferingSelectionsResolvesChainedAutoAddDeterministically(t 
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAddedGroupRules(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1001)
 	automaticOfferingID := int64(1002)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -240,6 +252,8 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsValidatesFinalAutoAdded
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferingForExactlyOne(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1101)
 	automaticOfferingID := int64(1102)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -274,6 +288,8 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsIgnoresAutoAddedOfferin
 }
 
 func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetForExactlyOne(t *testing.T) {
+	t.Parallel()
+
 	manualOfferingID := int64(1201)
 	automaticOfferingID := int64(1202)
 	openByID := map[int64]*enrollmentModels.CareOffering{
@@ -304,4 +320,140 @@ func TestMaterializeAndValidateChildrenOfferingSelectionsCountsManualAutoTargetF
 	_, err := materializeAndValidateChildrenOfferingSelections(children, openByID, enrollmentModels.PhaseCareOfferingSelectionExactlyOne)
 
 	require.ErrorIs(t, err, ErrCareOfferingExactlyOneRequired)
+}
+
+// Opt-out (#2370): an excluded auto-add target loses its rule-derived days but
+// keeps the days the parents picked themselves.
+func TestMaterializeOfferingSelectionsExcludedTargetKeepsManualShare(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(1)
+	triggerID := int64(1101)
+	targetID := int64(1102)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		triggerID: {
+			Model:          baseModels.Model{ID: triggerID},
+			Name:           "Randstunde",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+			SortOrder:      1,
+		},
+		targetID: {
+			Model:                     baseModels.Model{ID: targetID},
+			Name:                      "Ganztagsbetreuung",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
+			AutoAddTriggerOfferingIDs: []int64{triggerID},
+			SortOrder:                 2,
+		},
+	}
+	child := SubmitChild{
+		TargetGradeLevel:         &grade,
+		OfferingIDs:              []int64{triggerID, targetID},
+		ExcludedAutoAddTargetIDs: map[int64]bool{targetID: true},
+		OfferingDays: []SubmitOfferingDays{
+			{OfferingID: triggerID, SelectedDays: []string{"mon", "tue", "wed", "thu", "fri"}},
+			{OfferingID: targetID, SelectedDays: []string{"mon"}},
+		},
+	}
+
+	selections, err := materializeOfferingSelections(child, openByID)
+
+	require.NoError(t, err)
+	require.Len(t, selections, 2)
+	assert.Equal(t, targetID, selections[1].OfferingID)
+	assert.Equal(t, []string{"mon"}, selections[1].SelectedDays)
+	assert.Equal(t, []string{"mon"}, selections[1].ManualSelectedDays)
+	assert.Empty(t, selections[1].AutomaticSelectedDays)
+}
+
+// A purely automatic excluded target disappears entirely, and an offering that
+// was only triggered by the excluded one falls away with it (the chain keeps no
+// orphaned bookings).
+func TestMaterializeOfferingSelectionsExclusionCascadesThroughChain(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(1)
+	primaryID := int64(1201)
+	firstAutoID := int64(1202)
+	secondAutoID := int64(1203)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		primaryID: {
+			Model:          baseModels.Model{ID: primaryID},
+			Name:           "Randstunde",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+			SortOrder:      1,
+		},
+		firstAutoID: {
+			Model:                     baseModels.Model{ID: firstAutoID},
+			Name:                      "Ganztag 14:30",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
+			AutoAddTriggerOfferingIDs: []int64{primaryID},
+			SortOrder:                 2,
+		},
+		secondAutoID: {
+			Model:                     baseModels.Model{ID: secondAutoID},
+			Name:                      "Ganztag 16:00",
+			DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:             []string{"mon", "tue", "wed", "thu", "fri"},
+			AutoAddTriggerOfferingIDs: []int64{firstAutoID},
+			SortOrder:                 3,
+		},
+	}
+	child := SubmitChild{
+		TargetGradeLevel:         &grade,
+		OfferingIDs:              []int64{primaryID},
+		ExcludedAutoAddTargetIDs: map[int64]bool{firstAutoID: true},
+		OfferingDays:             []SubmitOfferingDays{{OfferingID: primaryID, SelectedDays: []string{"mon", "wed"}}},
+	}
+
+	selections, err := materializeOfferingSelections(child, openByID)
+
+	require.NoError(t, err)
+	require.Len(t, selections, 1)
+	assert.Equal(t, primaryID, selections[0].OfferingID)
+}
+
+// The exclusion switches off only the Mitbuchungs-Regel. Required-lunch days
+// are not overridable and keep being derived.
+func TestMaterializeOfferingSelectionsExclusionKeepsRequiredLunchDays(t *testing.T) {
+	t.Parallel()
+
+	grade := int16(1)
+	careID := int64(1301)
+	lunchID := int64(1302)
+	openByID := map[int64]*enrollmentModels.CareOffering{
+		careID: {
+			Model:          baseModels.Model{ID: careID},
+			Name:           "Ganztag",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+			CountsAsCare:   true,
+			SortOrder:      1,
+		},
+		lunchID: {
+			Model:          baseModels.Model{ID: lunchID},
+			Name:           "Mittagessen",
+			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
+			AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+			IsRequired:     true,
+			IncludesLunch:  true,
+			SortOrder:      2,
+		},
+	}
+	child := SubmitChild{
+		TargetGradeLevel:         &grade,
+		OfferingIDs:              []int64{careID},
+		ExcludedAutoAddTargetIDs: map[int64]bool{lunchID: true},
+		OfferingDays:             []SubmitOfferingDays{{OfferingID: careID, SelectedDays: []string{"mon", "tue"}}},
+	}
+
+	selections, err := materializeOfferingSelections(child, openByID)
+
+	require.NoError(t, err)
+	require.Len(t, selections, 2)
+	assert.Equal(t, lunchID, selections[1].OfferingID)
+	assert.Equal(t, []string{"mon", "tue"}, selections[1].AutomaticSelectedDays)
 }

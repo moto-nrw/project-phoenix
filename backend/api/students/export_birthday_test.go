@@ -35,6 +35,8 @@ func exportedIDs(students []StudentResponse) []int64 {
 }
 
 func TestParseExportMonths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty list means every month", func(t *testing.T) {
 		months, err := parseExportMonths(nil)
 		require.NoError(t, err)
@@ -59,6 +61,8 @@ func TestParseExportMonths(t *testing.T) {
 }
 
 func TestDecodeStudentExportRequestRejectsInvalidMonth(t *testing.T) {
+	t.Parallel()
+
 	body := `{"preset":"birthday_list","filters":{"months":["13"]}}`
 	req := httptest.NewRequest("POST", "/students/export", strings.NewReader(body))
 
@@ -69,6 +73,8 @@ func TestDecodeStudentExportRequestRejectsInvalidMonth(t *testing.T) {
 }
 
 func TestDecodeStudentExportRequestAcceptsValidMonths(t *testing.T) {
+	t.Parallel()
+
 	body := `{"preset":"birthday_list","filters":{"months":["09","10"]}}`
 	req := httptest.NewRequest("POST", "/students/export", strings.NewReader(body))
 
@@ -82,6 +88,8 @@ func TestDecodeStudentExportRequestAcceptsValidMonths(t *testing.T) {
 // Zeitraum: a birthday recurs annually, so the month filter must match on the
 // month alone and never on the birth year.
 func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		months  []string
@@ -117,7 +125,7 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := applyExportFilters(birthdayFixtures(),
-				studentExportFilters{Months: tt.months}, listexport.PresetBirthdayList)
+				studentExportFilters{Months: tt.months}, listexport.PresetBirthdayList, testExportDate)
 
 			assert.Equal(t, tt.wantIDs, exportedIDs(got))
 		})
@@ -127,7 +135,9 @@ func TestApplyExportFiltersBirthdayMonths(t *testing.T) {
 // A child with no stored birthday cannot belong on a birthday list: printing a
 // blank date would read as data rather than as a gap in the records.
 func TestApplyExportFiltersBirthdayPresetDropsChildrenWithoutBirthday(t *testing.T) {
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetBirthdayList)
+	t.Parallel()
+
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetBirthdayList, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104}, exportedIDs(got))
 }
@@ -135,8 +145,10 @@ func TestApplyExportFiltersBirthdayPresetDropsChildrenWithoutBirthday(t *testing
 // The month filter is preset-independent, so a birthday-less child is dropped
 // by the filter itself — they can never match a month.
 func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testing.T) {
+	t.Parallel()
+
 	got := applyExportFilters(birthdayFixtures(),
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetOGSWeekly)
+		studentExportFilters{Months: []string{"09"}}, listexport.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102}, exportedIDs(got))
 }
@@ -144,14 +156,18 @@ func TestApplyExportFiltersMonthsDropChildrenWithoutBirthdayOnAnyPreset(t *testi
 // Without a birthday filter or preset, the export keeps everyone — a child
 // without a birthday still belongs on a weekly list.
 func TestApplyExportFiltersKeepsBirthdaylessChildrenOnOtherPresets(t *testing.T) {
-	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetOGSWeekly)
+	t.Parallel()
+
+	got := applyExportFilters(birthdayFixtures(), studentExportFilters{}, listexport.PresetOGSWeekly, testExportDate)
 
 	assert.Equal(t, []int64{101, 102, 103, 104, 105}, exportedIDs(got))
 }
 
 func TestApplyExportFiltersBirthdayEmptyInput(t *testing.T) {
+	t.Parallel()
+
 	got := applyExportFilters([]StudentResponse{},
-		studentExportFilters{Months: []string{"09"}}, listexport.PresetBirthdayList)
+		studentExportFilters{Months: []string{"09"}}, listexport.PresetBirthdayList, testExportDate)
 
 	assert.Empty(t, got)
 }
@@ -159,6 +175,8 @@ func TestApplyExportFiltersBirthdayEmptyInput(t *testing.T) {
 // Sortierung: the list must read as a calendar. Sorting by the raw date would
 // order by birth year and scatter the months.
 func TestSortExportResponsesByBirthday(t *testing.T) {
+	t.Parallel()
+
 	students := birthdayFixtures()
 
 	sortExportResponses(students, "birthday")
@@ -168,6 +186,8 @@ func TestSortExportResponsesByBirthday(t *testing.T) {
 }
 
 func TestSortExportResponsesByBirthdayBreaksTiesByName(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 201, FirstName: "Zoe", LastName: "Zimmer", Birthday: "2018-05-04"},
 		{ID: 202, FirstName: "Anna", LastName: "Ärmel", Birthday: "2019-05-04"},
@@ -181,6 +201,8 @@ func TestSortExportResponsesByBirthdayBreaksTiesByName(t *testing.T) {
 }
 
 func TestSortExportResponsesByBirthdayPlacesUnknownLast(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 301, FirstName: "Ada", LastName: "Aal", Birthday: ""},
 		{ID: 302, FirstName: "Bo", LastName: "Bär", Birthday: "2018-12-31"},
@@ -194,12 +216,16 @@ func TestSortExportResponsesByBirthdayPlacesUnknownLast(t *testing.T) {
 // The preset defines the ordering, so a request that only asks for the birthday
 // list still gets a calendar — no caller has to know to pass sort="birthday".
 func TestExportSortModeDerivedFromBirthdayPreset(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "birthday", exportSortMode(studentExportRequest{
 		Preset: listexport.PresetBirthdayList,
 	}))
 }
 
 func TestExportSortModeKeepsExplicitSort(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "pickup", exportSortMode(studentExportRequest{
 		Preset:  listexport.PresetBirthdayList,
 		Filters: studentExportFilters{Sort: "pickup"},
@@ -207,18 +233,24 @@ func TestExportSortModeKeepsExplicitSort(t *testing.T) {
 }
 
 func TestExportSortModeLeavesOtherPresetsAlone(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, exportSortMode(studentExportRequest{
 		Preset: listexport.PresetOGSWeekly,
 	}))
 }
 
 func TestBirthdayExportCell(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "02.09.2018", birthdayExportCell("2018-09-02"))
 	assert.Equal(t, "", birthdayExportCell(""), "no birthday renders empty, never a fabricated date")
 	assert.Equal(t, "", birthdayExportCell("not-a-date"))
 }
 
 func TestAgeExportCell(t *testing.T) {
+	t.Parallel()
+
 	onDate := testExportDate // 2026-07-15
 
 	tests := []struct {
@@ -244,6 +276,8 @@ func TestAgeExportCell(t *testing.T) {
 }
 
 func TestBuildExportRowRendersBirthdayAndAge(t *testing.T) {
+	t.Parallel()
+
 	row := buildExportRow(
 		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", Birthday: "2018-09-02"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
@@ -253,6 +287,8 @@ func TestBuildExportRowRendersBirthdayAndAge(t *testing.T) {
 }
 
 func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
+	t.Parallel()
+
 	row := buildExportRow(
 		StudentResponse{ID: 105, FirstName: "Jonas", LastName: "Ernst"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
@@ -262,6 +298,8 @@ func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 }
 
 func TestExportTitleBirthdayList(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Geburtstagsliste",
 		exportTitle(studentExportRequest{Preset: listexport.PresetBirthdayList}))
 	assert.Equal(t, "Wer hat wann Geburtstag",
@@ -269,6 +307,8 @@ func TestExportTitleBirthdayList(t *testing.T) {
 }
 
 func TestBirthdayMonthFilterLabel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		months []string
@@ -291,6 +331,8 @@ func TestBirthdayMonthFilterLabel(t *testing.T) {
 }
 
 func TestExportFilterLabelsIncludesBirthdayMonths(t *testing.T) {
+	t.Parallel()
+
 	labels := exportFilterLabels(studentExportFilters{Months: []string{"09"}, Bus: "yes"})
 
 	assert.Contains(t, labels, "Geburtsmonat: September")

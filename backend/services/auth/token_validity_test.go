@@ -8,6 +8,8 @@ import (
 )
 
 func TestInvitationTokenExpired(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	future := now.Add(time.Hour)
 	past := now.Add(-time.Hour)
@@ -31,6 +33,8 @@ func TestInvitationTokenExpired(t *testing.T) {
 }
 
 func TestGuardianInvitationValidity(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 	future := now.Add(time.Hour)
 	past := now.Add(-time.Hour)

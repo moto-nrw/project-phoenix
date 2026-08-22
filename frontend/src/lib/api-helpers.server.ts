@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
 import { canonicalForwardedFor } from "./client-headers.server";
+import { sanitizeEndpoint } from "./log-sanitize";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for API helpers
@@ -61,16 +62,22 @@ interface BackendErrorPayload {
 export class ApiResponseError extends Error {
   readonly status: number;
   readonly bodyText: string;
+  readonly retryAfter: string | null;
   // Memoized parse result — `null` means "not JSON". Lazy so callers that
   // only check status never pay the JSON.parse cost.
   private parsedBody: JsonBody | null = null;
   private parseAttempted = false;
 
-  constructor(status: number, bodyText: string, options?: ErrorOptions) {
+  constructor(
+    status: number,
+    bodyText: string,
+    options?: ErrorOptions & { retryAfter?: string | null },
+  ) {
     super(`API error (${status}): ${bodyText}`, options);
     this.name = "ApiResponseError";
     this.status = status;
     this.bodyText = bodyText;
+    this.retryAfter = options?.retryAfter ?? null;
   }
 
   /**
@@ -175,7 +182,9 @@ async function serverFetchWithRetry<T>(
     if (!response.ok) {
       outcome = "backend_error";
       const errorText = await response.text();
-      throw new ApiResponseError(response.status, errorText);
+      throw new ApiResponseError(response.status, errorText, {
+        retryAfter: response.headers.get("Retry-After"),
+      });
     }
 
     if (response.status === 204) {
@@ -251,20 +260,6 @@ function parseContentLength(value: string | null): number | null {
 
 function parseResponseContentLength(response: Response): number | null {
   return parseContentLength(response.headers?.get?.("content-length") ?? null);
-}
-
-function sanitizeEndpoint(endpoint: string): string {
-  const [path = ""] = endpoint.split("?");
-  return path
-    .split("/")
-    .map((segment) => {
-      if (!segment) return segment;
-      if (/^\d+$/.test(segment)) return "{id}";
-      if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(segment)) return "{uuid}";
-      if (/^[A-Za-z0-9_-]{16,}$/.test(segment)) return "{token}";
-      return segment;
-    })
-    .join("/");
 }
 
 function extractTokenContext(token: string): {
@@ -369,7 +364,14 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   const status = getApiErrorStatus(error);
   if (error instanceof Error && status !== null) {
     logApiRouteError(status, error.message);
-    return NextResponse.json(buildApiErrorResponse(error.message), { status });
+    const headers =
+      error instanceof ApiResponseError && error.retryAfter
+        ? { "Retry-After": error.retryAfter }
+        : undefined;
+    return NextResponse.json(buildApiErrorResponse(error.message), {
+      status,
+      headers,
+    });
   }
 
   // Unknown errors are logged as errors and return 500

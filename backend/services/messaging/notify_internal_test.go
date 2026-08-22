@@ -33,6 +33,14 @@ type stubPreferences struct {
 	asked   []int64
 }
 
+type stubGuardianProfiles struct {
+	profile *usersModels.GuardianProfile
+}
+
+func (s stubGuardianProfiles) FindByAccountID(context.Context, int64) (*usersModels.GuardianProfile, error) {
+	return s.profile, nil
+}
+
 func (s *stubPreferences) FilterOptedIn(_ context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
 	s.gotType = notificationType
 	s.asked = append([]int64(nil), accountIDs...)
@@ -58,6 +66,8 @@ func newNotifyService(notifier notifications.Service, prefs notifications.Prefer
 }
 
 func TestNotifyGuardianDevice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("addresses the thread's guardian and nobody else", func(t *testing.T) {
 		notifier := &captureNotifier{}
 		prefs := &stubPreferences{optedIn: []int64{42}}
@@ -99,6 +109,21 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		// the authenticated deep link.
 		assert.NotContains(t, notifier.events[0].Body, "55")
 		assert.NotEmpty(t, notifier.events[0].Title)
+	})
+
+	t.Run("uses the guardian portal locale", func(t *testing.T) {
+		notifier := &captureNotifier{}
+		locale := "en"
+		s := NewService(Config{
+			Logger: slog.Default(), Notifier: notifier,
+			Preferences:      &stubPreferences{optedIn: []int64{42}},
+			GuardianProfiles: stubGuardianProfiles{profile: &usersModels.GuardianProfile{PortalLocale: &locale}},
+		})
+
+		s.notifyGuardianDevice(context.Background(), testThread())
+
+		require.Len(t, notifier.events, 1)
+		assert.Equal(t, "New message from the OGS", notifier.events[0].Title)
 	})
 
 	t.Run("a guardian who did not agree is not pushed to", func(t *testing.T) {

@@ -131,7 +131,7 @@ export function PasskeySettingsSection({
         // als h2 wuerde TrustedDevicesSection darunter einsortiert.
         level={3}
         title="Passkeys"
-        concept="permissions"
+        concept="passkeys"
         actions={
           supported &&
           !confirmingEnrollment &&

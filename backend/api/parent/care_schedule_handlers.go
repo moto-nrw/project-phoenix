@@ -16,9 +16,10 @@ import (
 // allowed departure-mode keys, plus the child's pending change request (nil
 // when none) and whether the calling guardian may request a change.
 type CareScheduleResponse struct {
-	Weekdays       []CareScheduleWeekdayResponse `json:"weekdays"`
-	PendingRequest *PendingCareRequestResponse   `json:"pending_request,omitempty"`
-	CanRequest     bool                          `json:"can_request"`
+	Weekdays            []CareScheduleWeekdayResponse           `json:"weekdays"`
+	PendingRequest      *PendingCareRequestResponse             `json:"pending_request,omitempty"`
+	CanRequest          bool                                    `json:"can_request"`
+	RequestCapabilities CareScheduleRequestCapabilitiesResponse `json:"request_capabilities"`
 	// TodayAbsent is true when the child has any active scheduled absence today
 	// (sick / excused / class trip, any source). Parent-safe boolean only — the
 	// "Heute → Abholung" tile uses it so it never shows a pickup time for a child
@@ -33,9 +34,16 @@ type CareScheduleResponse struct {
 	TodayDate string `json:"today_date,omitempty"`
 }
 
+type CareScheduleRequestCapabilitiesResponse struct {
+	Arrival       bool `json:"arrival"`
+	Pickup        bool `json:"pickup"`
+	DepartureMode bool `json:"departure_mode"`
+}
+
 // CareScheduleWeekdayResponse is one weekday (1=Mon..5=Fri) of the plan.
 type CareScheduleWeekdayResponse struct {
 	Weekday int      `json:"weekday"`
+	Status  string   `json:"status"`
 	Arrival string   `json:"arrival,omitempty"`
 	Pickup  string   `json:"pickup,omitempty"`
 	Modes   []string `json:"modes"`
@@ -85,8 +93,13 @@ func toCareRequestDiffResponses(entries []scheduleService.RequestDiffEntry) []Ca
 
 func toCareScheduleResponse(v *parentService.ChildCareSchedule) CareScheduleResponse {
 	resp := CareScheduleResponse{
-		Weekdays:    make([]CareScheduleWeekdayResponse, 0, len(v.Weekdays)),
-		CanRequest:  v.CanRequest,
+		Weekdays:   make([]CareScheduleWeekdayResponse, 0, len(v.Weekdays)),
+		CanRequest: v.CanRequest,
+		RequestCapabilities: CareScheduleRequestCapabilitiesResponse{
+			Arrival:       v.RequestCapabilities.Arrival,
+			Pickup:        v.RequestCapabilities.Pickup,
+			DepartureMode: v.RequestCapabilities.DepartureMode,
+		},
 		TodayAbsent: v.TodayAbsent,
 	}
 	// Only the read view resolves today_absent, so only it carries a resolved
@@ -98,6 +111,7 @@ func toCareScheduleResponse(v *parentService.ChildCareSchedule) CareScheduleResp
 	for _, wd := range v.Weekdays {
 		resp.Weekdays = append(resp.Weekdays, CareScheduleWeekdayResponse{
 			Weekday: wd.Weekday,
+			Status:  string(wd.Status),
 			Arrival: wd.Arrival,
 			Pickup:  wd.Pickup,
 			Modes:   wd.Modes,

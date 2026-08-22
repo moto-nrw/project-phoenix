@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { Loading } from "~/components/ui/loading";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -210,7 +210,11 @@ export function GraduatesModal({
             sich zurückholen, solange sie hier nicht endgültig gelöscht wurden.
           </p>
 
-          {entries === null && <Loading />}
+          {entries === null && (
+            <SkeletonRegion label="Abgänge werden geladen">
+              <ListSkeleton rows={4} avatar={false} />
+            </SkeletonRegion>
+          )}
 
           {loadFailed && (
             <p className="text-moto-red rounded-lg border border-gray-200 p-4 text-sm">

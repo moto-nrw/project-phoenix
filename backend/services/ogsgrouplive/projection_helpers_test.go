@@ -7,12 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestPlanningLabelCoversEveryReason(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		decision scheduleService.DayPlanningDecision
@@ -40,6 +43,8 @@ func TestPlanningLabelCoversEveryReason(t *testing.T) {
 }
 
 func TestApplyEffectiveStatusPrecedence(t *testing.T) {
+	t.Parallel()
+
 	since := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
 
 	t.Run("sick wins and clears the other flags", func(t *testing.T) {
@@ -83,6 +88,8 @@ func TestApplyEffectiveStatusPrecedence(t *testing.T) {
 }
 
 func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, buildPhotoURL(5, ""))
 	assert.Equal(t, "https://example.invalid/x.jpg", buildPhotoURL(5, "https://example.invalid/x.jpg"),
 		"non-upload URLs pass through untouched")
@@ -91,6 +98,8 @@ func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
 }
 
 func TestApplyTimesFormatsArrivalAndAttendance(t *testing.T) {
+	t.Parallel()
+
 	arrivalAt := time.Date(2026, 8, 3, 13, 15, 0, 0, time.UTC)
 	checkIn := time.Date(2026, 8, 3, 11, 2, 0, 0, time.UTC)
 	checkOut := time.Date(2026, 8, 3, 14, 30, 0, 0, time.UTC)
@@ -120,6 +129,8 @@ func TestApplyTimesFormatsArrivalAndAttendance(t *testing.T) {
 }
 
 func TestPickupTimesSkipsRedactedAndMissingStudents(t *testing.T) {
+	t.Parallel()
+
 	pickupAt := time.Date(2026, 8, 3, 15, 0, 0, 0, time.UTC)
 	students := []Student{
 		{ID: 1, fullAccess: true},
@@ -143,11 +154,15 @@ func TestPickupTimesSkipsRedactedAndMissingStudents(t *testing.T) {
 }
 
 func TestValidateDependenciesRejectsPartialWiring(t *testing.T) {
+	t.Parallel()
+
 	incomplete := &service{}
 	assert.Error(t, incomplete.validateDependencies())
 }
 
 func TestSelectGroupFallsBackAndMatches(t *testing.T) {
+	t.Parallel()
+
 	first := &educationModels.Group{Name: "A"}
 	first.ID = 1
 	second := &educationModels.Group{Name: "B"}
@@ -157,4 +172,38 @@ func TestSelectGroupFallsBackAndMatches(t *testing.T) {
 	assert.Same(t, first, selectGroup(groups, 0), "no request resolves the first sorted group")
 	assert.Same(t, second, selectGroup(groups, 2))
 	assert.Nil(t, selectGroup(groups, 99), "unsupervised group must not resolve")
+}
+
+// applyPlanning attaches the guardian's pending note regardless of read scope:
+// in open care the staffer who decides the request supervises no group, so the
+// child reaches them redacted (#2232). The day plan itself stays full-access.
+func TestApplyPlanningAttachesPendingNoteToRedactedStudent(t *testing.T) {
+	t.Parallel()
+
+	state := &buildState{
+		projected: []Student{
+			{ID: 11, fullAccess: true},
+			{ID: 12, fullAccess: false},
+		},
+		data: &snapshot{locations: &activeService.StudentLocationSnapshot{
+			Attendances: map[int64]*activeService.AttendanceStatus{},
+		}},
+		arrivals:  map[int64]*scheduleService.EffectiveArrivalTime{},
+		pickups:   map[int64]*scheduleService.EffectivePickupTime{},
+		timetable: map[int64]struct{}{},
+	}
+	pending := map[int64]*activeModels.ExcusedAbsenceRequest{
+		11: {Note: "Zahnarzt"},
+		12: {Note: "Arzttermin"},
+	}
+
+	applyPlanning(state, pending)
+
+	require.NotNil(t, state.projected[0].PendingExcusedNote)
+	assert.Equal(t, "Zahnarzt", *state.projected[0].PendingExcusedNote)
+	require.NotNil(t, state.projected[1].PendingExcusedNote, "redacted child must still carry the note its reviewer owns")
+	assert.Equal(t, "Arzttermin", *state.projected[1].PendingExcusedNote)
+
+	assert.NotEmpty(t, state.projected[0].DayPlanningStatus)
+	assert.Empty(t, state.projected[1].DayPlanningStatus, "day plan stays gated on full access")
 }

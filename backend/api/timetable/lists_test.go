@@ -77,6 +77,8 @@ func slotListPost(t *testing.T, router chi.Router, path string, body any) *httpt
 }
 
 func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{
 		buildResult: &slotlists.Result{
 			Date:   "2030-09-04",
@@ -103,6 +105,8 @@ func TestPreviewSlotListParsesExplicitEmptySlotSelection(t *testing.T) {
 }
 
 func TestPreviewSlotListParsesStringIDs(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{
 		buildResult: &slotlists.Result{
 			Date:   "2030-09-04",
@@ -128,6 +132,8 @@ func TestPreviewSlotListParsesStringIDs(t *testing.T) {
 }
 
 func TestPreviewSlotListRejectsInvalidGroupingForTarget(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{}
 	rs := NewResource(Dependencies{SlotListsService: mock})
 	router := slotListTestRouter(rs.previewSlotList, "/preview")
@@ -145,6 +151,8 @@ func TestPreviewSlotListRejectsInvalidGroupingForTarget(t *testing.T) {
 }
 
 func TestExportSlotListDefaultsToPDFAndStreamsFile(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{
 		renderFile: listexport.File{
 			Data:        []byte("%PDF test"),
@@ -169,6 +177,8 @@ func TestExportSlotListDefaultsToPDFAndStreamsFile(t *testing.T) {
 }
 
 func TestExportSlotListReportsRenderErrors(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{renderErr: errors.New("renderer failed")}
 	rs := NewResource(Dependencies{SlotListsService: mock})
 	router := slotListTestRouter(rs.exportSlotList, "/export")
@@ -185,6 +195,8 @@ func TestExportSlotListReportsRenderErrors(t *testing.T) {
 }
 
 func TestExportSlotListMapsDriftToConflict(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{renderErr: slotlists.ErrListDrifted}
 	rs := NewResource(Dependencies{SlotListsService: mock})
 	router := slotListTestRouter(rs.exportSlotList, "/export")
@@ -203,6 +215,8 @@ func TestExportSlotListMapsDriftToConflict(t *testing.T) {
 }
 
 func TestExportSlotListForwardsExpectedSignature(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockSlotListsService{
 		renderFile: listexport.File{
 			Data:        []byte("%PDF test"),
@@ -225,6 +239,8 @@ func TestExportSlotListForwardsExpectedSignature(t *testing.T) {
 }
 
 func TestSlotListHandlersMapDisabledTimetableToForbidden(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		path    string

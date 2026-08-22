@@ -141,6 +141,57 @@ func (rs *Resource) createRollover(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusCreated, resp, "Rollover phase created")
 }
 
+// RolloverPreviewResponse mirrors the service-level dry-run summary
+// shown before the admin executes the rollover (#2251).
+type RolloverPreviewResponse struct {
+	CarryCandidateCount int            `json:"carry_candidate_count"`
+	CarriedCount        int            `json:"carried_count"`
+	ReviewCount         int            `json:"review_count"`
+	ReviewByReason      map[string]int `json:"review_by_reason"`
+	ExcludedCount       int            `json:"excluded_count"`
+	ExcludedByStatus    map[string]int `json:"excluded_by_status"`
+	RequestCount        int            `json:"request_count"`
+}
+
+// previewRollover handles GET /admin/phases/{id}/rollover-preview.
+// `bumps_grade` mirrors the checkbox on the rollover form so the
+// review classification matches what the create would do.
+func (rs *Resource) previewRollover(w http.ResponseWriter, r *http.Request) {
+	if rs.RolloverService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("rollover service not configured")))
+		return
+	}
+	sourceID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid source phase id")
+	if !ok {
+		return
+	}
+	bumpsGrade := r.URL.Query().Get("bumps_grade") != "false"
+
+	var preview *enrollmentService.RolloverPreview
+	if txErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		got, previewErr := rs.RolloverService.PreviewPhaseFromSource(ctx, sourceID, bumpsGrade)
+		preview = got
+		return previewErr
+	}); txErr != nil {
+		rs.mapRolloverError(w, r, txErr)
+		return
+	}
+	if preview == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("rollover preview not returned")))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, RolloverPreviewResponse{
+		CarryCandidateCount: preview.CarryCandidateCount,
+		CarriedCount:        preview.CarriedCount,
+		ReviewCount:         preview.ReviewCount,
+		ReviewByReason:      preview.ReviewByReason,
+		ExcludedCount:       preview.ExcludedCount,
+		ExcludedByStatus:    preview.ExcludedByStatus,
+		RequestCount:        preview.RequestCount,
+	}, "Rollover preview computed")
+}
+
 // listRolloverReview handles GET /admin/phases/{id}/review.
 func (rs *Resource) listRolloverReview(w http.ResponseWriter, r *http.Request) {
 	if rs.RolloverService == nil {

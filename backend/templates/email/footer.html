@@ -1,13 +1,15 @@
 {{define "footer"}}
 
 <div id="footer">
-        {{if .SchoolName}}
+        {{if .FooterText}}
+        <p>{{.FooterText}}</p>
+        {{else if .SchoolName}}
         <p>Diese E-Mail wurde im Auftrag von {{.SchoolName}} versendet.</p>
         {{else}}
         <p>Diese E-Mail wurde automatisch versendet.</p>
         {{end}}
         <div class="powered-by">
-                <span>Unterstützt von</span>
+                <span>{{if .PoweredByLabel}}{{.PoweredByLabel}}{{else}}Unterstützt von{{end}}</span>
                 {{if .MotoLogoURL}}
                 <img src="{{.MotoLogoURL}}" alt="moto" />
                 {{else}}

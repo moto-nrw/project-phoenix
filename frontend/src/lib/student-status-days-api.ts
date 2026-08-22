@@ -23,7 +23,12 @@ interface ApiResponse<T> {
   conflict_count?: number;
   message?: string;
   error?: string;
+  /** Stable backend conflict code (e.g. partial_absence_conflict). */
+  code?: string;
 }
+
+/** Matches backend `partial_absence_conflict` on status-day writes. */
+const PARTIAL_ABSENCE_CONFLICT_CODE = "partial_absence_conflict";
 
 interface BackendStudentStatusDay {
   id: number;
@@ -60,9 +65,22 @@ export class StudentStatusDayConflictError extends Error {
   }
 }
 
+/** Full-day status write refused because a partial-day excusal already exists. */
+export class StudentStatusDayPartialAbsenceConflictError extends Error {
+  constructor() {
+    super(
+      "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+    );
+    this.name = "StudentStatusDayPartialAbsenceConflictError";
+  }
+}
+
 function parseConflictError(
   result: ApiResponse<BackendStudentStatusDay[]>,
-): StudentStatusDayConflictError {
+): Error {
+  if (result.code === PARTIAL_ABSENCE_CONFLICT_CODE) {
+    return new StudentStatusDayPartialAbsenceConflictError();
+  }
   const conflicts = (result.conflicts ?? result.data ?? []).map(mapStatusDay);
   const totalCount =
     typeof result.conflict_count === "number" &&
@@ -99,6 +117,72 @@ export async function fetchStudentStatusDays(
     "Geplante Einträge konnten nicht geladen werden",
   );
   return data.map(mapStatusDay);
+}
+
+/**
+ * One row of the tenant-wide absence overview (#2288). IDs arrive as strings
+ * from the backend already; no mapping needed.
+ */
+export interface StatusDayOverviewEntry {
+  id: string;
+  student_id: string;
+  first_name: string;
+  last_name: string;
+  school_class: string;
+  group_id: string;
+  group_name: string;
+  date: string;
+  status: StudentStatusKind;
+  label: string;
+  reported_at: string;
+  source: string;
+}
+
+export interface StatusDayOverview {
+  from: string;
+  to: string;
+  groups: Array<{ id: string; name: string }>;
+  entries: StatusDayOverviewEntry[];
+  page: number;
+  page_size: number;
+  has_more: boolean;
+}
+
+/** Thrown when the account has no staff link (backend 403). */
+export class StatusDayOverviewForbiddenError extends Error {
+  constructor() {
+    super(
+      "Ihr Konto ist keinem Personaleintrag zugeordnet. Bitte wenden Sie sich an Ihre Administration.",
+    );
+    this.name = "StatusDayOverviewForbiddenError";
+  }
+}
+
+export async function fetchStatusDayOverview(
+  from: string,
+  to: string,
+  filters: { page: number; query: string; status: string; groupId: string },
+): Promise<StatusDayOverview> {
+  const params = new URLSearchParams({
+    from,
+    to,
+    page: filters.page.toString(),
+    page_size: "50",
+  });
+  if (filters.query.trim()) params.set("q", filters.query.trim());
+  if (filters.status !== "all") params.set("status", filters.status);
+  if (filters.groupId !== "all") params.set("group_id", filters.groupId);
+  const response = await fetch(`/api/students/status-days?${params}`);
+  if (response.status === 403) {
+    throw new StatusDayOverviewForbiddenError();
+  }
+  if (!response.ok) {
+    throw new Error("Abwesenheiten konnten nicht geladen werden");
+  }
+  return parseApiResult<StatusDayOverview>(
+    response,
+    "Abwesenheiten konnten nicht geladen werden",
+  );
 }
 
 export async function createStudentStatusDays(

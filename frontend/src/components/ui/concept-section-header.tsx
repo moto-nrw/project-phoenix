@@ -18,6 +18,7 @@ interface ConceptSectionHeaderProps {
   readonly concept: MotoConceptKey;
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
+  readonly actionsClassName?: string;
   readonly className?: string;
   readonly level?: SectionHeadingLevel;
 }
@@ -35,6 +36,7 @@ interface SectionHeaderProps {
   readonly icon: ReactNode;
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
+  readonly actionsClassName?: string;
   readonly className?: string;
   readonly level?: SectionHeadingLevel;
 }
@@ -44,6 +46,7 @@ interface SectionHeaderShellProps {
   readonly title: string;
   readonly subtitle?: ReactNode;
   readonly actions?: ReactNode;
+  readonly actionsClassName?: string;
   readonly className?: string;
   readonly level?: SectionHeadingLevel;
 }
@@ -53,6 +56,7 @@ function SectionHeaderShell({
   title,
   subtitle,
   actions,
+  actionsClassName,
   className,
   level = 2,
 }: SectionHeaderShellProps) {
@@ -75,7 +79,9 @@ function SectionHeaderShell({
           ) : null}
         </div>
       </div>
-      {actions ? <div className="shrink-0">{actions}</div> : null}
+      {actions ? (
+        <div className={cn("shrink-0", actionsClassName)}>{actions}</div>
+      ) : null}
     </div>
   );
 }
@@ -85,6 +91,7 @@ export function SectionHeader({
   icon,
   subtitle,
   actions,
+  actionsClassName,
   className,
   level,
 }: SectionHeaderProps) {
@@ -98,6 +105,7 @@ export function SectionHeader({
       title={title}
       subtitle={subtitle}
       actions={actions}
+      actionsClassName={actionsClassName}
       className={className}
       level={level}
     />
@@ -109,6 +117,7 @@ export function ConceptSectionHeader({
   concept,
   subtitle,
   actions,
+  actionsClassName,
   className,
   level,
 }: ConceptSectionHeaderProps) {
@@ -118,6 +127,7 @@ export function ConceptSectionHeader({
       title={title}
       subtitle={subtitle}
       actions={actions}
+      actionsClassName={actionsClassName}
       className={className}
       level={level}
     />

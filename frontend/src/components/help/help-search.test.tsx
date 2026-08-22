@@ -76,11 +76,11 @@ describe("HelpSearchInline", () => {
     expect(screen.getAllByRole("option")[0]).toHaveTextContent("Räume anlegen");
   });
 
-  it("matches multi-word queries token-by-token (Kind finden -> Kindersuche)", () => {
+  it("matches multi-word queries token-by-token (Kind finden -> Alle Kinder)", () => {
     render(<HelpSearchInline />);
     typeQuery("Kind finden");
     const firstOption = screen.getAllByRole("option")[0];
-    expect(firstOption).toHaveTextContent("Kindersuche");
+    expect(firstOption).toHaveTextContent("Alle Kinder");
     expect(firstOption?.closest("a")).toHaveAttribute(
       "href",
       "/help/features#kindersuche",
@@ -92,7 +92,7 @@ describe("HelpSearchInline", () => {
     typeQuery("kind");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Kindersuche"));
+      .find((o) => o.textContent?.includes("Alle Kinder"));
     expect(option).toBeDefined();
     const marks = option!.querySelectorAll("mark");
     // Every mark is the clean contiguous token "Kind" — both the title and the
@@ -153,7 +153,7 @@ describe("HelpSearchInline", () => {
     fireEvent.change(input, { target: { value: "Räume anlegen" } });
     expect(screen.getByRole("listbox")).toBeInTheDocument();
 
-    fireEvent.change(input, { target: { value: "Kindersuche" } });
+    fireEvent.change(input, { target: { value: "Alle Kinder" } });
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.queryByText(/Keine Treffer/)).not.toBeInTheDocument();
     expect(input).toHaveAttribute("aria-expanded", "false");
@@ -168,7 +168,7 @@ describe("HelpSearchInline", () => {
     typeQuery("kind");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Kindersuche"));
+      .find((o) => o.textContent?.includes("Alle Kinder"));
     // "Kind" appears in both the title ("Kindersuche") and the summary
     // ("…jedes Kind…"), so a summary-aware highlighter yields ≥2 marks.
     expect(option!.querySelectorAll("mark").length).toBeGreaterThanOrEqual(2);
@@ -303,7 +303,7 @@ describe("HelpSearchInline", () => {
     typeQuery("kind kinder");
     const option = screen
       .getAllByRole("option")
-      .find((o) => o.textContent?.includes("Kindersuche"));
+      .find((o) => o.textContent?.includes("Alle Kinder"));
     expect(option).toBeDefined();
     const marks = [...option!.querySelectorAll("mark")];
     expect(marks.some((m) => m.textContent === "Kinder")).toBe(true);
@@ -328,10 +328,24 @@ describe("useHelpSearch", () => {
 
   it("exposes summary highlight ranges on hits", () => {
     const { result } = renderHook(() => useHelpSearch());
-    act(() => result.current.setQuery("Kindersuche"));
+    act(() => result.current.setQuery("Alle Kinder"));
     const top = result.current.hits[0];
-    expect(top?.record.title).toBe("Kindersuche");
+    expect(top?.record.title).toBe("Alle Kinder");
     expect(top?.summaryRanges).toBeDefined();
+  });
+
+  it("keeps the former Kindersuche name as a search alias", () => {
+    const { result } = renderHook(() => useHelpSearch());
+    act(() => result.current.setQuery("Kindersuche"));
+    expect(result.current.hits[0]?.record.title).toBe("Alle Kinder");
+  });
+
+  it("ranks the Wochenplan chapter first for Abholzeit (#2368)", () => {
+    const { result } = renderHook(() => useHelpSearch());
+    act(() => result.current.setQuery("Abholzeit"));
+    expect(result.current.hits[0]?.record.title).toBe(
+      "Feste Ankunfts- und Abholzeiten eintragen",
+    );
   });
 });
 

@@ -15,6 +15,7 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { Skeleton } from "~/components/ui/skeleton";
 
 // =============================================================================
 // DataField - Shared component for dt/dd data display patterns
@@ -46,6 +47,29 @@ export function DataField({
         className={`mt-0.5 ${mono ? "font-mono text-xs break-all text-gray-600 md:text-sm" : "text-sm font-medium break-words text-gray-900"}`}
       >
         {children}
+      </dd>
+    </div>
+  );
+}
+
+/**
+ * Loading twin of DataField, colocated so the two share one markup shape:
+ * same wrapper, same dt/dd, bars instead of text. Compose inside a real
+ * InfoSection/DataGrid — static chrome (titles, icons) renders real.
+ */
+export function DataFieldSkeleton({
+  fullWidth = false,
+}: Readonly<{ fullWidth?: boolean }>) {
+  return (
+    <div
+      className={fullWidth ? "col-span-1 sm:col-span-2" : ""}
+      aria-hidden="true"
+    >
+      <dt className="text-xs text-gray-500">
+        <Skeleton className="h-3 w-20 rounded" />
+      </dt>
+      <dd className="mt-0.5 text-sm font-medium text-gray-900">
+        <Skeleton className="h-4 w-2/3 rounded" />
       </dd>
     </div>
   );

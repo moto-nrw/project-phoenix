@@ -30,10 +30,14 @@ func validRolloverReq() CreatePhaseFromSourceRequest {
 func newSvc() *rolloverService { return &rolloverService{} }
 
 func TestValidateCreateRequest_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, newSvc().validateCreateRequest(validRolloverReq()))
 }
 
 func TestValidateCreateRequest_RequiresSourcePhaseID(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.SourcePhaseID = 0
 	err := newSvc().validateCreateRequest(r)
@@ -43,6 +47,8 @@ func TestValidateCreateRequest_RequiresSourcePhaseID(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RejectsNegativeSourcePhaseID(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.SourcePhaseID = -1
 	err := newSvc().validateCreateRequest(r)
@@ -50,6 +56,8 @@ func TestValidateCreateRequest_RejectsNegativeSourcePhaseID(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.Name = ""
 	err := newSvc().validateCreateRequest(r)
@@ -58,6 +66,8 @@ func TestValidateCreateRequest_RequiresName(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RequiresServiceStartDate(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.ServiceStartDate = timezone.Date{}
 	err := newSvc().validateCreateRequest(r)
@@ -66,6 +76,8 @@ func TestValidateCreateRequest_RequiresServiceStartDate(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RequiresServiceEndDate(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.ServiceEndDate = timezone.Date{}
 	err := newSvc().validateCreateRequest(r)
@@ -74,6 +86,8 @@ func TestValidateCreateRequest_RequiresServiceEndDate(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RejectsEndBeforeStart(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.ServiceStartDate = timezone.NewDate(2028, 1, 1)
 	r.ServiceEndDate = timezone.NewDate(2027, 12, 31)
@@ -83,6 +97,8 @@ func TestValidateCreateRequest_RejectsEndBeforeStart(t *testing.T) {
 }
 
 func TestValidateCreateRequest_AcceptsEqualStartAndEnd(t *testing.T) {
+	t.Parallel()
+
 	// Single-day rollover phase is legal — "Before" is strict, not "<=".
 	r := validRolloverReq()
 	same := timezone.NewDate(2027, 9, 1)
@@ -92,6 +108,8 @@ func TestValidateCreateRequest_AcceptsEqualStartAndEnd(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RequiresRolloverDeadline(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.RolloverDeadline = time.Time{}
 	err := newSvc().validateCreateRequest(r)
@@ -100,6 +118,8 @@ func TestValidateCreateRequest_RequiresRolloverDeadline(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RejectsUnknownRolloverMode(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.RolloverMode = "weird"
 	err := newSvc().validateCreateRequest(r)
@@ -108,6 +128,8 @@ func TestValidateCreateRequest_RejectsUnknownRolloverMode(t *testing.T) {
 }
 
 func TestValidateCreateRequest_AcceptsBothKnownModes(t *testing.T) {
+	t.Parallel()
+
 	for _, mode := range []string{enrollmentModels.PhaseRolloverModeOptIn, enrollmentModels.PhaseRolloverModeOptOut} {
 		r := validRolloverReq()
 		r.RolloverMode = mode
@@ -117,6 +139,8 @@ func TestValidateCreateRequest_AcceptsBothKnownModes(t *testing.T) {
 }
 
 func TestValidateCreateRequest_RejectsEmptyRolloverMode(t *testing.T) {
+	t.Parallel()
+
 	r := validRolloverReq()
 	r.RolloverMode = ""
 	err := newSvc().validateCreateRequest(r)
@@ -133,16 +157,22 @@ func TestValidateCreateRequest_RejectsEmptyRolloverMode(t *testing.T) {
 // pgdriver.Error at all.
 
 func TestIsUniqueViolationOn_NilError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, base.IsUniqueViolationOn(nil, "anything"))
 }
 
 func TestIsUniqueViolationOn_NonPGError(t *testing.T) {
+	t.Parallel()
+
 	// errors.As against a plain error must fail cleanly — no panic, no
 	// false positive.
 	assert.False(t, base.IsUniqueViolationOn(errors.New("synthetic"), "anything"))
 }
 
 func TestIsUniqueViolationOn_WrappedNonPGError(t *testing.T) {
+	t.Parallel()
+
 	wrapped := errors.New("synthetic")
 	wrapped2 := errors.Join(wrapped, errors.New("layer"))
 	assert.False(t, base.IsUniqueViolationOn(wrapped2, "anything"))
@@ -152,18 +182,26 @@ func TestIsUniqueViolationOn_WrappedNonPGError(t *testing.T) {
 // trivial wrappers but ensure the detector wiring is correct.
 
 func TestIsPhaseDuplicateName_NilFalse(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isPhaseDuplicateName(nil))
 }
 
 func TestIsPhaseDuplicateName_NonPGFalse(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isPhaseDuplicateName(errors.New("synthetic")))
 }
 
 func TestIsRolloverSourceAlreadyRolled_NilFalse(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isRolloverSourceAlreadyRolled(nil))
 }
 
 func TestIsRolloverSourceAlreadyRolled_NonPGFalse(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isRolloverSourceAlreadyRolled(errors.New("synthetic")))
 }
 
@@ -172,6 +210,8 @@ func TestIsRolloverSourceAlreadyRolled_NonPGFalse(t *testing.T) {
 // *wrong* code doesn't match by sentinel comparison — using
 // errors.As lookup against a wrapped chain.
 func TestIsUniqueViolationOn_PgErrorAsTypeAssertHandled(t *testing.T) {
+	t.Parallel()
+
 	// Build a wrapped chain that contains a pgdriver.Error zero value.
 	// pgdriver.Error{}.Field('C') returns "" by default, so this should
 	// fail the "23505" check even though errors.As succeeds.

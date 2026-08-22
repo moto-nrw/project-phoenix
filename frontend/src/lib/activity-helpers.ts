@@ -43,7 +43,7 @@ export function mapActivitySupervisorSummariesResponse(
 export interface BackendActivity {
   id: number;
   name: string;
-  max_participants: number;
+  max_participants: number | null;
   is_open: boolean;
   category_id: number;
   planned_room_id?: number;
@@ -143,7 +143,7 @@ export interface ActivitySupervisor {
 export interface Activity {
   id: string;
   name: string;
-  max_participant: number;
+  max_participant: number | null;
   is_open_ags: boolean;
   supervisor_id: string;
   supervisor_name?: string;
@@ -746,7 +746,7 @@ export function prepareActivityScheduleForBackend(
 // Request/Response types
 export interface CreateActivityRequest {
   name: string;
-  max_participants: number;
+  max_participants: number | null;
   is_open: boolean;
   category_id: number;
   planned_room_id?: number;
@@ -759,7 +759,7 @@ export interface CreateActivityRequest {
 
 export interface UpdateActivityRequest {
   name: string;
-  max_participants: number;
+  max_participants: number | null;
   is_open: boolean;
   category_id: number;
   planned_room_id?: number;
@@ -884,11 +884,11 @@ export function formatParticipantStatus(
   // Handle case when first parameter is an Activity object
   if (typeof activityOrCurrent === "object" && activityOrCurrent !== null) {
     const activity = activityOrCurrent;
-    if (
-      activity.participant_count === undefined ||
-      activity.max_participant === undefined
-    ) {
+    if (activity.participant_count === undefined) {
       return "Unbekannt";
+    }
+    if (activity.max_participant == null) {
+      return `${activity.participant_count} Teilnehmer`;
     }
     return `${activity.participant_count} / ${activity.max_participant} Teilnehmer`;
   }

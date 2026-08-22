@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   BellRing,
@@ -32,7 +32,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -214,11 +214,7 @@ function StatusPill({ status }: { status: AnnouncementStatus }) {
 }
 
 export default function ParentAnnouncementsPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <ParentAnnouncementsContent />
-    </Suspense>
-  );
+  return <ParentAnnouncementsContent />;
 }
 
 function ParentAnnouncementsContent() {
@@ -633,7 +629,30 @@ function ParentAnnouncementsContent() {
       )}
 
       {isLoading ? (
-        <Loading fullPage={false} />
+        <>
+          {/* Mobile: skeleton cards, matching the real card list below. */}
+          <div className="md:hidden">
+            <SkeletonRegion
+              label={
+                kind === "poll"
+                  ? "Umfragen werden geladen…"
+                  : "Elternmitteilungen werden geladen…"
+              }
+            >
+              <ListSkeleton rows={5} avatar={false} />
+            </SkeletonRegion>
+          </div>
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              rows={[]}
+              isLoading
+              loadingRowCount={6}
+              getRowKey={(row) => row.id}
+              defaultSortKey="title"
+            />
+          </div>
+        </>
       ) : filtered.length === 0 ? (
         <div className="py-12 text-center">
           <div className="flex flex-col items-center gap-4">
@@ -2021,7 +2040,9 @@ function PollResultsPanel({
 
       {results === null || children === null ? (
         error ? null : (
-          <Loading fullPage={false} />
+          <SkeletonRegion label="Umfrageergebnisse werden geladen…">
+            <ListSkeleton rows={4} avatar={false} />
+          </SkeletonRegion>
         )
       ) : (
         <>
@@ -2298,7 +2319,9 @@ function DetailModal({
             {error ? (
               <p className="text-sm text-[#CC2626]">{error}</p>
             ) : stats === null || recipients === null ? (
-              <Loading fullPage={false} />
+              <SkeletonRegion label="Statistik wird geladen…">
+                <ListSkeleton rows={4} avatar={false} />
+              </SkeletonRegion>
             ) : (
               <>
                 <p className="text-sm text-gray-700">

@@ -613,7 +613,7 @@ describe("api.ts helper functions", () => {
       ).rejects.toThrow("Missing required field: name");
     });
 
-    it("validates required capacity field", async () => {
+    it("rejects non-positive capacity", async () => {
       const { roomService } = await import("./api");
 
       await expect(
@@ -622,9 +622,7 @@ describe("api.ts helper functions", () => {
           capacity: 0,
           category: "classroom",
         }),
-      ).rejects.toThrow(
-        "Missing required field: capacity must be greater than 0",
-      );
+      ).rejects.toThrow("capacity must be greater than 0");
     });
 
     it("validates required category field", async () => {
@@ -2256,10 +2254,8 @@ describe("api.ts helper functions", () => {
   describe("error handling utilities", () => {
     it("handleApiError wraps errors with context", async () => {
       const error = new Error("Network failure");
-      await import("./api");
-
-      // Trigger an error through studentService
-      global.fetch = vi.fn().mockRejectedValue(error);
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockRejectedValue(error);
 
       const { getSession } = await import("next-auth/react");
       vi.mocked(getSession).mockResolvedValue({
@@ -2482,6 +2478,32 @@ describe("api.ts helper functions", () => {
           category: "classroom",
         }),
       ).rejects.toThrow("capacity must be greater than 0");
+    });
+
+    it("validateRoomForCreation allows omitted capacity", async () => {
+      const { roomService } = await import("./api");
+      const restore = setupBrowserEnv();
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({ data: { id: 1, name: "Unlimited Room" } }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+      try {
+        await expect(
+          roomService.createRoom({
+            name: "Unlimited Room",
+            category: "classroom",
+          }),
+        ).resolves.toBeDefined();
+      } finally {
+        fetchMock.mockRestore();
+        restore();
+      }
     });
 
     it("validateStudentForCreation checks all required fields", async () => {

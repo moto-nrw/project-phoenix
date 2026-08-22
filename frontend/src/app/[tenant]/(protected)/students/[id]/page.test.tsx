@@ -8,16 +8,33 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
+import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
-const { mockSWRMutate, MockStudentStatusDayConflictError } = vi.hoisted(() => ({
+const {
+  mockSWRMutate,
+  MockStudentStatusDayConflictError,
+  MockStudentStatusDayPartialAbsenceConflictError,
+} = vi.hoisted(() => ({
   mockSWRMutate: vi.fn(),
   MockStudentStatusDayConflictError: class extends Error {
     conflicts: unknown[];
+    totalCount: number;
 
-    constructor(conflicts: unknown[]) {
+    constructor(conflicts: unknown[], totalCount?: number) {
       super("conflict");
+      this.name = "StudentStatusDayConflictError";
       this.conflicts = conflicts;
+      this.totalCount = totalCount ?? conflicts.length;
+    }
+  },
+  MockStudentStatusDayPartialAbsenceConflictError: class extends Error {
+    constructor() {
+      super(
+        "Für diesen Tag liegt bereits eine Abmeldung ab einer Uhrzeit vor. Bitte zuerst die Teilabwesenheit entfernen.",
+      );
+      this.name = "StudentStatusDayPartialAbsenceConflictError";
     }
   },
 }));
@@ -227,14 +244,19 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     status,
     onClose,
     onSubmit,
+    canPlanPartialExcusal,
   }: {
     isOpen: boolean;
     status: "sick" | "excused" | "class_trip";
     onClose: () => void;
     onSubmit: (dates: string[]) => Promise<void>;
+    canPlanPartialExcusal?: boolean;
   }) =>
     isOpen ? (
-      <div data-testid={`planned-status-modal-${status}`}>
+      <div
+        data-testid={`planned-status-modal-${status}`}
+        data-can-plan-partial={String(canPlanPartialExcusal ?? true)}
+      >
         <button
           type="button"
           data-testid="planned-status-submit"
@@ -454,6 +476,7 @@ interface MockStudentDataResult {
   error: string | null;
   hasFullAccess: boolean;
   hasWriteAccess: boolean;
+  hasAbsenceWriteAccess: boolean;
   supervisors: Array<{ name: string; phone?: string }>;
   myGroups: string[];
   myGroupRooms: string[];
@@ -509,6 +532,8 @@ const mockCreateStudentStatusDays = vi.fn();
 const mockFetchStudentStatusDays = vi.fn();
 vi.mock("~/lib/student-status-days-api", () => ({
   StudentStatusDayConflictError: MockStudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError:
+    MockStudentStatusDayPartialAbsenceConflictError,
   createStudentStatusDays: (
     studentId: string,
     status: "sick" | "excused" | "class_trip",
@@ -516,6 +541,13 @@ vi.mock("~/lib/student-status-days-api", () => ({
   ) => mockCreateStudentStatusDays(studentId, status, dates),
   fetchStudentStatusDays: (studentId: string, from: string, to: string) =>
     mockFetchStudentStatusDays(studentId, from, to),
+  deleteStudentStatusDay: vi.fn(),
+}));
+
+vi.mock("~/lib/student-partial-absences-api", () => ({
+  fetchStudentPartialAbsences: vi.fn().mockResolvedValue([]),
+  saveStudentPartialAbsence: vi.fn(),
+  deleteStudentPartialAbsence: vi.fn(),
 }));
 
 // Mock useToast hook
@@ -563,6 +595,7 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     mockActionType = "none";
@@ -578,6 +611,7 @@ describe("StudentDetailPage", () => {
       error: null,
       hasFullAccess: true,
       hasWriteAccess: true,
+      hasAbsenceWriteAccess: true,
       supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
       myGroups: ["1"],
       myGroupRooms: ["Raum 101"],
@@ -614,6 +648,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -636,6 +671,7 @@ describe("StudentDetailPage", () => {
         error: "Kind nicht gefunden",
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -656,6 +692,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -675,6 +712,7 @@ describe("StudentDetailPage", () => {
         error: "Error",
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -766,6 +804,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -897,6 +936,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],
@@ -1044,6 +1084,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1178,7 +1219,7 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("shows message when no active rooms available", async () => {
+    it("shows the NFC instruction when no active rooms are available for an NFC tenant", async () => {
       mockGetActiveGroups.mockResolvedValue([]);
 
       render(<StudentDetailPage />);
@@ -1188,9 +1229,29 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText(/Keine aktiven Räume verfügbar/i),
+          screen.getByText(
+            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über ein NFC-Tablet.",
+          ),
         ).toBeInTheDocument();
       });
+    });
+
+    it("shows a web instruction when no active rooms are available without NFC", async () => {
+      vi.mocked(useNFCEnabled).mockReturnValue(false);
+      mockGetActiveGroups.mockResolvedValue([]);
+
+      render(<StudentDetailPage />);
+
+      fireEvent.click(screen.getByTestId("checkin-button"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(
+            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über die Web-App.",
+          ),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/NFC-Tablet/i)).not.toBeInTheDocument();
     });
   });
 
@@ -1298,6 +1359,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1390,6 +1452,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1439,6 +1502,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [{ name: "Frau Schmidt" }],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1451,6 +1515,156 @@ describe("StudentDetailPage", () => {
       expect(
         screen.queryByTestId("sick-report-section"),
       ).not.toBeInTheDocument();
+    });
+
+    // Offene Betreuung (#2232): without fixed groups the absence gate stands on
+    // its own, so the action is offered even where Stammdaten stay read-only —
+    // in the limited view too, since the child has no supervisor to fall back on.
+    it("shows the absence actions without Stammdaten write access", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
+      expect(screen.getByTestId("excused-report-section")).toBeInTheDocument();
+      expect(
+        screen.queryByTestId("edit-personal-info"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the absence actions in the limited access view", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByTestId("sick-report-section")).toBeInTheDocument();
+    });
+
+    // The planning dialog reads the child's existing status days before it
+    // saves. Gating that read on full access left it blind for absence-only
+    // staff: planned days stayed invisible and could not be cleared.
+    it("loads status days for absence-only staff", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      // Own cache so the shared SWR dedupe window of an earlier render in this
+      // file cannot swallow the request under test.
+      render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <StudentDetailPage />
+        </SWRConfig>,
+      );
+
+      await waitFor(() => {
+        expect(mockFetchStudentStatusDays).toHaveBeenCalled();
+      });
+    });
+
+    it("does not load status days without read or absence access", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: false,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(
+        <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+          <StudentDetailPage />
+        </SWRConfig>,
+      );
+
+      expect(mockFetchStudentStatusDays).not.toHaveBeenCalled();
+    });
+
+    // "Ab Uhrzeit" writes a pickup exception, which needs users:update plus
+    // full care access — neither of which the absence permission grants.
+    it("hides the partial excusal option for absence-only staff", async () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: false,
+        hasAbsenceWriteAccess: true,
+        supervisors: [{ name: "Frau Schmidt" }],
+        myGroups: ["1"],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("planned-status-modal-excused"),
+        ).toHaveAttribute("data-can-plan-partial", "false");
+      });
+    });
+
+    it("offers the partial excusal option to staff with Stammdaten write access", async () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:update"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("excused-toggle-button"));
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("planned-status-modal-excused"),
+        ).toHaveAttribute("data-can-plan-partial", "true");
+      });
     });
   });
 
@@ -1520,6 +1734,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1544,6 +1759,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1577,6 +1793,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1599,6 +1816,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1622,6 +1840,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1655,6 +1874,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1683,6 +1903,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1733,6 +1954,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [],
         myGroups: ["1"],
         myGroupRooms: [],
@@ -1754,6 +1976,7 @@ describe("StudentDetailPage", () => {
       error: null,
       hasFullAccess: false,
       hasWriteAccess: false,
+      hasAbsenceWriteAccess: false,
       supervisors: [{ name: "Frau Schmidt" }],
       myGroups: ["1"],
       myGroupRooms: [],
@@ -1786,6 +2009,34 @@ describe("StudentDetailPage", () => {
         screen.getByRole("tab", { name: "Anmeldungen" }),
       ).toBeInTheDocument();
       expect(screen.getByRole("tab", { name: "Historie" })).toBeInTheDocument();
+    });
+
+    it("shows the Änderungsprotokoll tab with users:update", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            token: "test-token",
+            permissions: ["config:manage", "users:update"],
+          },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Änderungsprotokoll" }),
+      ).toBeInTheDocument();
+    });
+
+    it("hides the Änderungsprotokoll tab without users:update or users:absence", () => {
+      // Die Vorgabe-Sitzung hat nur config:manage — der Aggregations-Endpunkt
+      // würde 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.queryByRole("tab", { name: "Änderungsprotokoll" }),
+      ).not.toBeInTheDocument();
     });
 
     it("hides the enrollment tab without config:manage", () => {
@@ -2023,6 +2274,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: false,
         hasWriteAccess: false,
+        hasAbsenceWriteAccess: false,
         supervisors: [],
         myGroups: [],
         myGroupRooms: [],
@@ -2040,6 +2292,7 @@ describe("StudentDetailPage", () => {
         error: null,
         hasFullAccess: true,
         hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
         supervisors: [{ name: "Frau Schmidt", phone: "0123456" }],
         myGroups: ["1"],
         myGroupRooms: ["Raum 101"],

@@ -50,6 +50,12 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 
+// Der Betreuungsplan-Tab (#2283) lädt die große Planner-View dynamisch;
+// für die Seiten-Tests genügt ein Platzhalter.
+vi.mock("~/components/timetable/betreuungsplan-view", () => ({
+  BetreuungsplanView: () => <div data-testid="school-plan-view" />,
+}));
+
 vi.mock("~/lib/personal-calendar-api", async () => {
   const actual = await vi.importActual<
     typeof import("~/lib/personal-calendar-api")
@@ -317,6 +323,48 @@ describe("StaffCalendarPage", () => {
     expect(mockToastWarning).toHaveBeenCalledWith(
       "Bitte Start- und Enddatum angeben.",
     );
+  });
+
+  // Eine Kalenderfläche (#2283): Nicht-Admins mit schedules:read bekommen
+  // den Betreuungsplan als zweiten Tab; Admins und Konten ohne die
+  // Permission sehen den Kalender unverändert ohne Tabs.
+  it("shows the Betreuungsplan tab for non-admin staff with schedules:read", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own", "schedules:read"] } },
+      status: "authenticated",
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(screen.getByRole("tab", { name: "Meine Termine" })).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Betreuungsplan" })).toBeVisible();
+  });
+
+  it("shows no tabs for admins", () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          roles: ["admin"],
+          permissions: ["calendar:own", "schedules:read", "admin:*"],
+        },
+      },
+      status: "authenticated",
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("shows no tabs without schedules:read", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { permissions: ["calendar:own"] } },
+      status: "authenticated",
+    });
+
+    render(<StaffCalendarPage />);
+
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
   it("hides creation controls without calendar manage permission", () => {

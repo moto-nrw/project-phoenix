@@ -53,11 +53,6 @@ vi.mock("~/lib/auth-helpers", () => ({
   getRoleDisplayName: (name: string) => name,
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
 // Mock Button component
 vi.mock("~/components/ui/button", () => ({
   Button: ({
@@ -699,7 +694,9 @@ describe("StaffImportPage", () => {
     });
 
     render(<StaffImportPage />);
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mitarbeiter-Import wird geladen…"),
+    ).toBeInTheDocument();
   });
 
   it("handles a missing token gracefully", async () => {

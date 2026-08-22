@@ -2,12 +2,9 @@ package schedule
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -15,14 +12,18 @@ import (
 // child-day. The parent portal treats staff ownership as day-level state, while
 // the data lives in two tables, so every writer must take the same lock before
 // checking or mutating either leg.
+//
+// Order is student row FOR UPDATE, then the care-day advisory lock — matching
+// full-day status writers and partial-absence writes so concurrent paths cannot
+// deadlock on the student FK vs care-day pair.
 func LockCareExceptionDay(ctx context.Context, db *bun.DB, studentID int64, date timezone.Date) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("tenant id is required")
-	}
-	key := fmt.Sprintf("care-exception-day:%d:%d:%s", tenantID, studentID, date.String())
-	if err := base.AcquireXactLock(ctx, db, key); err != nil {
-		return fmt.Errorf("lock care exception day: %w", err)
-	}
-	return nil
+	return careplanning.LockStudentAndExceptionDay(ctx, db, studentID, date)
+}
+
+// LockCareStudent takes only the student row FOR UPDATE — the shared first
+// lock of every care-day writer. Weekly-schedule writers acquire it before
+// touching schedule rows so their later per-day locks (auto-excusal resync)
+// keep the student → day order instead of inverting it.
+func LockCareStudent(ctx context.Context, db *bun.DB, studentID int64) error {
+	return careplanning.LockStudent(ctx, db, studentID)
 }

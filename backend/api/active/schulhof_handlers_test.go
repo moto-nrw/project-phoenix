@@ -58,6 +58,10 @@ func (m *mockUserContextService) GetCurrentStaff(ctx context.Context) (*users.St
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockUserContextService) GetCurrentUser(ctx context.Context) (*auth.Account, error) {
 	return nil, errors.New("not implemented")
 }
@@ -146,6 +150,8 @@ func executeSchulhofRequest(router chi.Router, req *http.Request, claims jwt.App
 // =============================================================================
 
 func TestGetSchulhofStatus_Success(t *testing.T) {
+	t.Parallel()
+
 	mockSchulhof := &mockSchulhofService{
 		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
 			roomID := int64(100)
@@ -204,6 +210,8 @@ func TestGetSchulhofStatus_Success(t *testing.T) {
 }
 
 func TestGetSchulhofStatus_SchulhofDoesNotExist(t *testing.T) {
+	t.Parallel()
+
 	mockSchulhof := &mockSchulhofService{
 		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
 			return &facilities.SchulhofStatus{
@@ -235,6 +243,8 @@ func TestGetSchulhofStatus_SchulhofDoesNotExist(t *testing.T) {
 }
 
 func TestGetSchulhofStatus_UserNotStaff(t *testing.T) {
+	t.Parallel()
+
 	mockSchulhof := &mockSchulhofService{}
 
 	mockUserContext := &mockUserContextService{
@@ -254,6 +264,8 @@ func TestGetSchulhofStatus_UserNotStaff(t *testing.T) {
 }
 
 func TestGetSchulhofStatus_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockSchulhof := &mockSchulhofService{
 		getStatusFunc: func(ctx context.Context, staffID int64) (*facilities.SchulhofStatus, error) {
 			return nil, errors.New("database connection failed")

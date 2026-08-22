@@ -69,6 +69,8 @@ func (l *recordingMonthCloseStaffLister) ListAllWithPerson(context.Context) ([]*
 }
 
 func TestStaffMonthCloseService_RechecksIdempotencyAfterLock(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	repo := &concurrentMonthCloseSnapshotRepo{events: &events}
 	service := NewStaffMonthCloseService(
@@ -89,6 +91,8 @@ func TestStaffMonthCloseService_RechecksIdempotencyAfterLock(t *testing.T) {
 }
 
 func TestCalendarMonthHasEnded_RequiresFollowingDay(t *testing.T) {
+	t.Parallel()
+
 	key := monthKey{Year: 2026, Month: 7}
 
 	assert.False(t, calendarMonthHasEnded(key, timezone.NewDate(2026, time.July, 31)),
@@ -153,6 +157,8 @@ func assertMonthCloseBroadcastAfterCommit(
 }
 
 func TestStaffMonthCloseService_CloseBroadcastsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service := newBroadcastMonthCloseService(&broadcastMonthCloseSnapshotRepo{}, broadcaster)
 	ctx, commit := tenant.WithAfterCommitHooksForTest(
@@ -167,6 +173,8 @@ func TestStaffMonthCloseService_CloseBroadcastsAfterCommit(t *testing.T) {
 }
 
 func TestStaffMonthCloseService_ReopenBroadcastsAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service := newBroadcastMonthCloseService(&broadcastMonthCloseSnapshotRepo{
 		snapshot: &activeModels.StaffMonthBalanceSnapshot{

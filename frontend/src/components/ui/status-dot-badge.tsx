@@ -16,25 +16,34 @@ import { getLocationBadgeTone } from "~/lib/location-helper";
 export function StatusDotBadge({
   label,
   color,
+  showDot = true,
 }: {
   readonly label: string;
   readonly color: string;
+  /**
+   * Der Punkt trägt die Farbe des Status; die Beschriftung nennt ihn ohnehin.
+   * Wo mehrere Pillen nebeneinander stehen, ist er Rauschen — dort abschalten
+   * (gleiche Bedeutung wie `showDot` auf StatusBadge).
+   */
+  readonly showDot?: boolean;
 }) {
   const tone = getLocationBadgeTone(color);
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap"
       style={{
         backgroundColor: tone.backgroundColor,
         color: tone.textColor,
       }}
     >
-      <span
-        aria-hidden
-        className="inline-block h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: tone.dotColor }}
-      />
+      {showDot && (
+        <span
+          aria-hidden
+          className="inline-block h-1.5 w-1.5 rounded-full"
+          style={{ backgroundColor: tone.dotColor }}
+        />
+      )}
       <span>{label}</span>
     </span>
   );

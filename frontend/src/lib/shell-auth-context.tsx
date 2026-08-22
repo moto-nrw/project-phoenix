@@ -289,11 +289,17 @@ export function ParentShellProvider({
         }
       : null;
 
-    const displayName = session?.user?.name ?? "";
-    const nameParts = displayName.split(" ");
-    const shellProfile: ShellProfile | null = session?.user
+    // Elternkonten tragen im Session-Namen haeufig die E-Mail-Adresse. Die
+    // darf nie als Vorname durchgereicht werden: "Guten Tag,
+    // karin.klein@email.de" liest sich wie ein Datenbankauswurf. Ohne
+    // brauchbaren Namen bleibt das Profil leer, und die Oberflaeche gruesst
+    // ohne Anrede.
+    const displayName = session?.user?.name?.trim() ?? "";
+    const nameParts = displayName.includes("@") ? [] : displayName.split(" ");
+    const firstName = session?.user?.firstName?.trim() || nameParts[0];
+    const shellProfile: ShellProfile | null = firstName
       ? {
-          firstName: nameParts[0],
+          firstName,
           lastName: nameParts.slice(1).join(" ") || undefined,
         }
       : null;

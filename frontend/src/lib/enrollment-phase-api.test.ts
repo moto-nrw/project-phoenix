@@ -7,6 +7,7 @@ import {
   deletePhase,
   getPhaseDeleteImpact,
   createRollover,
+  fetchRolloverPreview,
   listRolloverReview,
   decideRolloverReview,
   phaseToInput,
@@ -276,6 +277,44 @@ describe("createPhase", () => {
     );
     await expect(createPhase(validInput)).rejects.toThrow(
       /Bitte gib einen Namen für die Anmeldephase ein/,
+    );
+  });
+});
+
+// --- rollover preview --------------------------------------------------
+
+describe("fetchRolloverPreview", () => {
+  it("GETs the grade bump choice and unwraps the preview", async () => {
+    let seenURL = "";
+    let seenInit: RequestInit | undefined;
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenInit = init;
+      return jsonResponse({
+        data: {
+          carry_candidate_count: 3,
+          carried_count: 2,
+          review_count: 1,
+          review_by_reason: { grade: 1 },
+          excluded_count: 0,
+          excluded_by_status: {},
+          request_count: 2,
+        },
+      });
+    });
+
+    const preview = await fetchRolloverPreview("phase/1", true);
+
+    expect(seenURL).toContain("/phase%2F1/rollover-preview?bumps_grade=true");
+    expect(seenInit?.cache).toBe("no-store");
+    expect(preview.carried_count).toBe(2);
+  });
+
+  it("throws the preview fallback when the request fails", async () => {
+    mockFetch(async () => new Response("nope", { status: 500 }));
+
+    await expect(fetchRolloverPreview("1", false)).rejects.toThrow(
+      /Vorschau konnte nicht geladen werden/,
     );
   });
 });

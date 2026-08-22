@@ -17,11 +17,12 @@ import (
 // ============================================================================
 
 func TestAccountRoleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "role_create")
@@ -47,11 +48,12 @@ func TestAccountRoleRepository_Create(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds roles by account ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_by_acc_role")
@@ -89,11 +91,12 @@ func TestAccountRoleRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role ID", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "find_by_role1")
@@ -126,11 +129,12 @@ func TestAccountRoleRepository_FindByRoleID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds specific account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "find_specific_role")
@@ -160,11 +164,12 @@ func TestAccountRoleRepository_FindByAccountAndRole(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update_role")
@@ -201,11 +206,12 @@ func TestAccountRoleRepository_Update(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing account-role mapping", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar")
@@ -239,11 +245,12 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 // (#1021): revoking access at one school must never touch the same account's
 // role assignments at another school.
 func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	const otherTenantID int64 = 1021003
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
 	t.Run("deletes only the assignment of the given school", func(t *testing.T) {
@@ -253,20 +260,20 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		homeAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
-		require.NoError(t, repo.Create(testpkg.TenantContext(1), homeAssignment))
+		require.NoError(t, repo.Create(testpkg.Ctx(t), homeAssignment))
 		otherAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
 		require.NoError(t, repo.Create(testpkg.TenantContext(otherTenantID), otherAssignment))
 
-		err := repo.DeleteByAccountRoleAndTenant(testpkg.TenantContext(1), account.ID, role.ID, otherTenantID)
+		err := repo.DeleteByAccountRoleAndTenant(testpkg.Ctx(t), account.ID, role.ID, otherTenantID)
 		require.NoError(t, err)
 
 		// The other school's assignment is gone...
-		remainingOther, err := repo.FindByAccountIDForTenant(testpkg.TenantContext(1), account.ID, otherTenantID)
+		remainingOther, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, otherTenantID)
 		require.NoError(t, err)
 		assert.Empty(t, remainingOther)
 
 		// ...while the home school keeps its own.
-		remainingHome, err := repo.FindByAccountIDForTenant(testpkg.TenantContext(1), account.ID, 1)
+		remainingHome, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 		assert.Len(t, remainingHome, 1)
 	})
@@ -275,17 +282,18 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant_none")
 		defer cleanupAccountRecords(t, db, account.ID)
 
-		err := repo.DeleteByAccountRoleAndTenant(testpkg.TenantContext(1), account.ID, 999999, otherTenantID)
+		err := repo.DeleteByAccountRoleAndTenant(testpkg.Ctx(t), account.ID, 999999, otherTenantID)
 		require.NoError(t, err)
 	})
 }
 
 func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all roles for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "delete_all_roles")
@@ -321,11 +329,12 @@ func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 }
 
 func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all account-role mappings for a role", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "del_by_role1")
@@ -367,11 +376,12 @@ func TestAccountRoleRepository_DeleteByRoleID(t *testing.T) {
 // ============================================================================
 
 func TestAccountRoleRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).AccountRole
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all account-role mappings", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "list_ar")

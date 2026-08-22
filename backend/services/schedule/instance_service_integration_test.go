@@ -21,11 +21,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -60,13 +62,16 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	db := testpkg.SetupTestDB(t)
 	// Register DB close FIRST so it runs LAST (LIFO) — after every other
 	// t.Cleanup has released its row references.
-	t.Cleanup(func() { _ = db.Close() })
 
 	repoFactory := repositories.NewFactory(db)
 	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 
-	ctx := testpkg.TenantContext(1)
+	// Own tenant per caller, subtests included: every subtest builds its own
+	// lifecycle and then asserts tenant-wide (loadLifecycleExceptions counts
+	// every exception of the tenant), so sharing the parent's tenant would
+	// make each subtest see its predecessors' rows (#2419).
+	ctx := testpkg.OwnCtx(t)
 	suffix := time.Now().UnixNano()
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("LC-Room-%d", suffix))
@@ -81,13 +86,8 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 
 	// Parent-fixture cleanup registered BEFORE any per-test child cleanups,
 	// so LIFO orders children → parents → db.Close.
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, student1.ID, staff.ID, 0, templateRow.ID, room.ID)
-		testpkg.CleanupTableRecords(t, db, "users.students", student2.ID)
-	})
 
-	return &lifecycleSetup{
-		svc:      serviceFactory.Instance,
+	setup := &lifecycleSetup{
 		factory:  serviceFactory,
 		repos:    repoFactory,
 		db:       db,
@@ -98,6 +98,11 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		student2: student2.ID,
 		tmplID:   templateRow.ID,
 	}
+	// These state-machine fixtures use fixed wall-clock windows. Time-policy
+	// boundaries have dedicated clock-injected tests; keep this suite focused on
+	// lifecycle persistence and bridge behavior.
+	setup.svc = instanceServiceWithBroadcaster(setup, nil)
+	return setup
 }
 
 func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {
@@ -120,6 +125,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		Broadcaster:        broadcaster,
 		DB:                 s.db,
 		Logger:             slog.Default(),
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
 	})
 }
 
@@ -137,27 +143,47 @@ func seedInstance(t *testing.T, s *lifecycleSetup, withStaff bool, withStudents 
 		Status:          scheduleModels.InstanceStatusPlanned,
 		IsSpontaneous:   false,
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	if withStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
 	}
 	if withStudents {
 		for _, sid := range []int64{s.student1, s.student2} {
 			row := &scheduleModels.InstanceStudent{InstanceID: ai.ID, StudentID: sid, Status: scheduleModels.AttendanceStatusExpected}
-			row.SetTenantID(1)
+			row.SetTenantID(testpkg.Tenant(t))
 			_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_students`).Exec(s.ctx)
 			require.NoError(t, err)
 		}
 	}
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID)
-	})
+	return ai
+}
+
+func seedSpontaneousInstance(t *testing.T, s *lifecycleSetup, withStaff bool) *scheduleModels.ActivityInstance {
+	t.Helper()
+	ai := &scheduleModels.ActivityInstance{
+		Date:          timezone.NewDate(2026, 4, 20),
+		Title:         "Lifecycle-Test-Spontaneous",
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		RoomID:        s.roomID,
+		Status:        scheduleModels.InstanceStatusPlanned,
+		IsSpontaneous: true,
+	}
+	ai.SetTenantID(testpkg.Tenant(t))
+	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
+	if withStaff {
+		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true}
+		row.SetTenantID(testpkg.Tenant(t))
+		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
+		require.NoError(t, err)
+	}
 	return ai
 }
 
@@ -171,7 +197,7 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("status = ?", status).
 		Where(`"activity_instance".id = ?`, id).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Exec(s.ctx)
 	require.NoError(t, err)
 }
@@ -179,6 +205,8 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 // --- #1840 understaffed acknowledgement -------------------------------------
 
 func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -209,6 +237,8 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 }
 
 func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -222,6 +252,8 @@ func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
 // remain — that would persist contradictory state (a block that reads as
 // unstaffed yet never appears in /gaps because it is staffed).
 func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, true, false) // one non-absent primary staff row
@@ -245,17 +277,17 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 // staffed block (present < planned) — it is rejected only when the block is
 // fully staffed (see TestInstance_SetUnderstaffedAck_RejectedWhileStaffed).
 func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false) // no staff seeded; we add two below
 
 	absentStaff := testpkg.CreateTestStaff(t, s.db, "LC-Absent", fmt.Sprintf("P-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, 0, absentStaff.ID, 0, 0, 0) })
 
 	// Two planned positions: one present, one absent with no replacement.
-	present := testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, s.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
-	absent := testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, present.ID, absent.ID) })
+	testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, s.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	note := "keine Vertretung für die zweite Position"
 	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
@@ -266,6 +298,8 @@ func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) 
 }
 
 func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 
@@ -275,6 +309,8 @@ func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 
 // #1840: Cancel persists the optional reason.
 func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, false, false)
@@ -294,6 +330,8 @@ func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
 // --- State machine: happy paths ---------------------------------------------
 
 func TestInstance_Start_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true)
@@ -325,13 +363,11 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 	assert.Empty(t, result.Warnings)
 
 	// Cleanup — supervisors + active.group survive the instance cleanup.
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sups[0].ID)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
-	})
 }
 
 func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -364,17 +400,13 @@ func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 	assert.Equal(t, "instance_started", *activeSupervisionChanged.Data.Reason)
 
 	t.Cleanup(func() {
-		sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
-		if err == nil {
-			for _, sup := range sups {
-				testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID)
-			}
-		}
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
+		_, _ = s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
 	})
 }
 
 func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -383,13 +415,7 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	result, err := svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
-		if err == nil {
-			for _, sup := range sups {
-				testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID)
-			}
-		}
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
+		_, _ = s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
 	})
 
 	groupCalls := broadcaster.CallsByMethod("group")
@@ -411,6 +437,8 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 // open "Heute geplant" card (focus revalidation disabled) or planner from
 // staying stale until reload.
 func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := instanceServiceWithBroadcaster(s, broadcaster)
@@ -435,9 +463,6 @@ func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
 		StaffIDs:  []int64{s.staffID},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-	})
 	assert.Equal(t, []string{"instance_create"}, deviationSources())
 
 	_, err = svc.UpdatePlanned(s.ctx, inst.ID, scheduleSvc.UpdateInstanceInput{
@@ -458,14 +483,13 @@ func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
 }
 
 func TestInstance_Complete_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	completed, err := s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
@@ -478,7 +502,319 @@ func TestInstance_Complete_HappyPath(t *testing.T) {
 	require.NotNil(t, group.EndTime, "active.group should have been ended")
 }
 
+func TestInstance_Complete_ConfirmationMustMatchOpenVisits(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	now := time.Now()
+	visit := &activeModels.Visit{StudentID: s.student1, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
+	visit.SetTenantID(testpkg.Tenant(t))
+	_, err = s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Complete(scheduleSvc.WithCompletionConfirmation(s.ctx, []int64{s.student2}), ai.ID)
+	require.ErrorIs(t, err, scheduleSvc.ErrCompletionConfirmationStale)
+
+	completed, err := s.svc.Complete(scheduleSvc.WithCompletionConfirmation(s.ctx, []int64{s.student1}), ai.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, completed.Status)
+}
+
+func TestInstance_Reopen_RestoresAbsenceProvenance(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+
+	instanceWeekday := int(ai.Date.Weekday())
+	if instanceWeekday == 0 {
+		instanceWeekday = 7
+	}
+	for weekday := scheduleModels.WeekdayMonday; weekday <= scheduleModels.WeekdayFriday; weekday++ {
+		if weekday == instanceWeekday {
+			continue
+		}
+		for _, studentID := range []int64{s.student1, s.student2} {
+			testpkg.CreateTestArrivalSchedule(t, s.db, studentID, weekday, s.staffID, "08:00")
+		}
+	}
+
+	sick := &activeModels.StudentStatusDay{
+		StudentID:  s.student1,
+		Date:       ai.Date,
+		Status:     activeModels.StudentStatusDaySick,
+		ReportedAt: time.Now(),
+		Source:     activeModels.StudentStatusSourcePlanned,
+	}
+	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
+
+	partial := testpkg.CreateTestPickupException(t, s.db, s.student2, ai.Date.AddDays(1), s.staffID, "13:00", "Termin")
+	_, err := s.db.NewUpdate().
+		Table("schedule.instance_students").
+		Set("status = ?", scheduleModels.AttendanceStatusAbsent).
+		Set("substatus = ?", scheduleModels.AttendanceSubstatusExcused).
+		Set("pickup_exception_id = ?", partial.ID).
+		Where("instance_id = ? AND student_id = ?", ai.ID, s.student2).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	beforeSick := fetchAttendance(t, s, ai.ID, s.student1)
+	require.Equal(t, scheduleModels.AttendanceStatusAbsent, beforeSick.Status)
+	require.NotNil(t, beforeSick.StudentStatusDayID)
+	assert.Equal(t, sick.ID, *beforeSick.StudentStatusDayID)
+	require.NotNil(t, beforeSick.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *beforeSick.Substatus)
+
+	beforePickup := fetchAttendance(t, s, ai.ID, s.student2)
+	require.Equal(t, scheduleModels.AttendanceStatusAbsent, beforePickup.Status)
+	require.NotNil(t, beforePickup.PickupExceptionID)
+	assert.Equal(t, partial.ID, *beforePickup.PickupExceptionID)
+
+	_, err = s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	afterCompleteSick := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.True(t, afterCompleteSick.NotScheduled)
+	assert.Nil(t, afterCompleteSick.StudentStatusDayID)
+	afterCompletePickup := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.True(t, afterCompletePickup.NotScheduled)
+	assert.Nil(t, afterCompletePickup.PickupExceptionID)
+
+	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+
+	restoredSick := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.False(t, restoredSick.NotScheduled)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restoredSick.Status)
+	require.NotNil(t, restoredSick.StudentStatusDayID)
+	assert.Equal(t, sick.ID, *restoredSick.StudentStatusDayID)
+	require.NotNil(t, restoredSick.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *restoredSick.Substatus)
+
+	restoredPickup := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.False(t, restoredPickup.NotScheduled)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restoredPickup.Status)
+	require.NotNil(t, restoredPickup.PickupExceptionID)
+	assert.Equal(t, partial.ID, *restoredPickup.PickupExceptionID)
+}
+
+func TestInstance_Reopen_HappyPath(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	// completed_by is an auth.accounts FK. These fixtures do not seed an
+	// account, so Complete writes a nil actor and Reopen uses the admin path.
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	reopened, err := s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
+	assert.Equal(t, started.ActiveGroupID, reopened.ActiveGroupID)
+
+	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	require.NoError(t, err)
+	assert.Nil(t, group.EndTime)
+}
+
+func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	first := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, first.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, first.ID)
+	require.NoError(t, err)
+
+	// A second planned row on the same template+date violates
+	// idx_activity_instances_template_unique. Occupancy cares about the
+	// room, so a spontaneous instance in the same room is enough.
+	second := seedSpontaneousInstance(t, s, true)
+	_, err = s.svc.Start(s.ctx, second.ID, 0)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, first.ID, 0, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrRoomConflict)
+}
+
+func TestInstance_Reopen_RejectsRoomCapacity(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+
+	now := time.Now()
+	for _, studentID := range []int64{s.student1, s.student2} {
+		visit := &activeModels.Visit{StudentID: studentID, ActiveGroupID: started.ActiveGroupID, EntryTime: now}
+		visit.SetTenantID(testpkg.Tenant(t))
+		_, insertErr := s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
+		require.NoError(t, insertErr)
+	}
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("facilities.rooms").
+		Set("capacity = ?", 1).
+		Where("id = ?", s.roomID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, activeSvc.ErrRoomCapacityExceeded)
+}
+
+func TestInstance_Reopen_RejectsNonActor(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 42, false)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationForbidden)
+}
+
+func TestInstance_Reopen_RejectsExpiredWindow(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("reopen_until = ?", time.Now().Add(-time.Minute)).
+		Where("id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+}
+
+func TestInstance_Reopen_RejectsAttendanceChangedAfterComplete(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, true)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.instance_students").
+		Set("updated_at = ?", time.Now().Add(time.Minute)).
+		Where("instance_id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
+func TestInstance_Reopen_RejectsSupervisorChangedAfterComplete(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	// active.group_supervisors carries a BEFORE UPDATE trigger
+	// (update_modified_column) that overwrites updated_at with the DB clock's
+	// now(), so an explicit future timestamp cannot be written. Bump the row
+	// (the trigger stamps it "now") and move the recorded completion instant
+	// two minutes into the past instead: the conflict predicate
+	// updated_at > completed_at then holds regardless of Go-vs-Postgres clock
+	// skew. Comparing the trigger stamp against the Go-clock completed_at
+	// directly is a sub-millisecond race that made this test flaky.
+	_, err = s.db.NewUpdate().
+		Table("active.group_supervisors").
+		Set("updated_at = now()").
+		Where("group_id = ?", started.ActiveGroupID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("completed_at = completed_at - interval '2 minutes'").
+		Where("id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
+func TestInstance_Reopen_RejectsStaffNowSupervisingElsewhere(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-ReopenRoom-%d", time.Now().UnixNano()))
+	otherGroup := testpkg.CreateTestActiveGroup(t, s.db, s.tmplID, otherRoom.ID)
+	testpkg.CreateTestGroupSupervisor(t, s.db, s.staffID, otherGroup.ID, "supervisor")
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrTimetableOperationConflict)
+}
+
+func TestInstance_Reopen_RejectsMissingSnapshot(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedInstance(t, s, true, false)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	_, err = s.db.NewUpdate().
+		Table("schedule.activity_instances").
+		Set("completion_snapshot = NULL").
+		Where("id = ?", ai.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
+	require.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+}
+
 func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
@@ -496,14 +832,13 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 }
 
 func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, false)
 	started, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
@@ -517,6 +852,8 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 // --- State machine: 409 branches --------------------------------------------
 
 func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -536,6 +873,8 @@ func TestInstance_Start_Rejects_NonPlanned(t *testing.T) {
 }
 
 func TestInstance_Complete_Rejects_NonActive(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusCompleted,
@@ -554,6 +893,8 @@ func TestInstance_Complete_Rejects_NonActive(t *testing.T) {
 }
 
 func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
@@ -564,6 +905,8 @@ func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
 }
 
 func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
@@ -574,6 +917,8 @@ func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
 }
 
 func TestInstance_Start_NotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	_, err := s.svc.Start(s.ctx, 99999999, 0)
@@ -586,6 +931,8 @@ func TestInstance_Start_NotFound(t *testing.T) {
 // this instance (sick, substitution flow); copying them would make them
 // appear as actively supervising and contradict the absence flag.
 func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)
@@ -594,31 +941,26 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 	primary := &scheduleModels.InstanceStaff{
 		InstanceID: ai.ID, StaffID: s.staffID, IsPrimary: true, IsAbsent: false,
 	}
-	primary.SetTenantID(1)
+	primary.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(primary).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	absent := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "users.staff", absent.ID) })
 
 	absentRow := &scheduleModels.InstanceStaff{
 		InstanceID: ai.ID, StaffID: absent.ID, IsPrimary: false, IsAbsent: true,
 	}
-	absentRow.SetTenantID(1)
+	absentRow.SetTenantID(testpkg.Tenant(t))
 	_, err = s.db.NewInsert().Model(absentRow).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 	require.NoError(t, err)
 
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
-	})
 
 	sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
 	require.NoError(t, err)
 	require.Len(t, sups, 1, "only the non-absent staff should become a supervisor")
 	assert.Equal(t, s.staffID, sups[0].StaffID)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sups[0].ID) })
 
 	// And the SupervisorIDs on the SSE envelope (visible via start result)
 	// must not include the absent staff — handled through activeStaffRows,
@@ -629,6 +971,8 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 // --- Conflict detection -----------------------------------------------------
 
 func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed a live active.group in the same room. Since #2139 a shared
@@ -639,43 +983,36 @@ func TestInstance_Start_OccupiedRoomIsNotAConflict(t *testing.T) {
 		StartTime: now, LastActivity: now, TimeoutMinutes: 30,
 		GroupID: &s.tmplID, RoomID: s.roomID,
 	}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID)
-	})
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID)
-	})
 
 	assert.Empty(t, result.Warnings, "a pure room overlap must not warn (#2139); got %+v", result.Warnings)
 	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status, "warnings never block the transition")
 }
 
 func TestInstance_Start_StaffSameRoomIsNotAConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Our staff member already supervises a live group in the SAME room the
 	// instance starts in — sanctioned parallel supervision (#2139).
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	for _, w := range result.Warnings {
 		assert.NotEqual(t, scheduleSvc.ConflictKindStaff, w.Kind,
@@ -701,21 +1038,21 @@ func seedBridgedActiveInstance(t *testing.T, s *lifecycleSetup, group *activeMod
 		IsSpontaneous: true,
 		ActiveGroupID: &group.ID,
 	}
-	ai.SetTenantID(1)
+	ai.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(ai).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", ai.ID) })
 
 	if withStaffRow {
 		row := &scheduleModels.InstanceStaff{InstanceID: ai.ID, StaffID: staffID, IsPrimary: true, RoomID: overrideRoomID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		_, err = s.db.NewInsert().Model(row).ModelTableExpr(`schedule.instance_staff`).Exec(s.ctx)
 		require.NoError(t, err)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_staff", row.ID) })
 	}
 }
 
 func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The running group's PRIMARY room differs from the new instance's room,
@@ -723,25 +1060,21 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 	// them in exactly the new instance's room — sanctioned, no warning.
 	// Comparing against the group's primary room alone would warn here.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomA-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &s.roomID, true)
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	for _, w := range result.Warnings {
 		assert.NotEqual(t, scheduleSvc.ConflictKindStaff, w.Kind,
@@ -750,6 +1083,8 @@ func TestInstance_Start_StaffBridgedOverrideSameRoom_NoConflict(t *testing.T) {
 }
 
 func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The running group's PRIMARY room equals the new instance's room, but the
@@ -757,25 +1092,21 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 	// ANOTHER room — a real double-booking that the primary-room comparison
 	// would have suppressed.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-BridgeRoomB-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, &otherRoom.ID, true)
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
@@ -789,6 +1120,8 @@ func TestInstance_Start_StaffBridgedOverrideDifferentRoom_Conflict(t *testing.T)
 }
 
 func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// The supervision points at a group bridged to an instance whose roster
@@ -796,21 +1129,18 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 	// so the warning must stay ("not certainly the same room").
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: s.roomID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
 	seedBridgedActiveInstance(t, s, preGroup, s.staffID, nil, false)
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
@@ -824,27 +1154,25 @@ func TestInstance_Start_StaffBridgedWithoutRosterRow_Conflict(t *testing.T) {
 }
 
 func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed an active.group + a live supervision by our staff member on it.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	sup := &activeModels.GroupSupervisor{StaffID: s.staffID, GroupID: preGroup.ID, Role: "supervisor", StartDate: timezone.DateFromTime(now)}
-	sup.SetTenantID(1)
+	sup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateGroupSupervisor(s.ctx, sup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", sup.ID) })
 
 	ai := seedInstance(t, s, true, false)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	hasStaffWarning := false
 	for _, w := range result.Warnings {
@@ -856,31 +1184,29 @@ func TestInstance_Start_ConflictWarning_Staff(t *testing.T) {
 }
 
 func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	// Pre-seed an active.group in a different room + an open visit by student1.
 	otherRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("LC-OtherRoom2-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", otherRoom.ID) })
 
 	now := time.Now()
 	preGroup := &activeModels.Group{StartTime: now, LastActivity: now, TimeoutMinutes: 30, GroupID: &s.tmplID, RoomID: otherRoom.ID}
-	preGroup.SetTenantID(1)
+	preGroup.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.factory.Active.CreateActiveGroup(s.ctx, preGroup))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", preGroup.ID) })
 
 	// Raw INSERT — factory.Active.CreateVisit triggers attendance-side-effect
 	// writes (checked_in_by on active.attendance) that need a full staff/
 	// account chain. We only need the visit row for the conflict check.
 	visit := &activeModels.Visit{StudentID: s.student1, ActiveGroupID: preGroup.ID, EntryTime: now}
-	visit.SetTenantID(1)
+	visit.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(visit).ModelTableExpr(`active.visits`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
 
 	ai := seedInstance(t, s, true, true)
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", result.ActiveGroupID) })
 
 	hasStudentWarning := false
 	for _, w := range result.Warnings {
@@ -894,36 +1220,51 @@ func TestInstance_Start_ConflictWarning_Student(t *testing.T) {
 // --- Re-plan-week protection ------------------------------------------------
 
 func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.NewDate(2026, 4, 20)
 	to := from.AddDays(6)
 
-	// Five seeded rows inside the window — one of each protected kind.
+	// Six seeded rows inside the window — one of each protected kind.
 	plannedNormal := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	plannedSpont := insertInstance(t, s, from.AddDays(1), scheduleModels.InstanceStatusPlanned, true)
 	active := insertInstance(t, s, from.AddDays(2), scheduleModels.InstanceStatusActive, false)
 	completed := insertInstance(t, s, from.AddDays(3), scheduleModels.InstanceStatusCompleted, false)
 	cancelled := insertInstance(t, s, from.AddDays(4), scheduleModels.InstanceStatusCancelled, false)
+	// #2299: a manual planning-module block without an offering is planned
+	// (is_spontaneous=false) but has no template — materialization could never
+	// recreate it, so a whole-grid re-plan must not delete it.
+	plannedManual := &scheduleModels.ActivityInstance{
+		Date:      from.AddDays(1),
+		Title:     fmt.Sprintf("Row-manual-%d", time.Now().UnixNano()),
+		StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		RoomID:    s.roomID,
+		Status:    scheduleModels.InstanceStatusPlanned,
+	}
+	plannedManual.SetTenantID(tenant.FromContext(s.ctx))
+	_, err := s.db.NewInsert().Model(plannedManual).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
+	require.NoError(t, err)
 
 	// Manual cleanup for the survivors (the planned-normal row may be deleted
 	// by ReplanWeek; if so, the cleanup becomes a no-op).
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances",
-			plannedNormal, plannedSpont, active, completed, cancelled)
-	})
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
+	_, err = s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
 	assert.True(t, instanceExists(t, s, plannedSpont), "spontaneous planned must survive")
+	assert.True(t, instanceExists(t, s, plannedManual.ID), "manual no-offering planned block must survive a whole-grid re-plan")
 	assert.True(t, instanceExists(t, s, active), "active must survive")
 	assert.True(t, instanceExists(t, s, completed), "completed must survive")
 	assert.True(t, instanceExists(t, s, cancelled), "cancelled must survive")
 }
 
 func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.TodayDate()
@@ -943,6 +1284,8 @@ func TestInstance_ReplanWeek_RemovesFutureLegacyWeekendInstances(t *testing.T) {
 // WP-B3: a re-plan scoped to one template deletes only that template's
 // planned non-spontaneous instances — other templates' rows survive.
 func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	from := timezone.NewDate(2026, 7, 20)
@@ -950,9 +1293,6 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 
 	// Second template in the same tenant with its own planned instance.
 	otherGroup := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("LC-Other-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, otherGroup.ID, 0)
-	})
 
 	mine := insertInstance(t, s, from, scheduleModels.InstanceStatusPlanned, false)
 	other := &scheduleModels.ActivityInstance{
@@ -965,12 +1305,9 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 		IsSpontaneous:   false,
 		ActivityGroupID: &otherGroup.ID,
 	}
-	other.SetTenantID(1)
+	other.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(other).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", mine, other.ID)
-	})
 
 	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
 	require.NoError(t, err)
@@ -981,6 +1318,8 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 }
 
 func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	from := timezone.NewDate(2026, 4, 27)
 	to := timezone.NewDate(2026, 4, 20)
@@ -995,6 +1334,8 @@ func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) 
 }
 
 func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	createdBy := s.staffID
 
@@ -1010,7 +1351,6 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 		CreatedByStaffID: &createdBy,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	assert.Equal(t, scheduleModels.InstanceStatusPlanned, inst.Status)
 	assert.False(t, inst.IsSpontaneous)
@@ -1025,6 +1365,8 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 }
 
 func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	createdDate := timezone.NewDate(2026, 5, 12)
 	updatedDate := timezone.NewDate(2026, 5, 13)
@@ -1046,7 +1388,6 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 		RoomID: s.roomID, ActivityGroupID: &s.tmplID, StudentIDs: []int64{s.student1},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	createdRow := fetchAttendance(t, s, inst.ID, s.student1)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, createdRow.Status)
@@ -1072,10 +1413,11 @@ func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
 }
 
 func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
-	const foreignTenantID int64 = 99002
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
 
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, s.db, foreignTenantID, "LC-Foreign-Room")
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, s.db, foreignTenantID, "LC", "ForeignStaff")
@@ -1121,6 +1463,8 @@ func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
 }
 
 func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
@@ -1131,8 +1475,10 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 		RoomID:    s.roomID,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
-	assert.True(t, inst.IsSpontaneous)
+	// #2299: is_spontaneous records the creation origin. A planning-module
+	// create without an explicit flag is a planned block even without an
+	// offering link — the lifecycle time guards must apply.
+	assert.False(t, inst.IsSpontaneous)
 	assert.Nil(t, inst.ActivityGroupID)
 
 	isSpontaneous := true
@@ -1146,7 +1492,6 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 		IsSpontaneous:   &isSpontaneous,
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", linked.ID) })
 	assert.True(t, linked.IsSpontaneous)
 	require.NotNil(t, linked.ActivityGroupID)
 	assert.Equal(t, s.tmplID, *linked.ActivityGroupID)
@@ -1163,6 +1508,8 @@ func TestInstance_Create_SpontaneousAndMissingTenant(t *testing.T) {
 }
 
 func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 	ai := seedInstance(t, s, true, true)
 
@@ -1179,7 +1526,9 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 
 	assert.Equal(t, "Updated planned instance", updated.Title)
 	assert.Equal(t, "16:00", updated.StartTime.Format("15:04"))
-	assert.True(t, updated.IsSpontaneous, "nil ActivityGroupID should toggle to spontaneous")
+	// #2299: unlinking the offering must NOT flip the block to spontaneous —
+	// is_spontaneous keeps recording the creation origin.
+	assert.False(t, updated.IsSpontaneous, "removing the offering link must not toggle is_spontaneous")
 	assert.Nil(t, updated.ActivityGroupID)
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_staff", "instance_id", ai.ID))
 	assert.Equal(t, 1, countRowsWhere(t, s, "schedule.instance_students", "instance_id", ai.ID))
@@ -1188,11 +1537,112 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
 }
 
-func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {
+// guardedLifecycleSettings satisfies scheduleSvc.LifecycleSettings for the
+// time-policy pass-through test below.
+type guardedLifecycleSettings struct {
+	leadMinutes       int
+	enforcePlannedEnd bool
+}
+
+func (s guardedLifecycleSettings) ResolveInt(context.Context, string) (int, error) {
+	return s.leadMinutes, nil
+}
+
+func (s guardedLifecycleSettings) ResolveBool(context.Context, string) (bool, error) {
+	return s.enforcePlannedEnd, nil
+}
+
+// #2299 guard pass-through: a block created in the planning module WITHOUT an
+// offering link is subject to the lead-time guard, while an ad-hoc block
+// (explicit IsSpontaneous=true) stays exempt at the same clock.
+func TestInstance_Start_TimePolicyAppliesToNoOfferingPlannedBlock(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
-	const foreignTenantID int64 = 99002
+	date := timezone.NewDate(2026, 4, 22)
+	// 08:00 Berlin — far before the 14:00 start minus the 15-minute lead.
+	now := time.Date(2026, 4, 22, 8, 0, 0, 0, timezone.Berlin)
+	guarded := scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
+		InstanceRepo:       s.repos.ActivityInstance,
+		InstanceStaffRepo:  s.repos.InstanceStaff,
+		InstanceStudents:   s.repos.InstanceStudent,
+		ExceptionRepo:      s.repos.ActivityException,
+		ActiveGroupRepo:    s.repos.ActiveGroup,
+		SupervisorRepo:     s.repos.GroupSupervisor,
+		VisitRepo:          s.repos.ActiveVisit,
+		RoomRepo:           s.repos.Room,
+		ActivityGroupRepo:  s.repos.ActivityGroup,
+		StaffRepo:          s.repos.Staff,
+		StudentRepo:        s.repos.Student,
+		ActiveService:      s.factory.Active,
+		Materialization:    s.factory.Materialization,
+		CareDayService:     s.factory.CareDay,
+		DeviationEventRepo: s.repos.DeviationEvent,
+		DB:                 s.db,
+		Logger:             slog.Default(),
+		RecoveryRepo:       scheduleRepo.NewActivityRecoveryRepository(s.db),
+		Settings:           guardedLifecycleSettings{leadMinutes: 15, enforcePlannedEnd: true},
+		Now:                func() time.Time { return now },
+		EnforceTimePolicy:  true,
+	})
+
+	planned, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:     "Guarded no-offering block",
+		RoomID:    s.roomID,
+	})
+	require.NoError(t, err)
+
+	_, err = guarded.Start(s.ctx, planned.ID, s.staffID)
+	require.ErrorIs(t, err, scheduleSvc.ErrInstanceStartTooEarly,
+		"planning-module block without offering must hit the lead-time guard")
+
+	isSpontaneous := true
+	adhoc, err := guarded.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:          date,
+		StartTime:     time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:         "Ad-hoc block",
+		RoomID:        s.roomID,
+		IsSpontaneous: &isSpontaneous,
+	})
+	require.NoError(t, err)
+
+	_, err = guarded.Start(s.ctx, adhoc.ID, s.staffID)
+	require.NoError(t, err, "ad-hoc block stays exempt from the time policy")
+}
+
+// #2299: is_spontaneous records the creation origin, so an edit that links an
+// offering to a spontaneous block must not reclassify it as planned either.
+func TestInstance_UpdatePlanned_KeepsSpontaneousOriginWhenLinkingOffering(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	ai := seedSpontaneousInstance(t, s, false)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, scheduleSvc.UpdateInstanceInput{
+		Date:            ai.Date,
+		StartTime:       ai.StartTime,
+		EndTime:         ai.EndTime,
+		Title:           ai.Title,
+		RoomID:          s.roomID,
+		ActivityGroupID: &s.tmplID,
+	}, nil)
+	require.NoError(t, err)
+
+	assert.True(t, updated.IsSpontaneous, "linking an offering must not toggle is_spontaneous")
+	require.NotNil(t, updated.ActivityGroupID)
+	assert.Equal(t, s.tmplID, *updated.ActivityGroupID)
+}
+
+func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, foreignTenantID) })
 
 	foreignRoom := testpkg.CreateTestRoomForTenant(t, s.db, foreignTenantID, "LC-Update-Foreign-Room")
 	foreignStaff := testpkg.CreateTestStaffForTenant(t, s.db, foreignTenantID, "LC", "UpdateForeignStaff")
@@ -1238,6 +1688,8 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 }
 
 func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -1262,6 +1714,8 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 }
 
 func TestInstance_DeleteCancelled_PlannedOrCancelled(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		scheduleModels.InstanceStatusActive,
 		scheduleModels.InstanceStatusCompleted,
@@ -1346,12 +1800,9 @@ func insertInstanceAt(t *testing.T, s *lifecycleSetup, date timezone.Date, statu
 	if !spontaneous {
 		row.ActivityGroupID = &s.tmplID
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", row.ID)
-	})
 	return row.ID
 }
 
@@ -1362,7 +1813,7 @@ func countRowsWhere(t *testing.T, s *lifecycleSetup, table, column string, value
 		TableExpr(table).
 		ColumnExpr("COUNT(*)").
 		Where(column+" = ?", value).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count
@@ -1375,7 +1826,7 @@ func instanceExists(t *testing.T, s *lifecycleSetup, id int64) bool {
 		TableExpr(`schedule.activity_instances AS "ai"`).
 		ColumnExpr("COUNT(*)").
 		Where(`"ai".id = ?`, id).
-		Where(`"ai".tenant_id = ?`, 1).
+		Where(`"ai".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(s.ctx, &count)
 	require.NoError(t, err)
 	return count > 0
@@ -1387,16 +1838,10 @@ func loadLifecycleExceptions(t *testing.T, s *lifecycleSetup) []*scheduleModels.
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`).
-		Where(`"activity_exception".tenant_id = ?`, 1).
+		Where(`"activity_exception".tenant_id = ?`, testpkg.Tenant(t)).
 		Order("exception_date ASC").
 		Scan(s.ctx)
 	require.NoError(t, err)
-	for _, row := range rows {
-		id := row.ID
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.activity_exceptions", id)
-		})
-	}
 	return rows
 }
 
@@ -1412,7 +1857,7 @@ func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int6
 		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".tenant_id = ?`, 1).
+		Where(`"instance_student".tenant_id = ?`, testpkg.Tenant(t)).
 		Scan(s.ctx)
 	require.NoError(t, err)
 	return &row
@@ -1421,14 +1866,13 @@ func fetchAttendance(t *testing.T, s *lifecycleSetup, instanceID, studentID int6
 // Complete must flip every remaining 'expected' row to 'absent' inside the
 // same tenant tx. Present rows stay untouched.
 func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
-	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	// Simulate a live check-in for student1 via the monotonic mirror path.
 	repoFactory := repositories.NewFactory(s.db)
@@ -1456,6 +1900,8 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 // claims they failed to show up to care they never had, and that claim then
 // travels into attendance statistics and exports.
 func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
@@ -1470,17 +1916,11 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 		if weekday == instanceWeekday {
 			continue
 		}
-		row := testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, weekday, s.staffID, "08:00")
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_schedules", row.ID)
-		})
+		testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, weekday, s.staffID, "08:00")
 	}
 
-	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
@@ -1506,6 +1946,8 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 // attendance history and the exports, so skipping the stamp would erase the
 // absence instead of recording it.
 func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true) // both students expected
@@ -1516,21 +1958,12 @@ func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
 	}
 
 	// student2 is booked for care on the instance's weekday …
-	arrival := testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, instanceWeekday, s.staffID, "08:00")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_schedules", arrival.ID)
-	})
+	testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, instanceWeekday, s.staffID, "08:00")
 	// … and the day was cancelled: an arrival exception with no time.
-	exception := testpkg.CreateTestArrivalException(t, s.db, s.student2, ai.Date, s.staffID, "", "krank gemeldet")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_exceptions", exception.ID)
-	})
+	testpkg.CreateTestArrivalException(t, s.db, s.student2, ai.Date, s.staffID, "", "krank gemeldet")
 
-	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	_, err = s.svc.Complete(s.ctx, ai.ID)
 	require.NoError(t, err)
@@ -1544,6 +1977,8 @@ func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
 // so "absent" would falsely imply the student failed to show up to an event
 // that happened. The cancelled status on the instance itself is the signal.
 func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, true)
@@ -1563,14 +1998,13 @@ func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
 // who were present when the instance was aborted keep their present status,
 // and students who hadn't arrived stay 'expected' (no event → no absence).
 func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, true, true)
-	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	_, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
-	})
 
 	repoFactory := repositories.NewFactory(s.db)
 	_, err = repoFactory.InstanceStudent.UpdateAttendanceFromCheckin(
@@ -1592,6 +2026,8 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 // --- Conflict-detection pure unit (nil-safe + empty happy path) ------------
 
 func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildLifecycle(t)
 
 	ai := seedInstance(t, s, false, false)

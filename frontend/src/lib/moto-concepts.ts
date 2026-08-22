@@ -13,7 +13,6 @@ import {
   CalendarPlusIcon,
   CalendarSlashIcon,
   CalendarXIcon,
-  CarIcon,
   ChalkboardTeacherIcon,
   ChatCircleTextIcon,
   ChartBarIcon,
@@ -26,9 +25,12 @@ import {
   DevicesIcon,
   DoorIcon,
   DoorOpenIcon,
+  DotsThreeIcon,
   EnvelopeIcon,
+  EnvelopeOpenIcon,
   EyeIcon,
   FileArrowDownIcon,
+  FingerprintSimpleIcon,
   FirstAidKitIcon,
   ForkKnifeIcon,
   GearIcon,
@@ -40,14 +42,16 @@ import {
   LockKeyIcon,
   MegaphoneIcon,
   MonitorIcon,
-  NewspaperIcon,
   NotePencilIcon,
   PersonSimpleWalkIcon,
   PresentationChartIcon,
   QuestionIcon,
   ShieldCheckIcon,
   ShieldWarningIcon,
+  SignOutIcon,
   SunIcon,
+  TranslateIcon,
+  TrayIcon,
   TrendUpIcon,
   UserCheckIcon,
   UserCircleGearIcon,
@@ -60,7 +64,7 @@ import {
   UsersThreeIcon,
   VanIcon,
 } from "@phosphor-icons/react/ssr";
-import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 
 export type MotoConceptKind = "core" | "status" | "function";
@@ -78,6 +82,7 @@ export interface MotoConceptDefinition {
   readonly tone: MotoDuotoneTone;
   readonly kind: MotoConceptKind;
   readonly section: MotoConceptSection;
+  readonly weight: IconProps["weight"];
 }
 
 export const MOTO_CONCEPTS = {
@@ -275,8 +280,8 @@ export const MOTO_CONCEPTS = {
     "communication",
   ),
   news: concept(
-    "Neuigkeiten",
-    NewspaperIcon,
+    "Elternbriefe",
+    EnvelopeOpenIcon,
     "blue",
     "function",
     "communication",
@@ -285,6 +290,20 @@ export const MOTO_CONCEPTS = {
     "Ankündigungen",
     MegaphoneIcon,
     "amber",
+    "function",
+    "communication",
+  ),
+  polls: concept(
+    "Umfragen",
+    QuestionIcon,
+    "purple",
+    "function",
+    "communication",
+  ),
+  confirmations: concept(
+    "Bestätigungen",
+    ListChecksIcon,
+    "indigo",
     "function",
     "communication",
   ),
@@ -354,6 +373,14 @@ export const MOTO_CONCEPTS = {
     "function",
     "system",
   ),
+  passkeys: concept(
+    "Passkeys",
+    FingerprintSimpleIcon,
+    "purple",
+    "function",
+    "system",
+    "regular",
+  ),
   exports: concept(
     "Exporte",
     FileArrowDownIcon,
@@ -368,7 +395,7 @@ export const MOTO_CONCEPTS = {
     "function",
     "administration",
   ),
-  pickup: concept("Abholung", CarIcon, "petrol", "function", "planning"),
+  pickup: concept("Abholung", ClockIcon, "gold", "function", "planning"),
   transport: concept("Fahrdienst", VanIcon, "cyan", "function", "planning"),
   birthdays: concept("Geburtstage", CakeIcon, "magenta", "function", "people"),
   changeHistory: concept(
@@ -378,6 +405,9 @@ export const MOTO_CONCEPTS = {
     "function",
     "administration",
   ),
+  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+  // Mitarbeitenden, über die die OGS entscheidet.
+  requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
   rfid: concept(
     "RFID",
     ContactlessPaymentIcon,
@@ -394,6 +424,11 @@ export const MOTO_CONCEPTS = {
     "function",
     "system",
   ),
+  // Die drei Huellen-Konzepte der Eltern-App. Sie stehen in der Navigation
+  // neben den Zielen und muessen deshalb dieselbe Duotone-Sprache sprechen.
+  language: concept("Sprache", TranslateIcon, "petrol", "function", "system"),
+  logout: concept("Abmelden", SignOutIcon, "neutral", "function", "system"),
+  more: concept("Mehr", DotsThreeIcon, "stone", "function", "system"),
 } as const satisfies Record<string, MotoConceptDefinition>;
 
 export type MotoConceptKey = keyof typeof MOTO_CONCEPTS;
@@ -404,6 +439,7 @@ function concept(
   tone: MotoDuotoneTone,
   kind: MotoConceptKind,
   section: MotoConceptSection,
+  weight: IconProps["weight"] = "duotone",
 ): MotoConceptDefinition {
-  return { label, icon, tone, kind, section };
+  return { label, icon, tone, kind, section, weight };
 }

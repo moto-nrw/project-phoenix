@@ -52,6 +52,7 @@ vi.mock("~/lib/tenant-context", () => ({
   }),
   useTenantSlugSafe: () => "t",
   usePresenceMode: () => "detailed",
+  useAttendanceWebEnabled: vi.fn(() => true),
   useNFCEnabled: () => true,
   TenantProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -120,8 +121,16 @@ vi.mock("~/lib/hooks/use-school-checkin-mode", () => ({
     pendingIds: new Set<string>(),
     successCount: 0,
     toggle: vi.fn(),
+    selectionActive: false,
+    setSelectionActive: vi.fn(),
+    selectedIds: new Set<string>(),
+    toggleSelected: vi.fn(),
+    clearSelection: vi.fn(),
+    isBulkRunning: false,
+    runBulk: vi.fn(),
   }),
   deriveCheckinState: () => "unknown",
+  checkoutConfirmationRoom: () => null,
 }));
 
 vi.mock("~/lib/location-helper", async (importOriginal) => {
@@ -200,6 +209,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span />,
   GroupIcon: () => <span />,
+  DepartureModeIcon: () => <span />,
   StudentInfoRow: ({ children }: { children: React.ReactNode }) => (
     <div>{children}</div>
   ),

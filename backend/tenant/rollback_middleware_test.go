@@ -21,8 +21,8 @@ import (
 // This backs the guardian full-delete 409 path (#819), where the handler must
 // reject with a 409 without committing any partial link deletions.
 func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GuardianProfile
 
@@ -41,7 +41,7 @@ func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
 		t.Helper()
 		mw := tenant.TenantTxMiddleware(db)(handler)
 		req := httptest.NewRequest(http.MethodPost, "/api/guardians", nil)
-		req = req.WithContext(tenant.WithTenantID(req.Context(), 1))
+		req = req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t)))
 		mw.ServeHTTP(httptest.NewRecorder(), req)
 	}
 
@@ -58,14 +58,14 @@ func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		}))
 		req := httptest.NewRequest(http.MethodPost, "/api/guardians", nil)
-		req = req.WithContext(tenant.WithTenantID(req.Context(), 1))
+		req = req.WithContext(tenant.WithTenantID(req.Context(), testpkg.Tenant(t)))
 		rec = httptest.NewRecorder()
 		mw.ServeHTTP(rec, req)
 
 		assert.Equal(t, http.StatusOK, rec.Code, "the client still sees the 200")
 
 		// The row must NOT survive: the tx was rolled back.
-		_, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
+		_, err := repo.FindByID(testpkg.Ctx(t), profile.ID)
 		assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
 			"MarkRollback must prevent the insert from committing")
 	})
@@ -78,9 +78,8 @@ func TestTenantTxMiddleware_MarkRollback(t *testing.T) {
 			require.NoError(t, repo.Create(r.Context(), profile))
 			w.WriteHeader(http.StatusOK)
 		})
-		defer testpkg.CleanupActivityFixtures(t, db, profile.ID)
 
-		found, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
+		found, err := repo.FindByID(testpkg.Ctx(t), profile.ID)
 		require.NoError(t, err)
 		assert.Equal(t, profile.ID, found.ID, "a normal 200 commits the write")
 	})

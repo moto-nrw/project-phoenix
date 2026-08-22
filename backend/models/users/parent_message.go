@@ -17,6 +17,13 @@ const (
 	ParentMessageRequestStatusRejected  = "abgelehnt"
 	ParentMessageRequestStatusWithdrawn = "zurueckgezogen"
 	ParentMessageRequestCareSchedule    = "care_schedule"
+	// ParentMessageRequestPickupChange tags pills for a SINGLE-DAY pickup time
+	// change (schedule.care_schedule_change_requests with
+	// request_kind='pickup_change'). Distinct from care_schedule, which is the
+	// permanent weekly plan: the localized parents portal and the decision
+	// push both render from this token, so sharing it would announce a
+	// one-day change as a permanent one.
+	ParentMessageRequestPickupChange = "pickup_change"
 	// ParentMessageRequestMasterData tags notification pills for Stammdaten
 	// change requests (users.student_data_change_requests). Unlike
 	// care_schedule it was never a chat-request kind — it only ever appears on
@@ -27,6 +34,9 @@ const (
 	// master_data it only ever appears on kind='event' rows, never as a chat
 	// request.
 	ParentMessageRequestExcusedAbsence = "excused_absence"
+	// ParentMessageRequestSickAbsence distinguishes a gated Krankmeldung from an
+	// excused absence in localized parent timeline events and decision pushes.
+	ParentMessageRequestSickAbsence = "sick_absence"
 
 	// Event types for kind='event' system pills that mirror a change request's
 	// lifecycle. ParentMessageEventRequestCreated marks a submitted request (its

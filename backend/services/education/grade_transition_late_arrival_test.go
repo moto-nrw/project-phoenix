@@ -49,20 +49,19 @@ func (r *lateArrivalRepo) GetStudentsByClasses(
 }
 
 func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	db := testpkg.SetupTestDB(t)
+
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-late-arrival@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4late-%s", suffix)
 
 	present := testpkg.CreateTestStudent(t, db, "Present", "AtSnapshot", gradClass)
-	defer testpkg.CleanupActivityFixtures(t, db, present.ID)
 
 	var lateID int64
 	repo := &lateArrivalRepo{
@@ -73,9 +72,6 @@ func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *te
 		},
 	}
 	defer func() {
-		if lateID != 0 {
-			testpkg.CleanupActivityFixtures(t, db, lateID)
-		}
 	}()
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -87,7 +83,6 @@ func TestGradeTransitionService_Apply_RefusesChildAddedAfterCohortSnapshot(t *te
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.ErrorIs(t, err, educationService.ErrPreviewStale,

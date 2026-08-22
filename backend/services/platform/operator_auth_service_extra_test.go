@@ -21,7 +21,8 @@ import (
 const issueOperatorSentinelID int64 = 70010001
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *testing.T) {
-	withJWTSecret(t)
+	t.Parallel()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(_ context.Context, id int64) (*platform.Operator, error) {
@@ -63,6 +64,8 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_HappyPath(t *te
 }
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*platform.Operator, error) {
@@ -85,6 +88,8 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_NotFound(t *tes
 }
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_RepoError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(_ context.Context, _ int64) (*platform.Operator, error) {
@@ -106,6 +111,8 @@ func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_RepoError(t *te
 }
 
 func TestOperatorAuthService_IssueTokensForAuthenticatedOperator_Inactive(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	operatorRepo := &mockOperatorRepo{
 		findByIDFn: func(_ context.Context, id int64) (*platform.Operator, error) {

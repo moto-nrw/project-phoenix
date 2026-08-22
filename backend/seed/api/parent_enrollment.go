@@ -479,46 +479,35 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoeni
 	return id, nil
 }
 
-func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixapi.AuthRef, phaseID int64) (map[string]int64, error) {
-	offerings := []struct {
-		key         string
-		name        string
-		description string
-		daysMode    string
-		days        []string
-		lunch       bool
-		required    bool
-		price       int
-		capacity    *int
-		sort        int
-	}{
-		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10},
-		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20},
-		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
-		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40},
-	}
+type seedCareOffering struct {
+	key          string
+	name         string
+	description  string
+	daysMode     string
+	days         []string
+	lunch        bool
+	required     bool
+	price        int
+	capacity     *int
+	sort         int
+	countsAsCare bool
+	pickupTime   string
+}
 
+func demoCareOfferings() []seedCareOffering {
+	return []seedCareOffering{
+		{key: "ogs-ganztag", name: "OGS Ganztag", description: "Betreuung bis 16 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 16500, sort: 10, countsAsCare: true, pickupTime: "16:00"},
+		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
+		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: enrollmentModels.DaysOfWeekModeParentChoice, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
+		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: enrollmentModels.DaysOfWeekModeFixed, days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
+	}
+}
+
+func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixapi.AuthRef, phaseID int64) (map[string]int64, error) {
+	offerings := demoCareOfferings()
 	created := make(map[string]int64, len(offerings))
 	for _, offering := range offerings {
-		description := offering.description
-		price := offering.price
-		body := map[string]any{
-			"phase_id":              phaseID,
-			"name":                  offering.name,
-			"description":           description,
-			"days_of_week_mode":     offering.daysMode,
-			"available_days":        offering.days,
-			"includes_holiday_care": offering.key == "ferienbetreuung",
-			"includes_lunch":        offering.lunch,
-			"price_cents":           price,
-			"is_active":             true,
-			"is_required":           offering.required,
-			"sort_order":            offering.sort,
-			"selection_rule":        enrollmentModels.SelectionRuleOptional,
-		}
-		if offering.capacity != nil {
-			body["capacity"] = *offering.capacity
-		}
+		body := careOfferingSeedBody(offering, phaseID)
 		respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/care-offerings", body)
 		if err != nil {
 			return nil, fmt.Errorf("create care offering %s: %w", offering.key, err)
@@ -530,6 +519,35 @@ func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth phoenixa
 		created[offering.key] = id
 	}
 	return created, nil
+}
+
+func careOfferingSeedBody(offering seedCareOffering, phaseID int64) map[string]any {
+	body := map[string]any{
+		"phase_id":              phaseID,
+		"name":                  offering.name,
+		"description":           offering.description,
+		"days_of_week_mode":     offering.daysMode,
+		"available_days":        offering.days,
+		"includes_holiday_care": offering.key == "ferienbetreuung",
+		"includes_lunch":        offering.lunch,
+		"price_cents":           offering.price,
+		"is_active":             true,
+		"is_required":           offering.required,
+		"counts_as_care":        offering.countsAsCare,
+		"sort_order":            offering.sort,
+		"selection_rule":        enrollmentModels.SelectionRuleOptional,
+	}
+	if offering.countsAsCare {
+		pickupTimes := make(map[string]string, len(offering.days))
+		for _, day := range offering.days {
+			pickupTimes[day] = offering.pickupTime
+		}
+		body["pickup_times"] = pickupTimes
+	}
+	if offering.capacity != nil {
+		body["capacity"] = *offering.capacity
+	}
+	return body
 }
 
 func (s parentEnrollmentSeedStep) enrollmentSubmissionWithDays(phaseID int64, offerings map[string]int64, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, source string, offeringIDs []int64, selectedDaysByOffering map[int64][]string) map[string]any {
@@ -707,6 +725,7 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 			body: map[string]any{
 				"date":        time.Now().AddDate(0, 0, 3).Format("2006-01-02"),
 				"pickup_time": "14:30",
+				"reason":      "Demo-Abholänderung aus dem Elternportal",
 			},
 		},
 		{

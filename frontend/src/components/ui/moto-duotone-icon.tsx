@@ -96,6 +96,7 @@ export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;
   readonly tone: MotoDuotoneTone;
   readonly size?: IconProps["size"];
+  readonly weight?: IconProps["weight"];
   readonly className?: string;
   readonly label?: string;
 }
@@ -104,6 +105,7 @@ export function MotoDuotoneIcon({
   icon: Icon,
   tone,
   size = 32,
+  weight = "duotone",
   className,
   label,
 }: MotoDuotoneIconProps) {
@@ -112,7 +114,7 @@ export function MotoDuotoneIcon({
   return (
     <Icon
       size={size}
-      weight="duotone"
+      weight={weight}
       className={cn("moto-duotone-icon shrink-0", className)}
       data-moto-duotone-tone={tone}
       style={

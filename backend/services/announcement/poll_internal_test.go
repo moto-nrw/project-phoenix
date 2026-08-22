@@ -13,6 +13,8 @@ import (
 // handling, no database.
 
 func TestNormalizePollOptions_PlainAnnouncementStaysPlain(t *testing.T) {
+	t.Parallel()
+
 	in := Input{}
 	options, err := normalizePollOptions(&in)
 	if err != nil {
@@ -27,6 +29,8 @@ func TestNormalizePollOptions_PlainAnnouncementStaysPlain(t *testing.T) {
 }
 
 func TestNormalizePollOptions_ClearsDeadlineOnPlainAnnouncement(t *testing.T) {
+	t.Parallel()
+
 	deadline := time.Now().Add(48 * time.Hour)
 	in := Input{ResponseDeadline: &deadline}
 	if _, err := normalizePollOptions(&in); err != nil {
@@ -38,6 +42,8 @@ func TestNormalizePollOptions_ClearsDeadlineOnPlainAnnouncement(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsOptionsWithoutResponseType(t *testing.T) {
+	t.Parallel()
+
 	in := Input{Options: []string{"Ja", "Nein"}}
 	if _, err := normalizePollOptions(&in); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected validation error, got %v", err)
@@ -45,6 +51,8 @@ func TestNormalizePollOptions_RejectsOptionsWithoutResponseType(t *testing.T) {
 }
 
 func TestNormalizePollOptions_TrimsAndPositionsOptions(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"  Ja  ", "Nein", "   "},
@@ -65,6 +73,8 @@ func TestNormalizePollOptions_TrimsAndPositionsOptions(t *testing.T) {
 }
 
 func TestNormalizePollOptions_ClearsAcknowledgementForPoll(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		ResponseType:            usersModels.ParentAnnouncementResponseSingleChoice,
 		Options:                 []string{"Ja", "Nein"},
@@ -79,6 +89,8 @@ func TestNormalizePollOptions_ClearsAcknowledgementForPoll(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsDuplicateLabels(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"Ja", "ja"},
@@ -89,6 +101,8 @@ func TestNormalizePollOptions_RejectsDuplicateLabels(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsTooFewOptions(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		ResponseType: usersModels.ParentAnnouncementResponseSingleChoice,
 		Options:      []string{"Ja"},
@@ -99,6 +113,8 @@ func TestNormalizePollOptions_RejectsTooFewOptions(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsTooManyOptions(t *testing.T) {
+	t.Parallel()
+
 	labels := make([]string, 0, maxPollOptions+1)
 	for i := 0; i <= maxPollOptions; i++ {
 		labels = append(labels, string(rune('A'+i)))
@@ -113,6 +129,8 @@ func TestNormalizePollOptions_RejectsTooManyOptions(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsPastDeadline(t *testing.T) {
+	t.Parallel()
+
 	past := time.Now().Add(-time.Hour)
 	in := Input{
 		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
@@ -127,6 +145,8 @@ func TestNormalizePollOptions_RejectsPastDeadline(t *testing.T) {
 // A deadline after the announcement stops being visible would be unreachable:
 // parents can only answer a card they can still see.
 func TestNormalizePollOptions_RejectsDeadlineAfterExpiry(t *testing.T) {
+	t.Parallel()
+
 	expires := time.Now().Add(24 * time.Hour)
 	deadline := expires.Add(time.Hour)
 	in := Input{
@@ -141,6 +161,8 @@ func TestNormalizePollOptions_RejectsDeadlineAfterExpiry(t *testing.T) {
 }
 
 func TestNormalizePollOptions_RejectsUnknownResponseType(t *testing.T) {
+	t.Parallel()
+
 	in := Input{ResponseType: "ranking", Options: []string{"Ja", "Nein"}}
 	if _, err := normalizePollOptions(&in); !errors.Is(err, ErrValidation) {
 		t.Fatalf("expected an unknown response type to be rejected, got %v", err)
@@ -150,6 +172,8 @@ func TestNormalizePollOptions_RejectsUnknownResponseType(t *testing.T) {
 // AcceptsResponsesAt is what gates every answer write; a closed poll must stop
 // accepting while staying readable.
 func TestAcceptsResponsesAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	past := now.Add(-time.Minute)
 	future := now.Add(time.Minute)
@@ -181,6 +205,8 @@ func TestAcceptsResponsesAt(t *testing.T) {
 // A poll cannot target open applications: those guardians have no enrolled
 // child, so there would be nothing for them to answer for.
 func TestNormalizeInput_RejectsPendingEnrollmentTargetForPoll(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title:        "Kommt Ihr Kind?",
 		Body:         "Bitte um Rückmeldung.",
@@ -196,6 +222,8 @@ func TestNormalizeInput_RejectsPendingEnrollmentTargetForPoll(t *testing.T) {
 
 // The same target stays valid for a plain Mitteilung, which applicants can read.
 func TestNormalizeInput_AllowsPendingEnrollmentTargetForAnnouncement(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title: "Anmeldung läuft",
 		Body:  "Die Anmeldephase endet am Freitag.",

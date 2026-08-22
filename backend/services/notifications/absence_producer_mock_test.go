@@ -198,8 +198,9 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 			absenceAdminStaff: activeModel.WorkSessionStatusPresent,
 		}},
 	}
-	producer := notifications.NewAbsenceNotifier(
-		w.notifier, w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty, nil, nil)
+	recipients := notifications.NewStaffRecipientResolver(
+		w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty)
+	producer := notifications.NewAbsenceNotifier(w.notifier, recipients, nil, nil)
 	return producer, w
 }
 
@@ -214,6 +215,8 @@ func sickToday(studentIDs ...int64) notifications.AbsenceReport {
 }
 
 func TestAbsenceNotifierReachesGroupAndOffice(t *testing.T) {
+	t.Parallel()
+
 	producer, w := newAbsenceWorld()
 
 	producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
@@ -232,6 +235,8 @@ func TestAbsenceNotifierReachesGroupAndOffice(t *testing.T) {
 }
 
 func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
+	t.Parallel()
+
 	producer, w := newAbsenceWorld()
 	groupB := absenceGroupB
 	w.students.byID[absenceStudentB] = &userModel.Student{GroupID: &groupB}
@@ -261,6 +266,8 @@ func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
 }
 
 func TestAbsenceNotifierWording(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		report   func() notifications.AbsenceReport
@@ -340,6 +347,8 @@ func eventForAbsenceRecipient(events []notifications.Event, accountID int64) *no
 }
 
 func TestAbsenceNotifierSilentCases(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name   string
 		report notifications.AbsenceReport
@@ -389,6 +398,8 @@ func TestAbsenceNotifierSilentCases(t *testing.T) {
 }
 
 func TestAbsenceNotifierExcludesTheActor(t *testing.T) {
+	t.Parallel()
+
 	producer, w := newAbsenceWorld()
 	w.consent.allowed[absenceActorAcct] = struct{}{}
 	w.staff.accounts[absenceStaffA] = absenceActorAcct
@@ -403,6 +414,8 @@ func TestAbsenceNotifierExcludesTheActor(t *testing.T) {
 }
 
 func TestAbsenceNotifierExcludesAdditionalOriginators(t *testing.T) {
+	t.Parallel()
+
 	producer, w := newAbsenceWorld()
 
 	report := sickToday(absenceStudentA)
@@ -415,6 +428,8 @@ func TestAbsenceNotifierExcludesAdditionalOriginators(t *testing.T) {
 }
 
 func TestAbsenceNotifierRespectsConsent(t *testing.T) {
+	t.Parallel()
+
 	t.Run("only those who agreed are addressed", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
 		w.consent.allowed = map[int64]struct{}{absenceAdmin: {}}
@@ -447,6 +462,8 @@ func TestAbsenceNotifierRespectsConsent(t *testing.T) {
 }
 
 func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("only checked-in staff are addressed", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
 		w.duty.presence[absenceStaffA] = "checked_out"
@@ -505,6 +522,8 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 // hooks, and a notification that cannot be built must never undo an absence
 // that was already recorded.
 func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]func(*absenceWorld){
 		"student read fails":  func(w *absenceWorld) { w.students.err = errors.New("boom") },
 		"group read fails":    func(w *absenceWorld) { w.groups.err = errors.New("boom") },
@@ -535,8 +554,10 @@ func TestAbsenceNotifierSwallowsFailures(t *testing.T) {
 // A partially constructed producer stays quiet rather than addressing a
 // fallback audience.
 func TestAbsenceNotifierWithoutDependencies(t *testing.T) {
+	t.Parallel()
+
 	notifier := &captureNotifier{}
-	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	producer := notifications.NewAbsenceNotifier(nil, nil, nil, nil)
 	assert.NotPanics(t, func() {
 		producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA))
 	})

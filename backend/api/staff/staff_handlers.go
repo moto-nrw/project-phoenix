@@ -20,6 +20,18 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// staffWriteErrorRules classifies the sentinels the staff write paths raise
+// before anything is persisted: both are caller mistakes, not server faults,
+// and both carry a German message the staff form shows verbatim.
+var staffWriteErrorRules = []common.ErrorRule{
+	{Target: usersSvc.ErrStaffAdoptionNotPermitted, Render: common.ErrorForbidden},
+	{Target: usersSvc.ErrStaffLehrkraftCaregiverProfile, Render: common.ErrorConflict},
+}
+
+func renderStaffWriteError(w http.ResponseWriter, r *http.Request, err error) {
+	common.RenderError(w, r, common.RenderWithRules(err, staffWriteErrorRules, common.ErrorInternalServer))
+}
+
 // =============================================================================
 // HELPER METHODS - Reduce code duplication for common parsing/validation
 // =============================================================================
@@ -85,6 +97,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Batch-load work session and absence status (non-critical)
 	workStatusMap := rs.loadWorkStatusMap(ctx)
 	absenceMap := rs.loadAbsenceMap(ctx)
+	absenceLabelMap := rs.loadAbsenceLabelMap(ctx)
 
 	// Batch-load account roles, emails, and avatars for all staff members (non-critical)
 	accountRoleMap := rs.loadAccountMap(ctx, staffMembers, "role", func(ctx context.Context, ids []int64) (map[int64]string, error) {
@@ -100,7 +113,7 @@ func (rs *Resource) listStaff(w http.ResponseWriter, r *http.Request) {
 	// Build response objects using pre-loaded data
 	responses := make([]interface{}, 0, len(staffMembers))
 	for _, staff := range staffMembers {
-		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
+		if response, include := rs.processStaffForListOptimized(ctx, staff, teacherMap, presentMap, workStatusMap, absenceMap, absenceLabelMap, accountRoleMap, accountEmailMap, accountAvatarMap, filters); include {
 			responses = append(responses, response)
 		}
 	}
@@ -161,16 +174,19 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 	rs.ensureStaffPerson(r.Context(), staff)
 	accountRole, accountEmail, accountAvatar := rs.loadStaffAccountInfo(r.Context(), staff)
 	wasPresentToday, workStatus, absenceType := rs.resolveStaffPresence(r.Context(), staff)
+	absenceTypeLabel := rs.loadAbsenceLabelMap(r.Context())[staff.ID]
 
 	// Check if this staff member is also a teacher
 	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+		response.AbsenceTypeLabel = absenceTypeLabel
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
 	response := newStaffResponse(staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+	response.AbsenceTypeLabel = absenceTypeLabel
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
 }
 
@@ -331,7 +347,7 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Verify person exists
-	person, err := rs.PersonService.Get(r.Context(), req.PersonID)
+	person, err := rs.PersonService.Get(r.Context(), req.PersonID.Int64())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 		return
@@ -339,15 +355,16 @@ func (rs *Resource) createStaff(w http.ResponseWriter, r *http.Request) {
 
 	// Create staff record (and optionally teacher) in tenant transaction
 	staff, teacher, teacherCreationFailed, err := rs.PersonService.CreateStaffWithTeacher(r.Context(), usersSvc.CreateStaffInput{
-		PersonID:       req.PersonID,
-		StaffNotes:     req.StaffNotes,
-		IsTeacher:      req.IsTeacher,
-		Specialization: req.Specialization,
-		Role:           req.Role,
-		Qualifications: req.Qualifications,
+		PersonID:         req.PersonID.Int64(),
+		StaffNotes:       req.StaffNotes,
+		IsTeacher:        req.IsTeacher,
+		Specialization:   req.Specialization,
+		Role:             req.Role,
+		Qualifications:   req.Qualifications,
+		ActorPermissions: jwt.PermissionsFromCtx(r.Context()),
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderStaffWriteError(w, r, err)
 		return
 	}
 	isTeacher := teacher != nil
@@ -405,8 +422,8 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 	staff.StaffNotes = req.StaffNotes
 
 	// Handle person ID change
-	if staff.PersonID != req.PersonID {
-		if rs.updateStaffPerson(r.Context(), staff, req.PersonID) != nil {
+	if staff.PersonID != req.PersonID.Int64() {
+		if rs.updateStaffPerson(r.Context(), staff, req.PersonID.Int64()) != nil {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("person not found")))
 			return
 		}
@@ -414,7 +431,7 @@ func (rs *Resource) updateStaff(w http.ResponseWriter, r *http.Request) {
 
 	teacher, action, err := rs.PersonService.UpdateStaffWithTeacher(r.Context(), staff, req.IsTeacher, req.Specialization, req.Role, req.Qualifications)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		renderStaffWriteError(w, r, err)
 		return
 	}
 

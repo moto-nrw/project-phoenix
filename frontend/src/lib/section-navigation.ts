@@ -81,12 +81,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "changeRequests"
-  | "announcements"
-  | "mealPlan";
+  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -103,11 +98,8 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     label: "Konto-Anfragen",
     feature: "approvals",
   },
-  {
-    href: "/admin/change-requests",
-    label: "Änderungsanfragen",
-    feature: "changeRequests",
-  },
+  // Die Elternanfragen sind in das Top-Level-Modul "Anfragen" umgezogen
+  // (#2429); /admin/change-requests leitet dorthin um.
   {
     // One entry, two jobs: the page itself splits Mitteilungen from Umfragen
     // (#1371). Both are the same broadcast workflow, so a second nav item would
@@ -133,16 +125,19 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
  * Darstellung, kein Navigationsfakt.
  *
  * Die mobile Navigation kürzt einige Namen bewusst ("Suchen" statt
- * "Kindersuche", weil unter einem Symbol nur wenig Platz ist) und weicht
+ * "Alle Kinder", weil unter einem Symbol nur wenig Platz ist) und weicht
  * deshalb ab. Der Test in navigation-sync.test.ts prüft trotzdem, dass jeder
  * mobile Pfad einen Kopfzeilen-Titel bekommt.
  */
 export const STAFF_FLAT_PAGES = {
   dashboard: { href: "/dashboard", label: "Home" },
-  studentSearch: { href: "/students/search", label: "Kindersuche" },
+  studentSearch: { href: "/students/search", label: "Alle Kinder" },
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
+  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
+  // an einem Ort, mit Reitern nach Herkunft.
+  anfragen: { href: "/anfragen", label: "Anfragen" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
@@ -158,7 +153,10 @@ export const STAFF_FLAT_PAGES = {
 /** Unterseiten des Anmeldungen-Akkordeons, in Anzeigereihenfolge. */
 export const ENROLLMENT_SUB_PAGES: readonly SectionSubPage[] = [
   { href: "/admin/enrollments", label: "Überblick" },
-  { href: "/admin/enrollments/change-requests", label: "Änderungsanfragen" },
+  // Kein eigener Eintrag mehr für Änderungsanfragen: Anmeldungsänderungen
+  // leben seit #2435 im Anfragen-Modul (/anfragen, Reiter „Eltern"). Zwei
+  // gleichnamige Sidebar-Einträge waren genau der Grund, warum Schulen ihre
+  // Anfragen am falschen Ort suchten.
   { href: "/enrollment-phases", label: "Anmeldephasen" },
   { href: "/care-offerings", label: "Betreuungsangebote" },
   { href: "/enrollment-form", label: "Anmeldeformulare" },

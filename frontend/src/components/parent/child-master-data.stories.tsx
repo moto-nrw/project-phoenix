@@ -30,5 +30,6 @@ type Story = StoryObj<typeof meta>;
 export const LoadErrorState: Story = {
   args: {
     studentId: "storybook-student-1",
+    childName: "Lina Muster",
   },
 };

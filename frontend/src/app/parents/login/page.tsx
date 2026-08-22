@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import {
   AuthShell,
+  AuthShellSkeleton,
   MotoBrand,
   authInputClassName,
   authPrimaryButtonClassName,
@@ -45,7 +46,7 @@ function staffLoginUrl(): string {
 export default function ParentLoginPage() {
   // useSearchParams verlangt eine Suspense-Grenze (siehe frontend/CLAUDE.md).
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<AuthShellSkeleton />}>
       <ParentLoginForm />
     </Suspense>
   );

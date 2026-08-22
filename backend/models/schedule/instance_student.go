@@ -82,6 +82,18 @@ type InstanceStudent struct {
 	// Manual slot decisions keep this nil and therefore win over later broad
 	// status changes.
 	StudentStatusDayID *int64 `bun:"student_status_day_id" json:"-"`
+	// PickupExceptionID marks a partial excusal that owns the slot absence.
+	// Actual attendance and manual slot decisions clear this provenance.
+	PickupExceptionID *int64 `bun:"pickup_exception_id" json:"-"`
+}
+
+// PartialAbsenceBlock names one actionable timetable block that a partial
+// absence would mark as excused.
+type PartialAbsenceBlock struct {
+	ID        int64     `bun:"id" json:"id"`
+	Title     string    `bun:"title" json:"title"`
+	StartTime time.Time `bun:"start_time" json:"start_time"`
+	EndTime   time.Time `bun:"end_time" json:"end_time"`
 }
 
 // Validate ensures the attendance row is well-formed.
@@ -158,10 +170,38 @@ func (p AttendanceFieldPatch) HasChanges() bool {
 		p.Note != nil || p.NoteClear
 }
 
+// ParallelPresence reports that a student is recorded status='present' in
+// another activity instance that is currently running on the same day. It
+// exists so a roster can surface the overlap when consecutive blocks of the
+// same lane run in parallel (#2265).
+type ParallelPresence struct {
+	StudentID  int64
+	InstanceID int64
+	Title      string
+	StartTime  time.Time
+	EndTime    time.Time
+}
+
+// InstanceStudentKey addresses one instance_students row by its natural key.
+// Used by the batch attendance-mirror updates to pass a set of target rows
+// into a single composite-IN UPDATE (review #2372).
+type InstanceStudentKey struct {
+	InstanceID int64
+	StudentID  int64
+}
+
 // InstanceStudentRepository defines operations for managing expected/actual
 // attendance on materialized activity instances.
 type InstanceStudentRepository interface {
 	base.Repository[*InstanceStudent]
+
+	// FindPresentInOtherActiveInstances returns, for the given students, rows
+	// where the student is recorded status='present' in another instance
+	// (id != excludeInstanceID) with status='active' on the given date,
+	// tenant-scoped. Ordered by the other instance's start_time DESC, id DESC
+	// so callers taking the first row per student get the latest running
+	// block. Empty studentIDs returns an empty slice without hitting the DB.
+	FindPresentInOtherActiveInstances(ctx context.Context, excludeInstanceID int64, date timezone.Date, studentIDs []int64) ([]ParallelPresence, error)
 
 	// FindByInstanceID returns all attendance rows for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStudent, error)
@@ -207,6 +247,28 @@ type InstanceStudentRepository interface {
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*InstanceStudent, error)
+
+	// FindByStudentIDsAndDate is the multi-student form of
+	// FindByStudentAndDateRange for a single day. One query for the whole
+	// batch; empty input returns an empty slice without hitting the DB.
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*InstanceStudent, error)
+
+	// FindCurrentCandidatesByStudentIDs is the multi-student form of
+	// FindCurrentCandidates: every student's currently-running booked slots
+	// in one query. Callers group per student and apply the same
+	// exactly-one-candidate rule as the single-student path.
+	FindCurrentCandidatesByStudentIDs(ctx context.Context, studentIDs []int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
+
+	// UpdateAttendanceFromCheckinBatch applies UpdateAttendanceFromCheckin's
+	// SET and guards to the given (instance, student) pairs in one statement
+	// for one shared check-in instant. Guard-failing rows are skipped like
+	// the single-row zero-rows race path.
+	UpdateAttendanceFromCheckinBatch(ctx context.Context, keys []InstanceStudentKey, checkedInAt time.Time) error
+
+	// UpdateAttendanceCheckoutBatch applies UpdateAttendanceCheckout's SET
+	// and guards to the given (instance, student) pairs in one statement for
+	// one shared checkout instant.
+	UpdateAttendanceCheckoutBatch(ctx context.Context, keys []InstanceStudentKey, checkedOutAt time.Time) error
 
 	// FindByInstanceAndStudent returns a single attendance row, or nil if the
 	// student is not expected at the instance.
@@ -274,6 +336,9 @@ type InstanceStudentRepository interface {
 	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
 	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
 	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
+	ApplyPartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ReleasePartialAbsence(ctx context.Context, pickupExceptionID int64) (int, error)
+	ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants

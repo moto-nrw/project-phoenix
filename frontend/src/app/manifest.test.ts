@@ -3,23 +3,49 @@ import manifest from "./manifest";
 
 const headerState = vi.hoisted(() => ({
   host: "moto-app.de",
+  acceptLanguage: null as string | null,
+  localeCookie: undefined as string | undefined,
 }));
 
 vi.mock("next/headers", () => ({
   headers: () =>
     Promise.resolve({
       get: (name: string) =>
-        name.toLowerCase() === "host" ? headerState.host : null,
+        name.toLowerCase() === "host"
+          ? headerState.host
+          : name.toLowerCase() === "accept-language"
+            ? headerState.acceptLanguage
+            : null,
+    }),
+  cookies: () =>
+    Promise.resolve({
+      get: () =>
+        headerState.localeCookie
+          ? { value: headerState.localeCookie }
+          : undefined,
     }),
 }));
 
 describe("manifest", () => {
   beforeEach(() => {
     headerState.host = "moto-app.de";
+    headerState.acceptLanguage = null;
+    headerState.localeCookie = undefined;
     vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", "operator.moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", "eltern.moto-app.de");
     vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", "schule.moto-app.de");
     vi.stubEnv("TENANT_DOMAIN", "moto-app.de");
+  });
+
+  it("localizes the parent manifest from the saved locale", async () => {
+    headerState.host = "eltern.moto-app.de";
+    headerState.localeCookie = "en";
+
+    await expect(manifest()).resolves.toMatchObject({
+      name: "moto Parent Portal",
+      lang: "en",
+      description: expect.stringContaining("child's care"),
+    });
   });
 
   it("returns normal install icons for the main app host", async () => {

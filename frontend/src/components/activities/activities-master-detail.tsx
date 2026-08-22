@@ -222,7 +222,9 @@ function ActivitySummary({ activity }: { activity: Activity }) {
           </span>
         ) : null}
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
-          {activity.max_participant} Plätze
+          {activity.max_participant == null
+            ? "Unbegrenzt"
+            : `${activity.max_participant} Plätze`}
         </span>
         {isSystem ? (
           <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">

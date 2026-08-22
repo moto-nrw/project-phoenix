@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,8 +23,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 ) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	phaseRepo := enrollmentRepo.NewPhaseRepository(db)
@@ -57,12 +55,14 @@ func makeOffering(phaseID int64, name string) *enrollmentModels.CareOffering {
 }
 
 func uniqueOfferingName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 // --- Create + Validation ----------------------------------------------
 
 func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -76,6 +76,8 @@ func TestCareOfferingRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -98,6 +100,8 @@ func TestCareOfferingRepository_Create_PreservesExplicitCountsAsCareFalse(t *tes
 }
 
 func TestCareOfferingRepository_Create_RejectsInvalidOffering(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	offering := makeOffering(phaseID, "") // blank name → Validate fails
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -110,6 +114,8 @@ func TestCareOfferingRepository_Create_RejectsInvalidOffering(t *testing.T) {
 // --- FindByID ---------------------------------------------------------
 
 func TestCareOfferingRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -131,6 +137,8 @@ func TestCareOfferingRepository_FindByID_HappyPath(t *testing.T) {
 }
 
 func TestCareOfferingRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupCareOfferingRepoTest(t)
 	var got *enrollmentModels.CareOffering
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -145,6 +153,8 @@ func TestCareOfferingRepository_FindByID_NotFound(t *testing.T) {
 // --- Update ----------------------------------------------------------
 
 func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T) {
+	t.Parallel()
+
 	// The repo explicitly sets every column on purpose — chaining one
 	// .Set() onto a Model() update used to drop the rest silently. This
 	// test pins that behavior by changing several fields and checking
@@ -171,6 +181,7 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	offering.PriceCents = &price
 	offering.IsActive = false
 	offering.SortOrder = 5
+	offering.PickupTimes = map[string]string{"mon": "14:30", "fri": "16:00"}
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Update(ctx, offering)
@@ -195,9 +206,13 @@ func TestCareOfferingRepository_Update_PersistsEveryEditableColumn(t *testing.T)
 	assert.Equal(t, 12000, *got.PriceCents)
 	assert.False(t, got.IsActive)
 	assert.Equal(t, 5, got.SortOrder)
+	assert.Equal(t, map[string]string{"mon": "14:30", "fri": "16:00"}, got.PickupTimes,
+		"pickup_times must survive the explicit column-list update (#2290)")
 }
 
 func TestCareOfferingRepository_Update_RejectsInvalidOffering(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -215,6 +230,8 @@ func TestCareOfferingRepository_Update_RejectsInvalidOffering(t *testing.T) {
 }
 
 func TestCareOfferingRepository_Update_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	offering := makeOffering(phaseID, uniqueOfferingName("noid"))
 	offering.ID = 9_999_999
@@ -229,6 +246,8 @@ func TestCareOfferingRepository_Update_MissingIDErrors(t *testing.T) {
 // --- Delete ----------------------------------------------------------
 
 func TestCareOfferingRepository_Delete_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -252,6 +271,8 @@ func TestCareOfferingRepository_Delete_HappyPath(t *testing.T) {
 }
 
 func TestCareOfferingRepository_Delete_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupCareOfferingRepoTest(t)
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return repo.Delete(ctx, 9_999_999)
@@ -262,6 +283,8 @@ func TestCareOfferingRepository_Delete_MissingIDErrors(t *testing.T) {
 // --- ListByPhase / ListActiveByPhase --------------------------------
 
 func TestCareOfferingRepository_ListByPhase_OrdersBySortOrder(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -292,6 +315,8 @@ func TestCareOfferingRepository_ListByPhase_OrdersBySortOrder(t *testing.T) {
 }
 
 func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseA)
 
@@ -329,6 +354,8 @@ func TestCareOfferingRepository_ListByPhase_ScopesToPhase(t *testing.T) {
 }
 
 func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseA := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseA)
 
@@ -378,6 +405,8 @@ func TestCareOfferingRepository_ListByIDs_LoadsExactIDsAcrossPhases(t *testing.T
 }
 
 func TestCareOfferingRepository_ListActiveByPhase_FiltersInactive(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 
@@ -412,6 +441,8 @@ func TestCareOfferingRepository_ListActiveByPhase_FiltersInactive(t *testing.T) 
 // --- ListByTenant ----------------------------------------------------
 
 func TestCareOfferingRepository_ListByTenant_ReturnsAllForTenant(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, phaseID := setupCareOfferingRepoTest(t)
 	defer wipeOfferings(db, tenantID, phaseID)
 

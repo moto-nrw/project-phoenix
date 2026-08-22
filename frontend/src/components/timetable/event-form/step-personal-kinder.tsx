@@ -5,11 +5,13 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Field } from "./field";
 import type {
   EventFormState,
   PersonOption,
+  SourceFilterMode,
   WeekdayRosterState,
 } from "./form-model";
 import { MultiSelectField } from "./multi-select-field";
@@ -22,6 +24,7 @@ import type {
   ShiftCoverageWarningItem,
   TargetGroupType,
 } from "~/lib/timetable-types";
+import { normalizeSchoolClass } from "~/lib/timetable-helpers";
 
 /** Zielgruppe (target group) tab options, issue #1838. */
 const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
@@ -74,12 +77,23 @@ export interface StepPersonalKinderProps {
   sourcePhaseLockId: string | null;
   sourceGradeOptions: number[];
   sourceGradeCounts: Record<number, number>;
+  /** Klassenfilter (#2482): Optionen, Zahlen und der laufende Abgleich. */
+  sourceClassOptions: string[];
+  sourceClassCounts: Record<string, number>;
   sourceFilteredCount: number;
+  /** Die genaue Kinderzahl steht noch aus (Anfrage läuft). */
+  sourceCountsPending: boolean;
+  /** Die Kinder der Quelle konnten nicht geladen werden. */
+  sourceCountsError: string | null;
+  /** Namentliche Abweichung zur bisher manuell gepflegten Kinderliste. */
+  sourceRosterDiff: { added: string[]; removed: string[] } | null;
   /** Advisory when series start is before the offering phase service start. */
   sourcePhaseKidsFromWarning: string | null;
   sourceOverlapWarnings: string[];
   changeSourceOfferings: (offeringIds: string[]) => void;
   toggleSourceGradeLevel: (grade: number) => void;
+  toggleSourceSchoolClass: (schoolClass: string) => void;
+  changeSourceFilterMode: (mode: SourceFilterMode) => void;
   conflictWarnings: ConflictWarningItem[];
   coverageWarnings: ShiftCoverageWarningItem[];
   coverageWarningCount: number;
@@ -131,11 +145,18 @@ export function StepPersonalKinder({
   sourcePhaseLockId,
   sourceGradeOptions,
   sourceGradeCounts,
+  sourceClassOptions,
+  sourceClassCounts,
   sourceFilteredCount,
+  sourceCountsPending,
+  sourceCountsError,
+  sourceRosterDiff,
   sourcePhaseKidsFromWarning,
   sourceOverlapWarnings,
   changeSourceOfferings,
   toggleSourceGradeLevel,
+  toggleSourceSchoolClass,
+  changeSourceFilterMode,
   conflictWarnings,
   coverageWarnings,
   coverageWarningCount,
@@ -488,33 +509,102 @@ export function StepPersonalKinder({
                 <>
                   <fieldset className="flex flex-col gap-1">
                     <legend className="text-xs font-semibold text-gray-700">
-                      Nach Jahrgang filtern
+                      Kinder eingrenzen
                     </legend>
                     <p className="text-xs text-gray-500">
-                      Keine Auswahl = alle Kinder der gewählten Angebote.
+                      Sie können die Kinder nach Jahrgang oder nach einzelnen
+                      Klassen eingrenzen. Beides zusammen geht nicht.
                     </p>
-                    <div className="mt-1 flex flex-wrap gap-3">
-                      {sourceGradeOptions.map((grade) => (
-                        <label
-                          key={grade}
-                          className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
-                        >
-                          <Checkbox
-                            checked={form.sourceGradeLevels.includes(grade)}
-                            onChange={() => toggleSourceGradeLevel(grade)}
-                          />
-                          Jahrgang {grade} ({sourceGradeCounts[grade] ?? 0})
-                        </label>
-                      ))}
-                      {sourceGradeOptions.length === 0 && (
-                        <p className="text-xs text-gray-500">
-                          Für die gewählten Angebote sind noch keine Jahrgänge
-                          ableitbar.
-                        </p>
-                      )}
+                    <div className="mt-1">
+                      <SegmentedControl<SourceFilterMode>
+                        ariaLabel="Kinder eingrenzen"
+                        fullWidth
+                        value={form.sourceFilterMode}
+                        onChange={changeSourceFilterMode}
+                        items={[
+                          { value: "alle", label: "Alle Kinder" },
+                          { value: "jahrgang", label: "Nach Jahrgang" },
+                          { value: "klasse", label: "Nach Klasse" },
+                        ]}
+                      />
                     </div>
+                    {form.sourceFilterMode === "jahrgang" && (
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {sourceGradeOptions.map((grade) => (
+                          <label
+                            key={grade}
+                            className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
+                          >
+                            <Checkbox
+                              checked={form.sourceGradeLevels.includes(grade)}
+                              onChange={() => toggleSourceGradeLevel(grade)}
+                            />
+                            Jahrgang {grade} ({sourceGradeCounts[grade] ?? 0})
+                          </label>
+                        ))}
+                        {sourceGradeOptions.length === 0 && (
+                          <p className="text-xs text-gray-500">
+                            Für die gewählten Angebote sind noch keine Jahrgänge
+                            ableitbar.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {form.sourceFilterMode === "klasse" && (
+                      <div className="mt-2 flex flex-wrap gap-3">
+                        {sourceClassOptions.map((schoolClass) => (
+                          <label
+                            key={schoolClass}
+                            className="flex cursor-pointer items-center gap-1.5 text-sm text-gray-700"
+                          >
+                            <Checkbox
+                              checked={form.sourceSchoolClasses.some(
+                                (item) =>
+                                  normalizeSchoolClass(item) ===
+                                  normalizeSchoolClass(schoolClass),
+                              )}
+                              onChange={() =>
+                                toggleSourceSchoolClass(schoolClass)
+                              }
+                            />
+                            Klasse {schoolClass} (
+                            {sourceClassCounts[
+                              normalizeSchoolClass(schoolClass)
+                            ] ?? 0}
+                            )
+                          </label>
+                        ))}
+                        {sourceClassOptions.length === 0 && (
+                          <p className="text-xs text-gray-500">
+                            {sourceCountsPending
+                              ? "Klassen werden geladen ..."
+                              : sourceCountsError
+                                ? "Die Klassen konnten nicht geladen werden."
+                                : "Für die gewählten Angebote ist bei keinem Kind eine Klasse hinterlegt."}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {(form.sourceFilterMode === "jahrgang" &&
+                      form.sourceGradeLevels.length === 0) ||
+                    (form.sourceFilterMode === "klasse" &&
+                      form.sourceSchoolClasses.length === 0) ? (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Ohne Auswahl gelten alle Kinder der gewählten Angebote.
+                      </p>
+                    ) : null}
                   </fieldset>
-                  {sourceFilteredCount === 0 ? (
+                  {sourceCountsError ? (
+                    <Alert
+                      type="warning"
+                      message={sourceCountsError}
+                      announce="polite"
+                    />
+                  ) : sourceCountsPending ? (
+                    <p className="text-xs text-gray-600" role="status">
+                      Die Kinderzahl wird ermittelt ...
+                    </p>
+                  ) : sourceFilteredCount === 0 ? (
                     <Alert
                       type="warning"
                       message="Der aktuelle Filter erfasst keine Kinder. Der Regeltermin würde ohne Kinder eingeplant."
@@ -528,6 +618,29 @@ export function StepPersonalKinder({
                       automatisch auf zukünftige Planungen aus.
                     </p>
                   )}
+                  {sourceRosterDiff ? (
+                    <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+                      <p className="text-xs font-semibold text-gray-700">
+                        Das ändert sich gegenüber Ihrer bisherigen Kinderliste
+                      </p>
+                      {sourceRosterDiff.added.length > 0 && (
+                        <p className="mt-1 text-xs text-gray-600">
+                          Kommt neu dazu ({sourceRosterDiff.added.length}):{" "}
+                          {sourceRosterDiff.added.join(", ")}
+                        </p>
+                      )}
+                      {sourceRosterDiff.removed.length > 0 && (
+                        <p className="mt-1 text-xs text-gray-600">
+                          Fällt weg ({sourceRosterDiff.removed.length}):{" "}
+                          {sourceRosterDiff.removed.join(", ")}
+                        </p>
+                      )}
+                      <p className="mt-1 text-xs text-gray-500">
+                        Beim Speichern übernimmt der Regeltermin die Kinder aus
+                        dem Angebot. Ihre bisherige Auswahl wird ersetzt.
+                      </p>
+                    </div>
+                  ) : null}
                   {sourcePhaseKidsFromWarning ? (
                     <Alert
                       type="warning"
@@ -627,6 +740,36 @@ export function StepPersonalKinder({
           den Bedarf fest und überschreibt beides.
         </p>
       </Field>
+
+      {isSeriesFlow && (
+        <Field
+          label="Maximale Teilnehmerzahl"
+          htmlFor="event_max_participants"
+          error={fieldErrors.maxParticipants}
+        >
+          <Input
+            id="event_max_participants"
+            type="number"
+            min={1}
+            step={1}
+            inputMode="numeric"
+            value={form.maxParticipants}
+            onChange={(event) => update("maxParticipants", event.target.value)}
+            placeholder="unbegrenzt"
+            controlSize="compact"
+            aria-invalid={Boolean(fieldErrors.maxParticipants)}
+            aria-describedby={
+              fieldErrors.maxParticipants
+                ? "event_max_participants_error"
+                : undefined
+            }
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Leer = unbegrenzt. Begrenzt, wie viele Kinder an jedem Termin der
+            Reihe teilnehmen können.
+          </p>
+        </Field>
+      )}
 
       {hasOfferingSource ? (
         <div className="flex flex-col gap-1">

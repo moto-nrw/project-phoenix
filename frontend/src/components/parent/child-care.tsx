@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -13,13 +14,16 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { TimeField } from "~/components/ui/time-field";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import {
   type CareException,
   type ChildCareSchedule,
   type ChildFeatures,
+  type ChildToday,
   type ExcusedRequest,
+  type PickupChangeRequest,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
@@ -27,11 +31,13 @@ import {
   getChildCareSchedule,
   getChildFeatures,
   listCareExceptions,
+  listPickupChangeRequests,
   listExcusedRequests,
   listSickDays,
   submitCareException,
   submitSickNote,
   withdrawExcusedRequest,
+  withdrawPickupChangeRequest,
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
@@ -46,7 +52,7 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
 
-// Thrown by reportSick when a gated excused absence was created server-side but
+// Thrown by reportSick when a gated absence was created server-side but
 // the follow-up reload that would surface the new pending request failed. The
 // SickNoteModal maps it to a localized "submitted but couldn't refresh" hint
 // rather than leaking a raw message — the submission itself succeeded (#1845).
@@ -60,10 +66,13 @@ class ChildCareRefreshError extends Error {
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
+export type AbsenceSubmissionOutcome = "applied" | "pending";
+
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
 // react/no-object-type-as-default-prop).
 const EMPTY_EXCUSED_REQUESTS: readonly ExcusedRequest[] = [];
+const EMPTY_PICKUP_CHANGE_REQUESTS: PickupChangeRequest[] = [];
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
@@ -106,11 +115,6 @@ function formatLocaleDate(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
-  // Default false on fetch failure: without a confirmed override we treat excused
-  // absences as immediate (the pre-feature behavior), so a transient hiccup never
-  // makes the UI claim an OGS confirmation is pending when it isn't. The backend
-  // enforces the real gate regardless.
-  excused_requires_approval: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -122,6 +126,8 @@ const DEFAULT_FEATURES: ChildFeatures = {
   // a 403; the backend enforces the gate regardless.
   request_submit_enabled: false,
   pickup_change_enabled: false,
+  pickup_manage_allowed: false,
+  guardian_contact_manage_allowed: false,
   // Capability flags default to false on fetch failure (least privilege —
   // hide invite/remove if we can't confirm they're enabled; the backend
   // enforces the gate regardless).
@@ -245,16 +251,18 @@ export function resolveTodayPickup(params: {
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
-  // Excused-absence requests that went through the OGS approval gate (pending +
-  // recently-decided). Empty for schools that don't gate excused absences.
+  // Absence requests that went through the OGS approval gate (pending +
+  // recently decided). Empty for schools that gate neither absence type.
   readonly excusedRequests: ExcusedRequest[];
   readonly careExceptions: CareException[];
+  readonly pickupChangeRequests: PickupChangeRequest[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
   // — and submitCareException treats an omitted leg as an authoritative clear.
   // The pickup modal must block saving while this is false so a parent can't
   // silently wipe an existing override the UI never managed to prefill.
   readonly careExceptionsLoaded: boolean;
+  readonly pickupChangeRequestsLoaded: boolean;
   // Today's resolved pickup state for the "Heute" tile (see TodayPickup).
   readonly todayPickup: TodayPickup;
   readonly features: ChildFeatures;
@@ -263,12 +271,12 @@ export interface ChildCare {
     dates: string[],
     reason: string,
     status: StudentStatusKind,
-  ): Promise<void>;
+  ): Promise<AbsenceSubmissionOutcome | void>;
   withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
-    pickupTime?: string;
-    arrivalTime?: string;
+    pickupTime: string;
+    reason: string;
   }): Promise<void>;
   removeCareException(date: string): Promise<void>;
 }
@@ -278,6 +286,11 @@ export function useChildCare(studentId: string): ChildCare {
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
+  const [pickupChangeRequests, setPickupChangeRequests] = useState<
+    PickupChangeRequest[]
+  >([]);
+  const [pickupChangeRequestsLoaded, setPickupChangeRequestsLoaded] =
+    useState(false);
   // The child's standard weekly plan, used only to resolve today's base pickup
   // time for the "Heute" tile. weekPlanLoaded stays false on a failed fetch so
   // the tile shows a neutral state instead of falsely claiming "no pickup".
@@ -344,6 +357,8 @@ export function useChildCare(studentId: string): ChildCare {
     setExcusedRequests([]);
     setCareExceptions([]);
     setCareExceptionsLoaded(false);
+    setPickupChangeRequests([]);
+    setPickupChangeRequestsLoaded(false);
     setWeekdays([]);
     setWeekPlanLoaded(false);
     setTodayAbsent(false);
@@ -367,30 +382,38 @@ export function useChildCare(studentId: string): ChildCare {
     let sickOk = true;
     let requestsOk = true;
     let exceptionsOk = true;
+    let pickupRequestsOk = true;
     let weekPlanOk = true;
     try {
-      const [days, requests, exceptions, plan, flags] = await Promise.all([
-        listSickDays(studentId).catch(() => {
-          sickOk = false;
-          return [] as StatusDay[];
-        }),
-        // Always fetch: it's a cheap call and the response is empty for schools
-        // without the approval gate, so gating it on the (separately fetched)
-        // feature flag would only add an ordering dependency for no real saving.
-        listExcusedRequests(studentId).catch(() => {
-          requestsOk = false;
-          return [] as ExcusedRequest[];
-        }),
-        listCareExceptions(studentId).catch(() => {
-          exceptionsOk = false;
-          return [] as CareException[];
-        }),
-        getChildCareSchedule(studentId).catch(() => {
-          weekPlanOk = false;
-          return null;
-        }),
-        getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
-      ]);
+      const [days, requests, exceptions, pickupRequests, plan, flags] =
+        await Promise.all([
+          listSickDays(studentId).catch(() => {
+            sickOk = false;
+            return [] as StatusDay[];
+          }),
+          // Always fetch: it's a cheap call and the response is empty for schools
+          // without the approval gate, so gating it on the (separately fetched)
+          // feature flag would only add an ordering dependency for no real saving.
+          listExcusedRequests(studentId).catch(() => {
+            requestsOk = false;
+            return [] as ExcusedRequest[];
+          }),
+          listCareExceptions(studentId).catch(() => {
+            exceptionsOk = false;
+            return [] as CareException[];
+          }),
+          listPickupChangeRequests(studentId).catch(() => {
+            pickupRequestsOk = false;
+            return [] as PickupChangeRequest[];
+          }),
+          getChildCareSchedule(studentId).catch(() => {
+            weekPlanOk = false;
+            return null;
+          }),
+          // Approval settings have no safe fallback: keep them unknown when
+          // the feature request fails so the modal uses neutral wording.
+          getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
+        ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
         return { requestsOk };
       // Only overwrite a list whose fetch succeeded; keep the previous state
@@ -399,6 +422,8 @@ export function useChildCare(studentId: string): ChildCare {
       if (requestsOk) setExcusedRequests(requests);
       if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
+      if (pickupRequestsOk) setPickupChangeRequests(pickupRequests);
+      setPickupChangeRequestsLoaded(pickupRequestsOk);
       if (weekPlanOk && plan) {
         setWeekdays(plan.weekdays);
         setTodayAbsent(plan.today_absent);
@@ -448,7 +473,7 @@ export function useChildCare(studentId: string): ChildCare {
     return () => clearInterval(id);
   }, []);
 
-  // A parent write or a staff decision on an excused request flips the request's
+  // A parent write or a staff decision on an absence request flips the request's
   // state / writes status days server-side but emits only an SSE trigger — no
   // payload and no local state change here. The portal-wide ParentRealtimeBridge
   // turns the backend's message-INDEPENDENT parent_child_updated event into a
@@ -513,9 +538,9 @@ export function useChildCare(studentId: string): ChildCare {
           setTodayAbsent(true);
           setWeekPlanDate(berlinTodayISO());
         }
-        return;
+        return "applied" as const;
       }
-      // Empty status days means the school gated this excused absence: the backend
+      // Empty status days means the school gated this absence: the backend
       // created a pending request but no longer returns it inline (the sick-note
       // response is always the bare status-day array for backward compatibility).
       // Reload authoritatively to surface the new "Freigabe ausstehend" request.
@@ -531,6 +556,7 @@ export function useChildCare(studentId: string): ChildCare {
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
       }
+      return "pending" as const;
     },
     [studentId, load],
   );
@@ -551,34 +577,44 @@ export function useChildCare(studentId: string): ChildCare {
   );
 
   const saveCareException = useCallback(
-    async (params: {
-      date: string;
-      pickupTime?: string;
-      arrivalTime?: string;
-    }) => {
+    async (params: { date: string; pickupTime: string; reason: string }) => {
       const saved = await submitCareException(studentId, params);
       // Bail if we navigated to another child mid-save — A's override must not
       // land in B's exception list (#1725 review).
       if (currentStudentIdRef.current !== studentId) return;
-      // Replace any same-date entry with the just-saved one, keep sorted.
-      setCareExceptions((prev) =>
-        [...prev.filter((e) => e.date !== saved.date), saved].sort((a, b) =>
-          a.date.localeCompare(b.date),
-        ),
-      );
+      setPickupChangeRequests((prev) => [
+        saved,
+        ...prev.filter((request) => request.id !== saved.id),
+      ]);
     },
     [studentId],
   );
 
   const removeCareException = useCallback(
     async (date: string) => {
+      const pending = pickupChangeRequests.find(
+        (request) => request.date === date && request.status === "pending",
+      );
+      if (pending) {
+        const withdrawn = await withdrawPickupChangeRequest(
+          studentId,
+          pending.id,
+        );
+        if (currentStudentIdRef.current !== studentId) return;
+        setPickupChangeRequests((prev) =>
+          prev.map((request) =>
+            request.id === withdrawn.id ? withdrawn : request,
+          ),
+        );
+        return;
+      }
       await deleteCareException(studentId, date);
       // Bail if we navigated to another child mid-delete — the removal must not
       // apply to B's exception list (#1725 review).
       if (currentStudentIdRef.current !== studentId) return;
       setCareExceptions((prev) => prev.filter((e) => e.date !== date));
     },
-    [studentId],
+    [pickupChangeRequests, studentId],
   );
 
   const todayPickup = useMemo(
@@ -613,7 +649,10 @@ export function useChildCare(studentId: string): ChildCare {
     sickDays: hasCurrentStudentData ? sickDays : [],
     excusedRequests: hasCurrentStudentData ? excusedRequests : [],
     careExceptions: hasCurrentStudentData ? careExceptions : [],
+    pickupChangeRequests: hasCurrentStudentData ? pickupChangeRequests : [],
     careExceptionsLoaded: hasCurrentStudentData && careExceptionsLoaded,
+    pickupChangeRequestsLoaded:
+      hasCurrentStudentData && pickupChangeRequestsLoaded,
     todayPickup,
     features: hasCurrentStudentData ? features : DEFAULT_FEATURES,
     loading: !hasCurrentStudentData || loading,
@@ -626,20 +665,32 @@ export function useChildCare(studentId: string): ChildCare {
 
 // --- sick-note modal ---
 
+function resolveSickError(
+  err: unknown,
+  refreshFailed: string,
+  overlap: string,
+  save: string,
+): string {
+  if (err instanceof ChildCareRefreshError) return refreshFailed;
+  if (err instanceof ParentApiError && err.code === "excused_request_overlap") {
+    return overlap;
+  }
+  return err instanceof Error ? err.message : save;
+}
+
 export function SickNoteModal({
   onClose,
   onSubmit,
-  excusedRequiresApproval = false,
+  sickRequiresApproval,
+  excusedRequiresApproval,
 }: Readonly<{
   onClose: () => void;
   onSubmit: (
     dates: string[],
     reason: string,
     status: StudentStatusKind,
-  ) => Promise<void>;
-  // When true AND the parent picks "Entschuldigt", the absence must be confirmed
-  // by the OGS before it takes effect — the modal shows a hint saying so. Mirrors
-  // the backend operations.parent_excused_requires_approval gate.
+  ) => Promise<AbsenceSubmissionOutcome | void>;
+  sickRequiresApproval?: boolean;
   excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
@@ -650,28 +701,32 @@ export function SickNoteModal({
   const [status, setStatus] = useState<StudentStatusKind>("sick");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
-  // For an excused absence the note is mandatory (the OGS needs the reason); a
-  // sick note keeps it optional.
-  const noteRequired = status === "excused";
-  const noteMissing = noteRequired && reason.trim() === "";
-
-  // Map submit failures to localized text; never surface a raw English backend
-  // string to the German-only parent UI (mirrors PickupTimeModal.resolveError).
-  const resolveSickError = (err: unknown): string => {
-    if (err instanceof ChildCareRefreshError) {
-      return t("sick.submittedButRefreshFailed");
-    }
-    if (
-      err instanceof ParentApiError &&
-      err.code === "excused_request_overlap"
-    ) {
-      return t("sick.overlapError");
-    }
-    return err instanceof Error ? err.message : t("sick.saveError");
-  };
+  const noteMissing = reason.trim() === "";
+  const requiresApproval =
+    status === "sick" ? sickRequiresApproval : excusedRequiresApproval;
+  const kindHint =
+    status === "sick"
+      ? requiresApproval === true
+        ? "sick.kindHintSickApproval"
+        : requiresApproval === false
+          ? "sick.kindHintSick"
+          : "sick.kindHintSickUnknown"
+      : requiresApproval === true
+        ? "sick.kindHintExcusedApproval"
+        : requiresApproval === false
+          ? "sick.kindHintExcused"
+          : "sick.kindHintExcusedUnknown";
+  const dayCopy =
+    requiresApproval === undefined
+      ? t("sick.unknownDaysCount", { count: dates.length })
+      : requiresApproval
+        ? t("sick.requestDaysCount")
+        : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
     if (dates.length === 0) {
@@ -680,15 +735,24 @@ export function SickNoteModal({
     }
     if (noteMissing) {
       setError(t("sick.reasonRequiredError"));
+      reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(dates, reason, status);
-      onClose();
+      const outcome = await onSubmit(dates, reason, status);
+      if (outcome === "pending") setSubmitted(true);
+      else onClose();
     } catch (err) {
-      setError(resolveSickError(err));
+      setError(
+        resolveSickError(
+          err,
+          t("sick.submittedButRefreshFailed"),
+          t("sick.overlapError"),
+          t("sick.saveError"),
+        ),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -698,106 +762,147 @@ export function SickNoteModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={t("sick.title")}
+      title={submitted ? t("sick.requestSentTitle") : t("sick.title")}
       closeLabel={t("close")}
+      mobileSheet
+      footer={
+        submitted ? (
+          <Button type="button" size="md" onClick={onClose}>
+            {t("close")}
+          </Button>
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="hidden sm:inline-flex"
+              onClick={onClose}
+            >
+              {t("cancel")}
+            </Button>
+            <Button
+              type="button"
+              size="md"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => void handleSubmit()}
+              disabled={submitting}
+            >
+              {submitting && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {status === "sick"
+                ? t("sick.submitSick")
+                : t("sick.submitExcused")}
+            </Button>
+          </>
+        )
+      }
     >
-      <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">
-          {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
+      {submitted ? (
+        <p role="status" className="text-sm leading-6 text-gray-700">
+          {t("sick.requestSentBody")}
         </p>
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("sick.kindLabel")}
-          </span>
-          <CustomSelect
-            value={status}
-            ariaLabel={t("sick.kindLabel")}
-            onChange={(value) => setStatus(value as StudentStatusKind)}
-            options={[
-              { value: "sick", label: t("sick.kindSick") },
-              { value: "excused", label: t("sick.kindExcused") },
-            ]}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
+      ) : (
+        <div className="space-y-4">
+          <p className="text-sm leading-6 text-gray-700">{t("sick.intro")}</p>
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("sick.from")}
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              {t("sick.kindLabel")}
             </span>
-            <ISODatePicker
-              {...datePicker}
-              ariaLabel={t("sick.from")}
-              value={from}
-              min={initial}
-              onChange={(next) => {
-                setFrom(next);
-                if (next > to) setTo(next);
+            <CustomSelect
+              value={status}
+              ariaLabel={t("sick.kindLabel")}
+              onChange={(value) => {
+                setStatus(value as StudentStatusKind);
+                setError(null);
               }}
-              calendarLayout="popover"
-              hideClearButton
+              options={[
+                { value: "sick", label: t("sick.kindSick") },
+                { value: "excused", label: t("sick.kindExcused") },
+              ]}
             />
           </label>
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm leading-5 text-gray-600">
+            {t(kindHint)}
+          </p>
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-gray-700">
+              {t("sick.periodLabel")}
+            </legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("sick.from")}
+                </span>
+                <ISODatePicker
+                  {...datePicker}
+                  ariaLabel={t("sick.from")}
+                  value={from}
+                  min={initial}
+                  onChange={(next) => {
+                    setFrom(next);
+                    if (next > to) setTo(next);
+                  }}
+                  calendarLayout="popover"
+                  hideClearButton
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700">
+                  {t("sick.to")}
+                </span>
+                <ISODatePicker
+                  {...datePicker}
+                  ariaLabel={t("sick.to")}
+                  value={to}
+                  min={from}
+                  onChange={setTo}
+                  calendarLayout="popover"
+                  hideClearButton
+                />
+              </label>
+            </div>
+          </fieldset>
+          <p className="text-sm text-gray-600">{dayCopy}</p>
+          {requiresApproval === true && (
+            <p className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2 text-sm">
+              {t("sick.approvalHint")}
+            </p>
+          )}
           <label className="block">
-            <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("sick.to")}
+            <span className="mb-1 block text-sm font-medium text-gray-700">
+              {t("sick.reasonLabelRequired")} <span aria-hidden="true">*</span>
             </span>
-            <ISODatePicker
-              {...datePicker}
-              ariaLabel={t("sick.to")}
-              value={to}
-              min={from}
-              onChange={setTo}
-              calendarLayout="popover"
-              hideClearButton
+            <textarea
+              ref={reasonRef}
+              value={reason}
+              maxLength={MAX_NOTE_LEN}
+              onChange={(event) => {
+                setReason(event.target.value);
+                if (error) setError(null);
+              }}
+              name="absence-reason"
+              autoComplete="off"
+              required
+              rows={3}
+              placeholder={t("sick.reasonPlaceholder")}
+              aria-invalid={noteMissing && Boolean(error)}
+              aria-describedby={noteMissing && error ? errorId : undefined}
+              className="min-h-20 w-full resize-none rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             />
           </label>
+          {error && (
+            <p
+              id={errorId}
+              role="alert"
+              className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
+            >
+              {error}
+            </p>
+          )}
         </div>
-        <p className="text-xs text-gray-500">
-          {t("sick.daysCount", { count: dates.length })}
-        </p>
-        {noteRequired && excusedRequiresApproval && (
-          <p className="border-moto-amber/30 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-sm">
-            {t("sick.approvalHint")}
-          </p>
-        )}
-        <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {noteRequired
-              ? t("sick.reasonLabelRequired")
-              : t("sick.reasonLabel")}
-          </span>
-          <textarea
-            value={reason}
-            maxLength={MAX_NOTE_LEN}
-            onChange={(e) => setReason(e.target.value)}
-            rows={3}
-            placeholder={t("sick.reasonPlaceholder")}
-            className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
-          />
-        </label>
-        {error && (
-          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
-            {error}
-          </p>
-        )}
-        <div className="flex justify-end gap-2 pt-1">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
-            {t("cancel")}
-          </Button>
-          <Button
-            type="button"
-            size="md"
-            className="gap-2"
-            onClick={() => void handleSubmit()}
-            disabled={submitting || noteMissing}
-          >
-            {submitting && (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
-            {t("sick.submit")}
-          </Button>
-        </div>
-      </div>
+      )}
     </Modal>
   );
 }
@@ -806,33 +911,50 @@ export function SickNoteModal({
 
 export function PickupTimeModal({
   careExceptions,
+  pickupChangeRequests = EMPTY_PICKUP_CHANGE_REQUESTS,
   careExceptionsLoaded,
+  pickupChangeRequestsLoaded = true,
   pickupChangeEnabled,
+  childFirstName,
+  today: childToday,
   onClose,
   onSubmit,
   onRemove,
 }: Readonly<{
   careExceptions: CareException[];
+  pickupChangeRequests?: PickupChangeRequest[];
   careExceptionsLoaded: boolean;
+  pickupChangeRequestsLoaded?: boolean;
   pickupChangeEnabled: boolean;
+  childFirstName?: string;
+  today?: ChildToday;
   onClose: () => void;
   onSubmit: (params: {
     date: string;
-    pickupTime?: string;
-    arrivalTime?: string;
+    pickupTime: string;
+    reason: string;
   }) => Promise<void>;
   onRemove: (date: string) => Promise<void>;
 }>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
-  const today = todayISO();
+  const today = berlinTodayISO();
+  // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
+  // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
+  // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
+  // der Dialog auf heute, wo es zu dem Antrag nichts zu sehen gibt.
   const initial = useMemo(() => {
     if (pickupChangeEnabled) return today;
-    return (
-      careExceptions.find((entry) => entry.source === "guardian")?.date ?? today
+    const pendingRequest = pickupChangeRequests.find(
+      (request) => request.status === "pending",
     );
-  }, [careExceptions, pickupChangeEnabled, today]);
+    if (pendingRequest) return pendingRequest.date;
+    return (
+      careExceptions.find((entry) => entry.pickup_source === "guardian")
+        ?.date ?? today
+    );
+  }, [careExceptions, pickupChangeEnabled, pickupChangeRequests, today]);
   // Two calendar months ahead — mirrors the backend cap in SubmitCareException
   // and the parent-portal list window, so the picker can't offer a date the
   // server would reject.
@@ -843,15 +965,27 @@ export function PickupTimeModal({
   })();
   const [date, setDate] = useState(initial);
   const [pickupTime, setPickupTime] = useState("");
-  const [arrivalTime, setArrivalTime] = useState("");
+  const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invalidField, setInvalidField] = useState<
+    "pickupTime" | "reason" | null
+  >(null);
+  const pickupTimeRef = useRef<HTMLInputElement>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const errorId = useId();
 
   const existing = useMemo(
     () => careExceptions.find((e) => e.date === date),
     [careExceptions, date],
   );
-  const staffOwned = existing?.source === "staff";
+  const request = useMemo(
+    () => pickupChangeRequests.find((entry) => entry.date === date),
+    [date, pickupChangeRequests],
+  );
+  const pending = request?.status === "pending";
+  const staffOwned = existing?.pickup_source === "staff";
+  const alreadyHome = date === today && childToday?.state === "left";
 
   // Map the backend's stable error code to a localized message; fall back to
   // the raw message (or a generic one) when the code is missing/unknown so the
@@ -863,6 +997,10 @@ export function PickupTimeModal({
           return t("pickup.errorDisabled");
         case "care_exception_conflict":
           return t("pickup.errorStaffConflict");
+        case "care_exception_already_left":
+          return childFirstName
+            ? t("pickup.alreadyHome", { name: childFirstName })
+            : t("pickup.alreadyHomeGeneric");
         case "care_exception_raced":
           return t("pickup.errorRaced");
         case "care_exception_past_date":
@@ -871,6 +1009,12 @@ export function PickupTimeModal({
           return t("pickup.errorTooFar");
         case "care_exception_no_time":
           return t("pickup.noTime");
+        case "care_exception_reason_required":
+          return t("pickup.reasonRequired");
+        case "care_exception_reason_too_long":
+          return t("pickup.reasonTooLong");
+        case "care_request_already_pending":
+          return t("pickup.statusPending");
       }
     }
     return err instanceof Error ? err.message : t("pickup.saveError");
@@ -879,30 +1023,40 @@ export function PickupTimeModal({
   // When the selected date already has an override, prefill the fields so the
   // parent edits rather than blindly overwrites.
   useEffect(() => {
-    setPickupTime(existing?.pickup_time ?? "");
-    setArrivalTime(existing?.arrival_time ?? "");
+    setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
+    setReason(request?.reason ?? existing?.reason ?? "");
     setError(null);
-  }, [existing]);
+    setInvalidField(null);
+  }, [existing, request]);
 
   const handleSubmit = async () => {
     // Guard: if the existing overrides never loaded we can't trust the
     // prefilled fields, and a save would send the empty leg as an authoritative
     // clear. Block until the list is known (the page must be reloaded).
-    if (!careExceptionsLoaded) {
+    if (!careExceptionsLoaded || !pickupChangeRequestsLoaded) {
       setError(t("pickup.loadError"));
       return;
     }
-    if (!pickupTime && !arrivalTime) {
+    if (!pickupTime) {
       setError(t("pickup.noTime"));
+      setInvalidField("pickupTime");
+      pickupTimeRef.current?.focus();
+      return;
+    }
+    if (!reason.trim()) {
+      setError(t("pickup.reasonRequired"));
+      setInvalidField("reason");
+      reasonRef.current?.focus();
       return;
     }
     setSubmitting(true);
     setError(null);
+    setInvalidField(null);
     try {
       await onSubmit({
         date,
-        pickupTime: pickupTime || undefined,
-        arrivalTime: arrivalTime || undefined,
+        pickupTime,
+        reason: reason.trim(),
       });
       onClose();
     } catch (err) {
@@ -931,16 +1085,64 @@ export function PickupTimeModal({
       onClose={onClose}
       title={t("pickup.title")}
       closeLabel={t("close")}
+      mobileSheet
+      footer={
+        <>
+          {(pending || existing?.pickup_source === "guardian") && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              className="w-full gap-2 whitespace-nowrap sm:w-auto"
+              onClick={() => void handleRemove()}
+              disabled={submitting || alreadyHome}
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+              {pending ? t("pickup.withdraw") : t("pickup.reset")}
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="hidden whitespace-nowrap shadow-sm sm:inline-flex"
+            onClick={onClose}
+          >
+            {t("cancel")}
+          </Button>
+          {!pending && (
+            <Button
+              type="button"
+              size="md"
+              className="w-full gap-2 whitespace-nowrap shadow-sm sm:w-auto"
+              onClick={() => void handleSubmit()}
+              disabled={
+                submitting ||
+                alreadyHome ||
+                staffOwned ||
+                !pickupChangeEnabled ||
+                !careExceptionsLoaded ||
+                !pickupChangeRequestsLoaded
+              }
+            >
+              {submitting && (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              )}
+              {t("pickup.submit")}
+            </Button>
+          )}
+        </>
+      }
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">{t("pickup.intro")}</p>
-        {!careExceptionsLoaded && (
+        <p className="text-sm leading-6 text-gray-700">{t("pickup.intro")}</p>
+        {(!careExceptionsLoaded || !pickupChangeRequestsLoaded) && (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.loadError")}
           </p>
         )}
         <label className="block">
-          <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <span className="mb-1 block text-sm font-medium text-gray-700">
             {t("pickup.dateLabel")}
           </span>
           <ISODatePicker
@@ -955,42 +1157,94 @@ export function PickupTimeModal({
           />
         </label>
 
-        {staffOwned ? (
+        {pending && (
+          <div className="bg-moto-orange-soft text-moto-orange-strong rounded-lg px-3 py-2.5">
+            <p className="text-base font-semibold tabular-nums">
+              {request.previous_pickup_time
+                ? t("pickup.pendingChange", {
+                    from: request.previous_pickup_time,
+                    to: request.pickup_time,
+                  })
+                : t("pickup.pendingRequested", {
+                    to: request.pickup_time,
+                  })}
+            </p>
+            <p className="mt-0.5 text-sm">{t("pickup.statusPending")}</p>
+          </div>
+        )}
+        {request?.status === "approved" && (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {t("pickup.statusApproved")}
+          </p>
+        )}
+        {request?.status === "rejected" && (
+          <p className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm">
+            {t("pickup.statusRejected", {
+              reason: request.decision_reason ?? t("pickup.noDecisionReason"),
+            })}
+          </p>
+        )}
+
+        {pending ? null : alreadyHome && childFirstName ? (
+          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            {t("pickup.alreadyHome", { name: childFirstName })}
+          </p>
+        ) : staffOwned ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.staffSet", {
               pickup: existing?.pickup_time ?? "—",
-              arrival: existing?.arrival_time ?? "—",
             })}
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-4">
+            <TimeField
+              inputRef={pickupTimeRef}
+              value={pickupTime}
+              onChange={(next) => {
+                setPickupTime(next);
+                if (invalidField === "pickupTime") {
+                  setInvalidField(null);
+                  setError(null);
+                }
+              }}
+              label={t("pickup.pickupLabel")}
+              hint={t("timeFormatHint")}
+              placeholder={t("timeExample")}
+              required
+              invalid={invalidField === "pickupTime"}
+              describedBy={invalidField === "pickupTime" ? errorId : undefined}
+            />
             <label className="block">
-              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("pickup.arrivalLabel")}
+              <span className="mb-1 block text-sm font-medium text-gray-700">
+                {t("pickup.reasonLabel")}
+                <span aria-hidden="true"> *</span>
               </span>
-              <input
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
-              />
-            </label>
-            <label className="block">
-              <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("pickup.pickupLabel")}
-              </span>
-              <input
-                type="time"
-                value={pickupTime}
-                onChange={(e) => setPickupTime(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400/40 focus-visible:outline-none"
+              <textarea
+                ref={reasonRef}
+                value={reason}
+                onChange={(e) => {
+                  setReason(e.target.value);
+                  if (invalidField === "reason") {
+                    setInvalidField(null);
+                    setError(null);
+                  }
+                }}
+                maxLength={255}
+                required
+                rows={3}
+                placeholder={t("pickup.reasonPlaceholder")}
+                aria-invalid={invalidField === "reason"}
+                aria-describedby={
+                  invalidField === "reason" ? errorId : undefined
+                }
+                className="min-h-20 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-base shadow-sm transition-colors hover:border-gray-400 focus-visible:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               />
             </label>
           </div>
         )}
 
-        {existing && !staffOwned && (
-          <p className="text-xs text-gray-500">
+        {existing?.pickup_source === "guardian" && (
+          <p className="text-sm text-gray-500">
             {t("pickup.existingHint", {
               date: formatLocaleDate(date, locale),
             })}
@@ -998,50 +1252,14 @@ export function PickupTimeModal({
         )}
 
         {error && (
-          <p className="bg-moto-red/10 text-moto-red-strong rounded-lg px-3 py-2 text-sm">
+          <p
+            id={errorId}
+            role="alert"
+            className="bg-parent-red-soft text-parent-red-strong rounded-lg px-3 py-2 text-sm"
+          >
             {error}
           </p>
         )}
-
-        <div className="flex items-center justify-between gap-2 pt-1">
-          {existing && !staffOwned ? (
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              className="gap-2"
-              onClick={() => void handleRemove()}
-              disabled={submitting}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-              {t("pickup.reset")}
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
-              {t("cancel")}
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              className="gap-2"
-              onClick={() => void handleSubmit()}
-              disabled={
-                submitting ||
-                staffOwned ||
-                !pickupChangeEnabled ||
-                !careExceptionsLoaded
-              }
-            >
-              {submitting && (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              )}
-              {t("pickup.submit")}
-            </Button>
-          </div>
-        </div>
       </div>
     </Modal>
   );
@@ -1055,7 +1273,7 @@ export function SickStatusSummary({
   onWithdraw,
 }: Readonly<{
   sickDays: StatusDay[];
-  // Excused requests behind the OGS approval gate. Pending ones show as
+  // Absence requests behind an OGS approval gate. Pending ones show as
   // "Freigabe ausstehend" with a withdraw action; rejected ones show the
   // decision reason. Confirmed (approved) requests arrive as StatusDays instead.
   excusedRequests?: readonly ExcusedRequest[];
@@ -1126,7 +1344,11 @@ export function SickStatusSummary({
     .map((d) => d.date);
   const pending = excusedRequests.filter((r) => r.status === "pending");
   const rejected = excusedRequests.filter((r) => r.status === "rejected");
-  // Approved requests normally surface as excused status days above, but the
+  const requestLabel = (request: ExcusedRequest) =>
+    request.absence_status === "sick"
+      ? t("summary.sickLabel")
+      : t("summary.excusedLabel");
+  // Approved requests normally surface as status days above, but the
   // status-day fetch is windowed (today..+2 months, matching the backend's
   // listSickDays range). An approval for a past date (delayed decision) or one
   // more than two months ahead has NO status day here, so it would silently
@@ -1134,26 +1356,33 @@ export function SickStatusSummary({
   // request instead.
   //
   // Critically, only surface dates that are genuinely OUTSIDE the fetched window.
-  // A within-window date with no excused status day was NOT dropped for being out
-  // of range — it was superseded by a newer authoritative status (e.g. staff
-  // marked the child sick, or cleared it). Showing it from the approved request
-  // would render the same day as both sick AND excused. Inside the window the
-  // status days are authoritative; the approved request only fills the gaps the
-  // windowed fetch cannot see (#1845 review).
+  // A within-window date with no matching status day was NOT dropped for being
+  // out of range — it was superseded or cleared. Inside the window the status
+  // days are authoritative; approved requests only fill gaps outside it.
   const windowStart = todayISO();
   const windowEnd = (() => {
     const d = parseISODate(windowStart);
     d.setMonth(d.getMonth() + 2);
     return toISODate(d);
   })();
-  const shownExcusedDates = new Set(excusedConfirmedDates);
+  const shownDatesByStatus = {
+    sick: new Set(sickDates),
+    excused: new Set(excusedConfirmedDates),
+  };
   const isOutOfWindow = (d: string) => d < windowStart || d > windowEnd;
   const approvedOutOfWindow = excusedRequests
     .filter((r) => r.status === "approved")
     .map((r) => ({
       id: r.id,
+      label: requestLabel(r),
       dates: r.dates.filter(
-        (d) => isOutOfWindow(d) && !shownExcusedDates.has(d),
+        (d) =>
+          isOutOfWindow(d) &&
+          !(
+            r.absence_status === "sick"
+              ? shownDatesByStatus.sick
+              : shownDatesByStatus.excused
+          ).has(d),
       ),
     }))
     .filter((r) => r.dates.length > 0);
@@ -1182,14 +1411,14 @@ export function SickStatusSummary({
       )}
       {approvedOutOfWindow.map((r) => (
         <p key={r.id} className="text-sm font-semibold text-gray-900">
-          {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+          {r.label}: {rangeLabel(r.dates)}
         </p>
       ))}
       {pending.map((r) => (
         <div key={r.id} className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <p className="text-sm font-semibold text-gray-900">
-              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+              {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
             <span className="bg-moto-amber/15 text-moto-amber-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.pendingLabel")}
@@ -1216,7 +1445,7 @@ export function SickStatusSummary({
         <div key={r.id} className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-x-2">
             <p className="text-sm font-semibold text-gray-900">
-              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+              {requestLabel(r)}: {rangeLabel(r.dates)}
             </p>
             <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium">
               {t("summary.rejectedLabel")}
@@ -1233,17 +1462,18 @@ export function SickStatusSummary({
   );
 }
 
-// --- OGS quick actions (parent self-service, immediate) --------------------
+// --- OGS quick actions (parent self-service) -------------------------------
 //
 // The care-schedule change request FORM now lives in ./care-schedule-request-
 // modal and is owned entirely by the Stammdaten page (#1803) — it is no longer
-// reachable from the chat. Only the immediate self-service actions (sick note,
-// one-day pickup change) remain here as quick-action pills above the composer.
+// reachable from the chat. Only the sick-note and one-day pickup-change actions
+// remain here as quick-action pills above the composer.
 
 export type OgsActionKey = "sick" | "pickup";
 
-// A single parent self-service action available from the OGS chat. Each takes
-// effect immediately for a single day (no OGS confirmation).
+// A single parent self-service action available from the OGS chat. Whether it
+// takes effect immediately or needs OGS confirmation depends on the action and
+// the school's settings.
 export interface OgsAction {
   readonly key: OgsActionKey;
   readonly concept: MotoConceptKey;

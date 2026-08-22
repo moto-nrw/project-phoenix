@@ -6,6 +6,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { QuickCreateActivityModal } from "./quick-create-modal";
+import { useActivityForm } from "~/hooks/useActivityForm";
 
 // Mock all dependencies
 vi.mock("~/lib/use-notification", () => ({
@@ -16,6 +17,8 @@ vi.mock("~/lib/use-notification", () => ({
 }));
 
 vi.mock("~/hooks/useActivityForm", () => ({
+  parseParticipantLimit: (value: string) =>
+    value ? Number.parseInt(value, 10) : null,
   useActivityForm: vi.fn(() => ({
     form: {
       name: "",
@@ -108,6 +111,40 @@ describe("QuickCreateActivityModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useActivityForm).mockReturnValue({
+      form: {
+        name: "",
+        category_id: "",
+        max_participants: "15",
+      },
+      setForm: vi.fn(),
+      categories: [
+        {
+          id: "1",
+          name: "Gruppenraum",
+          created_at: new Date("2024-01-01"),
+          updated_at: new Date("2024-01-01"),
+        },
+        {
+          id: "2",
+          name: "Hausaufgaben",
+          created_at: new Date("2024-01-01"),
+          updated_at: new Date("2024-01-01"),
+        },
+        {
+          id: "3",
+          name: "Kreatives/Musik",
+          created_at: new Date("2024-01-01"),
+          updated_at: new Date("2024-01-01"),
+        },
+      ],
+      loading: false,
+      error: null,
+      setError: vi.fn(),
+      handleInputChange: vi.fn(),
+      validateForm: vi.fn(() => null),
+      loadCategories: vi.fn(),
+    });
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({ id: "1", name: "New Activity" }),
@@ -142,6 +179,22 @@ describe("QuickCreateActivityModal", () => {
         screen.getByLabelText(/Maximale Teilnehmerzahl/),
       ).toBeInTheDocument();
     });
+  });
+
+  it("does not cap the participant limit at 50", () => {
+    render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+    expect(
+      screen.getByLabelText(/Maximale Teilnehmerzahl/),
+    ).not.toHaveAttribute("max");
+  });
+
+  it("offers an explicit unlimited option", () => {
+    render(<QuickCreateActivityModal isOpen={true} onClose={mockOnClose} />);
+
+    expect(
+      screen.getByRole("checkbox", { name: "Keine Begrenzung" }),
+    ).toBeInTheDocument();
   });
 
   it("renders category options", async () => {

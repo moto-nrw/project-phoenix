@@ -13,10 +13,14 @@ import (
 // every avatar render.
 
 func TestBuildStudentPhotoServeURL_Empty(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, BuildStudentPhotoServeURL(7, ""))
 }
 
 func TestBuildStudentPhotoServeURL_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	stored := StudentPhotoStoredURLPrefix + "abc.jpg"
 	got := BuildStudentPhotoServeURL(123, stored)
 	assert.Equal(t, "/api/students/123/photo/abc.jpg", got)
@@ -25,6 +29,8 @@ func TestBuildStudentPhotoServeURL_HappyPath(t *testing.T) {
 }
 
 func TestBuildStudentPhotoServeURL_LegacyPath(t *testing.T) {
+	t.Parallel()
+
 	legacy := "/legacy/avatars/foo.jpg"
 	assert.Equal(t, legacy, BuildStudentPhotoServeURL(1, legacy))
 }

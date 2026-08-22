@@ -11,11 +11,12 @@ import (
 type Token struct {
 	base.Model `bun:"schema:auth,table:tokens"`
 	base.TenantModel
-	AccountID  int64     `bun:"account_id,notnull" json:"account_id"`
-	Token      string    `bun:"token,notnull" json:"token"`
-	Expiry     time.Time `bun:"expiry,notnull" json:"expiry"`
-	Mobile     bool      `bun:"mobile,notnull,default:false" json:"mobile"`
-	Identifier *string   `bun:"identifier" json:"identifier,omitempty"`
+	AccountID   int64     `bun:"account_id,notnull" json:"account_id"`
+	Token       string    `bun:"token,notnull" json:"token"`
+	Expiry      time.Time `bun:"expiry,notnull" json:"expiry"`
+	Mobile      bool      `bun:"mobile,notnull,default:false" json:"mobile"`
+	Identifier  *string   `bun:"identifier" json:"identifier,omitempty"`
+	PortalScope string    `bun:"portal_scope,notnull,default:'unknown'" json:"portal_scope"`
 
 	// Token family tracking for detecting token theft
 	FamilyID          string     `bun:"family_id" json:"family_id,omitempty"`
@@ -26,6 +27,32 @@ type Token struct {
 
 	// Relations
 	Account *Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+}
+
+const (
+	PortalScopeTenant  = "tenant"
+	PortalScopeOrg     = "org"
+	PortalScopeParent  = "parent"
+	PortalScopeSchool  = "school"
+	PortalScopeUnknown = "unknown"
+)
+
+// CapPortalScopes returns the portal_scope values that share one session cap.
+// Tenant and org share the staff portal. Unknown legacy rows stay in their
+// own bucket so a staff login cannot evict a legacy parent session.
+func CapPortalScopes(portalScope string) []string {
+	switch portalScope {
+	case PortalScopeTenant, PortalScopeOrg:
+		return []string{PortalScopeTenant, PortalScopeOrg}
+	case PortalScopeParent:
+		return []string{PortalScopeParent}
+	case PortalScopeSchool:
+		return []string{PortalScopeSchool}
+	case "", PortalScopeUnknown:
+		return []string{PortalScopeUnknown}
+	default:
+		return []string{portalScope}
+	}
 }
 
 // Validate ensures token data is valid. It performs pure field validation only.
@@ -39,6 +66,13 @@ func (t *Token) Validate() error {
 
 	if t.Token == "" {
 		return errors.New("token value is required")
+	}
+	if t.PortalScope != "" {
+		switch t.PortalScope {
+		case PortalScopeTenant, PortalScopeOrg, PortalScopeParent, PortalScopeSchool, PortalScopeUnknown:
+		default:
+			return errors.New("invalid portal scope")
+		}
 	}
 	if (t.RotatedAt == nil) != (t.ReplacementToken == nil) {
 		return errors.New("rotation handoff must include both timestamp and replacement token")

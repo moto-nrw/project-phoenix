@@ -14,6 +14,8 @@ import (
 // is the whole point of the feature: nobody opens the app on Saturday, so a
 // Monday has to carry the two days before it or those birthdays are never seen.
 func TestCelebrationDates(t *testing.T) {
+	t.Parallel()
+
 	t.Run("an ordinary day speaks only for itself", func(t *testing.T) {
 		wednesday := timezone.NewDate(2026, time.August, 5)
 		assert.Equal(t, []timezone.Date{wednesday}, celebrationDates(wednesday))
@@ -38,6 +40,8 @@ func TestCelebrationDates(t *testing.T) {
 
 // A leap-day birth date must not disappear for three years out of four.
 func TestMonthDaysFor(t *testing.T) {
+	t.Parallel()
+
 	t.Run("1 March stands in for 29 February in a common year", func(t *testing.T) {
 		got := monthDaysFor(timezone.NewDate(2027, time.March, 1))
 
@@ -68,6 +72,8 @@ func TestMonthDaysFor(t *testing.T) {
 }
 
 func TestIsLeapYear(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isLeapYear(2028))
 	assert.True(t, isLeapYear(2000), "a year divisible by 400 is a leap year")
 	assert.False(t, isLeapYear(1900), "a century year not divisible by 400 is not")
@@ -77,6 +83,8 @@ func TestIsLeapYear(t *testing.T) {
 // Ordering and disclosure rules: today first, children before staff, and no
 // age on a staff entry.
 func TestBuildCelebrations(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.August, 3)
 	saturday := timezone.NewDate(2026, time.August, 1)
 	byMonthDay := map[userModels.MonthDay]timezone.Date{
@@ -131,6 +139,8 @@ func TestBuildCelebrations(t *testing.T) {
 // A leap-day child shown on 1 March turns the age of that March, not of the
 // February that did not happen.
 func TestBuildCelebrationsLeapDayAge(t *testing.T) {
+	t.Parallel()
+
 	firstOfMarch := timezone.NewDate(2027, time.March, 1)
 	byMonthDay := map[userModels.MonthDay]timezone.Date{
 		{Month: time.March, Day: 1}:     firstOfMarch,
@@ -155,6 +165,8 @@ func TestBuildCelebrationsLeapDayAge(t *testing.T) {
 // An entry the day mapping does not know is dropped rather than rendered on an
 // invented date — that would silently paper over a filter/mapping mismatch.
 func TestBuildCelebrationsDropsUnmappedDays(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2026, time.August, 5)
 	byMonthDay := map[userModels.MonthDay]timezone.Date{
 		{Month: time.August, Day: 5}: today,

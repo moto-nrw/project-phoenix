@@ -354,7 +354,9 @@ func (r *ActivityInstanceRepository) FindByActiveGroupID(ctx context.Context, ac
 // one of the given active.groups as completed and returns the number of rows
 // changed. Custom method (backend-conventions Rule 2): lifecycle bulk update
 // keyed on the active-group bridge, paired with MarkCompleted's
-// column-restricted shape. Used by the scheduler's daily session-end bridge.
+// column-restricted shape. Used by the scheduler's daily session-end bridge
+// and by kiosk/session end. Recovery state is deliberately omitted: those
+// completions are the end of the live session, not a planner undo.
 func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
 	if len(activeGroupIDs) == 0 {
 		return 0, nil
@@ -422,7 +424,13 @@ func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx con
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
-		Where(`"activity_instance".is_spontaneous = ?`, false)
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		// Re-plan deletes only what materialization can recreate. Since
+		// is_spontaneous became a creation-origin flag (#2299), a manual
+		// planning-module block WITHOUT an offering is non-spontaneous too —
+		// but it has no template, so a whole-grid re-plan (activityGroupID
+		// nil) must never delete it: nothing would ever bring it back.
+		Where(`"activity_instance".activity_group_id IS NOT NULL`)
 
 	if preserveDeviations {
 		// Keep deviated instances (#1840, re-plan only). RLS already scopes

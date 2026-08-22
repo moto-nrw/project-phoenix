@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -56,6 +57,7 @@ func fullyPopulatedStudentResponse() StudentResponse {
 		ActualPickupTime:         str("15:35"),
 		DepartureDays:            users.DepartureDays{"mon": "pickup"},
 		AllowedDepartureModes:    users.AllowedDepartureModes{"mon": {"pickup"}},
+		DepartureRuleConfigured:  true,
 		DepartureCompanionNote:   "geht mit Nachbarskind",
 		CompanionStudentIDs:      []int64{id + 3},
 		CompanionsChanged:        &yes,
@@ -88,7 +90,9 @@ func fullyPopulatedStudentResponse() StudentResponse {
 // projection puts on the wire (#2097). It fails both ways: a field silently
 // re-added (payload creep) and a field the page reads silently dropped.
 func TestSlimStudentResponseWireContract(t *testing.T) {
-	slim := slimStudentResponses([]StudentResponse{fullyPopulatedStudentResponse()})
+	t.Parallel()
+
+	slim := slimStudentResponses([]StudentResponse{fullyPopulatedStudentResponse()}, timezone.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 
 	encoded, err := json.Marshal(slim[0])
@@ -115,7 +119,9 @@ func TestSlimStudentResponseWireContract(t *testing.T) {
 		"current_location",
 		"current_room_color",
 		"day_planning_label",
+		"day_planning_reason",
 		"day_planning_status",
+		"departure_modes",
 		"excused",
 		"excused_since",
 		"first_name",
@@ -130,7 +136,6 @@ func TestSlimStudentResponseWireContract(t *testing.T) {
 		"photo_url",
 		"pickup_is_exception",
 		"pickup_notes",
-		"pickup_status",
 		"pickup_time",
 		"school_class",
 		"sick",
@@ -144,8 +149,10 @@ func TestSlimStudentResponseWireContract(t *testing.T) {
 // projection: every kept field must carry the full response's value, not a
 // zero value or a neighbouring field.
 func TestSlimStudentResponseCopiesValues(t *testing.T) {
+	t.Parallel()
+
 	full := fullyPopulatedStudentResponse()
-	slim := slimStudentResponses([]StudentResponse{full})
+	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 	got := slim[0]
 
@@ -165,9 +172,10 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 	assert.Equal(t, full.ClassTrip, got.ClassTrip)
 	assert.Equal(t, full.ClassTripSince, got.ClassTripSince)
 	assert.Equal(t, full.DayPlanningStatus, got.DayPlanningStatus)
+	assert.Equal(t, full.DayPlanningReason, got.DayPlanningReason)
 	assert.Equal(t, full.DayPlanningLabel, got.DayPlanningLabel)
 	assert.Equal(t, full.PendingExcusedNote, got.PendingExcusedNote)
-	assert.Equal(t, full.PickupStatus, got.PickupStatus)
+	assert.Equal(t, []users.DepartureMode{users.DeparturePickup}, got.DepartureModes)
 	assert.Equal(t, full.PickupTime, got.PickupTime)
 	assert.Equal(t, full.PickupIsException, got.PickupIsException)
 	assert.Equal(t, full.PickupNotes, got.PickupNotes)
@@ -182,8 +190,26 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 	assert.Equal(t, full.HasFullAccess, got.HasFullAccess)
 }
 
+func TestSlimStudentResponsePreservesUnknownLegacyDepartureLabel(t *testing.T) {
+	t.Parallel()
+
+	full := StudentResponse{
+		ID:                      7,
+		PickupStatus:            "Taxi mit Begleitperson",
+		DepartureRuleConfigured: true,
+		HasFullAccess:           true,
+	}
+
+	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
+	require.Len(t, slim, 1)
+	assert.Empty(t, slim[0].DepartureModes)
+	assert.Equal(t, "Taxi mit Begleitperson", slim[0].DepartureLabel)
+}
+
 // TestParseStudentListView covers the query-parameter contract.
 func TestParseStudentListView(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		value   string
 		want    bool

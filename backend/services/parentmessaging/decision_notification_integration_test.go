@@ -66,11 +66,16 @@ func staffDecision(accountID int64, refID int64) parentmessaging.ChildEvent {
 }
 
 func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	_, err := db.NewUpdate().
+		TableExpr("users.guardian_profiles").
+		Set("portal_locale = ?", "en").
+		Where("account_id = ?", chain.AccountID).
+		Exec(context.Background())
+	require.NoError(t, err)
 
 	notifier := &capturingNotifier{}
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -82,8 +87,8 @@ func TestEmitChildEvent_PushesDecisionToSubmittingGuardian(t *testing.T) {
 	require.Len(t, notifier.events, 1)
 	event := notifier.events[0]
 	assert.Equal(t, notifications.TypeParentRequestDecided, event.Type)
-	assert.Equal(t, "Anfrage genehmigt", event.Title)
-	assert.Contains(t, event.Body, "Betreuungszeiten")
+	assert.Equal(t, "Request approved", event.Title)
+	assert.Contains(t, event.Body, "care schedule")
 	assert.Equal(t, notifications.ScopeGuardian, event.Audience.Scope)
 	assert.Equal(t, chain.TenantID, event.Audience.TenantID)
 	assert.Equal(t, []int64{chain.AccountID}, event.Audience.GuardianAccountIDs)
@@ -116,11 +121,10 @@ func (r *revokedBeforePush) ListGuardiansForStudent(ctx context.Context, student
 // The push runs in its own transaction, so it asks the access question again
 // instead of trusting the answer the pill's (already committed) transaction got.
 func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := &revokedBeforePush{ParentMessageThreadRepository: repos.ParentMessageThread}
 	notifier := &capturingNotifier{}
@@ -140,13 +144,12 @@ func TestEmitChildEvent_DecisionPushRechecksChildAccess(t *testing.T) {
 }
 
 func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	t.Run("a guardian who did not opt in is not pushed at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		notifier := &capturingNotifier{}
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -163,7 +166,6 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 	t.Run("a guardian withdrawing their own request is not pushed back at", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		notifier := &capturingNotifier{}
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -180,7 +182,6 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 
 	t.Run("an emitter without notification wiring stays a no-op", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 			&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
@@ -196,14 +197,13 @@ func TestEmitChildEvent_DecisionPushRespectsConsentAndPillShape(t *testing.T) {
 // A push is an extra, never a precondition: whatever the notification stack
 // answers, the pill is already committed and the parent sees it in the app.
 func TestEmitChildEvent_DecisionPushFailuresAreNotFatal(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	emitWith := func(t *testing.T, notifier *capturingNotifier, prefs decisionPreferences, refID int64) string {
 		t.Helper()
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		var logs bytes.Buffer
 		logger := slog.New(slog.NewTextHandler(&logs, nil))
@@ -245,6 +245,7 @@ func TestEmitChildEvent_DecisionPushFailuresAreNotFatal(t *testing.T) {
 }
 
 func TestWithDecisionNotificationsOnNilEmitter(t *testing.T) {
+	t.Parallel()
 	var emitter *parentmessaging.Emitter
 	assert.Nil(t, emitter.WithDecisionNotifications(&capturingNotifier{}, decisionPreferences{}),
 		"a partially-wired factory must not panic while adding optional dependencies")

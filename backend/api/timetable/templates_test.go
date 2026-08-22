@@ -58,6 +58,8 @@ type mockMaterializationService struct {
 }
 
 func TestValidateLegacyTemplateWorkdays(t *testing.T) {
+	t.Parallel()
+
 	existing := []templateScheduleResponse{
 		{Weekday: activitiesModel.WeekdayFriday},
 		{Weekday: activitiesModel.WeekdaySaturday},
@@ -100,9 +102,8 @@ func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, act
 func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *templateSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Tpl-Room-%d", suffix))
 	category := testpkg.CreateTestActivityCategory(t, db, fmt.Sprintf("Tpl-Cat-%d", suffix))
@@ -132,12 +133,6 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	)
 
 	cleanup := func() {
-		cleanupTemplatesByPrefix(t, db, "Tpl-")
-		testpkg.CleanupTableRecords(t, db, "users.students", studentA.ID, studentB.ID)
-		testpkg.CleanupTableRecords(t, db, "users.staff", staffA.ID, staffB.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", studentA.PersonID, studentB.PersonID, staffA.PersonID, staffB.PersonID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	return &templateSetup{
@@ -166,6 +161,8 @@ func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
 }
 
 func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
+	t.Parallel()
+
 	t.Run("missing settings service", func(t *testing.T) {
 		_, err := (&Resource{}).resolveTemplateGradeLevelMax(context.Background())
 		assert.ErrorContains(t, err, "settings service is not configured")
@@ -186,36 +183,6 @@ func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
 		_, err := resource.resolveTemplateGradeLevelMax(context.Background())
 		assert.ErrorContains(t, err, "outside 1..13")
 	})
-}
-
-func cleanupTemplatesByPrefix(t *testing.T, db *bun.DB, prefix string) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	_, err := db.NewDelete().
-		Table("activities.student_enrollments").
-		Where("activity_group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.supervisors").
-		Where("group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.schedules").
-		Where("activity_group_id IN (SELECT id FROM activities.groups WHERE name LIKE ?)", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("activities.groups").
-		Where("name LIKE ?", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
-	_, err = db.NewDelete().
-		Table("schedule.timeframes").
-		Where("description LIKE ?", prefix+"%").
-		Exec(ctx)
-	require.NoError(t, err)
 }
 
 func templateRouter(parentCtx context.Context, res *Resource) chi.Router {
@@ -286,6 +253,8 @@ func createTemplateBody(s *templateSetup, name string) map[string]any {
 }
 
 func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -303,6 +272,8 @@ func TestTemplateCreateRejectsArchivedCategory(t *testing.T) {
 }
 
 func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{
 		result: &scheduleSvc.MaterializationResult{InstancesCreated: 3},
 	}
@@ -310,9 +281,6 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 	educationGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-EducationGroup")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "education.groups", educationGroup.ID)
-	})
 
 	body := createTemplateBody(s, "Tpl-CreateListUpdate")
 	body["materialize_from"] = "2026-05-04"
@@ -362,7 +330,6 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, missingPeriodW.Code, "body=%s", missingPeriodW.Body.String())
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Editable-Read")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
@@ -403,6 +370,8 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 // list omits the series until someone re-plans the week. Per-occurrence
 // classification overrides and past/today rows must survive the propagation.
 func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -432,7 +401,6 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 		}
 		inst.SetTenantID(tenant.FromContext(s.ctx))
 		require.NoError(t, instanceRepo.Create(s.ctx, inst))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 		return inst
 	}
 
@@ -469,6 +437,8 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 }
 
 func TestListTemplates_CapacityFields(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -481,7 +451,7 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
 	today := timezone.TodayDate()
-	period := createTemplateTestPeriodRange(
+	createTemplateTestPeriodRange(
 		t,
 		s.db,
 		"TplCapacityPeriod",
@@ -490,7 +460,6 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		1,
 		nil,
 	)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 
 	router := templateRouter(s.ctx, s.res)
 	body := createTemplateBody(s, "Tpl-Capacity")
@@ -525,6 +494,8 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 }
 
 func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -539,7 +510,6 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 	created := decodeTemplateData[createTemplateResponse](t, w)
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Zielgruppe-Read")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getW := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/%d?period_id=%d", created.TemplateID, period.ID), nil)
 	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
@@ -566,11 +536,12 @@ func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
 }
 
 func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Multiple-Targets-Read")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-Multiple-Targets-%d", time.Now().UnixNano()))
 	body["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
@@ -619,12 +590,13 @@ func TestTemplateCreate_MultipleTargetsRoundTrip(t *testing.T) {
 }
 
 func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	otherTenant := testpkg.NewTenantScope(t, s.db)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, otherTenant.TenantID) })
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Cross-Tenant")
 
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-Cross-Tenant-Target-%d", time.Now().UnixNano()))
@@ -641,14 +613,14 @@ func TestTemplateCreate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 }
 
 func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	currentGroup := testpkg.CreateTestEducationGroup(t, s.db, "Tpl-Update-Current-Group")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "education.groups", currentGroup.ID) })
 	otherTenant := testpkg.NewTenantScope(t, s.db)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, s.db, otherTenant.TenantID) })
 	otherGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, otherTenant.TenantID, "Tpl-Update-Cross-Tenant")
 
 	body := createTemplateBody(s, fmt.Sprintf("Tpl-Update-Target-%d", time.Now().UnixNano()))
@@ -672,6 +644,8 @@ func TestTemplateUpdate_MultipleTargetsRejectsCrossTenantEducationGroup(t *testi
 }
 
 func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -686,16 +660,15 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 }
 
 func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
-	const foreignTenantID = int64(42)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, foreignTenantID)
 	foreignGroup := testpkg.CreateTestEducationGroupForTenant(t, s.db, foreignTenantID, "Tpl-ForeignTarget")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "education.groups", foreignGroup.ID)
-	})
 
 	name := fmt.Sprintf("Tpl-ForeignTopLevelTarget-%d", time.Now().UnixNano())
 	body := createTemplateBody(s, name)
@@ -721,6 +694,8 @@ func TestTemplateCreateRejectsForeignTopLevelEducationGroupWithDynamicTargets(t 
 }
 
 func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects an above-cap Jahrgang before writing", func(t *testing.T) {
 		s := buildTemplateSetup(t, nil)
 		defer s.cleanupFn()
@@ -773,6 +748,8 @@ func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
 }
 
 func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{err: errors.New("materializer unavailable")}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -810,6 +787,8 @@ func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {
 }
 
 func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -831,6 +810,8 @@ func TestTemplateCreateReusesExistingTimeframe(t *testing.T) {
 }
 
 func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -869,7 +850,6 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, missingPeriod.Code)
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Missing-Read")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	getMissing := doTemplateJSON(t, router, http.MethodGet,
 		fmt.Sprintf("/templates/500?period_id=%d", period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, getMissing.Code)
@@ -886,6 +866,8 @@ func TestTemplateUpdateValidationAndNotFound(t *testing.T) {
 }
 
 func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -908,15 +890,14 @@ func TestTemplateRoutesRejectBadIDsAndMissingContext(t *testing.T) {
 }
 
 func TestListTemplatesFiltersByPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	periodA := createTemplateTestPeriod(t, s.db, "TplPeriodA")
 	periodB := createTemplateTestPeriod(t, s.db, "TplPeriodB")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
-	})
 
 	bodyA := createTemplateBody(s, "Tpl-Period-A")
 	bodyA["calendar_period_id"] = periodA.ID
@@ -956,6 +937,8 @@ func TestListTemplatesFiltersByPeriod(t *testing.T) {
 }
 
 func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -965,17 +948,9 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	studentD := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentD-%d", suffix), "3a")
 	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", suffix))
 	staffD := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffD-%d", suffix))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.students", studentC.ID, studentD.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staffC.ID, staffD.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", studentC.PersonID, studentD.PersonID, staffC.PersonID, staffD.PersonID)
-	})
 
 	periodA := createTemplateTestPeriod(t, s.db, "TplPeoplePeriodA")
 	periodB := createTemplateTestPeriod(t, s.db, "TplPeoplePeriodB")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
-	})
 
 	body := createTemplateBody(s, "Tpl-People-Period-A")
 	body["calendar_period_id"] = periodA.ID
@@ -992,7 +967,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
-	periodBEnrollment.SetTenantID(1)
+	periodBEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, periodBEnrollment))
 
 	globalEnrollment := &activitiesModel.StudentEnrollment{
@@ -1000,7 +975,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ActivityGroupID: created.TemplateID,
 		ValidFrom:       timezone.NewDate(2026, time.January, 1),
 	}
-	globalEnrollment.SetTenantID(1)
+	globalEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, globalEnrollment))
 
 	periodBSupervisor := &activitiesModel.SupervisorPlanned{
@@ -1009,7 +984,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		ValidFrom:        periodB.StartDate,
 		CalendarPeriodID: &periodB.ID,
 	}
-	periodBSupervisor.SetTenantID(1)
+	periodBSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, periodBSupervisor))
 
 	globalSupervisor := &activitiesModel.SupervisorPlanned{
@@ -1017,7 +992,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 		GroupID:   created.TemplateID,
 		ValidFrom: timezone.NewDate(2026, time.January, 1),
 	}
-	globalSupervisor.SetTenantID(1)
+	globalSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, globalSupervisor))
 
 	updateBody := createTemplateBody(s, "Tpl-People-Period-A")
@@ -1032,7 +1007,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("calendar_period_id = ?", periodB.ID).
 		Where("valid_until IS NULL").
@@ -1040,7 +1015,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("calendar_period_id IS NULL").
 		Where("valid_until IS NULL").
@@ -1048,7 +1023,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.supervisors").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("group_id = ?", created.TemplateID).
 		Where("calendar_period_id = ?", periodB.ID).
 		Where("valid_until IS NULL").
@@ -1056,7 +1031,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.supervisors").
 		ColumnExpr("COUNT(*)").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("group_id = ?", created.TemplateID).
 		Where("calendar_period_id IS NULL").
 		Where("valid_until IS NULL").
@@ -1070,7 +1045,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		Column("valid_until").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("student_id = ?", s.studentA).
 		Where("calendar_period_id = ?", periodA.ID).
@@ -1078,7 +1053,7 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 	require.NoError(t, s.db.NewSelect().
 		TableExpr("activities.student_enrollments").
 		Column("valid_from").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", created.TemplateID).
 		Where("student_id = ?", studentD.ID).
 		Where("calendar_period_id = ?", periodA.ID).
@@ -1089,15 +1064,14 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 }
 
 func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	periodA := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-A")
 	periodB := createTemplateTestPeriod(t, s.db, "Tpl-Move-Period-B")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodA.ID, periodB.ID)
-	})
 
 	createBody := createTemplateBody(s, "Tpl-Move-Period")
 	createBody["calendar_period_id"] = periodA.ID
@@ -1118,14 +1092,13 @@ func TestUpdateTemplateCanMoveToAnotherCalendarPeriod(t *testing.T) {
 }
 
 func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Protected-Read")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
-	})
 
 	body := createTemplateBody(s, "Tpl-Protected-Read")
 	body["calendar_period_id"] = period.ID
@@ -1161,14 +1134,11 @@ func TestGetTemplateExposesProtectedStudentWeekdays(t *testing.T) {
 // template that is shown is always shown; rosters are period-scoped at write
 // time only.
 func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", time.Now().UnixNano()), "3a")
 	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", time.Now().UnixNano()))
-	defer func() {
-		testpkg.CleanupTableRecords(t, s.db, "users.students", studentC.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staffC.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", studentC.PersonID, staffC.PersonID)
-	}()
 	// Register this defer last so template roster rows are removed before the
 	// additional student/staff records above.
 	defer s.cleanupFn()
@@ -1183,9 +1153,6 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	// 2026-01-01..2026-12-31 range for both, is_active=true).
 	periodP := createTemplateTestPeriod(t, s.db, "TplTolerantP")
 	periodQ := createTemplateTestPeriod(t, s.db, "TplTolerantQ")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodP.ID, periodQ.ID)
-	})
 
 	// Template 1: schedules AND roster scoped to P via the regular create path.
 	bodyP := createTemplateBody(s, "Tpl-Tolerant-P")
@@ -1201,7 +1168,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	_, err := s.db.NewUpdate().
 		Table("activities.schedules").
 		Set("calendar_period_id = NULL").
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", createdP.TemplateID).
 		Exec(s.ctx)
 	require.NoError(t, err)
@@ -1236,7 +1203,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidUntil:       &boundedUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
-	boundedEnrollment.SetTenantID(1)
+	boundedEnrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, boundedEnrollment))
 
 	for _, roster := range []struct {
@@ -1256,7 +1223,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			ValidFrom:        periodP.StartDate,
 			CalendarPeriodID: roster.periodID,
 		}
-		enrollment.SetTenantID(1)
+		enrollment.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
@@ -1265,7 +1232,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidFrom:        periodP.StartDate,
 		CalendarPeriodID: &periodP.ID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
 	// A bounded staff assignment contributes only on dates inside its own
 	// validity window. Occurrence-level capacity must count it there without
@@ -1278,7 +1245,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		ValidUntil:       &boundedSupervisorUntil,
 		CalendarPeriodID: &periodP.ID,
 	}
-	boundedSupervisor.SetTenantID(1)
+	boundedSupervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, boundedSupervisor))
 	// Staff assigned only to overlapping period Q must stay visible in the
 	// period-tolerant roster, but must not make period P's 1/3 capacity look
@@ -1290,7 +1257,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			ValidFrom:        periodQ.StartDate,
 			CalendarPeriodID: &periodQ.ID,
 		}
-		periodQSupervisor.SetTenantID(1)
+		periodQSupervisor.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, periodQSupervisor))
 	}
 
@@ -1371,6 +1338,8 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 }
 
 func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	s.res.SettingsService = &configtest.Mock{
@@ -1389,7 +1358,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			1,
 			nil,
 		)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Dynamic-Overlap", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		class := " 3A "
@@ -1419,7 +1387,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			1,
 			nil,
 		)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Roster", period.ID,
 			[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, 0)
 
@@ -1463,7 +1430,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			1,
 			nil,
 		)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Schedule-Window", period.ID,
 			[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, 0)
 		windowStart := timezone.NewDate(2025, 9, 10)
@@ -1496,7 +1462,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			2,
 			&anchor,
 		)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-AB-Week", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 2)
 		weekAEnd := timezone.NewDate(2025, 9, 2)
@@ -1512,7 +1477,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		date := timezone.NewDate(2025, 9, 3)
 		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceCancelled",
 			timezone.NewDate(2025, 9, 1), timezone.NewDate(2025, 9, 7), 1, nil)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Cancelled", period.ID,
 			[]int{activitiesModel.WeekdayWednesday}, 0)
 		end := date.AddDays(1)
@@ -1522,7 +1486,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionDate:   date,
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
@@ -1534,7 +1498,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		date := timezone.NewDate(2025, 9, 1)
 		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceNoTimeframe",
 			date, timezone.NewDate(2025, 9, 7), 1, nil)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-No-Timeframe", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
@@ -1542,7 +1505,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.schedules").
 			Set("timeframe_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("activity_group_id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1558,7 +1521,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		date := timezone.NewDate(2025, 9, 1)
 		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceNoRoom",
 			date, timezone.NewDate(2025, 9, 7), 1, nil)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-No-Room", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
@@ -1566,7 +1528,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("planned_room_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1582,7 +1544,6 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		date := timezone.NewDate(2025, 9, 1)
 		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceRoomOverride",
 			date, timezone.NewDate(2025, 9, 7), 1, nil)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Room-Override", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
@@ -1590,7 +1551,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("planned_room_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1600,7 +1561,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionType:   scheduleModel.ActivityExceptionModified,
 			RoomID:          &s.roomID,
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
@@ -1614,16 +1575,13 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 		end := timezone.NewDate(2025, 9, 7)
 		periodP := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceExplicitP", start, end, 1, nil)
 		periodQ := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceExplicitQ", start, end, 1, nil)
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodP.ID, periodQ.ID)
-		})
 
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Explicit-Periods", periodP.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		_, err := s.db.NewUpdate().
 			Table("activities.groups").
 			Set("calendar_period_id = NULL").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", templateID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1638,7 +1596,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			IsActive:    true,
 			Description: "Tpl-Occurrence-Explicit-Periods-Q",
 		}
-		timeframe.SetTenantID(1)
+		timeframe.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateTimeframe(s.ctx, timeframe))
 
 		timeframeID := timeframe.ID
@@ -1649,7 +1607,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			WeekPattern:      0,
 			CalendarPeriodID: &periodQ.ID,
 		}
-		scheduleQ.SetTenantID(1)
+		scheduleQ.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
 
 		createCapacityEnrollment(t, s, templateID, s.studentA, start, nil, &periodP.ID, nil)
@@ -1695,14 +1653,13 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 	t.Run("inactive period has no materializable staffing occurrences", func(t *testing.T) {
 		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceInactive",
 			timezone.NewDate(2025, 9, 1), timezone.NewDate(2025, 9, 7), 1, nil)
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Inactive", period.ID,
 			[]int{activitiesModel.WeekdayMonday}, 0)
 		end := period.StartDate.AddDays(1)
 		createCapacityEnrollment(t, s, templateID, s.studentA, period.StartDate, &end, &period.ID, nil)
 		_, err := s.db.NewUpdate().Table("schedule.calendar_periods").
 			Set("is_active = FALSE").
-			Where("tenant_id = ?", 1).
+			Where("tenant_id = ?", testpkg.Tenant(t)).
 			Where("id = ?", period.ID).
 			Exec(s.ctx)
 		require.NoError(t, err)
@@ -1753,7 +1710,7 @@ func createCapacityEnrollment(
 		CalendarPeriodID: periodID,
 		SelectedWeekdays: selectedWeekdays,
 	}
-	enrollment.SetTenantID(1)
+	enrollment.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, enrollment))
 }
 
@@ -1773,7 +1730,7 @@ func createCapacitySupervisor(
 		ValidUntil:       validUntil,
 		CalendarPeriodID: periodID,
 	}
-	supervisor.SetTenantID(1)
+	supervisor.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, supervisor))
 }
 
@@ -1789,7 +1746,7 @@ func setCapacityScheduleWindow(
 		Table("activities.schedules").
 		Set("valid_from = ?", validFrom).
 		Set("valid_until = ?", validUntil).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", templateID).
 		Where("weekday = ?", weekday).
 		Exec(s.ctx)
@@ -1797,6 +1754,8 @@ func setCapacityScheduleWindow(
 }
 
 func TestTemplateScheduleResponseIncludesValidityBounds(t *testing.T) {
+	t.Parallel()
+
 	row := templateRow{
 		ScheduleID:         9,
 		Weekday:            1,
@@ -1868,11 +1827,11 @@ func createTemplateTestPeriodRange(
 		WeekCycleAnchor: weekCycleAnchor,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
 		Model(period).
 		ModelTableExpr("schedule.calendar_periods").
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	return period
 }
@@ -1881,6 +1840,8 @@ func createTemplateTestPeriodRange(
 // create -> list/get -> update -> clear, plus the create-time length guard
 // (#1837 follow-up).
 func TestTemplate_WochennotizRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1905,7 +1866,6 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	created := decodeTemplateData[createTemplateResponse](t, w)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", created.TemplateID) })
 
 	got := notesOf(created.TemplateID)
 	require.NotNil(t, got, "series note must round-trip onto the template response")
@@ -1928,6 +1888,8 @@ func TestTemplate_WochennotizRoundTrip(t *testing.T) {
 }
 
 func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1943,6 +1905,8 @@ func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
 // mapped to a Dienstplan shift type exposes shift_type_name/shift_type_color on
 // the list response (#1837 follow-up, timetable-view visibility).
 func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
+	t.Parallel()
+
 	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
 	s := buildTemplateSetup(t, mat)
 	defer s.cleanupFn()
@@ -1959,7 +1923,6 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	created := decodeTemplateData[createTemplateResponse](t, w)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", created.TemplateID) })
 
 	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
 	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
@@ -1981,14 +1944,13 @@ func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
 // dates) and the initial roster is valid from that date instead of the
 // period start.
 func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	period := createTemplateTestPeriod(t, s.db, "TplStartDatePeriod")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
-	})
 
 	body := createTemplateBody(s, "Tpl-StartDate")
 	body["calendar_period_id"] = period.ID
@@ -2010,6 +1972,8 @@ func TestTemplateCreateWithStartDateStampsValidity(t *testing.T) {
 // #2135: without a pinned calendar period the start_date still stamps the
 // schedule and roster validity (schedules resolve their period per date).
 func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
@@ -2033,14 +1997,13 @@ func TestTemplateCreateWithStartDateWithoutPeriod(t *testing.T) {
 // omitted field keeps the legacy behavior (roster anchored on the period
 // start, schedules open-ended).
 func TestTemplateCreateStartDateValidation(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 	router := templateRouter(s.ctx, s.res)
 
 	period := createTemplateTestPeriod(t, s.db, "TplStartDateValidationPeriod")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
-	})
 
 	badFormat := createTemplateBody(s, "Tpl-StartDate-BadFormat")
 	badFormat["start_date"] = "13.08.2026"

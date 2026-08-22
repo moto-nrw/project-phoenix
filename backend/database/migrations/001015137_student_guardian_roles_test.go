@@ -12,13 +12,11 @@ import (
 
 func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)
 	student := testpkg.CreateTestStudent(t, db, "Legacy", "Contact", "1a")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "legacy-contact")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID) })
 
 	var relationshipID int64
 	require.NoError(t, db.NewRaw(`
@@ -26,9 +24,9 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 			(tenant_id, student_id, guardian_profile_id, relationship_type,
 			 is_primary, is_emergency_contact, can_pickup, emergency_priority,
 			 guardian_role, permissions)
-		VALUES (1, ?, ?, 'guardian', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
+		VALUES (?, ?, ?, 'guardian', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
 		RETURNING id
-	`, student.ID, profile.ID).Scan(ctx, &relationshipID))
+	`, testpkg.Tenant(t), student.ID, profile.ID).Scan(ctx, &relationshipID))
 
 	require.NoError(t, studentGuardianRolesUp(ctx, db))
 
@@ -49,13 +47,11 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 
 func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	ctx := context.Background()
 
 	testpkg.EnsureTestTenant(t, db, 1)
 	student := testpkg.CreateTestStudent(t, db, "Legacy", "Contact", "1a")
 	profile := testpkg.CreateTestGuardianProfile(t, db, "legacy-relative-contact")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, student.ID, profile.ID) })
 
 	var relationshipID int64
 	require.NoError(t, db.NewRaw(`
@@ -63,9 +59,9 @@ func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPo
 			(tenant_id, student_id, guardian_profile_id, relationship_type,
 			 is_primary, is_emergency_contact, can_pickup, emergency_priority,
 			 guardian_role, permissions)
-		VALUES (1, ?, ?, 'relative', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
+		VALUES (?, ?, ?, 'relative', FALSE, TRUE, TRUE, 1, 'custom', '{}'::jsonb)
 		RETURNING id
-	`, student.ID, profile.ID).Scan(ctx, &relationshipID))
+	`, testpkg.Tenant(t), student.ID, profile.ID).Scan(ctx, &relationshipID))
 
 	require.NoError(t, studentGuardianRolesUp(ctx, db))
 

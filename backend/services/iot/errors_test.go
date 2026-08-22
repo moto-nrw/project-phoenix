@@ -8,6 +8,8 @@ import (
 )
 
 func TestIoTError_Error(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("connection timeout")
 	err := &IoTError{
 		Op:  "RegisterDevice",
@@ -19,6 +21,8 @@ func TestIoTError_Error(t *testing.T) {
 }
 
 func TestIoTError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("underlying error")
 	err := &IoTError{
 		Op:  "UpdateDevice",
@@ -29,6 +33,8 @@ func TestIoTError_Unwrap(t *testing.T) {
 }
 
 func TestIoTError_ErrorsIs(t *testing.T) {
+	t.Parallel()
+
 	err := &IoTError{
 		Op:  "GetDevice",
 		Err: ErrDeviceNotFound,
@@ -39,28 +45,38 @@ func TestIoTError_ErrorsIs(t *testing.T) {
 }
 
 func TestDeviceNotFoundError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &DeviceNotFoundError{DeviceID: "device-123"}
 	assert.Equal(t, "device not found: device-123", err.Error())
 }
 
 func TestDeviceNotFoundError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &DeviceNotFoundError{DeviceID: "device-123"}
 	assert.Equal(t, ErrDeviceNotFound, err.Unwrap())
 	assert.True(t, errors.Is(err, ErrDeviceNotFound))
 }
 
 func TestDuplicateDeviceIDError_Error(t *testing.T) {
+	t.Parallel()
+
 	err := &DuplicateDeviceIDError{DeviceID: "device-456"}
 	assert.Equal(t, `Die Geräte-ID "device-456" ist bereits vergeben`, err.Error())
 }
 
 func TestDuplicateDeviceIDError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	err := &DuplicateDeviceIDError{DeviceID: "device-456"}
 	assert.Equal(t, ErrDuplicateDeviceID, err.Unwrap())
 	assert.True(t, errors.Is(err, ErrDuplicateDeviceID))
 }
 
 func TestIoTError_AllStandardErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		op          string
@@ -124,6 +140,8 @@ func TestIoTError_AllStandardErrors(t *testing.T) {
 }
 
 func TestDeviceNotFoundError_DifferentDeviceIDs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		deviceID string
 	}{
@@ -143,6 +161,8 @@ func TestDeviceNotFoundError_DifferentDeviceIDs(t *testing.T) {
 }
 
 func TestDuplicateDeviceIDError_DifferentDeviceIDs(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		deviceID string
 	}{
@@ -162,6 +182,8 @@ func TestDuplicateDeviceIDError_DifferentDeviceIDs(t *testing.T) {
 }
 
 func TestIoTError_ChainedWrapping(t *testing.T) {
+	t.Parallel()
+
 	// Test multiple levels of error wrapping
 	baseErr := errors.New("network connection lost")
 	wrapped1 := &IoTError{
@@ -180,6 +202,8 @@ func TestIoTError_ChainedWrapping(t *testing.T) {
 }
 
 func TestIoTError_NestedDeviceErrors(t *testing.T) {
+	t.Parallel()
+
 	// Test wrapping specific device errors in IoTError
 	deviceErr := &DeviceNotFoundError{DeviceID: "device-999"}
 	wrappedErr := &IoTError{

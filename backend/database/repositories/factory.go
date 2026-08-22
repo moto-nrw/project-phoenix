@@ -70,6 +70,7 @@ type Factory struct {
 	RFIDCard            userModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
+	ClassListEntry      userModels.ClassListEntryRepository
 	StudentDeletion     userModels.StudentDeletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
@@ -139,12 +140,13 @@ type Factory struct {
 	CombinedGroup         activeModels.CombinedGroupRepository
 	GroupMapping          activeModels.GroupMappingRepository
 	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayRepository
+	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType      activeModels.StaffAbsenceTypeRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
@@ -157,8 +159,9 @@ type Factory struct {
 	FeedbackEntry feedbackModels.EntryRepository
 
 	// IoT domain
-	Device           iotModels.DeviceRepository
-	PushSubscription iotModels.PushSubscriptionRepository
+	Device             iotModels.DeviceRepository
+	PushSubscription   iotModels.PushSubscriptionRepository
+	PWAStandaloneUsage iotModels.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
@@ -190,6 +193,7 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
 
 	// Platform domain (operator dashboard)
@@ -286,6 +290,7 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard:            users.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
+		ClassListEntry:      users.NewClassListEntryRepository(db),
 		StudentDeletion:     users.NewStudentDeletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
@@ -361,6 +366,7 @@ func NewFactory(db *bun.DB) *Factory {
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffAbsenceType:      active.NewStaffAbsenceTypeRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
@@ -373,8 +379,9 @@ func NewFactory(db *bun.DB) *Factory {
 		FeedbackEntry: feedback.NewEntryRepository(db),
 
 		// IoT repositories
-		Device:           iot.NewDeviceRepository(db),
-		PushSubscription: iot.NewPushSubscriptionRepository(db),
+		Device:             iot.NewDeviceRepository(db),
+		PushSubscription:   iot.NewPushSubscriptionRepository(db),
+		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(db),
@@ -406,6 +413,7 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
 
 		// Platform repositories

@@ -1,4 +1,5 @@
 import { fetchStudents } from "~/lib/student-api";
+import { getSchoolYear } from "~/lib/student-helpers";
 import { resolveTemplateCalendarPeriodId } from "~/lib/timetable-helpers";
 import type {
   ActivityType,
@@ -48,6 +49,25 @@ export function rosterForWeekday(
 ): WeekdayRosterState {
   if (!form.perWeekdayRoster) return sharedRoster(form);
   return form.weekdayRosters[weekday] ?? sharedRoster(form);
+}
+
+/**
+ * Alle Kinder, die der manuell gepflegte Plan aktuell vorsieht — die
+ * gemeinsame Liste, oder im Modus "Pro Wochentag" die Vereinigung aller
+ * Wochentagslisten.
+ *
+ * Der Umstiegs-Abgleich (#2482) braucht genau diese Menge: die OGS am Berg
+ * pflegte ihre Randstunden-Klassenlisten pro Wochentag, und ein Abgleich nur
+ * gegen die gemeinsame Liste haette dort "es faellt niemand weg" gemeldet,
+ * waehrend beim Speichern echte Kinder verschwinden.
+ */
+export function plannedStudentIds(form: EventFormState): string[] {
+  if (!form.perWeekdayRoster) return form.studentIds;
+  const seen = new Set<string>(form.studentIds);
+  for (const roster of Object.values(form.weekdayRosters)) {
+    for (const studentId of roster.studentIds) seen.add(studentId);
+  }
+  return [...seen];
 }
 
 export function sharedRoster(form: EventFormState): WeekdayRosterState {
@@ -264,6 +284,13 @@ export function hasPerWeekdayStaffDeviation(form: EventFormState): boolean {
 export interface EventFormState {
   title: string;
   date: string;
+  /**
+   * Serienbeginn of a stored, not-yet-started series (#2226). Prefilled with
+   * the schedules' validFrom when editing such a series; the user may move it
+   * to an earlier date (never later, never into the past). "" everywhere
+   * else — creates and instance edits use `date` instead.
+   */
+  seriesStartDate: string;
   startTime: string;
   endTime: string;
   roomId: string;
@@ -317,6 +344,15 @@ export interface EventFormState {
    */
   requiredStaff: string;
   /**
+   * Maximale Teilnehmerzahl of the series (#2233), stored on
+   * activities.groups.max_participants. Empty = unbegrenzt (NULL, #2236).
+   * Held as a string because it is an <input> value; parsed via
+   * parseMaxParticipants. Series flows only — a single occurrence has no
+   * capacity of its own, so occurrence-scope edits keep echoing the stored
+   * series value.
+   */
+  maxParticipants: string;
+  /**
    * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
    * above as its value rather than a separate field — switching away from
    * "gruppe" clears educationGroupId so the two never disagree.
@@ -333,9 +369,53 @@ export interface EventFormState {
    * Jahrgang filter (empty = alle Kinder des Angebots). With a source set the
    * manual student picker is hidden and studentIds stays empty — the roster
    * is server-managed.
+   *
+   * sourceSchoolClasses (#2482) ist der alternative Klassenfilter. Jahrgang
+   * und Klasse schließen sich aus: höchstens eine der beiden Listen ist
+   * gefüllt, sourceFilterMode sagt, welche der Editor gerade anbietet.
    */
   sourceCareOfferingIds: string[];
   sourceGradeLevels: number[];
+  sourceSchoolClasses: string[];
+  sourceFilterMode: SourceFilterMode;
+}
+
+/** Welcher Quellenfilter im Editor aktiv ist (#2482). */
+export type SourceFilterMode = "alle" | "jahrgang" | "klasse";
+
+/**
+ * Greifen zwei Regeltermine desselben Angebots auf dieselben Kinder zu?
+ * Leere Listen heißen „alle Kinder des Angebots“ und überschneiden sich
+ * deshalb immer. Ein Klassenfilter wird gegen einen Jahrgangsfilter über die
+ * Jahrgangszahl der Klasse verglichen: „1b“ und „Jahrgang 1“ treffen
+ * dieselben Kinder, obwohl die Listen nichts gemeinsam haben (#2482).
+ * Klassennamen kommen bereits normalisiert (getrimmt, klein) herein.
+ */
+export function sourceScopesOverlap(
+  gradesA: number[],
+  classesA: string[],
+  gradesB: number[],
+  classesB: string[],
+): boolean {
+  const gradesOf = (grades: number[], classes: string[]): number[] | null => {
+    if (classes.length > 0) {
+      return classes.flatMap((schoolClass) => {
+        const grade = getSchoolYear(schoolClass);
+        return grade === null ? [] : [Number(grade)];
+      });
+    }
+    if (grades.length > 0) return grades;
+    return null; // kein Filter = alle Kinder
+  };
+  const a = gradesOf(gradesA, classesA);
+  const b = gradesOf(gradesB, classesB);
+  if (a === null || b === null) return true;
+  // Beide Seiten grenzen auf Klassen ein: dann entscheiden die Klassennamen,
+  // nicht der gemeinsame Jahrgang — „1a“ und „1b“ teilen kein einziges Kind.
+  if (classesA.length > 0 && classesB.length > 0) {
+    return classesA.some((schoolClass) => classesB.includes(schoolClass));
+  }
+  return a.some((grade) => b.includes(grade));
 }
 
 export interface PersonOption {
@@ -364,6 +444,7 @@ export function emptyForm(
   return {
     title: "",
     date: defaultDate,
+    seriesStartDate: "",
     startTime: defaultStartTime,
     endTime: defaultEndTime,
     roomId: "",
@@ -385,6 +466,7 @@ export function emptyForm(
     weekdayRosters: {},
     protectedStudentAssignments: [],
     requiredStaff: "",
+    maxParticipants: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -393,6 +475,8 @@ export function emptyForm(
     educationGroupIds: [],
     sourceCareOfferingIds: [],
     sourceGradeLevels: [],
+    sourceSchoolClasses: [],
+    sourceFilterMode: "alle",
   };
 }
 
@@ -405,6 +489,7 @@ export function formFromInstance(
   return {
     title: instance.title,
     date: instance.date,
+    seriesStartDate: "",
     startTime: instance.startTime,
     endTime: instance.endTime,
     roomId: instance.roomId,
@@ -434,6 +519,9 @@ export function formFromInstance(
       instance.requiredStaffOverride !== undefined
         ? String(instance.requiredStaffOverride)
         : "",
+    // Capacity lives on the series, not the occurrence; the occurrence editor
+    // never shows or writes it (#2233).
+    maxParticipants: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -442,6 +530,8 @@ export function formFromInstance(
     educationGroupIds: [],
     sourceCareOfferingIds: [],
     sourceGradeLevels: [],
+    sourceSchoolClasses: [],
+    sourceFilterMode: "alle",
   };
 }
 
@@ -463,6 +553,7 @@ export function formFromSeries(
   return {
     title: series.name,
     date: defaultDate,
+    seriesStartDate: firstSchedule?.validFrom ?? "",
     startTime: firstSchedule?.startTime ?? "12:00",
     endTime: firstSchedule?.endTime ?? "13:00",
     roomId: series.roomId ?? "",
@@ -498,6 +589,8 @@ export function formFromSeries(
       series.requiredStaffOverride !== undefined
         ? String(series.requiredStaffOverride)
         : "",
+    maxParticipants:
+      series.maxParticipants !== null ? String(series.maxParticipants) : "",
     targetGroupType: series.targetGroupType,
     targetGradeLevel:
       series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
@@ -506,6 +599,13 @@ export function formFromSeries(
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
     sourceCareOfferingIds: series.sourceCareOfferingIds ?? [],
     sourceGradeLevels: series.sourceGradeLevels ?? [],
+    sourceSchoolClasses: series.sourceSchoolClasses ?? [],
+    sourceFilterMode:
+      (series.sourceSchoolClasses ?? []).length > 0
+        ? "klasse"
+        : (series.sourceGradeLevels ?? []).length > 0
+          ? "jahrgang"
+          : "alle",
     targetGradeLevels:
       targets.length > 0
         ? targets.flatMap((target) =>
@@ -557,6 +657,19 @@ export function parseRequiredStaffOverride(value: string): number | null {
   if (!/^\d+$/.test(trimmed)) return null;
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) ? parsed : null;
+}
+
+// parseMaxParticipants maps the "Maximale Teilnehmerzahl" input to the wire
+// value (#2233): empty → null (unbegrenzt, stored as NULL since #2236); a
+// whole positive integer → the capacity. Only plain digit strings are
+// accepted, mirroring parseRequiredStaffOverride. "0" and junk both parse to
+// null here — validateForm rejects them before any save runs, so null never
+// silently clears a limit the user meant to keep.
+export function parseMaxParticipants(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
 export function sortPeople<T extends PersonOption>(items: T[]): T[] {

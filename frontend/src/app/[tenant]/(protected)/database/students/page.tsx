@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ListChecks, Trash2 } from "lucide-react";
+import { ClipboardList, GraduationCap, ListChecks, Trash2 } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -36,8 +36,10 @@ import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
+import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
+import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -56,7 +58,7 @@ function parseGrouping(value: string | null): GroupingMode {
 
 export default function StudentsPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<MasterDetailSkeleton />}>
       <StudentsPageContent />
     </Suspense>
   );
@@ -276,6 +278,23 @@ function StudentsPageContent() {
     return chips;
   }, [searchTerm, groupFilter, allGroups]);
 
+  // Class-list-only entry (#2382): created straight from the "+ Kinder"
+  // modal's "Nur Klassenliste" mode. The entry does NOT appear in this list
+  // (it is no student) — the toast says where it lives instead.
+  const handleCreateListEntry = useCallback(
+    async (input: {
+      firstName: string;
+      lastName: string;
+      schoolClass: string;
+    }) => {
+      await createClassListEntry(input);
+      toastSuccess(
+        "Klassenlisteneintrag angelegt — zu finden im Menü oben rechts unter Klassenliste",
+      );
+    },
+    [toastSuccess],
+  );
+
   const handleCreateStudent = useCallback(
     async (
       studentData: Partial<Student> & {
@@ -398,6 +417,7 @@ function StudentsPageContent() {
 
   const canShowDetail = !loading && filteredStudents.length > 0;
   const canViewEnrollments = hasPermission(session, "config:manage");
+  const canCreateStudents = hasPermission(session, "users:create");
   const canDeleteStudents = hasPermission(session, "users:delete");
   const canUpdateStudents = hasPermission(session, "users:update");
 
@@ -444,6 +464,28 @@ function StudentsPageContent() {
             setSearchTerm("");
             setGroupFilter("all");
           }}
+          // Sekundäre Navigationsziele (Jahrgangswechsel, Klassenliste) liegen
+          // im Kebab-Menü: als vierter und fünfter Textbutton sprengten sie
+          // die Aktionszeile auf üblichen Laptop-Breiten (#2382 Review).
+          overflowMenu={[
+            ...(hasPermission(session, "grade_transitions:read")
+              ? [
+                  {
+                    label: "Jahrgangswechsel",
+                    icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                    href: "/database/grade-transitions",
+                    // Navigation only — OverflowMenu verlangt onClick auch bei href.
+                    onClick: () => undefined,
+                  },
+                ]
+              : []),
+            {
+              label: "Klassenliste",
+              icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+              href: "/database/students/class-list",
+              onClick: () => undefined,
+            },
+          ]}
           actionButton={
             <div className="flex items-center gap-2">
               {!isMobile ? (
@@ -453,14 +495,6 @@ function StudentsPageContent() {
                     options={STUDENTS_GROUPING_OPTIONS}
                     onChange={handleGroupingChange}
                   />
-                  {hasPermission(session, "grade_transitions:read") && (
-                    <Link
-                      href="/database/grade-transitions"
-                      className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Jahrgangswechsel
-                    </Link>
-                  )}
                   <Link
                     href="/database/students/import"
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -557,6 +591,11 @@ function StudentsPageContent() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
+        // Same gate as POST /api/class-list-entries (users:create) — without
+        // the permission the modal must not offer the "Nur Klassenliste" mode.
+        onCreateListEntry={
+          canCreateStudents ? handleCreateListEntry : undefined
+        }
         groups={allGroups}
       />
 

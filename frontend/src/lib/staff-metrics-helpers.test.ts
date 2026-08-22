@@ -5,8 +5,9 @@ import type {
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
-import type { WorkSessionHistory } from "./time-tracking-helpers";
+import type { StaffAbsence, WorkSessionHistory } from "./time-tracking-helpers";
 import {
+  adaptAbsenceForMetrics,
   adaptHistorySessionForMetrics,
   computePeriodTotalsFromTargets,
   computeStaffMetrics,
@@ -236,6 +237,28 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.soll).toBe(1680);
     expect(totals.ist).toBe(960);
     expect(totals.delta).toBe(960 - 1680);
+  });
+
+  it("counts only the Monday share of a block started on Sunday", () => {
+    const monday = new Date(2026, 7, 3);
+    const totals = computePeriodTotalsFromTargets(
+      new Map([["2026-08-03", 480]]),
+      [
+        session({
+          date: "2026-08-02",
+          check_in_time: "2026-08-02T20:00:00.000Z", // 22:00 CEST
+          check_out_time: "2026-08-03T00:00:00.000Z", // 02:00 CEST
+          net_minutes: 240,
+        }),
+      ],
+      [],
+      monday,
+      monday,
+      monday,
+    );
+
+    expect(totals.ist).toBe(120);
+    expect(totals.delta).toBe(-360);
   });
 
   it("prices the delta against the Soll up to today, but Soll for the full week", () => {
@@ -553,5 +576,39 @@ describe("adaptHistorySessionForMetrics", () => {
       adaptHistorySessionForMetrics(historySession({ source: "unknown" }))
         .source,
     ).toBe("unknown");
+  });
+});
+
+describe("adaptAbsenceForMetrics", () => {
+  it("keeps the custom absence type identity and label", () => {
+    const custom: StaffAbsence = {
+      id: "100",
+      staffId: "200",
+      absenceType: "other",
+      absenceTypeId: "9007199254740993",
+      absenceTypeLabel: "Regenerationstag",
+      dateStart: "2026-08-20",
+      dateEnd: "2026-08-20",
+      halfDay: false,
+      startHalfDay: false,
+      endHalfDay: false,
+      note: "",
+      status: "approved",
+      approvedBy: null,
+      approvedAt: null,
+      createdBy: "200",
+      createdAt: "2026-08-20T08:00:00Z",
+      updatedAt: "2026-08-20T08:00:00Z",
+      durationDays: 1,
+      workingDays: 1,
+      decisionNote: "",
+      requestedAt: "2026-08-20T08:00:00Z",
+      substituteStaffId: null,
+    };
+
+    expect(adaptAbsenceForMetrics(custom)).toMatchObject({
+      absence_type_id: "9007199254740993",
+      absence_type_label: "Regenerationstag",
+    });
   });
 });

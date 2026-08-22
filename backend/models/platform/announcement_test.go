@@ -8,6 +8,8 @@ import (
 )
 
 func TestAnnouncement_Validate_EmptyTitle(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "",
 		Content:   "Content",
@@ -21,6 +23,8 @@ func TestAnnouncement_Validate_EmptyTitle(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_TitleTooLong(t *testing.T) {
+	t.Parallel()
+
 	longTitle := ""
 	for i := 0; i < 201; i++ {
 		longTitle += "a"
@@ -38,6 +42,8 @@ func TestAnnouncement_Validate_TitleTooLong(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_EmptyContent(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "Title",
 		Content:   "",
@@ -51,6 +57,8 @@ func TestAnnouncement_Validate_EmptyContent(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_InvalidType(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "Title",
 		Content:   "Content",
@@ -64,6 +72,8 @@ func TestAnnouncement_Validate_InvalidType(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_InvalidSeverity(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "Title",
 		Content:   "Content",
@@ -77,6 +87,8 @@ func TestAnnouncement_Validate_InvalidSeverity(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_MissingCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "Title",
 		Content:   "Content",
@@ -90,6 +102,8 @@ func TestAnnouncement_Validate_MissingCreatedBy(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_NegativeCreatedBy(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "Title",
 		Content:   "Content",
@@ -103,6 +117,8 @@ func TestAnnouncement_Validate_NegativeCreatedBy(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_VersionTooLong(t *testing.T) {
+	t.Parallel()
+
 	longVersion := ""
 	for i := 0; i < 51; i++ {
 		longVersion += "1"
@@ -121,6 +137,8 @@ func TestAnnouncement_Validate_VersionTooLong(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_Valid(t *testing.T) {
+	t.Parallel()
+
 	version := "1.0.0"
 	a := &Announcement{
 		Title:     "Title",
@@ -135,6 +153,8 @@ func TestAnnouncement_Validate_Valid(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_TrimSpaces(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{
 		Title:     "  Title  ",
 		Content:   "  Content  ",
@@ -149,43 +169,63 @@ func TestAnnouncement_Validate_TrimSpaces(t *testing.T) {
 }
 
 func TestIsValidAnnouncementType_Announcement(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidAnnouncementType(TypeAnnouncement))
 }
 
 func TestIsValidAnnouncementType_Release(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidAnnouncementType(TypeRelease))
 }
 
 func TestIsValidAnnouncementType_Maintenance(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidAnnouncementType(TypeMaintenance))
 }
 
 func TestIsValidAnnouncementType_Invalid(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, IsValidAnnouncementType("invalid"))
 }
 
 func TestIsValidSeverity_Info(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidSeverity(SeverityInfo))
 }
 
 func TestIsValidSeverity_Warning(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidSeverity(SeverityWarning))
 }
 
 func TestIsValidSeverity_Critical(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidSeverity(SeverityCritical))
 }
 
 func TestIsValidSeverity_Invalid(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, IsValidSeverity("invalid"))
 }
 
 func TestAnnouncement_IsDraft_Nil(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{}
 	assert.True(t, a.IsDraft())
 }
 
 func TestAnnouncement_IsDraft_NotNil(t *testing.T) {
+	t.Parallel()
+
 	published := time.Now()
 	a := &Announcement{
 		PublishedAt: &published,
@@ -194,12 +234,16 @@ func TestAnnouncement_IsDraft_NotNil(t *testing.T) {
 }
 
 func TestAnnouncement_GetID(t *testing.T) {
+	t.Parallel()
+
 	a := &Announcement{}
 	a.ID = 123
 	assert.Equal(t, int64(123), a.GetID())
 }
 
 func TestAnnouncement_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	a := &Announcement{}
 	a.CreatedAt = now
@@ -207,6 +251,8 @@ func TestAnnouncement_GetCreatedAt(t *testing.T) {
 }
 
 func TestAnnouncement_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	a := &Announcement{}
 	a.UpdatedAt = now
@@ -214,6 +260,8 @@ func TestAnnouncement_GetUpdatedAt(t *testing.T) {
 }
 
 func TestAnnouncement_Validate_NilSliceNormalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		targetOrgIDs    []int64

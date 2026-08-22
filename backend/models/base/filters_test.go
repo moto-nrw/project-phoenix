@@ -8,6 +8,8 @@ import (
 )
 
 func TestNewFilter(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter()
 
 	if f == nil {
@@ -29,6 +31,8 @@ func TestNewFilter(t *testing.T) {
 }
 
 func TestFilter_WithTableAlias(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().WithTableAlias("users")
 
 	if f.tableAlias != "users" {
@@ -37,6 +41,8 @@ func TestFilter_WithTableAlias(t *testing.T) {
 }
 
 func TestFilter_Where(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Where("status", OpEqual, "active")
 
 	if len(f.conditions) != 1 {
@@ -56,6 +62,8 @@ func TestFilter_Where(t *testing.T) {
 }
 
 func TestFilter_Equal(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Equal("id", 42)
 
 	if len(f.conditions) != 1 {
@@ -68,6 +76,8 @@ func TestFilter_Equal(t *testing.T) {
 }
 
 func TestFilter_Comparisons(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		filter   *Filter
@@ -109,6 +119,8 @@ func TestFilter_Comparisons(t *testing.T) {
 }
 
 func TestFilter_Like(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().Like("name", "%john%")
 
 	if len(f.conditions) != 1 {
@@ -125,6 +137,8 @@ func TestFilter_Like(t *testing.T) {
 }
 
 func TestFilter_ILike(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().ILike("email", "%@example.com")
 
 	if len(f.conditions) != 1 {
@@ -136,7 +150,120 @@ func TestFilter_ILike(t *testing.T) {
 	}
 }
 
+func TestFilter_TrimIn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("several values", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class", "3a", "4b")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.TrimIn() should add one condition, got %d", len(f.conditions))
+		}
+		cond := f.conditions[0]
+		if cond.Operator != OpTrimIn {
+			t.Errorf("Filter.TrimIn() operator = %v, want %v", cond.Operator, OpTrimIn)
+		}
+		values, ok := cond.Value.([]interface{})
+		if !ok {
+			t.Fatalf("Filter.TrimIn() value should be []interface{}, got %T", cond.Value)
+		}
+		if len(values) != 2 {
+			t.Errorf("Filter.TrimIn() should have 2 values, got %d", len(values))
+		}
+	})
+
+	// One value must produce the exact condition the single-select filter
+	// always produced, so the multi-value form changes no existing query.
+	t.Run("single value collapses to TrimEqual", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class", "3a")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.TrimIn() should add one condition, got %d", len(f.conditions))
+		}
+		if f.conditions[0].Operator != OpTrimEqual {
+			t.Errorf("Filter.TrimIn() operator = %v, want %v", f.conditions[0].Operator, OpTrimEqual)
+		}
+		if f.conditions[0].Value != "3a" {
+			t.Errorf("Filter.TrimIn() value = %v, want 3a", f.conditions[0].Value)
+		}
+	})
+
+	// No values means "no restriction". An empty IN () would match nothing and
+	// silently return an empty list instead.
+	t.Run("no values adds no condition", func(t *testing.T) {
+		f := NewFilter().TrimIn("school_class")
+
+		if len(f.conditions) != 0 {
+			t.Fatalf("Filter.TrimIn() with no values should add no condition, got %d", len(f.conditions))
+		}
+	})
+}
+
+func TestFilter_FirstNumberIn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("several values", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class", "3", "4")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.FirstNumberIn() should add one condition, got %d", len(f.conditions))
+		}
+		cond := f.conditions[0]
+		if cond.Operator != OpFirstNumberIn {
+			t.Errorf("Filter.FirstNumberIn() operator = %v, want %v", cond.Operator, OpFirstNumberIn)
+		}
+		values, ok := cond.Value.([]interface{})
+		if !ok {
+			t.Fatalf("Filter.FirstNumberIn() value should be []interface{}, got %T", cond.Value)
+		}
+		if len(values) != 2 {
+			t.Errorf("Filter.FirstNumberIn() should have 2 values, got %d", len(values))
+		}
+	})
+
+	// A single grade keeps the same operator: unlike TrimIn there is no cheaper
+	// one-value form to collapse into.
+	t.Run("single value keeps the operator", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class", "3")
+
+		if len(f.conditions) != 1 {
+			t.Fatalf("Filter.FirstNumberIn() should add one condition, got %d", len(f.conditions))
+		}
+		if f.conditions[0].Operator != OpFirstNumberIn {
+			t.Errorf("Filter.FirstNumberIn() operator = %v, want %v", f.conditions[0].Operator, OpFirstNumberIn)
+		}
+	})
+
+	t.Run("no values adds no condition", func(t *testing.T) {
+		f := NewFilter().FirstNumberIn("school_class")
+
+		if len(f.conditions) != 0 {
+			t.Fatalf("Filter.FirstNumberIn() with no values should add no condition, got %d", len(f.conditions))
+		}
+	})
+}
+
+func TestTrimInPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		count int
+		want  string
+	}{
+		{0, ""},
+		{1, "LOWER(TRIM(?))"},
+		{3, "LOWER(TRIM(?)), LOWER(TRIM(?)), LOWER(TRIM(?))"},
+	}
+	for _, tt := range tests {
+		if got := trimInPlaceholders(tt.count); got != tt.want {
+			t.Errorf("trimInPlaceholders(%d) = %q, want %q", tt.count, got, tt.want)
+		}
+	}
+}
+
 func TestFilter_NullChecks(t *testing.T) {
+	t.Parallel()
+
 	t.Run("IsNull", func(t *testing.T) {
 		f := NewFilter().IsNull("deleted_at")
 
@@ -167,6 +294,8 @@ func TestFilter_NullChecks(t *testing.T) {
 }
 
 func TestFilter_In(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().In("status", "active", "pending", "approved")
 
 	if len(f.conditions) != 1 {
@@ -189,6 +318,8 @@ func TestFilter_In(t *testing.T) {
 }
 
 func TestFilter_NotIn(t *testing.T) {
+	t.Parallel()
+
 	f := NewFilter().NotIn("name", "WC", "Toilette")
 
 	if len(f.conditions) != 1 {
@@ -201,6 +332,8 @@ func TestFilter_NotIn(t *testing.T) {
 }
 
 func TestFilter_Or(t *testing.T) {
+	t.Parallel()
+
 	mainFilter := NewFilter().Equal("status", "active")
 	orFilter := Filter{}
 	orFilter.Equal("role", "admin")
@@ -213,6 +346,8 @@ func TestFilter_Or(t *testing.T) {
 }
 
 func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
+	t.Parallel()
+
 	mainFilter := NewFilter().WithTableAlias("room").Equal("building", "A")
 	visibility := NewFilter().Equal("is_system", false)
 	visibility.Or(*NewFilter().Equal("name", "Schulhof"))
@@ -232,6 +367,8 @@ func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
 }
 
 func TestFilter_DateBetween(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2024, time.June, 15)
 
 	f := NewFilter().DateBetween("start_date", "end_date", date)
@@ -258,6 +395,8 @@ func TestFilter_DateBetween(t *testing.T) {
 }
 
 func TestNewPagination(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		page         int
@@ -318,6 +457,8 @@ func TestNewPagination(t *testing.T) {
 }
 
 func TestSorting_AddField(t *testing.T) {
+	t.Parallel()
+
 	s := &Sorting{}
 
 	s.AddField("created_at", SortDesc).AddField("name", SortAsc)
@@ -336,6 +477,8 @@ func TestSorting_AddField(t *testing.T) {
 }
 
 func TestSortDirectionConstants(t *testing.T) {
+	t.Parallel()
+
 	if SortAsc != "ASC" {
 		t.Errorf("SortAsc = %q, want ASC", SortAsc)
 	}
@@ -345,6 +488,8 @@ func TestSortDirectionConstants(t *testing.T) {
 }
 
 func TestNewQueryOptions(t *testing.T) {
+	t.Parallel()
+
 	qo := NewQueryOptions()
 
 	if qo == nil {
@@ -366,6 +511,8 @@ func TestNewQueryOptions(t *testing.T) {
 }
 
 func TestQueryOptions_WithPagination(t *testing.T) {
+	t.Parallel()
+
 	qo := NewQueryOptions().WithPagination(3, 25)
 
 	if qo.Pagination == nil {
@@ -382,6 +529,8 @@ func TestQueryOptions_WithPagination(t *testing.T) {
 }
 
 func TestFilter_Get(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		setup         func() *Filter
@@ -462,6 +611,8 @@ func TestFilter_Get(t *testing.T) {
 }
 
 func TestFilter_Remove(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		setup               func() *Filter
@@ -558,6 +709,8 @@ func TestFilter_Remove(t *testing.T) {
 // =============================================================================
 
 func TestPagination_Offset(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name           string
 		page           int

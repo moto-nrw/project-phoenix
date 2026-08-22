@@ -19,6 +19,8 @@ import (
 // rename on either side would leave people opted into a type that no longer
 // exists, which looks exactly like a working opt-in.
 func TestNotificationTypeKeysMatchReminders(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, reminders.TypePickupUpcoming, notifications.TypePickupUpcoming)
 	assert.Equal(t, reminders.TypePickupOverdue, notifications.TypePickupOverdue)
 	assert.Equal(t, reminders.TypeActivityStart, notifications.TypeActivityStart)
@@ -26,9 +28,11 @@ func TestNotificationTypeKeysMatchReminders(t *testing.T) {
 }
 
 func TestNotificationTypeCatalogue(t *testing.T) {
+	t.Parallel()
+
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
-		require.Len(t, defs, 6)
+		require.Len(t, defs, 7)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -41,6 +45,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeActivityOverdue,
 			notifications.TypeMyActivityStarting,
 			notifications.TypeStudentAbsenceReported,
+			notifications.TypeStaffParentMessage,
 		}, keys, "order is fixed by group then SortOrder, not by registration order")
 	})
 
@@ -88,6 +93,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeActivityStart:             configModel.KeyRemindersActivityStartEnabled,
 			notifications.TypeActivityOverdue:           configModel.KeyRemindersActivityOverdueEnabled,
 			notifications.TypeStudentAbsenceReported:    configModel.KeyNotificationsAbsenceReportedEnabled,
+			notifications.TypeStaffParentMessage:        configModel.KeyParentNotesEnabled,
 			notifications.TypeParentMessage:             configModel.KeyParentNotesEnabled,
 			notifications.TypeParentRequestDecided:      configModel.KeyParentNotesEnabled,
 			notifications.TypeParentAppointmentReminder: configModel.KeyCalendarAppointmentReminderEnabled,

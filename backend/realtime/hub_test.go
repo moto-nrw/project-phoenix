@@ -9,6 +9,8 @@ import (
 
 // TestHubRegister verifies client registration with group subscriptions
 func TestHubRegister(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		activeGroupIDs      []string
@@ -71,6 +73,8 @@ func TestHubRegister(t *testing.T) {
 
 // TestHubRegisterMultipleClients verifies multiple client registrations
 func TestHubRegisterMultipleClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Register three clients to the same group
@@ -108,8 +112,41 @@ func TestHubRegisterMultipleClients(t *testing.T) {
 	}
 }
 
+func TestBroadcastToGroupsDeduplicatesOverlappingSubscriptions(t *testing.T) {
+	t.Parallel()
+
+	hub := NewHub(slog.Default())
+	overlap := &Client{Channel: make(chan Event, 2), UserID: 1, SubscribedGroups: make(map[string]bool)}
+	oneTopic := &Client{Channel: make(chan Event, 2), UserID: 2, SubscribedGroups: make(map[string]bool)}
+	hub.Register(overlap, 42, []string{"active:7", "edu:9"})
+	hub.Register(oneTopic, 42, []string{"edu:9"})
+
+	event := Event{Type: EventStudentCheckIn}
+	if err := hub.BroadcastToGroups(42, []string{"active:7", "edu:9", "edu:9"}, event); err != nil {
+		t.Fatalf("BroadcastToGroups() error = %v", err)
+	}
+
+	for name, client := range map[string]*Client{"overlap": overlap, "one topic": oneTopic} {
+		select {
+		case got := <-client.Channel:
+			if got.Type != event.Type {
+				t.Errorf("%s event type = %q, want %q", name, got.Type, event.Type)
+			}
+		default:
+			t.Errorf("%s received no event", name)
+		}
+		select {
+		case duplicate := <-client.Channel:
+			t.Errorf("%s received duplicate event: %#v", name, duplicate)
+		default:
+		}
+	}
+}
+
 // TestHubUnregister verifies client unregistration and cleanup
 func TestHubUnregister(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                string
 		setupClients        int
@@ -175,6 +212,8 @@ func TestHubUnregister(t *testing.T) {
 
 // TestHubUnregisterNonExistent verifies idempotent unregister
 func TestHubUnregisterNonExistent(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
@@ -193,6 +232,8 @@ func TestHubUnregisterNonExistent(t *testing.T) {
 
 // TestHubUnregisterCleanup verifies groupClients map cleanup
 func TestHubUnregisterCleanup(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
@@ -228,6 +269,8 @@ func TestHubUnregisterCleanup(t *testing.T) {
 
 // TestHubBroadcastToSingleSubscriber verifies event delivery to one client
 func TestHubBroadcastToSingleSubscriber(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 	client := &Client{
 		Channel:          make(chan Event, 10),
@@ -238,8 +281,7 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 	hub.Register(client, int64(42), []string{"group_1"})
 
 	event := NewEvent(EventStudentCheckIn, "group_1", EventData{
-		StudentID:   strPtr("123"),
-		StudentName: strPtr("Test Student"),
+		StudentID: strPtr("123"),
 	})
 
 	// Broadcast event
@@ -264,6 +306,8 @@ func TestHubBroadcastToSingleSubscriber(t *testing.T) {
 
 // TestHubBroadcastToMultipleSubscribers verifies event delivery to multiple clients
 func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Register three clients to the same group
@@ -302,6 +346,8 @@ func TestHubBroadcastToMultipleSubscribers(t *testing.T) {
 
 // TestHubBroadcastGroupIsolation verifies events only go to subscribed groups
 func TestHubBroadcastGroupIsolation(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	client1 := &Client{
@@ -347,6 +393,8 @@ func TestHubBroadcastGroupIsolation(t *testing.T) {
 
 // TestHubBroadcastNoSubscribers verifies silent broadcast when no clients
 func TestHubBroadcastNoSubscribers(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	event := NewEvent(EventStudentCheckIn, "group_nonexistent", EventData{
@@ -367,6 +415,8 @@ func TestHubBroadcastNoSubscribers(t *testing.T) {
 
 // TestHubBroadcastChannelFull verifies skip behavior when channel is full
 func TestHubBroadcastChannelFull(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Create client with very small buffer
@@ -410,6 +460,8 @@ func TestHubBroadcastChannelFull(t *testing.T) {
 
 // TestHubGetClientCount verifies client counting
 func TestHubGetClientCount(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Initially zero
@@ -434,6 +486,8 @@ func TestHubGetClientCount(t *testing.T) {
 
 // TestHubGetGroupSubscriberCount verifies group subscriber counting
 func TestHubGetGroupSubscriberCount(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Non-existent group
@@ -458,6 +512,8 @@ func TestHubGetGroupSubscriberCount(t *testing.T) {
 
 // TestHubBroadcastToAllReachesAllClients verifies BroadcastToAll delivers to every client
 func TestHubBroadcastToAllReachesAllClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	// Register clients to different groups (and one with no groups)
@@ -493,6 +549,8 @@ func TestHubBroadcastToAllReachesAllClients(t *testing.T) {
 }
 
 func TestHubBroadcastToTenantOnlyReachesTenantClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	tenantClient := &Client{
@@ -543,6 +601,8 @@ func TestHubBroadcastToTenantOnlyReachesTenantClients(t *testing.T) {
 
 // TestHubBroadcastToAllNoClients verifies BroadcastToAll with empty hub
 func TestHubBroadcastToAllNoClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	err := hub.BroadcastToAll(NewEvent(EventDashboardCountsChanged, "", EventData{}))
@@ -553,6 +613,8 @@ func TestHubBroadcastToAllNoClients(t *testing.T) {
 
 // TestHubBroadcastToAllSkipsFullChannel verifies non-blocking behavior
 func TestHubBroadcastToAllSkipsFullChannel(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	fullClient := &Client{

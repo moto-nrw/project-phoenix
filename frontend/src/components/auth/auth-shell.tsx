@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { Skeleton } from "~/components/ui/skeleton";
 
 export const authInputClassName =
   "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
@@ -169,6 +170,41 @@ export function MotoIconBrand() {
       className="h-10 w-14 object-contain"
       priority
     />
+  );
+}
+
+export function AuthShellSkeleton() {
+  return (
+    <main
+      className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]"
+      aria-hidden="true"
+    >
+      <section className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6 lg:px-10">
+        <div className="w-full max-w-[29rem] rounded-2xl border border-gray-200 bg-white px-6 py-10 shadow-sm sm:p-8">
+          <Skeleton className="mx-auto h-10 w-28 rounded-lg" />
+          <Skeleton className="mx-auto mt-8 h-3 w-24" />
+          <Skeleton className="mx-auto mt-3 h-8 w-64 max-w-full" />
+          <Skeleton className="mx-auto mt-3 h-4 w-72 max-w-full" />
+          <div className="mt-9 space-y-5">
+            {[0, 1].map((item) => (
+              <div key={item} className="space-y-2">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            ))}
+            <Skeleton className="h-10 w-full rounded-lg" />
+          </div>
+        </div>
+      </section>
+      <section className="hidden min-h-screen items-center justify-center bg-gray-900 p-12 lg:flex">
+        <div className="w-full max-w-xl space-y-5">
+          <Skeleton className="h-6 w-52 bg-gray-700" />
+          <Skeleton className="h-8 w-full bg-gray-700" />
+          <Skeleton className="h-8 w-4/5 bg-gray-700" />
+          <Skeleton className="h-4 w-48 bg-gray-700" />
+        </div>
+      </section>
+    </main>
   );
 }
 

@@ -15,8 +15,9 @@ import (
 )
 
 func TestOperatorRefreshTokenRepository_CreateAndFindByTokenForUpdate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -41,8 +42,9 @@ func TestOperatorRefreshTokenRepository_CreateAndFindByTokenForUpdate(t *testing
 }
 
 func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -58,9 +60,9 @@ func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
 		}))
 	}
 
-	deleted, err := repo.DeleteByOperatorID(ctx, operatorID)
+	deleted, err := repo.DeleteByOperatorIDReturning(ctx, operatorID)
 	require.NoError(t, err)
-	assert.Equal(t, 2, deleted)
+	assert.Len(t, deleted, 2)
 
 	remaining, err := db.NewSelect().
 		TableExpr("platform.operator_refresh_tokens").
@@ -71,8 +73,9 @@ func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
 }
 
 func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -94,15 +97,19 @@ func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) 
 	require.NotNil(t, latest)
 	assert.Equal(t, 2, latest.Generation)
 
-	require.NoError(t, repo.DeleteByFamilyID(ctx, familyID))
+	deleted, err := repo.DeleteByFamilyIDReturning(ctx, familyID)
+	require.NoError(t, err)
+	require.Len(t, deleted, 3)
 	latest, err = repo.GetLatestTokenInFamily(ctx, familyID)
 	require.NoError(t, err)
 	assert.Nil(t, latest)
 }
 
+// Deliberately NOT parallel: DeleteExpired sweeps the tenant-less operator
+// refresh tokens of the whole clone and the assertion pins how many rows it
+// removed, so a token another test happens to have expired is counted too.
 func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
@@ -128,8 +135,9 @@ func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
 }
 
 func TestOperatorRefreshTokenRepository_RotationHandoffLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()

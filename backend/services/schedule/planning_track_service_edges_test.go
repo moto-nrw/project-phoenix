@@ -13,6 +13,8 @@ import (
 )
 
 func TestPlanningTrackServiceValidationAndMissingEdges(t *testing.T) {
+	t.Parallel()
+
 	repo := newPlanningTrackRepoStub()
 	service := NewPlanningTrackService(repo, nil)
 	invalid := PlanningTrackInput{Name: "", Color: "blue", SortOrder: -1}
@@ -32,12 +34,13 @@ func TestPlanningTrackServiceValidationAndMissingEdges(t *testing.T) {
 }
 
 func TestPlanningTrackServiceReorderReturnsRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("create database mock: %v", err)
 	}
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	t.Cleanup(func() { _ = db.Close() })
 	wantErr := errors.New("reorder failed")
 	repo := newPlanningTrackRepoStub()
 	repo.updateSortOrdersErr = wantErr

@@ -440,25 +440,6 @@ func init() {
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyWebCheckinAccess,
-		Label:           "Web-An/Abmeldung Zugriff",
-		Description:     "Legt fest, welche Mitarbeitenden Kinder über die Weboberfläche an- und abmelden dürfen.",
-		Type:            config.FieldSelect,
-		Default:         config.WebCheckinAccessGroupSupervisors,
-		ReadPermission:  "config:read",
-		WritePermission: "config:manage",
-		Tab:             "operations",
-		Category:        "anwesenheit",
-		SortOrder:       41,
-		Options: &config.SelectOptions{
-			Static: []config.SelectOption{
-				{Label: "Nur Gruppenbetreuer des Kindes", Value: config.WebCheckinAccessGroupSupervisors},
-				{Label: "Alle berechtigten Mitarbeitenden", Value: config.WebCheckinAccessAllStaff},
-			},
-		},
-	})
-
-	config.Register(config.Definition{
 		Key:             config.KeyWebSpontaneousActivities,
 		Label:           "Spontane Aktivitäten über Web/App",
 		Description:     "Erlaubt Mitarbeitenden, in der mobilen Weboberfläche unter aktueller Aufsicht spontane Aktivitäten zu starten. Die Aktivität belegt den Raum und wird in den Betreuungsplan geschrieben, auch wenn die Betreuungsplanung deaktiviert ist.",
@@ -547,26 +528,35 @@ func init() {
 		SortOrder:       60,
 	})
 
-	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
-	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
-	// excused absence is written straight to the child's status days exactly like
-	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
-	// absence becomes a PENDING request in the change-request queue that staff
-	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
-	// Only meaningful while the sick-note feature above is enabled; DependsOn
-	// hides it otherwise.
+	// Parent-submitted absences require approval by default (#2447/#2449). Schools
+	// can opt out independently for sick and excused reports. Both switches are
+	// only meaningful while the parent absence feature above is enabled.
 	config.Register(config.Definition{
-		Key:             config.KeyParentExcusedRequiresApproval,
-		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
-		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Key:             config.KeyParentSickRequiresApproval,
+		Label:           "Krankmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Krankmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       62,
-		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Abmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -580,6 +570,32 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       61,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentCarePickupRequestEnabled,
+		Label:           "Dauerhafte Abholzeiten durch Eltern ändern lassen",
+		Description:     "Wenn aktiviert, können Eltern Änderungen an den dauerhaften wöchentlichen Abholzeiten zur Freigabe einreichen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       64,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentCareModeRequestEnabled,
+		Label:           "Dauerhafte Abholart durch Eltern ändern lassen",
+		Description:     "Wenn aktiviert, können Eltern Änderungen an der dauerhaften wöchentlichen Abholart zur Freigabe einreichen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       65,
 	})
 
 	// Whether a guardian sees the individual staff member's name (first name +

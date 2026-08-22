@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -22,11 +21,12 @@ import (
 // =============================================================================
 
 func TestGetStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create student for tests
 	student := testpkg.CreateTestStudent(t, tc.db, "PickupGet", "Test", "PG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_empty_schedules", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
@@ -40,7 +40,6 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 	t.Run("success_returns_schedules_and_exceptions_with_data", func(t *testing.T) {
 		// Create a new student for this test
 		studentWithData := testpkg.CreateTestStudent(t, tc.db, "PickupData", "Test", "PD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, studentWithData.ID)
 
 		// Insert a pickup schedule directly into the database
 		pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
@@ -52,7 +51,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -76,7 +75,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 			Reason:        &arztterminReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -110,30 +109,27 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_non_supervisor_with_default_scope", func(t *testing.T) {
-		// Default scope (group_supervisors_only): non-supervisors cannot read pickup schedules
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	t.Run("forbidden_for_account_without_staff_record", func(t *testing.T) {
+		// Guests and guardians hold users:read but no staff record in the tenant.
+		guest := testpkg.CreateTestAccount(t, tc.db, "pickup-schedule-guest@example.com")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		assert.Equal(t, http.StatusForbidden, rr.Code, "Non-supervisor should be forbidden with default scope. Body: %s", rr.Body.String())
+		assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	})
 
-	t.Run("success_any_staff_can_read_with_all_staff_scope", func(t *testing.T) {
-		// all_staff scope: any verified staff member can read pickup schedules
-		setStudentDataScope(t, tc, configModel.StudentDataScopeAllStaff)
-
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Reader")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	t.Run("success_any_staff_can_read", func(t *testing.T) {
+		// #2329: any verified staff member reads the pickup schedules of any
+		// child in the tenant — supervision no longer narrows this.
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AllStaff", "Reader")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/pickup-schedules", student.ID), nil)
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		assert.Equal(t, http.StatusOK, rr.Code, "Any staff should read pickup schedules with all_staff scope. Body: %s", rr.Body.String())
+		assert.Equal(t, http.StatusOK, rr.Code, "Any staff should read pickup schedules. Body: %s", rr.Body.String())
 	})
 }
 
@@ -142,16 +138,16 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_schedules_as_teacher", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupSuccess", "Test", "PST1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create a teacher with account for auth
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "Teacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "Teacher")
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -175,10 +171,8 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("success_empty_schedules_clears_existing", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupEmpty", "Test", "PE1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "PickupTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Clear", "PickupTeacher")
 
 		pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 		schedule := &scheduleModel.StudentPickupSchedule{
@@ -187,7 +181,7 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 			PickupTime: pickupTime,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -212,7 +206,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("bad_request_invalid_weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupWeekday", "Test", "PW1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -227,7 +220,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("bad_request_weekday_zero", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupWeekdayZero", "Test", "PW0")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -242,7 +234,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("bad_request_invalid_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupTime", "Test", "PT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -257,7 +248,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("bad_request_missing_time", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupNoTime", "Test", "PNT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -272,7 +262,6 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 
 	t.Run("bad_request_notes_too_long", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupNotes", "Test", "PN1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		longNotes := make([]byte, 501)
 		for i := range longNotes {
@@ -289,10 +278,27 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
+		// #2329: any verified staff member with users:update writes the plan;
+		// what stays refused is an account without a staff record.
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupForbidden", "Test", "PF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "pickup-update-guest@example.com")
+
+		body := map[string]any{
+			"schedules": []map[string]any{
+				{"weekday": 1, "pickup_time": "15:30"},
+			},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-schedules", student.ID), body)
+		claims := testutil.TeacherTestClaims(int(guest.ID))
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
+
+		testutil.AssertForbidden(t, rr)
+	})
+
+	t.Run("staff_outside_the_group_may_update", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, tc.db, "PickupAllowed", "Test", "PA1")
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateStaff")
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -303,7 +309,12 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
-		testutil.AssertForbidden(t, rr)
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+		_, _ = tc.db.NewDelete().Model((*scheduleModel.StudentPickupSchedule)(nil)).
+			ModelTableExpr("schedule.student_pickup_schedules").
+			Where("student_id = ?", student.ID).
+			Exec(context.Background())
 	})
 }
 
@@ -312,16 +323,16 @@ func TestUpdateStudentPickupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionCreate", "Test", "ECT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create a teacher with account for auth
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ExcTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "ExcTeacher")
 
 		body := map[string]any{
 			"exception_date": "2026-03-15",
@@ -349,10 +360,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 		// handler stamps the source explicitly (and bun also backfills the
 		// column default via RETURNING) — this guards both against regressing.
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionSrc", "Test", "ESRC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ExcTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Source", "ExcTeacher")
 
 		body := map[string]any{
 			"exception_date": "2026-03-17",
@@ -376,11 +385,9 @@ func TestCreateStudentPickupException(t *testing.T) {
 	t.Run("success_creates_exception_without_pickup_time_absent", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionAbsent", "Test", "EAT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create a teacher with account for auth
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absent", "ExcTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Absent", "ExcTeacher")
 
 		body := map[string]any{
 			"exception_date": "2026-03-16",
@@ -407,10 +414,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 		// a second insert fail with a 500; instead the create is folded into a
 		// staff override that reclaims the day for staff.
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianPickupExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianPickupExc")
 
 		exceptionDate := timezone.NewDate(2026, 4, 17)
 		originalReason := "Parent reason"
@@ -470,10 +475,8 @@ func TestCreateStudentPickupException(t *testing.T) {
 		// guardian case it must NOT be silently overwritten — refuse with a 409
 		// so the client reloads and edits through the update path instead.
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffPickupExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
 		exceptionDate := timezone.NewDate(2026, 4, 18)
 		originalReason := "Other staff reason"
@@ -523,7 +526,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoDate", "Test", "END1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"pickup_time": "12:00",
@@ -537,7 +539,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadDate", "Test", "EBD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "15-02-2026",
@@ -556,7 +557,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_invalid_pickup_time_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionBadTime", "Test", "EBT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -574,7 +574,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 		// Full creation still requires a valid account+person setup, so we only
 		// verify the bind step doesn't reject the payload.
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionNoReason", "Test", "ENR1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -591,7 +590,6 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_reason_too_long", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionLongReason", "Test", "ELR1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		longReason := make([]byte, 256)
 		for i := range longReason {
@@ -608,10 +606,11 @@ func TestCreateStudentPickupException(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionForbidden", "Test", "EF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "ExceptionStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "exceptionstaff-guest@example.com")
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -619,7 +618,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 			"reason":         "Test reason",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-exceptions", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -631,16 +630,16 @@ func TestCreateStudentPickupException(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_exception_as_teacher", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdate", "Test", "EUT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create a teacher with account for auth
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ExcTeacher2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ExcTeacher2")
 
 		// Create an exception to update
 		exceptionDate := timezone.NewDate(2026, 4, 15) // Use noon to avoid day boundary issues
@@ -653,7 +652,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &originalReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -681,10 +680,8 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 	t.Run("success_reclaims_guardian_exception_for_staff", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianPickupExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianPickupExc")
 
 		exceptionDate := timezone.NewDate(2026, 4, 16)
 		originalReason := "Parent reason"
@@ -736,7 +733,6 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		// Create two students
 		student1 := testpkg.CreateTestStudent(t, tc.db, "Student1", "Test", "ST1")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2", "Test", "ST2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create exception for student2
 		exceptionDate := timezone.NewDate(2026, 5, 15) // Use noon to avoid day boundary issues
@@ -747,7 +743,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			Reason:        &testReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -773,7 +769,6 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateInvalid", "Test", "EUI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -788,7 +783,6 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateNotFound", "Test", "EUNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -802,10 +796,11 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionUpdateForbidden", "Test", "EUF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "UpdateExcStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "updateexcstaff-guest@example.com")
 
 		body := map[string]any{
 			"exception_date": "2026-02-15",
@@ -813,7 +808,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 			"reason":         "Updated reason",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/pickup-exceptions/1", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -825,12 +820,13 @@ func TestUpdateStudentPickupException(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_exception_as_teacher", func(t *testing.T) {
 		// Create a student
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDelete", "Test", "EDT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create exception to delete
 		exceptionDate := timezone.NewDate(2026, 6, 15) // Use noon to avoid day boundary issues
@@ -841,7 +837,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Reason:        &deleteReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -857,10 +853,8 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 	t.Run("success_deletes_guardian_exception", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-		defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianPickupExc")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianPickupExc")
 
 		exceptionDate := timezone.NewDate(2026, 6, 16)
 		pickupTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 15:30")
@@ -899,7 +893,6 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		// Create two students
 		student1 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt1", "Test", "DS1")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2", "Test", "DS2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create exception for student2
 		exceptionDate := timezone.NewDate(2026, 7, 15) // Use noon to avoid day boundary issues
@@ -910,7 +903,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 			Reason:        &deleteTestReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -932,7 +925,6 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 	t.Run("bad_request_invalid_exception_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteInvalid", "Test", "EDI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/invalid", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -942,7 +934,6 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 	t.Run("not_found_nonexistent_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteNotFound", "Test", "EDNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Use a valid but nonexistent exception ID
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/999999", student.ID), nil)
@@ -951,13 +942,14 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		testutil.AssertNotFound(t, rr)
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDeleteForbidden", "Test", "EDF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "DeleteExcStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "deleteexcstaff-guest@example.com")
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-exceptions/1", student.ID), nil)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -969,6 +961,8 @@ func TestDeleteStudentPickupException(t *testing.T) {
 // =============================================================================
 
 func TestGetBulkPickupTimes(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("bad_request_empty_student_ids", func(t *testing.T) {
@@ -1009,7 +1003,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 	t.Run("success_with_valid_request", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, tc.db, "BulkTest1", "Student", "BT1")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "BulkTest2", "Student", "BT2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		body := map[string]any{
 			"student_ids": []int64{student1.ID, student2.ID},
@@ -1022,7 +1015,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 
 	t.Run("success_with_specific_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkDateTest", "Student", "BDT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
@@ -1034,14 +1026,30 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 
-	t.Run("success_returns_empty_for_unauthorized_students", func(t *testing.T) {
-		// Create a staff member who doesn't supervise any groups
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroups", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	t.Run("success_returns_empty_for_accounts_without_staff_record", func(t *testing.T) {
+		// #2329: the bulk filter answers "every requested child" for admins and
+		// verified staff and "none" for everyone else — a guest/guardian account
+		// holding users:read gets an empty result rather than a 403.
+		guest := testpkg.CreateTestAccount(t, tc.db, "bulk-pickup-guest@example.com")
 
-		// Create a student in no particular group
 		student := testpkg.CreateTestStudent(t, tc.db, "UnauthorizedTest", "Student", "UTS1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+		body := map[string]any{
+			"student_ids": []int64{student.ID},
+		}
+		req := testutil.NewAuthenticatedRequest(t, "POST", "/pickup-times/bulk", body)
+		claims := testutil.TeacherTestClaims(int(guest.ID))
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
+
+		// Should return 200 OK with empty data (no authorized students)
+		assert.Equal(t, http.StatusOK, rr.Code)
+		assert.Contains(t, rr.Body.String(), "[]") // Empty array
+	})
+
+	t.Run("success_returns_data_for_staff_without_supervision", func(t *testing.T) {
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroups", "Staff")
+
+		student := testpkg.CreateTestStudent(t, tc.db, "BulkAllowed", "Student", "BAS1")
 
 		body := map[string]any{
 			"student_ids": []int64{student.ID},
@@ -1050,9 +1058,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		claims := testutil.TeacherTestClaims(int(account.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		// Should return 200 OK with empty data (no authorized students)
-		assert.Equal(t, http.StatusOK, rr.Code)
-		assert.Contains(t, rr.Body.String(), "[]") // Empty array
+		assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	})
 
 	t.Run("success_filters_nonexistent_student_ids", func(t *testing.T) {
@@ -1069,7 +1075,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 	t.Run("success_returns_pickup_times_with_data", func(t *testing.T) {
 		// Create a student with pickup schedule
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkWithData", "Test", "BWD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Insert a pickup schedule for Monday
 		pickupTime := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
@@ -1081,7 +1086,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Notes:      &notes,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -1110,7 +1115,6 @@ func TestGetBulkPickupTimes(t *testing.T) {
 	t.Run("success_returns_exception_override", func(t *testing.T) {
 		// Create student with both schedule and exception
 		student := testpkg.CreateTestStudent(t, tc.db, "BulkException", "Test", "BEX1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Insert base schedule for Monday
 		baseTime := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
@@ -1120,7 +1124,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			PickupTime: baseTime,
 			CreatedBy:  createStudentsAPITestStaffID(t, tc),
 		}
-		schedule.SetTenantID(1)
+		schedule.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(schedule).
 			ModelTableExpr("schedule.student_pickup_schedules").
 			Returning("id").
@@ -1144,7 +1148,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 			Reason:        &earlyPickupReason,
 			CreatedBy:     createStudentsAPITestStaffID(t, tc),
 		}
-		exception.SetTenantID(1)
+		exception.SetTenantID(testpkg.Tenant(t))
 		_, err = tc.db.NewInsert().Model(exception).
 			ModelTableExpr("schedule.student_pickup_exceptions").
 			Returning("id").
@@ -1172,12 +1176,12 @@ func TestGetBulkPickupTimes(t *testing.T) {
 }
 
 func TestBulkUpsertPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student1 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI1", "Student", "BPA1")
 	student2 := testpkg.CreateTestStudent(t, tc.db, "BulkPickupAPI2", "Student", "BPA2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupAPI", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BulkPickupAPI", "Teacher")
 
 	body := map[string]any{
 		"student_ids": []int64{student1.ID, student2.ID},
@@ -1195,14 +1199,14 @@ func TestBulkUpsertPickupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestCreateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_creates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteCreate", "Test", "NCT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "NoteTeacher")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Create", "NoteTeacher")
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
@@ -1224,7 +1228,6 @@ func TestCreateStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_missing_date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteNoDate", "Test", "NND1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"content": "Test content",
@@ -1238,7 +1241,6 @@ func TestCreateStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_date_format", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteBadDate", "Test", "NBD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "15-03-2026",
@@ -1253,7 +1255,6 @@ func TestCreateStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_missing_content", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteNoContent", "Test", "NNC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
@@ -1268,7 +1269,6 @@ func TestCreateStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_content_too_long", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteLongContent", "Test", "NLC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		longContent := make([]byte, 501)
 		for i := range longContent {
@@ -1285,17 +1285,18 @@ func TestCreateStudentPickupNote(t *testing.T) {
 		assert.Contains(t, rr.Body.String(), "content cannot exceed 500 characters")
 	})
 
-	t.Run("forbidden_without_full_access", func(t *testing.T) {
+	// #2329: every verified staff member may write the care plan; what
+	// stays refused is an account without a staff record (guest, guardian).
+	t.Run("forbidden_without_staff_record", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteForbidden", "Test", "NF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoAccess", "NoteStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "notestaff-guest@example.com")
 
 		body := map[string]any{
 			"note_date": "2026-03-15",
 			"content":   "Test note",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/pickup-notes", student.ID), body)
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		testutil.AssertForbidden(t, rr)
@@ -1307,14 +1308,14 @@ func TestCreateStudentPickupNote(t *testing.T) {
 // =============================================================================
 
 func TestUpdateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_updates_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdate", "Test", "NUT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "NoteTeacher2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "NoteTeacher2")
 
 		// Create a note to update
 		noteDate := timezone.NewDate(2026, 4, 15)
@@ -1325,7 +1326,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   originalContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1352,7 +1353,6 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 	t.Run("forbidden_note_belongs_to_different_student", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, tc.db, "Student1Note", "Test", "ST1N")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2Note", "Test", "ST2N")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create note for student2
 		noteDate := timezone.NewDate(2026, 5, 15)
@@ -1363,7 +1363,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 			Content:   testContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1389,7 +1389,6 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateInvalid", "Test", "NUI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-02-15",
@@ -1403,7 +1402,6 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 
 	t.Run("not_found_nonexistent_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteUpdateNotFound", "Test", "NUNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]any{
 			"note_date": "2026-02-15",
@@ -1421,11 +1419,12 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 // =============================================================================
 
 func TestDeleteStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("success_deletes_note_as_teacher", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDelete", "Test", "NDT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create note to delete
 		noteDate := timezone.NewDate(2026, 6, 15)
@@ -1436,7 +1435,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Content:   deleteContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1453,7 +1452,6 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 	t.Run("forbidden_delete_note_belongs_to_different_student", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt1Note", "Test", "DS1N")
 		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2Note", "Test", "DS2N")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student1.ID, student2.ID)
 
 		// Create note for student2
 		noteDate := timezone.NewDate(2026, 7, 15)
@@ -1464,7 +1462,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 			Content:   deleteTestContent,
 			CreatedBy: createStudentsAPITestStaffID(t, tc),
 		}
-		note.SetTenantID(1)
+		note.SetTenantID(testpkg.Tenant(t))
 		_, err := tc.db.NewInsert().Model(note).
 			ModelTableExpr("schedule.student_pickup_notes").
 			Returning("id").
@@ -1486,7 +1484,6 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 
 	t.Run("bad_request_invalid_note_id", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteInvalid", "Test", "NDI1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/invalid", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -1496,7 +1493,6 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 
 	t.Run("not_found_nonexistent_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDeleteNotFound", "Test", "NDNF1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/pickup-notes/999999", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})

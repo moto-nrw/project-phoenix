@@ -12,6 +12,8 @@ import (
 // the user-facing 400 response, and that unknown messages fall through verbatim
 // rather than being masked.
 func TestGermanGuardianValidationMessage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		in       error

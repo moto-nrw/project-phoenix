@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,6 +51,8 @@ type dayLogTestBody struct {
 }
 
 func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
@@ -62,6 +63,8 @@ func TestGetStudentsDayLog_FeatureDisabled(t *testing.T) {
 }
 
 func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -74,7 +77,6 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "day-log-dev")
 	// Students before the group: cleanup deletes in argument order, and the
 	// group row only deletes cleanly once no student references it.
-	defer testpkg.CleanupActivityFixtures(t, tc.db, present.ID, sick.ID, excused.ID, missing.ID, staff.ID, device.ID, group.ID)
 
 	for _, s := range []int64{present.ID, sick.ID, excused.ID, missing.ID} {
 		testpkg.AssignStudentToGroup(t, tc.db, s, group.ID)
@@ -82,13 +84,11 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 
 	checkIn := timezone.Today().Add(8 * time.Hour)
 	checkOut := timezone.Today().Add(15 * time.Hour)
-	att := testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, &checkOut)
-	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", att.ID)
+	testpkg.CreateTestAttendance(t, tc.db, present.ID, staff.ID, device.ID, checkIn, &checkOut)
 
 	today := timezone.TodayDate()
-	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
-	excusedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
-	defer testpkg.CleanupStudentStatusDays(t, tc.db, sickDay.ID, excusedDay.ID)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, active.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, active.StudentStatusDayExcused)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -134,15 +134,18 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 	assert.Equal(t, "Abwesend", missingRow.Label)
 }
 
-func TestGetStudentsDayLog_SupervisorLimitedToOwnGroup(t *testing.T) {
+func TestGetStudentsDayLog_StaffSeesEveryGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
+	// #2329: the day log is tenant-wide for staff — supervision of the group no
+	// longer narrows what a staff member may evaluate.
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DayLog", "Supervisor")
 	ownGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Eigene")
 	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Fremde")
-	groupTeacher := testpkg.CreateTestGroupTeacher(t, tc.db, ownGroup.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, account.ID, ownGroup.ID, foreignGroup.ID, groupTeacher.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, ownGroup.ID, teacher.ID)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
@@ -150,83 +153,43 @@ func TestGetStudentsDayLog_SupervisorLimitedToOwnGroup(t *testing.T) {
 
 	var body dayLogTestBody
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	require.Len(t, body.Data.Groups, 1, "supervisor should only see the supervised group")
-	assert.Equal(t, fmt.Sprintf("%d", ownGroup.ID), body.Data.Groups[0].GroupID)
+	seen := map[string]bool{}
+	for _, group := range body.Data.Groups {
+		seen[group.GroupID] = true
+	}
+	assert.True(t, seen[fmt.Sprintf("%d", ownGroup.ID)], "supervised group must be listed")
+	assert.True(t, seen[fmt.Sprintf("%d", foreignGroup.ID)], "unsupervised group must be listed too")
 
+	// Narrowing to a group the caller does not supervise is now a normal read.
 	req = testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", foreignGroup.ID), nil)
 	rr = authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
-	assert.Equal(t, http.StatusForbidden, rr.Code, "foreign group must be refused. Body: %s", rr.Body.String())
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	body = dayLogTestBody{}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	require.Len(t, body.Data.Groups, 1)
+	assert.Equal(t, fmt.Sprintf("%d", foreignGroup.ID), body.Data.Groups[0].GroupID)
 }
 
 func TestGetStudentsDayLog_UnlinkedStaffAccountForbidden(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	// Account without a person/staff row: supervisor-only mode must answer
 	// with a 403 "no permitted groups", not a 500 dependency failure.
 	account := testpkg.CreateTestAccount(t, tc.db, "daylog-unlinked@example.com")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID)
 
 	req := testutil.NewRequest("GET", "/day-log", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
-}
-
-// setDayLogScopeAllStaff widens the attendance-log scope for the test tenant.
-func setDayLogScopeAllStaff(t *testing.T, tc *testContext) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	require.NoError(t, tc.services.Settings.SetValue(ctx, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeAllStaff, nil, nil))
-	t.Cleanup(func() {
-		_ = tc.services.Settings.ResetValue(ctx, configModel.KeyAttendanceLogScope, nil, nil)
-	})
-}
-
-func TestGetStudentsDayLog_ScopeAllStaffRequiresStaffRecord(t *testing.T) {
-	tc := setupTestContext(t)
-	enableAttendanceLog(t, tc)
-	setDayLogScopeAllStaff(t, tc)
-
-	// all_staff widens what STAFF may read. An account holding users:read
-	// without a person/staff row is not staff and must not inherit the scope,
-	// otherwise it reads every group's attendance.
-	account := testpkg.CreateTestAccount(t, tc.db, "daylog-unlinked-allstaff@example.com")
-	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog ScopeGuard")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, account.ID, group.ID)
-
-	req := testutil.NewRequest("GET", "/day-log", nil)
-	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
-	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-	assert.Contains(t, rr.Body.String(), "no_permitted_groups")
-
-	req = testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", group.ID), nil)
-	rr = authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
-	assert.Equal(t, http.StatusForbidden, rr.Code, "Body: %s", rr.Body.String())
-}
-
-func TestGetStudentsDayLog_ScopeAllStaffAllowsLinkedStaff(t *testing.T) {
-	tc := setupTestContext(t)
-	enableAttendanceLog(t, tc)
-	setDayLogScopeAllStaff(t, tc)
-
-	// Counterpart to the guard above: a real staff member keeps the widened
-	// view, including groups they do not supervise.
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DayLog", "AllStaff")
-	foreignGroup := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog ScopeForeign")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, account.ID, foreignGroup.ID)
-
-	req := testutil.NewRequest("GET", fmt.Sprintf("/day-log?group_id=%d", foreignGroup.ID), nil)
-	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
-	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
-
-	var body dayLogTestBody
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	require.Len(t, body.Data.Groups, 1)
-	assert.Equal(t, fmt.Sprintf("%d", foreignGroup.ID), body.Data.Groups[0].GroupID)
 }
 
 func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -239,6 +202,8 @@ func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
 }
 
 func TestGetStudentsDayLog_HistoricalDateRejected(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -251,6 +216,8 @@ func TestGetStudentsDayLog_HistoricalDateRejected(t *testing.T) {
 }
 
 func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
@@ -261,12 +228,14 @@ func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *tes
 	assert.Contains(t, rr.Body.String(), "dated group assignments")
 }
 
+// Deliberately NOT parallel: the test wipes every attendance_day_log audit row
+// in the clone to get an exact count, so it and any test running beside it
+// would delete each other's evidence.
 func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Audit")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, group.ID)
 
 	// Earlier day-log tests in this package also write audit rows — clear the
 	// slate so the count below sees exactly this request's entry.
@@ -298,12 +267,13 @@ func TestGetStudentsDayLog_WritesAuditLog(t *testing.T) {
 }
 
 func TestExportStudentsDayLog_RendersFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DayLog Export")
 	student := testpkg.CreateTestStudent(t, tc.db, "Exportia", "Kind", "2a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 	t.Cleanup(func() {
 		_, _ = tc.db.NewDelete().

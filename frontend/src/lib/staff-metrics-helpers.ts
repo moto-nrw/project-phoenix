@@ -9,7 +9,11 @@ import type {
   StaffHistorySession,
   StaffSchedule,
 } from "./staff-api";
-import type { StaffAbsence, WorkSessionHistory } from "./time-tracking-helpers";
+import {
+  indexWorkSessionMinutesByBerlinDate,
+  type StaffAbsence,
+  type WorkSessionHistory,
+} from "./time-tracking-helpers";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -247,7 +251,7 @@ function absenceCreditForDay(
     : target;
 }
 
-function isEffectiveAbsenceStatus(status: string): boolean {
+export function isEffectiveAbsenceStatus(status: string): boolean {
   return status === "reported" || status === "approved";
 }
 
@@ -305,6 +309,39 @@ export function indexAbsenceCreditByDay(
 }
 
 /**
+ * Die Abwesenheit, die einen Kalendertag VERBRAUCHT — dieselbe Auswahl, die
+ * `indexAbsenceCreditByDay` und der Server (`walkCreditedAbsenceDays`) treffen:
+ * nur reported/approved zählen, und bei Überschneidungen gewinnt die niedrigste
+ * ID.
+ *
+ * Die Gutschrift-Spalte zeigt einen vom Server gerechneten Wert; ihr Tooltip
+ * muss deshalb dieselbe Abwesenheit nennen, aus der dieser Wert stammt. Eine
+ * Karte in API-Reihenfolge (nach Startdatum) nennt bei Überschneidungen die
+ * falsche Art.
+ *
+ * Freizeitausgleich steht hier bewusst mit drin: der Typ verbraucht seinen Tag,
+ * schreibt aber nichts gut — die Zelle rendert dann gar keinen Tooltip.
+ */
+export function indexCreditingAbsenceByDay(
+  absences: readonly StaffAbsenceRow[] | undefined,
+): Map<string, StaffAbsenceRow> {
+  const byDay = new Map<string, StaffAbsenceRow>();
+  if (!absences || absences.length === 0) return byDay;
+  for (const absence of sortAbsencesById(absences)) {
+    const range = parseEffectiveAbsenceRange(absence);
+    if (!range) continue;
+    for (let i = 0; i < range.totalDays; i++) {
+      const day = new Date(range.start);
+      day.setDate(day.getDate() + i);
+      const key = toDateKey(day);
+      if (byDay.has(key)) continue;
+      byDay.set(key, absence);
+    }
+  }
+  return byDay;
+}
+
+/**
  * Sum the actual net minutes of all sessions falling into [from, to]
  * (inclusive).
  *
@@ -322,13 +359,63 @@ function computeIstForRange(
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
   let sum = 0;
-  for (const session of sessions) {
-    const key = session.date.slice(0, 10);
+  const timestampedSessions = sessions.filter(
+    (session) => !Number.isNaN(new Date(session.check_in_time).getTime()),
+  );
+  const minutesByDate = indexWorkSessionMinutesByBerlinDate(
+    timestampedSessions.map((session) => staffSessionToHistorySession(session)),
+  );
+  for (const [key, minutes] of minutesByDate) {
     if (key >= fromKey && key <= toKey) {
-      sum += Math.max(0, session.net_minutes ?? 0);
+      sum += Math.max(0, minutes.netMinutes);
+    }
+  }
+  // Older fixtures and imported legacy rows can lack a parseable interval.
+  // They have no usable day boundary to split, so preserve their stored date.
+  for (const session of sessions) {
+    if (!timestampedSessions.includes(session)) {
+      const key = session.date.slice(0, 10);
+      if (key >= fromKey && key <= toKey) {
+        sum += Math.max(0, session.net_minutes ?? 0);
+      }
     }
   }
   return sum;
+}
+
+function staffSessionToHistorySession(
+  session: StaffHistorySession,
+): WorkSessionHistory {
+  return {
+    id: session.id ?? "",
+    staffId: "",
+    date: session.date,
+    status: session.status ?? "present",
+    source: session.source,
+    checkInTime: session.check_in_time,
+    checkOutTime: session.check_out_time,
+    breakMinutes: session.break_minutes,
+    notes: session.notes ?? "",
+    autoCheckedOut: session.auto_checked_out ?? false,
+    createdBy: "",
+    updatedBy: null,
+    createdAt: "",
+    updatedAt: "",
+    netMinutes: session.net_minutes,
+    isOvertime: false,
+    isBreakCompliant: true,
+    restPeriodWarning: null,
+    breaks: (session.breaks ?? []).map((workBreak, index) => ({
+      id: index.toString(),
+      sessionId: session.id ?? "",
+      startedAt: workBreak.started_at,
+      endedAt: workBreak.ended_at,
+      durationMinutes: 0,
+      plannedEndTime: null,
+    })),
+    editCount: session.edit_count ?? 0,
+    auditCount: session.audit_count ?? 0,
+  };
 }
 
 /**
@@ -565,7 +652,7 @@ export function adaptHistorySessionForMetrics(
   session: WorkSessionHistory,
 ): StaffHistorySession {
   return {
-    id: session.id ? Number(session.id) : undefined,
+    id: session.id || undefined,
     date: session.date,
     status: session.status,
     source: session.source,
@@ -589,6 +676,8 @@ export function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
     id: Number(absence.id),
     staff_id: Number(absence.staffId),
     absence_type: absence.absenceType,
+    absence_type_id: absence.absenceTypeId,
+    absence_type_label: absence.absenceTypeLabel,
     date_start: absence.dateStart,
     date_end: absence.dateEnd,
     half_day: absence.halfDay,

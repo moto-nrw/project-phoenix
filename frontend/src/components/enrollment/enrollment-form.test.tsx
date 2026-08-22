@@ -507,6 +507,170 @@ describe("EnrollmentForm", () => {
     ).toBeInTheDocument();
   });
 
+  // #2186: parents must keep seeing only what they can pick (the test above),
+  // but for an admin a filtered-out offering reads as a missing feature. The
+  // support case: a grade-3 child cannot be added to a "Randstunde" limited
+  // to grades 1-2, and the form said nothing at all.
+  it("shows blocked offerings with their reason in admin mode", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "3. Klasse");
+
+    expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
+    expect(screen.getByText("Randstunde")).toBeVisible();
+    expect(
+      screen.getByText("Nicht wählbar: nur für Klassen 1–2 (Kind: Klasse 3)"),
+    ).toBeVisible();
+    // Shown, never selectable — the documented workaround is to relax the
+    // rule in the Angebots-Katalog, not to override it here.
+    expect(
+      document.querySelector('input[name="children_0_offering_99"]'),
+    ).toBeNull();
+  });
+
+  // The reason must be phrased against the grades the SCHOOL has, not the
+  // backend's 1-13 ceiling (#2186 review). Picked so the two disagree: with
+  // gradeLevelMax 4 the excluded side is shorter ("nicht für Klasse 4"),
+  // while the 1-13 fallback would name the allowed side instead ("nur für
+  // Klassen 1-3"). The grades 1-2 case above reads identically either way,
+  // so only this shape catches a caller that drops gradeLevelMax.
+  it("describes a blocked offering against the tenant's grade ceiling", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [
+          { source: "grade_level", operator: "in", value: [1, 2, 3] },
+        ],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "4. Klasse");
+
+    expect(
+      screen.getByText("Nicht wählbar: nicht für Klasse 4 (Kind: Klasse 4)"),
+    ).toBeVisible();
+  });
+
+  it("drops the blocked section once the grade makes the offering available", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({ showBlockedOfferings: true });
+    await waitForLoaded();
+
+    await chooseOption("Klassenstufe *", "3. Klasse");
+    expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
+
+    await chooseOption("Klassenstufe *", "2. Klasse");
+    expect(
+      screen.queryByText("Für dieses Kind nicht wählbar"),
+    ).not.toBeInTheDocument();
+    expect(
+      document.querySelector('input[name="children_0_offering_99"]'),
+    ).not.toBeNull();
+  });
+
+  it("shows per-offering occupancy in admin mode", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({
+      showBlockedOfferings: true,
+      offeringBookingStats: {
+        [offerings()[0]!.id]: {
+          offering_id: offerings()[0]!.id,
+          capacity: 20,
+          booked: 20,
+          grade_levels: {},
+          unknown_grade_count: 0,
+        },
+      },
+    });
+    await waitForLoaded();
+
+    expect(
+      screen.getByText("Ausgebucht (20 von 20 Plätzen belegt)"),
+    ).toBeVisible();
+  });
+
+  it("shows no occupancy or blocked section on the parent form", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "3. Klasse");
+
+    expect(
+      screen.queryByText("Für dieses Kind nicht wählbar"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Plätzen belegt/)).not.toBeInTheDocument();
+  });
+
   it("hides grade and care offerings when the tenant disables both", async () => {
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),
@@ -1543,6 +1707,92 @@ describe("EnrollmentForm", () => {
     expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
   });
 
+  it("restricts a rule grade to one way home per day (Heimweg-Beschraenkung)", async () => {
+    const restricted = schema();
+    restricted.fields = [
+      {
+        key: "heimwege",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: false,
+        applies_to_child: true,
+        target: "student.allowed_departure_modes",
+        single_mode_grades: [1],
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "1. Klasse");
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    expect(
+      within(group).getByText(
+        "Wählen Sie pro Betreuungstag einen Heimweg aus.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    // The modes render as a real radio group, not checkboxes.
+    fireEvent.click(within(group).getByRole("radio", { name: "Bus" }));
+    expect(within(group).getByRole("radio", { name: "Bus" })).toBeChecked();
+    // Picking another way home replaces the first instead of adding to it.
+    fireEvent.click(
+      within(group).getByRole("radio", { name: "Wird abgeholt" }),
+    );
+    expect(
+      within(group).getByRole("radio", { name: "Wird abgeholt" }),
+    ).toBeChecked();
+    expect(within(group).getByRole("radio", { name: "Bus" })).not.toBeChecked();
+  });
+
+  it("keeps the multi-select for grades outside single_mode_grades", async () => {
+    const restricted = schema();
+    restricted.fields = [
+      {
+        key: "heimwege",
+        label: "Erlaubte Heimwege",
+        type: "weekday_multi_mode",
+        required: false,
+        applies_to_child: true,
+        target: "student.allowed_departure_modes",
+        single_mode_grades: [1],
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(restricted);
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+    await chooseOption("Klassenstufe *", "2. Klasse");
+
+    const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
+    fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
+    fireEvent.click(within(group).getByRole("checkbox", { name: "Bus" }));
+    fireEvent.click(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    );
+    expect(within(group).getByRole("checkbox", { name: "Bus" })).toBeChecked();
+    expect(
+      within(group).getByRole("checkbox", { name: "Wird abgeholt" }),
+    ).toBeChecked();
+  });
+
   it("applies one selection to every care day when 'same ways home' is on", async () => {
     const previewSchema = schema();
     previewSchema.fields = [
@@ -2021,6 +2271,73 @@ describe("EnrollmentForm", () => {
     expect((lastNames[1] as HTMLInputElement).value).toBe("Alster");
     expect((firstNames[2] as HTMLInputElement).value).toBe("Berta");
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
+  });
+
+  it("renders a taken-over child read-only and keeps the sibling editable", async () => {
+    // ADR 0003: after the takeover the child's data stays readable, but every
+    // change for it runs through the parents app.
+    const draft = editDraft([
+      { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      { id: "c-2", first_name: "Berta", last_name: "Bach" },
+    ]);
+    draft.children[0]!.locked = true;
+
+    renderForm({ initialDraft: draft, lockChildStructure: true });
+    await waitForLoaded();
+
+    // Guardian name plus the one editable child — the locked child has no
+    // inputs at all.
+    expect(screen.getAllByLabelText("Vorname *")).toHaveLength(2);
+    expect(screen.getByText("Anton Alster")).toBeInTheDocument();
+    expect(screen.getByText("Schon in der Betreuung")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Änderungen für Anton Alster laufen jetzt über die Eltern-App\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("submits a taken-over child unchanged", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    const draft = editDraft([
+      { id: "c-1", first_name: "Anton", last_name: "Alster" },
+    ]);
+    const lockedChild = draft.children[0]!;
+    lockedChild.locked = true;
+    // This offering and answer are deliberately absent from the current
+    // catalog/schema. A read-only child must still travel back exactly as
+    // bootstrapped while its sibling is edited.
+    lockedChild.offering_ids = ["12", "99"];
+    lockedChild.offering_days = [
+      { offering_id: "99", selected_days: ["fri", "mon"] },
+    ];
+    lockedChild.custom_data = { retired_field: "keep me" };
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      lockChildStructure: true,
+      initialDraft: draft,
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+    const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]).toMatchObject({
+      first_name: "Anton",
+      last_name: "Alster",
+      date_of_birth: "2018-04-15",
+      target_grade_level: 2,
+      custom_data: { retired_field: "keep me" },
+      offering_ids: [12, 99],
+      offering_days: [{ offering_id: 99, selected_days: ["fri", "mon"] }],
+    });
   });
 
   it("adds a conditional required offering when hydrating an edit draft", async () => {
@@ -3235,5 +3552,112 @@ describe("EnrollmentForm — fixed pickup times", () => {
     await waitFor(() =>
       expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
     );
+  });
+});
+
+describe("EnrollmentForm restrictToOfferings (#2251)", () => {
+  beforeEach(() => {
+    mockIntlLocale.value = "de";
+    mockFetchPublicActiveSchema.mockReset();
+    mockFetchPublicCaptchaConfig.mockReset();
+    mockFetchPublicLegalTexts.mockReset();
+    mockFetchPublicCareOfferings.mockReset();
+    mockFetchMyEnrollmentProfile.mockReset();
+    mockSubmitEnrollment.mockReset();
+    mockFetchPublicActiveSchema.mockResolvedValue(schema());
+    mockFetchPublicCaptchaConfig.mockResolvedValue({
+      enabled: false,
+      site_key: "",
+    });
+    mockFetchPublicLegalTexts.mockResolvedValue(legalTexts());
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+    });
+    mockFetchMyEnrollmentProfile.mockResolvedValue(null);
+    mockSubmitEnrollment.mockResolvedValue({ status_url: "/status/abc" });
+  });
+
+  it("shows only the per-child offering selection, no master data or consents", async () => {
+    renderForm({
+      restrictToOfferings: true,
+      lockChildStructure: true,
+      skipCaptcha: true,
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    // Child rendered by name, not by editable identity inputs.
+    expect(screen.getByText("Anton Alster")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Vorname *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("E-Mail *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
+
+    // Offerings stay selectable.
+    expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
+    expect(screen.getByText("Fixe Betreuung")).toBeInTheDocument();
+
+    // No consent/legal section.
+    expect(screen.queryByText(/AGB/)).not.toBeInTheDocument();
+  });
+
+  it("submits the unchanged draft data with only the offering change applied", async () => {
+    const submitter = vi
+      .fn()
+      .mockResolvedValue({ status_url: "/enroll/status/tok-1" });
+    const initialDraft = {
+      ...editDraft([{ id: "c-1", first_name: "Anton", last_name: "Alster" }]),
+      custom_data: { guardian_note: "Bitte anrufen" },
+      children: [
+        {
+          ...editDraft([
+            { id: "c-1", first_name: "Anton", last_name: "Alster" },
+          ]).children[0]!,
+          custom_data: { pickup_times: { mon: "14:30" } },
+        },
+      ],
+    };
+    renderForm({
+      restrictToOfferings: true,
+      lockChildStructure: true,
+      skipCaptcha: true,
+      submitter,
+      initialDraft,
+    });
+    await waitForLoaded();
+
+    // Add the flexible offering and pick a day.
+    fireEvent.click(screen.getByText("Flexible Betreuung"));
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledTimes(1));
+    const payload = submitter.mock.calls[0]?.[0] as {
+      guardian_first_name: string;
+      guardian_email: string;
+      children: {
+        first_name: string;
+        date_of_birth: string;
+        offering_ids: number[];
+        custom_data: Record<string, unknown>;
+      }[];
+      custom_data: Record<string, unknown>;
+    };
+    // Hidden master data travels unchanged from the draft.
+    expect(payload.guardian_first_name).toBe("Mara");
+    expect(payload.guardian_email).toBe("mara@example.test");
+    expect(payload.children[0]?.first_name).toBe("Anton");
+    expect(payload.children[0]?.date_of_birth).toBe("2018-04-15");
+    expect(payload.custom_data).toEqual({ guardian_note: "Bitte anrufen" });
+    expect(payload.children[0]?.custom_data).toEqual({
+      pickup_times: { mon: "14:30" },
+    });
+    // The offering change is applied.
+    expect(payload.children[0]?.offering_ids).toContain(11);
+    expect(payload.children[0]?.offering_ids).toContain(12);
   });
 });

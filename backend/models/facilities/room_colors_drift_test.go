@@ -27,6 +27,8 @@ import (
 // if the TS shape ever changes, this test will fail loudly and force a sync
 // review.
 func TestReservedRoomColors_MatchesFrontendLOCATION_COLORS(t *testing.T) {
+	t.Parallel()
+
 	frontendPath := findFrontendLocationHelper(t)
 
 	bytes, err := os.ReadFile(frontendPath) // #nosec G304 — path computed inside repo
@@ -185,6 +187,8 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 // even if someone refactors the palette half, this assertion stays put and
 // keeps #4F46E5 reserved.
 func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
+	t.Parallel()
+
 	require.True(t, facilities.IsReservedRoomColor("#4F46E5"),
 		"legacy bug-default #4F46E5 must remain reserved — see "+
 			"migration 1.15.45 / room_colors.go for the rationale")
@@ -200,6 +204,8 @@ func TestReservedRoomColors_LegacyBugDefault(t *testing.T) {
 // would let a room masquerade as a status for anyone whose client still maps
 // the old palette.
 func TestReservedRoomColors_RetiredStatusColors(t *testing.T) {
+	t.Parallel()
+
 	for _, hex := range []string{
 		"#FF3130", // previous HOME status color
 	} {

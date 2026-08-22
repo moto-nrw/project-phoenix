@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -147,7 +146,6 @@ var reminderSettingKeys = []string{
 	configModel.KeyRemindersActivityStartLeadMinutes,
 	configModel.KeyTimetableOverdueThresholdMinutes,
 	configModel.KeyPresenceMode,
-	configModel.KeyStudentDataScope,
 }
 
 type attendanceReader interface {
@@ -186,14 +184,6 @@ type supervisionReader interface {
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
 }
 
-// groupReader lists the education groups the current caller supervises. It
-// mirrors usercontext.UserContextService.GetMyGroups so the pickup read-access
-// gate (gdpr.student_data_scope) can be enforced without importing the handler
-// layer.
-type groupReader interface {
-	GetMyGroups(ctx context.Context) ([]*educationModel.Group, error)
-}
-
 // Dependencies wires the readers the service needs. They mirror existing
 // services/repositories so no new query construction lives here.
 type Dependencies struct {
@@ -205,7 +195,6 @@ type Dependencies struct {
 	Student     studentReader
 	Person      personReader
 	Supervision supervisionReader
-	Groups      groupReader
 	Logger      *slog.Logger
 
 	// The bulk readers below are used only by ComputeBatch. They are optional so
@@ -213,7 +202,6 @@ type Dependencies struct {
 	// closed (empty room set, empty presence, nobody readable), never open.
 	BulkSupervision bulkSupervisionReader
 	BulkVisits      bulkVisitReader
-	BulkGroups      bulkGroupReader
 	// BulkInstanceStaff resolves the planned staff of today's activity
 	// instances. Without it the batch falls back to room supervision alone,
 	// which never reaches the person who is supposed to START a slot.
@@ -235,14 +223,6 @@ type bulkSupervisionReader interface {
 // whole tenant in one query.
 type bulkVisitReader interface {
 	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
-}
-
-// bulkGroupReader is the identity-free counterpart of groupReader: it resolves
-// supervised education groups by staff ID instead of from JWT claims. Its
-// agreement with GetMyGroups is pinned by an equivalence test in
-// services/usercontext.
-type bulkGroupReader interface {
-	ListSupervisedGroupIDsByStaff(ctx context.Context, staffIDs []int64, on timezone.Date) ([]educationModel.StaffGroupID, error)
 }
 
 type service struct {
@@ -401,7 +381,7 @@ func assembleResult(pickupPart, activityPart []Reminder, nextChange int) *Result
 
 // pickupScopeStudentIDs returns the IDs of currently present students whose
 // pickups are in scope. This is presence scope only — read access
-// (gdpr.student_data_scope) is enforced later in pickupReminders, once the much
+// (admin or verified staff, #2329) is enforced later in pickupReminders, once the much
 // smaller "actually due" set is known.
 //
 //   - Admins: all present students (open attendance rows), regardless of mode.
@@ -526,16 +506,15 @@ func (s *service) pickupReminders(ctx context.Context, scope Scope, studentIDs [
 	// list, or a non-supervised child sharing a supervised room). Computing a
 	// boundary from an unreadable child's pickup would leak that child's exact
 	// future pickup minute through next_change_at even though no reminder for them
-	// is ever returned — so only students that pass the same gdpr.student_data_scope
+	// is ever returned — so only students that pass the same read-access
 	// gate as the emitted reminders may influence this response at all. Names are
 	// still hydrated only for the due subset below (a large school may have many
 	// present students but only a handful actually within the window, and the
 	// header polls every 60s), so the wasteful person lookups stay bounded.
 	//
-	// This gate necessarily loads every present student (the read predicate needs
-	// each Student's group to decide readability, and a boundary is tracked for
-	// EVERY readable student, not just the due ones), so the read below scales with
-	// the present population rather than the due subset. That is a deliberate
+	// This gate necessarily loads every present student (a boundary is tracked
+	// for EVERY readable student, not just the due ones), so the read below
+	// scales with the present population rather than the due subset. That is a deliberate
 	// trade-off for a correct next_change_at, kept cheap on purpose: readableStudents
 	// uses FindReadScopeByIDs — a single primary-key IN-list projection of
 	// id/group_id/person_id/school_class only, with NONE of FindByIDs' weekday
@@ -614,7 +593,7 @@ func duePickups(
 
 	for _, id := range studentIDs {
 		if _, ok := readable[id]; !ok {
-			// Not readable under gdpr.student_data_scope — must contribute neither
+			// Not readable for this caller — must contribute neither
 			// a reminder nor a next-change boundary.
 			continue
 		}
@@ -913,16 +892,13 @@ type studentNameInfo struct {
 	class string
 }
 
-// readableStudents loads the given students and returns only those the caller is
-// allowed to read. It enforces the same gdpr.student_data_scope gate the
-// pickup-schedule endpoints use: room presence alone does not grant visibility
-// of a student's pickup data — a caregiver must supervise the student's
-// education group (unless the tenant runs the all_staff scope, or the caller is
-// an admin).
+// readableStudents loads the given students and returns only those the caller
+// is allowed to read. Every reminder recipient is staff, so since #2329 all
+// loaded students are readable — the predicate only drops rows the load did
+// not return.
 //
-// A DB/RLS lookup error or a settings-resolution error is propagated rather than
-// treated as no-access, so a broken read fails the request instead of silently
-// hiding (or exposing) reminders.
+// A DB/RLS lookup error is propagated rather than treated as no-access, so a
+// broken read fails the request instead of silently hiding reminders.
 func (s *service) readableStudents(ctx context.Context, scope Scope, ids []int64) (map[int64]*userModel.Student, error) {
 	if s.Student == nil {
 		// Without a student reader we can neither verify read access nor build a
@@ -990,55 +966,11 @@ func (s *service) hydrateNames(ctx context.Context, readable map[int64]*userMode
 }
 
 // pickupReadPredicate returns a per-student read-access test mirroring
-// authorize.CanReadStudent for the pickup read path:
-//   - Admins and the gdpr.student_data_scope=all_staff scope may read every
-//     present student.
-//   - Otherwise (group_supervisors_only), only students in an education group
-//     the caregiver supervises are readable. Room presence alone is not enough.
-//
-// A settings resolution error is surfaced, consistent with the rest of the
-// service — a broken config read must not silently widen or narrow visibility.
-func (s *service) pickupReadPredicate(ctx context.Context, scope Scope) (func(*userModel.Student) bool, error) {
-	if scope.IsAdmin {
-		return func(*userModel.Student) bool { return true }, nil
-	}
-
-	scopeVal := configModel.StudentDataScopeGroupSupervisorsOnly
-	if s.Settings != nil {
-		// ResolveString returns the registry default (group_supervisors_only)
-		// when the tenant has no override, so there is no env-var fallback to
-		// consider here.
-		v, err := s.Settings.ResolveString(ctx, configModel.KeyStudentDataScope)
-		if err != nil {
-			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyStudentDataScope, err)
-		}
-		if v != "" {
-			scopeVal = v
-		}
-	}
-	if scopeVal == configModel.StudentDataScopeAllStaff {
-		return func(*userModel.Student) bool { return true }, nil
-	}
-
-	groupSet := make(map[int64]struct{})
-	if s.Groups != nil {
-		eduGroups, err := s.Groups.GetMyGroups(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("load supervised groups: %w", err)
-		}
-		for _, g := range eduGroups {
-			if g != nil {
-				groupSet[g.ID] = struct{}{}
-			}
-		}
-	}
-	return func(st *userModel.Student) bool {
-		if st == nil || st.GroupID == nil {
-			return false
-		}
-		_, ok := groupSet[*st.GroupID]
-		return ok
-	}, nil
+// authorize.CanReadStudent for the pickup read path. Every reminder recipient
+// is staff, so since #2329 all present students are readable — per-group
+// gating is gone.
+func (s *service) pickupReadPredicate(_ context.Context, _ Scope) (func(*userModel.Student) bool, error) {
+	return func(st *userModel.Student) bool { return st != nil }, nil
 }
 
 // leadMinutes resolves a lead-time setting. A resolution failure is surfaced —

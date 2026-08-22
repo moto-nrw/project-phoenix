@@ -53,7 +53,7 @@ func (s *Service) LoginParentWithAudit(
 	// Pin the refresh token row to the first guardian tenant for the
 	// FK + RLS. The token's purpose is parent-scope (cross-tenant on
 	// read), but the row needs a real tenant_id to satisfy the schema.
-	token, err := s.createRefreshTokenWithRetry(ctx, account, firstGuardianTenantID)
+	token, err := s.createRefreshTokenWithRetry(ctx, account, firstGuardianTenantID, tenant.ScopeParent)
 	if err != nil {
 		return "", "", err
 	}

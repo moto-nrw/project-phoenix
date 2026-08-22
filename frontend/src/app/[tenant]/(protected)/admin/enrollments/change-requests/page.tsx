@@ -1,22 +1,16 @@
 "use client";
 
-import { AdminEnrollmentChangeRequestsList } from "~/components/enrollment/admin-enrollment-change-requests";
-import { Loading } from "~/components/ui/loading";
-import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { redirect } from "next/navigation";
 
-export default function AdminEnrollmentChangeRequestsPage() {
-  const { isReady } = useRequireAdmin();
-  if (!isReady) return <Loading fullPage={false} />;
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
-  return (
-    <div className="-mt-1.5 w-full">
-      <DesktopOnlyNotice />
-      <div className="hidden lg:block">
-        <PageHeaderWithSearch title="Änderungsanfragen" />
-        <AdminEnrollmentChangeRequestsList />
-      </div>
-    </div>
-  );
+/**
+ * Alt-Route der Anmeldungs-Änderungsanfragen. Sie erscheinen seit #2435 im
+ * Anfragen-Modul (/anfragen, Reiter „Eltern") als Anfrageart „Anmeldung";
+ * gespeicherte Links und Gewohnheiten landen hier und werden weitergeleitet.
+ * Die Detailansicht darunter bleibt und wird aus der Liste heraus verlinkt.
+ */
+export default function AdminEnrollmentChangeRequestsRedirect() {
+  const tenantPath = useTenantAwarePath();
+  return redirect(tenantPath("/anfragen"));
 }

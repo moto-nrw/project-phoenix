@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -44,6 +45,9 @@ var (
 	ErrEmptyBody = errors.New("messaging: message body must not be empty")
 	// ErrBodyTooLong means the message exceeded maxMessageLen.
 	ErrBodyTooLong = errors.New("messaging: message body too long")
+	// ErrHandledBoundaryRequired means the replying client did not identify the
+	// message snapshot its team reply covers.
+	ErrHandledBoundaryRequired = errors.New("messaging: handled message boundary required")
 	// ErrInvalidGuardian means the chosen recipient is not an account-holding
 	// guardian of the child.
 	ErrInvalidGuardian = errors.New("messaging: recipient is not a guardian of this child")
@@ -91,6 +95,15 @@ type Config struct {
 	// sent past consent.
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
+
+	// Outbox, GuardianProfiles, Schools and ParentsURL queue the guardian e-mail
+	// for a new OGS message (#2307). All are optional so bare-constructed unit
+	// test services remain silent. LoginImages only decorates the mail header.
+	Outbox           platformModels.OutboxEnqueuer
+	GuardianProfiles GuardianProfileFinder
+	Schools          SchoolFinder
+	LoginImages      LoginImageResolver
+	ParentsURL       string
 }
 
 // NewService wires a staff messaging service.
@@ -101,9 +114,9 @@ func NewService(cfg Config) *Service {
 	return &Service{Config: cfg}
 }
 
-func (s *Service) scope(ctx context.Context) (bool, []int64) {
+func (s *Service) scope(ctx context.Context) bool {
 	perms := jwt.PermissionsFromCtx(ctx)
-	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext, s.Settings, s.Logger)
+	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
@@ -112,8 +125,8 @@ func accountIDFromCtx(ctx context.Context) int64 {
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	allStudents := s.scope(ctx)
+	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -179,8 +192,8 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
-	allStudents, groupIDs := s.scope(ctx)
-	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+	allStudents := s.scope(ctx)
+	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -210,7 +223,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 		return ErrForbidden
 	}
 	perms := jwt.PermissionsFromCtx(ctx)
-	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext, s.Settings, s.Logger) {
+	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext) {
 		return ErrForbidden
 	}
 	return nil
@@ -333,7 +346,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a staff reply and returns the refreshed thread messages.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, handledUpToMessageID int64) ([]*usersModels.ParentMessage, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return nil, ErrEmptyBody
@@ -354,15 +367,42 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := s.requireLinkedGuardian(ctx, thread); err != nil {
 		return nil, err
 	}
+	visibleMessages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: list visible messages: %w", err)
+	}
+	boundaryFound := handledUpToMessageID <= 0
+	for _, message := range visibleMessages {
+		if message.ID == handledUpToMessageID {
+			boundaryFound = true
+		}
+	}
+	if !boundaryFound {
+		return nil, ErrHandledBoundaryRequired
+	}
+	if handledUpToMessageID <= 0 {
+		for _, message := range visibleMessages {
+			if usersModels.IsCounterpartMessage(message, true) {
+				return nil, ErrHandledBoundaryRequired
+			}
+		}
+	}
 
 	accountID := accountIDFromCtx(ctx)
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
 		return nil, err
 	}
 
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
+	}
+	if err := parentmessaging.MarkStaffHandledToVisible(ctx, s.ReadRepo, thread.TenantID, thread.ID, handledUpToMessageID, visibleMessages); err != nil {
+		return nil, fmt.Errorf("messaging: mark handled: %w", err)
 	}
 	// Advance the staff reader's cursor over this returned snapshot, exactly as the
 	// GET path (markReadAndBuild) does. The client applies this list with
@@ -429,8 +469,16 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
-	if err := s.appendStaffMessage(ctx, thread, accountID, body); err != nil {
+	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
+	if err != nil {
 		return nil, err
+	}
+	if err := s.notifyGuardianEmail(ctx, thread, message.ID); err != nil {
+		return nil, err
+	}
+	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
 	s.broadcastAfterCommit(ctx, thread)
 	s.notifyGuardianDevice(ctx, thread)
@@ -447,7 +495,10 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	// refetch. Snapshot-bounded (never NOW()) via markReadAndBuild. The advance flag
 	// is ignored: this is a SEND path, and broadcastAfterCommit above already wakes
 	// the guardian with the new message (which refreshes receipts too).
-	detail, _, err := s.markReadAndBuild(ctx, thread)
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+		return nil, fmt.Errorf("messaging: mark read: %w", err)
+	}
+	detail, err := s.buildDetailFromMessages(ctx, thread, messages)
 	return detail, err
 }
 
@@ -510,7 +561,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // does NOT move the sender's read cursor) is shared with the parent side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
+func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) (*usersModels.ParentMessage, error) {
 	msg := &usersModels.ParentMessage{
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
@@ -523,9 +574,9 @@ func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 	}
 	msg.SetTenantID(thread.TenantID)
 	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
-		return fmt.Errorf("messaging: append staff message: %w", err)
+		return nil, fmt.Errorf("messaging: append staff message: %w", err)
 	}
-	return nil
+	return msg, nil
 }
 
 // requireEnabled blocks writes (reply, new thread, open) when the school has
@@ -638,11 +689,24 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 	if len(optedIn) == 0 {
 		return
 	}
+	locale := ""
+	if s.GuardianProfiles != nil {
+		profile, profileErr := s.GuardianProfiles.FindByAccountID(ctx, thread.GuardianAccountID)
+		if profileErr != nil {
+			s.Logger.Warn("messaging: load guardian locale for push failed",
+				slog.Int64("thread_id", thread.ID),
+				slog.String("error", profileErr.Error()),
+			)
+		} else if profile != nil && profile.PortalLocale != nil {
+			locale = *profile.PortalLocale
+		}
+	}
+	title, notificationBody := notifications.ParentMessageCopy(locale)
 
 	err = s.Notifier.Notify(ctx, notifications.Event{
 		Type:     notifications.TypeParentMessage,
-		Title:    "Neue Nachricht der OGS",
-		Body:     "Sie haben eine neue Nachricht im Elternportal.",
+		Title:    title,
+		Body:     notificationBody,
 		DeepLink: "/messages",
 		Priority: notifications.PriorityNormal,
 		Audience: notifications.Audience{

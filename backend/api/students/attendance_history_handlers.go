@@ -130,9 +130,8 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// 2. Scope check
-	scope := configService.ResolveStringOrDefault(ctx, rs.SettingsService, configModel.KeyAttendanceLogScope, configModel.AttendanceLogScopeGroupSupervisorsOnly, logger)
-	if !rs.attendanceHistoryScopeAllows(r, student, scope) {
+	// 2. Identity check (admin or verified staff)
+	if !rs.attendanceHistoryScopeAllows(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("not_group_supervisor")))
 		return
 	}
@@ -297,22 +296,10 @@ func (rs *Resource) attendanceHistoryLogger() *slog.Logger {
 	return slog.Default().With("handler", "attendance_history")
 }
 
-// attendanceHistoryScopeAllows returns true if the requesting staff member may
-// view this student's attendance history according to the configured scope.
-// Admins always pass.
-func (rs *Resource) attendanceHistoryScopeAllows(r *http.Request, student *users.Student, scope string) bool {
-	perms := jwt.PermissionsFromCtx(r.Context())
-	if authorize.HasAdminWildcard(perms) {
-		return true
-	}
-	if scope == configModel.AttendanceLogScopeAllStaff {
-		return true
-	}
-	// group_supervisors_only (default)
-	if student.GroupID == nil {
-		return false
-	}
-	return isGroupSupervisor(r.Context(), *student.GroupID, rs.UserContextService)
+// attendanceHistoryScopeAllows returns true if the requesting caller may view
+// this student's attendance history: admin or verified staff (#2329).
+func (rs *Resource) attendanceHistoryScopeAllows(r *http.Request, student *users.Student) bool {
+	return authorize.CanReadStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 }
 
 // parseAttendanceHistoryRange reads start/end query params and falls back to

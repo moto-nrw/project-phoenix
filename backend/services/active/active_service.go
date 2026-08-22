@@ -138,6 +138,11 @@ type service struct {
 	// When nil, auto-clear falls back to the registry default behavior.
 	// Injected post-construction via SetSettingsService.
 	settings SettingsResolver
+
+	// Optional: weckt die Sorgeberechtigten eines Kindes nach einer
+	// Anwesenheitsaenderung, damit die Eltern-App ihren Tagesstatus (#2252)
+	// live nachlaedt. Injiziert via SetGuardianWaker; nil ist ein No-op.
+	guardianWaker GuardianWaker
 }
 
 // SetSettingsService injects the tenant-scoped settings resolver.
@@ -320,6 +325,16 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 	if group == nil || group.Validate() != nil {
 		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrInvalidData}
 	}
+	existing, err := s.GroupRepo.FindByIDForUpdate(ctx, group.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+		}
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+	}
+	if existing == nil {
+		return &ActiveError{Op: "UpdateActiveGroup", Err: ErrActiveGroupNotFound}
+	}
 
 	// Check for room conflicts if room is assigned (exclude current group)
 	if group.RoomID > 0 {
@@ -329,6 +344,15 @@ func (s *service) UpdateActiveGroup(ctx context.Context, group *active.Group) er
 		}
 		if hasConflict {
 			return &ActiveError{Op: "UpdateActiveGroup", Err: ErrRoomConflict}
+		}
+		if existing.RoomID != group.RoomID {
+			incoming, err := s.VisitRepo.CountActiveByGroupID(ctx, group.ID)
+			if err != nil {
+				return &ActiveError{Op: "UpdateActiveGroup", Err: ErrDatabaseOperation}
+			}
+			if err := s.ensureRoomCapacity(ctx, group.RoomID, incoming); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -529,7 +553,8 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 	// Lock and re-check the target immediately before the visit-side writes.
 	// The lock serializes check-ins with session absorption/end paths, which
 	// take the same active.groups row lock before closing the session.
-	if err := s.validateActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID); err != nil {
+	targetGroup, err := s.lockActiveGroupOpenForUpdate(ctx, visit.ActiveGroupID)
+	if err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
@@ -541,6 +566,11 @@ func (s *service) CreateVisit(ctx context.Context, visit *active.Visit) error {
 			return activeErr
 		}
 		return &ActiveError{Op: "CreateVisit", Err: ErrDatabaseOperation}
+	}
+	if visit.ExitTime == nil {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return err
+		}
 	}
 
 	// Handle attendance (create new or update on re-entry)
@@ -653,14 +683,19 @@ func (s *service) validateActiveGroupExists(ctx context.Context, groupID int64) 
 // or supervisor INSERT. This prevents a row selected before a concurrent
 // absorption from attaching to the group after that absorption ends it.
 func (s *service) validateActiveGroupOpenForUpdate(ctx context.Context, groupID int64) error {
+	_, err := s.lockActiveGroupOpenForUpdate(ctx, groupID)
+	return err
+}
+
+func (s *service) lockActiveGroupOpenForUpdate(ctx context.Context, groupID int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if group == nil || group.EndTime != nil {
-		return ErrActiveGroupNotFound
+		return nil, ErrActiveGroupNotFound
 	}
-	return nil
+	return group, nil
 }
 
 // validateStaffExists checks if a staff member exists, returning appropriate errors
@@ -744,11 +779,13 @@ func (s *service) prepareVisitTransfer(
 	ctx context.Context,
 	existing, updated *active.Visit,
 ) (bool, time.Time, error) {
-	if existing.ExitTime != nil || existing.ActiveGroupID == updated.ActiveGroupID {
+	isReopening := existing.ExitTime != nil && updated.ExitTime == nil
+	isGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != updated.ActiveGroupID
+	if !isReopening && !isGroupMove {
 		return false, time.Time{}, nil
 	}
 
-	targetGroup, err := s.GroupRepo.FindByID(ctx, updated.ActiveGroupID)
+	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, updated.ActiveGroupID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
@@ -759,13 +796,29 @@ func (s *service) prepareVisitTransfer(
 		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 	}
 
+	if isReopening {
+		if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+			return false, time.Time{}, err
+		}
+	} else {
+		sourceGroup, err := s.GroupRepo.FindByID(ctx, existing.ActiveGroupID)
+		if err != nil || sourceGroup == nil {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if updated.ExitTime == nil && sourceGroup.RoomID != targetGroup.RoomID {
+			if err := s.ensureRoomCapacity(ctx, targetGroup.RoomID, 1); err != nil {
+				return false, time.Time{}, err
+			}
+		}
+	}
+
 	transferAt := time.Now()
 	if updated.ExitTime != nil {
 		// A combined transfer/checkout has no separate transfer timestamp in the
 		// request. Use checkout as the boundary so target check-in precedes close.
 		transferAt = *updated.ExitTime
 	}
-	return true, transferAt, nil
+	return isGroupMove, transferAt, nil
 }
 
 // syncMovedVisitAttendance mirrors a transfer independently of SSE. The
@@ -875,6 +928,7 @@ func (s *service) endVisitWithAttendanceSync(
 	if s.AttendanceSyncer != nil {
 		snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
 	}
+	s.wakeGuardiansAfterCommit(ctx, endedVisit.StudentID)
 	return endedVisit, snapshot, nil
 }
 
@@ -913,11 +967,11 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 		return
 	}
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, endedVisit.StudentID)
-	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentName, studentRec, "")
+	studentRec := s.getStudentForSSE(ctx, endedVisit.StudentID)
+	s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, "")
 }
 
-// emitVisitCheckout is broadcastVisitCheckout with the student display data
+// emitVisitCheckout is broadcastVisitCheckout with the student routing data
 // already resolved. Split out so the attendance checkout paths can read the
 // student inside their request transaction and defer only the emission to a
 // tenant.RegisterAfterCommit hook (#2113): by the time hooks run, the tx stored
@@ -927,7 +981,6 @@ func (s *service) emitVisitCheckout(
 	ctx context.Context,
 	endedVisit *active.Visit,
 	snapshot *AttendanceSnapshot,
-	studentName string,
 	studentRec *userModels.Student,
 	source string,
 ) {
@@ -940,8 +993,7 @@ func (s *service) emitVisitCheckout(
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
-		StudentID:   &studentID,
-		StudentName: &studentName,
+		StudentID: &studentID,
 	}
 	if source != "" {
 		data.Source = &source
@@ -957,13 +1009,19 @@ func (s *service) emitVisitCheckout(
 		data,
 	)
 
-	s.broadcastWithLogging(ctx, activeGroupID, studentID, event, "student_checkout")
-	s.broadcastToEducationalGroup(ctx, studentRec, event)
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+		s.getLogger().Error("SSE broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("event_type", "student_checkout"),
+			slog.String("active_group_id", activeGroupID),
+			slog.String("student_id", studentID),
+		)
+	}
+	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
-	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
 // broadcastVisitMoved publishes a checkout from the source active group and a
@@ -974,12 +1032,19 @@ func (s *service) broadcastVisitMoved(
 	previousVisit, movedVisit *active.Visit,
 	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
 ) {
-	if s.Broadcaster == nil || previousVisit == nil || movedVisit == nil {
+	if previousVisit == nil || movedVisit == nil {
 		return
 	}
 
-	s.broadcastVisitCheckout(ctx, previousVisit, sourceSnapshot)
-	s.broadcastVisitCreated(ctx, movedVisit, targetSnapshot)
+	// Moving a visit used to delegate to broadcastVisitCreated, which also
+	// wakes guardians. Keep that side effect while reusing the resolved student.
+	s.wakeGuardiansAfterCommit(ctx, movedVisit.StudentID)
+	if s.Broadcaster == nil {
+		return
+	}
+	studentRec := s.getStudentForSSE(ctx, movedVisit.StudentID)
+	s.emitVisitCheckout(ctx, previousVisit, sourceSnapshot, studentRec, "")
+	s.emitVisitCreated(ctx, movedVisit, targetSnapshot, studentRec)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -1073,8 +1138,7 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 	// Single tenant-wide broadcast for the entire batch, scoped to the
 	// affected educational groups (#2057).
 	if s.Broadcaster != nil {
-		s.broadcastDashboardCountsChanged(ctx, allEduGroupIDs)
-		s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonStudentMoved)
+		s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonStudentMoved, allEduGroupIDs)
 	}
 }
 
@@ -1105,8 +1169,7 @@ func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionID int64
 	// Notify every client of the tenant (including zero-topic) so dashboards
 	// refresh. No group scope: a session end affects room occupancy across
 	// groups, so clients fall back to a broad refresh (#2057).
-	s.broadcastDashboardCountsChanged(ctx, nil)
-	s.broadcastActiveSupervisionChanged(ctx, sessionIDStr, activeSupervisionReasonActivityEnded)
+	s.broadcastSupervisionRefresh(ctx, sessionIDStr, activeSupervisionReasonActivityEnded, nil)
 }
 
 // broadcastWithLogging broadcasts an event and logs any errors.
@@ -1442,7 +1505,6 @@ func (s *service) GetTrackingIndicators(ctx context.Context, studentIDs []int64,
 type visitSSEData struct {
 	VisitID   int64
 	StudentID int64
-	Name      string
 	Student   *userModels.Student
 }
 

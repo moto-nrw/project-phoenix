@@ -6,6 +6,7 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -19,32 +20,34 @@ import (
 // =============================================================================
 
 func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with a valid tenant slug should succeed when the account
 	// is mapped to that tenant. This covers the resolveAccountTenantBySlug
 	// success path, ensureAccountRolesLoadedForTenant, loadAccountPermissionsForTenant,
 	// and loadAccountMetadata.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
-	// ARRANGE: Create tenant infrastructure (org + school with subdomain "t42")
-	const tenantID int64 = 42
+	// ARRANGE: Create tenant infrastructure (org + school; EnsureTestTenant
+	// names the subdomain "t<tenantID>")
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	// Register an account in tenant 42's context
+	// Register an account in that tenant's context
 	regCtx := testpkg.TenantContext(tenantID)
 	email, username := uniqueTestCredentials("slug-valid")
 	account, err := service.Register(regCtx, email, username, testPassword, nil, 0)
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	// Ensure the account is mapped to tenant 42
+	// Ensure the account is mapped to that tenant
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
-	// ACT: Login with explicit tenant slug "t42"
+	// ACT: Login with that tenant's explicit slug
 	accessToken, refreshToken, err := service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "t42",
+		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", tenantID),
 	)
 
 	// ASSERT: Should succeed and return valid tokens
@@ -54,16 +57,17 @@ func TestLoginWithAudit_ValidTenantSlug(t *testing.T) {
 }
 
 func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with a slug that does not match any school should return
 	// ErrTenantNotFound. Covers the resolveAccountTenantBySlug error path
 	// where the school lookup fails.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
 	// ARRANGE: Create an account (tenant doesn't matter, we just need valid credentials)
-	const tenantID int64 = 43
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)
@@ -84,18 +88,19 @@ func TestLoginWithAudit_NonExistentTenantSlug(t *testing.T) {
 }
 
 func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit where the tenant slug resolves to a valid school but the
 	// account has no account_tenants mapping to it. Covers the
 	// resolveAccountTenantBySlug "account does not have access" path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
-	// ARRANGE: Create two tenants — account is in tenant 44, but will try to
-	// login to tenant 45.
-	const homeTenantID int64 = 44
-	const otherTenantID int64 = 45
+	// ARRANGE: Create two tenants — the account belongs to the first and tries
+	// to log in to the second.
+	homeTenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, homeTenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 
@@ -105,12 +110,13 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 	require.NoError(t, err)
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
-	// Map account only to homeTenantID (44), NOT to otherTenantID (45)
+	// Map the account only to homeTenantID, NOT to otherTenantID
 	testpkg.MapAccountToTenant(t, db, account.ID, homeTenantID)
 
-	// ACT: Login with slug "t45" — school exists but account has no access
+	// ACT: Login with the other tenant's slug — school exists but the account
+	// has no access
 	_, _, err = service.LoginWithAudit(
-		context.Background(), email, testPassword, "", "", "t45",
+		context.Background(), email, testPassword, "", "", fmt.Sprintf("t%d", otherTenantID),
 	)
 
 	// ASSERT: Should fail with ErrTenantAccessDenied
@@ -120,16 +126,17 @@ func TestLoginWithAudit_TenantSlugNoAccess(t *testing.T) {
 }
 
 func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with an empty slug falls back to resolveAccountTenantDefault,
 	// which picks the first active account_tenants mapping. Covers the default
 	// resolution success path.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
 	// ARRANGE: Create tenant and register an account with a mapping
-	const tenantID int64 = 46
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)
@@ -153,18 +160,19 @@ func TestLoginWithAudit_EmptySlugDefaultResolution(t *testing.T) {
 }
 
 func TestLoginWithAudit_EmptySlugNoTenantMapping(t *testing.T) {
+	t.Parallel()
+
 	// LoginWithAudit with an empty slug when the account has zero account_tenants
 	// entries. resolveAccountTenantDefault returns ErrTenantNotFound because no
 	// active tenant mappings exist. This confirms that accounts without any tenant
 	// mapping cannot log in.
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
 	// ARRANGE: Create a tenant for registration context, but do NOT map the account
 	// to any tenant. Register creates the account but we will remove any auto-mapping.
-	const tenantID int64 = 47
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	regCtx := testpkg.TenantContext(tenantID)

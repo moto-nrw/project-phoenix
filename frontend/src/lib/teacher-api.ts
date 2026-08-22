@@ -31,36 +31,73 @@ function extractIdFromResponse(data: {
   return data.id ?? data.data?.id;
 }
 
+/** The person fields the backend needs to provision a staff identity. */
+interface PersonIdentityFields {
+  first_name: string;
+  last_name: string;
+  tag_id?: string | null;
+}
+
 /**
- * Extracts person ID from double-wrapped person response
+ * What the backend provisioned alongside the account (#2222).
+ *
+ * The ids arrive as strings and stay strings on the way through: they are
+ * PostgreSQL bigints, and a JSON number past 2^53 is already truncated by the
+ * time it reaches us. They are converted exactly once, at the request boundary
+ * that needs a number.
  */
-function extractPersonId(responseData: unknown): number | undefined {
-  if (!responseData || typeof responseData !== "object") {
-    return undefined;
+interface SchoolIdentity {
+  person_id: string;
+  staff_id: string;
+  teacher_id?: string;
+}
+
+interface AccountWithIdentityResponse {
+  id?: string | number;
+  school_identity?: SchoolIdentity | null;
+  data?: { id?: string | number; school_identity?: SchoolIdentity | null };
+}
+
+/**
+ * Extracts the provisioned person/staff ids from an account response.
+ *
+ * Present whenever the request carried first_name and last_name: since #2222
+ * the backend creates the person and staff record in the same transaction as
+ * the account, so the client never has to stitch that chain together across
+ * requests — a failure between them used to leave an account that held a role
+ * and was not staff.
+ */
+function extractSchoolIdentity(
+  data: AccountWithIdentityResponse,
+): SchoolIdentity | undefined {
+  return data.school_identity ?? data.data?.school_identity ?? undefined;
+}
+
+/**
+ * Builds the POST /api/staff body, carrying person_id as a decimal string.
+ *
+ * person_id is a PostgreSQL bigint and reaches us as the string the backend
+ * sent. Sending it as a JSON number would round it once it exceeds
+ * Number.MAX_SAFE_INTEGER, and the rounded value is a valid id for a different
+ * person — a wrong staff record rather than a failed request. A string has no
+ * such limit, and it survives the one hop that used to undo the precaution: our
+ * own /api/staff route parses the body and re-serializes it before forwarding,
+ * so exact digits spliced in here were rounded there anyway. That route now
+ * takes the string and puts the digits back on the wire to the backend.
+ *
+ * Validated here as well, so a malformed id fails with a German message from
+ * the screen that submitted it rather than as a route error.
+ */
+function buildStaffRequestBody(
+  personId: string,
+  fields: Record<string, unknown>,
+): string {
+  if (!/^\d+$/.test(personId)) {
+    throw new Error(
+      "Der Mitarbeiter-Datensatz konnte nicht angelegt werden: ungültige Personen-ID.",
+    );
   }
-
-  const response = responseData as {
-    data?: { data?: { id?: number }; id?: number };
-    id?: number;
-  };
-
-  // Try route wrapper → backend wrapper → id
-  if ("data" in response && response.data) {
-    const backendResponse = response.data;
-    if ("data" in backendResponse && backendResponse.data) {
-      return backendResponse.data.id;
-    }
-    if ("id" in backendResponse) {
-      return backendResponse.id;
-    }
-  }
-
-  // Direct PersonResponse format
-  if ("id" in response) {
-    return response.id;
-  }
-
-  return undefined;
+  return JSON.stringify({ person_id: personId, ...fields });
 }
 
 /**
@@ -108,7 +145,18 @@ export interface Teacher {
   updated_at?: string;
   activities?: Activity[];
   // Optional fields from staff API for consistency
-  person_id?: number;
+  /**
+   * The person behind this staff record, as a decimal string (#2222).
+   *
+   * It is a PostgreSQL bigint and the edit flow sends it straight back — to
+   * `/api/users/{person_id}` for the name and tag, and in the staff update body
+   * — so it must never live as a JS number: a value beyond
+   * `Number.MAX_SAFE_INTEGER` is rounded into a valid id for a DIFFERENT
+   * person, which turns a failed edit into an edit of the wrong record. The
+   * backend serializes it as a string for exactly this reason and takes either
+   * form back.
+   */
+  person_id?: string;
   account_id?: number;
   is_teacher?: boolean;
   person?: unknown; // For nested person object
@@ -222,11 +270,14 @@ class TeacherService {
     const username = `${teacherData.first_name.toLowerCase()}_${teacherData.last_name.toLowerCase()}_${suffix}`;
     const fullName = `${teacherData.first_name} ${teacherData.last_name}`;
 
-    // Step 1: Create account or link existing
-    let accountId: string | number;
+    // Step 1: Create account or link existing. The identity fields go with it,
+    // so the backend creates the person and staff record in the same
+    // transaction (#2222) instead of us stitching the chain together across
+    // three requests that can fail in the middle.
+    let identity: SchoolIdentity;
     if (teacherData.linkExisting) {
       // Link existing account — password is NOT changed
-      accountId = await this.linkAccountToTenant(email, roleId);
+      identity = await this.linkAccountToTenant(email, roleId, teacherData);
     } else {
       const password = teacherData.password;
       if (!password) {
@@ -239,18 +290,17 @@ class TeacherService {
         fullName,
         password,
         roleId,
+        teacherData,
       );
       if (createResult.status === "account_exists") {
         return { status: "account_exists", email };
       }
-      accountId = createResult.accountId;
+      identity = createResult.identity;
     }
 
-    // Step 2: Create person linked to account
-    const personId = await this.createPerson(teacherData, accountId);
-
-    // Step 3: Create staff with is_teacher flag
-    const staffData = await this.createStaff(teacherData, personId);
+    // Step 2: apply the staff details to the record that already exists. The
+    // backend adopts it instead of creating a second one.
+    const staffData = await this.createStaff(teacherData, identity);
 
     // Return with credentials and name data
     return {
@@ -275,8 +325,9 @@ class TeacherService {
     name: string,
     password: string,
     roleId: number,
+    identity: PersonIdentityFields,
   ): Promise<
-    | { status: "created"; accountId: string | number }
+    | { status: "created"; identity: SchoolIdentity }
     | { status: "account_exists" }
   > {
     const response = await sessionFetch("/api/auth/register", {
@@ -289,6 +340,9 @@ class TeacherService {
         password,
         confirm_password: password,
         role_id: roleId,
+        first_name: identity.first_name,
+        last_name: identity.last_name,
+        tag_id: identity.tag_id ?? null,
       }),
     });
 
@@ -309,29 +363,39 @@ class TeacherService {
       throw new Error(`Konto konnte nicht erstellt werden: ${msg}`);
     }
 
-    const data = (await response.json()) as {
-      id?: string | number;
-      data?: { id?: string | number };
-    };
-    const accountId = extractIdFromResponse(data);
-
-    if (!accountId) {
+    const data = (await response.json()) as AccountWithIdentityResponse;
+    if (!extractIdFromResponse(data)) {
       logger.error("failed to get account ID from response");
       throw new Error("Failed to get account ID from response");
     }
 
-    return { status: "created" as const, accountId };
+    const identityIds = extractSchoolIdentity(data);
+    if (!identityIds) {
+      logger.error("account created without school identity");
+      throw new Error(
+        "Das Konto wurde angelegt, aber kein Mitarbeiter-Datensatz. Bitte erneut versuchen.",
+      );
+    }
+
+    return { status: "created" as const, identity: identityIds };
   }
 
   /** Links an existing account to the current tenant. */
   private async linkAccountToTenant(
     email: string,
     roleId: number,
-  ): Promise<string | number> {
+    identity: PersonIdentityFields,
+  ): Promise<SchoolIdentity> {
     const response = await sessionFetch("/api/auth/link-to-tenant", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({ email, role_id: roleId }),
+      body: JSON.stringify({
+        email,
+        role_id: roleId,
+        first_name: identity.first_name,
+        last_name: identity.last_name,
+        tag_id: identity.tag_id ?? null,
+      }),
     });
 
     if (!response.ok) {
@@ -344,82 +408,46 @@ class TeacherService {
       );
     }
 
-    const data = (await response.json()) as {
-      id?: string | number;
-      data?: { id?: string | number };
-    };
-    const accountId = extractIdFromResponse(data);
+    const data = (await response.json()) as AccountWithIdentityResponse;
+    const identityIds = extractSchoolIdentity(data);
 
-    if (!accountId) {
+    if (!identityIds) {
       throw new Error(
-        "Konto-ID konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
+        "Der Mitarbeiter-Datensatz konnte nicht aus der Verknüpfungs-Antwort gelesen werden.",
       );
     }
 
-    return accountId;
+    return identityIds;
   }
 
-  /** Creates person linked to account */
-  private async createPerson(
-    teacherData: {
-      first_name: string;
-      last_name: string;
-      tag_id?: string | null;
-    },
-    accountId: string | number,
-  ): Promise<number> {
-    const response = await sessionFetch("/api/users", {
-      method: "POST",
-      credentials: "include",
-      body: JSON.stringify({
-        first_name: teacherData.first_name,
-        last_name: teacherData.last_name,
-        tag_id: teacherData.tag_id ?? null,
-        account_id: accountId,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-      throw new Error(
-        `Failed to create person: ${extractErrorMessage(errorData, response.statusText)}`,
-      );
-    }
-
-    const data: unknown = await response.json();
-    const personId = extractPersonId(data);
-
-    if (!personId) {
-      logger.error("unexpected person response format");
-      throw new Error("Failed to get person ID from response");
-    }
-
-    return personId;
-  }
-
-  /** Creates staff record with is_teacher flag */
+  /**
+   * Schreibt die Personaldetails auf den Datensatz, den die Provisionierung
+   * bereits angelegt hat.
+   *
+   * `is_teacher` kommt aus genau dieser Provisionierung und nicht mehr aus dem
+   * Formular: das Backend entscheidet die Frage an der Rollenstufe
+   * (RoleNeedsCaregiverProfile) und legt users.teachers nur für die
+   * Betreuer-Stufe an. Das Formular kannte davon nur die Lehrkraft-Ausnahme und
+   * schickte sonst is_teacher=true — eine Verwaltungsrolle bekam dadurch hier
+   * doch noch ein Betreuungsprofil, das EnsureSchoolIdentity eine Anfrage
+   * vorher bewusst weggelassen hatte. Die angelegte Identität ist die Antwort;
+   * eine zweite Ableitung derselben Regel im Frontend würde nur wieder
+   * auseinanderlaufen.
+   */
   private async createStaff(
     teacherData: {
       staff_notes?: string | null;
       specialization?: string | null;
       role?: string | null;
       qualifications?: string | null;
-      is_teacher?: boolean;
     },
-    personId: number,
+    identity: SchoolIdentity,
   ): Promise<Teacher> {
     const response = await sessionFetch("/api/staff", {
       method: "POST",
       credentials: "include",
-      body: JSON.stringify({
-        person_id: personId,
-        // Lehrkraft (#1772) bekommt kein Betreuungsprofil (users.teachers):
-        // das Formular setzt is_teacher=false, alle anderen Rollen behalten
-        // den bisherigen Default.
-        is_teacher: teacherData.is_teacher ?? true,
+      body: buildStaffRequestBody(identity.person_id, {
+        is_teacher: Boolean(identity.teacher_id),
         staff_notes: teacherData.staff_notes?.trim() ?? "",
         specialization: teacherData.specialization?.trim() ?? "",
         role: teacherData.role?.trim() ?? "",
@@ -470,7 +498,13 @@ class TeacherService {
       throw new Error("Cannot update person fields - person_id not found");
     }
 
+    // The exact digits the staff response carried — addressed as a path
+    // segment, so it is checked to be a plain decimal id before it is spliced
+    // into the URL.
     const personId = currentTeacher.person_id;
+    if (!/^\d+$/.test(personId)) {
+      throw new Error("Cannot update person fields - invalid person_id");
+    }
 
     // Fetch current person to get account_id
     const personResponse = await sessionFetch(`/api/users/${personId}`, {
@@ -542,7 +576,9 @@ class TeacherService {
     currentTeacher: Teacher,
     teacherData: Partial<Teacher>,
   ): {
-    person_id: number | undefined;
+    // Decimal string, exactly as it was loaded — the update route forwards it
+    // verbatim and the backend accepts the string (#2222).
+    person_id: string | undefined;
     is_teacher: boolean;
     staff_notes: string;
     specialization: string;

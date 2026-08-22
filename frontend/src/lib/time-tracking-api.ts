@@ -4,9 +4,11 @@ import { getCachedSession } from "./session-cache";
 import { buildApiError } from "./auth-api";
 import type {
   BackendClosingDayRange,
+  BackendDailyProjection,
   BackendDailyTarget,
   BackendHoliday,
   BackendMonthSummary,
+  DayProjection,
   MonthSummary,
   StaffAbsence,
   WeeklySummary,
@@ -17,6 +19,7 @@ import type {
 } from "./time-tracking-helpers";
 import {
   mapClosingDaysResponse,
+  mapDailyProjectionResponse,
   mapDailyTargetsResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
@@ -36,13 +39,6 @@ interface ApiResponse<T> {
   data: T;
 }
 
-/**
- * Stable error code surfaced by the backend when a CheckIn would silently
- * change the status of an existing checked-out session. The page handles
- * this by prompting for a reason and routing the change through
- * UpdateSession (Issue #1368).
- */
-export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
 /**
  * Stable error code surfaced when a check-in/check-out deviates from the
@@ -69,6 +65,11 @@ export interface UpdateSessionRequest {
  */
 export interface CreateAbsenceRequest {
   absence_type: string;
+  /**
+   * School-defined Abwesenheitsart (#2403). When set, the backend takes the
+   * canonical absence_type from the art itself, so the pair can never disagree.
+   */
+  absence_type_id?: string | null;
   date_start: string;
   date_end: string;
   half_day?: boolean;
@@ -80,6 +81,8 @@ export interface CreateAbsenceRequest {
  */
 export interface UpdateAbsenceRequest {
   absence_type?: string;
+  /** Re-points the school-defined Abwesenheitsart; `null` clears it (#2403). */
+  absence_type_id?: string | null;
   date_start?: string;
   date_end?: string;
   half_day?: boolean;
@@ -238,6 +241,22 @@ class TimeTrackingService {
       "Failed to get schedule targets",
     );
     return mapDailyTargetsResponse(result.data);
+  }
+
+  // Vollständige Tagesprojektion desselben Endpunkts (#2443): Soll, Gutschrift,
+  // Ist und Saldo je Tag, gerechnet wie die Monatskarte. Die Tagestabelle liest
+  // diese Werte, statt den Saldo selbst abzuleiten.
+  async getDailyProjection(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, DayProjection>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendDailyProjection[] | null>(
+      `/schedule-targets?${params}`,
+      "GET",
+      "Failed to get daily projection",
+    );
+    return mapDailyProjectionResponse(result.data);
   }
 
   // Gesetzliche Feiertage des Tenants (#1418 3a), keyed YYYY-MM-DD → Name.

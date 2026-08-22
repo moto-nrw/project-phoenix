@@ -41,6 +41,7 @@ type CareOfferingResponse struct {
 	SortOrder           int                                            `json:"sort_order"`
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule"`
+	PickupTimes         map[string]string                              `json:"pickup_times,omitempty"`
 	CreatedAt           time.Time                                      `json:"created_at"`
 	UpdatedAt           time.Time                                      `json:"updated_at"`
 }
@@ -57,19 +58,37 @@ const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
 // the admin editor can show a localized message (#1885).
 const ErrCodeCareOfferingDaysRequired = "enrollment.care_offering_days_required"
 
-func careOfferingWriteErrorRenderer(err error) render.Renderer {
-	switch {
-	case errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch):
-		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
-	case errors.Is(err, enrollmentModels.ErrCareOfferingDaysRequired):
-		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
-	case errors.Is(err, enrollmentService.ErrCareOfferingInvalid),
-		errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict):
-		return common.ErrorInvalidRequest(err)
-	default:
+// ErrCodeCareOfferingPickupTimesRequired identifies an active care offering
+// whose selected weekdays do not all have a pickup time.
+const ErrCodeCareOfferingPickupTimesRequired = "enrollment.care_offering_pickup_times_required"
+
+var careOfferingWriteErrorRenderer = common.RulesRenderer(
+	[]common.ErrorRule{
+		{
+			Target: enrollmentService.ErrCareOfferingTemplatePeriodMismatch,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+			},
+		},
+		{
+			Target: enrollmentModels.ErrCareOfferingDaysRequired,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
+			},
+		},
+		{
+			Target: enrollmentModels.ErrCareOfferingPickupTimesRequired,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingPickupTimesRequired)
+			},
+		},
+		{Target: enrollmentService.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
+		{Target: enrollmentService.ErrCareOfferingGroupRuleConflict, Render: common.ErrorInvalidRequest},
+	},
+	func(err error) render.Renderer {
 		return common.ErrorInternalServerWrap("care offering operation failed", err)
-	}
-}
+	},
+)
 
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := CareOfferingResponse{
@@ -92,6 +111,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
 		SelectionRule:       o.SelectionRule,
+		PickupTimes:         o.PickupTimes,
 		CreatedAt:           o.CreatedAt,
 		UpdatedAt:           o.UpdatedAt,
 	}
@@ -126,6 +146,9 @@ type CareOfferingRequest struct {
 	SortOrder           int                                            `json:"sort_order"`
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule,omitempty"`
+	// PickupTimes is the booking-derived pickup baseline per weekday. Active
+	// offerings that count as care require a value for every selected weekday.
+	PickupTimes map[string]string `json:"pickup_times,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -172,6 +195,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.Car
 		SortOrder:                 req.SortOrder,
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
+		PickupTimes:               req.PickupTimes,
 		AutoAddTriggerOfferingIDs: triggerIDs,
 	}
 	o.ID = existingID
@@ -236,6 +260,62 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toCareOfferingResponse(o))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Care offerings retrieved")
+}
+
+// CareOfferingBookingStatsResponse is the wire shape of one offering's
+// booking summary. GradeLevels is keyed by the grade level as a string
+// because JSON object keys are always strings.
+type CareOfferingBookingStatsResponse struct {
+	OfferingID        string         `json:"offering_id"`
+	Capacity          *int           `json:"capacity,omitempty"`
+	Booked            int            `json:"booked"`
+	GradeLevels       map[string]int `json:"grade_levels"`
+	UnknownGradeCount int            `json:"unknown_grade_count"`
+}
+
+// listCareOfferingBookingStats backs the admin-side capacity display and the
+// availability-rule conflict hint (#2186). It is deliberately aggregate-only:
+// the client learns how many children hold a slot per grade level, never who
+// they are, so a display feature adds no new PII surface.
+func (rs *Resource) listCareOfferingBookingStats(w http.ResponseWriter, r *http.Request) {
+	if rs.CareOfferingService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
+		return
+	}
+	phaseID, parseErr := strconv.ParseInt(r.URL.Query().Get("phase_id"), 10, 64)
+	if parseErr != nil || phaseID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phase_id is required")))
+		return
+	}
+	var stats []enrollmentService.CareOfferingBookingStat
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
+		loaded, loadErr := rs.CareOfferingService.ListBookingStats(ctx, phaseID)
+		stats = loaded
+		return loadErr
+	})
+	if err != nil {
+		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list care offering booking stats failed", err))
+		return
+	}
+	out := make([]CareOfferingBookingStatsResponse, 0, len(stats))
+	for _, stat := range stats {
+		grades := make(map[string]int, len(stat.GradeLevels))
+		for grade, count := range stat.GradeLevels {
+			grades[strconv.Itoa(grade)] = count
+		}
+		out = append(out, CareOfferingBookingStatsResponse{
+			OfferingID:        strconv.FormatInt(stat.OfferingID, 10),
+			Capacity:          stat.Capacity,
+			Booked:            stat.Booked,
+			GradeLevels:       grades,
+			UnknownGradeCount: stat.UnknownGradeCount,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, out, "Care offering booking stats retrieved")
 }
 
 func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {

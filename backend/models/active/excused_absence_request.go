@@ -17,9 +17,10 @@ var ErrExcusedRequestNotPending = errors.New("active: excused absence request is
 // caller's tenant.
 var ErrExcusedRequestNotFound = errors.New("active: excused absence request not found")
 
-// Excused-absence request lifecycle states. A guardian submits a pending
-// request; a staff decision moves it to approved (and writes the excused status
-// days) or rejected; the guardian can withdraw it while still pending.
+// Legacy-named absence-request lifecycle states. A guardian submits a pending
+// sick or excused request; a staff decision moves it to approved (and writes
+// the requested status days) or rejected; the guardian can withdraw it while
+// still pending.
 const (
 	ExcusedRequestStatusPending   = "pending"
 	ExcusedRequestStatusApproved  = "approved"
@@ -27,13 +28,9 @@ const (
 	ExcusedRequestStatusWithdrawn = "withdrawn"
 )
 
-// ExcusedAbsenceRequest is one parent-initiated excused-absence report awaiting
-// office approval (#1845). It exists only when the school turned the approval
-// gate (operations.parent_excused_requires_approval) on; otherwise an excused
-// absence is written straight to StudentStatusDay. One row carries the whole
-// set of dates plus the mandatory note. On approval the request is applied as
-// excused StudentStatusDay rows; a rejected/withdrawn request never touches the
-// status days, so the child stays "expected" until a decision is made.
+// ExcusedAbsenceRequest is the legacy-named store for one parent-initiated
+// absence awaiting office approval. AbsenceStatus distinguishes sick from
+// excused submissions; existing rows default to excused (#1845, #2447, #2449).
 type ExcusedAbsenceRequest struct {
 	base.Model `bun:"schema:active,table:excused_absence_requests"`
 	base.TenantModel
@@ -42,6 +39,7 @@ type ExcusedAbsenceRequest struct {
 	SubmittedBy    int64           `bun:"submitted_by,notnull" json:"submitted_by"`
 	Dates          []timezone.Date `bun:"dates,type:jsonb,notnull" json:"dates"`
 	Note           string          `bun:"note,notnull" json:"note"`
+	AbsenceStatus  string          `bun:"absence_status,notnull,default:'excused'" json:"absence_status"`
 	Status         string          `bun:"status,notnull,default:'pending'" json:"status"`
 	DecisionReason *string         `bun:"decision_reason" json:"decision_reason,omitempty"`
 	ReviewedBy     *int64          `bun:"reviewed_by" json:"reviewed_by,omitempty"`
@@ -89,7 +87,12 @@ type ExcusedAbsenceRequestRepository interface {
 
 	// ListPendingForTenant returns every pending request for the current tenant,
 	// newest-first — the staff review queue and the inline planning surface.
-	ListPendingForTenant(ctx context.Context) ([]*ExcusedAbsenceRequest, error)
+	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*ExcusedAbsenceRequest, error)
+
+	// ListDecidedForTenant returns the tenant's decided rows (approved,
+	// rejected, withdrawn) newest-decision-first via keyset pagination on
+	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
+	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*ExcusedAbsenceRequest, error)
 
 	// FindPendingByIDForUpdate locks a request row for decision processing. It
 	// returns ErrExcusedRequestNotFound when the row is missing in the current

@@ -199,8 +199,6 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		jwt.PermissionsFromCtx(ctx),
 		student,
 		rs.UserContextService,
-		rs.SettingsService,
-		rs.getLogger(),
 	) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
 		return nil, false
@@ -327,7 +325,7 @@ func resolvePickupSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date time
 	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	sched, hasSched := pre.PickupSchedByWeekly[wd]
+	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
 	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {

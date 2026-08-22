@@ -26,10 +26,13 @@ import {
   formatShortDate,
   formatDateISO,
   getDayData,
+  pickupScheduleSourceLabel,
+  hasOfferingPickupContext,
 } from "@/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   fetchStudentPickupData,
+  resetStudentPickupToOffering,
   updateStudentPickupSchedules,
   createStudentPickupException,
   updateStudentPickupException,
@@ -110,6 +113,7 @@ export default function PickupScheduleManager({
           pickupData.notes,
           isExcused,
           statusByDate.get(formatDateISO(date)) ?? null,
+          pickupData.effectiveSchedules,
         ),
       ),
     [
@@ -119,8 +123,15 @@ export default function PickupScheduleManager({
       isSick,
       isExcused,
       pickupData.notes,
+      pickupData.effectiveSchedules,
       statusByDate,
     ],
+  );
+
+  // Ohne Angebots-Gehzeit in der Woche unterscheidet die Herkunftsangabe nichts
+  const showScheduleSource = useMemo(
+    () => hasOfferingPickupContext(dayDataList),
+    [dayDataList],
   );
 
   // Load pickup data
@@ -128,7 +139,13 @@ export default function PickupScheduleManager({
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchStudentPickupData(studentId);
+      const firstDay = weekDays[0];
+      const lastDay = weekDays[weekDays.length - 1];
+      if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
+      const data = await fetchStudentPickupData(studentId, {
+        from: formatDateISO(firstDay),
+        to: formatDateISO(lastDay),
+      });
       setPickupData(data);
     } catch (err) {
       logger.error("pickup_data_load_failed", {
@@ -141,7 +158,7 @@ export default function PickupScheduleManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, weekDays]);
 
   useEffect(() => {
     loadPickupData().catch(() => {
@@ -151,7 +168,10 @@ export default function PickupScheduleManager({
 
   // Handle schedule update
   const handleUpdateSchedules = async (data: BulkPickupScheduleFormData) => {
-    await updateStudentPickupSchedules(studentId, data);
+    await updateStudentPickupSchedules(studentId, {
+      ...data,
+      effectiveDate: formatDateISO(weekDays[0]!),
+    });
     await loadPickupData();
     onUpdate?.();
     setIsScheduleModalOpen(false);
@@ -167,11 +187,17 @@ export default function PickupScheduleManager({
   // Refresh day data after changes (keeps modal open with fresh data)
   // Also invalidates OGS groups SWR caches so pickup times update on navigation back
   const refreshAndKeepModal = useCallback(async () => {
-    const data = await fetchStudentPickupData(studentId);
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
+    if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
+    const data = await fetchStudentPickupData(studentId, {
+      from: formatDateISO(firstDay),
+      to: formatDateISO(lastDay),
+    });
     setPickupData(data);
     onUpdate?.();
     invalidatePickupCaches();
-  }, [studentId, onUpdate]);
+  }, [studentId, onUpdate, weekDays]);
 
   // Day edit modal: exception handlers
   const handleSaveException = useCallback(
@@ -199,6 +225,16 @@ export default function PickupScheduleManager({
     },
     [editingDay, studentId, refreshAndKeepModal],
   );
+
+  const handleResetToOffering = useCallback(async () => {
+    if (!editingDay || editingDay.weekday === 0) return;
+    await resetStudentPickupToOffering(
+      studentId,
+      editingDay.weekday,
+      formatDateISO(editingDay.date),
+    );
+    await refreshAndKeepModal();
+  }, [editingDay, studentId, refreshAndKeepModal]);
 
   const handleDeleteException = useCallback(async () => {
     if (!editingDay?.exception) return;
@@ -259,6 +295,7 @@ export default function PickupScheduleManager({
       pickupData.notes,
       isExcused,
       statusByDate.get(formatDateISO(editingDay.date)) ?? null,
+      pickupData.effectiveSchedules,
     );
   }, [editingDay, pickupData, isSick, isExcused, statusByDate]);
 
@@ -328,6 +365,7 @@ export default function PickupScheduleManager({
               day={day}
               readOnly={readOnly}
               onEditDay={handleOpenDayEdit}
+              showSource={showScheduleSource}
             />
           ))}
         </div>
@@ -353,6 +391,7 @@ export default function PickupScheduleManager({
                   day={day}
                   readOnly={readOnly}
                   onEditDay={handleOpenDayEdit}
+                  showSource={showScheduleSource}
                 />
               ))}
             </div>
@@ -383,6 +422,8 @@ export default function PickupScheduleManager({
         day={currentEditingDay}
         onSaveException={handleSaveException}
         onDeleteException={handleDeleteException}
+        onResetToOffering={handleResetToOffering}
+        showSource={showScheduleSource}
         onCreateNote={handleCreateNote}
         onUpdateNote={handleUpdateNote}
         onDeleteNote={handleDeleteNote}
@@ -399,9 +440,11 @@ interface DayComponentProps {
   readonly day: DayData;
   readonly readOnly: boolean;
   readonly onEditDay: (day: DayData) => void;
+  /** Herkunft nur zeigen, wenn die Woche überhaupt eine Angebots-Gehzeit kennt */
+  readonly showSource: boolean;
 }
 
-function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
+function DayRow({ day, readOnly, onEditDay, showSource }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
@@ -444,6 +487,22 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
             <div className="w-12 flex-shrink-0 text-sm font-semibold text-gray-900">
               {effectiveTime ?? "-"}
             </div>
+            {!day.isException && day.baseSchedule && showSource ? (
+              <span
+                className="min-w-0 truncate text-[10px] text-gray-400"
+                title={
+                  pickupScheduleSourceLabel(day.baseSchedule) ??
+                  "Gehzeit von Hand gepflegt"
+                }
+              >
+                {pickupScheduleSourceLabel(day.baseSchedule)}
+              </span>
+            ) : null}
+            {!day.isException && !day.baseSchedule ? (
+              <span className="flex-shrink-0 text-[10px] text-gray-400">
+                keine Gehzeit
+              </span>
+            ) : null}
 
             {/* Exception indicator */}
             <div className="min-w-0 flex-1">
@@ -500,7 +559,7 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
 // Day Cell Component (Desktop)
 // ============================================
 
-function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
+function DayCell({ day, readOnly, onEditDay, showSource }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const effectiveTime = day.effectiveTime
     ? formatPickupTime(day.effectiveTime)
@@ -553,6 +612,23 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           <div className="mt-1 text-sm font-semibold text-gray-900">
             {effectiveTime ?? "-"}
           </div>
+          {!day.isException && day.baseSchedule && showSource ? (
+            // Die Spalte ist zu schmal fuer den Angebotsnamen; er steht im Titel
+            <div
+              className="text-[10px] text-gray-400"
+              title={
+                pickupScheduleSourceLabel(day.baseSchedule) ??
+                "Gehzeit von Hand gepflegt"
+              }
+            >
+              {day.baseSchedule.source === "care_offering"
+                ? "aus Angebot"
+                : "von Hand"}
+            </div>
+          ) : null}
+          {!day.isException && !day.baseSchedule ? (
+            <div className="text-[10px] text-gray-400">keine Gehzeit</div>
+          ) : null}
 
           {/* Schedule note (recurring weekly) */}
           {day.baseSchedule?.notes && (

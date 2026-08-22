@@ -27,7 +27,7 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: {
     getConfig: vi.fn(),
     getMonthSummary: vi.fn(),
-    getScheduleTargets: vi.fn(),
+    getDailyProjection: vi.fn(),
     getHistory: vi.fn(),
     getAbsences: vi.fn(),
   },
@@ -35,7 +35,7 @@ vi.mock("~/lib/time-tracking-api", () => ({
 vi.mock("~/lib/staff-api", () => ({
   staffMonthSummaryService: {
     getMonthSummary: vi.fn(),
-    getScheduleTargets: vi.fn(),
+    getDailyProjection: vi.fn(),
   },
   staffHistoryService: { getHistory: vi.fn() },
   staffAbsenceService: { getAbsences: vi.fn() },
@@ -84,7 +84,26 @@ function mockSWR(
         return { data: data.summary, isLoading: false };
       }
       if (typeof key === "string" && key.includes("schedule-targets")) {
-        return { data: data.targets, isLoading: false };
+        // Der Key trägt seit #2443 die volle Tagesprojektion. Die Testfälle
+        // beschreiben weiterhin nur das Soll je Tag; hier wird daraus die
+        // Nutzlast gebaut, die der Server liefert.
+        const targets = data.targets as ReadonlyMap<string, number> | undefined;
+        return {
+          data:
+            targets &&
+            new Map(
+              [...targets].map(([date, targetMinutes]) => [
+                date,
+                {
+                  targetMinutes,
+                  creditMinutes: 0,
+                  actualMinutes: 0,
+                  balanceMinutes: 0,
+                },
+              ]),
+            ),
+          isLoading: false,
+        };
       }
       if (typeof key === "string" && key.includes("absences")) {
         // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
@@ -123,7 +142,9 @@ describe("usePeriodMetrics", () => {
     expect(swr.keys).toContain(
       "staff-schedule-targets-42-2026-08-03-2026-08-09",
     );
-    expect(swr.keys).toContain("staff-history-42-2026-08-03-2026-08-09");
+    // The Sunday is included so a night block's Monday share reaches the
+    // current-week metrics.
+    expect(swr.keys).toContain("staff-history-42-2026-08-02-2026-08-09");
   });
 
   it("uses own-portal keys when no staffId is passed", () => {
@@ -133,7 +154,7 @@ describe("usePeriodMetrics", () => {
 
     expect(swr.keys).toContain("time-tracking-month-summary-2026-8");
     // Same key the own Zeiterfassung table uses → SWR dedupes the overlap.
-    expect(swr.keys).toContain("time-tracking-table-2026-08-03-2026-08-09");
+    expect(swr.keys).toContain("time-tracking-table-2026-08-02-2026-08-09");
   });
 
   it("derives the month card from the server summary, credits included", () => {
@@ -210,7 +231,7 @@ describe("usePeriodMetrics", () => {
     renderHook(() => usePeriodMetrics("42"));
 
     const refresh = swr.configs.get(
-      "staff-history-42-2026-08-03-2026-08-09",
+      "staff-history-42-2026-08-02-2026-08-09",
     )?.refreshInterval;
     expect(refresh?.([{ check_out_time: null }])).toBe(60_000);
     expect(refresh?.([{ check_out_time: "2026-08-03T16:00:00Z" }])).toBe(0);
@@ -223,7 +244,7 @@ describe("usePeriodMetrics", () => {
     renderHook(() => usePeriodMetrics());
 
     const refresh = swr.configs.get(
-      "time-tracking-table-2026-08-03-2026-08-09",
+      "time-tracking-table-2026-08-02-2026-08-09",
     )?.refreshInterval;
     // camelCase, as the own /history endpoint returns it.
     expect(refresh?.({ sessions: [{ checkOutTime: null }] })).toBe(60_000);

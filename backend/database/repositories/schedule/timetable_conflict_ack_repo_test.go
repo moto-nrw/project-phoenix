@@ -18,17 +18,17 @@ import (
 // repository must not let one account accumulate unbounded rows — inserts
 // beyond MaxConflictAcksPerAccount evict the oldest acknowledgements first.
 func TestTimetableConflictAckRepository_CapPrunesOldest(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() }) // registered first → runs after the row cleanup below
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewTimetableConflictAckRepository(db)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-cap-%d@example.com", time.Now().UnixNano()))
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(),
 			"DELETE FROM schedule.timetable_conflict_acks WHERE account_id = ?", account.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 	})
 
 	const extra = 10

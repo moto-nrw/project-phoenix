@@ -367,7 +367,7 @@ describe("StudentsInRoomSection", () => {
       ).toBeInTheDocument();
       // Do not deep-link to an empty filtered Kindersuche.
       expect(
-        screen.queryByRole("button", { name: /Kindersuche/ }),
+        screen.queryByRole("button", { name: /Alle Kinder/ }),
       ).not.toBeInTheDocument();
     });
   });
@@ -503,7 +503,7 @@ describe("StudentsInRoomSection", () => {
       const notice = screen.getByRole("status");
       expect(notice).toHaveTextContent(/3 von 250 Kindern/);
       expect(notice).toHaveTextContent(/247/);
-      expect(notice).toHaveTextContent(/Kindersuche/);
+      expect(notice).toHaveTextContent(/Alle Kinder/);
     });
 
     it("does NOT render the notice when total_records matches rendered count", () => {
@@ -982,7 +982,7 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       fireEvent.click(
-        screen.getByRole("button", { name: /In Kindersuche öffnen/ }),
+        screen.getByRole("button", { name: /Alle Kinder öffnen/ }),
       );
 
       expect(mockPush).toHaveBeenCalledTimes(1);

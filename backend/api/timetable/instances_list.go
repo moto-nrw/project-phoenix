@@ -21,8 +21,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -61,6 +64,12 @@ type instanceStudentSummary struct {
 	// the row has to say so too — otherwise the planner lists a child under
 	// "Erwartet" that its own header count leaves out.
 	CareDayStatus scheduleSvc.CareDayStatus `json:"care_day_status"`
+	// EarlyPickupTime (HH:MM) is set when the child's day pickup cutoff falls
+	// INSIDE this block (block 14:00-15:00, Abholung 14:45): the row stays
+	// expected — the child attends the beginning — but leaves early, and must
+	// not be silently misfiled either way (#2360). Blocks fully after the
+	// cutoff are already absent/excused and carry no marker.
+	EarlyPickupTime *string `json:"early_pickup_time,omitempty"`
 }
 
 // enrichedInstance is the per-instance payload returned in the list response.
@@ -127,6 +136,9 @@ type enrichedInstance struct {
 	// number; RequiredStaffCount above already folds the inheritance in.
 	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
+	CanReopen             bool                                  `json:"can_reopen,omitempty"`
+	CanComplete           bool                                  `json:"can_complete"`
+	CompleteAvailableAt   string                                `json:"complete_available_at"`
 }
 
 type emptyRosterReason struct {
@@ -367,6 +379,7 @@ func summarizeInstanceStudents(
 	inst *scheduleModel.ActivityInstance,
 	studentRows []*scheduleModel.InstanceStudent,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+	pickupCutoffs map[int64]time.Time,
 ) instanceAttendanceSummary {
 	out := instanceAttendanceSummary{
 		studentIDs: make([]int64, 0, len(studentRows)),
@@ -380,13 +393,24 @@ func summarizeInstanceStudents(
 			checkedInAt = &formatted
 		}
 		careDayStatus := instanceStudentCareDay(inst, row, careDays)
+		// The marker means "stays expected, leaves early" — a row a full-day
+		// status or manual absence flipped must not carry a pickup time. The
+		// care-day verdict must agree: a timed auto-excusal exception can
+		// coexist with a timeless "Kommt heute nicht" exception, which cancels
+		// the whole day while the pre-cutoff row stays expected — that child is
+		// not picked up early, they are not coming at all.
+		var earlyPickup *string
+		if row.Status == scheduleModel.AttendanceStatusExpected && careDayStatus.Expected() {
+			earlyPickup = earlyPickupWithin(inst, pickupCutoffs, row.StudentID)
+		}
 		out.students = append(out.students, instanceStudentSummary{
-			StudentID:     row.StudentID,
-			Status:        row.Status,
-			Substatus:     row.Substatus,
-			Note:          row.Note,
-			CheckedInAt:   checkedInAt,
-			CareDayStatus: careDayStatus,
+			StudentID:       row.StudentID,
+			Status:          row.Status,
+			Substatus:       row.Substatus,
+			Note:            row.Note,
+			CheckedInAt:     checkedInAt,
+			CareDayStatus:   careDayStatus,
+			EarlyPickupTime: earlyPickup,
 		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
@@ -415,6 +439,52 @@ func summarizeInstanceStudents(
 		}
 	}
 	return out
+}
+
+// pickupCutoffsForRows loads the day's partial-absence cutoffs for the
+// instance's assigned children (one query per instance — same accepted N+1
+// shape as the staff/student loads above). Nil-service facades in unit tests
+// simply produce no markers.
+func (rs *Resource) pickupCutoffsForRows(
+	ctx context.Context,
+	inst *scheduleModel.ActivityInstance,
+	studentRows []*scheduleModel.InstanceStudent,
+) (map[int64]time.Time, error) {
+	if rs.TimetableData == nil || len(studentRows) == 0 {
+		return map[int64]time.Time{}, nil
+	}
+	studentIDs := make([]int64, 0, len(studentRows))
+	for _, row := range studentRows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	cutoffs, err := rs.TimetableData.GetPartialAbsenceCutoffsForDate(ctx, studentIDs, inst.Date)
+	if err != nil {
+		return nil, fmt.Errorf("load pickup cutoffs for instance %d: %w", inst.ID, err)
+	}
+	return cutoffs, nil
+}
+
+// earlyPickupWithin reports the child's pickup cutoff as HH:MM when it falls
+// strictly inside the block's time window — the overlap case that stays
+// expected but must be made visible (#2360). Wall-clock comparison only;
+// cutoffs at or before the start belong to fully-excused blocks, cutoffs at
+// or after the end do not affect the block.
+func earlyPickupWithin(
+	inst *scheduleModel.ActivityInstance,
+	pickupCutoffs map[int64]time.Time,
+	studentID int64,
+) *string {
+	cutoff, ok := pickupCutoffs[studentID]
+	if !ok {
+		return nil
+	}
+	start := timezone.WallClock(inst.StartTime)
+	end := timezone.WallClock(inst.EndTime)
+	if cutoff.After(start) && cutoff.Before(end) {
+		formatted := cutoff.Format("15:04")
+		return &formatted
+	}
+	return nil
 }
 
 // enrichInstance additionally returns the raw staff and student rows it
@@ -460,11 +530,22 @@ func (rs *Resource) enrichInstance(
 	if err != nil {
 		return enrichedInstance{}, nil, nil, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
-	attendance := summarizeInstanceStudents(inst, studentRows, careDays)
+	pickupCutoffs, err := rs.pickupCutoffsForRows(ctx, inst, studentRows)
+	if err != nil {
+		return enrichedInstance{}, nil, nil, err
+	}
+	attendance := summarizeInstanceStudents(inst, studentRows, careDays, pickupCutoffs)
 	emptyRosterReason := rs.resolveEmptyRosterReason(ctx, inst, meta, studentRows, offeringSourceCache)
 
 	assignedStaff := len(staffRows) - absentCount
 	childrenCount := attendance.expected + attendance.present
+	enforcePlannedEnd, err := rs.enforcePlannedEnd(ctx)
+	if err != nil {
+		return enrichedInstance{}, nil, nil, err
+	}
+	availability := scheduleSvc.EvaluateLifecycleAvailability(
+		inst, time.Now(), 0, enforcePlannedEnd,
+	)
 
 	item := enrichedInstance{
 		ID:                     inst.ID,
@@ -503,8 +584,17 @@ func (rs *Resource) enrichInstance(
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
 		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
+		CanReopen:              reopenEligibility(ctx, inst, studentRows),
+		CanComplete:            availability.CanComplete,
+		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
 	}
 	return item, staffRows, studentRows, nil
+}
+
+func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
+	claims := jwt.ClaimsFromCtx(ctx)
+	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), authorize.HasEffectiveAdminScope(ctx), time.Now()) &&
+		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance

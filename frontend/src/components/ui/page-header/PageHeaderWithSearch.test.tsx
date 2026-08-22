@@ -40,13 +40,16 @@ vi.mock("./FilterButton", () => ({
   FilterButton: ({
     onClick,
     testId,
+    hasActiveFilters,
   }: {
     onClick: () => void;
     testId?: string;
+    hasActiveFilters?: boolean;
   }) => (
     <button
       type="button"
       data-testid={testId ?? "mobile-filter-button"}
+      data-has-active-filters={String(Boolean(hasActiveFilters))}
       onClick={onClick}
     >
       Filter
@@ -307,6 +310,48 @@ describe("PageHeaderWithSearch", () => {
     render(<PageHeaderWithSearch {...propsWithActiveFilter} />);
     // When filter has non-default value, button should indicate active state
     expect(screen.getByTestId("mobile-filter-button")).toBeInTheDocument();
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "true",
+    );
+  });
+
+  it("treats an empty multi-select selection as inactive", () => {
+    const multiSelectFilters: PageHeaderWithSearchProps["filters"] = [
+      {
+        id: "schoolClass",
+        label: "Klasse",
+        type: "dropdown",
+        multiSelect: true,
+        value: [],
+        onChange: vi.fn(),
+        options: [
+          { value: "3a", label: "3a" },
+          { value: "4b", label: "4b" },
+        ],
+      },
+    ];
+
+    const { rerender } = render(
+      <PageHeaderWithSearch {...baseProps} filters={multiSelectFilters} />,
+    );
+    // An empty selection means "alle" — the filter button must stay neutral
+    // even though [] never equals the first option's value.
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "false",
+    );
+
+    rerender(
+      <PageHeaderWithSearch
+        {...baseProps}
+        filters={[{ ...multiSelectFilters[0]!, value: ["3a", "4b"] }]}
+      />,
+    );
+    expect(screen.getByTestId("mobile-filter-button")).toHaveAttribute(
+      "data-has-active-filters",
+      "true",
+    );
   });
 
   it("handles empty filters array", () => {
@@ -339,6 +384,49 @@ describe("PageHeaderWithSearch", () => {
     expect(screen.getByTestId("page-header")).toBeInTheDocument();
   });
 
+  describe("tabsRowAction prop", () => {
+    const tabs = {
+      items: [
+        { id: "a", label: "Eltern" },
+        { id: "b", label: "Mitarbeitende" },
+      ],
+      activeTab: "a",
+      onTabChange: vi.fn(),
+    };
+
+    it("rendert die Aktion neben den Reitern", () => {
+      render(
+        <PageHeaderWithSearch
+          {...baseProps}
+          tabs={tabs}
+          tabsRowAction={<button type="button">Historie</button>}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Historie" }),
+      ).toBeInTheDocument();
+    });
+
+    it("rendert die Aktion auch ohne Reiter", () => {
+      // Wer nur einen Reiter sehen darf, bekommt keine Reiterleiste — die
+      // Aktion daneben muss trotzdem erreichbar bleiben.
+      render(
+        <PageHeaderWithSearch
+          {...baseProps}
+          tabsRowAction={<button type="button">Historie</button>}
+        />,
+      );
+      expect(
+        screen.getByRole("button", { name: "Historie" }),
+      ).toBeInTheDocument();
+    });
+
+    it("rendert nichts, wenn die Prop fehlt", () => {
+      render(<PageHeaderWithSearch {...baseProps} tabs={tabs} />);
+      expect(screen.queryByRole("button", { name: "Historie" })).toBeNull();
+    });
+  });
+
   describe("overflowMenu prop", () => {
     it("renders nothing when prop is omitted (default behaviour)", () => {
       render(<PageHeaderWithSearch {...baseProps} />);
@@ -364,6 +452,58 @@ describe("PageHeaderWithSearch", () => {
       );
       expect(screen.getByTestId("overflow-menu")).toBeInTheDocument();
       expect(screen.getByText("Gruppe übergeben")).toBeInTheDocument();
+    });
+  });
+
+  describe("primaryAction + kebab row placement", () => {
+    const quietWithFilters: PageHeaderWithSearchProps = {
+      ...baseProps,
+      filterVariant: "quiet",
+      filters: [
+        {
+          id: "status",
+          label: "Status",
+          type: "buttons",
+          value: "all",
+          onChange: vi.fn(),
+          options: [{ value: "all", label: "Alle" }],
+        },
+      ],
+    };
+    const primaryAction = <button data-testid="primary-action">Aktion</button>;
+    const overflowMenu = [{ label: "Exportieren", onClick: vi.fn() }];
+
+    it("keeps the kebab beside the primary action when the second row would be empty", () => {
+      // Quiet filters live in the popover and there is no inline action, so
+      // the kebab would otherwise sit alone on its own line.
+      render(
+        <PageHeaderWithSearch
+          {...quietWithFilters}
+          primaryAction={primaryAction}
+          overflowMenu={overflowMenu}
+        />,
+      );
+
+      const kebab = screen.getByTestId("overflow-menu");
+      expect(kebab.parentElement).toBe(
+        screen.getByTestId("primary-action").parentElement,
+      );
+    });
+
+    it("leaves the kebab on the second row when inline filters share it", () => {
+      render(
+        <PageHeaderWithSearch
+          {...quietWithFilters}
+          filterVariant={undefined}
+          primaryAction={primaryAction}
+          overflowMenu={overflowMenu}
+        />,
+      );
+
+      expect(screen.getByTestId("desktop-filters")).toBeInTheDocument();
+      expect(screen.getByTestId("overflow-menu").parentElement).not.toBe(
+        screen.getByTestId("primary-action").parentElement,
+      );
     });
   });
 

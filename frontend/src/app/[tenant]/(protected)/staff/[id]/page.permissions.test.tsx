@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { staffService } from "~/lib/staff-api";
@@ -108,7 +109,9 @@ vi.mock("~/components/staff/uebersicht-tab", () => ({
 }));
 
 vi.mock("~/components/staff/zeiterfassung-tab", () => ({
-  ZeiterfassungTab: () => <div data-testid="zeiterfassung-tab" />,
+  ZeiterfassungTab: ({ initialDate }: { initialDate?: string }) => (
+    <div data-testid="zeiterfassung-tab" data-initial-date={initialDate} />
+  ),
 }));
 
 vi.mock("~/components/staff/arbeitszeitmodell-tab", () => ({
@@ -119,6 +122,31 @@ vi.mock("~/components/staff/abwesenheiten-tab", () => ({
   AbwesenheitenTab: () => <div data-testid="abwesenheiten-tab" />,
 }));
 
+vi.mock("~/components/staff/dokumente-tab", () => ({
+  DokumenteTab: () => <div data-testid="dokumente-tab" />,
+}));
+
+vi.mock("~/components/staff/klassen-tab", () => ({
+  KlassenTab: () => <div data-testid="klassen-tab" />,
+}));
+
+vi.mock("~/components/staff/stammdaten-tab", () => ({
+  StammdatenTab: ({
+    canManagePayroll,
+    canManagePayrollSettings,
+  }: {
+    canManagePayroll: boolean;
+    canManagePayrollSettings: boolean;
+  }) => (
+    <div data-testid="stammdaten-tab">
+      {canManagePayroll ? <button>Bearbeiten</button> : null}
+      {canManagePayroll && canManagePayrollSettings ? (
+        <Link href="/payroll">Abrechnung</Link>
+      ) : null}
+    </div>
+  ),
+}));
+
 vi.mock("./page-skeleton", () => ({
   StaffDetailSkeleton: () => <div data-testid="staff-detail-skeleton" />,
 }));
@@ -127,6 +155,7 @@ describe("StaffDetailContent permissions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     searchParams.delete("tab");
+    searchParams.delete("date");
     window.scrollTo = vi.fn();
   });
 
@@ -168,6 +197,55 @@ describe("StaffDetailContent permissions", () => {
       screen.queryByRole("link", { name: "Abrechnung" }),
     ).not.toBeInTheDocument();
     expect(replaceMock).not.toHaveBeenCalled();
+  });
+
+  it("passes the selected date from a time-tracking deep link", () => {
+    searchParams.set("tab", "zeiterfassung");
+    searchParams.set("date", "2026-01-05");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["time_tracking:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByTestId("zeiterfassung-tab")).toHaveAttribute(
+      "data-initial-date",
+      "2026-01-05",
+    );
+  });
+
+  it("ignores an invalid date from a time-tracking deep link", () => {
+    searchParams.set("tab", "zeiterfassung");
+    searchParams.set("date", "2026-02-31");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          token: "test-token",
+          roles: ["teacher"],
+          permissions: ["time_tracking:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+
+    expect(screen.getByTestId("zeiterfassung-tab")).not.toHaveAttribute(
+      "data-initial-date",
+    );
   });
 
   it("links payroll settings for managers with config permission", () => {

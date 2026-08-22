@@ -332,10 +332,10 @@ func (r *ParentAnnouncementRepository) SetResponse(ctx context.Context, tenantID
 			JOIN auth.account_tenants act ON act.account_id = gp.account_id
 				AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 			WHERE a.id = ? AND a.tenant_id = ?
-				AND a.active AND a.published_at = ? AND a.published_at <= NOW()
-				AND (a.expires_at IS NULL OR a.expires_at > NOW())
+				AND a.active AND a.published_at = ? AND a.published_at <= clock_timestamp()
+				AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())
 				AND a.response_type <> 'none'
-				AND (a.response_deadline IS NULL OR a.response_deadline > NOW())
+				AND (a.response_deadline IS NULL OR a.response_deadline > clock_timestamp())
 		)`
 	var live bool
 	if err := db.NewRaw(guard+`, requested AS (
@@ -491,9 +491,10 @@ func (r *ParentAnnouncementRepository) PollChildren(ctx context.Context, tenantI
 // per child.
 func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*users.AnnouncementPollReminderRecipient, error) {
 	sqlStr := fmt.Sprintf(`
-		SELECT DISTINCT gp.account_id, COALESCE(lower(gp.email), '') AS email,
-			COALESCE(gp.first_name, '') AS first_name,
-			COALESCE(gp.last_name, '') AS last_name
+		SELECT gp.account_id, COALESCE(min(lower(gp.email)), '') AS email,
+			COALESCE(min(gp.first_name), '') AS first_name,
+			COALESCE(min(gp.last_name), '') AS last_name,
+			COALESCE(min(gp.portal_locale), 'de') AS portal_locale
 		FROM users.parent_announcement_targets pt
 		JOIN users.students s ON s.tenant_id = ? AND (
 			pt.target_type = 'school_all'
@@ -516,7 +517,8 @@ func (r *ParentAnnouncementRepository) UnansweredReminderRecipients(ctx context.
 				WHERE resp.announcement_id = pt.announcement_id
 					AND resp.tenant_id = pt.tenant_id
 					AND resp.student_id = s.id
-			)`, activeActivityGroupExists("?"))
+			)
+		GROUP BY gp.account_id`, activeActivityGroupExists("?"))
 	var rows []*users.AnnouncementPollReminderRecipient
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
 		tenantID, tenantID, tenantID, tenantID, announcementID, tenantID,

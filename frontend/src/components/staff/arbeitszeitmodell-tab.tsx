@@ -5,8 +5,12 @@ import { useSWRConfig } from "swr";
 
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Loading } from "~/components/ui/loading";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useToast } from "~/contexts/ToastContext";
@@ -51,6 +55,13 @@ export function isStaleAfterModelSave(key: unknown): boolean {
 }
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
+const dayNames = [
+  "Montag",
+  "Dienstag",
+  "Mittwoch",
+  "Donnerstag",
+  "Freitag",
+] as const;
 const WORK_DAYS: readonly number[] = [0, 1, 2, 3, 4];
 const ROTATION_OPTIONS = [
   { value: 1, label: "Standard (1 Woche)" },
@@ -60,6 +71,38 @@ const ROTATION_OPTIONS = [
 ] as const;
 const WEEK_BADGE_LETTERS = ["A", "B", "C", "D"] as const;
 const PREVIEW_WEEKS = 4;
+const MAX_DAILY_HOURS = 12;
+const DECIMAL_HOURS_FORMAT = new Intl.NumberFormat("de-DE", {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+export type DecimalHoursParseResult =
+  | { status: "empty" }
+  | { status: "invalid" }
+  | { status: "valid"; minutes: number };
+
+export function parseDecimalHours(value: string): DecimalHoursParseResult {
+  const normalized = value.trim().replace(",", ".");
+  if (normalized === "") return { status: "empty" };
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) {
+    return { status: "invalid" };
+  }
+
+  const [wholePart = "0", fractionPart = ""] = normalized.split(".");
+  const scale = 10n ** BigInt(fractionPart.length);
+  const decimalUnits =
+    BigInt(wholePart || "0") * scale + BigInt(fractionPart || "0");
+  if (decimalUnits > BigInt(MAX_DAILY_HOURS) * scale) {
+    return { status: "invalid" };
+  }
+  const minutes = Number((decimalUnits * 60n * 2n + scale) / (scale * 2n));
+  return { status: "valid", minutes };
+}
+
+export function formatDecimalHours(minutes: number): string {
+  return DECIMAL_HOURS_FORMAT.format(minutes / 60);
+}
 
 type EditableScheduleEntry = {
   weekIndex: number;
@@ -94,7 +137,23 @@ export function ArbeitszeitmodellTab({
   const { mutate } = useSWRConfig();
 
   if (isLoading || !schedule) {
-    return <Loading fullPage={false} />;
+    return (
+      <SkeletonRegion
+        label="Arbeitszeitmodell wird geladen"
+        className="space-y-5"
+      >
+        <CardGridSkeleton
+          cards={2}
+          rowsPerCard={2}
+          className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+        />
+        <CardGridSkeleton
+          cards={4}
+          rowsPerCard={1}
+          className="grid grid-cols-1 gap-2"
+        />
+      </SkeletonRegion>
+    );
   }
 
   const today = new Date();
@@ -307,6 +366,12 @@ function EditArbeitszeitmodellModal({
   const [customEntries, setCustomEntries] = useState<EditableScheduleEntry[]>(
     initialiseCustomEntries(schedule),
   );
+  const [decimalHourInputs, setDecimalHourInputs] = useState<
+    Record<string, string>
+  >(() => initialiseDecimalHourInputs(schedule));
+  const [invalidDecimalHourInputs, setInvalidDecimalHourInputs] = useState<
+    Set<string>
+  >(() => new Set());
   const [activeWeekTab, setActiveWeekTab] = useState(0);
   const [saveAsTemplateName, setSaveAsTemplateName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -325,6 +390,8 @@ function EditArbeitszeitmodellModal({
     setSelectedModelId(schedule.model?.id ?? "");
     setRotationLength(schedule.rotationLength);
     setCustomEntries(initialiseCustomEntries(schedule));
+    setDecimalHourInputs(initialiseDecimalHourInputs(schedule));
+    setInvalidDecimalHourInputs(new Set());
     setActiveWeekTab(0);
     setSaveAsTemplateName("");
   }, [isOpen, schedule]);
@@ -349,6 +416,19 @@ function EditArbeitszeitmodellModal({
       }
       return next;
     });
+    setInvalidDecimalHourInputs(
+      (prev) =>
+        new Set(
+          [...prev].filter((key) => Number(key.split(":")[0]) < rotationLength),
+        ),
+    );
+    setDecimalHourInputs((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(
+          ([key]) => Number(key.split(":")[0]) < rotationLength,
+        ),
+      ),
+    );
     setActiveWeekTab((curr) => Math.min(curr, rotationLength - 1));
   }, [rotationLength]);
 
@@ -362,6 +442,12 @@ function EditArbeitszeitmodellModal({
       }
 
       if (mode === "custom") {
+        if (invalidDecimalHourInputs.size > 0) {
+          toast.error("Bitte die ungültigen Dezimalstunden korrigieren.");
+          setSaving(false);
+          return;
+        }
+
         // Reject empty schedules: a rotation with zero target minutes
         // across all weeks would silently save and then look broken in
         // the read view. Catching this client-side beats waiting for a
@@ -443,6 +529,31 @@ function EditArbeitszeitmodellModal({
     );
   };
 
+  const updateDecimalHours = (
+    weekIndex: number,
+    dayOfWeek: number,
+    value: string,
+  ) => {
+    const key = entryKey(weekIndex, dayOfWeek);
+    setDecimalHourInputs((prev) => ({ ...prev, [key]: value }));
+
+    const result = parseDecimalHours(value);
+    setInvalidDecimalHourInputs((prev) => {
+      const next = new Set(prev);
+      if (result.status === "invalid") next.add(key);
+      else next.delete(key);
+      return next;
+    });
+
+    if (result.status === "empty") {
+      updateEntry(weekIndex, dayOfWeek, 0);
+    } else if (result.status === "valid") {
+      updateEntry(weekIndex, dayOfWeek, result.minutes);
+    } else {
+      updateEntry(weekIndex, dayOfWeek, 0);
+    }
+  };
+
   const updateEntryStartTime = (
     weekIndex: number,
     dayOfWeek: number,
@@ -461,6 +572,11 @@ function EditArbeitszeitmodellModal({
     customEntries
       .filter((e) => e.weekIndex === weekIndex)
       .reduce((sum, e) => sum + e.targetMinutes, 0);
+
+  const rotationTotal = customEntries.reduce(
+    (sum, entry) => sum + entry.targetMinutes,
+    0,
+  );
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
@@ -492,6 +608,7 @@ function EditArbeitszeitmodellModal({
       isOpen={isOpen}
       onClose={onClose}
       title="Arbeitszeitmodell bearbeiten"
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
       footer={footer}
     >
       <div className="space-y-5">
@@ -510,9 +627,12 @@ function EditArbeitszeitmodellModal({
             activeWeekTab={activeWeekTab}
             onActiveWeekTabChange={setActiveWeekTab}
             entries={customEntries}
-            onEntryChange={updateEntry}
+            decimalHourInputs={decimalHourInputs}
+            invalidDecimalHourInputs={invalidDecimalHourInputs}
+            onDecimalHoursChange={updateDecimalHours}
             onStartTimeChange={updateEntryStartTime}
             totalForWeek={totalForWeek}
+            rotationTotal={rotationTotal}
             saveAsTemplateName={saveAsTemplateName}
             onSaveAsTemplateNameChange={setSaveAsTemplateName}
           />
@@ -682,9 +802,12 @@ function CustomEditor({
   activeWeekTab,
   onActiveWeekTabChange,
   entries,
-  onEntryChange,
+  decimalHourInputs,
+  invalidDecimalHourInputs,
+  onDecimalHoursChange,
   onStartTimeChange,
   totalForWeek,
+  rotationTotal,
   saveAsTemplateName,
   onSaveAsTemplateNameChange,
 }: {
@@ -698,10 +821,12 @@ function CustomEditor({
     targetMinutes: number;
     startTime?: string;
   }>;
-  readonly onEntryChange: (
+  readonly decimalHourInputs: Readonly<Record<string, string>>;
+  readonly invalidDecimalHourInputs: ReadonlySet<string>;
+  readonly onDecimalHoursChange: (
     weekIndex: number,
     dayOfWeek: number,
-    minutes: number,
+    value: string,
   ) => void;
   readonly onStartTimeChange: (
     weekIndex: number,
@@ -709,6 +834,7 @@ function CustomEditor({
     startTime: string,
   ) => void;
   readonly totalForWeek: (weekIndex: number) => number;
+  readonly rotationTotal: number;
   readonly saveAsTemplateName: string;
   readonly onSaveAsTemplateNameChange: (next: string) => void;
 }) {
@@ -747,6 +873,11 @@ function CustomEditor({
         />
       )}
 
+      <p className="text-xs text-gray-500">
+        Dezimalstunden mit Komma oder Punkt eingeben. Die Dauer wird auf die
+        nächste volle Minute gerundet, halbe Minuten werden aufgerundet.
+      </p>
+
       <div className="space-y-2">
         {WORK_DAYS.map((d) => {
           const entry = entries.find(
@@ -754,8 +885,11 @@ function CustomEditor({
           );
           const minutes = entry?.targetMinutes ?? 0;
           const startTime = entry?.startTime ?? "";
-          const hours = Math.floor(minutes / 60);
-          const mins = minutes % 60;
+          const key = entryKey(activeWeekTab, d);
+          const decimalHours = decimalHourInputs[key] ?? "";
+          const isInvalid = invalidDecimalHourInputs.has(key);
+          const durationId = `arbeitszeitmodell-duration-${activeWeekTab}-${d}`;
+          const errorId = `arbeitszeitmodell-error-${activeWeekTab}-${d}`;
           return (
             <div
               key={d}
@@ -764,55 +898,36 @@ function CustomEditor({
               <span className="w-10 shrink-0 text-sm font-medium text-gray-600">
                 {dayLabels[d]}
               </span>
-              <input
-                aria-label={`Arbeitsstunden ${dayLabels[d]}`}
-                type="number"
-                min={0}
-                max={12}
-                // Display empty instead of "0" so the user can backspace the
-                // existing value and type a new one without the field
-                // snapping back to "0" after every keystroke. The state still
-                // tracks 0, only the rendered value is hidden.
-                value={hours === 0 ? "" : hours}
-                onFocus={(e) => e.target.select()}
-                onChange={(e) => {
-                  const raw = e.target.value;
-                  // Empty input is parsed as 0 so the parent state is always
-                  // a real number; the value={} ternary above keeps the box
-                  // visually empty in that case.
-                  const h =
-                    raw === ""
-                      ? 0
-                      : Math.max(
-                          0,
-                          Math.min(12, Number.parseInt(raw, 10) || 0),
-                        );
-                  // Backend caps target_minutes at 720 (12h). When the user
-                  // hits 12h via the hours field, force minutes to 0 so we
-                  // never produce 12h 30min, that would 400 on save.
-                  const nextMins = h >= 12 ? 0 : mins;
-                  onEntryChange(activeWeekTab, d, h * 60 + nextMins);
-                }}
-                className="w-14 rounded-lg border border-gray-200 px-2 py-1.5 text-center text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none"
-              />
-              <span className="text-xs text-gray-400">h</span>
-              <CustomSelect
-                ariaLabel={`Arbeitsminuten ${dayLabels[d]}`}
-                value={String(mins)}
-                onChange={(next) => {
-                  const m = Number.parseInt(next, 10) || 0;
-                  onEntryChange(activeWeekTab, d, hours * 60 + m);
-                }}
-                options={[
-                  { value: "0", label: "00" },
-                  { value: "15", label: "15" },
-                  { value: "30", label: "30" },
-                  { value: "45", label: "45" },
-                ]}
-                disabled={hours >= 12}
-                triggerClassName="h-8 w-16 border-gray-200 bg-white tabular-nums"
-              />
-              <span className="text-xs text-gray-400">min</span>
+              <div className="w-28">
+                <Input
+                  aria-label={`Dezimalstunden ${dayNames[d]}`}
+                  aria-describedby={
+                    isInvalid ? `${durationId} ${errorId}` : durationId
+                  }
+                  aria-invalid={isInvalid || undefined}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  controlSize="compact"
+                  value={decimalHours}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) =>
+                    onDecimalHoursChange(activeWeekTab, d, e.target.value)
+                  }
+                  placeholder="z. B. 4,45"
+                  className="text-center tabular-nums"
+                />
+                {isInvalid && (
+                  <p
+                    id={errorId}
+                    role="alert"
+                    className="text-moto-red-strong mt-1 text-xs"
+                  >
+                    Bitte 0 bis 12 eingeben.
+                  </p>
+                )}
+              </div>
+              <span className="text-xs text-gray-400">Dezimalstd.</span>
               <label className="flex items-center gap-1 text-xs text-gray-500">
                 <span>Start</span>
                 <input
@@ -825,8 +940,16 @@ function CustomEditor({
                   className="w-24 rounded-lg border border-gray-200 px-2 py-1.5 text-sm text-gray-700 tabular-nums focus:border-gray-400 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
                 />
               </label>
-              <span className="ml-auto text-xs text-gray-500 tabular-nums">
-                {formatDuration(minutes)}
+              <span
+                id={durationId}
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                className="ml-auto text-xs text-gray-500 tabular-nums"
+              >
+                {isInvalid
+                  ? "Ungültiger Wert"
+                  : `${formatDuration(minutes)} (${minutes} min)`}
               </span>
             </div>
           );
@@ -840,6 +963,18 @@ function CustomEditor({
             {formatDuration(totalForWeek(activeWeekTab))}
           </span>
         </div>
+        {rotationLength > 1 && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-gray-500">
+              Rotation ({rotationLength} Wochen)
+            </span>
+            <span className="font-bold text-gray-700 tabular-nums">
+              {formatDuration(rotationTotal)} gesamt · Ø{" "}
+              {formatDuration(Math.round(rotationTotal / rotationLength))} /
+              Woche
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-gray-100 pt-4">
@@ -862,6 +997,21 @@ function CustomEditor({
         </p>
       </div>
     </div>
+  );
+}
+
+function entryKey(weekIndex: number, dayOfWeek: number): string {
+  return `${weekIndex}:${dayOfWeek}`;
+}
+
+function initialiseDecimalHourInputs(
+  schedule: StaffSchedule,
+): Record<string, string> {
+  return Object.fromEntries(
+    initialiseCustomEntries(schedule).map((entry) => [
+      entryKey(entry.weekIndex, entry.dayOfWeek),
+      entry.targetMinutes > 0 ? formatDecimalHours(entry.targetMinutes) : "",
+    ]),
   );
 }
 

@@ -65,12 +65,18 @@ var auditLogBranches = map[string]string{
 			COALESCE(saa.note, '') AS reason,
 			jsonb_build_object(
 				'absence_id', sa.id, 'absence_type', sa.absence_type,
+				-- The school's own Abwesenheitsart (#2403), so the audit entry
+				-- reads the wording the school actually chose. NULL for the five
+				-- standard types; the client then uses its own label.
+				'absence_type_label', sat.name,
 				'date_start', to_char(sa.date_start, 'YYYY-MM-DD'),
 				'date_end', to_char(sa.date_end, 'YYYY-MM-DD'),
 				'from_status', saa.from_status, 'to_status', saa.to_status
 			) AS detail
 		FROM active.staff_absence_audit saa
 		JOIN active.staff_absences sa ON sa.id = saa.absence_id
+		LEFT JOIN active.staff_absence_types sat
+			ON sat.tenant_id = sa.tenant_id AND sat.id = sa.absence_type_id
 		LEFT JOIN users.persons p ON p.account_id = saa.actor_id
 		LEFT JOIN users.staff st ON st.person_id = p.id
 		WHERE saa.tenant_id = %s`,

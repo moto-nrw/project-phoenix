@@ -148,6 +148,8 @@ func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildr
 }
 
 func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11)
 	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{11: 2}, errFor: map[int64]error{}}
@@ -163,6 +165,8 @@ func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
 }
 
 func TestRejectedEnrollmentCleanup_StopsOnLateInviteDeleteFailure(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11)
 	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{}, errFor: map[int64]error{11: errors.New("delete failed")}}
@@ -178,6 +182,8 @@ func TestRejectedEnrollmentCleanup_StopsOnLateInviteDeleteFailure(t *testing.T) 
 }
 
 func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{11: 2, 12: 1}, errFor: map[int64]error{}}
@@ -195,6 +201,8 @@ func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *test
 }
 
 func TestRejectedEnrollmentCleanup_ResolutionFailurePerformsNoDeletes(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
@@ -209,6 +217,8 @@ func TestRejectedEnrollmentCleanup_ResolutionFailurePerformsNoDeletes(t *testing
 }
 
 func TestRejectedEnrollmentCleanup_StopsOnDependentDeleteFailure(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{11: errors.New("delete failed")}}
@@ -222,6 +232,8 @@ func TestRejectedEnrollmentCleanup_StopsOnDependentDeleteFailure(t *testing.T) {
 }
 
 func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11, 12)
 	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
@@ -243,6 +255,8 @@ func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testi
 }
 
 func TestRejectedEnrollmentCleanup_StopsOnRequestLockFailure(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{
 		ids:       []int64{11},
 		lockErr:   map[int64]error{11: errors.New("lock failed")},
@@ -262,6 +276,8 @@ func TestRejectedEnrollmentCleanup_StopsOnRequestLockFailure(t *testing.T) {
 }
 
 func TestRejectedEnrollmentCleanup_StopsOnChildLockFailure(t *testing.T) {
+	t.Parallel()
+
 	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
 	children := eligibleCleanupChildren(11)
 	children.errFor[11] = errors.New("lock failed")
@@ -277,6 +293,8 @@ func TestRejectedEnrollmentCleanup_StopsOnChildLockFailure(t *testing.T) {
 }
 
 func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
+	t.Parallel()
+
 	cutoff := time.Now()
 	oldReview := cutoff.Add(-time.Hour)
 	newReview := cutoff.Add(time.Hour)
@@ -319,6 +337,8 @@ func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {
 }
 
 func TestRejectedEnrollmentCleanupSavepointSuccess(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -335,6 +355,8 @@ func TestRejectedEnrollmentCleanupSavepointSuccess(t *testing.T) {
 }
 
 func TestRejectedEnrollmentCleanupSavepointRollsBackCallbackFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -348,6 +370,8 @@ func TestRejectedEnrollmentCleanupSavepointRollsBackCallbackFailure(t *testing.T
 }
 
 func TestRejectedEnrollmentCleanupSavepointRollbackFailureJoinsErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
 	rollbackErr := errors.New("rollback failed")
@@ -363,6 +387,8 @@ func TestRejectedEnrollmentCleanupSavepointRollbackFailureJoinsErrors(t *testing
 }
 
 func TestRejectedEnrollmentCleanupSavepointRollbackReleaseFailureJoinsErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -379,6 +405,8 @@ func TestRejectedEnrollmentCleanupSavepointRollbackReleaseFailureJoinsErrors(t *
 }
 
 func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("savepoint unavailable"))
 
@@ -394,6 +422,8 @@ func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testi
 }
 
 func TestRejectedEnrollmentCleanupSavepointReleaseFailureIsReturned(t *testing.T) {
+	t.Parallel()
+
 	ctx, mock := rejectedCleanupAmbientTx(t)
 	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("release failed"))

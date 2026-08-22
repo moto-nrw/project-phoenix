@@ -8,7 +8,6 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import {
-  CardSkeletons,
   PlusIcon,
   SimpleEmptyState,
 } from "../provisioning/provisioning-shared";
@@ -85,12 +84,6 @@ function OperatorDevicesPageContent() {
     },
   );
 
-  const devicesLoading = selectedSchool
-    ? schoolDevicesLoading
-    : filterOrgId
-      ? orgDevicesLoading
-      : allDevicesLoading;
-
   const refreshDevices = useCallback(() => {
     return globalMutate(
       (key: unknown) =>
@@ -165,20 +158,18 @@ function OperatorDevicesPageContent() {
         onSchoolChange={handleSchoolFilterChange}
       />
 
-      {devicesLoading && <CardSkeletons />}
-
-      {!selectedSchool && filterOrgId && !orgDevicesLoading && (
+      {!selectedSchool && filterOrgId && (
         <>
-          {orgDevices?.length === 0 && (
+          {!orgDevicesLoading && orgDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
-          )}
-          {orgDevices && orgDevices.length > 0 && (
+          ) : (
             <DevicesTable
-              devices={orgDevices}
+              devices={orgDevices ?? []}
               showSchool
+              isLoading={orgDevicesLoading}
               onSetKey={setSetKeyDevice}
               onTransfer={setTransferDevice}
               onDelete={setDeleteDevice}
@@ -187,18 +178,18 @@ function OperatorDevicesPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && !allDevicesLoading && (
+      {!selectedSchool && !filterOrgId && (
         <>
-          {allDevices?.length === 0 && (
+          {!allDevicesLoading && allDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Es gibt noch keine registrierten Geräte im System."
             />
-          )}
-          {allDevices && allDevices.length > 0 && (
+          ) : (
             <DevicesTable
-              devices={allDevices}
+              devices={allDevices ?? []}
               showSchool
+              isLoading={allDevicesLoading}
               onSetKey={setSetKeyDevice}
               onTransfer={setTransferDevice}
               onDelete={setDeleteDevice}
@@ -207,7 +198,7 @@ function OperatorDevicesPageContent() {
         </>
       )}
 
-      {selectedSchool && !schoolDevicesLoading && (
+      {selectedSchool && (
         <>
           <div className="mb-3 flex items-center gap-2">
             <h3 className="text-sm font-semibold text-gray-900">
@@ -225,15 +216,15 @@ function OperatorDevicesPageContent() {
               </span>
             )}
           </div>
-          {schoolDevices?.length === 0 && (
+          {!schoolDevicesLoading && schoolDevices?.length === 0 ? (
             <SimpleEmptyState
               title="Keine Geräte"
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
-          )}
-          {schoolDevices && schoolDevices.length > 0 && (
+          ) : (
             <DevicesTable
-              devices={schoolDevices}
+              devices={schoolDevices ?? []}
+              isLoading={schoolDevicesLoading}
               onSetKey={setSetKeyDevice}
               onTransfer={setTransferDevice}
               onDelete={setDeleteDevice}

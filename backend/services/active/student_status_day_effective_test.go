@@ -25,6 +25,8 @@ func statusRow(id int64, status string, reportedAt time.Time) *activeModels.Stud
 }
 
 func TestResolveEffectiveStatus_Precedence(t *testing.T) {
+	t.Parallel()
+
 	base := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 
 	t.Run("empty rows resolve to nothing", func(t *testing.T) {
@@ -69,6 +71,8 @@ func TestResolveEffectiveStatus_Precedence(t *testing.T) {
 }
 
 func TestApplyAndClearLiveStatusForToday(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
 	student := &userModels.Student{}
 

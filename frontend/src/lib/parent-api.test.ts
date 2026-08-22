@@ -14,6 +14,8 @@ import {
   withdrawExcusedRequest,
   getChildFeatures,
   getChildMealPlan,
+  getChildToday,
+  UNKNOWN_CHILD_TODAY,
   getChildCareOfferings,
   getChildOfferingCatalog,
   submitOfferingChangeRequest,
@@ -640,23 +642,13 @@ describe("submitSickNote", () => {
     expect(out.pending_request).toBeUndefined();
   });
 
-  it("sends an empty reason when none is supplied", async () => {
-    let seenBody = "";
-    mockFetch(async (_input, init) => {
-      seenBody = (init?.body as string) ?? "";
-      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
-    });
-    await submitSickNote("84", ["2026-06-02"]);
-    expect(seenBody).toContain('"reason":""');
-  });
-
   it("defaults the status to a Krankmeldung (sick)", async () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
       seenBody = (init?.body as string) ?? "";
       return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
-    await submitSickNote("84", ["2026-06-02"]);
+    await submitSickNote("84", ["2026-06-02"], "Fieber");
     expect(seenBody).toContain('"status":"sick"');
   });
 
@@ -707,7 +699,7 @@ describe("submitSickNote", () => {
       seenURL = typeof input === "string" ? input : input.toString();
       return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
-    await submitSickNote("a/b", ["2026-06-02"]);
+    await submitSickNote("a/b", ["2026-06-02"], "Fieber");
     expect(seenURL).toContain("a%2Fb");
   });
 
@@ -715,9 +707,9 @@ describe("submitSickNote", () => {
     mockFetch(async () =>
       jsonResponse({ error: "Krankmeldung deaktiviert" }, { status: 403 }),
     );
-    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow(
-      /Krankmeldung deaktiviert/,
-    );
+    await expect(
+      submitSickNote("84", ["2026-06-02"], "Fieber"),
+    ).rejects.toThrow(/Krankmeldung deaktiviert/);
   });
 
   it("redirects to /parents/login on 401", async () => {
@@ -727,7 +719,9 @@ describe("submitSickNote", () => {
       value: { assign, host: "parents.localhost:3000" },
     });
     mockFetch(async () => new Response("", { status: 401 }));
-    await expect(submitSickNote("84", ["2026-06-02"])).rejects.toThrow();
+    await expect(
+      submitSickNote("84", ["2026-06-02"], "Fieber"),
+    ).rejects.toThrow();
     expect(assign).toHaveBeenCalledWith("/parents/login");
   });
 });
@@ -755,6 +749,7 @@ describe("listExcusedRequests", () => {
           {
             id: "req-1",
             student_id: "84",
+            absence_status: "excused",
             status: "pending",
             dates: ["2026-06-02"],
             note: "Zahnarzt",
@@ -766,6 +761,7 @@ describe("listExcusedRequests", () => {
     const out = await listExcusedRequests("84");
     expect(out).toHaveLength(1);
     expect(out[0]!.status).toBe("pending");
+    expect(out[0]!.absence_status).toBe("excused");
     expect(seenURL).toContain("/api/parent/me/children/84/excused-requests");
   });
 });
@@ -781,6 +777,7 @@ describe("withdrawExcusedRequest", () => {
         data: {
           id: "req-1",
           student_id: "84",
+          absence_status: "excused",
           status: "withdrawn",
           dates: ["2026-06-02"],
           note: "Zahnarzt",
@@ -806,6 +803,8 @@ describe("getChildFeatures", () => {
       return jsonResponse({
         data: {
           sick_note_enabled: true,
+          sick_requires_approval: true,
+          excused_requires_approval: true,
           notes_enabled: false,
           pickup_change_enabled: true,
           related_accounts_invite_enabled: false,
@@ -818,6 +817,7 @@ describe("getChildFeatures", () => {
     });
     const out = await getChildFeatures("84");
     expect(out.sick_note_enabled).toBe(true);
+    expect(out.sick_requires_approval).toBe(true);
     expect(out.notes_enabled).toBe(false);
     expect(out.master_data_contact_edit_enabled).toBe(false);
     expect(seenURL).toContain("/api/parent/me/children/84/features");
@@ -887,6 +887,7 @@ function mkThreadSummary(
     student_name: "Max Mustermann",
     school_name: "OGS A",
     counterpart_name: "OGS OGS A",
+    last_message_read_by_staff: false,
     unread: 0,
     ...overrides,
   };
@@ -1071,11 +1072,6 @@ describe("postChildMessage", () => {
   });
 });
 
-// createChildRequest / withdrawChildRequest were removed in #1803: change
-// requests no longer flow through the chat. Care-schedule requests are now
-// created/withdrawn via the Stammdaten care-schedule endpoints
-// (submitCareScheduleRequest / withdrawCareScheduleRequest), covered elsewhere.
-
 function mkAnnouncement(
   overrides: Partial<ParentAnnouncement> = {},
 ): ParentAnnouncement {
@@ -1190,5 +1186,27 @@ describe("acknowledgeAnnouncement", () => {
     await expect(
       acknowledgeAnnouncement("5", "2026-07-01T08:00:00Z"),
     ).rejects.toThrow(/veraltet/);
+  });
+});
+
+describe("getChildToday", () => {
+  // 403 und 404 sind "wir wissen es nicht": der Zugriff ist entzogen oder der
+  // Endpunkt fehlt noch. Beides ist kein Fehler, den Eltern sehen muessen.
+  it.each([403, 404])(
+    "meldet bei %i einen unbekannten Tagesstatus statt zu werfen",
+    async (status) => {
+      mockFetch(async () => jsonResponse({ error: "nope" }, { status }));
+
+      await expect(getChildToday("42")).resolves.toEqual(UNKNOWN_CHILD_TODAY);
+    },
+  );
+
+  // Ein Serverfehler ist ein echter Ausfall. Wuerde er als "unbekannt"
+  // durchgehen, saehe ein kaputtes Backend wie ein gueltiger Zustand aus und
+  // niemand erfuehre davon.
+  it.each([500, 502, 503])("wirft bei %i weiter", async (status) => {
+    mockFetch(async () => jsonResponse({ error: "kaputt" }, { status }));
+
+    await expect(getChildToday("42")).rejects.toThrow();
   });
 });

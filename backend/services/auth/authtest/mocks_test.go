@@ -9,6 +9,8 @@ import (
 )
 
 func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates to configured function", func(t *testing.T) {
 		t.Parallel()
 
@@ -50,6 +52,8 @@ func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
 }
 
 func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates to configured function", func(t *testing.T) {
 		t.Parallel()
 
@@ -91,6 +95,8 @@ func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
 }
 
 func TestInvitationServiceMockGetTenantSubdomainForToken(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delegates to configured function", func(t *testing.T) {
 		t.Parallel()
 

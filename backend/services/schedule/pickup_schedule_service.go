@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -22,9 +23,17 @@ import (
 type PickupScheduleService interface {
 	GetStudentPickupSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentPickupSchedule, error)
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentPickupSchedule, error)
+	// GetWeeklySchedulesByStudentIDs returns every weekday row for the given
+	// students as of today (class-roster report, #2290).
+	GetWeeklySchedulesByStudentIDs(ctx context.Context, studentIDs []int64) ([]*schedule.StudentPickupSchedule, error)
+	// GetWeeklySchedulesByStudentIDsForDate returns the full recurring pickup
+	// plan applicable on date in one batch projection.
+	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
+	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
+	UpsertBulkStudentPickupSchedulesForDate(ctx context.Context, studentID int64, date timezone.Date, schedules []*schedule.StudentPickupSchedule) error
 	DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error
 	DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error
 
@@ -48,6 +57,7 @@ type PickupScheduleService interface {
 	DeleteAllStudentPickupNotes(ctx context.Context, studentID int64) error
 
 	GetStudentPickupData(ctx context.Context, studentID int64) (*StudentPickupData, error)
+	GetStudentPickupDataForRange(ctx context.Context, studentID int64, from, to timezone.Date) (*StudentPickupData, error)
 	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectivePickupTime, error)
 	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectivePickupTime, error)
 	BulkUpsertPickupSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []PickupScheduleInput, createdBy int64) (*BulkUpsertResult, error)
@@ -59,9 +69,16 @@ type PickupScheduleInput struct {
 }
 
 type StudentPickupData struct {
-	Schedules  []*schedule.StudentPickupSchedule  `json:"schedules"`
-	Exceptions []*schedule.StudentPickupException `json:"exceptions"`
-	Notes      []*schedule.StudentPickupNote      `json:"notes"`
+	Schedules          []*schedule.StudentPickupSchedule  `json:"schedules"`
+	EffectiveSchedules []DatedPickupSchedule              `json:"effective_schedules,omitempty"`
+	Exceptions         []*schedule.StudentPickupException `json:"exceptions"`
+	Notes              []*schedule.StudentPickupNote      `json:"notes"`
+}
+
+type DatedPickupSchedule struct {
+	Date             timezone.Date
+	Schedule         *schedule.StudentPickupSchedule
+	OfferingSchedule *schedule.StudentPickupSchedule
 }
 
 type NoteData struct {
@@ -88,8 +105,12 @@ type pickupScheduleService struct {
 	scheduleRepo schedule.StudentPickupScheduleRepository
 	studentRepo  users.StudentRepository
 	personRepo   users.PersonRepository
-	db           *bun.DB
-	logger       *slog.Logger
+	// autoExcusal derives partial absences from pulled-forward day pickup
+	// times (#2360). Nil (older tests) skips the coupling entirely.
+	autoExcusal *PickupAutoExcusalSyncer
+	baselines   PickupBaselineReader
+	db          *bun.DB
+	logger      *slog.Logger
 }
 
 func newPickupScheduleService(
@@ -117,13 +138,20 @@ func NewPickupScheduleServiceWithBulk(
 	noteRepo schedule.StudentPickupNoteRepository,
 	studentRepo users.StudentRepository,
 	personRepo users.PersonRepository,
+	autoExcusal *PickupAutoExcusalSyncer,
+	baselines PickupBaselineReader,
 	db *bun.DB,
 	logger *slog.Logger,
 ) PickupScheduleService {
 	service := newPickupScheduleService(scheduleRepo, exceptionRepo, noteRepo, db)
 	service.studentRepo = studentRepo
 	service.personRepo = personRepo
+	service.autoExcusal = autoExcusal
+	service.baselines = baselines
 	service.logger = logger
+	if baselines == nil {
+		panic("schedule.NewPickupScheduleServiceWithBulk: baselines dependency is nil")
+	}
 	return service
 }
 
@@ -235,6 +263,13 @@ func (s *pickupScheduleService) BulkUpsertPickupSchedules(
 					return upsertErr
 				}
 			}
+			// The student row is already locked (FindByIDForUpdate above), so
+			// the resync's per-day locks keep the student → day order.
+			if s.autoExcusal != nil {
+				if syncErr := s.autoExcusal.ResyncFutureExceptions(txCtx, student.ID); syncErr != nil {
+					return syncErr
+				}
+			}
 			result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
 		}
 		return nil
@@ -272,7 +307,15 @@ func (s *pickupScheduleService) GetStudentPickupSchedules(
 	ctx context.Context,
 	studentID int64,
 ) ([]*schedule.StudentPickupSchedule, error) {
-	return s.core.Schedules(ctx, studentID)
+	rows, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (s *pickupScheduleService) HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error) {
+	return s.baselines.HasBookedOfferingPickupForWeekday(ctx, studentID, weekday)
 }
 
 func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
@@ -280,7 +323,35 @@ func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	studentIDs []int64,
 	weekday int,
 ) ([]*schedule.StudentPickupSchedule, error) {
-	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
+		return nil, &ScheduleError{Op: "get student pickup schedules for weekday", Err: errors.New("invalid weekday")}
+	}
+	rows, err := s.projectedWeeklySchedules(ctx, studentIDs, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*schedule.StudentPickupSchedule, 0, len(rows))
+	for _, row := range rows {
+		if row.Weekday == weekday {
+			out = append(out, row)
+		}
+	}
+	return out, nil
+}
+
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDs(
+	ctx context.Context,
+	studentIDs []int64,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.projectedWeeklySchedules(ctx, studentIDs, timezone.TodayDate())
+}
+
+func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsForDate(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) ([]*schedule.StudentPickupSchedule, error) {
+	return s.projectedWeeklySchedules(ctx, studentIDs, date)
 }
 
 func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(
@@ -288,14 +359,55 @@ func (s *pickupScheduleService) GetStudentPickupScheduleForWeekday(
 	studentID int64,
 	weekday int,
 ) (*schedule.StudentPickupSchedule, error) {
-	return s.core.ScheduleForWeekday(ctx, studentID, weekday)
+	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
+		return nil, &ScheduleError{Op: "get student pickup schedule for weekday", Err: errors.New("invalid weekday")}
+	}
+	rows, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.Weekday == weekday {
+			return row, nil
+		}
+	}
+	return nil, nil
+}
+
+func (s *pickupScheduleService) projectedWeeklySchedules(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) ([]*schedule.StudentPickupSchedule, error) {
+	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "project student pickup schedules", Err: err}
+	}
+	rows := make([]*schedule.StudentPickupSchedule, 0, len(studentIDs)*5)
+	for _, studentID := range uniquePositiveStudentIDs(studentIDs) {
+		for _, row := range projection.WeeklyForDate(studentID, date) {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].StudentID != rows[j].StudentID {
+			return rows[i].StudentID < rows[j].StudentID
+		}
+		return rows[i].Weekday < rows[j].Weekday
+	})
+	return rows, nil
 }
 
 func (s *pickupScheduleService) UpsertStudentPickupSchedule(
 	ctx context.Context,
 	row *schedule.StudentPickupSchedule,
 ) error {
-	return s.core.UpsertSchedule(ctx, row)
+	if s.autoExcusal == nil {
+		return s.core.UpsertSchedule(ctx, row)
+	}
+	return s.withWeeklyResync(ctx, row.StudentID, func(txCtx context.Context) error {
+		return s.core.UpsertSchedule(txCtx, row)
+	})
 }
 
 func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
@@ -303,21 +415,159 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
 	studentID int64,
 	rows []*schedule.StudentPickupSchedule,
 ) error {
-	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+	return s.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, timezone.TodayDate(), rows)
+}
+
+func (s *pickupScheduleService) UpsertBulkStudentPickupSchedulesForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	rows []*schedule.StudentPickupSchedule,
+) error {
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			return err
+		}
+		manualRows, err := s.manualRowsForReplacement(txCtx, studentID, date, rows)
+		if err != nil {
+			return err
+		}
+		if err := s.core.UpsertBulkSchedules(txCtx, studentID, manualRows); err != nil {
+			return err
+		}
+		if s.autoExcusal != nil {
+			return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+		}
+		return nil
+	})
+}
+
+// withWeeklyResync runs a weekly-baseline write in a tenant transaction and
+// re-derives the student's auto excusals afterwards (#2360 review): a changed
+// or removed weekday Gehzeit re-qualifies or releases the block absences of
+// every future day exception. Lock order is student row FIRST, then the
+// weekly rows, then the per-day care locks inside the resync — the same
+// student-first order all care-day writers use, so a weekly writer cannot
+// deadlock against a concurrent exception writer.
+func (s *pickupScheduleService) withWeeklyResync(
+	ctx context.Context,
+	studentID int64,
+	write func(txCtx context.Context) error,
+) error {
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			return err
+		}
+		if err := write(txCtx); err != nil {
+			return err
+		}
+		return s.autoExcusal.ResyncFutureExceptions(txCtx, studentID)
+	})
+}
+
+// manualRowsForReplacement strips booking-derived values from a wholesale
+// replacement. An unchanged projected offering value remains a projection;
+// an existing or newly changed staff value remains a stored override.
+func (s *pickupScheduleService) manualRowsForReplacement(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	rows []*schedule.StudentPickupSchedule,
+) ([]*schedule.StudentPickupSchedule, error) {
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	existing, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
+	}
+	weekStart := date.AddDays(schedule.WeekdayMonday - effectiveISOWeekday(date))
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, weekStart, weekStart.AddDays(4))
+	if err != nil {
+		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
+	}
+	staffByWeekday := staffPickupRowsByWeekday(existing)
+	manual := make([]*schedule.StudentPickupSchedule, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		row.Source = schedule.PickupScheduleSourceStaff
+		row.CareOfferingID = nil
+		rowDate := weekStart.AddDays(row.Weekday - schedule.WeekdayMonday)
+		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], projection.OfferingForDate(studentID, rowDate)) {
+			manual = append(manual, row)
+		}
+	}
+	return manual, nil
+}
+
+func staffPickupRowsByWeekday(rows []*schedule.StudentPickupSchedule) map[int]*schedule.StudentPickupSchedule {
+	out := make(map[int]*schedule.StudentPickupSchedule)
+	for _, row := range rows {
+		if row != nil && row.Source != schedule.PickupScheduleSourceCareOffering {
+			out[row.Weekday] = row
+		}
+	}
+	return out
+}
+
+func shouldStoreManualPickup(
+	row, previous, projected *schedule.StudentPickupSchedule,
+) bool {
+	if previous != nil && samePickupMinute(previous, row) && equalOptionalPickupNotes(previous.Notes, row.Notes) {
+		return true
+	}
+	return projected == nil || !samePickupMinute(projected, row) || !emptyOptionalPickupNotes(row.Notes)
+}
+
+func samePickupMinute(left, right *schedule.StudentPickupSchedule) bool {
+	return left.PickupTime.Format("15:04") == right.PickupTime.Format("15:04")
+}
+
+func equalOptionalPickupNotes(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func emptyOptionalPickupNotes(notes *string) bool {
+	return notes == nil || strings.TrimSpace(*notes) == ""
 }
 
 func (s *pickupScheduleService) DeleteStudentPickupSchedule(
 	ctx context.Context,
 	scheduleID int64,
 ) error {
-	return s.core.DeleteSchedule(ctx, scheduleID)
+	if scheduleID <= 0 {
+		return &ScheduleError{Op: "delete student pickup schedule", Err: errors.New("schedule id must be positive")}
+	}
+	if s.autoExcusal == nil {
+		return s.core.DeleteSchedule(ctx, scheduleID)
+	}
+	row, err := s.scheduleRepo.FindByID(ctx, scheduleID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return &ScheduleError{Op: "delete student pickup schedule", Err: err}
+	}
+	if row == nil {
+		return s.core.DeleteSchedule(ctx, scheduleID)
+	}
+	return s.withWeeklyResync(ctx, row.StudentID, func(txCtx context.Context) error {
+		return s.core.DeleteSchedule(txCtx, scheduleID)
+	})
 }
 
 func (s *pickupScheduleService) DeleteAllStudentPickupSchedules(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	return s.core.DeleteAllSchedules(ctx, studentID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteAllSchedules(ctx, studentID)
+	}
+	return s.withWeeklyResync(ctx, studentID, func(txCtx context.Context) error {
+		return s.core.DeleteAllSchedules(txCtx, studentID)
+	})
 }
 
 func (s *pickupScheduleService) GetStudentPickupExceptionByID(
@@ -372,15 +622,66 @@ func (s *pickupScheduleService) CreateOrReclaimException(
 	staffID int64,
 	resolveStaffID func() (int64, error),
 ) (*schedule.StudentPickupException, error) {
-	return s.core.CreateOrReclaimException(
-		ctx,
-		studentID,
-		date,
-		pickupTime,
-		reason,
-		staffID,
-		resolveStaffID,
-	)
+	if s.autoExcusal == nil {
+		return s.core.CreateOrReclaimException(
+			ctx,
+			studentID,
+			date,
+			pickupTime,
+			reason,
+			staffID,
+			resolveStaffID,
+		)
+	}
+	var result *schedule.StudentPickupException
+	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+		// An existing auto excusal is detached first so the overwrite cannot
+		// strand block absences whose provenance the write replaces; the sync
+		// below re-derives the excusal from the new pickup time.
+		if err := s.autoExcusal.DetachForDate(txCtx, studentID, date); err != nil {
+			return err
+		}
+		row, err := s.core.CreateOrReclaimException(txCtx, studentID, date, pickupTime, reason, staffID, resolveStaffID)
+		if err != nil {
+			return err
+		}
+		result = row
+		return s.resyncAutoExcusal(txCtx, row.ID, &result)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+// resyncAutoExcusal runs the auto-excusal sync for the written exception and
+// refreshes *result so callers respond with the synced row state.
+func (s *pickupScheduleService) resyncAutoExcusal(
+	ctx context.Context,
+	exceptionID int64,
+	result **schedule.StudentPickupException,
+) error {
+	changed, err := s.autoExcusal.Sync(ctx, exceptionID)
+	if err != nil {
+		return err
+	}
+	// Only a sync that actually rewrote the row warrants replacing the
+	// caller-visible result with a re-read — the common no-op path keeps the
+	// core's in-memory row (and its nil-reason semantics) untouched.
+	if !changed {
+		return nil
+	}
+	fresh, err := s.core.ExceptionByID(ctx, exceptionID)
+	if err != nil {
+		return err
+	}
+	if fresh != nil {
+		*result = fresh
+	}
+	return nil
 }
 
 func (s *pickupScheduleService) UpdateException(
@@ -393,30 +694,139 @@ func (s *pickupScheduleService) UpdateException(
 	clearPickupTime bool,
 	resolveStaffID func() (int64, error),
 ) (*schedule.StudentPickupException, error) {
-	return s.core.UpdateException(
-		ctx,
-		exceptionID,
-		studentID,
-		date,
-		reason,
-		pickupTime,
-		clearPickupTime,
-		resolveStaffID,
-	)
+	if s.autoExcusal == nil {
+		return s.core.UpdateException(
+			ctx,
+			exceptionID,
+			studentID,
+			date,
+			reason,
+			pickupTime,
+			clearPickupTime,
+			resolveStaffID,
+		)
+	}
+	var result *schedule.StudentPickupException
+	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		// The row's stored date may differ from the submitted one; both days'
+		// block absences can be affected, so lock them in ascending order (the
+		// same convention DeleteAllExceptions uses) before detaching.
+		existing, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		lockDates := []timezone.Date{date}
+		if existing != nil && existing.ExceptionDate != date {
+			lockDates = append(lockDates, existing.ExceptionDate)
+			sort.Slice(lockDates, func(i, j int) bool { return lockDates[i].Before(lockDates[j]) })
+		}
+		for _, lockDate := range lockDates {
+			if err := LockCareExceptionDay(txCtx, s.db, studentID, lockDate); err != nil {
+				return err
+			}
+		}
+		fresh, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil {
+			return err
+		}
+		if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+			return err
+		}
+		row, err := s.core.UpdateException(txCtx, exceptionID, studentID, date, reason, pickupTime, clearPickupTime, resolveStaffID)
+		if err != nil {
+			return err
+		}
+		result = row
+		return s.resyncAutoExcusal(txCtx, row.ID, &result)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *pickupScheduleService) DeleteStudentPickupException(
 	ctx context.Context,
 	exceptionID int64,
 ) error {
-	return s.core.DeleteException(ctx, exceptionID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteException(ctx, exceptionID)
+	}
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		initial, err := s.core.ExceptionByID(txCtx, exceptionID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			return err
+		}
+		if initial != nil {
+			if err := LockCareExceptionDay(txCtx, s.db, initial.StudentID, initial.ExceptionDate); err != nil {
+				return err
+			}
+			// Re-read under the lock, then detach: the release restores the
+			// auto-excused blocks BEFORE the FK's ON DELETE SET NULL could
+			// strand them as absent without provenance.
+			fresh, err := s.core.ExceptionByID(txCtx, exceptionID)
+			if err != nil {
+				return err
+			}
+			if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+				return err
+			}
+		}
+		return s.core.DeleteException(txCtx, exceptionID)
+	})
 }
 
 func (s *pickupScheduleService) DeleteAllStudentPickupExceptions(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	return s.core.DeleteAllExceptions(ctx, studentID)
+	if s.autoExcusal == nil {
+		return s.core.DeleteAllExceptions(ctx, studentID)
+	}
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		// Student lock FIRST: every care-day writer takes it before its day
+		// lock, so once held no concurrent exception write can commit between
+		// the snapshot below and the delete — an auto excusal created in that
+		// window would otherwise be deleted without release, stranding its
+		// blocks as absent once the FK clears their provenance (#2360 review).
+		// A missing student cannot race those writers (they fail on the same
+		// lock), so the plain delete-all suffices then.
+		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return s.core.DeleteAllExceptions(txCtx, studentID)
+			}
+			return err
+		}
+		rows, err := s.core.Exceptions(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		autoRows := make([]*schedule.StudentPickupException, 0, len(rows))
+		for _, row := range rows {
+			if row != nil && row.ExcusedAuto {
+				autoRows = append(autoRows, row)
+			}
+		}
+		sort.Slice(autoRows, func(i, j int) bool {
+			if autoRows[i].ExceptionDate == autoRows[j].ExceptionDate {
+				return autoRows[i].ID < autoRows[j].ID
+			}
+			return autoRows[i].ExceptionDate.Before(autoRows[j].ExceptionDate)
+		})
+		for _, row := range autoRows {
+			if err := LockCareExceptionDay(txCtx, s.db, studentID, row.ExceptionDate); err != nil {
+				return err
+			}
+			fresh, err := s.core.ExceptionByID(txCtx, row.ID)
+			if err != nil {
+				return err
+			}
+			if err := s.autoExcusal.DetachRow(txCtx, fresh); err != nil {
+				return err
+			}
+		}
+		return s.core.DeleteAllExceptions(txCtx, studentID)
+	})
 }
 
 func (s *pickupScheduleService) GetStudentPickupNoteByID(
@@ -473,15 +883,57 @@ func (s *pickupScheduleService) GetStudentPickupData(
 	ctx context.Context,
 	studentID int64,
 ) (*StudentPickupData, error) {
-	data, err := s.core.Data(ctx, studentID)
+	coreData, err := s.core.Data(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	data := &StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
+	schedules, err := s.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
 	return &StudentPickupData{
-		Schedules:  data.Schedules,
+		Schedules:  schedules,
 		Exceptions: data.Exceptions,
 		Notes:      data.Notes,
 	}, nil
+}
+
+func (s *pickupScheduleService) GetStudentPickupDataForRange(
+	ctx context.Context,
+	studentID int64,
+	from, to timezone.Date,
+) (*StudentPickupData, error) {
+	coreData, err := s.core.Data(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	data := &StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get dated student pickup data", Err: err}
+	}
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		schedule := projection.ForDate(studentID, date)
+		if schedule != nil && !containsPickupWeekday(data.Schedules, schedule.Weekday) {
+			data.Schedules = append(data.Schedules, schedule)
+		}
+		data.EffectiveSchedules = append(data.EffectiveSchedules, DatedPickupSchedule{
+			Date:             date,
+			Schedule:         schedule,
+			OfferingSchedule: projection.OfferingForDate(studentID, date),
+		})
+	}
+	return data, nil
+}
+
+func containsPickupWeekday(schedules []*schedule.StudentPickupSchedule, weekday int) bool {
+	for _, row := range schedules {
+		if row != nil && row.Weekday == weekday {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *pickupScheduleService) GetEffectivePickupTimeForDate(
@@ -489,7 +941,11 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(
 	studentID int64,
 	date timezone.Date,
 ) (*EffectivePickupTime, error) {
-	result, err := s.core.EffectiveTimeForDate(ctx, studentID, date)
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
+	}
+	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, projection.ForDate(studentID, date))
 	if err != nil {
 		return nil, err
 	}
@@ -501,7 +957,17 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 	studentIDs []int64,
 	date timezone.Date,
 ) (map[int64]*EffectivePickupTime, error) {
-	results, err := s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get bulk effective pickup times", Err: err}
+	}
+	schedules := make(map[int64]*schedule.StudentPickupSchedule, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if row := projection.ForDate(studentID, date); row != nil {
+			schedules[studentID] = row
+		}
+	}
+	results, err := s.core.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, schedules)
 	if err != nil {
 		return nil, err
 	}

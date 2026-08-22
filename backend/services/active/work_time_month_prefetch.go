@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -34,7 +35,7 @@ type monthPrefetch struct {
 
 	staff          map[int64]*userModels.Staff
 	sessions       map[int64][]*activeModels.WorkSession
-	breaks         map[int64]*activeModels.WorkSessionBreak
+	breaks         map[int64][]*activeModels.WorkSessionBreak
 	absences       map[int64][]*activeModels.StaffAbsence
 	adjustments    map[int64][]*activeModels.StaffBalanceAdjustment
 	shifts         map[int64][]*scheduleModels.StaffShift
@@ -107,11 +108,15 @@ func (r prefetchedStaffReader) FindByID(_ context.Context, id any) (*userModels.
 
 type prefetchedSessionReader struct{ p *monthPrefetch }
 
-func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+func (r prefetchedSessionReader) ListOverlappingByStaffID(_ context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	sessions := r.p.sessions[staffID]
 	result := make([]*activeModels.WorkSession, 0, len(sessions))
 	for _, session := range sessions {
-		if session.Date.Before(from) || session.Date.After(to) {
+		end := time.Now()
+		if session.CheckOutTime != nil {
+			end = *session.CheckOutTime
+		}
+		if !end.After(from) || to != nil && !session.CheckInTime.Before(*to) {
 			continue
 		}
 		result = append(result, session)
@@ -119,12 +124,18 @@ func (r prefetchedSessionReader) GetHistoryByStaffID(_ context.Context, staffID 
 	return result, nil
 }
 
-// prefetchedBreakReader mirrors the repository's (nil, nil) on no open break —
-// runningBreakMinutes treats a nil break as "no break running".
 type prefetchedBreakReader struct{ p *monthPrefetch }
 
-func (r prefetchedBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
+func (r prefetchedBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
 	return r.p.breaks[sessionID], nil
+}
+
+func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	result := make(map[int64][]*activeModels.WorkSessionBreak, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		result[sessionID] = r.p.breaks[sessionID]
+	}
+	return result, nil
 }
 
 type prefetchedAbsenceReader struct{ p *monthPrefetch }

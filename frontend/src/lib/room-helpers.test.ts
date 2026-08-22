@@ -11,6 +11,8 @@ import {
   formatRoomCapacity,
   getRoomUtilization,
   getRoomStatusColor,
+  isColorLockedRoom,
+  isSchulhofRoom,
   isSystemRoom,
 } from "./room-helpers";
 import { suppressConsole } from "~/test/helpers/console";
@@ -69,6 +71,15 @@ describe("mapRoomResponse", () => {
     expect(result.capacity).toBeUndefined();
     expect(result.category).toBeUndefined();
     expect(result.color).toBeUndefined();
+  });
+
+  it("treats a legacy zero capacity as no limit", () => {
+    const result = mapRoomResponse({
+      ...sampleBackendRoom,
+      capacity: 0,
+    });
+
+    expect(result.capacity).toBeUndefined();
   });
 
   it("handles minimal backend room (required fields only)", () => {
@@ -174,6 +185,7 @@ describe("prepareRoomForBackend", () => {
       name: "Room 101",
       building: "Building A",
       floor: 2,
+      capacity: 43,
       category: "classroom",
       color: "#FF0000",
       deviceId: "device-123",
@@ -186,6 +198,7 @@ describe("prepareRoomForBackend", () => {
     expect(result.name).toBe("Room 101");
     expect(result.building).toBe("Building A");
     expect(result.floor).toBe(2);
+    expect(result.capacity).toBe(43);
     expect(result.category).toBe("classroom");
     expect(result.color).toBe("#FF0000");
     expect(result.device_id).toBe("device-123"); // camelCase → snake_case
@@ -207,6 +220,7 @@ describe("prepareRoomForBackend", () => {
     expect(result.is_occupied).toBe(false); // defaults to false
     expect(result.building).toBeUndefined();
     expect(result.floor).toBeUndefined();
+    expect(result.capacity).toBeUndefined();
     expect(result.category).toBeUndefined();
   });
 
@@ -233,6 +247,15 @@ describe("prepareRoomForBackend", () => {
     });
 
     expect(result.floor).toBe(0);
+  });
+
+  it("maps an empty capacity to null so an existing limit is cleared", () => {
+    const result = prepareRoomForBackend({
+      name: "Room without limit",
+      capacity: "" as unknown as number,
+    });
+
+    expect(result.capacity).toBeNull();
   });
 
   it("handles room without id (for creation)", () => {
@@ -557,6 +580,49 @@ describe("getRoomStatusColor", () => {
 
     // No capacity = 0 utilization = green
     expect(result).toBe("green");
+  });
+});
+
+describe("isColorLockedRoom", () => {
+  // Issue #2405 — the Schulhof left the colour-locked set: schools colour-code
+  // rooms and tablets and need the yard in that scheme. Only the toilet rooms
+  // keep the frozen colour (they have no badge of their own).
+  it("locks the WC", () => {
+    expect(isColorLockedRoom({ id: "1", name: "WC" } as never)).toBe(true);
+  });
+
+  it("locks the Toilette alias", () => {
+    expect(isColorLockedRoom({ id: "1", name: "Toilette" } as never)).toBe(
+      true,
+    );
+  });
+
+  it("does NOT lock the Schulhof", () => {
+    expect(isColorLockedRoom({ id: "1", name: "Schulhof" } as never)).toBe(
+      false,
+    );
+  });
+
+  it("does not lock a regular room", () => {
+    expect(isColorLockedRoom({ id: "1", name: "Werkraum" } as never)).toBe(
+      false,
+    );
+  });
+
+  it("returns false for null/undefined", () => {
+    expect(isColorLockedRoom(null)).toBe(false);
+    expect(isColorLockedRoom(undefined)).toBe(false);
+  });
+});
+
+describe("isSchulhofRoom", () => {
+  it("matches the canonical Schulhof room", () => {
+    expect(isSchulhofRoom({ id: "1", name: "Schulhof" } as never)).toBe(true);
+  });
+
+  it("does not match other rooms or nullish input", () => {
+    expect(isSchulhofRoom({ id: "1", name: "WC" } as never)).toBe(false);
+    expect(isSchulhofRoom(null)).toBe(false);
   });
 });
 

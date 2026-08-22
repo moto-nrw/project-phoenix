@@ -167,6 +167,13 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		if err != nil {
 			return nil, fmt.Errorf("failed to get absences for export: %w", err)
 		}
+		allAbsences := make([]*activeModels.StaffAbsence, 0)
+		for _, absences := range absencesByStaff {
+			allAbsences = append(allAbsences, absences...)
+		}
+		// The cross-staff export must use the same school-defined wording as
+		// the single-staff export rather than falling back to "Sonstige".
+		StampAbsenceTypeLabels(ctx, s.absenceTypes, allAbsences)
 	}
 
 	allSessions := make([]*activeModels.WorkSession, 0)

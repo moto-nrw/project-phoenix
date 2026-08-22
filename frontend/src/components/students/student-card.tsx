@@ -6,11 +6,14 @@ import {
   Clock,
   AlertTriangle,
   Check,
+  CheckSquare,
   ChevronRight,
   Loader2,
   LogIn,
   Minus,
   Plus,
+  Route,
+  Square,
 } from "lucide-react";
 import {
   CalendarXIcon,
@@ -68,6 +71,14 @@ interface StudentCardProps {
   readonly isCheckinPending?: boolean;
   /** Click handler for check-in mode. Ignored when checkinMode is false. */
   readonly onCheckinClick?: () => void;
+  /**
+   * Selection sub-mode of check-in mode (#2359): a tap marks the card instead
+   * of firing an API call, the tap-strip carries the selection state, and the
+   * selected card gets a brand-green ring. Only meaningful with checkinMode.
+   */
+  readonly checkinSelectMode?: boolean;
+  /** Whether this card is currently marked for the next bulk action. */
+  readonly isCheckinSelected?: boolean;
 }
 
 // Tap-strip styles for the bottom action area when checkinMode is on. The
@@ -112,6 +123,22 @@ const TAP_STRIP_STYLES: Record<
   },
 };
 
+// Strip presets for the selection sub-mode (#2359). The selection state — not
+// the presence-derived action — is the strip's signal here: presence stays
+// readable on the badge, the strip answers "ist dieses Kind markiert?".
+const SELECT_STRIP_STYLES = {
+  selected: {
+    background: MOTO_COLOR_PALETTE.green.soft,
+    text: MOTO_COLOR_PALETTE.green.strong,
+    copy: "Ausgewählt",
+  },
+  unselected: {
+    background: `${LOCATION_COLORS.UNKNOWN}26`,
+    text: MOTO_COLOR_PALETTE.neutral.strong,
+    copy: "Tippen zum Auswählen",
+  },
+} as const;
+
 /**
  * Reusable student card component with modern styling.
  * Used in OGS groups and active supervisions pages.
@@ -129,6 +156,8 @@ export function StudentCard({
   checkinState = "unknown",
   isCheckinPending = false,
   onCheckinClick,
+  checkinSelectMode = false,
+  isCheckinSelected = false,
 }: StudentCardProps) {
   // Photo feature is per-tenant. When the school hasn't enabled it the
   // entire avatar overlay is suppressed — the card falls back to its
@@ -140,13 +169,32 @@ export function StudentCard({
   const activeHandler =
     checkinMode && onCheckinClick ? onCheckinClick : onClick;
 
+  // Selection sub-mode: taps mark the card, nothing is written yet (#2359).
+  const selectMode = checkinMode && checkinSelectMode;
+
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
   const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  const selectStrip = selectMode
+    ? SELECT_STRIP_STYLES[isCheckinSelected ? "selected" : "unselected"]
+    : null;
 
-  const ariaLabel = checkinMode
-    ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
-    : `${firstName} ${lastName} - Tippen für mehr Infos`;
+  const ariaLabel = selectMode
+    ? `${firstName} ${lastName} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
+    : checkinMode
+      ? `${firstName} ${lastName} - ${tapStrip?.copy ?? "Tippen zum An-/Abmelden"}`
+      : `${firstName} ${lastName} - Tippen für mehr Infos`;
+
+  // A selected card gets a brand-green ring on top of the resting shadow.
+  // Inline style (not an arbitrary-value class) so the hex stays sourced from
+  // LOCATION_COLORS.
+  const selectedRingStyle: React.CSSProperties | undefined =
+    selectMode && isCheckinSelected
+      ? {
+          boxShadow: `0 0 0 2px ${LOCATION_COLORS.GROUP_ROOM}, 0 1px 2px rgba(15,23,42,0.04)`,
+          borderColor: "transparent",
+        }
+      : undefined;
 
   return (
     <button
@@ -156,8 +204,11 @@ export function StudentCard({
       disabled={isCheckinPending}
       aria-label={ariaLabel}
       aria-busy={isCheckinPending}
+      aria-pressed={selectMode ? isCheckinSelected : undefined}
       data-checkin-mode={checkinMode || undefined}
       data-checkin-state={checkinMode ? checkinState : undefined}
+      data-checkin-selected={(selectMode && isCheckinSelected) || undefined}
+      style={selectedRingStyle}
       className={`group moto-content-surface moto-hover-elevated relative flex w-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-wait disabled:opacity-70 ${
         // Click-time scale skipped in check-in mode: sub-pixel aliasing
         // during the scale animation flashes a 1px white seam at the
@@ -238,12 +289,12 @@ export function StudentCard({
           text stays) so the strip's height never changes — otherwise the
           card resizes mid-toggle and a 1px white seam flashes at the
           body→strip boundary. */}
-      {checkinMode && tapStrip && (
+      {selectMode && selectStrip ? (
         <div
           className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
           style={{
-            backgroundColor: tapStrip.background,
-            color: tapStrip.text,
+            backgroundColor: selectStrip.background,
+            color: selectStrip.text,
           }}
           data-checkin-tap-strip="true"
         >
@@ -252,13 +303,37 @@ export function StudentCard({
               className="h-4 w-4 flex-shrink-0 animate-spin"
               aria-hidden="true"
             />
-          ) : tapStrip.action === "anmelden" ? (
-            <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          ) : isCheckinSelected ? (
+            <CheckSquare className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           ) : (
-            <Minus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <Square className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           )}
-          <span>{tapStrip.copy}</span>
+          <span>{selectStrip.copy}</span>
         </div>
+      ) : (
+        checkinMode &&
+        tapStrip && (
+          <div
+            className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
+            style={{
+              backgroundColor: tapStrip.background,
+              color: tapStrip.text,
+            }}
+            data-checkin-tap-strip="true"
+          >
+            {isCheckinPending ? (
+              <Loader2
+                className="h-4 w-4 flex-shrink-0 animate-spin"
+                aria-hidden="true"
+              />
+            ) : tapStrip.action === "anmelden" ? (
+              <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            ) : (
+              <Minus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            )}
+            <span>{tapStrip.copy}</span>
+          </div>
+        )
       )}
     </button>
   );
@@ -276,18 +351,32 @@ export function GroupIcon() {
   return <MotoDuotoneIcon icon={UsersThreeIcon} tone="neutral" size={14} />;
 }
 
+export function DepartureModeIcon() {
+  return <Route className="h-3.5 w-3.5 text-gray-400" aria-hidden="true" />;
+}
+
 /** Reusable info row for school class or group */
 export function StudentInfoRow({
   icon,
   children,
+  wrap = false,
 }: Readonly<{
   icon: ReactNode;
   children: ReactNode;
+  wrap?: boolean;
 }>) {
   return (
-    <div className="mt-1 flex items-center gap-1.5">
+    <div
+      className={`mt-1 flex gap-1.5 ${wrap ? "items-start" : "items-center"}`}
+    >
       <span className="flex-shrink-0">{icon}</span>
-      <span className="overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap text-gray-500">
+      <span
+        className={`text-xs font-medium text-gray-500 ${
+          wrap
+            ? "whitespace-normal"
+            : "overflow-hidden text-ellipsis whitespace-nowrap"
+        }`}
+      >
         {children}
       </span>
     </div>
@@ -481,8 +570,8 @@ export function StudentAbsenceRow({
 }
 
 /**
- * Informational badge for a child with a still-pending "entschuldigt" request
- * covering today (operations.parent_excused_requires_approval). It is NOT an
+ * Informational badge for a child with a still-pending absence request covering
+ * today. It is NOT an
  * absence — the child stays "expected" and keeps its normal arrival/pickup rows
  * until the OGS confirms — so this renders as a single compact amber pill
  * alongside them, not in place of them. The parent's note (if any) is kept to

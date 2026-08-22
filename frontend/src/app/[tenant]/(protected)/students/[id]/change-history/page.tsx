@@ -6,7 +6,6 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import {
   ConceptPageHeader,
   ConceptSectionHeader,
@@ -15,6 +14,7 @@ import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
 import { formatDate, formatTime } from "~/lib/date-helpers";
+import { ChangeHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentChangeHistoryPage" });
 
@@ -85,7 +85,7 @@ function ValueText({ value }: { readonly value: string }) {
 
 export default function StudentChangeHistoryPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<ChangeHistorySkeleton />}>
       <StudentChangeHistoryPageContent />
     </Suspense>
   );
@@ -166,7 +166,7 @@ function StudentChangeHistoryPageContent() {
   }, [fetchStudent, fetchHistory]);
 
   if (loading) {
-    return <Loading fullPage={false} />;
+    return <ChangeHistorySkeleton />;
   }
 
   if (errorCode !== null) {

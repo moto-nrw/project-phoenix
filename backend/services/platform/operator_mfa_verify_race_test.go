@@ -41,6 +41,8 @@ func (r *raceLosingOperatorChallengeRepo) MarkConsumed(_ context.Context, _ int6
 // operator sessions from the same single-use code. The fix refuses the
 // loser with the generic ErrOperatorMFACodeInvalid.
 func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	// Discard the helper-built service: we need to swap repos.OperatorMFAEmailChallenge
 	// before constructing the service so it captures the stub.
@@ -95,6 +97,8 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 // TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected mirrors the
 // previous test for the JWT-less variant used by enrollment confirmation.
 func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	_, repos, db := newTestOperatorMFAService(t)
 

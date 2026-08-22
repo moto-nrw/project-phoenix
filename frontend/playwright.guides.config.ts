@@ -8,8 +8,7 @@ import { defineConfig, devices } from "@playwright/test";
 // `next dev`: the PDFs ship inside the prod image, so they must be generated
 // from the same output users actually see , and a prod server renders
 // deterministically and fast (no first-request compile / HMR), which removes
-// the main flakiness source. The render step is on the deploy critical path,
-// so `retries` (in CI) absorbs transient hiccups instead of failing a deploy.
+// the main flakiness source.
 //
 // Env note: the /help pages are public and host-agnostic, but proxy.ts throws
 // when the operator/parents/tenant hostnames are unset. Locally those come from
@@ -18,8 +17,9 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./scripts",
   testMatch: "generate-guides.ts",
+  // The 91-page features guide can exceed Playwright's 30-second default on CI.
+  timeout: 120_000,
   workers: 1,
-  retries: process.env.CI ? 2 : 0,
   reporter: "list",
   use: {
     baseURL: "http://localhost:3000",

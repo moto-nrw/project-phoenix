@@ -19,7 +19,6 @@
 package students_test
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -55,7 +54,7 @@ func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, o
 	storedURL = common.StudentPhotoStoredURLPrefix + filepath.Base(tmp.Name())
 	onDisk = tmp.Name()
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err = tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_path = ?,
@@ -76,7 +75,7 @@ func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, o
 // the test cannot assert on enabled-only fields.
 func enablePhotoFeatureForTenant(t *testing.T, tc *testContext) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t,
 		tc.services.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
 		"enable student_photos_enabled",
@@ -91,7 +90,7 @@ func enablePhotoFeatureForTenant(t *testing.T, tc *testContext) {
 // back through the API layer.
 func readPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var path *string
 	err := tc.db.NewSelect().
 		ColumnExpr("photo_path").
@@ -110,7 +109,7 @@ func readPhotoPath(t *testing.T, tc *testContext, studentID int64) string {
 // the audit timestamp atomically.
 func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var stamped bool
 	err := tc.db.NewRaw(
 		`SELECT photo_consent_given_at IS NOT NULL FROM users.students WHERE id = ?`,
@@ -135,11 +134,12 @@ func readConsentTimestamp(t *testing.T, tc *testContext, studentID int64) bool {
 //     the on-disk file is gone after the response.
 //  3. Emit a broadcastStudentUpdated event so SSE listeners refetch.
 func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoWithdraw", "Student", "PW1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 
@@ -185,11 +185,12 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 // the row would carry consent_given_at=NULL even after the OK response,
 // which would later trip the consent gate on photo upload.
 func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoGrant", "Student", "PG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Start state: no consent. Sanity check the precondition.
 	require.False(t, readConsentTimestamp(t, tc, student.ID),
@@ -208,7 +209,7 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	// raw SELECT because applyPhotoConsent is a pure helper — only
 	// stampPhotoConsent (called from the handler) writes the actor
 	// column from the JWT claims.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var byActor int64
 	err := tc.db.NewRaw(
 		`SELECT COALESCE(photo_consent_given_by, 0) FROM users.students WHERE id = ?`,
@@ -226,15 +227,16 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 // carries consent — the operation must not unstamp the original audit
 // timestamp.
 func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoNoOp", "Student", "PN1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Stamp consent directly so we can verify it survives an unrelated
 	// edit.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.ExecContext(ctx,
 		`UPDATE users.students
 		    SET photo_consent_given_at = now(),
@@ -262,6 +264,8 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 // the file via tenant.RegisterAfterCommit. Without this, deleting a
 // student would leave their JPEG orphaned under public/uploads/.
 func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoDel", "ApiPath", "PD1")
@@ -270,7 +274,6 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	// about the photo feature flag — the unlink branch runs whenever
 	// fresh.PhotoPath is non-NULL, regardless of feature toggle state.
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -282,7 +285,7 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 		"deleteStudent must unlink the photo file after commit; stat err=%v", err)
 
 	// Student row must be gone.
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var count int
 	err = tc.db.NewRaw(
 		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,
@@ -297,17 +300,18 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 // where the unlink hook fires unconditionally and the unguarded path
 // resolution returns an error on empty input.
 func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	var count int
 	err := tc.db.NewRaw(
 		`SELECT count(*) FROM users.students WHERE id = ?`, student.ID,
@@ -327,11 +331,12 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 // (line ~1252) — without the feature flag enabled the response strips
 // photo-related fields, even on a row that has a photo_path.
 func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	enablePhotoFeatureForTenant(t, tc)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Enabled", "PR1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
 	body := map[string]interface{}{"first_name": "RenamedResp"}
@@ -354,11 +359,12 @@ func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 // response payload must not leak photo URL details — even if the row
 // happens to carry an old photo_path.
 func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Deliberately do NOT enable the feature.
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PhotoResp", "Disabled", "PR2")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
 	body := map[string]interface{}{"first_name": "RenamedDisabled"}
@@ -387,4 +393,3 @@ func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 
 // noop — placeholder so context.Context import is used should we add
 // a future test that needs ctx without other plumbing.
-var _ context.Context

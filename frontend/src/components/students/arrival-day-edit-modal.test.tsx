@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 vi.mock("~/components/ui/form-modal", () => ({
   FormModal: ({
@@ -60,7 +61,22 @@ describe("ArrivalDayEditModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     Object.values(callbacks).forEach((fn) => fn.mockReset?.());
+  });
+
+  it("shows the NFC tablet note only for NFC tenants", () => {
+    const props = { isOpen: true, day: makeDay(), ...callbacks };
+    const { rerender } = render(<ArrivalDayEditModal {...props} />);
+
+    expect(
+      screen.getByText("Notizen werden auch auf den NFC-Tablets angezeigt."),
+    ).toBeInTheDocument();
+
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    rerender(<ArrivalDayEditModal {...props} />);
+
+    expect(screen.queryByText(/NFC-Tablets/i)).not.toBeInTheDocument();
   });
 
   it("returns null (no dialog) when day is null", () => {

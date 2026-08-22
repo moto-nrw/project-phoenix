@@ -15,32 +15,44 @@ import (
 // =============================================================================
 
 func TestActionError_Error(t *testing.T) {
+	t.Parallel()
+
 	e := &ActionError{Action: "assign RFID tags", Err: errors.New("timeout")}
 	assert.Equal(t, "assign RFID tags: timeout", e.Error())
 }
 
 func TestActionError_Error_Nil(t *testing.T) {
+	t.Parallel()
+
 	var e *ActionError
 	assert.Equal(t, "", e.Error())
 }
 
 func TestActionError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("inner error")
 	e := &ActionError{Action: "test", Err: inner}
 	assert.Equal(t, inner, e.Unwrap())
 }
 
 func TestActionError_Unwrap_Nil(t *testing.T) {
+	t.Parallel()
+
 	var e *ActionError
 	assert.Nil(t, e.Unwrap())
 }
 
 func TestActionError_Unwrap_NilErr(t *testing.T) {
+	t.Parallel()
+
 	e := &ActionError{Action: "test", Err: nil}
 	assert.Nil(t, e.Unwrap())
 }
 
 func TestActionError_ErrorsAs(t *testing.T) {
+	t.Parallel()
+
 	inner := errors.New("db connection failed")
 	e := &ActionError{Action: "login", Err: inner}
 
@@ -66,6 +78,8 @@ func (m *mockAction) Run(_ context.Context, _ *Runtime) error {
 }
 
 func TestScenario_Run_AllSuccess(t *testing.T) {
+	t.Parallel()
+
 	a1 := &mockAction{name: "step1"}
 	a2 := &mockAction{name: "step2"}
 	a3 := &mockAction{name: "step3"}
@@ -79,6 +93,8 @@ func TestScenario_Run_AllSuccess(t *testing.T) {
 }
 
 func TestScenario_Run_StopsOnError(t *testing.T) {
+	t.Parallel()
+
 	a1 := &mockAction{name: "step1"}
 	a2 := &mockAction{name: "step2", err: errors.New("fail")}
 	a3 := &mockAction{name: "step3"}
@@ -96,6 +112,8 @@ func TestScenario_Run_StopsOnError(t *testing.T) {
 }
 
 func TestScenario_Run_Empty(t *testing.T) {
+	t.Parallel()
+
 	s := Scenario{Name: "empty", Actions: nil}
 	err := s.Run(context.Background(), &Runtime{})
 	assert.NoError(t, err)
@@ -106,6 +124,8 @@ func TestScenario_Run_Empty(t *testing.T) {
 // =============================================================================
 
 func TestNewRuntime(t *testing.T) {
+	t.Parallel()
+
 	state := &seedapi.SeedState{BaseURL: "http://localhost:8080"}
 	client := newClient("http://localhost:8080", false)
 	opts := FullDayOptions{StatePath: "state.json", Close: true, Verbose: true}
@@ -126,6 +146,8 @@ func TestNewRuntime(t *testing.T) {
 // =============================================================================
 
 func TestRuntime_PrimaryDevice_Success(t *testing.T) {
+	t.Parallel()
+
 	state := &seedapi.SeedState{
 		Devices: map[string]seedapi.SeedDevice{
 			"d1": {APIKey: "k1", Name: "Scanner 1"},
@@ -144,6 +166,8 @@ func TestRuntime_PrimaryDevice_Success(t *testing.T) {
 }
 
 func TestRuntime_PrimaryDevice_NoDevices(t *testing.T) {
+	t.Parallel()
+
 	rt := &Runtime{
 		State:      &seedapi.SeedState{},
 		DeviceKeys: []string{},
@@ -155,6 +179,8 @@ func TestRuntime_PrimaryDevice_NoDevices(t *testing.T) {
 }
 
 func TestRuntime_PrimaryDevice_NilDeviceKeys(t *testing.T) {
+	t.Parallel()
+
 	rt := &Runtime{
 		State:      &seedapi.SeedState{},
 		DeviceKeys: nil,
@@ -170,6 +196,8 @@ func TestRuntime_PrimaryDevice_NilDeviceKeys(t *testing.T) {
 // =============================================================================
 
 func TestRuntimeCounts_Defaults(t *testing.T) {
+	t.Parallel()
+
 	c := RuntimeCounts{}
 	assert.Equal(t, 0, c.RFIDAssigned)
 	assert.Equal(t, 0, c.SessionsStarted)

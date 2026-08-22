@@ -16,7 +16,10 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
+import {
+  DetailSectionSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
@@ -299,7 +302,9 @@ export function CarePlanView({
               }
             />
           ) : loading ? (
-            <Loading message="Betreuungsplan wird geladen" fullPage={false} />
+            <SkeletonRegion label="Betreuungsplan wird geladen">
+              <DetailSectionSkeleton fields={4} />
+            </SkeletonRegion>
           ) : viewMode === "day" ? (
             <CarePlanDayTimeline
               day={dayData ?? null}

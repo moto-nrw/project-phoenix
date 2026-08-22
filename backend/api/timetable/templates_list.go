@@ -108,6 +108,10 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 	if err != nil {
 		sourceCareOfferingIDs = nil
 	}
+	sourceSchoolClasses, err := row.ParseSourceSchoolClasses()
+	if err != nil {
+		sourceSchoolClasses = nil
+	}
 	return templateResponse{
 		ID:                          row.TemplateID,
 		Name:                        row.Name,
@@ -123,7 +127,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		EducationGroupID:            educationGroupIDFromRow(row),
 		EducationGroupName:          row.EducationGroupName.String,
 		IsOpen:                      row.IsOpen,
-		MaxParticipants:             row.MaxParticipants,
+		MaxParticipants:             activities.ParticipantLimitPtr(row.MaxParticipants),
 		CalendarPeriodID:            nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
 		TargetGroupType:             row.TargetGroupType,
 		TargetGradeLevel:            nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
@@ -131,6 +135,7 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		Targets:                     templateTargetsFromRow(row),
 		SourceCareOfferingIDs:       sourceCareOfferingIDs,
 		SourceGradeLevels:           sourceGradeLevels,
+		SourceSchoolClasses:         sourceSchoolClasses,
 		ListKind:                    nullableTemplateString(row.ListKind.Valid, row.ListKind.String),
 		Notes:                       nullableTemplateString(row.Notes.Valid, row.Notes.String),
 		ShiftTypeName:               row.ShiftTypeName,
@@ -251,7 +256,7 @@ type templateResponse struct {
 	EducationGroupID       *int64 `json:"education_group_id,omitempty"`
 	EducationGroupName     string `json:"education_group_name,omitempty"`
 	IsOpen                 bool   `json:"is_open"`
-	MaxParticipants        int    `json:"max_participants"`
+	MaxParticipants        *int   `json:"max_participants"`
 	// CalendarPeriodID is the template's OWN period pin (distinct from each
 	// schedule's own calendar_period_id in templateScheduleResponse).
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
@@ -268,6 +273,9 @@ type templateResponse struct {
 	// Jahrgangsauswahl on edit.
 	SourceCareOfferingIDs []int64 `json:"source_care_offering_ids,omitempty"`
 	SourceGradeLevels     []int   `json:"source_grade_levels,omitempty"`
+	// SourceSchoolClasses is the Klassenfilter (#2482); mutually exclusive
+	// with SourceGradeLevels.
+	SourceSchoolClasses []string `json:"source_school_classes,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// nil when the template has no list kind.
 	ListKind *string `json:"list_kind,omitempty"`

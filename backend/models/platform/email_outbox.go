@@ -48,6 +48,7 @@ const (
 	EmailKindAppointmentUpdated   = "appointment_updated"
 	EmailKindAppointmentCancelled = "appointment_cancelled"
 	EmailKindAppointmentReminder  = "appointment_reminder"
+	EmailKindParentMessage        = "parent_message"
 )
 
 // Pre-defined related_entity_type values.
@@ -55,6 +56,7 @@ const (
 	EmailRelatedTypeGuardianInvitation = "guardian_invitation"
 	EmailRelatedTypeEnrollmentRequest  = "enrollment_request"
 	EmailRelatedTypeAppointment        = "calendar_appointment"
+	EmailRelatedTypeParentMessage      = "parent_message"
 )
 
 // EmailOutbox is a row in platform.email_outbox — the shared outbox the

@@ -81,16 +81,26 @@ vi.mock("~/components/ui/password-change-modal", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading...
-    </div>
+vi.mock("~/components/settings/passkey-settings-section", () => ({
+  PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
+}));
+
+vi.mock("~/components/settings/trusted-devices-section", () => ({
+  TrustedDevicesSection: () => <div data-testid="trusted-devices" />,
+}));
+
+vi.mock("~/components/settings/notification-preferences-section", () => ({
+  NotificationPreferencesSection: () => (
+    <div data-testid="notification-preferences" />
   ),
 }));
 
-vi.mock("~/components/settings/passkey-settings-section", () => ({
-  PasskeySettingsSection: () => <div data-testid="passkey-settings" />,
+vi.mock("~/components/settings/birthday-visibility-section", () => ({
+  BirthdayVisibilitySection: () => <div data-testid="birthday-visibility" />,
+}));
+
+vi.mock("~/components/settings/push-notification-section", () => ({
+  PushNotificationSection: () => <div data-testid="push-notifications" />,
 }));
 
 // Mock Button component
@@ -142,6 +152,9 @@ vi.mock("lucide-react", () => ({
   Camera: (props: Record<string, unknown>) => (
     <svg data-testid="camera-icon" {...props} />
   ),
+  Pencil: (props: Record<string, unknown>) => (
+    <svg data-testid="pencil-icon" {...props} />
+  ),
   // Used by the PushNotificationSection mounted on the profile page (#2003).
   BellRing: (props: Record<string, unknown>) => (
     <svg data-testid="bell-ring-icon" {...props} />
@@ -153,6 +166,16 @@ vi.mock("lucide-react", () => ({
   // Used by the BirthdayVisibilitySection (#1542).
   Cake: (props: Record<string, unknown>) => (
     <svg data-testid="cake-icon" {...props} />
+  ),
+  // Used by the PushInstallSteps inside the PushNotificationSection.
+  Share: (props: Record<string, unknown>) => (
+    <svg data-testid="share-icon" {...props} />
+  ),
+  Plus: (props: Record<string, unknown>) => (
+    <svg data-testid="plus-icon" {...props} />
+  ),
+  House: (props: Record<string, unknown>) => (
+    <svg data-testid="house-icon" {...props} />
   ),
 }));
 
@@ -225,7 +248,7 @@ describe("ProfilePage", () => {
 
       render(<ProfilePage />);
 
-      expect(screen.getByTestId("loading")).toBeInTheDocument();
+      expect(screen.getByLabelText("Profil wird geladen…")).toBeInTheDocument();
     });
   });
 
@@ -243,26 +266,24 @@ describe("ProfilePage", () => {
   });
 
   describe("Profile Form", () => {
-    it("should render profile form fields", async () => {
+    it("should render profile fields in read mode", async () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Vorname")).toBeInTheDocument();
-        expect(screen.getByLabelText("Nachname")).toBeInTheDocument();
-        expect(screen.getByLabelText("E-Mail")).toBeInTheDocument();
+        expect(screen.getByText("Vorname")).toBeInTheDocument();
+        expect(screen.getByText("Nachname")).toBeInTheDocument();
+        expect(screen.getByText("E-Mail")).toBeInTheDocument();
       });
     });
 
-    it("should display profile data in form fields", async () => {
+    it("should display profile data as text in read mode", async () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Vorname")).toHaveValue("John");
-        expect(screen.getByLabelText("Nachname")).toHaveValue("Doe");
-        expect(screen.getByLabelText("E-Mail")).toHaveValue(
-          "john.doe@example.com",
-        );
-        expect(screen.getByLabelText("E-Mail")).toBeDisabled();
+        expect(screen.getByText("John")).toBeInTheDocument();
+        expect(screen.getByText("Doe")).toBeInTheDocument();
+        expect(screen.getByText("john.doe@example.com")).toBeInTheDocument();
+        expect(screen.queryByLabelText("Vorname")).not.toBeInTheDocument();
       });
     });
 
@@ -305,7 +326,7 @@ describe("ProfilePage", () => {
       fireEvent.click(screen.getByRole("button", { name: /bearbeiten/i }));
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Vorname")).not.toBeDisabled();
+        expect(screen.getByLabelText("Vorname")).toBeInTheDocument();
         expect(
           screen.getByRole("button", { name: /abbrechen/i }),
         ).toBeInTheDocument();
@@ -327,8 +348,8 @@ describe("ProfilePage", () => {
       fireEvent.click(screen.getByRole("button", { name: /abbrechen/i }));
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Vorname")).toHaveValue("John");
-        expect(screen.getByLabelText("Vorname")).toBeDisabled();
+        expect(screen.queryByLabelText("Vorname")).not.toBeInTheDocument();
+        expect(screen.getByText("John")).toBeInTheDocument();
       });
     });
 
@@ -388,7 +409,7 @@ describe("ProfilePage", () => {
       render(<ProfilePage />);
 
       await waitFor(() => {
-        expect(screen.getByLabelText("Vorname")).toBeInTheDocument();
+        expect(screen.getByText("Vorname")).toBeInTheDocument();
       });
 
       const fileInput = document.querySelector("#avatar-upload")!;
@@ -415,7 +436,7 @@ describe("ProfilePage", () => {
     it("should open password change modal", async () => {
       render(<ProfilePage />);
 
-      fireEvent.click(screen.getByRole("button", { name: /passwort ändern/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^ändern$/i }));
 
       await waitFor(() => {
         expect(screen.getByTestId("password-modal")).toBeInTheDocument();
@@ -425,7 +446,7 @@ describe("ProfilePage", () => {
     it("should close password modal and show success toast on success", async () => {
       render(<ProfilePage />);
 
-      fireEvent.click(screen.getByRole("button", { name: /passwort ändern/i }));
+      fireEvent.click(screen.getByRole("button", { name: /^ändern$/i }));
 
       fireEvent.click(await screen.findByRole("button", { name: "Success" }));
 

@@ -3109,6 +3109,31 @@ function FieldEditorRow({
   const removeAllowedTime = (index: number) =>
     commitAllowedTimes(allowedTimesRows.filter((_, i) => i !== index));
 
+  // Draft text for the Heimweg-Beschränkung grade list (#2381). Kept as a
+  // string so a trailing comma or space survives while typing; only the
+  // parsed, deduplicated grades are pushed up to the field.
+  const [singleModeDraft, setSingleModeDraft] = useState(() =>
+    (field.single_mode_grades ?? []).join(", "),
+  );
+
+  useEffect(() => {
+    setSingleModeDraft((field.single_mode_grades ?? []).join(", "));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [field.key, field.type]);
+
+  const updateSingleModeGrades = (value: string) => {
+    setSingleModeDraft(value);
+    const grades = Array.from(
+      new Set(
+        value
+          .split(/[,;\s]+/)
+          .map((part) => Number(part))
+          .filter((n) => Number.isInteger(n) && n >= 1 && n <= 13),
+      ),
+    );
+    onChange({ single_mode_grades: grades });
+  };
+
   return (
     <article className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start gap-3">
@@ -3391,6 +3416,38 @@ function FieldEditorRow({
                       ))}
                     </ul>
                   ) : null}
+                </div>
+              ) : null}
+
+              {field.target === "student.allowed_departure_modes" ? (
+                <div>
+                  <label
+                    className="block"
+                    htmlFor={`${allowedTimeIdPrefix}-single-mode-grades`}
+                  >
+                    <span className="text-xs font-medium text-gray-700">
+                      Nur ein Heimweg pro Wochentag (optional)
+                    </span>
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
+                      Trage Jahrgänge ein, deren Eltern pro Wochentag nur einen
+                      Heimweg auswählen dürfen, zum Beispiel „1“ für die
+                      Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
+                      alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
+                      Klassenstufe ist in den Einstellungen aktiv.
+                    </p>
+                    <input
+                      id={`${allowedTimeIdPrefix}-single-mode-grades`}
+                      type="text"
+                      inputMode="numeric"
+                      value={singleModeDraft}
+                      onChange={(event) =>
+                        updateSingleModeGrades(event.target.value)
+                      }
+                      placeholder="z. B. 1 oder 1, 2"
+                      disabled={disabled}
+                      className="mt-2 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                    />
+                  </label>
                 </div>
               ) : null}
 
@@ -4362,6 +4419,14 @@ export function prepareFieldsForSave(fields: FormField[]): FormField[] {
         // forced to undefined and omitted on serialize.
         allowed_times:
           field.target === "schedule.pickup" ? field.allowed_times : undefined,
+        // Heimweg-Beschränkung (#2381): only the allowed-departure-modes
+        // field may carry grade restrictions; the backend rejects the key
+        // on any other target.
+        single_mode_grades:
+          field.target === "student.allowed_departure_modes" &&
+          (field.single_mode_grades?.length ?? 0) > 0
+            ? field.single_mode_grades
+            : undefined,
       };
     }
     if (field.type === "information") {

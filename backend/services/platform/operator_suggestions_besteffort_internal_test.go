@@ -39,6 +39,8 @@ func newTestServiceWithTx(t *testing.T) (*operatorSuggestionsService, sqlmock.Sq
 }
 
 func TestBestEffort_WithTx_FnSucceeds(t *testing.T) {
+	t.Parallel()
+
 	svc, mock, ctx := newTestServiceWithTx(t)
 
 	mock.ExpectExec("SAVEPOINT sp_test_op").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -55,6 +57,8 @@ func TestBestEffort_WithTx_FnSucceeds(t *testing.T) {
 }
 
 func TestBestEffort_WithTx_FnFails_RollsBackSavepoint(t *testing.T) {
+	t.Parallel()
+
 	svc, mock, ctx := newTestServiceWithTx(t)
 
 	mock.ExpectExec("SAVEPOINT sp_test_op").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -68,6 +72,8 @@ func TestBestEffort_WithTx_FnFails_RollsBackSavepoint(t *testing.T) {
 }
 
 func TestBestEffort_WithTx_SavepointCreationFails(t *testing.T) {
+	t.Parallel()
+
 	svc, mock, ctx := newTestServiceWithTx(t)
 
 	mock.ExpectExec("SAVEPOINT sp_test_op").WillReturnError(errors.New("savepoint error"))
@@ -84,6 +90,8 @@ func TestBestEffort_WithTx_SavepointCreationFails(t *testing.T) {
 }
 
 func TestWithAdminTx_UsesExistingTxFromContext(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := newTestServiceWithTx(t)
 
 	called := false
@@ -101,6 +109,8 @@ func TestWithAdminTx_UsesExistingTxFromContext(t *testing.T) {
 }
 
 func TestWithAdminTx_ExistingTx_PropagatesError(t *testing.T) {
+	t.Parallel()
+
 	svc, _, ctx := newTestServiceWithTx(t)
 
 	expectedErr := errors.New("fn error")
@@ -112,12 +122,16 @@ func TestWithAdminTx_ExistingTx_PropagatesError(t *testing.T) {
 }
 
 func TestGetLogger_NilLogger_ReturnsSlogDefault(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{Logger: nil}}
 	logger := svc.getLogger()
 	assert.Equal(t, slog.Default(), logger)
 }
 
 func TestLogAction_SetChangesError(t *testing.T) {
+	t.Parallel()
+
 	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{AuditLogRepo: &noopAuditLogRepo{}, Logger: slog.Default()}}
 
 	ctx := context.Background()
@@ -133,6 +147,8 @@ func TestLogAction_SetChangesError(t *testing.T) {
 }
 
 func TestLogAction_NilChanges(t *testing.T) {
+	t.Parallel()
+
 	createCalled := false
 	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{AuditLogRepo: &noopAuditLogRepo{
 		createFn: func() { createCalled = true },
@@ -172,6 +188,8 @@ func (r *noopAuditLogRepo) FindByDateRange(_ context.Context, _, _ time.Time, _ 
 }
 
 func TestGetLogger_WithLogger_ReturnsInjected(t *testing.T) {
+	t.Parallel()
+
 	injected := slog.Default().With("test", true)
 	svc := &operatorSuggestionsService{OperatorSuggestionsServiceConfig: OperatorSuggestionsServiceConfig{Logger: injected}}
 	logger := svc.getLogger()

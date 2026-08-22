@@ -41,7 +41,6 @@ type batchConfig struct {
 	activityLead     int
 	overdueThreshold int
 	binaryPresence   bool
-	allStaffScope    bool
 }
 
 func (c batchConfig) anyPickup() bool { return c.pickupUpcoming || c.pickupOverdue }
@@ -57,7 +56,6 @@ type batchInputs struct {
 	attendanceIDs   []int64
 	visitsByRoom    map[int64][]int64
 	roomsByStaff    map[int64][]int64
-	groupsByStaff   map[int64]map[int64]struct{}
 	instances       []*scheduleModel.ActivityInstance
 	students        map[int64]*userModel.Student
 	pickupTimes     map[int64]*scheduleService.EffectivePickupTime
@@ -291,11 +289,6 @@ func (s *service) loadBatchConfig(ctx context.Context, recipients []BatchScope) 
 			if cfg.binaryPresence, err = s.binaryMode(ctx); err != nil {
 				return cfg, err
 			}
-			var scopeVal string
-			if scopeVal, err = s.Settings.ResolveString(ctx, configModel.KeyStudentDataScope); err != nil {
-				return cfg, fmt.Errorf("resolve %s: %w", configModel.KeyStudentDataScope, err)
-			}
-			cfg.allStaffScope = scopeVal == configModel.StudentDataScopeAllStaff
 		}
 	}
 
@@ -329,7 +322,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		nowMin:            minutesOfDay(timezone.Now()),
 		visitsByRoom:      map[int64][]int64{},
 		roomsByStaff:      map[int64][]int64{},
-		groupsByStaff:     map[int64]map[int64]struct{}{},
 		students:          map[int64]*userModel.Student{},
 		pickupTimes:       map[int64]*scheduleService.EffectivePickupTime{},
 		presenceByStaff:   map[int64][]int64{},
@@ -351,7 +343,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 	for _, sc := range recipients {
 		if !sc.IsAdmin {
 			in.roomsByStaff[sc.StaffID] = nil
-			in.groupsByStaff[sc.StaffID] = map[int64]struct{}{}
 		}
 	}
 
@@ -383,24 +374,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 			for _, row := range rows {
 				if _, wanted := in.roomsByStaff[row.StaffID]; wanted {
 					in.roomsByStaff[row.StaffID] = append(in.roomsByStaff[row.StaffID], row.RoomID)
-				}
-			}
-		}
-	}
-
-	if caregivers && cfg.anyPickup() && !cfg.allStaffScope {
-		if s.BulkGroups != nil {
-			staffIDs := make([]int64, 0, len(in.groupsByStaff))
-			for staffID := range in.groupsByStaff {
-				staffIDs = append(staffIDs, staffID)
-			}
-			pairs, err := s.BulkGroups.ListSupervisedGroupIDsByStaff(ctx, staffIDs, in.today)
-			if err != nil {
-				return nil, fmt.Errorf("load supervised groups: %w", err)
-			}
-			for _, pair := range pairs {
-				if groups, wanted := in.groupsByStaff[pair.StaffID]; wanted {
-					groups[pair.GroupID] = struct{}{}
 				}
 			}
 		}
@@ -532,29 +505,15 @@ func (s *service) batchPresence(sc BatchScope, cfg batchConfig, in *batchInputs)
 	return sortedIDs(present)
 }
 
-// batchReadableStudents applies the gdpr.student_data_scope gate for one
-// recipient. The loaded student rows are shared across the batch, but the gate
-// is recomputed per person — sharing a gated map would hand one caregiver the
-// children another may read.
-func (s *service) batchReadableStudents(sc BatchScope, cfg batchConfig, in *batchInputs) (map[int64]*userModel.Student, error) {
-	allowAll := sc.IsAdmin || cfg.allStaffScope
-	groups := in.groupsByStaff[sc.StaffID]
-
+// batchReadableStudents resolves the loaded student rows for one recipient.
+// Every recipient is staff, so since #2329 the whole presence set is readable —
+// per-group gating is gone.
+func (s *service) batchReadableStudents(sc BatchScope, _ batchConfig, in *batchInputs) (map[int64]*userModel.Student, error) {
 	readable := make(map[int64]*userModel.Student)
 	for _, id := range in.presenceByStaff[sc.StaffID] {
-		st := in.students[id]
-		if st == nil {
-			continue
+		if st := in.students[id]; st != nil {
+			readable[id] = st
 		}
-		if !allowAll {
-			if st.GroupID == nil {
-				continue
-			}
-			if _, ok := groups[*st.GroupID]; !ok {
-				continue
-			}
-		}
-		readable[id] = st
 	}
 	return readable, nil
 }

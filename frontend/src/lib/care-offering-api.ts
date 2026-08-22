@@ -55,6 +55,8 @@ export interface CareOffering {
   // Optional in the type (older rows + existing fixtures may omit it);
   // the backend always sends it, defaulting to "optional".
   selection_rule?: CareSelectionRule;
+  /** Buchungsgebundene Gehzeit pro Wochentag ({"mon":"14:30"}). */
+  pickup_times?: Record<string, string> | null;
   created_at: string;
   updated_at: string;
 }
@@ -81,6 +83,8 @@ export interface CareOfferingInput {
   // Optional in the type (older rows + existing fixtures may omit it);
   // the backend always sends it, defaulting to "optional".
   selection_rule?: CareSelectionRule;
+  /** Für aktive Angebote, die als Betreuung zählen, je Betreuungstag erforderlich. */
+  pickup_times?: Record<string, string> | null;
 }
 
 interface BackendEnvelope<T> {

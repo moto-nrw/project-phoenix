@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { PickupDayEditModal } from "./pickup-day-edit-modal";
 import type { DayData, PickupNote } from "@/lib/pickup-schedule-helpers";
+import { useNFCEnabled } from "~/lib/tenant-context";
 
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
@@ -89,11 +90,32 @@ describe("PickupDayEditModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     mockOnSaveException.mockResolvedValue(undefined);
     mockOnDeleteException.mockResolvedValue(undefined);
     mockOnCreateNote.mockResolvedValue(undefined);
     mockOnUpdateNote.mockResolvedValue(undefined);
     mockOnDeleteNote.mockResolvedValue(undefined);
+  });
+
+  it("shows the NFC tablet note only for NFC tenants", () => {
+    const props = {
+      isOpen: true,
+      day: createMockDayData(),
+      ...defaultProps,
+    };
+    const { rerender } = render(<PickupDayEditModal {...props} />);
+
+    expect(
+      screen.getByText(
+        "Diese Notiz wird auch auf den NFC-Tablets angezeigt und ist für Kinder einsehbar.",
+      ),
+    ).toBeInTheDocument();
+
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    rerender(<PickupDayEditModal {...props} />);
+
+    expect(screen.queryByText(/NFC-Tablets/i)).not.toBeInTheDocument();
   });
 
   describe("Rendering", () => {
@@ -185,6 +207,36 @@ describe("PickupDayEditModal", () => {
         />,
       );
       expect(screen.getByText("Reguläre Zeit: 15:30 Uhr")).toBeInTheDocument();
+    });
+
+    it("names the source only when the week knows an offering pickup time", () => {
+      render(
+        <PickupDayEditModal
+          isOpen={true}
+          day={createMockDayData()}
+          showSource
+          {...defaultProps}
+        />,
+      );
+      expect(
+        screen.getByText("Reguläre Zeit: 15:30 Uhr (von Hand)"),
+      ).toBeInTheDocument();
+    });
+
+    it("states that no pickup time is on file", () => {
+      render(
+        <PickupDayEditModal
+          isOpen={true}
+          day={createMockDayData({
+            baseSchedule: undefined,
+            effectiveTime: undefined,
+          })}
+          {...defaultProps}
+        />,
+      );
+      expect(
+        screen.getByText("Für diesen Tag ist keine Gehzeit hinterlegt."),
+      ).toBeInTheDocument();
     });
   });
 
@@ -628,11 +680,10 @@ describe("PickupDayEditModal", () => {
 
       await waitFor(() => {
         expect(screen.getByText("Save failed")).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
   });

@@ -19,6 +19,8 @@ import (
 // =============================================================================
 
 func TestStudentDataSnapshot_GetPerson_NilSnapshot(t *testing.T) {
+	t.Parallel()
+
 	var snapshot *common.StudentDataSnapshot = nil
 
 	person := snapshot.GetPerson(123)
@@ -27,6 +29,8 @@ func TestStudentDataSnapshot_GetPerson_NilSnapshot(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetPerson_NilPersonsMap(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		Persons: nil,
 		Groups:  make(map[int64]*educationModels.Group),
@@ -38,6 +42,8 @@ func TestStudentDataSnapshot_GetPerson_NilPersonsMap(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetPerson_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		Persons: map[int64]*userModels.Person{
 			1: {FirstName: "Alice", LastName: "Smith"},
@@ -51,6 +57,8 @@ func TestStudentDataSnapshot_GetPerson_PersonNotFound(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetPerson_PersonFound(t *testing.T) {
+	t.Parallel()
+
 	testPerson := &userModels.Person{
 		FirstName: "Bob",
 		LastName:  "Jones",
@@ -76,6 +84,8 @@ func TestStudentDataSnapshot_GetPerson_PersonFound(t *testing.T) {
 // =============================================================================
 
 func TestStudentDataSnapshot_GetGroup_NilSnapshot(t *testing.T) {
+	t.Parallel()
+
 	var snapshot *common.StudentDataSnapshot = nil
 
 	group := snapshot.GetGroup(123)
@@ -84,6 +94,8 @@ func TestStudentDataSnapshot_GetGroup_NilSnapshot(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetGroup_NilGroupsMap(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		Persons: make(map[int64]*userModels.Person),
 		Groups:  nil,
@@ -95,6 +107,8 @@ func TestStudentDataSnapshot_GetGroup_NilGroupsMap(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetGroup_GroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		Persons: make(map[int64]*userModels.Person),
 		Groups: map[int64]*educationModels.Group{
@@ -108,6 +122,8 @@ func TestStudentDataSnapshot_GetGroup_GroupNotFound(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_GetGroup_GroupFound(t *testing.T) {
+	t.Parallel()
+
 	testGroup := &educationModels.Group{
 		Name: "Class 1A",
 	}
@@ -131,6 +147,8 @@ func TestStudentDataSnapshot_GetGroup_GroupFound(t *testing.T) {
 // =============================================================================
 
 func TestStudentDataSnapshot_ResolveLocationWithTime_NilSnapshot(t *testing.T) {
+	t.Parallel()
+
 	var snapshot *common.StudentDataSnapshot = nil
 
 	info := snapshot.ResolveLocationWithTime(123, true)
@@ -140,6 +158,8 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NilSnapshot(t *testing.T) {
 }
 
 func TestStudentDataSnapshot_ResolveLocationWithTime_NilLocationSnapshot(t *testing.T) {
+	t.Parallel()
+
 	snapshot := &common.StudentDataSnapshot{
 		Persons:          make(map[int64]*userModels.Person),
 		Groups:           make(map[int64]*educationModels.Group),
@@ -153,6 +173,8 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NilLocationSnapshot(t *test
 }
 
 func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *testing.T) {
+	t.Parallel()
+
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
@@ -198,6 +220,8 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 }
 
 func TestStudentDataSnapshot_ResolveLocationWithTime_NoFullAccess(t *testing.T) {
+	t.Parallel()
+
 	checkinTime := time.Now().Add(-1 * time.Hour)
 
 	locationSnapshot := &common.StudentLocationSnapshot{
@@ -229,6 +253,8 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_NoFullAccess(t *testing.T) 
 // =============================================================================
 
 func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
+	t.Parallel()
+
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)

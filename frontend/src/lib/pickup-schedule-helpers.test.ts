@@ -5,6 +5,7 @@ import type {
   BackendPickupData,
   PickupSchedule,
   PickupException,
+  DayData,
 } from "./pickup-schedule-helpers";
 import {
   mapPickupScheduleResponse,
@@ -32,6 +33,8 @@ import {
   getCalendarWeek,
   formatDateISO,
   getDayData,
+  pickupScheduleSourceLabel,
+  hasOfferingPickupContext,
 } from "./pickup-schedule-helpers";
 
 // Sample backend data for testing
@@ -111,6 +114,89 @@ describe("mapPickupScheduleResponse", () => {
   });
 });
 
+describe("pickupScheduleSourceLabel", () => {
+  it("names the source offering", () => {
+    expect(
+      pickupScheduleSourceLabel({
+        ...mapPickupScheduleResponse(sampleBackendSchedule),
+        source: "care_offering",
+        careOfferingName: "Ganztag bis 14:30 Uhr",
+      }),
+    ).toBe("aus Angebot „Ganztag bis 14:30 Uhr“");
+  });
+
+  it("marks a staff-maintained time", () => {
+    expect(
+      pickupScheduleSourceLabel({
+        ...mapPickupScheduleResponse(sampleBackendSchedule),
+        source: "staff",
+      }),
+    ).toBe("von Hand");
+  });
+});
+
+describe("hasOfferingPickupContext", () => {
+  const day = (overrides: Partial<DayData>): DayData =>
+    ({
+      date: new Date("2026-08-24"),
+      weekday: 1,
+      isToday: false,
+      showSick: false,
+      showClassTrip: false,
+      showExcused: false,
+      isException: false,
+      notes: [],
+      ...overrides,
+    }) as DayData;
+
+  it("is false when every day is maintained by hand", () => {
+    const staffRow = {
+      ...mapPickupScheduleResponse(sampleBackendSchedule),
+      source: "staff",
+    };
+    expect(
+      hasOfferingPickupContext([
+        day({ baseSchedule: staffRow }),
+        day({ baseSchedule: staffRow }),
+      ]),
+    ).toBe(false);
+  });
+
+  it("is true when a day comes from an offering", () => {
+    expect(
+      hasOfferingPickupContext([
+        day({
+          baseSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "care_offering",
+          },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("is true when an offering time sits under a manual override", () => {
+    expect(
+      hasOfferingPickupContext([
+        day({
+          baseSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "staff",
+          },
+          offeringSchedule: {
+            ...mapPickupScheduleResponse(sampleBackendSchedule),
+            source: "care_offering",
+          },
+        }),
+      ]),
+    ).toBe(true);
+  });
+
+  it("is false for a week without any pickup time", () => {
+    expect(hasOfferingPickupContext([day({}), day({})])).toBe(false);
+  });
+});
+
 describe("mapPickupExceptionResponse", () => {
   it("maps backend exception to frontend format", () => {
     const result = mapPickupExceptionResponse(sampleBackendException);
@@ -152,6 +238,52 @@ describe("mapPickupDataResponse", () => {
     expect(result.exceptions).toHaveLength(1);
     expect(result.schedules[0]?.id).toBe("1");
     expect(result.exceptions[0]?.id).toBe("1");
+  });
+
+  it("maps date-specific projected schedules", () => {
+    const backendData: BackendPickupData = {
+      schedules: [],
+      effective_schedules: [
+        {
+          date: "2026-08-18",
+          schedule: sampleBackendSchedule,
+          offering_schedule: {
+            ...sampleBackendSchedule,
+            pickup_time: "16:00",
+            source: "care_offering",
+          },
+        },
+      ],
+      exceptions: [],
+      notes: [],
+    };
+
+    const result = mapPickupDataResponse(backendData);
+
+    expect(result.effectiveSchedules?.[0]).toMatchObject({
+      date: "2026-08-18",
+      schedule: { pickupTime: "14:30" },
+      offeringSchedule: { pickupTime: "16:00", source: "care_offering" },
+    });
+  });
+
+  it("preserves an explicit date without a projected schedule", () => {
+    const backendData: BackendPickupData = {
+      schedules: [sampleBackendSchedule],
+      effective_schedules: [{ date: "2026-08-18", schedule: null }],
+      exceptions: [],
+      notes: [],
+    };
+
+    const result = mapPickupDataResponse(backendData);
+
+    expect(result.effectiveSchedules).toEqual([
+      {
+        date: "2026-08-18",
+        schedule: null,
+        offeringSchedule: null,
+      },
+    ]);
   });
 
   it("handles empty arrays", () => {
@@ -737,6 +869,49 @@ describe("getDayData", () => {
     expect(result.effectiveTime).toBe("14:30");
     expect(result.effectiveNotes).toBe("Regular schedule");
     expect(result.isException).toBe(false);
+  });
+
+  it("prefers the projection for the exact date", () => {
+    const date = new Date("2024-01-22T12:00:00Z");
+    const projected = { ...schedules[0]!, pickupTime: "16:00" };
+
+    const result = getDayData(date, schedules, [], false, [], false, null, [
+      { date: "2024-01-22", schedule: projected },
+    ]);
+
+    expect(result.baseSchedule?.pickupTime).toBe("16:00");
+    expect(result.effectiveTime).toBe("16:00");
+  });
+
+  it("does not fall back to today's weekly row for an explicitly empty date", () => {
+    const date = new Date("2024-01-22T12:00:00Z");
+
+    const result = getDayData(date, schedules, [], false, [], false, null, [
+      { date: "2024-01-22", schedule: null },
+    ]);
+
+    expect(result.baseSchedule).toBeUndefined();
+    expect(result.effectiveTime).toBeUndefined();
+  });
+
+  it("exposes the offering row underneath a manual override", () => {
+    const date = new Date("2024-01-22T12:00:00Z");
+    const offering = {
+      ...schedules[0]!,
+      pickupTime: "16:00",
+      source: "care_offering",
+    };
+
+    const result = getDayData(date, schedules, [], false, [], false, null, [
+      {
+        date: "2024-01-22",
+        schedule: schedules[0]!,
+        offeringSchedule: offering,
+      },
+    ]);
+
+    expect(result.baseSchedule?.pickupTime).toBe("14:30");
+    expect(result.offeringSchedule?.pickupTime).toBe("16:00");
   });
 
   it("returns exception when present", () => {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestRoom_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		room    *Room
@@ -64,12 +66,12 @@ func TestRoom_Validate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "zero capacity is valid",
+			name: "zero capacity",
 			room: &Room{
 				Name:     "Storage Room",
 				Capacity: base.IntPtr(0),
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name: "invalid hex color - wrong chars",
@@ -100,6 +102,8 @@ func TestRoom_Validate(t *testing.T) {
 }
 
 func TestRoom_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	t.Run("trims name whitespace", func(t *testing.T) {
 		room := &Room{Name: "  Room 101  "}
 		err := room.Validate()
@@ -127,18 +131,33 @@ func TestRoom_Validate_Normalization(t *testing.T) {
 }
 
 func TestRoomIsAvailableWithNilCapacity(t *testing.T) {
+	t.Parallel()
+
 	room := &Room{Capacity: nil}
 
 	if !room.IsAvailable(0) {
 		t.Fatalf("expected room with nil capacity to be available for 0 requirement")
 	}
 
-	if room.IsAvailable(5) {
-		t.Fatalf("expected room with nil capacity to be unavailable for capacity > 0")
+	if !room.IsAvailable(5) {
+		t.Fatalf("expected room without a limit to be available for capacity > 0")
+	}
+}
+
+func TestRoomIsAvailableWithLegacyZeroCapacity(t *testing.T) {
+	t.Parallel()
+
+	capacity := 0
+	room := &Room{Capacity: &capacity}
+
+	if !room.IsAvailable(5) {
+		t.Fatalf("expected room with legacy zero capacity to be treated as unlimited")
 	}
 }
 
 func TestRoomIsAvailableWithCapacityValue(t *testing.T) {
+	t.Parallel()
+
 	capacity := 10
 	room := &Room{Capacity: &capacity}
 
@@ -160,6 +179,8 @@ func TestRoomIsAvailableWithCapacityValue(t *testing.T) {
 }
 
 func TestRoom_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		room     *Room
@@ -194,6 +215,8 @@ func TestRoom_GetFullName(t *testing.T) {
 }
 
 func TestRoom_GetID(t *testing.T) {
+	t.Parallel()
+
 	room := &Room{
 		Model: base.Model{ID: 42},
 		Name:  "Test Room",
@@ -206,6 +229,8 @@ func TestRoom_GetID(t *testing.T) {
 }
 
 func TestRoom_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	room := &Room{
 		Model: base.Model{CreatedAt: now},
@@ -218,6 +243,8 @@ func TestRoom_GetCreatedAt(t *testing.T) {
 }
 
 func TestRoom_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	room := &Room{
 		Model: base.Model{UpdatedAt: now},

@@ -4,8 +4,11 @@
  * parameter name, never by the value from the browser URL.
  */
 export const TRACKED_TENANT_ROUTE_TEMPLATES = [
+  "/absences",
   "/active-supervisions",
   "/activities",
+  // Nur noch ein Redirect-Frame auf /anfragen (#2429); bleibt gelistet, weil
+  // die Allowlist jede page.tsx unter (protected) abdecken muss.
   "/admin/change-requests",
   "/admin/enrollments",
   "/admin/enrollments/:id",
@@ -13,6 +16,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/admin/enrollments/change-requests/:id",
   "/admin/enrollments/phases/:phaseId",
   "/admin/guardian-approvals",
+  "/anfragen",
   "/betreuungsplan",
   "/calendar",
   "/calendar-periods",
@@ -31,6 +35,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/roles",
   "/database/rooms",
   "/database/students",
+  "/database/students/class-list",
+  "/database/students/class-list/import",
   "/database/students/import",
   "/day-log",
   "/dienstplan",

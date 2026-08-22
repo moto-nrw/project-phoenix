@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Modal } from "~/components/ui/modal";
+import { Input } from "~/components/ui/input";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
 import { PersonalInfoSection, DepartureSection } from "./student-form-fields";
@@ -132,6 +134,10 @@ export type CreateStudentSchedules = {
   pickup_schedules?: BackendPickupScheduleRequest[];
 };
 
+// The two things "+ Kinder" can create (#2382): a regular OGS child, or a
+// minimal class-list-only entry (Name + Klasse, "Keine Betreuung").
+type CreateMode = "student" | "list-entry";
+
 interface StudentCreateModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
@@ -140,6 +146,18 @@ interface StudentCreateModalProps {
       guardians?: StudentGuardianPayload[];
     } & CreateStudentSchedules,
   ) => Promise<void>;
+  /**
+   * Creates a class-list-only entry (#2382). When set, the modal offers the
+   * "Nur Klassenliste" mode switch — the admin's mental model is one entry
+   * point for "Kind erfassen", so the choice lives HERE, not on a page the
+   * user must know about beforehand. Optional: callers without the feature
+   * get the unchanged student form.
+   */
+  readonly onCreateListEntry?: (input: {
+    firstName: string;
+    lastName: string;
+    schoolClass: string;
+  }) => Promise<void>;
   readonly groups?: Array<{ readonly value: string; readonly label: string }>;
 }
 
@@ -149,8 +167,10 @@ export function StudentCreateModal({
   isOpen,
   onClose,
   onCreate,
+  onCreateListEntry,
   groups = EMPTY_GROUPS,
 }: StudentCreateModalProps) {
+  const [mode, setMode] = useState<CreateMode>("student");
   const [formData, setFormData] = useState<Partial<Student>>({
     first_name: "",
     second_name: "",
@@ -201,6 +221,7 @@ export function StudentCreateModal({
   // Reset form when modal opens/closes
   useEffect(() => {
     if (isOpen) {
+      setMode("student");
       setFormData({
         first_name: "",
         second_name: "",
@@ -293,6 +314,31 @@ export function StudentCreateModal({
   };
 
   const handleSubmit = (e: React.FormEvent) => {
+    // Class-list-only entry (#2382): three fields, one call — the same
+    // validation flags the student path uses (Vorname/Nachname/Klasse).
+    if (mode === "list-entry" && onCreateListEntry) {
+      e.preventDefault();
+      if (!validateForm()) {
+        scrollToError();
+        return;
+      }
+      setSaveLoading(true);
+      return onCreateListEntry({
+        firstName: (formData.first_name ?? "").trim(),
+        lastName: (formData.second_name ?? "").trim(),
+        schoolClass: (formData.school_class ?? "").trim(),
+      })
+        .then(() => onClose())
+        .catch((error: unknown) => {
+          setErrors({
+            submit:
+              error instanceof Error
+                ? error.message
+                : "Eintrag konnte nicht angelegt werden",
+          });
+        })
+        .finally(() => setSaveLoading(false));
+    }
     const payload: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
     } & CreateStudentSchedules = { ...formData };
@@ -363,199 +409,313 @@ export function StudentCreateModal({
             </div>
           )}
 
-          {/* Personal Information */}
-          <PersonalInfoSection
-            formData={formData}
-            onChange={handleChange}
-            errors={errors}
-            groups={groups}
-          />
+          {/* Art des Eintrags (#2382): reguläres OGS-Kind oder minimaler
+              Klassenlisteneintrag. Die Weiche sitzt im Erstell-Modal, weil
+              "Kind erfassen" der eine Einstieg ist, den alle kennen. */}
+          {onCreateListEntry ? (
+            <SegmentedControl
+              ariaLabel="Art des Eintrags"
+              fullWidth
+              items={[
+                { value: "student", label: "Mit OGS-Betreuung" },
+                { value: "list-entry", label: "Nur Klassenliste" },
+              ]}
+              value={mode}
+              onChange={(next) => {
+                setMode(next);
+                setErrors({});
+              }}
+            />
+          ) : null}
 
-          {/* Guardian Information: add directly during creation. Styling
+          {mode === "list-entry" ? (
+            <div className="space-y-4">
+              <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-3 text-xs leading-5 text-gray-700 md:p-4 md:text-sm">
+                Für Kinder, die nicht im Ganztag sind: Der Eintrag besteht nur
+                aus Name und Klasse und erscheint ausschließlich auf
+                Klassenlisten und in der Klassenansicht (
+                <span className="font-medium">Keine Betreuung</span>). Keine
+                Anwesenheit, keine Betreuungsplanung, keine Kontaktdaten.
+                Verwalten lässt sich die Liste über das Menü oben rechts unter{" "}
+                <span className="font-medium">Klassenliste</span>.
+              </div>
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
+                  <div>
+                    <label
+                      htmlFor="list-entry-first-name"
+                      className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                    >
+                      Vorname <span className="text-moto-red">*</span>
+                    </label>
+                    <Input
+                      id="list-entry-first-name"
+                      value={formData.first_name ?? ""}
+                      onChange={(e) =>
+                        handleChange("first_name", e.target.value)
+                      }
+                      placeholder="Max"
+                    />
+                    {errors.first_name ? (
+                      <p className="text-moto-red mt-1 text-xs">
+                        {errors.first_name}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="list-entry-last-name"
+                      className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                    >
+                      Nachname <span className="text-moto-red">*</span>
+                    </label>
+                    <Input
+                      id="list-entry-last-name"
+                      value={formData.second_name ?? ""}
+                      onChange={(e) =>
+                        handleChange("second_name", e.target.value)
+                      }
+                      placeholder="Mustermann"
+                    />
+                    {errors.second_name ? (
+                      <p className="text-moto-red mt-1 text-xs">
+                        {errors.second_name}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="list-entry-school-class"
+                      className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                    >
+                      Klasse <span className="text-moto-red">*</span>
+                    </label>
+                    <Input
+                      id="list-entry-school-class"
+                      value={formData.school_class ?? ""}
+                      onChange={(e) =>
+                        handleChange("school_class", e.target.value)
+                      }
+                      placeholder="5A"
+                    />
+                    {errors.school_class ? (
+                      <p className="text-moto-red mt-1 text-xs">
+                        {errors.school_class}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">
+                        Genau wie bei den regulären Kindern geschrieben.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Personal Information */}
+          {mode === "student" ? (
+            <PersonalInfoSection
+              formData={formData}
+              onChange={handleChange}
+              errors={errors}
+              groups={groups}
+            />
+          ) : null}
+
+          {mode === "student" ? (
+            <>
+              {/* Guardian Information: add directly during creation. Styling
               matches the other modal sections (border-gray-100 + neutral
               surface) and reuses the guardian modal's own dashed add-button
               and red remove patterns. */}
-          <section
-            ref={guardianSectionRef}
-            aria-label="Erziehungsberechtigte"
-            className="scroll-mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
-          >
-            <div className="mb-3 flex items-center justify-between md:mb-4">
-              <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                <MotoConceptIcon concept="groups" size={18} />
-                Erziehungsberechtigte
-              </h3>
-              <span className="text-xs text-gray-500">
-                {guardians.length > 0
-                  ? `${guardians.length} hinzugefügt`
-                  : "Optional"}
-              </span>
-            </div>
+              <section
+                ref={guardianSectionRef}
+                aria-label="Erziehungsberechtigte"
+                className="scroll-mt-4 rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+              >
+                <div className="mb-3 flex items-center justify-between md:mb-4">
+                  <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+                    <MotoConceptIcon concept="groups" size={18} />
+                    Erziehungsberechtigte
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {guardians.length > 0
+                      ? `${guardians.length} hinzugefügt`
+                      : "Optional"}
+                  </span>
+                </div>
 
-            {guardians.length > 0 && (
-              <ul className="mb-3 space-y-2">
-                {guardians.map((guardian, index) => {
-                  const flags = [
-                    guardian.can_pickup ? "Abholberechtigt" : null,
-                    guardian.is_emergency_contact ? "Notfallkontakt" : null,
-                    guardian.is_primary ? "Primär" : null,
-                  ].filter(Boolean);
-                  return (
-                    <li
-                      key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
-                      className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
+                {guardians.length > 0 && (
+                  <ul className="mb-3 space-y-2">
+                    {guardians.map((guardian, index) => {
+                      const flags = [
+                        guardian.can_pickup ? "Abholberechtigt" : null,
+                        guardian.is_emergency_contact ? "Notfallkontakt" : null,
+                        guardian.is_primary ? "Primär" : null,
+                      ].filter(Boolean);
+                      return (
+                        <li
+                          key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
+                          className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
+                              {`${guardian.first_name} ${guardian.last_name}`.trim() ||
+                                "Erziehungsberechtigte/r"}
+                              <span className="ml-2 font-normal text-gray-500">
+                                {relationshipLabel(guardian.relationship_type)}
+                              </span>
+                            </p>
+                            {flags.length > 0 && (
+                              <p className="mt-0.5 truncate text-xs text-gray-500">
+                                {flags.join(" · ")}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeGuardian(index)}
+                            disabled={saveLoading}
+                            aria-label="Erziehungsberechtigte/n entfernen"
+                            className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+
+                {guardianPickerOpen ? (
+                  // Existing-guardian path is inline (not a second modal): a search
+                  // is a light lookup, so it expands here in place. "Neu anlegen"
+                  // stays a full modal because the new-guardian form is heavy.
+                  <GuardianPickerPanel
+                    onSelect={handleGuardianPick}
+                    onCancel={handlePickerCancel}
+                    excludeProfileIds={addedProfileIds}
+                  />
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <button
+                      type="button"
+                      onClick={() => setGuardianModalOpen(true)}
+                      disabled={saveLoading}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                     >
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
-                          {`${guardian.first_name} ${guardian.last_name}`.trim() ||
-                            "Erziehungsberechtigte/r"}
-                          <span className="ml-2 font-normal text-gray-500">
-                            {relationshipLabel(guardian.relationship_type)}
-                          </span>
-                        </p>
-                        {flags.length > 0 && (
-                          <p className="mt-0.5 truncate text-xs text-gray-500">
-                            {flags.join(" · ")}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeGuardian(index)}
-                        disabled={saveLoading}
-                        aria-label="Erziehungsberechtigte/n entfernen"
-                        className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+                      <Plus className="h-4 w-4" />
+                      Neu anlegen
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGuardianPickerOpen(true)}
+                      disabled={saveLoading}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
+                    >
+                      <Search className="h-4 w-4" />
+                      Vorhandene/n suchen
+                    </button>
+                  </div>
+                )}
+              </section>
 
-            {guardianPickerOpen ? (
-              // Existing-guardian path is inline (not a second modal): a search
-              // is a light lookup, so it expands here in place. "Neu anlegen"
-              // stays a full modal because the new-guardian form is heavy.
-              <GuardianPickerPanel
-                onSelect={handleGuardianPick}
-                onCancel={handlePickerCancel}
-                excludeProfileIds={addedProfileIds}
-              />
-            ) : (
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setGuardianModalOpen(true)}
-                  disabled={saveLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  Neu anlegen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setGuardianPickerOpen(true)}
-                  disabled={saveLoading}
-                  className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-                >
-                  <Search className="h-4 w-4" />
-                  Vorhandene/n suchen
-                </button>
-              </div>
-            )}
-          </section>
-
-          {/* Betreuungszeiten — weekly arrival/pickup times staged here and
+              {/* Betreuungszeiten — weekly arrival/pickup times staged here and
               persisted atomically with the student, mirroring the guardian
               section above. Reuses the existing CareWeeklyPlanModal editor. */}
-          <section
-            aria-label="Betreuungszeiten"
-            className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
-          >
-            <div className="mb-3 flex items-center justify-between md:mb-4">
-              <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-                <MotoConceptIcon concept="careTimes" size={16} />
-                Betreuungszeiten
-              </h3>
-              <span className="text-xs text-gray-500">
-                {hasCarePlan ? `${scheduledWeekdays.length} Tage` : "Optional"}
-              </span>
-            </div>
-
-            {hasCarePlan && (
-              <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
-                    {scheduledWeekdays.map(weekdayShort).join(" · ")}
-                  </p>
-                  <p className="mt-0.5 truncate text-xs text-gray-500">
-                    {`${arrivalSchedules.length}× Ankunft · ${pickupSchedules.length}× Abholung`}
-                  </p>
+              <section
+                aria-label="Betreuungszeiten"
+                className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4"
+              >
+                <div className="mb-3 flex items-center justify-between md:mb-4">
+                  <h3 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+                    <MotoConceptIcon concept="careTimes" size={16} />
+                    Betreuungszeiten
+                  </h3>
+                  <span className="text-xs text-gray-500">
+                    {hasCarePlan
+                      ? `${scheduledWeekdays.length} Tage`
+                      : "Optional"}
+                  </span>
                 </div>
+
+                {hasCarePlan && (
+                  <div className="mb-3 flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-gray-900 md:text-sm">
+                        {scheduledWeekdays.map(weekdayShort).join(" · ")}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-gray-500">
+                        {`${arrivalSchedules.length}× Ankunft · ${pickupSchedules.length}× Abholung`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setArrivalSchedules([]);
+                        setPickupSchedules([]);
+                      }}
+                      disabled={saveLoading}
+                      aria-label="Betreuungszeiten entfernen"
+                      className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
                 <button
                   type="button"
-                  onClick={() => {
-                    setArrivalSchedules([]);
-                    setPickupSchedules([]);
-                  }}
+                  onClick={() => setCarePlanModalOpen(true)}
                   disabled={saveLoading}
-                  aria-label="Betreuungszeiten entfernen"
-                  className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Plus className="h-4 w-4" />
+                  {hasCarePlan
+                    ? "Wochenplan bearbeiten"
+                    : "Wochenplan hinzufügen"}
                 </button>
-              </div>
-            )}
+              </section>
 
-            <button
-              type="button"
-              onClick={() => setCarePlanModalOpen(true)}
-              disabled={saveLoading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-            >
-              <Plus className="h-4 w-4" />
-              {hasCarePlan ? "Wochenplan bearbeiten" : "Wochenplan hinzufügen"}
-            </button>
-          </section>
+              {/* Common Form Sections */}
+              <StudentCommonFormSections
+                formData={formData}
+                errors={errors}
+                onChange={handleChange}
+              />
 
-          {/* Common Form Sections */}
-          <StudentCommonFormSections
-            formData={formData}
-            errors={errors}
-            onChange={handleChange}
-          />
-
-          {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
-          <DepartureSection
-            days={formData.allowed_departure_modes}
-            onChange={(value) => {
-              const allowed = normalizeAllowedDepartureModes(value);
-              const departure = allowedDepartureToDepartureDays(allowed);
-              const busDays = allowedDepartureToBusDays(allowed);
-              const pickupDays = allowedDepartureToPickupDays(allowed);
-              setFormData((prev) => ({
-                ...prev,
-                allowed_departure_modes: allowed,
-                departure_days: departure,
-                bus_days: busDays,
-                bus: busDaysHaveAny(busDays),
-                pickup_days: pickupDays,
-                pickup_status: pickupDaysHaveAny(pickupDays)
-                  ? "Wird abgeholt"
-                  : "Geht alleine nach Hause",
-              }));
-            }}
-            companionNote={formData.departure_companion_note}
-            onCompanionNoteChange={(value) =>
-              setFormData((prev) => ({
-                ...prev,
-                departure_companion_note: value,
-              }))
-            }
-            companionNoteError={errors.departure_companion_note}
-          />
+              {/* How the child leaves each weekday (alleine / Bus / Abholung) */}
+              <DepartureSection
+                days={formData.allowed_departure_modes}
+                onChange={(value) => {
+                  const allowed = normalizeAllowedDepartureModes(value);
+                  const departure = allowedDepartureToDepartureDays(allowed);
+                  const busDays = allowedDepartureToBusDays(allowed);
+                  const pickupDays = allowedDepartureToPickupDays(allowed);
+                  setFormData((prev) => ({
+                    ...prev,
+                    allowed_departure_modes: allowed,
+                    departure_days: departure,
+                    bus_days: busDays,
+                    bus: busDaysHaveAny(busDays),
+                    pickup_days: pickupDays,
+                    pickup_status: pickupDaysHaveAny(pickupDays)
+                      ? "Wird abgeholt"
+                      : "Geht alleine nach Hause",
+                  }));
+                }}
+                companionNote={formData.departure_companion_note}
+                onCompanionNoteChange={(value) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    departure_companion_note: value,
+                  }))
+                }
+                companionNoteError={errors.departure_companion_note}
+              />
+            </>
+          ) : null}
 
           {/* Action Buttons */}
           <div className="sticky bottom-0 -mx-4 mt-4 -mb-4 flex gap-2 border-t border-gray-100 bg-white/95 px-4 py-3 backdrop-blur-sm md:-mx-6 md:mt-6 md:-mb-6 md:gap-3 md:px-6 md:py-4">

@@ -57,6 +57,8 @@ var errorRules = []common.ErrorRule{
 	{Target: activeSvc.ErrCannotDeleteActiveGroup, Render: statusText(http.StatusBadRequest, "Cannot Delete Active Group With Active Visits")},
 	{Target: activeSvc.ErrInvalidTimeRange, Render: statusText(http.StatusBadRequest, "Invalid Time Range")},
 	{Target: activeSvc.ErrRoomConflict, Render: statusText(http.StatusConflict, "Room Conflict")},
+	{Target: activeSvc.ErrRoomCapacityExceeded, Render: statusText(http.StatusConflict, "Room Capacity Exceeded")},
+	{Target: activeSvc.ErrNoRoomAvailable, Render: statusText(http.StatusBadRequest, "No Room Available")},
 	{Target: activeSvc.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
 	{Target: activeSvc.ErrStaffNotFound, Render: statusText(http.StatusNotFound, "Staff Not Found")},
 	// A graduated (alumnus) student is treated like an unknown/absent student

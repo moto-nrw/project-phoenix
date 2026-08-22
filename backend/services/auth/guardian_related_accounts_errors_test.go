@@ -118,6 +118,8 @@ func pendingInvitation(profileID int64) *authModels.GuardianInvitation {
 }
 
 func TestInviteToStudent_RepoErrorsSurface(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	req := authService.InviteToStudentRequest{StudentID: 5, Email: "a@b.de", CreatedBy: 7}
 
@@ -165,6 +167,8 @@ func TestInviteToStudent_RepoErrorsSurface(t *testing.T) {
 }
 
 func TestListPendingApprovals_RepoErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := buildMockService(authService.GuardianInvitationServiceConfig{
 		InvitationRepo: mockInvitationRepo{
@@ -176,6 +180,8 @@ func TestListPendingApprovals_RepoErrorSurfaces(t *testing.T) {
 }
 
 func TestApproveInvitation_ProfileLookupErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := buildMockService(authService.GuardianInvitationServiceConfig{
 		InvitationRepo: mockInvitationRepo{
@@ -189,6 +195,8 @@ func TestApproveInvitation_ProfileLookupErrorSurfaces(t *testing.T) {
 }
 
 func TestRejectInvitation_UpdateErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := buildMockService(authService.GuardianInvitationServiceConfig{
 		InvitationRepo: mockInvitationRepo{
@@ -200,6 +208,8 @@ func TestRejectInvitation_UpdateErrorSurfaces(t *testing.T) {
 }
 
 func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	base := func(profileRepo userModels.GuardianProfileRepository, linkRepo userModels.StudentGuardianRepository) authService.GuardianInvitationService {
 		return buildMockService(authService.GuardianInvitationServiceConfig{
@@ -244,6 +254,8 @@ func TestRejectInvitation_CleanupBranchesAreBestEffort(t *testing.T) {
 }
 
 func TestListPendingApprovalsDetailed_NameResolutionIsBestEffort(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	sid := int64(5)
 	rid := int64(7)
@@ -273,6 +285,8 @@ func TestListPendingApprovalsDetailed_NameResolutionIsBestEffort(t *testing.T) {
 }
 
 func TestRevokeAccess_LinkLookupErrorSurfaces(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc := buildMockService(authService.GuardianInvitationServiceConfig{
 		StudentGuardianRepo: mockLinkRepo{

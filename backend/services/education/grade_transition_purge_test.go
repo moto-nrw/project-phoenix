@@ -21,14 +21,15 @@ import (
 // possible, and getting that wrong would offer "endgültig löschen" for a child
 // a revert already brought back.
 func TestGetHistoryWithStudentStates(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-states@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4a-%s", suffix)
@@ -36,11 +37,9 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 	stillAlumnus := testpkg.CreateTestStudent(t, db, "State", "Alumnus", graduateClass)
 	restored := testpkg.CreateTestStudent(t, db, "State", "Restored", graduateClass)
 	purged := testpkg.CreateTestStudent(t, db, "State", "Purged", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, stillAlumnus.ID, restored.ID, purged.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -76,24 +75,23 @@ func TestGetHistoryWithStudentStates(t *testing.T) {
 // denormalized copy that outlives both the student and the person row, so
 // without this step "endgültig löschen" would leave the name in the database.
 func TestAnonymizePurgedGraduate(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-anonymize@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4b-%s", suffix)
 
 	student := testpkg.CreateTestStudent(t, db, "Anonymize", "Candidate", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

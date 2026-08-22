@@ -61,6 +61,21 @@ func apiMock(t *testing.T) *httptest.Server {
 				"data":   []any{},
 			})
 
+		case "/auth/register":
+			// Mirrors the real endpoint: a staff-tier role provisions the
+			// person and staff record with the account and reports their ids,
+			// as JSON strings because they are bigints (#2222).
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": idCounter,
+					"school_identity": map[string]any{
+						"person_id": fmt.Sprintf("%d", idCounter+2000),
+						"staff_id":  fmt.Sprintf("%d", idCounter+3000),
+					},
+				},
+			})
+
 		default:
 			// Generic success with ID for POST/PUT (rooms, staff, students, etc.)
 			resp := map[string]any{
@@ -77,6 +92,8 @@ func apiMock(t *testing.T) *httptest.Server {
 }
 
 func TestFixedSeeder_FetchRoles(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -93,6 +110,8 @@ func TestFixedSeeder_FetchRoles(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedRooms(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -109,6 +128,8 @@ func TestFixedSeeder_SeedRooms(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaff(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -131,6 +152,8 @@ func TestFixedSeeder_SeedStaff(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -146,6 +169,8 @@ func TestFixedSeeder_SeedStaff_MissingPerson(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedGroups(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -165,6 +190,8 @@ func TestFixedSeeder_SeedGroups(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStudents(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -192,6 +219,8 @@ func TestFixedSeeder_SeedStudents(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStudents_MissingGroup(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -207,6 +236,8 @@ func TestFixedSeeder_SeedStudents_MissingGroup(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedGuardians(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -227,6 +258,8 @@ func TestFixedSeeder_SeedGuardians(t *testing.T) {
 }
 
 func TestFixedSeeder_FetchCategories(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -241,6 +274,8 @@ func TestFixedSeeder_FetchCategories(t *testing.T) {
 }
 
 func TestFixedSeeder_FetchCategories_Empty(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
@@ -259,6 +294,8 @@ func TestFixedSeeder_FetchCategories_Empty(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedActivities(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -287,6 +324,8 @@ func TestFixedSeeder_SeedActivities(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedActivities_MissingRoom(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -303,6 +342,8 @@ func TestFixedSeeder_SeedActivities_MissingRoom(t *testing.T) {
 }
 
 func TestFixedSeeder_AssignSupervisors(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -322,6 +363,8 @@ func TestFixedSeeder_AssignSupervisors(t *testing.T) {
 }
 
 func TestFixedSeeder_AssignSupervisors_NoStaff(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "")
 	err := fs.assignSupervisors(context.TODO())
 	assert.Error(t, err)
@@ -329,6 +372,8 @@ func TestFixedSeeder_AssignSupervisors_NoStaff(t *testing.T) {
 }
 
 func TestFixedSeeder_EnrollStudents(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -349,6 +394,8 @@ func TestFixedSeeder_EnrollStudents(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedDevices(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -365,6 +412,8 @@ func TestFixedSeeder_SeedDevices(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -394,6 +443,8 @@ func TestFixedSeeder_SeedStaffAccounts(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingRole(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "")
 	// No roles
 	result := &FixedResult{}
@@ -403,6 +454,8 @@ func TestFixedSeeder_SeedStaffAccounts_MissingRole(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingUserRole(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "")
 	fs.roleIDs["admin"] = 1
 	// No "user" role
@@ -413,6 +466,8 @@ func TestFixedSeeder_SeedStaffAccounts_MissingUserRole(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedStaffAccounts_MissingGuestRole(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "")
 	fs.roleIDs["admin"] = 1
 	fs.roleIDs["user"] = 2
@@ -424,6 +479,8 @@ func TestFixedSeeder_SeedStaffAccounts_MissingGuestRole(t *testing.T) {
 }
 
 func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -440,6 +497,8 @@ func TestFixedSeeder_SwitchToStaffAccount(t *testing.T) {
 }
 
 func TestFixedSeeder_SwitchToStaffAccount_NoOGSStaff(t *testing.T) {
+	t.Parallel()
+
 	fs := NewFixedSeeder(nil, false, "")
 	fs.staffCredentials = []StaffCredentials{
 		{Position: "Pädagogische Fachkraft"},
@@ -451,6 +510,8 @@ func TestFixedSeeder_SwitchToStaffAccount_NoOGSStaff(t *testing.T) {
 }
 
 func TestFixedSeeder_MarkStudentsSick(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -472,6 +533,8 @@ func TestFixedSeeder_MarkStudentsSick(t *testing.T) {
 }
 
 func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
@@ -497,6 +560,8 @@ func TestFixedSeeder_GetCheckedInStudentIDs(t *testing.T) {
 }
 
 func TestFixedSeeder_GetCheckedInStudentIDs_Empty(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"status": "success",
@@ -519,6 +584,8 @@ func TestFixedSeeder_GetCheckedInStudentIDs_Empty(t *testing.T) {
 // =============================================================================
 
 func TestDemoData_RoomsHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	for _, room := range DemoRooms {
 		assert.NotEmpty(t, room.Name, "room must have a name")
 		assert.NotEmpty(t, room.Category, "room %s must have a category", room.Name)
@@ -527,6 +594,8 @@ func TestDemoData_RoomsHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_StaffHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	for _, staff := range DemoStaff {
 		assert.NotEmpty(t, staff.FirstName)
 		assert.NotEmpty(t, staff.LastName)
@@ -535,6 +604,8 @@ func TestDemoData_StaffHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_StudentsHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	validGroups := map[string]bool{
 		"sternengruppe": true, "bärengruppe": true, "sonnengruppe": true,
 		"mondgruppe": true, "regenbogengruppe": true, "blumengruppe": true,
@@ -551,6 +622,8 @@ func TestDemoData_StudentsHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_ActivitiesHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	for _, act := range DemoActivities {
 		assert.NotEmpty(t, act.Name)
 		assert.NotEmpty(t, act.DefaultRoom)
@@ -559,6 +632,8 @@ func TestDemoData_ActivitiesHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_DevicesHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	for _, device := range DemoDevices {
 		assert.NotEmpty(t, device.DeviceID)
 		assert.NotEmpty(t, device.Name)
@@ -566,6 +641,8 @@ func TestDemoData_DevicesHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_GuardiansHaveRequiredFields(t *testing.T) {
+	t.Parallel()
+
 	for _, guardian := range DemoGuardians {
 		assert.NotEmpty(t, guardian.FirstName)
 		assert.NotEmpty(t, guardian.LastName)
@@ -576,6 +653,8 @@ func TestDemoData_GuardiansHaveRequiredFields(t *testing.T) {
 }
 
 func TestDemoData_Counts(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 11, len(DemoRooms))
 	assert.Equal(t, 20, len(DemoStaff))
 	assert.Equal(t, 100, len(DemoStudents))
@@ -584,6 +663,8 @@ func TestDemoData_Counts(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
@@ -601,6 +682,8 @@ func TestFixedSeeder_SeedRooms_APIError(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
@@ -618,6 +701,8 @@ func TestFixedSeeder_SeedDevices_APIError(t *testing.T) {
 }
 
 func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
@@ -634,6 +719,8 @@ func TestFixedSeeder_FetchRoles_APIError(t *testing.T) {
 }
 
 func TestFixedSeeder_FetchCategories_APIError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
@@ -650,6 +737,8 @@ func TestFixedSeeder_FetchCategories_APIError(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -666,6 +755,8 @@ func TestFixedSeeder_SeedGuardians_MissingStudentIndex(t *testing.T) {
 }
 
 func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -681,6 +772,8 @@ func TestFixedSeeder_EnrollStudents_MissingStudentID(t *testing.T) {
 }
 
 func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = fmt.Fprint(w, `{"error":"bad creds"}`)
@@ -699,6 +792,8 @@ func TestFixedSeeder_SwitchToStaffAccount_LoginError(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -716,6 +811,8 @@ func TestFixedSeeder_SeedRooms_InvalidResponseJSON(t *testing.T) {
 }
 
 func TestFixedSeeder_GetCheckedInStudentIDs_APIError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"db error"}`)
@@ -732,6 +829,8 @@ func TestFixedSeeder_GetCheckedInStudentIDs_APIError(t *testing.T) {
 }
 
 func TestFloor_Helper(t *testing.T) {
+	t.Parallel()
+
 	f := floor(2)
 	assert.NotNil(t, f)
 	assert.Equal(t, 2, *f)
@@ -742,6 +841,8 @@ func TestFloor_Helper(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 
@@ -763,6 +864,8 @@ func TestFixedSeeder_SeedPickupSchedules(t *testing.T) {
 }
 
 func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
+	t.Parallel()
+
 	srv := apiMock(t)
 	defer srv.Close()
 

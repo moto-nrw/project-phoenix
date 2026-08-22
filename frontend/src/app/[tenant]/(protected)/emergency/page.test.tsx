@@ -13,14 +13,6 @@ vi.mock("~/lib/emergency-export-api", () => ({
   exportEmergencySnapshot: (mode: string) => mockExportEmergencySnapshot(mode),
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: ({ fullPage }: { fullPage?: boolean }) => (
-    <div data-testid="loading" data-full-page={fullPage}>
-      Loading
-    </div>
-  ),
-}));
-
 vi.mock("~/components/ui/moto-concept-icon", () => ({
   MotoConceptIcon: ({ concept }: { concept: string }) => (
     <svg data-testid="concept-icon" data-concept={concept} />
@@ -124,9 +116,8 @@ describe("EmergencyPage", () => {
 
     render(<EmergencyPage />);
 
-    expect(screen.getByTestId("loading")).toHaveAttribute(
-      "data-full-page",
-      "false",
-    );
+    expect(
+      screen.getByLabelText("Notfallliste wird geladen…"),
+    ).toBeInTheDocument();
   });
 });

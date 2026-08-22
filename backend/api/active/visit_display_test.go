@@ -20,6 +20,8 @@ func adminAccess() *common.StudentAccessContext {
 }
 
 func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
+	t.Parallel()
+
 	groupA := int64(100)
 	groupB := int64(200)
 	results := []visitWithStudent{
@@ -34,21 +36,14 @@ func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 		assert.ElementsMatch(t, []int64{11, 22, 33}, ids)
 	})
 
-	t.Run("all_staff scope sees everyone", func(t *testing.T) {
-		ids := collectAuthorizedVisitStudentIDs(results, &common.StudentAccessContext{AllStaffScope: true})
+	t.Run("staff sees everyone, group-less children included", func(t *testing.T) {
+		// #2329: staff access is tenant-wide, the child's group is irrelevant.
+		ids := collectAuthorizedVisitStudentIDs(results, &common.StudentAccessContext{IsStaff: true})
 		assert.ElementsMatch(t, []int64{11, 22, 33}, ids)
 	})
 
-	t.Run("group supervisor sees only their group", func(t *testing.T) {
-		access := &common.StudentAccessContext{
-			MyGroupIDs: map[int64]struct{}{groupA: {}},
-		}
-		ids := collectAuthorizedVisitStudentIDs(results, access)
-		assert.Equal(t, []int64{11}, ids)
-	})
-
-	t.Run("no access yields empty slice", func(t *testing.T) {
-		access := &common.StudentAccessContext{MyGroupIDs: map[int64]struct{}{}}
+	t.Run("neither admin nor staff yields empty slice", func(t *testing.T) {
+		access := &common.StudentAccessContext{}
 		ids := collectAuthorizedVisitStudentIDs(results, access)
 		assert.Empty(t, ids)
 	})
@@ -60,6 +55,8 @@ func TestCollectAuthorizedVisitStudentIDs_FiltersByAccess(t *testing.T) {
 }
 
 func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)  // 08:30 Berlin (CEST)
@@ -112,6 +109,8 @@ func TestBuildVisitDisplayResponses_AppliesActualTimesFromMap(t *testing.T) {
 }
 
 func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	results := []visitWithStudent{{
@@ -136,30 +135,33 @@ func TestBuildVisitDisplayResponses_NilStatusEntryIsSkipped(t *testing.T) {
 
 // TestBuildVisitDisplayResponses_ActualsGatedPerStudent locks in the GDPR
 // guarantee: actual arrival/pickup times must mirror planned-time gating.
-// A caller who supervises one education group must see actuals only for
-// that group's students; other students in the active group keep name +
-// class + sick/excused (existing trust boundary) but get nil actuals.
+// Since #2329 the gate is the caller's access level, not the child's group: a
+// verified staff member sees actuals for every child (group-less included), a
+// caller without full access keeps name + class + sick/excused (existing trust
+// boundary) but gets nil actuals for all of them.
 func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	checkIn := time.Date(2026, 4, 27, 6, 30, 0, 0, time.UTC)
 	checkOut := time.Date(2026, 4, 27, 14, 5, 0, 0, time.UTC)
 
-	groupSupervised := int64(100)
-	groupOther := int64(200)
+	groupOne := int64(100)
+	groupTwo := int64(200)
 
 	results := []visitWithStudent{
 		{
 			VisitID: 1, StudentID: 11, ActiveGroupID: 999,
 			EntryTime: checkIn,
 			FirstName: "Anna", LastName: "Müller",
-			GroupID: &groupSupervised,
+			GroupID: &groupOne,
 		},
 		{
 			VisitID: 2, StudentID: 22, ActiveGroupID: 999,
 			EntryTime: checkIn,
 			FirstName: "Ben", LastName: "Otto",
-			GroupID: &groupOther,
+			GroupID: &groupTwo,
 		},
 		{
 			VisitID: 3, StudentID: 33, ActiveGroupID: 999,
@@ -175,33 +177,40 @@ func TestBuildVisitDisplayResponses_ActualsGatedPerStudent(t *testing.T) {
 		33: {Status: "checked_in", CheckInTime: &checkIn},
 	}
 
-	access := &common.StudentAccessContext{
-		MyGroupIDs: map[int64]struct{}{groupSupervised: {}},
+	// Verified staff: actuals for every child, regardless of group.
+	staffResponses := rs.buildVisitDisplayResponses(
+		results, statuses, &common.StudentAccessContext{IsStaff: true}, true,
+	)
+
+	if assert.Len(t, staffResponses, 3) {
+		assert.Equal(t, "Anna Müller", staffResponses[0].StudentName)
+		if assert.NotNil(t, staffResponses[0].ActualArrival) {
+			assert.Equal(t, "08:30", *staffResponses[0].ActualArrival)
+		}
+		if assert.NotNil(t, staffResponses[0].ActualPickup) {
+			assert.Equal(t, "16:05", *staffResponses[0].ActualPickup)
+		}
+
+		assert.Equal(t, "Ben Otto", staffResponses[1].StudentName)
+		assert.NotNil(t, staffResponses[1].ActualArrival,
+			"staff access is tenant-wide since #2329 — the child's group is irrelevant")
+
+		assert.Equal(t, "Cara Pohl", staffResponses[2].StudentName)
+		assert.NotNil(t, staffResponses[2].ActualArrival,
+			"a child without a group is an ordinary child for staff")
 	}
 
-	responses := rs.buildVisitDisplayResponses(results, statuses, access, true)
+	// No full access (guest, guardian): names stay, actuals are redacted.
+	redactedResponses := rs.buildVisitDisplayResponses(
+		results, statuses, &common.StudentAccessContext{}, true,
+	)
 
-	if assert.Len(t, responses, 3) {
-		// Supervised student → actuals visible
-		assert.Equal(t, "Anna Müller", responses[0].StudentName)
-		if assert.NotNil(t, responses[0].ActualArrival) {
-			assert.Equal(t, "08:30", *responses[0].ActualArrival)
+	if assert.Len(t, redactedResponses, 3) {
+		for i, response := range redactedResponses {
+			assert.NotEmpty(t, response.StudentName)
+			assert.Nil(t, response.ActualArrival,
+				"actuals must be redacted without full access (index %d)", i)
+			assert.Nil(t, response.ActualPickup)
 		}
-		if assert.NotNil(t, responses[0].ActualPickup) {
-			assert.Equal(t, "16:05", *responses[0].ActualPickup)
-		}
-
-		// Other-group student → name still visible (existing trust boundary)
-		// but actuals MUST be nil to match planned-time gating.
-		assert.Equal(t, "Ben Otto", responses[1].StudentName)
-		assert.Nil(t, responses[1].ActualArrival,
-			"actuals must be redacted for students outside the caller's group scope")
-		assert.Nil(t, responses[1].ActualPickup)
-
-		// Group-less student → only admins / all_staff scope may see actuals
-		assert.Equal(t, "Cara Pohl", responses[2].StudentName)
-		assert.Nil(t, responses[2].ActualArrival,
-			"group-less students must be redacted unless caller is admin or all_staff")
-		assert.Nil(t, responses[2].ActualPickup)
 	}
 }

@@ -36,10 +36,10 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatCount } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
 import {
-  CardSkeletons,
   EmptyState,
   PlusIcon,
 } from "~/app/operator/provisioning/provisioning-shared";
+import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { CreateSchoolModal } from "~/app/operator/provisioning/create-school-modal";
 import { EditOrganizationModal } from "~/app/operator/provisioning/edit-organization-modal";
 import { CreateDeviceModal } from "~/app/operator/provisioning/create-device-modal";
@@ -440,8 +440,17 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
 
   if (isLoading && !organization) {
     return (
-      <div className="w-full py-10 text-center text-gray-500">
-        Wird geladen…
+      <div className="w-full">
+        <Link
+          href="/operator/organizations"
+          className="mb-4 inline-flex items-center gap-2 text-sm text-gray-600 transition-colors hover:text-gray-900"
+        >
+          <span aria-hidden>←</span>
+          <span>Zurück zur Träger-Übersicht</span>
+        </Link>
+        <SkeletonRegion label="Träger wird geladen">
+          <DetailSkeleton sections={1} fieldsPerSection={4} />
+        </SkeletonRegion>
       </div>
     );
   }
@@ -505,9 +514,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
           </div>
 
           <TabsPrimitive.Content value="schulen" className="mt-4">
-            {schoolsLoading ? (
-              <CardSkeletons />
-            ) : schoolDelete.showTrash ? (
+            {schoolDelete.showTrash ? (
               <div className="space-y-4">
                 {deletedSchools.map((school) => (
                   <DeletedEntityCard
@@ -526,7 +533,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                   />
                 ))}
               </div>
-            ) : activeSchools.length === 0 ? (
+            ) : !schoolsLoading && activeSchools.length === 0 ? (
               <EmptyState
                 title="Keine Schulen"
                 description="Erstellen Sie eine neue Schule unter diesem Träger."
@@ -540,59 +547,54 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
                 getRowKey={(row) => row.id}
                 onRowClick={handleSchoolClick}
                 defaultSortKey="name"
+                isLoading={schoolsLoading}
               />
             )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="konten" className="mt-4">
-            {accountsLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
-              </div>
-            ) : orgAccounts && orgAccounts.length > 0 ? (
-              <AccountsTable
-                accounts={orgAccounts}
-                showSchool
-                onManageCaregiver={openCaregiverModal}
-              />
-            ) : (
+            {!accountsLoading && (!orgAccounts || orgAccounts.length === 0) ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Konten für diesen Träger.
               </div>
+            ) : (
+              <AccountsTable
+                accounts={orgAccounts ?? []}
+                showSchool
+                isLoading={accountsLoading}
+                onManageCaregiver={openCaregiverModal}
+              />
             )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="geraete" className="mt-4">
-            {devicesLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
+            {!devicesLoading && (!orgDevices || orgDevices.length === 0) ? (
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
+                Keine Geräte für diesen Träger.
               </div>
-            ) : orgDevices && orgDevices.length > 0 ? (
+            ) : (
               <DevicesTable
-                devices={orgDevices}
+                devices={orgDevices ?? []}
                 showSchool
+                isLoading={devicesLoading}
                 onSetKey={setSetKeyDevice}
                 onTransfer={setTransferDevice}
                 onDelete={setDeleteDevice}
               />
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
-                Keine Geräte für diesen Träger.
-              </div>
             )}
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="personen" className="mt-4">
-            {personsLoading ? (
-              <div className="py-10 text-center text-gray-500">
-                Wird geladen…
-              </div>
-            ) : orgPersons && orgPersons.length > 0 ? (
-              <PersonsTable persons={orgPersons} showSchool />
-            ) : (
+            {!personsLoading && (!orgPersons || orgPersons.length === 0) ? (
               <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center text-sm text-gray-500">
                 Keine Personen für diesen Träger.
               </div>
+            ) : (
+              <PersonsTable
+                persons={orgPersons ?? []}
+                showSchool
+                isLoading={personsLoading}
+              />
             )}
           </TabsPrimitive.Content>
         </Tabs>

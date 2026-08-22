@@ -17,6 +17,8 @@ import (
 )
 
 func TestPopulatePublicStudentFields_PreservesNonCanonicalPickupStatus(t *testing.T) {
+	t.Parallel()
+
 	status := "Bitte nur an Oma oder Opa übergeben"
 	student := &users.Student{
 		PickupStatus: &status,
@@ -35,6 +37,8 @@ func TestPopulatePublicStudentFields_PreservesNonCanonicalPickupStatus(t *testin
 }
 
 func TestPopulateSnapshotPublicFields_PreservesNonCanonicalPickupStatus(t *testing.T) {
+	t.Parallel()
+
 	status := "Abholung nur nach telefonischer Rücksprache"
 	student := &users.Student{
 		PickupStatus: &status,
@@ -52,6 +56,8 @@ func TestPopulateSnapshotPublicFields_PreservesNonCanonicalPickupStatus(t *testi
 }
 
 func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing.T) {
+	t.Parallel()
+
 	status := users.PickupStatusPickedUp
 	student := &users.Student{
 		PickupStatus:  &status,
@@ -63,6 +69,17 @@ func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing
 
 	assert.Equal(t, users.PickupStatusGoesAlone, resp.PickupStatus)
 	assert.False(t, resp.PickupDays.HasAny())
+	assert.True(t, resp.DepartureRuleConfigured)
+}
+
+func TestPopulatePublicStudentFields_LeavesMissingDepartureRuleUnconfigured(t *testing.T) {
+	t.Parallel()
+
+	resp := StudentResponse{}
+
+	populatePublicStudentFields(&resp, &users.Student{})
+
+	assert.False(t, resp.DepartureRuleConfigured)
 }
 
 // TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied is
@@ -74,6 +91,8 @@ func TestResponsePickupStatus_UsesDerivedStatusForCanonicalStoredText(t *testing
 // response must derive from the FULL non-exclusive AllowedDepartureModes set
 // instead, even though the stored canonical status gets recomputed.
 func TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied(t *testing.T) {
+	t.Parallel()
+
 	stored := users.PickupStatusAccompanied
 	student := &users.Student{
 		PickupStatus: &stored,
@@ -91,6 +110,8 @@ func TestPopulatePublicStudentFields_BusAndAccompaniedSameDayKeepsAccompanied(t 
 }
 
 func TestPopulateSnapshotPublicFields_BusAndAccompaniedSameDayKeepsAccompanied(t *testing.T) {
+	t.Parallel()
+
 	stored := users.PickupStatusAccompanied
 	student := &users.Student{
 		PickupStatus: &stored,
@@ -105,9 +126,12 @@ func TestPopulateSnapshotPublicFields_BusAndAccompaniedSameDayKeepsAccompanied(t
 	assert.Equal(t, users.PickupStatusAccompanied, resp.PickupStatus,
 		"bus+accompanied on the same day must not be bucketed as a self-goer")
 	assert.True(t, resp.BusDays[users.PickupDayTuesday], "the bus signal must still surface")
+	assert.True(t, resp.DepartureRuleConfigured)
 }
 
 func TestPopulateStudentAddressFields(t *testing.T) {
+	t.Parallel()
+
 	street := "Musterstraße 12"
 	city := "Köln"
 	postalCode := "50667"
@@ -142,6 +166,8 @@ func makeStudent(id int64, photoPath *string, consentAt *time.Time, consentBy *i
 // particular PhotoConsentGiven (a *bool) must remain nil so the
 // frontend can't confuse "feature off" with "consent withdrawn".
 func TestPopulatePhotoFields_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	by := int64(42)
 	url := "/uploads/student-photos/x.jpg"
@@ -163,6 +189,8 @@ func TestPopulatePhotoFields_FeatureDisabled(t *testing.T) {
 // mirrors what serveStudentPhoto enforces, so list/detail JSON never
 // hands out a URL that the same session would 403 against.
 func TestPopulatePhotoFields_FeatureEnabled_NoFullAccess(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	by := int64(42)
 	url := "/uploads/student-photos/abc.jpg"
@@ -187,6 +215,8 @@ func TestPopulatePhotoFields_FeatureEnabled_NoFullAccess(t *testing.T) {
 // browser can fetch via cookie auth — never the raw /uploads/... path
 // stored in the DB.
 func TestPopulatePhotoFields_FullAccess_PhotoAndConsent(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	by := int64(99)
 	url := "/uploads/student-photos/foo.jpg"
@@ -211,6 +241,8 @@ func TestPopulatePhotoFields_FullAccess_PhotoAndConsent(t *testing.T) {
 // be true so the UI can show the green checkmark even before bytes
 // exist on disk.
 func TestPopulatePhotoFields_FullAccess_ConsentNoPhoto(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	by := int64(7)
 	student := makeStudent(55, nil, &now, &by)
@@ -231,6 +263,8 @@ func TestPopulatePhotoFields_FullAccess_ConsentNoPhoto(t *testing.T) {
 // at false so the frontend can render the checkbox unticked. The nil
 // case is reserved for "feature off" (TestPopulatePhotoFields_FeatureDisabled).
 func TestPopulatePhotoFields_FullAccess_NoConsent(t *testing.T) {
+	t.Parallel()
+
 	student := makeStudent(8, nil, nil, nil)
 	resp := StudentResponse{}
 
@@ -251,6 +285,8 @@ func TestPopulatePhotoFields_FullAccess_NoConsent(t *testing.T) {
 // gate won't 403), and emit consent_given=false so the UI can flag
 // the broken state instead of silently hiding it.
 func TestPopulatePhotoFields_FullAccess_PhotoButNoConsentAt(t *testing.T) {
+	t.Parallel()
+
 	url := "/uploads/student-photos/orphan.jpg"
 	student := makeStudent(2, &url, nil, nil)
 	resp := StudentResponse{}

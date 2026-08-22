@@ -83,6 +83,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		RequestRepo:              env.repos.Request,
 		RequestChildRepo:         env.repos.RequestChild,
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		OfferingCatalogCloner:    env.offeringCloner,
 		OutboxEnqueuer:           env.outbox,
 		Settings:                 env.settings,
 		DecisionService:          decision,
@@ -107,11 +108,11 @@ func seedApprovedChildWithStudent(
 	grade int16,
 ) (sourceChild *enrollmentModels.RequestChild, existingStudent *usersModels.Student) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// 1. Submit + manually approve.
 	res, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: guardianFirst,
 		GuardianLastName:  guardianLast,
@@ -142,7 +143,7 @@ func seedApprovedChildWithStudent(
 	}
 	dob := timezone.NewDate(2018, 4, 15)
 	person.Birthday = &dob
-	person.SetTenantID(1)
+	person.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Person.Create(ctx, person))
 
 	startDate := env.sourcePhase.ServiceStartDate
@@ -157,7 +158,7 @@ func seedApprovedChildWithStudent(
 		EnrolledUntil: &endDate,
 		GuardianEmail: &guardianEmailCopy,
 	}
-	student.SetTenantID(1)
+	student.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Student.Create(ctx, student))
 
 	// 3. Link the source child to the student and stamp approved.
@@ -187,7 +188,7 @@ func classForGrade(grade int16) string {
 // pull the rows via the existing List filter and count the slice.
 func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) int {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	rows, err := env.repos.Student.List(ctx, map[string]interface{}{
 		"person_id": personID,
 	})
@@ -195,10 +196,14 @@ func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) 
 	return len(rows)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -270,12 +275,16 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -312,12 +321,16 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -348,10 +361,14 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	assert.Equal(t, auditModels.StudentFieldEditSystemActorName, history[0].EditedByName)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -389,10 +406,14 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -433,9 +454,11 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 }
 
 func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -463,9 +486,11 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 }
 
 func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	source, existing := seedApprovedChildWithStudent(
 		t, env,
@@ -480,9 +505,11 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	originalFrom := *existing.EnrolledFrom
 	originalUntil := *existing.EnrolledUntil
 
-	// Persist a legacy-invalid template offering. The schedule resolves for the
-	// target phase, but the fixed offering has no days, so Decide fails in care
-	// recurrence validation only after applyApprovalRollover updates the student.
+	// A valid template-linked source offering; the rollover clones it into
+	// the target phase (#2249). After the rollover we corrupt the CLONE the
+	// way legacy rows looked before #1885 made available_days mandatory:
+	// Decide then fails in care recurrence validation only after
+	// applyApprovalRollover updates the student — the rollback under test.
 	group := createCareOfferingTemplateGroup(t, env.db, "rollover-savepoint")
 	period := createCareOfferingTestPeriod(
 		t,
@@ -495,27 +522,18 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         env.sourcePhase.ID,
 		ActivityGroupID: &group.ID,
-		Name:            "Invalid empty-day rollover offering",
+		Name:            "Rollover savepoint offering",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
-	// Simulate a legacy row saved before #1885 made available_days
-	// mandatory: clear the days directly, bypassing Validate. The rollback
-	// behavior under test targets exactly such legacy-invalid rows.
-	_, updErr := env.db.NewUpdate().
-		TableExpr("enrollment.care_offerings").
-		Set("available_days = '[]'::jsonb").
-		Where("id = ?", offering.ID).
-		Exec(ctx)
-	require.NoError(t, updErr)
 	link := &enrollmentModels.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -524,6 +542,16 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	req.Name = "auto-approve-savepoint-rollback-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
+	require.Equal(t, 1, result.ClonedOfferingCount)
+
+	// Blank the target-phase clone's days directly, bypassing Validate —
+	// simulating a legacy-invalid row in the phase Decide will materialize.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("phase_id = ?", result.Phase.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
 
 	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
 		ctx,
@@ -535,7 +563,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	rolledChildID := rolled[0].ID
 
 	var summary *enrollmentService.DeadlineWorkerSummary
-	err = tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		var workerErr error
 		summary, workerErr = env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
 		return workerErr

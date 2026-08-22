@@ -47,7 +47,7 @@ async function openModal(
   props: Partial<React.ComponentProps<typeof StudentExportModal>> = {},
 ) {
   const result = renderModal(props);
-  await screen.findByRole("dialog", { name: "Kindersuche exportieren" });
+  await screen.findByRole("dialog", { name: "Alle Kinder exportieren" });
   return result;
 }
 
@@ -217,6 +217,29 @@ describe("StudentExportModal", () => {
     expect(
       screen.queryByRole("checkbox", { name: /Nach Klassen getrennt/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("treats one escaped class name as a single class (#2218)", async () => {
+    // A class may legitimately be called "A,B", and it then travels escaped as
+    // "A\,B". Splitting on the bare comma would read that as two classes and
+    // offer per-class separation for a single-class export.
+    await openModal({
+      filters: { search: "mila", school_class: "A\\,B" },
+    });
+
+    expect(
+      screen.queryByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers grouping when two classes are selected (#2218)", async () => {
+    await openModal({
+      filters: { search: "mila", school_class: "3a,4b" },
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+    ).toBeChecked();
   });
 
   it("keeps the dialog open and reports export failures", async () => {
@@ -446,7 +469,7 @@ describe("StudentExportModal", () => {
     it("describes the scope instead of a count when no count is given", async () => {
       renderModal({ filters: {}, resultCount: undefined });
 
-      await screen.findByRole("dialog", { name: "Kindersuche exportieren" });
+      await screen.findByRole("dialog", { name: "Alle Kinder exportieren" });
       expect(screen.getByText("Alle Kinder der Schule.")).toBeInTheDocument();
     });
   });

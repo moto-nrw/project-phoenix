@@ -8,6 +8,8 @@ import (
 )
 
 func TestUnregisteredTagScanMetadataMethods(t *testing.T) {
+	t.Parallel()
+
 	createdAt := time.Now().Add(-time.Hour)
 	updatedAt := time.Now()
 	scan := &UnregisteredTagScan{

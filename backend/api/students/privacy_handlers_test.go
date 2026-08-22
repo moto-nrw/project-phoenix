@@ -18,10 +18,11 @@ import (
 // =============================================================================
 
 func TestGetStudentPrivacyConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_returns_default_consent", func(t *testing.T) {
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
@@ -33,7 +34,7 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	})
 
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
-		require.NoError(t, tc.services.Settings.SetValue(testpkg.TenantContext(1), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
+		require.NoError(t, tc.services.Settings.SetValue(testpkg.Ctx(t), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
@@ -51,10 +52,11 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 }
 
 func TestUpdateStudentPrivacyConsent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	t.Run("success_creates_consent", func(t *testing.T) {
 		body := map[string]interface{}{
@@ -94,11 +96,12 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 }
 
 func TestPrivacyConsent_Extended(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("update_creates_new_consent_for_different_version", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "MultiVersion", "PM1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// First consent
 		body1 := map[string]interface{}{
@@ -123,7 +126,6 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 
 	t.Run("update_with_duration_days", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Duration", "PD1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
@@ -139,7 +141,6 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 
 	t.Run("update_with_details", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Details", "PDT1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Details should be a map, not a JSON string
 		body := map[string]interface{}{
@@ -158,26 +159,27 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	})
 
 	t.Run("forbidden_without_full_access", func(t *testing.T) {
+		// #2329: staff read every child's consent; the surviving denial is an
+		// account without a staff record holding users:read.
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "NoAccess", "PNA1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "NoAccess")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "privacy-consent-guest@example.com")
 
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
-		// Non-supervisor should be forbidden from viewing privacy consent
 		testutil.AssertForbidden(t, rr)
 	})
 }
 
 func TestPrivacyConsent_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("update_existing_consent_same_version", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "SameVersion", "PSV1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Create first consent
 		body := map[string]interface{}{
@@ -198,9 +200,9 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("update_privacy_consent_forbidden", func(t *testing.T) {
+		// Only accounts without a staff record are refused now (#2329).
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Forbidden", "PF1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "ForbiddenStaff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		guest := testpkg.CreateTestAccount(t, tc.db, "privacy-consent-write-guest@example.com")
 
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
@@ -209,10 +211,9 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
 
-		claims := testutil.TeacherTestClaims(int(account.ID))
+		claims := testutil.TeacherTestClaims(int(guest.ID))
 		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
-		// Non-supervisor should be forbidden from updating privacy consent
 		testutil.AssertForbidden(t, rr)
 	})
 }

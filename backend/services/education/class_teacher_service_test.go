@@ -36,26 +36,18 @@ func setupClassTeacherService(t *testing.T, db *bun.DB) (educationSvc.Service, *
 	return svc, repos
 }
 
-func cleanupClassAssignments(t *testing.T, db *bun.DB, staffID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-	_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("staff_id = ?", staffID).Exec(ctx)
-}
-
 func TestSetStaffSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	svc, repos := setupClassTeacherService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	actor := testpkg.CreateTestAccount(t, db, "class-teacher-actor@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, actor.ID)
 
 	t.Run("assigns and reads classes", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Assign")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "1a"}, actor.ID))
 
@@ -66,8 +58,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("dedupes case-insensitively and trims", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Dedupe")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", " 1A ", "2b"}, actor.ID))
 
@@ -78,8 +68,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("resubmitting the same set keeps existing rows", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Resubmit")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
@@ -97,8 +85,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("case-only edit updates the stored display form in place", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "CaseEdit")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
 		before, err := repos.ClassTeacher.FindByStaff(ctx, staff.ID)
@@ -115,8 +101,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("replaces the set with a diff", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Replace")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "2b"}, actor.ID))
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"2b", "3c"}, actor.ID))
@@ -128,8 +112,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("clears assignments with an empty set", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Clear")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a"}, actor.ID))
 		require.NoError(t, svc.SetStaffSchoolClasses(ctx, staff.ID, []string{}, actor.ID))
@@ -141,10 +123,8 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("audits every actual change, skips no-ops", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Audit")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-		defer cleanupClassAssignments(t, db, staff.ID)
 		defer func() {
-			tenantCtx := testpkg.TenantContext(1)
+			tenantCtx := testpkg.Ctx(t)
 			_, _ = db.NewDelete().TableExpr("audit.staff_master_data_changes").
 				Where("staff_id = ?", staff.ID).Exec(tenantCtx)
 		}()
@@ -195,7 +175,6 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 
 	t.Run("rejects blank class names", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "CTSvc", "Blank")
-		defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
 
 		err := svc.SetStaffSchoolClasses(ctx, staff.ID, []string{"1a", "   "}, actor.ID)
 		require.Error(t, err)
@@ -205,7 +184,9 @@ func TestSetStaffSchoolClasses(t *testing.T) {
 	t.Run("rejects unknown staff", func(t *testing.T) {
 		ghost := testpkg.CreateTestStaff(t, db, "CTSvc", "Ghost")
 		ghostID := ghost.ID
-		testpkg.CleanupStaffFixtures(t, db, ghost.ID)
+		// Deleting the staff row is the ARRANGE step: both calls must report
+		// ErrStaffNotFound for an ID that no longer exists (#2419).
+		testpkg.CleanupStaffFixtures(t, db, ghostID)
 
 		err := svc.SetStaffSchoolClasses(ctx, ghostID, []string{"1a"}, actor.ID)
 		require.Error(t, err)

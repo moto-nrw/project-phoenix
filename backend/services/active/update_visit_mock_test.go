@@ -7,11 +7,33 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type lockingAttendanceRepository struct {
+	activeModels.AttendanceRepository
+	calls []string
+	row   *activeModels.Attendance
+}
+
+func (r *lockingAttendanceRepository) LockStudentAttendance(context.Context, int64) error {
+	r.calls = append(r.calls, "lock")
+	return nil
+}
+
+func (r *lockingAttendanceRepository) FindByStudentAndDate(context.Context, int64, timezone.Date) ([]*activeModels.Attendance, error) {
+	r.calls = append(r.calls, "find")
+	return []*activeModels.Attendance{r.row}, nil
+}
+
+func (r *lockingAttendanceRepository) Update(context.Context, *activeModels.Attendance) error {
+	r.calls = append(r.calls, "update")
+	return nil
+}
 
 type recordingAttendanceSyncer struct {
 	loaded   []*activeModels.Visit
@@ -51,7 +73,20 @@ func (r *recordingAttendanceSyncer) MirrorVisitRevision(_ context.Context, previ
 
 func (r *recordingAttendanceSyncer) MirrorCheckOutAt(context.Context, int64, time.Time) {}
 
+func (r *recordingAttendanceSyncer) MirrorCheckInAtBatch(context.Context, []int64, time.Time) {}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutAtBatch(context.Context, []int64, time.Time) {}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutForVisits(_ context.Context, visits []*activeModels.Visit, _ time.Time) {
+	for _, visit := range visits {
+		copy := *visit
+		r.loaded = append(r.loaded, &copy)
+	}
+}
+
 func TestGetVisitLookupErrorClassification(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
@@ -100,6 +135,8 @@ func TestGetVisitLookupErrorClassification(t *testing.T) {
 }
 
 func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now()
 	existingVisit := &activeModels.Visit{
@@ -251,7 +288,35 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 }
 
+func TestUpdateVisitLocksAttendanceBeforeClosingIt(t *testing.T) {
+	t.Parallel()
+
+	entryTime := time.Now().Add(-time.Hour)
+	exitTime := time.Now()
+	existing := &activeModels.Visit{
+		Model: base.Model{ID: 101}, StudentID: 201, ActiveGroupID: 301, EntryTime: entryTime,
+	}
+	updated := *existing
+	updated.ExitTime = &exitTime
+	attendance := &lockingAttendanceRepository{row: &activeModels.Attendance{
+		StudentID: existing.StudentID, Date: timezone.DateFromTime(entryTime), CheckInTime: entryTime,
+	}}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existing, nil },
+		},
+		AttendanceRepo: attendance,
+	}}
+
+	err := svc.UpdateVisit(context.Background(), &updated)
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "find", "update"}, attendance.calls)
+}
+
 func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	existingVisit := &activeModels.Visit{
@@ -293,6 +358,8 @@ func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing
 }
 
 func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	exitTime := time.Now()
@@ -330,6 +397,8 @@ func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
 }
 
 func TestUpdateVisitOpenEntryTimeEditReconcilesSlot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-time.Hour)
 	existingVisit := &activeModels.Visit{
@@ -363,6 +432,8 @@ func TestUpdateVisitOpenEntryTimeEditReconcilesSlot(t *testing.T) {
 }
 
 func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	entryTime := time.Now().Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)
@@ -389,6 +460,7 @@ func TestUpdateVisitClosedIntervalEditAndReopenReconcileSlot(t *testing.T) {
 					findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) { return existingVisit, nil },
 					updateFunc:   func(context.Context, *activeModels.Visit) error { return nil },
 				},
+				GroupRepo:        &mockGroupRepository{},
 				AttendanceSyncer: syncer,
 			}}
 

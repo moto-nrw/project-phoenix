@@ -11,6 +11,8 @@ import (
 // =============================================================================
 
 func TestComment_Validate_ValidOperatorComment(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -24,6 +26,8 @@ func TestComment_Validate_ValidOperatorComment(t *testing.T) {
 }
 
 func TestComment_Validate_ValidUserComment(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -36,6 +40,8 @@ func TestComment_Validate_ValidUserComment(t *testing.T) {
 }
 
 func TestComment_Validate_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -49,6 +55,8 @@ func TestComment_Validate_TrimWhitespace(t *testing.T) {
 }
 
 func TestComment_Validate_MissingPostID(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     0,
 		AuthorID:   42,
@@ -62,6 +70,8 @@ func TestComment_Validate_MissingPostID(t *testing.T) {
 }
 
 func TestComment_Validate_NegativePostID(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     -1,
 		AuthorID:   42,
@@ -75,6 +85,8 @@ func TestComment_Validate_NegativePostID(t *testing.T) {
 }
 
 func TestComment_Validate_MissingAuthorID(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   0,
@@ -88,6 +100,8 @@ func TestComment_Validate_MissingAuthorID(t *testing.T) {
 }
 
 func TestComment_Validate_NegativeAuthorID(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   -1,
@@ -101,6 +115,8 @@ func TestComment_Validate_NegativeAuthorID(t *testing.T) {
 }
 
 func TestComment_Validate_InvalidAuthorType(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -114,6 +130,8 @@ func TestComment_Validate_InvalidAuthorType(t *testing.T) {
 }
 
 func TestComment_Validate_EmptyAuthorType(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -127,6 +145,8 @@ func TestComment_Validate_EmptyAuthorType(t *testing.T) {
 }
 
 func TestComment_Validate_EmptyContent(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -140,6 +160,8 @@ func TestComment_Validate_EmptyContent(t *testing.T) {
 }
 
 func TestComment_Validate_WhitespaceOnlyContent(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{
 		PostID:     1,
 		AuthorID:   42,
@@ -153,6 +175,8 @@ func TestComment_Validate_WhitespaceOnlyContent(t *testing.T) {
 }
 
 func TestComment_Validate_ContentTooLong(t *testing.T) {
+	t.Parallel()
+
 	longContent := make([]byte, 5001)
 	for i := range longContent {
 		longContent[i] = 'a'
@@ -171,6 +195,8 @@ func TestComment_Validate_ContentTooLong(t *testing.T) {
 }
 
 func TestComment_Validate_ContentExactly5000Chars(t *testing.T) {
+	t.Parallel()
+
 	content := make([]byte, 5000)
 	for i := range content {
 		content[i] = 'a'
@@ -192,6 +218,8 @@ func TestComment_Validate_ContentExactly5000Chars(t *testing.T) {
 // =============================================================================
 
 func TestComment_GetID(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{}
 	c.ID = 123
 
@@ -199,12 +227,16 @@ func TestComment_GetID(t *testing.T) {
 }
 
 func TestComment_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{}
 	// Since CreatedAt comes from base.Model, just verify the method exists
 	_ = c.GetCreatedAt()
 }
 
 func TestComment_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	c := &Comment{}
 	// Since UpdatedAt comes from base.Model, just verify the method exists
 	_ = c.GetUpdatedAt()
@@ -215,14 +247,20 @@ func TestComment_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestIsValidAuthorType_Operator(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isValidAuthorType(AuthorTypeOperator))
 }
 
 func TestIsValidAuthorType_User(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, isValidAuthorType(AuthorTypeUser))
 }
 
 func TestIsValidAuthorType_Invalid(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isValidAuthorType("admin"))
 	assert.False(t, isValidAuthorType("guest"))
 	assert.False(t, isValidAuthorType(""))

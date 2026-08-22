@@ -78,7 +78,8 @@ export interface Room {
 // (SchulhofRoomName, WCRoomName, WCRoomAliasName) and PyrePortal
 // src/services/api.ts (WC_ROOM_ALIASES). Matching is exact-case to mirror
 // the backend's `name == SchulhofRoomName || IsWCRoomName(name)` check.
-const SYSTEM_ROOM_NAMES = ["Schulhof", "WC", "Toilette"] as const;
+const SCHULHOF_ROOM_NAME = "Schulhof";
+const SYSTEM_ROOM_NAMES = [SCHULHOF_ROOM_NAME, "WC", "Toilette"] as const;
 
 /** Returns true if the room is a system room (Schulhof, WC, Toilette). */
 export function isSystemRoom(room: Room | null | undefined): boolean {
@@ -86,6 +87,31 @@ export function isSystemRoom(room: Room | null | undefined): boolean {
   return SYSTEM_ROOM_NAMES.includes(
     room.name as (typeof SYSTEM_ROOM_NAMES)[number],
   );
+}
+
+// Toilet-room aliases — the subset of system rooms whose color is NOT
+// admin-configurable. The Schulhof left this set with #2405: schools
+// color-code rooms and tablets and need the yard to take part, so it keeps
+// only the rename/delete protection. The WC has no badge of its own, so a
+// color picker there would configure nothing.
+const COLOR_LOCKED_ROOM_NAMES = ["WC", "Toilette"] as const;
+
+/**
+ * Returns true if the room's color is fixed by the system and must not be
+ * offered for editing. Mirrors the backend guard in
+ * services/facilities.UpdateRoom, which rejects color changes for exactly
+ * these rooms.
+ */
+export function isColorLockedRoom(room: Room | null | undefined): boolean {
+  if (!room) return false;
+  return COLOR_LOCKED_ROOM_NAMES.includes(
+    room.name as (typeof COLOR_LOCKED_ROOM_NAMES)[number],
+  );
+}
+
+/** Returns true if the room is the canonical Schulhof (schoolyard). */
+export function isSchulhofRoom(room: Room | null | undefined): boolean {
+  return room?.name === SCHULHOF_ROOM_NAME;
 }
 
 // Mapping functions
@@ -96,7 +122,12 @@ export function mapRoomResponse(backendRoom: BackendRoom): Room {
     building: backendRoom.building,
     // Convert null to undefined for optional fields
     floor: backendRoom.floor ?? undefined,
-    capacity: backendRoom.capacity ?? undefined,
+    capacity:
+      backendRoom.capacity !== null &&
+      backendRoom.capacity !== undefined &&
+      backendRoom.capacity > 0
+        ? backendRoom.capacity
+        : undefined,
     category: backendRoom.category ?? undefined,
     color: backendRoom.color ?? undefined,
     deviceId: backendRoom.device_id,
@@ -159,6 +190,12 @@ export function prepareRoomForBackend(
   }
   if (room.floor !== undefined) {
     backendRoom.floor = room.floor;
+  }
+  const capacity = (room as { capacity?: unknown }).capacity;
+  if (typeof capacity === "number") {
+    backendRoom.capacity = capacity;
+  } else if (capacity === null || capacity === "") {
+    backendRoom.capacity = null;
   }
   if (room.category !== undefined && room.category !== "") {
     backendRoom.category = room.category;

@@ -2,7 +2,7 @@
  * Tests for Active Supervisions Page
  * Tests the rendering states and user interactions of the active supervisions dashboard
  *
- * NOTE: split into 11 files (page.test.tsx + page.part2..11.test.tsx). The full-dashboard
+ * NOTE: split into 12 files (page.test.tsx + page.part2..12.test.tsx). The full-dashboard
  * render tests in the "MeinRaumPage (Active Supervisions)" describe are memory-heavy under
  * happy-dom + v8 coverage (~1.5 GB heap each), so a single combined file OOMs the Vitest
  * worker. Those heavy tests are pre-split into (N/M) chunks of 3 renders each, one chunk per
@@ -63,11 +63,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   BreadcrumbProvider: ({ children }: { children: React.ReactNode }) => (
     <>{children}</>
   ),
-}));
-
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
 // Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
@@ -288,7 +283,27 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
   const mockMutate = vi.fn();
@@ -541,6 +556,8 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     render(<MeinRaumPage />);
 
     // Should show loading state while SWR is loading
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Aktuelle Aufsicht wird geladen…"),
+    ).toBeInTheDocument();
   });
 });

@@ -3,6 +3,8 @@ package users
 import "testing"
 
 func TestActiveCaregiverFullName(t *testing.T) {
+	t.Parallel()
+
 	caregiver := &ActiveCaregiver{
 		FirstName: "Ada",
 		LastName:  "Lovelace",

@@ -25,6 +25,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -32,11 +33,7 @@ import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending"
 import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
-import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
-import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
-import { useParentFeedbackUnread } from "~/lib/hooks/use-parent-feedback-unread";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
-import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
+import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
@@ -97,8 +94,8 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     ...STAFF_FLAT_PAGES.studentSearch,
-    icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z",
-    activeColor: "text-moto-blue",
+    icon: navigationIcons.userSingle,
+    concept: "children",
     alwaysShow: true,
   },
   {
@@ -175,6 +172,17 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-moto-green",
     requiresPermission: "users:read",
+  },
+  {
+    // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+    // Mitarbeitenden an einem Ort. Sichtbarkeit hängt an zwei getrennten
+    // Rechte-Regeln (Eltern-Reiter bzw. Mitarbeitende-Reiter) — Gating unten
+    // in filteredNavItems über canOpenRequestsPage, weil requiresPermission
+    // das users:absence+users:read-Paar nicht ausdrücken kann.
+    ...STAFF_FLAT_PAGES.anfragen,
+    icon: navigationIcons.tray,
+    concept: "requests",
+    activeColor: "text-moto-blue",
   },
   {
     href: "#",
@@ -336,48 +344,6 @@ const NFC_ONLY_HREFS = new Set<string>([
 // accordion is gated separately below (it's not in NAV_ITEMS).
 const BINARY_HIDDEN_HREFS = new Set<string>(["/rooms", "/activities"]);
 
-// `tKey` is the parentNav catalog key; the German `label` is the fallback used
-// only when the preview list is rendered outside an intl context. Mapping on a
-// stable key (not the German label) keeps the translation correct even if the
-// fallback wording changes.
-const PARENT_PREVIEW_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "#",
-    label: "Kontaktdaten",
-    tKey: "contactData",
-    icon: navigationIcons.profile,
-    concept: "accounts",
-    comingSoon: true,
-  },
-];
-
-/**
- * Sidebar nav icon. The nav renders icons as raw `<path d>` strings from
- * `navigationIcons`, so this wraps the identical 8-line `<svg>` every item used
- * to repeat inline.
- */
-function NavIcon({
-  d,
-  muted = false,
-}: Readonly<{ d: string; muted?: boolean }>) {
-  return (
-    <svg
-      className={`mr-3 h-5 w-5 shrink-0 ${muted ? "text-gray-300" : "text-gray-400 group-hover:text-gray-500"}`}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth={2}
-        d={d}
-      />
-    </svg>
-  );
-}
-
 /** Determine if a group sub-item should be highlighted as active */
 function isGroupSubItemActive(
   childGroupId: string | null,
@@ -392,16 +358,25 @@ function isGroupSubItemActive(
   return index === 0;
 }
 
-/** Determine if a room sub-item should be highlighted as active */
+/**
+ * Determine if a supervision sub-item should be highlighted as active.
+ * Sessions are keyed by active-group ID (`?session=`, #2265); the legacy
+ * room key still resolves for old links and stored state.
+ */
 function isRoomSubItemActive(
+  childSessionId: string | null,
   childRoomId: string | null,
+  sessionId: string,
   roomId: string,
   pathname: string,
+  currentSessionParam: string | null,
   currentRoomParam: string | null,
   index: number,
 ): boolean {
+  if (childSessionId) return childSessionId === sessionId;
   if (childRoomId) return childRoomId === roomId;
   if (!pathname.startsWith("/active-supervisions")) return false;
+  if (currentSessionParam) return currentSessionParam === sessionId;
   if (currentRoomParam) return currentRoomParam === roomId;
   return index === 0;
 }
@@ -418,19 +393,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
-  const parentPreviewItems = useMemo(
-    () =>
-      PARENT_PREVIEW_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
-
   // Compare every active state against clean tenant-internal paths. The helper
   // only strips in path-routing mode, avoiding slug/route collisions on tenant
   // subdomains.
@@ -450,8 +416,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
   } = useOptionalSupervision();
 
   // Get unread suggestions count for badge (teacher mode)
-  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread();
-  // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
+  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
+    mode === "teacher",
+  );
+  // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
+  // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
+  // Mitarbeiter-Eintrag trägt kein eigenes Badge mehr.
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Get unread suggestions count for badge (operator mode)
   const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
@@ -462,26 +432,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
-  // Unread OGS messages badge (parents portal) — only fetches in parent mode.
-  const { unreadCount: parentMessagesUnread } = useParentMessagesUnread(
-    mode === "parent",
-  );
-  // Unread announcements badge for the parents-portal Neuigkeiten item (#1669).
-  const { unreadCount: parentNewsUnread } = useParentNewsUnread(
-    mode === "parent",
-  );
-  // Only advertise Essensplan in the parents portal once a linked school runs
-  // a meal plan; otherwise the link leads to an empty/unavailable page.
-  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
-  // Only advertise Neuigkeiten in the parents portal once a linked school
-  // broadcasts announcements; otherwise the feed is empty (the backend excludes
-  // disabled tenants) and the link dead-ends. Distinct from the staff-side
-  // parentNewsEnabled below, which reads the tenant settings schema.
-  const parentPortalNewsEnabled = useParentNewsEnabled(mode === "parent");
-  // Unread product-team replies on the guardian's feedback board (#1678).
-  const { unreadCount: parentFeedbackUnread } = useParentFeedbackUnread(
-    mode === "parent",
-  );
+  // Offene Anmeldungsänderungen (config:manage, #2435). Sie zählen seit dem
+  // Umzug ins Anfragen-Modul auf dasselbe Badge ein.
+  const { unreadCount: enrollmentRequestsPendingCount } =
+    useEnrollmentRequestsPending();
+  const requestsPendingCount =
+    changeRequestsPendingCount +
+    staffAbsencesPendingCount +
+    enrollmentRequestsPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -542,11 +500,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Kalenderzeiträumen; Abrechnung ist unabhängig davon über config:manage
   // geschützt.
   const planningSubPages = PLANNING_SUB_PAGES.filter((page) => {
-    if (!userIsAdmin) {
-      return (
-        page.nonAdminPermission !== undefined &&
-        hasPermission(session, page.nonAdminPermission)
-      );
+    // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
+    // (#2283); das timetable.enabled-Gate darunter gilt für alle.
+    if (
+      !userIsAdmin &&
+      (page.nonAdminPermission === undefined ||
+        !hasPermission(session, page.nonAdminPermission))
+    ) {
+      return false;
     }
     return (
       timetableEnabled ||
@@ -594,8 +555,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return true;
           case "approvals":
             return userIsAdmin;
-          case "changeRequests":
-            return userIsAdmin || hasPermission(session, "users:update");
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "mealPlan":
@@ -608,14 +567,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Aggregate Eltern badge: unread messages plus pending change requests when
-  // the corresponding sub-page is visible.
-  const parentShowsChangeRequests = parentSubPages.some(
-    (page) => page.feature === "changeRequests",
-  );
-  const parentSectionBadgeCount =
-    messagesUnreadCount +
-    (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
+  // Eltern badge: unread messages. Die Elternanfragen zählen seit #2429 am
+  // Top-Level-Eintrag "Anfragen", nicht mehr hier.
+  const parentSectionBadgeCount = messagesUnreadCount;
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
@@ -623,6 +577,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // matches class_day:read, but admins have no class assignments and the
     // page would render empty for them.
     if (item.href === "/klassen") return userIsLehrkraft;
+    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
+    // deckt users:update, das Paar users:absence+users:read und
+    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -833,7 +791,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href}
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -849,11 +807,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 className="ml-2"
               />
             )}
-            {item.href === "/staff" && (
+            {item.href === "/anfragen" && (
               <NotificationBadge
-                count={staffAbsencesPendingCount}
+                count={requestsPendingCount}
                 tone="staff"
-                ariaLabel={`${staffAbsencesPendingCount} ${staffAbsencesPendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
                 className="ml-2"
               />
             )}
@@ -892,6 +850,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Get current search params for group/room selection
   const currentGroupParam = searchParams.get("group");
   const currentRoomParam = searchParams.get("room");
+  const currentSessionParam = searchParams.get("session");
 
   // On child pages (e.g. student detail with ?from=/ogs-groups), determine
   // which sub-item should stay highlighted using the last selection from localStorage.
@@ -904,6 +863,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
   );
   const childRoomId = useLocalStorageValue(
     "sidebar-last-room",
+    childFromParam?.startsWith("/active-supervisions") ?? false,
+  );
+  const childSessionId = useLocalStorageValue(
+    "supervision-last-session",
     childFromParam?.startsWith("/active-supervisions") ?? false,
   );
 
@@ -963,13 +926,27 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const handleSupervisionsToggle = useCallback(() => {
     toggle("supervisions");
     if (!pathname.startsWith("/active-supervisions")) {
+      // Prefer the precise session key (#2265); the room key is the legacy
+      // fallback for state written before session tracking existed.
+      const savedSessionId = localStorage.getItem("supervision-last-session");
       const savedRoomId = localStorage.getItem("sidebar-last-room");
-      const targetRoom = savedRoomId
-        ? supervisedRooms.find((r) => r.id === savedRoomId)
-        : supervisedRooms[0];
-      const roomId = targetRoom?.id ?? supervisedRooms[0]?.id;
-      if (roomId) {
-        router.push(`/active-supervisions?room=${roomId}`);
+      const targetRoom =
+        (savedSessionId
+          ? supervisedRooms.find((r) =>
+              r.isSchulhof
+                ? savedSessionId === "schulhof"
+                : r.groupId === savedSessionId,
+            )
+          : undefined) ??
+        (savedRoomId
+          ? supervisedRooms.find((r) => r.id === savedRoomId)
+          : undefined) ??
+        supervisedRooms[0];
+      if (targetRoom) {
+        const sessionId = targetRoom.isSchulhof
+          ? "schulhof"
+          : targetRoom.groupId;
+        router.push(`/active-supervisions?session=${sessionId}`);
       } else {
         router.push("/active-supervisions");
       }
@@ -1113,120 +1090,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 </div>
               </div>
             ))}
-          </nav>
-        </div>
-      </aside>
-    );
-  }
-
-  if (mode === "parent") {
-    // One item list instead of eight near-identical hand-written <Link> blocks
-    // with inline <svg><path d={...}> — every item differed only in href, icon
-    // and badge, so a change to the row markup had to be made eight times.
-    const parentNavItems: readonly {
-      href: string;
-      label: string;
-      icon: string;
-      badge?: number;
-      visible?: boolean;
-    }[] = [
-      {
-        href: "/parents",
-        label: tParentNav("start"),
-        icon: navigationIcons.home,
-      },
-      {
-        href: "/parents/children",
-        label: tParentNav("children"),
-        icon: navigationIcons.group,
-      },
-      {
-        href: "/parents/messages",
-        label: tParentNav("messages"),
-        icon: navigationIcons.chat,
-        badge: parentMessagesUnread,
-      },
-      {
-        href: "/parents/calendar",
-        label: tParentNav("calendar"),
-        icon: navigationIcons.calendar,
-      },
-      {
-        href: "/parents/news",
-        label: tParentNav("news"),
-        icon: navigationIcons.newspaper,
-        badge: parentNewsUnread,
-        visible: parentPortalNewsEnabled,
-      },
-      {
-        href: "/parents/meal-plan",
-        label: tParentNav("mealPlan"),
-        icon: navigationIcons.utensils,
-        visible: parentMealPlanEnabled,
-      },
-    ];
-
-    return (
-      <aside
-        className={`min-h-screen w-64 border-r border-gray-200/70 bg-white/95 ${className}`}
-      >
-        <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
-          <nav className="flex-1 p-3 lg:p-4 xl:p-3">
-            {parentNavItems
-              .filter((item) => item.visible !== false)
-              .map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={getLinkClasses(item.href)}
-                >
-                  <NavIcon d={item.icon} />
-                  <span>{item.label}</span>
-                  {item.badge !== undefined && (
-                    <UnreadBadge count={item.badge} className="ml-auto" />
-                  )}
-                </Link>
-              ))}
-            <div className="mt-5">
-              <p className="mb-1.5 px-3 text-[10px] font-semibold tracking-wider text-gray-400 uppercase lg:px-4 xl:px-3">
-                {tParentNav("comingSoon")}
-              </p>
-              <div className="space-y-1">
-                {parentPreviewItems.map((item) => (
-                  <div
-                    key={item.label}
-                    className={getLinkClasses(item.href, true)}
-                    aria-disabled="true"
-                  >
-                    <NavIcon d={item.icon} muted />
-                    <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                      <span className="truncate">{item.label}</span>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                        {tParentNav("soon")}
-                      </span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </nav>
-
-          {/* Bottom-pinned, like the staff sidebar's Feedback item: this is a
-              channel to the moto product team, not a daily-use area, so it must
-              not compete with the child's own pages above. */}
-          <nav className="space-y-1 border-t border-gray-200 p-3 lg:p-4 xl:p-3">
-            <Link
-              href="/parents/feedback"
-              className={getLinkClasses("/parents/feedback")}
-            >
-              <NavIcon d={navigationIcons.feedback} />
-              <span>{tParentNav("feedback")}</span>
-              <UnreadBadge
-                count={parentFeedbackUnread}
-                tone="feedback"
-                className="ml-auto"
-              />
-            </Link>
           </nav>
         </div>
       </aside>
@@ -1388,14 +1251,17 @@ function SidebarContent({ className = "" }: SidebarProps) {
                   key={`${room.id}-${room.groupId ?? index}`}
                   href={
                     room.isSchulhof
-                      ? `/active-supervisions?room=schulhof`
-                      : `/active-supervisions?room=${room.id}`
+                      ? `/active-supervisions?session=schulhof`
+                      : `/active-supervisions?session=${room.groupId}`
                   }
                   label={room.name}
                   isActive={isRoomSubItemActive(
+                    childSessionId,
                     childRoomId,
+                    room.isSchulhof ? "schulhof" : room.groupId,
                     room.isSchulhof ? "schulhof" : room.id,
                     pathname,
+                    currentSessionParam,
                     currentRoomParam,
                     index,
                   )}
@@ -1404,7 +1270,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Kindersuche (flat) */}
+          {/* Alle Kinder (flat) */}
           {beforeAccordionItems
             .filter((item) => item.href === "/students/search")
             .map(renderNavItem)}
@@ -1418,8 +1284,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
             renderNavItem(substitutionsItem)}
 
           {/* Eltern accordion — bundles the parent-communication surfaces
-              (Nachrichten, Anfragen, Mitteilungen, Essensplan) behind an
-              overview hub. Shown to all staff; sub-items are gated per item. */}
+              (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
+              overview hub. Shown to all staff; sub-items are gated per item.
+              Die Elternanfragen leben seit #2429 im Top-Level-Modul
+              "Anfragen". */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
             concept="parents"
@@ -1447,11 +1315,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 label={page.label}
                 isActive={activeParentSubPageHref === page.href}
                 badgeCount={
-                  page.feature === "messages"
-                    ? messagesUnreadCount
-                    : page.feature === "changeRequests"
-                      ? changeRequestsPendingCount
-                      : 0
+                  page.feature === "messages" ? messagesUnreadCount : 0
                 }
               />
             ))}
@@ -1489,10 +1353,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
           )}
 
           {/* Planung accordion (#1946) — bündelt Betreuungsplan, Dienstplan,
-              Vertretung und Kalenderzeiträume für Admins. Berechtigte
-              Nicht-Admins behalten Abrechnung als einzigen Unterpunkt. Bei
-              explizit ausgeschaltetem timetable.enabled bleiben für Admins
-              Kalenderzeiträume und Abrechnung übrig. */}
+              Vertretung und Kalenderzeiträume für Admins. Bei explizit
+              ausgeschaltetem timetable.enabled bleiben für Admins
+              Kalenderzeiträume und Abrechnung übrig.
+
+              Nicht-Admins erreichen die Betreuungsplan-Leseansicht (#2283)
+              als Tab in "Mein Kalender"; das Akkordeon zeigt ihnen nur
+              Seiten mit gehaltener nonAdminPermission (heute: Abrechnung
+              über config:manage). */}
           {planningSubPages.length > 0 && (
             <SidebarAccordionSection
               icon={navigationIcons.betreuungsplan}

@@ -154,7 +154,7 @@ type GroupRepository interface {
 	// is application-level work now (multi-source follow-up to #2137). Not
 	// expressible via the generic Repository[T] update because both jsonb
 	// columns must change atomically under the CHECK constraint.
-	UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int) error
+	UpdateTemplateOfferingSource(ctx context.Context, id int64, offeringIDs []int64, gradeLevels []int, schoolClasses []string) error
 
 	// FindTemplatesWithOfferingSource returns every non-archived template of
 	// the tenant that declares ANY care offering as its roster source (#2137).
@@ -310,6 +310,7 @@ type TemplateFieldsUpdate struct {
 	RoomID                  int64
 	EducationGroupID        *int64
 	MaxParticipants         int
+	MaxParticipantsProvided bool
 	// RequiredStaff is the manual Personalbedarf override (#1839). nil ->
 	// clear the override (derive from the Betreuungsschlüssel).
 	RequiredStaff     *int
@@ -322,10 +323,12 @@ type TemplateFieldsUpdate struct {
 	ListKind *string
 	// Notes is the durable Wochennotiz for the template; nil clears it.
 	Notes *string
-	// SourceCareOfferingIDs/SourceGradeLevels are the offering-source rule
-	// (#2137, multi-source follow-up); an empty id list clears both.
+	// SourceCareOfferingIDs/SourceGradeLevels/SourceSchoolClasses are the
+	// offering-source rule (#2137, multi-source follow-up, #2482); an empty
+	// id list clears all three. Grade and class filter are mutually exclusive.
 	SourceCareOfferingIDs []int64
 	SourceGradeLevels     []int
+	SourceSchoolClasses   []string
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -365,6 +368,9 @@ type TemplateListRow struct {
 	// SourceGradeLevelsJSON carries the jsonb grade filter as its text form
 	// ('' = NULL); parse with ParseSourceGradeLevels.
 	SourceGradeLevelsJSON string `bun:"source_grade_levels_json"`
+	// SourceSchoolClassesJSON carries the jsonb class filter as its text form
+	// ('' = NULL); parse with ParseSourceSchoolClasses (#2482).
+	SourceSchoolClassesJSON string `bun:"source_school_classes_json"`
 	// ListKind classifies the template for printable daily lists (#1565).
 	ListKind sql.NullString `bun:"list_kind"`
 	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
@@ -430,6 +436,22 @@ func (r TemplateListRow) ParseSourceGradeLevels() ([]int, error) {
 		return nil, nil
 	}
 	return levels, nil
+}
+
+// ParseSourceSchoolClasses decodes the SourceSchoolClassesJSON text form of
+// the jsonb class filter (#2482). Empty text (NULL column) yields nil.
+func (r TemplateListRow) ParseSourceSchoolClasses() ([]string, error) {
+	if r.SourceSchoolClassesJSON == "" {
+		return nil, nil
+	}
+	var classes []string
+	if err := json.Unmarshal([]byte(r.SourceSchoolClassesJSON), &classes); err != nil {
+		return nil, fmt.Errorf("parse source_school_classes: %w", err)
+	}
+	if len(classes) == 0 {
+		return nil, nil
+	}
+	return classes, nil
 }
 
 // TemplateWeekdayRosterRow is one weekday-scoped roster membership of a

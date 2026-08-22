@@ -25,6 +25,8 @@ import (
 // of today. Fixed now is Monday 2026-06-01; the requested day is Tuesday
 // 2026-06-02.
 func TestListStudents_DayPlanningForDate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }
@@ -37,16 +39,14 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 	sickTodayPlannedTomorrow := testpkg.CreateTestStudent(t, tc.db, "DatePlan", "SickToday", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "DatePlan", "Creator")
 	device := testpkg.CreateTestDevice(t, tc.db, "date-planning-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, plannedMondayOnly.ID, plannedTomorrow.ID, sickTomorrow.ID, walkInToday.ID, sickTodayPlannedTomorrow.ID, staff.ID, device.ID)
 
 	tomorrow := timezone.NewDate(2026, time.June, 2)
 
 	// Planning signals: one child only planned for Mondays, two planned for the
 	// requested Tuesday.
-	mondaySchedule := testpkg.CreateTestPickupSchedule(t, tc.db, plannedMondayOnly.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
-	tuesdaySchedule := testpkg.CreateTestPickupSchedule(t, tc.db, plannedTomorrow.ID, scheduleModel.WeekdayTuesday, staff.ID, "15:30")
-	sickTodaySchedule := testpkg.CreateTestPickupSchedule(t, tc.db, sickTodayPlannedTomorrow.ID, scheduleModel.WeekdayTuesday, staff.ID, "14:00")
-	defer testpkg.CleanupScheduleFixturesB11(t, tc.db, nil, nil, []int64{mondaySchedule.ID, tuesdaySchedule.ID, sickTodaySchedule.ID}, nil, nil, nil)
+	testpkg.CreateTestPickupSchedule(t, tc.db, plannedMondayOnly.ID, scheduleModel.WeekdayMonday, staff.ID, "15:30")
+	testpkg.CreateTestPickupSchedule(t, tc.db, plannedTomorrow.ID, scheduleModel.WeekdayTuesday, staff.ID, "15:30")
+	testpkg.CreateTestPickupSchedule(t, tc.db, sickTodayPlannedTomorrow.ID, scheduleModel.WeekdayTuesday, staff.ID, "14:00")
 
 	// Currently checked in — must not count as a plan for tomorrow.
 	testpkg.CreateTestAttendance(t, tc.db, walkInToday.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
@@ -68,7 +68,7 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 		ReportedAt: fixedNow,
 		Source:     activeModel.StudentStatusSourcePlanned,
 	}
-	statusDay.SetTenantID(1)
+	statusDay.SetTenantID(testpkg.Tenant(t))
 	_, err = tc.db.NewInsert().Model(statusDay).
 		ModelTableExpr("active.student_status_days").
 		Returning("id").
@@ -185,6 +185,8 @@ func decodeStudentLocationsByID(t *testing.T, body []byte) map[int64]studentLive
 // active.visits, and through the current-location snapshot on the response.
 // Fixed now is Monday 2026-06-01; the planning day is Tuesday 2026-06-02.
 func TestListStudents_LiveStateForPlanningDate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
 	tc.resource.Now = func() time.Time { return fixedNow }
@@ -193,7 +195,6 @@ func TestListStudents_LiveStateForPlanningDate(t *testing.T) {
 	checkedIn := testpkg.CreateTestStudent(t, tc.db, "LiveState", "CheckedIn", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "LiveState", "Creator")
 	device := testpkg.CreateTestDevice(t, tc.db, "live-state-device")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, checkedIn.ID, staff.ID, device.ID)
 
 	testpkg.CreateTestAttendance(t, tc.db, checkedIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 

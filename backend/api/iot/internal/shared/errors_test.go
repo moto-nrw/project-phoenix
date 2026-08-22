@@ -16,12 +16,16 @@ import (
 )
 
 func TestErrorMessageConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.NotEmpty(t, shared.ErrMsgPersonNotStudent)
 	assert.NotEmpty(t, shared.ErrMsgRFIDTagNotFound)
 }
 
 // Test RoomCapacityExceededError
 func TestErrorRenderer_IoTErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		err                error
@@ -52,6 +56,8 @@ func TestErrorRenderer_IoTErrors(t *testing.T) {
 
 // Test ErrorRenderer for Active Service Errors
 func TestErrorRenderer_ActiveErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -79,6 +85,7 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 		{"ErrInvalidTimeRange", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidTimeRange}},
 		{"ErrCannotDeleteActiveGroup", &activeSvc.ActiveError{Err: activeSvc.ErrCannotDeleteActiveGroup}},
 		{"ErrInvalidData", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidData}},
+		{"ErrNoRoomAvailable", &activeSvc.ActiveError{Err: activeSvc.ErrNoRoomAvailable}},
 		// Database errors
 		{"ErrDatabaseOperation", &activeSvc.ActiveError{Err: activeSvc.ErrDatabaseOperation}},
 	}
@@ -91,8 +98,21 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 	}
 }
 
+func TestErrorRenderer_NoRoomAvailableUsesKioskContract(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/sessions", nil)
+	require.NoError(t, render.Render(rec, req, shared.ErrorRenderer(activeSvc.ErrNoRoomAvailable)))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "no room available for this activity")
+}
+
 // Test ErrorRenderer for Feedback Service Errors
 func TestErrorRenderer_FeedbackErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -113,9 +133,30 @@ func TestErrorRenderer_FeedbackErrors(t *testing.T) {
 
 // Test ErrorRenderer for Unknown Errors
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	unknownErr := errors.New("unknown error")
 	renderer := shared.ErrorRenderer(unknownErr)
 	assert.NotNil(t, renderer)
+}
+
+func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
+	renderer := shared.ErrorRenderer(&activeSvc.RoomCapacityError{
+		RoomID:           42,
+		RoomName:         "Mensa",
+		CurrentOccupancy: 43,
+		MaxCapacity:      43,
+	})
+	require.NotNil(t, renderer)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/sessions", nil)
+	require.NoError(t, render.Render(rec, req, renderer))
+
+	assert.Equal(t, http.StatusConflict, rec.Code)
+	assert.Contains(t, rec.Body.String(), "room capacity exceeded")
 }
 
 // Test Capacity Error Response Render
@@ -127,6 +168,8 @@ func TestErrorRenderer_UnknownError(t *testing.T) {
 // must be the documented 404 "person is not a student" instead, which the kiosk
 // already renders in German.
 func TestErrorRenderer_StudentGraduatedUsesContractString(t *testing.T) {
+	t.Parallel()
+
 	renderer := shared.ErrorRenderer(&activeSvc.ActiveError{
 		Op:  "create visit",
 		Err: activeSvc.ErrStudentGraduated,

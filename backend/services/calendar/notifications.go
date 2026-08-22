@@ -280,6 +280,7 @@ func guardianAccountIDs(guardianIDs []int64, profiles map[int64]*userModels.Guar
 type guardianStudentGroup struct {
 	accountIDs []int64
 	studentIDs []int64
+	locale     string
 }
 
 // guardianStudentGroups splits an addressed audience so every event carries the
@@ -300,7 +301,8 @@ func guardianStudentGroups(recipients guardianRecipients, accountIDs []int64) []
 		if len(studentIDs) == 0 {
 			continue
 		}
-		key := guardianStudentGroupKey(studentIDs)
+		locale := guardianAccountLocale(recipients, accountID)
+		key := locale + ":" + guardianStudentGroupKey(studentIDs)
 		if at, ok := index[key]; ok {
 			groups[at].accountIDs = append(groups[at].accountIDs, accountID)
 			continue
@@ -309,9 +311,24 @@ func guardianStudentGroups(recipients guardianRecipients, accountIDs []int64) []
 		groups = append(groups, guardianStudentGroup{
 			accountIDs: []int64{accountID},
 			studentIDs: studentIDs,
+			locale:     locale,
 		})
 	}
 	return groups
+}
+
+func guardianAccountLocale(recipients guardianRecipients, accountID int64) string {
+	for _, guardianID := range recipients.guardianIDs {
+		profile, ok := recipients.profiles[guardianID]
+		if !ok || profile.AccountID == nil || *profile.AccountID != accountID {
+			continue
+		}
+		if profile.PortalLocale != nil {
+			return *profile.PortalLocale
+		}
+		return ""
+	}
+	return ""
 }
 
 // guardianStudentGroupKey identifies a set of children independently of the
@@ -360,22 +377,26 @@ func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int
 	return studentIDs
 }
 
-// appointmentNotificationCopy returns the display-safe German title and body for
+// appointmentNotificationCopy returns the display-safe default title and body for
 // a lifecycle push. Deliberately free of the appointment title: a push payload
 // leaves the backend and an appointment name can carry a child's name ("Gespräch
 // Familie Müller"). The deep link takes the parent to the authenticated
 // calendar, where the real subject is shown.
 func appointmentNotificationCopy(kind string) (title, body string) {
+	return localizedAppointmentNotificationCopy(kind, "")
+}
+
+func localizedAppointmentNotificationCopy(kind, locale string) (title, body string) {
+	notificationKind := notifications.ParentAppointmentPublished
 	switch kind {
 	case platformModels.EmailKindAppointmentUpdated:
-		return "Termin geändert", "Ein Termin für Sie wurde geändert."
+		notificationKind = notifications.ParentAppointmentUpdated
 	case platformModels.EmailKindAppointmentCancelled:
-		return "Termin abgesagt", "Ein Termin für Sie wurde abgesagt."
+		notificationKind = notifications.ParentAppointmentCancelled
 	case platformModels.EmailKindAppointmentReminder:
-		return "Terminerinnerung", "Ein Termin für Sie steht bald an."
-	default:
-		return "Neuer Termin", "Für Sie wurde ein neuer Termin eingetragen."
+		notificationKind = notifications.ParentAppointmentReminder
 	}
+	return notifications.ParentAppointmentCopy(locale, notificationKind)
 }
 
 // notifyGuardianDevices is the push/in-app counterpart of notifyGuardians: same
@@ -421,7 +442,7 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 		}
 		accountIDs = guardianAccountIDs(recipients.guardianIDs, recipients.profiles)
 		for _, group := range guardianStudentGroups(recipients, accountIDs) {
-			if _, err := s.dispatchGuardianAccountDevices(txCtx, current, kind, group.accountIDs, group.studentIDs); err != nil {
+			if _, err := s.dispatchGuardianAccountDevicesLocalized(txCtx, current, kind, group.accountIDs, group.studentIDs, group.locale); err != nil {
 				return err
 			}
 		}
@@ -450,6 +471,10 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 // transaction before the payload leaves the backend — can drop an account whose
 // access to all of them was revoked since this one resolved the audience.
 func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs, studentIDs []int64) (bool, error) {
+	return s.dispatchGuardianAccountDevicesLocalized(ctx, appointment, kind, accountIDs, studentIDs, "")
+}
+
+func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs, studentIDs []int64, locale string) (bool, error) {
 	if s.cfg.Notifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
@@ -473,7 +498,7 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 		return false, nil
 	}
 
-	title, body := appointmentNotificationCopy(kind)
+	title, body := localizedAppointmentNotificationCopy(kind, locale)
 	priority := notifications.PriorityNormal
 	if kind == platformModels.EmailKindAppointmentCancelled {
 		priority = notifications.PriorityHigh
@@ -501,10 +526,14 @@ func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointmen
 // dispatchGuardianAccountReminderDevices is the reminder's synchronous
 // counterpart; studentIDs carry the same delivery-time access recheck.
 func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64) (bool, error) {
+	return s.dispatchGuardianAccountReminderDevicesLocalized(ctx, appointment, accountIDs, studentIDs, "")
+}
+
+func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64, locale string) (bool, error) {
 	if s.cfg.ReminderNotifier == nil || len(accountIDs) == 0 {
 		return false, nil
 	}
-	title, body := appointmentNotificationCopy(platformModels.EmailKindAppointmentReminder)
+	title, body := localizedAppointmentNotificationCopy(platformModels.EmailKindAppointmentReminder, locale)
 	if err := s.cfg.ReminderNotifier.NotifySynchronously(ctx, notifications.Event{
 		Type: notifications.TypeParentAppointmentReminder, Title: title, Body: body,
 		DeepLink: parentCalendarDeepLink, Priority: notifications.PriorityNormal,

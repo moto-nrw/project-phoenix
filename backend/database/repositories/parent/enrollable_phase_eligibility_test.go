@@ -79,9 +79,10 @@ func phaseNamesOf(list []*parentModels.EnrollablePhase) map[string]string {
 // --- ListEnrollable: audience + permission filtering (#1663) -----------
 
 func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithoutGuardianLink(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -105,10 +106,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseHiddenWithou
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	linkedName := fmt.Sprintf("eligibility-visible-%d", time.Now().UnixNano())
@@ -121,10 +122,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_LinkedParentsPhaseVisibleWithS
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedToExistingStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	revokeGuardianSubmitPermission(t, db, chain.StudentID)
 
@@ -148,9 +149,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_RevokedSubmitPermissionScopedT
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutGuardianLink(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableEnrollmentForTenant(t, db, tenantID)
 
@@ -178,10 +180,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenWithoutG
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleWithSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 
 	existingName := fmt.Sprintf("eligibility-exvisible-%d", time.Now().UnixNano())
@@ -208,10 +210,10 @@ func setStudentStatus(t *testing.T, db *bun.DB, studentID int64, status string) 
 // phase would be a guaranteed dead end — while linked_parents stays visible,
 // because that audience exists to enroll a genuinely NEW sibling (#1663).
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInactiveOnlyChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "inactive")
 
@@ -231,10 +233,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsHiddenForInact
 // The same account with a still-enrolled (pending) child DOES see the phase:
 // the enrolled probe must accept pending, matching the submit-path scope.
 func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPendingChild(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	setStudentStatus(t, db, chain.StudentID, "pending")
 
@@ -248,10 +250,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_ExistingStudentsVisibleForPend
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_DeactivatedMappingHidesLinkedPhase(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// Full permission set stays on the guardian link; only the membership
 	// mapping is deactivated. The linked_parents phase must still disappear.
@@ -277,10 +279,10 @@ func setSchoolHidden(t *testing.T, db *bun.DB, tenantID int64, hidden bool) {
 // --- ListEnrollable: hidden-school discovery (#1663) -------------------
 
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinkedParent(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -315,10 +317,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForUnlinke
 // service dates to accounts with no guardian relationship at all. Only an
 // actual family link may lift the hidden flag (#1663).
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuardianMember(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -352,10 +354,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolExcludedForNonGuar
 }
 
 func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMember(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	enableEnrollmentForTenant(t, db, chain.TenantID)
 	// The chain reuses the shared tenant 1; always restore hidden so this
 	// test can never leak the flag onto tenant-1 tests that run after it.
@@ -375,10 +377,10 @@ func TestEnrollablePhaseRepository_ListEnrollable_HiddenSchoolVisibleToActiveMem
 // --- GuardianSubmitStatus ----------------------------------------------
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	deactivateAccountTenantMapping(t, db, chain.AccountID)
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
@@ -395,10 +397,10 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus_DeactivatedMappingDropsS
 }
 
 func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 
@@ -415,6 +417,9 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 
 	// Fresh account: nothing anywhere.
 	fresh := testpkg.CreateTestAccount(t, db, "submitstatus-fresh")
+	// "nothing anywhere" includes the tenant mapping CreateTestAccount adds
+	// for the test's own tenant (#2419).
+	testpkg.UnclaimTestAccount(t, db, fresh.ID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("auth.accounts").Where("id = ?", fresh.ID).Exec(context.Background())
 	})
@@ -449,10 +454,10 @@ func TestEnrollablePhaseRepository_GuardianSubmitStatus(t *testing.T) {
 // loses the enrolled one, so the parents-portal form gate refuses the
 // existing_students phase its picker already hides (#1663).
 func TestEnrollablePhaseRepository_GuardianSubmitStatus_EnrolledPermissionTracksStudentStatus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	repo := parentRepo.NewEnrollablePhaseRepository(db)
 	load := func() *parentModels.GuardianSubmitStatus {

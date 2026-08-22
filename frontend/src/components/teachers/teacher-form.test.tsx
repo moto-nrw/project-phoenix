@@ -390,7 +390,7 @@ describe("TeacherForm", () => {
     render(
       <TeacherForm
         {...defaultProps}
-        initialData={{ id: "1", person_id: 10 }}
+        initialData={{ id: "1", person_id: "10" }}
         onSubmitAction={onSubmitAction}
       />,
     );
@@ -411,7 +411,7 @@ describe("TeacherForm", () => {
           first_name: "John",
           last_name: "Doe",
           id: "1",
-          person_id: 10, // person_id is passed through as number
+          person_id: "10", // person_id is passed through as the decimal string it was loaded as
         }),
       );
     });
@@ -566,7 +566,7 @@ describe("TeacherForm", () => {
       render(
         <TeacherForm
           {...defaultProps}
-          initialData={{ id: "1", person_id: 10 }}
+          initialData={{ id: "1", person_id: "10" }}
           onSubmitAction={onSubmitAction}
         />,
       );
@@ -602,7 +602,7 @@ describe("TeacherForm", () => {
     render(
       <TeacherForm
         {...defaultProps}
-        initialData={{ id: "1", person_id: 10, is_teacher: false }}
+        initialData={{ id: "1", person_id: "10", is_teacher: false }}
       />,
     );
 
@@ -615,7 +615,7 @@ describe("TeacherForm", () => {
     render(
       <TeacherForm
         {...defaultProps}
-        initialData={{ id: "1", person_id: 10, teacher_id: "7" }}
+        initialData={{ id: "1", person_id: "10", teacher_id: "7" }}
       />,
     );
 
@@ -628,7 +628,7 @@ describe("TeacherForm", () => {
     render(
       <TeacherForm
         {...defaultProps}
-        initialData={{ id: "1", person_id: 10 }}
+        initialData={{ id: "1", person_id: "10" }}
       />,
     );
 

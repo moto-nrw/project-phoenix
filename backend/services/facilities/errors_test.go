@@ -8,6 +8,8 @@ import (
 )
 
 func TestFacilitiesError_Error_WithNilErr(t *testing.T) {
+	t.Parallel()
+
 	err := &FacilitiesError{
 		Op:  "CreateRoom",
 		Err: nil,
@@ -18,6 +20,8 @@ func TestFacilitiesError_Error_WithNilErr(t *testing.T) {
 }
 
 func TestFacilitiesError_Error_WithErr(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("database connection failed")
 	err := &FacilitiesError{
 		Op:  "CreateRoom",
@@ -29,6 +33,8 @@ func TestFacilitiesError_Error_WithErr(t *testing.T) {
 }
 
 func TestFacilitiesError_Error_WithStandardError(t *testing.T) {
+	t.Parallel()
+
 	err := &FacilitiesError{
 		Op:  "GetRoom",
 		Err: ErrRoomNotFound,
@@ -39,6 +45,8 @@ func TestFacilitiesError_Error_WithStandardError(t *testing.T) {
 }
 
 func TestFacilitiesError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	originalErr := errors.New("underlying error")
 	err := &FacilitiesError{
 		Op:  "UpdateRoom",
@@ -49,6 +57,8 @@ func TestFacilitiesError_Unwrap(t *testing.T) {
 }
 
 func TestFacilitiesError_Unwrap_Nil(t *testing.T) {
+	t.Parallel()
+
 	err := &FacilitiesError{
 		Op:  "DeleteRoom",
 		Err: nil,
@@ -58,6 +68,8 @@ func TestFacilitiesError_Unwrap_Nil(t *testing.T) {
 }
 
 func TestFacilitiesError_ErrorsIs(t *testing.T) {
+	t.Parallel()
+
 	// Test that errors.Is works correctly with wrapped errors
 	err := &FacilitiesError{
 		Op:  "FindRoom",
@@ -69,6 +81,8 @@ func TestFacilitiesError_ErrorsIs(t *testing.T) {
 }
 
 func TestFacilitiesError_ChainedWrapping(t *testing.T) {
+	t.Parallel()
+
 	// Test multiple levels of wrapping
 	baseErr := errors.New("connection timeout")
 	wrapped1 := &FacilitiesError{
@@ -87,6 +101,8 @@ func TestFacilitiesError_ChainedWrapping(t *testing.T) {
 }
 
 func TestFacilitiesError_AllOperations(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		op   string

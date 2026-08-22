@@ -41,11 +41,6 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock Loading component
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div data-testid="loading">Loading...</div>,
-}));
-
 // Mock Button component
 vi.mock("~/components/ui/button", () => ({
   Button: ({
@@ -811,7 +806,9 @@ describe("StudentImportPage", () => {
 
     render(<StudentImportPage />);
 
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Kinder-Import wird geladen…"),
+    ).toBeInTheDocument();
   });
 
   it("handles missing token gracefully", async () => {

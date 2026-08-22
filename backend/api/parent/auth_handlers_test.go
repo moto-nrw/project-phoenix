@@ -108,6 +108,8 @@ func decodeError(t *testing.T, rr *httptest.ResponseRecorder) loginErrorBody {
 }
 
 func TestParentLogin_InvalidCredentials_Returns401WithCode(t *testing.T) {
+	t.Parallel()
+
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
 			return "", "", &authService.AuthError{Op: "login", Err: authService.ErrInvalidCredentials}
@@ -125,6 +127,8 @@ func TestParentLogin_InvalidCredentials_Returns401WithCode(t *testing.T) {
 }
 
 func TestParentLogin_AccountNotFound_MaskedAsInvalidCredentials(t *testing.T) {
+	t.Parallel()
+
 	// Account-enumeration mask: unknown email returns the same wire shape
 	// as wrong password. If this test starts failing with code="account_not_found"
 	// or similar, the masking has been removed and we're leaking which
@@ -145,6 +149,8 @@ func TestParentLogin_AccountNotFound_MaskedAsInvalidCredentials(t *testing.T) {
 }
 
 func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
+	t.Parallel()
+
 	// This is the case the frontend turns into
 	// "Ihr Konto ist deaktiviert. Bitte kontaktieren Sie die Schule."
 	// If the code is anything other than "account_inactive", the parent
@@ -166,6 +172,8 @@ func TestParentLogin_AccountInactive_Returns401WithDistinctCode(t *testing.T) {
 }
 
 func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
+	t.Parallel()
+
 	// Staff account hitting the parent portal. Backend MUST signal this
 	// distinctly so the frontend can mask it as invalid_credentials at
 	// the UI layer (account-enumeration mask) while keeping the
@@ -188,6 +196,8 @@ func TestParentLogin_NotAGuardian_Returns403WithCode(t *testing.T) {
 }
 
 func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {
+	t.Parallel()
+
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, email, password, _, _ string) (string, string, error) {
 			assert.Equal(t, "parent@example.com", email)
@@ -214,6 +224,8 @@ func TestParentLogin_Success_Returns200WithTokens(t *testing.T) {
 }
 
 func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	svc := &stubParentAuthService{
 		resetParent: func(_ context.Context, email string) (*authModel.PasswordResetToken, error) {
@@ -233,6 +245,8 @@ func TestParentPasswordReset_NeutralSuccess(t *testing.T) {
 }
 
 func TestParentPasswordReset_RateLimitedSetsRetryAfter(t *testing.T) {
+	t.Parallel()
+
 	retryAt := time.Now().Add(10 * time.Minute)
 	svc := &stubParentAuthService{
 		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
@@ -256,6 +270,8 @@ func TestParentPasswordReset_RateLimitedSetsRetryAfter(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_Success(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, token, newPassword string) error {
@@ -283,6 +299,8 @@ func TestParentPasswordResetConfirm_Success(t *testing.T) {
 // server error behind a "check your input" message or vice versa.
 
 func TestParentLogin_MalformedEmail_Returns400(t *testing.T) {
+	t.Parallel()
+
 	// Bind() rejects a non-email before the service is ever called.
 	svc := &stubParentAuthService{
 		loginParent: func(_ context.Context, _, _, _, _ string) (string, string, error) {
@@ -299,6 +317,8 @@ func TestParentLogin_MalformedEmail_Returns400(t *testing.T) {
 }
 
 func TestParentLogin_UnexpectedError_Returns500(t *testing.T) {
+	t.Parallel()
+
 	// A non-AuthError (or AuthError with an unrecognized cause) is a real
 	// server fault — it must not masquerade as a credentials problem.
 	svc := &stubParentAuthService{
@@ -315,6 +335,8 @@ func TestParentLogin_UnexpectedError_Returns500(t *testing.T) {
 }
 
 func TestParentPasswordReset_MalformedEmail_Returns400(t *testing.T) {
+	t.Parallel()
+
 	svc := &stubParentAuthService{
 		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
 			t.Fatal("service must not be called for an invalid request body")
@@ -329,6 +351,8 @@ func TestParentPasswordReset_MalformedEmail_Returns400(t *testing.T) {
 }
 
 func TestParentPasswordReset_UnexpectedError_Returns500(t *testing.T) {
+	t.Parallel()
+
 	svc := &stubParentAuthService{
 		resetParent: func(_ context.Context, _ string) (*authModel.PasswordResetToken, error) {
 			return nil, errors.New("smtp config missing")
@@ -342,6 +366,8 @@ func TestParentPasswordReset_UnexpectedError_Returns500(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_PasswordMismatch_Returns400(t *testing.T) {
+	t.Parallel()
+
 	// Bind() enforces new_password == confirm_password before the service runs.
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
@@ -359,6 +385,8 @@ func TestParentPasswordResetConfirm_PasswordMismatch_Returns400(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_TooShortPassword_Returns400(t *testing.T) {
+	t.Parallel()
+
 	// Length(8, 0) validation rejects short passwords at the bind layer.
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
@@ -376,6 +404,8 @@ func TestParentPasswordResetConfirm_TooShortPassword_Returns400(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_InvalidToken_Returns410(t *testing.T) {
+	t.Parallel()
+
 	// An expired/unknown/used token comes back as ErrInvalidToken and must map
 	// to 410 Gone, which the parents reset page renders as the "request a new
 	// link" copy — distinct from the 400 weak-password case (fix your password)
@@ -395,6 +425,8 @@ func TestParentPasswordResetConfirm_InvalidToken_Returns410(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
+	t.Parallel()
+
 	// The bind layer only checks length; the service enforces full complexity
 	// and returns ErrPasswordTooWeak, which must still surface as a 400.
 	svc := &stubParentAuthService{
@@ -412,6 +444,8 @@ func TestParentPasswordResetConfirm_WeakPassword_Returns400(t *testing.T) {
 }
 
 func TestParentPasswordResetConfirm_UnexpectedError_Returns500(t *testing.T) {
+	t.Parallel()
+
 	svc := &stubParentAuthService{
 		confirm: func(_ context.Context, _, _ string) error {
 			return errors.New("token store unavailable")

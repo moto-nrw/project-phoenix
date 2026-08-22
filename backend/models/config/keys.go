@@ -47,31 +47,19 @@ const (
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
 	// PrivacyConsent model into this per-tenant setting.
 	KeyPrivacyConsentRetentionDays = "gdpr.privacy_consent_retention_days"
+	// Retention window (days) for PWA standalone-usage rows
+	// (iot.pwa_standalone_usage, issue #2189). The metric only needs a
+	// 30-day activity window, so stale rows carry no value and are swept.
+	KeyGDPRPWAUsageRetentionDays = "gdpr.pwa_usage_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
+// The former gdpr.attendance_log_scope and gdpr.student_data_scope settings
+// were removed in #2329: student access is tenant-wide for verified staff.
 const (
 	KeyAttendanceLogEnabled  = "gdpr.attendance_log_enabled"
 	KeyAttendanceVisibleDays = "gdpr.attendance_visible_days"
 	KeyRoomDetailVisibleDays = "gdpr.room_detail_visible_days"
-	KeyAttendanceLogScope    = "gdpr.attendance_log_scope"
-)
-
-// AttendanceLogScope option values for KeyAttendanceLogScope.
-const (
-	AttendanceLogScopeGroupSupervisorsOnly = "group_supervisors_only"
-	AttendanceLogScopeAllStaff             = "all_staff"
-)
-
-// Student data scope / who can read full student profile data.
-const (
-	KeyStudentDataScope = "gdpr.student_data_scope"
-)
-
-// StudentDataScope option values for KeyStudentDataScope.
-const (
-	StudentDataScopeGroupSupervisorsOnly = "group_supervisors_only"
-	StudentDataScopeAllStaff             = "all_staff"
 )
 
 // Feedback settings.
@@ -137,7 +125,6 @@ const (
 	KeyPresenceMode                    = "operations.presence_mode"
 	KeyAttendanceWebEnabled            = "attendance.web_enabled"
 	KeyAttendanceNFCEnabled            = "attendance.nfc_enabled"
-	KeyWebCheckinAccess                = "attendance.web_checkin_access"
 	KeyStudentActivationIntervalMin    = "operations.student_activation_interval_minutes"
 	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
 	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
@@ -146,8 +133,12 @@ const (
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
+	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
+	KeyParentCarePickupRequestEnabled  = "operations.parent_care_pickup_request_enabled"
+	KeyParentCareModeRequestEnabled    = "operations.parent_care_mode_request_enabled"
 	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
 	KeyParentGuardianManagementEnabled = "operations.parent_guardian_management_enabled"
@@ -191,12 +182,6 @@ const (
 const (
 	PresenceModeDetailed = "detailed"
 	PresenceModeBinary   = "binary"
-)
-
-// WebCheckinAccess option values for KeyWebCheckinAccess.
-const (
-	WebCheckinAccessGroupSupervisors = "group_supervisors"
-	WebCheckinAccessAllStaff         = "all_staff"
 )
 
 // GroupMode option values for KeyGroupMode.
@@ -310,6 +295,8 @@ const (
 	KeyTimetableMaterializationWeekday    = "timetable.materialization_weekday"
 	KeyTimetableMaterializationWeeksAhead = "timetable.materialization_weeks_ahead"
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
+	KeyTimetableStartLeadMinutes          = "timetable.start_lead_minutes"
+	KeyTimetableEnforcePlannedEnd         = "timetable.enforce_planned_end"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
 	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max

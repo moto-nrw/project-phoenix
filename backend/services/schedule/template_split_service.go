@@ -34,6 +34,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -106,6 +107,7 @@ type TemplateSplitInput struct {
 	PlanningTrackID         *int64
 	PlanningTrackIDProvided bool
 	MaxParticipants         *int
+	MaxParticipantsProvided bool
 	// RequiredStaff is the manual Personalbedarf override (#1839) for the
 	// successor Group, already normalized (nil = clear/derive). It is only
 	// applied when RequiredStaffProvided is true; otherwise the successor
@@ -136,6 +138,8 @@ type TemplateSplitInput struct {
 	SourceCareOfferingIDsProvided bool
 	SourceGradeLevels             []int
 	SourceGradeLevelsProvided     bool
+	SourceSchoolClasses           []string
+	SourceSchoolClassesProvided   bool
 	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
 	// Group, already normalized (nil = clear). Only applied when NotesProvided
 	// is true; otherwise the successor inherits the source template's note. Same
@@ -309,6 +313,7 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 		// type drops the rule regardless of what the request carried.
 		in.SourceCareOfferingIDs = nil
 		in.SourceGradeLevels = nil
+		in.SourceSchoolClasses = nil
 	} else {
 		if !in.SourceCareOfferingIDsProvided {
 			in.SourceCareOfferingIDs = append([]int64(nil), old.SourceCareOfferingIDs...)
@@ -317,13 +322,29 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 		case len(in.SourceCareOfferingIDs) == 0:
 			in.SourceCareOfferingIDs = nil
 			in.SourceGradeLevels = nil
-		case !in.SourceGradeLevelsProvided:
-			in.SourceGradeLevels = append([]int(nil), old.SourceGradeLevels...)
+			in.SourceSchoolClasses = nil
+		default:
+			if !in.SourceGradeLevelsProvided {
+				in.SourceGradeLevels = append([]int(nil), old.SourceGradeLevels...)
+			}
+			if !in.SourceSchoolClassesProvided {
+				in.SourceSchoolClasses = append([]string(nil), old.SourceSchoolClasses...)
+			}
+			// The two filters are mutually exclusive, so an explicitly
+			// provided one replaces an inherited one instead of colliding
+			// with it (#2482): switching a split successor from Jahrgang to
+			// Klasse must not fail because the old filter came along.
+			if in.SourceGradeLevelsProvided && len(in.SourceGradeLevels) > 0 && !in.SourceSchoolClassesProvided {
+				in.SourceSchoolClasses = nil
+			}
+			if in.SourceSchoolClassesProvided && len(in.SourceSchoolClasses) > 0 && !in.SourceGradeLevelsProvided {
+				in.SourceGradeLevels = nil
+			}
 		}
 	}
 	if err := validateOfferingSourceInput(
-		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.TargetGroupType,
-		in.StudentIDs, in.WeekdayAssignments,
+		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.SourceSchoolClasses,
+		in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments,
 	); err != nil {
 		return &ScheduleError{Op: "split template: validate offering source", Err: err}
 	}
@@ -388,6 +409,7 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 		TemplateID:       successor.ID,
 		OfferingIDs:      append([]int64(nil), successor.SourceCareOfferingIDs...),
 		GradeLevels:      append([]int(nil), successor.SourceGradeLevels...),
+		SchoolClasses:    append([]string(nil), successor.SourceSchoolClasses...),
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    in.EffectiveDate,
 	}); err != nil {
@@ -410,7 +432,28 @@ func offeringRosterFeedChanged(old, successor *activitiesModel.Group) bool {
 	if len(successor.SourceCareOfferingIDs) == 0 {
 		return false
 	}
-	return !sameGradeLevelSet(old.SourceGradeLevels, successor.SourceGradeLevels)
+	if !sameGradeLevelSet(old.SourceGradeLevels, successor.SourceGradeLevels) {
+		return true
+	}
+	return !sameSchoolClassSet(old.SourceSchoolClasses, successor.SourceSchoolClasses)
+}
+
+// sameSchoolClassSet compares two class filters order- and case-insensitively
+// (#2482); both sides are duplicate-free by validation.
+func sameSchoolClassSet(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	seen := make(map[string]struct{}, len(left))
+	for _, class := range left {
+		seen[schoolclass.Normalize(class)] = struct{}{}
+	}
+	for _, class := range right {
+		if _, ok := seen[schoolclass.Normalize(class)]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func sameGradeLevelSet(left, right []int) bool {
@@ -958,6 +1001,9 @@ func validateSplitTemplateFields(in TemplateSplitInput) error {
 	if in.CategoryID <= 0 {
 		return fmt.Errorf("%w: category_id is required", ErrSplitInvalidInput)
 	}
+	if in.MaxParticipants != nil && *in.MaxParticipants <= 0 {
+		return fmt.Errorf("%w: max_participants must be greater than zero when set", ErrSplitInvalidInput)
+	}
 	if err := validateTemplateGradeLevelMax(in.GradeLevelMax); err != nil {
 		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
 	}
@@ -1255,8 +1301,11 @@ func (s *TemplateSplitService) capBoundedSegmentSupervisors(
 // MaxParticipants falls back to the old template's value when not provided.
 func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activitiesModel.Group, in TemplateSplitInput, tenantID int64) (*activitiesModel.Group, error) {
 	maxParticipants := old.MaxParticipants
-	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
-		maxParticipants = *in.MaxParticipants
+	if in.MaxParticipantsProvided || in.MaxParticipants != nil {
+		maxParticipants = 0
+		if in.MaxParticipants != nil {
+			maxParticipants = *in.MaxParticipants
+		}
 	}
 	// Personalbedarf override (#1839): only touch the successor's override when
 	// the request actually carried the field. When provided, the (already
@@ -1298,6 +1347,10 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if len(sourceCareOfferingIDs) > 0 && len(in.SourceGradeLevels) > 0 {
 		sourceGradeLevels = append(sourceGradeLevels, in.SourceGradeLevels...)
 	}
+	var sourceSchoolClasses []string
+	if len(sourceCareOfferingIDs) > 0 && len(sourceGradeLevels) == 0 && len(in.SourceSchoolClasses) > 0 {
+		sourceSchoolClasses = append(sourceSchoolClasses, in.SourceSchoolClasses...)
+	}
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
 		Name:                  in.Name,
@@ -1318,6 +1371,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		TargetSchoolClass:     in.TargetSchoolClass,
 		SourceCareOfferingIDs: sourceCareOfferingIDs,
 		SourceGradeLevels:     sourceGradeLevels,
+		SourceSchoolClasses:   sourceSchoolClasses,
 		ListKind:              listKind,
 		Notes:                 notes,
 	}

@@ -14,6 +14,7 @@ package schedule_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -26,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -46,22 +48,31 @@ type careFixture struct {
 	chain        testpkg.ParentChain
 	staffAccount int64
 	staffID      int64
+	autoExcusal  *schedule.PickupAutoExcusalSyncer
 }
 
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	sf, err := services.NewFactory(repos, db, slog.Default())
 	require.NoError(t, err)
 
-	svc := schedule.NewCareScheduleRequestService(
+	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		schedule.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		repos.InstanceStudent,
+		db,
+	)
+	svc := schedule.NewCareScheduleRequestServiceWithPickupChanges(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
+		repos.StudentPickupException,
+		repos.Attendance,
+		autoExcusal,
 		sf.UserContext,
 		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
 		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
@@ -70,12 +81,18 @@ func newCareFixture(t *testing.T) *careFixture {
 	)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, db, staff.ID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, staffAccount.ID) })
 
-	return &careFixture{db: db, svc: svc, sf: sf, repos: repos, chain: chain, staffAccount: staffAccount.ID, staffID: staff.ID}
+	return &careFixture{
+		db:           db,
+		svc:          svc,
+		sf:           sf,
+		repos:        repos,
+		chain:        chain,
+		staffAccount: staffAccount.ID,
+		staffID:      staff.ID,
+		autoExcusal:  autoExcusal,
+	}
 }
 
 // staffCtx carries the fixture's tenant, admin permissions (so the per-child
@@ -88,10 +105,33 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 	return ctx
 }
 
-// nonAdminCtx carries a staff caller with users:update but NO admin wildcard and
-// no supervised group, so the per-child write gate (CanUpdateStudent) denies —
-// used to prove the queue/decide scope rejects a staffer who cannot edit the
-// child.
+func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.Date, pickupTime time.Time) {
+	t.Helper()
+	ctx := f.staffCtx(f.staffAccount)
+	require.NoError(t, tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := schedule.LockCareExceptionDay(txCtx, f.db, f.chain.StudentID, date); err != nil {
+			return err
+		}
+		exception := &scheduleModels.StudentPickupException{
+			TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+			StudentID:         f.chain.StudentID,
+			ExceptionDate:     date,
+			PickupTime:        &pickupTime,
+			Source:            scheduleModels.ExceptionSourceGuardian,
+			CreatedByGuardian: &f.chain.AccountID,
+		}
+		if err := f.repos.StudentPickupException.Create(txCtx, exception); err != nil {
+			return err
+		}
+		_, err := f.autoExcusal.Sync(txCtx, exception.ID)
+		return err
+	}))
+}
+
+// nonAdminCtx carries a caller with users:update but NO admin wildcard. Whether
+// the per-child write gate (CanUpdateStudent) admits them depends only on the
+// account behind the id holding a staff record (#2329): the fixture's staff
+// account passes, the guardian account does not.
 func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
 	ctx := tenant.WithTenantID(context.Background(), f.chain.TenantID)
 	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
@@ -107,6 +147,33 @@ func careWeekdays(entries ...map[string]any) map[string]any {
 	return map[string]any{"weekdays": list}
 }
 
+type failingPickupDeleteService struct {
+	schedule.PickupScheduleService
+	err error
+}
+
+type offeringProjectedPickupService struct {
+	schedule.PickupScheduleService
+	studentID int64
+	weekday   int
+}
+
+func (s offeringProjectedPickupService) GetStudentPickupSchedules(context.Context, int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	return []*scheduleModels.StudentPickupSchedule{{
+		StudentID: s.studentID, Weekday: s.weekday,
+		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
+		Source:     scheduleModels.PickupScheduleSourceCareOffering,
+	}}, nil
+}
+
+func (s offeringProjectedPickupService) HasBookedOfferingPickupForWeekday(_ context.Context, studentID int64, weekday int) (bool, error) {
+	return studentID == s.studentID && weekday == s.weekday, nil
+}
+
+func (s failingPickupDeleteService) DeleteStudentPickupSchedule(context.Context, int64) error {
+	return s.err
+}
+
 // createPending stores a pending request submitted by the chain's guardian.
 func (f *careFixture) createPending(t *testing.T, payload map[string]any) *scheduleModels.CareScheduleChangeRequest {
 	t.Helper()
@@ -115,29 +182,36 @@ func (f *careFixture) createPending(t *testing.T, payload map[string]any) *sched
 	return req
 }
 
-// TestDecide_ForbiddenWithoutWriteAccess proves the per-child write gate: a
-// staffer with users:update but neither admin nor supervision of the child's
-// group cannot see the request in the scoped queue and cannot decide it either
-// way — while the admin path still decides the same request, proving only the
-// scope blocked the non-admin.
-func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
+// TestDecide_ForbiddenWithoutStaffRecord proves the per-child write gate after
+// #2329: a caller without a staff record (the guardian account) — even holding
+// users:update — sees nothing in the queue and cannot decide either way, while
+// a verified non-admin staffer with the same permission sees and decides the
+// same request.
+func TestDecide_ForbiddenWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	denyCtx := f.nonAdminCtx(f.staffAccount)
+	denyCtx := f.nonAdminCtx(f.chain.AccountID)
 
-	items, err := f.svc.ListPending(denyCtx)
+	items, _, err := f.svc.ListPending(denyCtx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
-	assert.Empty(t, items, "a non-writable child's request must not appear in the queue")
+	assert.Empty(t, items, "a caller without a staff record must not see the queue")
 
 	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 	_, err = f.svc.Decide(denyCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "nope", ReviewedBy: f.staffAccount})
 	assert.ErrorIs(t, err, schedule.ErrCareRequestForbidden)
 
-	item, err := f.svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
+	staffCtx := f.nonAdminCtx(f.staffAccount)
+	items, _, err = f.svc.ListPending(staffCtx, modelBase.RequestQueueFilters{})
+	require.NoError(t, err)
+	require.Len(t, items, 1, "a verified staffer with users:update sees the request")
+
+	item, err := f.svc.Decide(staffCtx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "closing out", ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
 }
@@ -148,6 +222,8 @@ func TestDecide_ForbiddenWithoutWriteAccess(t *testing.T) {
 // path: approving a pending request DURABLY applies the child's permanent
 // weekly plan (departure mode + arrival + pickup for the requested weekday).
 func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -194,6 +270,8 @@ func TestDecide_ApproveAppliesModeArrivalPickup(t *testing.T) {
 // Tuesday arrival saved directly, and must preserve a multi-mode (bus+pickup)
 // Tuesday departure set — the collapse bug the apply guards against.
 func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 
@@ -244,10 +322,151 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 		"a bus+pickup day must survive an unrelated Monday confirm")
 }
 
+func TestDecide_ApproveInactiveCareDayRemovesWeeklyPlan(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := f.svc.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return err
+	})
+	require.NoError(t, err)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, arrivals)
+	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Empty(t, pickups)
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.NotContains(t, student.AllowedDepartureModes, "tue")
+}
+
+func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+	wantErr := errors.New("pickup delete failed")
+	failingService := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		failingPickupDeleteService{PickupScheduleService: f.sf.PickupSchedule, err: wantErr},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, err := failingService.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, wantErr)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, arrivals, 1)
+	pickups, err := f.sf.PickupSchedule.GetStudentPickupSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, pickups, 1)
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, student.AllowedDepartureModes["tue"])
+	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, pending)
+	assert.Equal(t, req.ID, pending.ID)
+}
+
+func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+	service := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		offeringProjectedPickupService{
+			PickupScheduleService: f.sf.PickupSchedule,
+			studentID:             f.chain.StudentID,
+			weekday:               2,
+		},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := service.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, schedule.ErrCareDayManagedByBooking)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, arrivals, 1, "the rejected decision must not partially delete the manual plan")
+	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, pending)
+	assert.Equal(t, req.ID, pending.ID)
+}
+
+func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int) {
+	t.Helper()
+	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	student.AllowedDepartureModes = usersModels.AllowedDepartureModes{
+		usersModels.PickupDayOrder[weekday-1]: {usersModels.DeparturePickup},
+	}
+	student.DepartureDays = nil
+	student.BusDays = nil
+	student.PickupDays = nil
+	require.NoError(t, f.repos.Student.Update(ctx, student))
+	require.NoError(t, f.sf.ArrivalSchedule.UpsertStudentArrivalSchedule(ctx,
+		&scheduleModels.StudentArrivalSchedule{
+			StudentID:       f.chain.StudentID,
+			Weekday:         weekday,
+			ExpectedArrival: timezone.WallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
+			CreatedBy:       f.staffID,
+		}))
+	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx,
+		&scheduleModels.StudentPickupSchedule{
+			StudentID:  f.chain.StudentID,
+			Weekday:    weekday,
+			PickupTime: timezone.WallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+			CreatedBy:  f.staffID,
+		}))
+}
+
 // TestDecide_NonStaffConfirmerForbidden: an account without a users.staff row
 // (here the guardian account) cannot be stamped as the confirming staff, so the
 // apply returns ErrCareRequestForbidden rather than a 500.
 func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
@@ -265,6 +484,8 @@ func TestDecide_NonStaffConfirmerForbidden(t *testing.T) {
 // REJECTING stays available so staff can wind it down. Mirrors the chat's
 // ConfirmRequest/requireLinkedGuardian split this flow replaced.
 func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// The default fixture passes a nil emitter; wire one so the link gate is
 	// live. Only the thread repo is consulted for the access check — the pill
@@ -334,11 +555,12 @@ func (s *toggleSettings) ResolveBoolForTenant(context.Context, int64, string) (b
 // a request the review queue has already resolved forever. The reconcile write
 // only appends to the EXISTING thread + created pill — it never creates a thread.
 func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// This test actually writes pills (created + status) from the separate staff
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
 	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 	settings := &toggleSettings{enabled: true}
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
@@ -388,10 +610,11 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 // themselves. A subsequent non-request_created pill (the reject decision) MUST
 // advance the preview as before.
 func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// Created pill (guardian) + status pill (staff) both reference auth.accounts
 	// without cascade; clear them LIFO-first, ahead of the staff auth cleanup.
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
@@ -444,6 +667,8 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 // conjure a dangling request_status pill (or create a thread). Only an
 // already-open notice is reconciled.
 func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
@@ -473,18 +698,14 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
 }
 
-// TestDecide_ApproveRefusedWhenMessagingDisabled pins the P2 messaging gate
-// (#1803 review follow-up): if the school turns operations.parent_notes_enabled
-// OFF after a request is filed, APPROVING is refused — the guardian's "bestätigt"
-// pill is the only notification channel and the emitter drops it while messaging
-// is off, so approving would change the child's permanent plan with no parent
-// notice. The request stays pending, the plan is untouched, and REJECTING stays
-// available. Mirrors the chat's ConfirmRequest/requireEnabled gate this flow
-// replaced.
-func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
+// TestDecide_ApproveAllowedWhenMessagingDisabled pins that request decisions
+// are independent from the optional parent-message channel.
+func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
-	// Wire an emitter whose settings report messaging OFF. The messaging gate
-	// runs before the guardian-link check, so the guardian is left linked.
+	// Wire an emitter whose settings report messaging OFF; notification pills
+	// are dropped, but the request workflow remains available.
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,
 		f.repos.Student,
@@ -503,26 +724,25 @@ func TestDecide_ApproveRefusedWhenMessagingDisabled(t *testing.T) {
 
 	ctx := f.staffCtx(f.staffAccount)
 
-	_, err = svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
-	require.ErrorIs(t, err, schedule.ErrCareRequestMessagingDisabled, "approving with messaging disabled must be refused")
-
-	still, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, still.Status, "a refused approval leaves the request pending")
+	assert.Equal(t, scheduleModels.CareRequestStatusApproved, item.Request.Status)
+
+	stored, err := f.repos.CareScheduleChangeRequest.FindByID(ctx, req.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.CareRequestStatusApproved, stored.Status)
 
 	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
 	require.NoError(t, err)
-	assert.Empty(t, arrivals, "a refused approval must not apply the requested plan")
-
-	item, err := svc.Decide(ctx, schedule.CareRequestDecideInput{RequestID: req.ID, Approve: false, Reason: "Nachrichten deaktiviert, bitte telefonisch klären", ReviewedBy: f.staffAccount})
-	require.NoError(t, err, "reject must stay available while messaging is disabled")
-	assert.Equal(t, scheduleModels.CareRequestStatusRejected, item.Request.Status)
+	require.NotEmpty(t, arrivals, "approval applies the requested plan without messaging")
 }
 
 // TestDecide_SecondDecideNotPending pins the idempotency/race guard: once a
 // request is approved, a second decide (or a reject racing it) sees the terminal
 // status under the FOR UPDATE re-read and returns ErrCareRequestNotPending.
 func TestDecide_SecondDecideNotPending(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "arrival": "07:45"}))
@@ -541,6 +761,8 @@ func TestDecide_SecondDecideNotPending(t *testing.T) {
 // reason is rejected, an over-2000-rune reason is rejected, and a valid reject
 // flips the row to rejected WITHOUT applying the plan.
 func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -567,6 +789,8 @@ func TestDecide_RejectRequiresReasonAndBounds(t *testing.T) {
 // TestCreateRequest_RejectsMidnight pins that 00:00 is rejected at create time
 // (it normalizes to the zero time the schedule validators treat as "unset").
 func TestCreateRequest_RejectsMidnight(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 
@@ -588,6 +812,8 @@ func TestCreateRequest_RejectsMidnight(t *testing.T) {
 // sanitized canonical form: unknown keys dropped, duplicate weekday entries
 // collapsed (last value per aspect wins).
 func TestCreateRequest_CanonicalizesPayload(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 
@@ -616,6 +842,8 @@ func TestCreateRequest_CanonicalizesPayload(t *testing.T) {
 // pending request for the same child is ErrCareRequestAlreadyPending — the
 // guardian withdraws and re-submits instead of stacking.
 func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 
@@ -630,6 +858,8 @@ func TestCreateRequest_OnePendingPerStudent(t *testing.T) {
 // request; a second withdraw of the now-terminal row fails; and a withdraw by a
 // DIFFERENT guardian account is reported not-found (id space is not probeable).
 func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -663,6 +893,8 @@ func TestWithdraw_BySubmitterAndGuards(t *testing.T) {
 // TestGetPendingForStudent_NoneReturnsNil pins that a child with no open request
 // yields (nil, nil, nil) — the read view shows no pending card.
 func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req, diff, err := f.svc.GetPendingForStudent(f.staffCtx(f.staffAccount), f.chain.StudentID)
 	require.NoError(t, err)
@@ -673,6 +905,8 @@ func TestGetPendingForStudent_NoneReturnsNil(t *testing.T) {
 // TestGetPendingForStudent_ReturnsPendingWithDiff pins that an open request is
 // returned with a live "current → requested" diff.
 func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	ctx := f.staffCtx(f.chain.AccountID)
 	f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
@@ -689,12 +923,14 @@ func TestGetPendingForStudent_ReturnsPendingWithDiff(t *testing.T) {
 // child's name and a live current→requested diff. This is the counterpart to
 // the forbidden-scope test, which only exercises the empty-queue branch.
 func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	items, err := f.svc.ListPending(f.staffCtx(f.staffAccount))
+	items, _, err := f.svc.ListPending(f.staffCtx(f.staffAccount), modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, items, 1, "the admin queue must surface the open request")
 
@@ -717,6 +953,8 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 // new plan. The shared fixture wires a nil broadcaster; this rebuilds the service
 // with a capturing one against the SAME db/repos.
 func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(
 		map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"},
@@ -746,6 +984,8 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 // drop one at all) has to stay silent, or routine parent requests cost unrelated
 // staff their unsaved companion edits.
 func TestDecide_ApproveCompanionEventOnlyOnEffectiveChange(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(
@@ -797,7 +1037,6 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 	ctx := testpkg.TenantContext(f.chain.TenantID)
 
 	partner := testpkg.CreateTestStudent(t, f.db, "Companion", "Partner", "1a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, f.db, partner.ID) })
 	t.Cleanup(func() {
 		_, err := f.db.NewDelete().
 			TableExpr("users.student_companions").
@@ -838,6 +1077,8 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 // panic or a leak of another child's row). The id is derived from a real
 // fixture request, then offset past any real row, to stay hermetic.
 func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 	bogusID := req.ID + 1_000_000
@@ -851,6 +1092,8 @@ func TestWithdrawRequest_BogusIDNotFound(t *testing.T) {
 // the pending-row lookup returns not-found, so Decide surfaces it instead of
 // dereferencing a nil request.
 func TestDecide_BogusIDNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 1, "arrival": "08:00"}))
 	bogusID := req.ID + 1_000_000
@@ -872,10 +1115,11 @@ func TestDecide_BogusIDNotFound(t *testing.T) {
 // withdraw) or pickup time (approve) until reload. A RecordingBroadcaster wired
 // into the emitter proves the guardian wake fires on each transition.
 func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
+	t.Parallel()
+
 	f := newCareFixture(t)
 	// The create/withdraw/decide pills reference the staff + guardian accounts
 	// without cascade; clear them LIFO-first, ahead of the auth cleanup.
-	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(

@@ -17,6 +17,8 @@ import (
 // =============================================================================
 
 func TestParsePagination_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test", nil)
 
 	page, pageSize := common.ParsePagination(r)
@@ -26,6 +28,8 @@ func TestParsePagination_DefaultValues(t *testing.T) {
 }
 
 func TestParsePagination_ValidParams(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test?page=3&page_size=25", nil)
 
 	page, pageSize := common.ParsePagination(r)
@@ -35,6 +39,8 @@ func TestParsePagination_ValidParams(t *testing.T) {
 }
 
 func TestParsePagination_InvalidPage(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		query        string
@@ -56,6 +62,8 @@ func TestParsePagination_InvalidPage(t *testing.T) {
 }
 
 func TestParsePagination_InvalidPageSize(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		query            string
@@ -77,6 +85,8 @@ func TestParsePagination_InvalidPageSize(t *testing.T) {
 }
 
 func TestParsePagination_MixedValidInvalid(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		query            string
@@ -100,12 +110,31 @@ func TestParsePagination_MixedValidInvalid(t *testing.T) {
 }
 
 func TestParsePagination_LargeValues(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test?page=9999&page_size=1000", nil)
 
 	page, pageSize := common.ParsePagination(r)
 
 	assert.Equal(t, 9999, page)
 	assert.Equal(t, 1000, pageSize)
+}
+
+func TestParsePagination_ClampsOutOfRangeValues(t *testing.T) {
+	t.Parallel()
+
+	// Every consumer turns the pair into (page-1)*pageSize. Unclamped, that
+	// product overflows into a negative offset — a negative SQL OFFSET and a
+	// negative slice index, both a 500 (#2218 review).
+	r := httptest.NewRequest("GET", "/test?page=9223372036854775807&page_size=9223372036854775807", nil)
+
+	page, pageSize := common.ParsePagination(r)
+
+	assert.Equal(t, common.MaxPage, page)
+	assert.Equal(t, common.MaxPageSize, pageSize)
+
+	offset := (page - 1) * pageSize
+	assert.Positive(t, offset, "the clamped window must still produce a non-negative offset")
 }
 
 // =============================================================================
@@ -122,6 +151,8 @@ func chiRouteContext(r *http.Request, params map[string]string) *http.Request {
 }
 
 func TestParseIDParam_ValidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/123", nil)
 	r = chiRouteContext(r, map[string]string{"id": "123"})
 
@@ -132,6 +163,8 @@ func TestParseIDParam_ValidID(t *testing.T) {
 }
 
 func TestParseIDParam_LargeID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/9223372036854775807", nil)
 	r = chiRouteContext(r, map[string]string{"id": "9223372036854775807"})
 
@@ -142,6 +175,8 @@ func TestParseIDParam_LargeID(t *testing.T) {
 }
 
 func TestParseIDParam_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		value string
@@ -166,6 +201,8 @@ func TestParseIDParam_InvalidID(t *testing.T) {
 }
 
 func TestParseIDParam_DifferentParamNames(t *testing.T) {
+	t.Parallel()
+
 	params := map[string]string{
 		"group_id":   "456",
 		"student_id": "789",
@@ -193,6 +230,8 @@ func TestParseIDParam_DifferentParamNames(t *testing.T) {
 // =============================================================================
 
 func TestParseID_ValidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/555", nil)
 	r = chiRouteContext(r, map[string]string{"id": "555"})
 
@@ -203,6 +242,8 @@ func TestParseID_ValidID(t *testing.T) {
 }
 
 func TestParseID_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/invalid", nil)
 	r = chiRouteContext(r, map[string]string{"id": "invalid"})
 
@@ -216,6 +257,8 @@ func TestParseID_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestParseIntIDWithError_ValidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/42", nil)
 	r = chiRouteContext(r, map[string]string{"id": "42"})
 	w := httptest.NewRecorder()
@@ -228,6 +271,8 @@ func TestParseIntIDWithError_ValidID(t *testing.T) {
 }
 
 func TestParseIntIDWithError_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/invalid", nil)
 	r = chiRouteContext(r, map[string]string{"id": "invalid"})
 	w := httptest.NewRecorder()
@@ -240,6 +285,8 @@ func TestParseIntIDWithError_InvalidID(t *testing.T) {
 }
 
 func TestParseIntIDWithError_CustomErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/abc", nil)
 	r = chiRouteContext(r, map[string]string{"group_id": "abc"})
 	w := httptest.NewRecorder()
@@ -256,6 +303,8 @@ func TestParseIntIDWithError_CustomErrorMessage(t *testing.T) {
 // =============================================================================
 
 func TestParseInt64IDWithError_ValidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/123456789012", nil)
 	r = chiRouteContext(r, map[string]string{"id": "123456789012"})
 	w := httptest.NewRecorder()
@@ -268,6 +317,8 @@ func TestParseInt64IDWithError_ValidID(t *testing.T) {
 }
 
 func TestParseInt64IDWithError_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/not-a-number", nil)
 	r = chiRouteContext(r, map[string]string{"id": "not-a-number"})
 	w := httptest.NewRecorder()
@@ -280,6 +331,8 @@ func TestParseInt64IDWithError_InvalidID(t *testing.T) {
 }
 
 func TestParseInt64IDWithError_EmptyID(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest("GET", "/test/", nil)
 	r = chiRouteContext(r, map[string]string{"id": ""})
 	w := httptest.NewRecorder()
@@ -296,6 +349,8 @@ func TestParseInt64IDWithError_EmptyID(t *testing.T) {
 // =============================================================================
 
 func TestPaginationConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 1, common.DefaultPage)
 	assert.Equal(t, 50, common.DefaultPageSize)
 }

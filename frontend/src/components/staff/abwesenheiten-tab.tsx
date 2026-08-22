@@ -29,8 +29,9 @@ import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import {
   ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
+  absenceRowActionNoun,
+  absenceRowLabel,
   absenceStatusMeta,
-  absenceTypeNoun as absenceTypeLabel,
   dayCountFor as sharedDayCountFor,
   dispatchAbsencesRefresh,
   formatAbsenceRange,
@@ -41,8 +42,12 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
+import {
+  CardGridSkeleton,
+  ListSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -151,7 +156,21 @@ function TabLoadingBoundary({
   readonly loading: boolean;
   readonly children: ReactNode;
 }) {
-  if (loading) return <Loading fullPage={false} />;
+  if (loading) {
+    return (
+      <SkeletonRegion
+        label="Abwesenheiten werden geladen"
+        className="space-y-5"
+      >
+        <CardGridSkeleton
+          cards={4}
+          rowsPerCard={1}
+          className="grid grid-cols-2 gap-4 sm:grid-cols-4"
+        />
+        <ListSkeleton rows={5} avatar={false} />
+      </SkeletonRegion>
+    );
+  }
   return children;
 }
 
@@ -450,7 +469,7 @@ export function AbwesenheitenTab({
       )}
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        title={`${deleteTarget ? absenceTypeLabel(deleteTarget.absence_type) : "Abwesenheit"} löschen`}
+        title={`${deleteTarget ? absenceRowActionNoun(deleteTarget) : "Abwesenheit"} löschen`}
         description={
           <>
             Die Abwesenheit{" "}
@@ -738,7 +757,7 @@ function AbsenceRow({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <StatusDotBadge
-            label={ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            label={absenceRowLabel(row)}
             color={
               ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
             }
@@ -768,8 +787,8 @@ function AbsenceRow({
             variant="ghost"
             size="icon"
             onClick={onDelete}
-            aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
-            title={`${absenceTypeLabel(row.absence_type)} löschen`}
+            aria-label={`${absenceRowActionNoun(row)} ${formatRange(row.date_start, row.date_end)} löschen`}
+            title={`${absenceRowActionNoun(row)} löschen`}
           >
             <Trash2 className="h-4 w-4" aria-hidden />
           </Button>

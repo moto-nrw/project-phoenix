@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -27,18 +28,28 @@ type PersonResponse struct {
 
 // StaffResponse represents a staff response
 type StaffResponse struct {
-	ID              int64           `json:"id"`
-	PersonID        int64           `json:"person_id"`
+	ID int64 `json:"id"`
+	// PersonID goes out as a decimal STRING. It is a bigint, and the staff
+	// screens send it back to identify the person they edit — as a JSON number
+	// it would be rounded past 2^53 by the JSON.parse in the Next.js proxy,
+	// before any mapper could preserve it, and the rounded value is a valid id
+	// for a different person (#2222). The request side takes either form
+	// (common.JSONID), so no client breaks on this.
+	PersonID        int64           `json:"person_id,string"`
 	StaffNotes      string          `json:"staff_notes,omitempty"`
 	Person          *PersonResponse `json:"person,omitempty"`
 	IsTeacher       bool            `json:"is_teacher"`
 	WasPresentToday bool            `json:"was_present_today"`
 	WorkStatus      string          `json:"work_status,omitempty"`
 	AbsenceType     string          `json:"absence_type,omitempty"`
-	AccountRole     string          `json:"account_role,omitempty"`
-	EmploymentType  *string         `json:"employment_type,omitempty"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
+	// AbsenceTypeLabel carries the school's own Abwesenheitsart wording for
+	// today's absence (#2403). Empty for the five standard types — the client
+	// keeps deriving those labels from AbsenceType itself.
+	AbsenceTypeLabel string    `json:"absence_type_label,omitempty"`
+	AccountRole      string    `json:"account_role,omitempty"`
+	EmploymentType   *string   `json:"employment_type,omitempty"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // TeacherResponse represents a teacher response (extends staff)
@@ -58,8 +69,12 @@ type GroupResponse struct {
 
 // StaffRequest represents a staff creation/update request
 type StaffRequest struct {
-	PersonID   int64  `json:"person_id"`
-	StaffNotes string `json:"staff_notes,omitempty"`
+	// PersonID takes a JSON number or a decimal string. The staff screens send
+	// the string: person ids are bigints, and the Next.js proxy in front of this
+	// endpoint parses and re-serializes the body, which rounds a JSON number past
+	// 2^53 into a valid id for a different person (#2222).
+	PersonID   common.JSONID `json:"person_id"`
+	StaffNotes string        `json:"staff_notes,omitempty"`
 	// Teacher-specific fields for creating a teacher
 	IsTeacher      bool   `json:"is_teacher,omitempty"`
 	Specialization string `json:"specialization,omitempty"`

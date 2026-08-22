@@ -207,17 +207,29 @@ describe("POST /api/activities/quick-create", () => {
     expect(json.error).toContain("Valid category is required");
   });
 
-  it("validates max_participants is required", async () => {
+  it("accepts a null participant limit", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      activity_id: 102,
+      name: "Test",
+      category_name: "Open",
+      supervisor_name: "Test User",
+      status: "created",
+      message: "Success",
+      created_at: "2024-01-20T10:00:00Z",
+    });
     const request = createMockRequest("/api/activities/quick-create", {
       method: "POST",
-      body: { name: "Test", category_id: 1 },
+      body: { name: "Test", category_id: 1, max_participants: null },
     });
 
     const response = await POST(request, createMockContext());
 
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Max participants must be greater than 0");
+    expect(response.status).toBe(200);
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/api/activities/quick-create",
+      "test-token",
+      expect.objectContaining({ max_participants: null }),
+    );
   });
 
   it("returns fallback response when backend returns unexpected structure", async () => {

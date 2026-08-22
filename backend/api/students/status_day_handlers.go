@@ -24,7 +24,12 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	if !rs.checkStudentReadAccess(r, student) {
+	// Whoever may WRITE this child's absences may also read them: the planning
+	// dialog refuses to save until it has checked the existing status days, so
+	// a caller authorized only by the open-care absence gate (#2232) would see
+	// the actions and then be unable to use them. The payload is exactly the
+	// absence data that gate covers — no Stammdaten ride along.
+	if !rs.checkStudentReadAccess(r, student) && !rs.checkStudentAbsenceWriteAccess(r, student) {
 		renderError(w, r, common.ErrorForbidden(errors.New("full access required")))
 		return
 	}
@@ -65,7 +70,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -90,6 +95,12 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		}
 		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
+			return
+		}
+		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
+			// Stable code so the frontend can show a clear message instead of
+			// parsing this as an empty StudentStatusDayConflictError sample.
+			renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to create student status days", err))
@@ -158,6 +169,13 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
+		if errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict) {
+			// Stable code so the frontend can show a clear message instead of
+			// parsing this as an empty StudentStatusDayConflictError sample.
+			tenant.MarkRollback(r.Context())
+			renderError(w, r, common.ErrorConflictWithCode(err, "partial_absence_conflict"))
+			return
+		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to bulk create student status days", err))
 		return
 	}
@@ -184,7 +202,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -207,8 +225,8 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 }
 
 // newStatusDayWriteContext bundles the collaborators the status-day write
-// service needs, keeping the JWT-permission decision (canUpdateStudent) and the
-// SSE fan-out at the HTTP boundary.
+// service needs, keeping the JWT-permission decision (canManageStudentAbsence)
+// and the SSE fan-out at the HTTP boundary.
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return activeService.StatusDayWriteContext{
@@ -216,7 +234,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 		TenantID:       tenantID,
 		StudentService: rs.StudentService,
 		Authorize: func(ctx context.Context, student *users.Student) bool {
-			ok, _ := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+			ok, _ := rs.canManageStudentAbsence(ctx, userPermissions, student)
 			return ok
 		},
 		AfterCommit: func(studentID int64) {
@@ -241,7 +259,10 @@ func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissi
 }
 
 func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
-	today := timezone.TodayDate()
+	return parseStatusDayRangeAt(r, timezone.TodayDate())
+}
+
+func parseStatusDayRangeAt(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
 

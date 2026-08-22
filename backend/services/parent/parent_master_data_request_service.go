@@ -34,6 +34,7 @@ var trackBRequestableFields = map[string]bool{
 	usersModels.DataChangeTargetPerson + "/first_name":                 true,
 	usersModels.DataChangeTargetPerson + "/last_name":                  true,
 	usersModels.DataChangeTargetPerson + "/birthday":                   true,
+	usersModels.DataChangeTargetStudent + "/school_class":              true,
 	usersModels.DataChangeTargetDeparture + "/allowed_departure_modes": true,
 }
 
@@ -187,6 +188,8 @@ func trackBFieldState(target, field string, person *usersModels.Person, student 
 	switch target {
 	case usersModels.DataChangeTargetPerson:
 		return trackBPersonFieldState(field, person, value)
+	case usersModels.DataChangeTargetStudent:
+		return trackBStudentFieldState(field, student, value)
 	case usersModels.DataChangeTargetDeparture:
 		if field != "allowed_departure_modes" {
 			return nil, nil, false, ErrMasterDataFieldNotEditable
@@ -195,6 +198,17 @@ func trackBFieldState(target, field string, person *usersModels.Person, student 
 	default:
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
+}
+
+func trackBStudentFieldState(field string, student *usersModels.Student, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+	if field != "school_class" {
+		return nil, nil, false, ErrMasterDataFieldNotEditable
+	}
+	newClass, err := decodeStringValue(value)
+	if err != nil || newClass == "" {
+		return nil, nil, false, ErrMasterDataInvalidValue
+	}
+	return jsonString(student.SchoolClass), jsonString(newClass), newClass != student.SchoolClass, nil
 }
 
 func trackBPersonFieldState(field string, person *usersModels.Person, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {

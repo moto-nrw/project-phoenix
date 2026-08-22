@@ -47,14 +47,12 @@ type createSetup struct {
 func buildCreateSetup(t *testing.T) *createSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	mock := &mockInstanceService{}
@@ -114,6 +112,8 @@ func decodeCreate(t *testing.T, w *httptest.ResponseRecorder) enrichedInstance {
 }
 
 func TestCreateInstance_Spontaneous(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
@@ -130,7 +130,6 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 		Title:         "Spontane Bastelstunde",
 		IsSpontaneous: true,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
 	s.mock.createRes = persisted
 
 	body := map[string]any{
@@ -150,7 +149,7 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 	assert.Equal(t, "14:00", got.StartTime)
 	assert.Equal(t, "15:00", got.EndTime)
 	assert.Equal(t, scheduleModel.InstanceStatusPlanned, got.Status)
-	assert.True(t, got.IsSpontaneous, "no activity_group_id ⇒ spontaneous")
+	assert.True(t, got.IsSpontaneous, "is_spontaneous is serialized from the service result")
 	assert.False(t, got.IsLive)
 	assert.Equal(t, s.roomID, got.RoomID)
 	assert.NotEmpty(t, got.RoomName, "room name should resolve via RoomRepo")
@@ -163,6 +162,8 @@ func TestCreateInstance_Spontaneous(t *testing.T) {
 }
 
 func TestCreateInstance_Validation(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
@@ -222,12 +223,13 @@ func TestCreateInstance_Validation(t *testing.T) {
 }
 
 func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, s.res)
 
 	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Create-Bound-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", template.ID) })
 	templateID := template.ID
 	tomorrow := nextTimetableWorkday()
 	persisted := testpkg.CreateTestActivityInstance(t, s.db, tomorrow, s.roomID, testpkg.ActivityInstanceOpts{
@@ -236,7 +238,6 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 		EndHHMM:         "11:00",
 		Title:           "Template-bound extra slot",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", persisted.ID) })
 	s.mock.createRes = persisted
 
 	body := map[string]any{
@@ -266,10 +267,11 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 }
 
 func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Create-Dupe-Room-%d", suffix))
 	template := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Create-Dupe-Template-%d", suffix))
@@ -279,7 +281,6 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 			Where("activity_group_id = ?", template.ID).
 			Where("tenant_id = ?", tenant.FromContext(ctx)).
 			Exec(ctx)
-		testpkg.CleanupActivityFixtures(t, db, template.ID, room.ID)
 	})
 
 	repoFactory := repositories.NewFactory(db)
@@ -310,6 +311,8 @@ func TestCreateInstance_DuplicateTemplateBoundReturnsConflict(t *testing.T) {
 }
 
 func TestCreateInstance_UnwiredResource(t *testing.T) {
+	t.Parallel()
+
 	s := buildCreateSetup(t)
 	defer s.cleanupFn()
 	router := createRouter(s.ctx, NewResource(Dependencies{InstanceService: s.mock}))

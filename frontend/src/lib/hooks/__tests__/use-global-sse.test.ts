@@ -57,6 +57,11 @@ import {
 import { useSSE } from "~/lib/hooks/use-sse";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
+import {
+  clearOwnAttendanceMutation,
+  isOwnAttendanceEvent,
+  markOwnAttendanceMutation,
+} from "~/lib/sse-optimistic-mutations";
 
 describe("useGlobalSSE", () => {
   beforeEach(() => {
@@ -294,6 +299,84 @@ describe("useGlobalSSE", () => {
   });
 
   describe("event handling", () => {
+    it("load budget: one remote check-in revalidates the supervision aggregate once", () => {
+      renderHook(() => useGlobalSSE());
+
+      // Current backends emit the scoped movement, one group-scoped legacy
+      // roster refresh, and one combined tenant refresh (#2115).
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      const aggregateRevalidations = vi
+        .mocked(mutate)
+        .mock.calls.filter(([matcher]) => {
+          return (
+            typeof matcher === "function" &&
+            (matcher as (key: string) => boolean)(
+              "tenant:active-supervision-dashboard-0",
+            )
+          );
+        });
+
+      expect(aggregateRevalidations).toHaveLength(1);
+    });
+
+    it("keeps the optimistic roster response for the user's own check-in", () => {
+      markOwnAttendanceMutation("student_checkin", "42");
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "student_checkin",
+        active_group_id: "123",
+        data: { student_id: "42", group_ids: ["7"] },
+      });
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      const matchers = vi
+        .mocked(mutate)
+        .mock.calls.map(([matcher]) => matcher)
+        .filter(
+          (matcher): matcher is (key: string) => boolean =>
+            typeof matcher === "function",
+        );
+      expect(
+        matchers.some((matcher) => matcher("tenant:timetable-roster-88")),
+      ).toBe(false);
+      expect(
+        matchers.filter((matcher) =>
+          matcher("tenant:active-supervision-dashboard-0"),
+        ),
+      ).toHaveLength(1);
+      expect(isOwnAttendanceEvent("student_checkin", "42")).toBe(false);
+
+      clearOwnAttendanceMutation("student_checkin", "42");
+    });
+
     it("invalidates dashboard caches on student_checkin event as a fallback", () => {
       renderHook(() => useGlobalSSE());
 
@@ -332,8 +415,15 @@ describe("useGlobalSSE", () => {
 
       // #2057: the count-dashboard invalidation is an explicit key list — it
       // must NOT drag the OGS BFF or staff time tracking into every check-in.
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const dashboardAnalyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(dashboardAnalyticsCall).toBeDefined();
+      const matcher = dashboardAnalyticsCall![0] as (key: string) => boolean;
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
     });
@@ -363,6 +453,54 @@ describe("useGlobalSSE", () => {
       expect(dashboardCall).toBeDefined();
     });
 
+    it("invalidates group and per-student caches on bulk_student_checkin event", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "bulk_student_checkin",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"], group_ids: ["7"] },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const supervisionCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          )
+        );
+      });
+      expect(supervisionCall).toBeDefined();
+
+      for (const id of ["42", "77"]) {
+        const detailCall = mutateCalls.find((call) => {
+          const matcher = call[0];
+          return (
+            typeof matcher === "function" &&
+            (matcher as (key: string) => boolean)(`tenant:student-detail-${id}`)
+          );
+        });
+        expect(detailCall).toBeDefined();
+      }
+
+      const ogsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:ogs-students-7") &&
+          !(matcher as (key: string) => boolean)("tenant:ogs-students-8")
+        );
+      });
+      expect(ogsCall).toBeDefined();
+    });
+
     it("invalidates group and per-student caches on bulk_student_checkout event", () => {
       renderHook(() => useGlobalSSE());
 
@@ -385,7 +523,9 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("tenant:supervision-visits-123")
+          (matcher as (key: string) => boolean)(
+            "tenant:active-supervision-dashboard-0",
+          )
         );
       });
       expect(supervisionCall).toBeDefined();
@@ -422,15 +562,14 @@ describe("useGlobalSSE", () => {
 
       const mutateCalls = vi.mocked(mutate).mock.calls;
 
-      const touchedSupervisionOrStudent = mutateCalls.some((call) => {
+      const touchedStudentDetail = mutateCalls.some((call) => {
         const matcher = call[0];
         if (typeof matcher !== "function") return false;
-        const fn = matcher as (key: string) => boolean;
-        return (
-          fn("tenant:supervision-visits-123") || fn("tenant:student-detail-42")
+        return (matcher as (key: string) => boolean)(
+          "tenant:student-detail-42",
         );
       });
-      expect(touchedSupervisionOrStudent).toBe(false);
+      expect(touchedStudentDetail).toBe(false);
     });
 
     it("invalidates activity caches on activity_start event", () => {
@@ -507,9 +646,6 @@ describe("useGlobalSSE", () => {
             "tenant:active-supervision-dashboard-0",
           ) &&
           (matcher as (key: string) => boolean)(
-            "tenant:supervision-visits-456",
-          ) &&
-          (matcher as (key: string) => boolean)(
             "tenant:timetable-roster-active-group-456",
           )
         );
@@ -517,11 +653,13 @@ describe("useGlobalSSE", () => {
       expect(activeSupervisionCall).toBeDefined();
 
       const matcher = activeSupervisionCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:supervision-visits-456")).toBe(true);
+      // Per-room visits and tracking ride in the aggregate since #2096 —
+      // the dashboard key stands in for the removed supervision-visits- and
+      // tracking-supervisions- keys.
+      expect(matcher("tenant:active-supervision-dashboard-0")).toBe(true);
       expect(matcher("tenant:timetable-roster-123")).toBe(true);
       expect(matcher("tenant:timetable-roster-active-group-456")).toBe(true);
       expect(matcher("tenant:room-detail-12")).toBe(true);
-      expect(matcher("tenant:tracking-supervisions-1")).toBe(true);
       expect(matcher("tenant:tracking-indicators-search")).toBe(true);
       // #2057: no bare "dashboard" substring any more — dashboard-analytics
       // is covered by the count-dashboard block, and the substring dragged
@@ -638,12 +776,66 @@ describe("useGlobalSSE", () => {
       });
       expect(dashboardCall).toBeDefined();
 
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const analyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(analyticsCall).toBeDefined();
+      const matcher = analyticsCall![0] as (key: string) => boolean;
       // #2057: the OGS BFF must not ride the count events — its live data is
       // covered by the (scoped) ogs-students refetch.
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
+    });
+
+    it("treats a reasoned dashboard event as the combined rolling-deploy refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved", group_ids: ["7"] },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:active-supervision-dashboard-0",
+          "tenant:room-detail-12",
+          "tenant:ogs-students-7",
+          "tenant:ogs-students-8",
+        ]),
+      ).toEqual([
+        "tenant:active-supervision-dashboard-0",
+        "tenant:room-detail-12",
+        "tenant:ogs-students-7",
+      ]);
+    });
+
+    it("keeps the dashboard broad fallback on an unscoped combined refresh", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "dashboard_counts_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved" },
+      });
+      vi.advanceTimersByTime(DEBOUNCE_MS);
+
+      expect(
+        matchedKeys([
+          "tenant:ogs-students-7",
+          "tenant:search-students-gall-name-asc",
+          "tenant:room-detail-12",
+        ]),
+      ).toEqual([
+        "tenant:ogs-students-7",
+        "tenant:search-students-gall-name-asc",
+        "tenant:room-detail-12",
+      ]);
     });
 
     it("invalidates staff time-account caches after a work-session change", () => {
@@ -742,11 +934,16 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(listCall).toBeDefined();
-      const listMatcher = listCall![0] as (key: string) => boolean;
-      expect(listMatcher("my-tenant:tracking-supervisions-1-42,43")).toBe(true);
-      expect(listMatcher("my-tenant:tracking-indicators-search-group1")).toBe(
-        true,
-      );
+      const trackingCall = mutateCalls.find((call) => {
+        const m = call[0];
+        return (
+          typeof m === "function" &&
+          (m as (key: string) => boolean)(
+            "my-tenant:tracking-indicators-search-group1",
+          )
+        );
+      });
+      expect(trackingCall).toBeDefined();
     });
 
     it("student_checkout without active_group_id invalidates dashboard caches", () => {
@@ -775,8 +972,15 @@ describe("useGlobalSSE", () => {
       });
       expect(dashboardCall).toBeDefined();
 
-      const matcher = dashboardCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:dashboard-analytics")).toBe(true);
+      const analyticsCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:dashboard-analytics")
+        );
+      });
+      expect(analyticsCall).toBeDefined();
+      const matcher = analyticsCall![0] as (key: string) => boolean;
       expect(matcher("tenant:ogs-dashboard")).toBe(false);
     });
 
@@ -886,6 +1090,37 @@ describe("useGlobalSSE", () => {
         );
       });
       expect(dashboardCall).toBeUndefined();
+    });
+
+    it("pickup and student_updated events refresh the timetable attendance caches (#2360)", () => {
+      // A pulled-forward day pickup time rewrites timetable attendance rows
+      // and the early_pickup_time marker. The planner list and the
+      // Web-Anwesenheit roster disable focus revalidation, so these events
+      // are their only live update path — while the template/phase/staff
+      // caches under the same "timetable-" prefix must stay untouched.
+      const attendanceKeys = [
+        "my-tenant:timetable-week-2026-08-17-2026-08-21",
+        "my-tenant:timetable-day-2026-08-17-2026-08-17",
+        "my-tenant:timetable-roster-42",
+      ] as const;
+      const unrelatedTimetableKeys = [
+        "my-tenant:timetable-templates-7",
+        "my-tenant:timetable-enrollment-phases",
+        "my-tenant:timetable-staff-list",
+      ] as const;
+
+      renderHook(() => useGlobalSSE());
+
+      fire({ type: "pickup_schedule_changed" });
+      vi.advanceTimersByTime(500);
+      expect(matchedKeys(attendanceKeys)).toEqual([...attendanceKeys]);
+      expect(matchedKeys(unrelatedTimetableKeys)).toEqual([]);
+
+      vi.mocked(mutate).mockClear();
+      fire({ type: "student_updated" });
+      vi.advanceTimersByTime(500);
+      expect(matchedKeys(attendanceKeys)).toEqual([...attendanceKeys]);
+      expect(matchedKeys(unrelatedTimetableKeys)).toEqual([]);
     });
 
     it("handles mutate rejection in student_updated detail scope gracefully", async () => {
@@ -1052,13 +1287,15 @@ describe("useGlobalSSE", () => {
         const matcher = call[0];
         return (
           typeof matcher === "function" &&
-          (matcher as (key: string) => boolean)("arrival-supervisions-X")
+          (matcher as (key: string) => boolean)("tenant:arrival-data-42")
         );
       });
       expect(arrivalCall).toBeDefined();
 
       const matcher = arrivalCall![0] as (key: string) => boolean;
-      expect(matcher("tenant:arrival-supervisions-1")).toBe(true);
+      // The Aufsicht arrival rows ride in the aggregate since #2096; the
+      // dashboard key is refreshed by the count-dashboard block on the same
+      // event, so this list only carries the remaining arrival caches.
       expect(matcher("tenant:arrival-data-42")).toBe(true);
       expect(matcher("tenant:unrelated-key")).toBe(false);
 
@@ -1103,7 +1340,7 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles mutate rejection in activity_supervision scope gracefully", async () => {
+    it("handles activity-triggered supervision rejection gracefully", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
       const consoleSpy = vi
         .spyOn(console, "debug")
@@ -1124,7 +1361,7 @@ describe("useGlobalSSE", () => {
 
       expect(consoleSpy).toHaveBeenCalledWith(
         "swr_revalidation_failed",
-        expect.objectContaining({ scope: "activity_supervision" }),
+        expect.objectContaining({ scope: "active_supervision" }),
       );
 
       consoleSpy.mockRestore();
@@ -1157,32 +1394,9 @@ describe("useGlobalSSE", () => {
       consoleSpy.mockRestore();
     });
 
-    it("handles mutate rejection in supervision_visits scope gracefully", async () => {
-      vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
-      const consoleSpy = vi
-        .spyOn(console, "debug")
-        .mockImplementation(() => undefined);
-
-      renderHook(() => useGlobalSSE());
-
-      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
-      onMessage?.({
-        type: "student_checkin",
-        active_group_id: "42",
-        data: { student_id: "1" },
-        timestamp: new Date().toISOString(),
-      });
-
-      vi.advanceTimersByTime(500);
-      await vi.runAllTimersAsync();
-
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "swr_revalidation_failed",
-        expect.objectContaining({ scope: "supervision_visits" }),
-      );
-
-      consoleSpy.mockRestore();
-    });
+    // The former supervision_visits mutate scope was removed with #2096:
+    // per-room visits ride in the aggregated dashboard key, whose rejection
+    // path is covered by the dashboard-scope test.
 
     it("invalidates timetable caches on instance lifecycle events", () => {
       renderHook(() => useGlobalSSE());
@@ -1752,6 +1966,21 @@ describe("useGlobalSSE", () => {
       expect(matchedKeys(searchKeys)).toEqual(searchKeys);
     });
 
+    it("refreshes only the unfiltered search for an unscoped movement", () => {
+      renderHook(() => useGlobalSSE());
+
+      fire({
+        type: "active_supervision_changed",
+        active_group_id: "123",
+        data: { reason: "student_moved" },
+      });
+      vi.advanceTimersByTime(500);
+
+      expect(matchedKeys(searchKeys)).toEqual([
+        "tenant:search-students-gall---------",
+      ]);
+    });
+
     it("keeps tenant-wide plan changes broad", () => {
       // arrival/pickup/student_updated carry no group scope and rewrite the
       // times the list rows render.
@@ -1794,7 +2023,7 @@ describe("useGlobalSSE", () => {
       fire({
         type: "active_supervision_changed",
         active_group_id: "123",
-        data: { reason: "student_moved", student_id: "42" },
+        data: { reason: "student_moved" },
       });
       vi.advanceTimersByTime(500);
 
@@ -1949,8 +2178,8 @@ describe("useGlobalSSE", () => {
     it("announces phoenix:supervision-stale so the sidebar group list refetches", () => {
       // SupervisionContext owns the sidebar's "Meine Gruppen" list in local
       // state behind its own fetch — no SWR key exists to invalidate, and its
-      // own refresh is a one-minute tick. Without this announcement a handover
-      // stays invisible in the sidebar for up to a minute.
+      // does not use SWR. Without this announcement a handover stays invisible
+      // until another explicit refresh.
       const listener = vi.fn();
       window.addEventListener("phoenix:supervision-stale", listener);
       renderHook(() => useGlobalSSE());

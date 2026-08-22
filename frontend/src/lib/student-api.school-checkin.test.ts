@@ -24,7 +24,10 @@ vi.mock("./api-helpers", async () => {
   };
 });
 
-import { schoolCheckinStudent } from "./student-api";
+import {
+  schoolCheckinStudent,
+  schoolCheckinStudentsBatch,
+} from "./student-api";
 
 describe("schoolCheckinStudent", () => {
   beforeEach(() => {
@@ -138,6 +141,192 @@ describe("schoolCheckinStudent", () => {
 
     expect(mockAuthFetch).toHaveBeenCalledWith(
       "/api/students/1/school-checkin",
+      expect.objectContaining({ token: undefined }),
+    );
+  });
+});
+
+describe("schoolCheckinStudentsBatch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetCachedSession.mockResolvedValue({ user: { token: "tok-1" } });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("maps a batch response and keeps IDs as strings on the wire", async () => {
+    mockAuthFetch.mockResolvedValueOnce({
+      data: {
+        action: "out" as const,
+        succeeded: 2,
+        failed: 1,
+        results: [
+          {
+            student_id: "42",
+            ok: true,
+            changed: true,
+            location: "Abwesend" as const,
+          },
+          {
+            student_id: "43",
+            ok: true,
+            changed: false,
+            location: "Abwesend" as const,
+          },
+          { student_id: "99", ok: false, changed: false, error: "not_found" },
+        ],
+      },
+    });
+
+    const outcome = await schoolCheckinStudentsBatch(["42", "43", "99"], "out");
+
+    expect(outcome).toEqual({
+      action: "out",
+      succeeded: 2,
+      failed: 1,
+      results: [
+        {
+          studentId: "42",
+          ok: true,
+          changed: true,
+          location: "Abwesend",
+          error: undefined,
+        },
+        {
+          studentId: "43",
+          ok: true,
+          changed: false,
+          location: "Abwesend",
+          error: undefined,
+        },
+        {
+          studentId: "99",
+          ok: false,
+          changed: false,
+          location: undefined,
+          error: "not_found",
+        },
+      ],
+    });
+
+    // The wire body carries the IDs as STRINGS — Number() conversion would
+    // corrupt int64 IDs above 2^53-1 (review #2372).
+    expect(mockAuthFetch).toHaveBeenCalledWith(
+      "/api/students/school-checkin/batch",
+      expect.objectContaining({
+        method: "POST",
+        body: { action: "out", student_ids: ["42", "43", "99"] },
+        token: "tok-1",
+      }),
+    );
+  });
+
+  it("handles an unwrapped response (no `data` envelope)", async () => {
+    mockAuthFetch.mockResolvedValueOnce({
+      action: "in" as const,
+      succeeded: 1,
+      failed: 0,
+      results: [
+        { student_id: "7", ok: true, changed: true, location: "Anwesend" },
+      ],
+    });
+
+    const outcome = await schoolCheckinStudentsBatch(["7"], "in");
+
+    expect(outcome.succeeded).toBe(1);
+    expect(outcome.results[0]?.studentId).toBe("7");
+    expect(outcome.results[0]?.location).toBe("Anwesend");
+  });
+
+  it("splits selections beyond the per-request cap into sequential chunks and merges the outcomes", async () => {
+    const ids = Array.from({ length: 1001 }, (_, i) => `${i + 1}`);
+    mockAuthFetch.mockImplementation(
+      (_url: string, options: { body: { student_ids: string[] } }) =>
+        Promise.resolve({
+          data: {
+            action: "in",
+            succeeded: options.body.student_ids.length,
+            failed: 0,
+            results: options.body.student_ids.map((studentId) => ({
+              student_id: studentId,
+              ok: true,
+              changed: true,
+              location: "Anwesend",
+            })),
+          },
+        }),
+    );
+
+    const outcome = await schoolCheckinStudentsBatch(ids, "in");
+
+    expect(mockAuthFetch).toHaveBeenCalledTimes(2);
+    const firstBody = mockAuthFetch.mock.calls[0]?.[1]?.body as {
+      student_ids: string[];
+    };
+    const secondBody = mockAuthFetch.mock.calls[1]?.[1]?.body as {
+      student_ids: string[];
+    };
+    expect(firstBody.student_ids).toHaveLength(1000);
+    expect(secondBody.student_ids).toEqual(["1001"]);
+    expect(outcome.succeeded).toBe(1001);
+    expect(outcome.results).toHaveLength(1001);
+  });
+
+  it("propagates a first-request error (per-student failures never reject)", async () => {
+    mockAuthFetch.mockRejectedValueOnce(
+      new Error("API error (403): Forbidden"),
+    );
+
+    await expect(schoolCheckinStudentsBatch(["1", "2"], "in")).rejects.toThrow(
+      "API error (403): Forbidden",
+    );
+  });
+
+  it("reports a failing later chunk as per-student request_failed entries instead of throwing", async () => {
+    const ids = Array.from({ length: 1002 }, (_, i) => `${i + 1}`);
+    mockAuthFetch
+      .mockResolvedValueOnce({
+        data: {
+          action: "out",
+          succeeded: 1000,
+          failed: 0,
+          results: ids.slice(0, 1000).map((studentId) => ({
+            student_id: studentId,
+            ok: true,
+            changed: true,
+            location: "Abwesend",
+          })),
+        },
+      })
+      .mockRejectedValueOnce(new Error("API error (500): boom"));
+
+    const outcome = await schoolCheckinStudentsBatch(ids, "out");
+
+    // The committed first chunk is reported truthfully; the unprocessed rest
+    // comes back as failed so the caller's retry flow covers it.
+    expect(outcome.succeeded).toBe(1000);
+    expect(outcome.failed).toBe(2);
+    expect(outcome.results).toHaveLength(1002);
+    expect(outcome.results.at(-1)).toEqual({
+      studentId: "1002",
+      ok: false,
+      changed: false,
+      error: "request_failed",
+    });
+  });
+
+  it("passes an undefined token when no session exists", async () => {
+    mockGetCachedSession.mockResolvedValueOnce(null);
+    mockAuthFetch.mockResolvedValueOnce({
+      data: { action: "in", succeeded: 0, failed: 0, results: [] },
+    });
+
+    await schoolCheckinStudentsBatch(["1"], "in");
+
+    expect(mockAuthFetch).toHaveBeenCalledWith(
+      "/api/students/school-checkin/batch",
       expect.objectContaining({ token: undefined }),
     );
   });

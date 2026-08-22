@@ -1,6 +1,11 @@
 package students
 
-import "time"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/users"
+)
 
 // Values accepted by the `view` query parameter of GET /api/students.
 const (
@@ -56,24 +61,26 @@ type SlimStudentResponse struct {
 	ClassTrip      bool       `json:"class_trip"`
 	ClassTripSince *time.Time `json:"class_trip_since,omitempty"`
 
-	// Day planning. day_planning_reason is deliberately absent: the page
-	// renders day_planning_label and derives everything else from status.
+	// Day planning. The reason distinguishes actual unplanned attendance from
+	// ordinary planned presence; status and label alone cannot express that.
 	DayPlanningStatus  string  `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string  `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string  `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 
 	// Planned + actual times (the arrival/pickup rows and their sort/group
 	// modes). Only populated for full-access rows and when the caller passes
 	// include_pickup_times / include_arrival_times.
-	PickupStatus       string  `json:"pickup_status,omitempty"`
-	PickupTime         *string `json:"pickup_time,omitempty"`
-	PickupIsException  bool    `json:"pickup_is_exception,omitempty"`
-	PickupNotes        string  `json:"pickup_notes,omitempty"`
-	ArrivalTime        *string `json:"arrival_time,omitempty"`
-	ArrivalIsException bool    `json:"arrival_is_exception,omitempty"`
-	ArrivalNotes       string  `json:"arrival_notes,omitempty"`
-	ActualArrivalTime  *string `json:"actual_arrival_time,omitempty"`
-	ActualPickupTime   *string `json:"actual_pickup_time,omitempty"`
+	DepartureModes     []users.DepartureMode `json:"departure_modes,omitempty"`
+	DepartureLabel     string                `json:"departure_label,omitempty"`
+	PickupTime         *string               `json:"pickup_time,omitempty"`
+	PickupIsException  bool                  `json:"pickup_is_exception,omitempty"`
+	PickupNotes        string                `json:"pickup_notes,omitempty"`
+	ArrivalTime        *string               `json:"arrival_time,omitempty"`
+	ArrivalIsException bool                  `json:"arrival_is_exception,omitempty"`
+	ArrivalNotes       string                `json:"arrival_notes,omitempty"`
+	ActualArrivalTime  *string               `json:"actual_arrival_time,omitempty"`
+	ActualPickupTime   *string               `json:"actual_pickup_time,omitempty"`
 
 	// "Nach Laufgemeinschaft" grouping; only with include_companions=true.
 	CompanionStudentIDs []int64 `json:"companion_student_ids,omitempty"`
@@ -89,10 +96,11 @@ type SlimStudentResponse struct {
 
 // slimStudentResponses projects the fully built, filtered and paginated list
 // onto the Kindersuche wire shape.
-func slimStudentResponses(responses []StudentResponse) []SlimStudentResponse {
+func slimStudentResponses(responses []StudentResponse, planningDate timezone.Date) []SlimStudentResponse {
 	slim := make([]SlimStudentResponse, len(responses))
 	for i := range responses {
 		r := &responses[i]
+		departure := dailyDepartureForDate(*r, planningDate)
 		slim[i] = SlimStudentResponse{
 			ID:                  r.ID,
 			FirstName:           r.FirstName,
@@ -110,9 +118,11 @@ func slimStudentResponses(responses []StudentResponse) []SlimStudentResponse {
 			ClassTrip:           r.ClassTrip,
 			ClassTripSince:      r.ClassTripSince,
 			DayPlanningStatus:   r.DayPlanningStatus,
+			DayPlanningReason:   r.DayPlanningReason,
 			DayPlanningLabel:    r.DayPlanningLabel,
 			PendingExcusedNote:  r.PendingExcusedNote,
-			PickupStatus:        r.PickupStatus,
+			DepartureModes:      departure.Modes,
+			DepartureLabel:      departure.LegacyLabel,
 			PickupTime:          r.PickupTime,
 			PickupIsException:   r.PickupIsException,
 			PickupNotes:         r.PickupNotes,

@@ -22,6 +22,8 @@ import (
 // keeps the anonymous cookie/Accept-Language locale instead of snapping to the
 // default.
 type ParentProfileResponse struct {
+	FirstName    string  `json:"first_name"`
+	LastName     string  `json:"last_name"`
 	PortalLocale *string `json:"portal_locale"`
 }
 
@@ -31,10 +33,19 @@ type UpdateParentProfileRequest struct {
 
 func profileResponse(profile *parentService.Profile) ParentProfileResponse {
 	if profile == nil || !profile.Explicit {
-		return ParentProfileResponse{PortalLocale: nil}
+		response := ParentProfileResponse{PortalLocale: nil}
+		if profile != nil {
+			response.FirstName = profile.FirstName
+			response.LastName = profile.LastName
+		}
+		return response
 	}
 	locale := profile.Locale
-	return ParentProfileResponse{PortalLocale: &locale}
+	return ParentProfileResponse{
+		FirstName:    profile.FirstName,
+		LastName:     profile.LastName,
+		PortalLocale: &locale,
+	}
 }
 
 func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {

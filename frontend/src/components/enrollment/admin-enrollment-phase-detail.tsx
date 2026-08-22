@@ -40,6 +40,7 @@ import {
   type CareUsageReport,
   type CareUsageRow,
   type EnrollmentReportFormat,
+  type EnrollmentReportLayout,
   type EnrollmentReportStatus,
   exportCareUsageReport,
   exportPhaseClassRoster,
@@ -48,11 +49,19 @@ import {
 import {
   DataTable,
   type DataTableColumn,
+  DataTableSkeleton,
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
+import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  useCareOfferingsEnabled,
+  useTenantSlugSafe,
+} from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
@@ -120,6 +129,7 @@ const DAY_LABELS: Record<string, string> = {
 const CARE_USAGE_WEEKDAYS = ["mon", "tue", "wed", "thu", "fri"] as const;
 
 export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const tenantSlug = useTenantSlugSafe();
   const toast = useToast();
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -143,6 +153,8 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [reportError, setReportError] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
+  const [approvalWithoutOfferingRow, setApprovalWithoutOfferingRow] =
+    useState<CareUsageRow | null>(null);
   const [exportingFormat, setExportingFormat] =
     useState<EnrollmentExportFormat | null>(null);
   const [exportingReportFormat, setExportingReportFormat] =
@@ -265,10 +277,17 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   }, [loadReport, reportFilters]);
 
   const handleReportExport = useCallback(
-    async (format: EnrollmentReportFormat) => {
+    async (
+      format: EnrollmentReportFormat,
+      layout: EnrollmentReportLayout = "detailed",
+    ) => {
       setExportingReportFormat(format);
       try {
-        await exportCareUsageReport(reportFilters, format);
+        if (layout === "compact") {
+          await exportCareUsageReport(reportFilters, format, "compact");
+        } else {
+          await exportCareUsageReport(reportFilters, format);
+        }
         toast.success("Auswertungsexport wurde erstellt.");
       } catch (err) {
         const message =
@@ -276,6 +295,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         logger.error("phase_care_usage_report_export_failed", {
           error: message,
           format,
+          layout,
           phase_id: phaseId,
         });
         toast.error(message);
@@ -392,6 +412,26 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     [loadData, loadReport, reportFilters, toast],
   );
 
+  const requestQuickDecision = useCallback(
+    (row: CareUsageRow, status: DecisionStatus) => {
+      if (
+        status === "approved" &&
+        careOfferingsEnabled &&
+        phase?.care_offering_selection_mode === "optional" &&
+        row.offerings.length === 0
+      ) {
+        setApprovalWithoutOfferingRow(row);
+        return;
+      }
+      void handleQuickDecision(row, status);
+    },
+    [
+      careOfferingsEnabled,
+      handleQuickDecision,
+      phase?.care_offering_selection_mode,
+    ],
+  );
+
   const columns = useMemo<DataTableColumn<CareUsageRow>[]>(
     () => [
       {
@@ -481,17 +521,31 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             row={row}
             href={requestHref(row.request_id)}
             busy={busyChildId === row.child_id}
-            onDecide={(status) => void handleQuickDecision(row, status)}
+            onDecide={(status) => requestQuickDecision(row, status)}
           />
         ),
       },
     ],
-    [busyChildId, handleQuickDecision, requestHref],
+    [busyChildId, requestHref, requestQuickDecision],
   );
 
   if (loading) {
     return (
-      <p className="text-sm text-gray-500">Anmeldungen werden geladen...</p>
+      <SkeletonRegion label="Anmeldungen werden geladen">
+        <div className="space-y-4">
+          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md sm:p-6">
+            <Skeleton className="h-3 w-28 rounded" />
+            <Skeleton className="mt-2 h-6 w-64 rounded" />
+            <Skeleton className="mt-2 h-4 w-48 rounded" />
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              {Array.from({ length: 4 }, (_, i) => (
+                <Skeleton key={i} className="h-16 rounded-2xl" />
+              ))}
+            </div>
+          </div>
+          <DataTableSkeleton rows={8} columns={8} />
+        </div>
+      </SkeletonRegion>
     );
   }
 
@@ -758,7 +812,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         report={report}
         loading={reportLoading}
         exportingFormat={exportingReportFormat}
-        onExport={(format) => void handleReportExport(format)}
+        onExport={(format, layout) => void handleReportExport(format, layout)}
       />
 
       <DataTable
@@ -783,6 +837,22 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
           </div>
         }
       />
+      <ConfirmationModal
+        isOpen={approvalWithoutOfferingRow !== null}
+        onClose={() => setApprovalWithoutOfferingRow(null)}
+        onConfirm={() => {
+          const row = approvalWithoutOfferingRow;
+          setApprovalWithoutOfferingRow(null);
+          if (row !== null) void handleQuickDecision(row, "approved");
+        }}
+        title="Anmeldung bestätigen"
+        confirmText="Trotzdem bestätigen"
+      >
+        <Alert
+          type="warning"
+          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+        />
+      </ConfirmationModal>
     </div>
   );
 }
@@ -872,7 +942,10 @@ function ReportStats({
   report: CareUsageReport | null;
   loading: boolean;
   exportingFormat: EnrollmentReportFormat | null;
-  onExport: (format: EnrollmentReportFormat) => void;
+  onExport: (
+    format: EnrollmentReportFormat,
+    layout: EnrollmentReportLayout,
+  ) => void;
 }>) {
   const totals = report?.totals;
   return (
@@ -972,19 +1045,47 @@ function ReportStatCard({
   );
 }
 
+// Excel is always tabular; PDF and Word offer the detailed record layout and
+// the compact class-roster-style table (#2215).
+const REPORT_EXPORT_OPTIONS: readonly ExportMenuItem[] = [
+  { format: "xlsx", layout: "detailed", label: "Als Excel-Datei exportieren" },
+  {
+    format: "pdf",
+    layout: "detailed",
+    label: "Als PDF exportieren (ausführlich)",
+  },
+  {
+    format: "pdf",
+    layout: "compact",
+    label: "Als PDF exportieren (kompakte Tabelle)",
+  },
+  {
+    format: "docx",
+    layout: "detailed",
+    label: "Als Word-Dokument exportieren (ausführlich)",
+  },
+  {
+    format: "docx",
+    layout: "compact",
+    label: "Als Word-Dokument exportieren (kompakte Tabelle)",
+  },
+];
+
 function ReportExportCard({
   exportingFormat,
   onExport,
 }: Readonly<{
   exportingFormat: EnrollmentReportFormat | null;
-  onExport: (format: EnrollmentReportFormat) => void;
+  onExport: (
+    format: EnrollmentReportFormat,
+    layout: EnrollmentReportLayout,
+  ) => void;
 }>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const closeMenu = useCallback(() => setOpen(false), []);
   useClickOutside(containerRef, closeMenu, open);
   const disabled = exportingFormat !== null;
-  const formats: readonly EnrollmentReportFormat[] = ["xlsx", "pdf", "docx"];
 
   return (
     <div
@@ -1020,10 +1121,10 @@ function ReportExportCard({
           className="absolute right-0 z-40 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
           <ExportMenuItems
-            formats={formats}
-            onSelect={(format) => {
+            items={REPORT_EXPORT_OPTIONS}
+            onSelect={(item) => {
               setOpen(false);
-              onExport(format);
+              onExport(item.format, item.layout ?? "detailed");
             }}
           />
         </div>
@@ -1101,25 +1202,31 @@ function formatDayCountLabel(count: number): string {
   return count === 1 ? "1 Tag" : `${count} Tage`;
 }
 
+interface ExportMenuItem {
+  readonly format: EnrollmentExportFormat;
+  readonly label: string;
+  readonly layout?: EnrollmentReportLayout;
+}
+
 function ExportMenuItems({
-  formats,
+  items,
   onSelect,
 }: {
-  readonly formats: readonly EnrollmentExportFormat[];
-  readonly onSelect: (format: EnrollmentExportFormat) => void;
+  readonly items: readonly ExportMenuItem[];
+  readonly onSelect: (item: ExportMenuItem) => void;
 }) {
   return (
     <>
-      {formats.map((format) => (
+      {items.map((item) => (
         <button
-          key={format}
+          key={`${item.format}-${item.layout ?? "detailed"}`}
           type="button"
           role="menuitem"
-          onClick={() => onSelect(format)}
+          onClick={() => onSelect(item)}
           className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
         >
-          <ExportFormatIcon format={format} />
-          <span className="flex-1">{EXPORT_MENU_LABELS[format]}</span>
+          <ExportFormatIcon format={item.format} />
+          <span className="flex-1">{item.label}</span>
         </button>
       ))}
     </>
@@ -1173,10 +1280,13 @@ function ExportMenuButton({
           className="absolute right-0 z-30 mt-2 min-w-64 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg"
         >
           <ExportMenuItems
-            formats={formats}
-            onSelect={(format) => {
+            items={formats.map((format) => ({
+              format,
+              label: EXPORT_MENU_LABELS[format],
+            }))}
+            onSelect={(item) => {
               setOpen(false);
-              onExport(format);
+              onExport(item.format);
             }}
           />
         </div>

@@ -40,6 +40,13 @@ type ParentMessageThread struct {
 	// per thread row. Every code path that updates LastMessageAt MUST also set
 	// this in the same UPDATE.
 	LastMessageBody string `bun:"last_message_body" json:"last_message_body,omitempty"`
+	// StaffHandledUpTo is the team-wide boundary for guardian activity already
+	// covered by a staff reply. Personal read cursors remain account-specific.
+	StaffHandledUpToAt        *time.Time `bun:"staff_handled_up_to_at" json:"-"`
+	StaffHandledUpToMessageID *int64     `bun:"staff_handled_up_to_message_id" json:"-"`
+	// LastStaffMessageNotificationAt is the database-clock claim used to
+	// collapse a short burst of guardian messages into one staff notification.
+	LastStaffMessageNotificationAt *time.Time `bun:"last_staff_message_notification_at" json:"-"`
 }
 
 // ParentMessageThreadRepository is the tenant-scoped data-access contract for
@@ -47,17 +54,21 @@ type ParentMessageThread struct {
 type ParentMessageThreadRepository interface {
 	Create(ctx context.Context, thread *ParentMessageThread) error
 	Update(ctx context.Context, thread *ParentMessageThread) error
+	// LockForMessageAppend serializes message inserts for one thread. The lock
+	// must be acquired before inserting so message order also reflects commit order.
+	LockForMessageAppend(ctx context.Context, threadID int64) error
 	// TouchLastMessage atomically advances the denormalized last-activity fields
 	// (last_message_at, last_message_id, last_sender_kind, last_message_body) that
 	// drive the inbox preview/order, but ONLY when the message's (at, messageID)
 	// composite is newer than the stored (last_message_at, last_message_id). This
-	// is the single, concurrency-safe write path for those fields: it makes them
-	// monotonic in the SAME (created_at, id) order the message log uses, so two
-	// near-simultaneous sends (staff + guardian) to the same thread can't have the
-	// later-committing-but-older one clobber the newer preview/order — including
-	// when both messages share a created_at, where the higher id wins. Callers
-	// must still insert the message row separately.
+	// is the single monotonic write path for those fields, including when two
+	// messages share a timestamp and the higher id wins. Callers must still insert
+	// the message row separately.
 	TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error
+	// ClaimStaffMessageNotification atomically opens one notification window for
+	// the thread. It returns false while a previous claim is still inside the
+	// cooldown. PostgreSQL supplies the clock so multiple app hosts agree.
+	ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error)
 	// FindByID returns the thread by id (tenant-scoped), or nil when absent.
 	FindByID(ctx context.Context, id int64) (*ParentMessageThread, error)
 	// FindByStudentGuardian returns the single conversation for a (student,
@@ -86,4 +97,5 @@ type MessageableGuardian struct {
 	Name             string `bun:"name" json:"name"`
 	RelationshipType string `bun:"relationship_type" json:"relationship_type"`
 	IsPrimary        bool   `bun:"is_primary" json:"is_primary"`
+	PortalLocale     string `bun:"portal_locale" json:"-"`
 }

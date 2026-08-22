@@ -50,7 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-func claimsFor(accountID int64) jwt.AppClaims {
+func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday@example.com",
@@ -58,7 +58,7 @@ func claimsFor(accountID int64) jwt.AppClaims {
 		FirstName: "Birthday",
 		LastName:  "Tester",
 		Roles:     []string{"user"},
-		TenantID:  1,
+		TenantID:  testpkg.Tenant(tb),
 	}
 }
 
@@ -87,7 +87,7 @@ func setPersonBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.D
 
 func setSetting(t *testing.T, tc *testContext, key string, value any) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(ctx, key, value, nil, nil), "set %s", key)
 	t.Cleanup(func() {
 		_ = tc.services.Settings.ResetValue(ctx, key, nil, nil)
@@ -95,8 +95,7 @@ func setSetting(t *testing.T, tc *testContext, key string, value any) {
 }
 
 // adminPermissions mints the admin wildcard: children are student data, so a
-// caller only sees beyond their own groups with admin rights or the
-// gdpr.student_data_scope=all_staff opt-in.
+// caller sees them with admin rights or a staff record in the tenant (#2329).
 func adminPermissions() []string {
 	return []string{permissions.UsersRead, "admin:*"}
 }
@@ -105,7 +104,7 @@ func getOverview(t *testing.T, tc *testContext, accountID int64, perms []string)
 	t.Helper()
 	req, err := http.NewRequest("GET", "/", nil)
 	require.NoError(t, err)
-	return authExec(t, tc, req, claimsFor(accountID), perms)
+	return authExec(t, tc, req, claimsFor(t, accountID), perms)
 }
 
 type overviewPayload struct {
@@ -142,9 +141,10 @@ func (p overviewPayload) names() []string {
 // Berechtigung: the overview lists names of children and colleagues, so it
 // stays behind users:read like the rest of the directory.
 func TestOverviewRequiresUsersRead(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-overview@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	t.Run("rejected without permissions", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{})
@@ -163,6 +163,8 @@ func TestOverviewRequiresUsersRead(t *testing.T) {
 }
 
 func TestOverviewRejectsUnauthenticated(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req, err := http.NewRequest("GET", "/", nil)
@@ -175,16 +177,16 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 // A child with today's birth date appears with the age it reaches; a child
 // without a stored date simply is not in the list (AK 5).
 func TestOverviewListsTodaysChildren(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-children@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	today := timezone.TodayDate()
 	celebrating := testpkg.CreateTestStudent(t, tc.db, "Lina", "Geburtstagskind", "1a")
-	withoutDate := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, celebrating.ID, withoutDate.ID)
+	_ = testpkg.CreateTestStudent(t, tc.db, "Ohne", "Datum", "1a")
 
 	setPersonBirthday(t, tc.db, celebrating.PersonID, timezone.NewDate(today.Year-7, today.Month, today.Day))
 
@@ -210,15 +212,15 @@ func TestOverviewListsTodaysChildren(t *testing.T) {
 // The school switch is a real switch: off means the dashboard shows nothing,
 // not "everything anyway".
 func TestOverviewDisabledReturnsNothing(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, false)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-off@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Nicht", "Sichtbar", "2b")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-6, today.Month, today.Day))
 
 	rr := getOverview(t, tc, account.ID, adminPermissions())
@@ -232,22 +234,22 @@ func TestOverviewDisabledReturnsNothing(t *testing.T) {
 // Datenschutz: staff birthdays appear only when the school opted in, and never
 // for someone who opted out personally.
 func TestOverviewStaffVisibility(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-staff@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	today := timezone.TodayDate()
 	staff := testpkg.CreateTestStaff(t, tc.db, "Anna", "Kollegin")
 	optedOut := testpkg.CreateTestStaff(t, tc.db, "Bea", "Abgemeldet")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID, optedOut.ID)
 
 	birthday := timezone.NewDate(today.Year-40, today.Month, today.Day)
 	setPersonBirthday(t, tc.db, staff.PersonID, birthday)
 	setPersonBirthday(t, tc.db, optedOut.PersonID, birthday)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	_, err := tc.db.NewUpdate().
 		Table("users.staff").
 		Set("birthday_display_opt_out = TRUE").
@@ -287,16 +289,16 @@ func TestOverviewStaffVisibility(t *testing.T) {
 
 // The opt-out is self-service and acts on the caller's own row.
 func TestOptOutRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Clara", "Selbst")
-	defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Clara", "Selbst")
 
 	read := func() *httptest.ResponseRecorder {
 		req, err := http.NewRequest("GET", "/opt-out", nil)
 		require.NoError(t, err)
-		return authExec(t, tc, req, claimsFor(account.ID), []string{})
+		return authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 	}
 
 	rr := read()
@@ -306,7 +308,7 @@ func TestOptOutRoundTrip(t *testing.T) {
 	req, err := http.NewRequest("PUT", "/opt-out", strings.NewReader(`{"opt_out":true}`))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
-	rr = authExec(t, tc, req, claimsFor(account.ID), []string{})
+	rr = authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
 	rr = read()
@@ -317,13 +319,14 @@ func TestOptOutRoundTrip(t *testing.T) {
 // An account without a staff record has nothing to opt out of — a 404, not a
 // 500 and not a silent success.
 func TestOptOutWithoutStaffRecord(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-no-staff@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	req, err := http.NewRequest("GET", "/opt-out", nil)
 	require.NoError(t, err)
-	rr := authExec(t, tc, req, claimsFor(account.ID), []string{})
+	rr := authExec(t, tc, req, claimsFor(t, account.ID), []string{})
 
 	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
 }
@@ -331,9 +334,10 @@ func TestOptOutWithoutStaffRecord(t *testing.T) {
 // Berechtigung: the staff list reveals full birth dates, so users:read is not
 // enough — it needs the permission that opens the Stammdaten behind it.
 func TestStaffExportPermissionGate(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	request := func() *http.Request {
 		req, err := http.NewRequest("POST", "/staff-export", strings.NewReader(`{"format":"xlsx"}`))
@@ -343,12 +347,12 @@ func TestStaffExportPermissionGate(t *testing.T) {
 	}
 
 	t.Run("rejected with users:read alone", func(t *testing.T) {
-		rr := authExec(t, tc, request(), claimsFor(account.ID), []string{permissions.UsersRead})
+		rr := authExec(t, tc, request(), claimsFor(t, account.ID), []string{permissions.UsersRead})
 		assert.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
 	})
 
 	t.Run("allowed with users:update", func(t *testing.T) {
-		rr := authExec(t, tc, request(), claimsFor(account.ID), []string{permissions.UsersUpdate})
+		rr := authExec(t, tc, request(), claimsFor(t, account.ID), []string{permissions.UsersUpdate})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 		assert.Equal(t,
 			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -360,35 +364,36 @@ func TestStaffExportPermissionGate(t *testing.T) {
 // A month filter outside 01..12 is a client mistake, not a silent full-year
 // export.
 func TestStaffExportRejectsInvalidMonth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-export-month@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	req, err := http.NewRequest("POST", "/staff-export", strings.NewReader(`{"format":"xlsx","months":["13"]}`))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	rr := authExec(t, tc, req, claimsFor(account.ID), []string{permissions.UsersUpdate})
+	rr := authExec(t, tc, req, claimsFor(t, account.ID), []string{permissions.UsersUpdate})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
 }
 
 // Datenschutz-Blocker aus dem Review: a birthday row carries a child's name,
 // group, class and age. users:read alone must therefore not hand out the whole
-// school — the route applies the same student data scope as every other child
-// list, and a caller who supervises nothing sees nothing.
+// school — the route applies the same student read gate as every other child
+// list, so an account without a staff record sees nothing.
 func TestOverviewAppliesStudentDataScope(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	setSetting(t, tc, configModel.KeyBirthdayDisplayEnabled, true)
 
 	account := testpkg.CreateTestAccount(t, tc.db, "birthday-scope@example.com")
-	defer testpkg.CleanupAuthFixtures(t, tc.db, account.ID)
 
 	today := timezone.TodayDate()
 	student := testpkg.CreateTestStudent(t, tc.db, "Fremdes", "Scopekind", "4a")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	setPersonBirthday(t, tc.db, student.PersonID, timezone.NewDate(today.Year-9, today.Month, today.Day))
 
-	t.Run("plain users:read sees no child", func(t *testing.T) {
+	t.Run("plain users:read without a staff record sees no child", func(t *testing.T) {
 		rr := getOverview(t, tc, account.ID, []string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 
@@ -402,14 +407,10 @@ func TestOverviewAppliesStudentDataScope(t *testing.T) {
 		assert.Contains(t, decodeOverview(t, rr).names(), "Fremdes Scopekind")
 	})
 
-	// The school-wide opt-in is the other way in: all_staff scope means every
-	// verified staff member may read the directory, so the card follows.
-	t.Run("all_staff scope opens it for staff", func(t *testing.T) {
-		staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sara", "Scopekraft")
-		defer testpkg.CleanupStaffFixtures(t, tc.db, staff.ID)
-		defer testpkg.CleanupAuthFixtures(t, tc.db, staffAccount.ID)
-
-		setSetting(t, tc, configModel.KeyStudentDataScope, configModel.StudentDataScopeAllStaff)
+	// The other way in is a staff record: every verified staff member reads the
+	// directory (#2329), so the card follows without any tenant opt-in.
+	t.Run("a staff record opens it for plain users:read", func(t *testing.T) {
+		_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Sara", "Scopekraft")
 
 		rr := getOverview(t, tc, staffAccount.ID, []string{permissions.UsersRead})
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

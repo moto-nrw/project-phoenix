@@ -11,6 +11,8 @@ import (
 )
 
 func TestKeyRejectsTraversal(t *testing.T) {
+	t.Parallel()
+
 	for _, segments := range [][]string{
 		{".."},
 		{"staff-documents", "..", "etc"},
@@ -30,6 +32,8 @@ func TestKeyRejectsTraversal(t *testing.T) {
 }
 
 func TestTenantKeySeparatesTenants(t *testing.T) {
+	t.Parallel()
+
 	first, err := TenantKey("student-documents", 7, "a.pdf")
 	if err != nil {
 		t.Fatalf("TenantKey: %v", err)
@@ -50,6 +54,8 @@ func TestTenantKeySeparatesTenants(t *testing.T) {
 }
 
 func TestLocalSaveOpenRemoveRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	backend := NewLocal(t.TempDir())
 	ctx := context.Background()
 
@@ -97,6 +103,8 @@ func TestLocalSaveOpenRemoveRoundTrip(t *testing.T) {
 }
 
 func TestLocalSavePrivateUsesOwnerOnlyPermissions(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 
@@ -122,6 +130,8 @@ func TestLocalSavePrivateUsesOwnerOnlyPermissions(t *testing.T) {
 }
 
 func TestLocalRejectsEscapingKey(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 	outside := filepath.Join(filepath.Dir(root), "outside.txt")
@@ -138,6 +148,8 @@ func TestLocalRejectsEscapingKey(t *testing.T) {
 }
 
 func TestLocalOpenMissingReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	backend := NewLocal(t.TempDir())
 	if _, err := backend.Open(context.Background(), "nope.pdf"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Open missing = %v, want ErrNotFound", err)
@@ -152,6 +164,8 @@ func TestLocalOpenMissingReturnsNotFound(t *testing.T) {
 // so a write allowed to run past it can re-create bytes whose intent the
 // scheduler already settled — an object no sweep can find again.
 func TestLocalSaveHonoursContext(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 
@@ -171,6 +185,8 @@ func TestLocalSaveHonoursContext(t *testing.T) {
 // than only before the first one: a copy already in flight when the deadline
 // passes must stop, not run to completion.
 func TestLocalSaveStopsMidStream(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 
@@ -200,6 +216,8 @@ func TestLocalSaveStopsMidStream(t *testing.T) {
 // object, because an upload that reports success without storing bytes leaves a
 // metadata row pointing at nothing.
 func TestLocalRefusesAFileAsADirectory(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 	ctx := context.Background()
@@ -223,6 +241,8 @@ func TestLocalRefusesAFileAsADirectory(t *testing.T) {
 // reads as an object. Open must say "not found" rather than hand
 // http.ServeContent a directory handle.
 func TestLocalRefusesADirectoryAsAnObject(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 	ctx := context.Background()
@@ -248,6 +268,8 @@ func TestLocalRefusesADirectoryAsAnObject(t *testing.T) {
 // deadline. Both abort the write, but only the deadline case may be reported as
 // a context error — the upload path decides its cleanup bookkeeping from it.
 func TestLocalSaveSurfacesReadFailure(t *testing.T) {
+	t.Parallel()
+
 	root := t.TempDir()
 	backend := NewLocal(root)
 
@@ -268,6 +290,8 @@ func TestLocalSaveSurfacesReadFailure(t *testing.T) {
 // and Open already refuse to leave the root, and so must the two operations
 // that a cleanup sweep uses.
 func TestLocalRemoveAndStatRejectEscapingKey(t *testing.T) {
+	t.Parallel()
+
 	backend := NewLocal(t.TempDir())
 	ctx := context.Background()
 

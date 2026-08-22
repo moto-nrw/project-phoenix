@@ -12,7 +12,6 @@ import React, {
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTranslations } from "next-intl";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
@@ -21,12 +20,11 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { operatorPath } from "~/lib/operator-url";
-import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
-import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useNFCEnabled,
@@ -322,88 +320,6 @@ const OPERATOR_ADDITIONAL_ITEMS: AdditionalNavItem[] = [
   },
 ];
 
-// `tKey` is the parentNav catalog key; the German `label` is the fallback used
-// only when rendered outside an intl context. Mapping on a stable key (not the
-// German label or href, which are "#" for coming-soon items) keeps the
-// translation correct even if the fallback wording changes.
-const PARENT_MAIN_ITEMS: readonly (NavItem & { tKey: string })[] = [
-  {
-    href: "/parents",
-    label: "Start",
-    tKey: "start",
-    iconKey: "home",
-    concept: "dashboard",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/children",
-    label: "Meine Kinder",
-    tKey: "children",
-    iconKey: "group",
-    concept: "children",
-    alwaysShow: true,
-  },
-  {
-    href: "/parents/calendar",
-    label: "Kalender",
-    tKey: "calendar",
-    iconKey: "calendar",
-    concept: "calendar",
-    alwaysShow: true,
-  },
-];
-
-const PARENT_ADDITIONAL_ITEMS: readonly (AdditionalNavItem & {
-  tKey: string;
-})[] = [
-  {
-    href: "/parents/messages",
-    label: "Nachrichten",
-    tKey: "messages",
-    iconKey: "chat",
-    concept: "parentConversations",
-    alwaysShow: true,
-  },
-  // Neuigkeiten — only shown once a linked school broadcasts announcements
-  // (gated via useParentNewsEnabled in the parent display filter below).
-  {
-    href: "/parents/news",
-    label: "Neuigkeiten",
-    tKey: "news",
-    iconKey: "newspaper",
-    concept: "news",
-  },
-  // Essensplan — only shown once a linked school runs a meal plan (gated via
-  // useParentMealPlanEnabled in the parent display filter below).
-  {
-    href: "/parents/meal-plan",
-    label: "Essensplan",
-    tKey: "mealPlan",
-    iconKey: "utensils",
-    concept: "mealPlan",
-  },
-  // Feedback ans Produktteam (#1678) — last of the real entries, mirroring the
-  // desktop sidebar where it sits pinned below the daily-use areas. It is a
-  // channel to moto, not to the school, so no per-school gate applies.
-  {
-    href: "/parents/feedback",
-    label: "Feedback",
-    tKey: "feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
-  },
-  {
-    href: "#",
-    label: "Kontaktdaten",
-    tKey: "contactData",
-    iconKey: "profile",
-    concept: "accounts",
-    alwaysShow: true,
-    comingSoon: true,
-  },
-];
-
 const PLANNING_ICON_KEYS: Record<
   PlanningPageHref,
   keyof typeof navigationIcons
@@ -461,6 +377,15 @@ const additionalNavItems: AdditionalNavItem[] = [
     iconKey: "staff",
     concept: "staff",
     alwaysShow: true,
+  },
+  {
+    // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
+    // canOpenRequestsPage: requiresPermission kann das
+    // users:absence+users:read-Paar nicht ausdrücken.
+    href: "/anfragen",
+    label: "Anfragen",
+    iconKey: "tray",
+    concept: "requests",
   },
   {
     href: "/calendar",
@@ -572,7 +497,6 @@ interface MobileBottomNavProps {
 }
 
 export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
-  const tParentNav = useTranslations("parentNav");
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -591,7 +515,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     routingMode,
   );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
@@ -690,38 +614,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [],
   );
-  const parentMainItems = useMemo(
-    () =>
-      PARENT_MAIN_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
-  const parentAdditionalItems = useMemo(
-    () =>
-      PARENT_ADDITIONAL_ITEMS.map((item) => ({
-        ...item,
-        label: tParentNav(item.tKey),
-      })),
-    [tParentNav],
-  );
   // Reines Lehrkraft-Konto (#1772): geteiltes Prädikat aus auth-utils.
   const lehrkraftOnly = isLehrkraftOnly(session);
   const baseMain =
-    mode === "parent"
-      ? parentMainItems
-      : mode === "operator"
-        ? resolvedOperatorMainItems
-        : mode === "school"
-          ? SCHOOL_MAIN_ITEMS
-          : lehrkraftOnly
-            ? LEHRKRAFT_MAIN_ITEMS
-            : isCaregiver(session)
-              ? STAFF_MAIN_ITEMS
-              : hasRole(session, "admin")
-                ? ADMIN_MAIN_ITEMS
-                : STAFF_MAIN_ITEMS;
+    mode === "operator"
+      ? resolvedOperatorMainItems
+      : mode === "school"
+        ? SCHOOL_MAIN_ITEMS
+        : lehrkraftOnly
+          ? LEHRKRAFT_MAIN_ITEMS
+          : isCaregiver(session)
+            ? STAFF_MAIN_ITEMS
+            : hasRole(session, "admin")
+              ? ADMIN_MAIN_ITEMS
+              : STAFF_MAIN_ITEMS;
   // Admins with supervision overview: inject "Aufsicht" tab dynamically.
   // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
   // than just isSupervising so a synthetic Schulhof entry does not surface
@@ -757,12 +663,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
-  // Only advertise Essensplan in the parents portal once a linked school runs
-  // a meal plan; otherwise the overflow link leads to an empty page.
-  const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
-  // Same gate for Neuigkeiten: hidden until a linked school broadcasts
-  // announcements, otherwise the overflow link dead-ends on an empty feed.
-  const parentNewsEnabled = useParentNewsEnabled(mode === "parent");
   const hasGroupSupervision = !isLoadingGroups && hasGroups;
   const hasRoomSupervision = !isLoadingSupervision && isSupervising;
 
@@ -804,6 +704,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
     // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
     if (item.href === "/klassen") return hasRole(session, "lehrkraft");
+    // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
+    // change-request-access.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
@@ -813,9 +716,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       isPlanningPageHref(item.href) &&
       item.href !== "/calendar-periods" &&
       item.href !== "/payroll" &&
-      !timetableEnabled &&
-      (userIsAdmin || item.requiresPermission === undefined)
+      !timetableEnabled
     ) {
+      // Gilt auch für Nicht-Admins mit nonAdminPermission (#2283): die
+      // Betreuungsplan-Leseansicht verschwindet mit timetable.enabled.
       return false;
     }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
@@ -843,16 +747,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     displayMainItems.filter((i) => i.href !== "#").map((i) => i.href),
   );
   const displayAdditionalItems =
-    mode === "parent"
-      ? parentAdditionalItems.filter(
-          (i) =>
-            !mainHrefs.has(i.href) &&
-            (i.href !== "/parents/meal-plan" || parentMealPlanEnabled) &&
-            (i.href !== "/parents/news" || parentNewsEnabled),
-        )
-      : mode === "operator"
-        ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
-        : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
+    mode === "operator"
+      ? resolvedOperatorAdditionalItems.filter((i) => !mainHrefs.has(i.href))
+      : filteredAdditionalItems.filter((i) => !mainHrefs.has(i.href));
 
   // Check if any additional nav item is active
   const isAnyAdditionalNavActive = displayAdditionalItems.some((item) =>
@@ -918,6 +815,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     return () => clearTimeout(timer);
   }, [displayMainItems, isActiveRoute]);
 
+  const moreLabel = "Mehr";
+
   return (
     <>
       {/* Spacer to prevent content from being hidden behind fixed nav */}
@@ -939,10 +838,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
                   // path-routing mode a bare "/eltern" href is captured as the
                   // tenant slug, so prefix it the same way the /eltern page
-                  // prefixes its card links. Other entries stay bare — /help is
-                  // host-agnostic and must not carry the slug.
+                  // prefixes its card links. Anfragen is also tenant-scoped.
+                  // Other entries stay bare — /help is host-agnostic and must
+                  // not carry the slug.
                   const href =
-                    item.href === "/eltern" || isPlanningPageHref(item.href)
+                    item.href === "/eltern" ||
+                    item.href === "/anfragen" ||
+                    isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;
 
@@ -1071,7 +973,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                       className="h-5 w-5 flex-shrink-0"
                     />
 
-                    {/* Label - ONLY show when active */}
                     {isActive && (
                       <span className="text-sm font-semibold whitespace-nowrap">
                         {item.label}
@@ -1087,7 +988,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   ref={moreButtonRef}
                   type="button"
                   onClick={() => setIsOverflowMenuOpen(true)}
-                  aria-label="Mehr"
+                  aria-label={moreLabel}
                   className={`relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-3 py-2.5 transition-colors duration-200 ${
                     isOverflowMenuOpen || isAnyAdditionalNavActive
                       ? "bg-gray-100 text-gray-900"
@@ -1100,10 +1001,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     className="h-5 w-5 flex-shrink-0"
                   />
 
-                  {/* Label - ONLY show when active */}
                   {(isOverflowMenuOpen || isAnyAdditionalNavActive) && (
                     <span className="text-sm font-semibold whitespace-nowrap">
-                      Mehr
+                      {moreLabel}
                     </span>
                   )}
                 </button>

@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -39,18 +40,36 @@ func (pickupTimeDomain) ExceptionFields(row *schedule.StudentPickupException) ef
 		CreatedByGuardian: row.CreatedByGuardian,
 		CreatedAt:         row.CreatedAt,
 		TenantID:          row.TenantID,
+		ExcusedFrom:       row.ExcusedFrom,
+		ExcusedReason:     row.ExcusedReason,
+		ExcusedCreatedBy:  row.ExcusedCreatedBy,
+		ExcusedOwnsTime:   row.ExcusedOwnsPickupTime,
+		ExcusedAuto:       row.ExcusedAuto,
 	}
 }
 
 func (pickupTimeDomain) NewException(fields effectiveExceptionFields) *schedule.StudentPickupException {
+	// TIME WITHOUT TIME ZONE columns must not rebind driver-specific date or
+	// location metadata. The generic update path already WallClock-normalizes
+	// PickupTime; do the same for the partial-excusal cutoff here.
+	var excusedFrom = fields.ExcusedFrom
+	if excusedFrom != nil {
+		clock := timezone.WallClock(*excusedFrom)
+		excusedFrom = &clock
+	}
 	row := &schedule.StudentPickupException{
-		StudentID:         fields.StudentID,
-		ExceptionDate:     fields.Date,
-		PickupTime:        fields.Time,
-		Reason:            fields.Reason,
-		Source:            fields.Source,
-		CreatedBy:         fields.CreatedBy,
-		CreatedByGuardian: fields.CreatedByGuardian,
+		StudentID:             fields.StudentID,
+		ExceptionDate:         fields.Date,
+		PickupTime:            fields.Time,
+		Reason:                fields.Reason,
+		Source:                fields.Source,
+		CreatedBy:             fields.CreatedBy,
+		CreatedByGuardian:     fields.CreatedByGuardian,
+		ExcusedFrom:           excusedFrom,
+		ExcusedReason:         fields.ExcusedReason,
+		ExcusedCreatedBy:      fields.ExcusedCreatedBy,
+		ExcusedOwnsPickupTime: fields.ExcusedOwnsTime && !fields.TimeChanged,
+		ExcusedAuto:           fields.ExcusedAuto,
 	}
 	row.ID = fields.ID
 	row.CreatedAt = fields.CreatedAt

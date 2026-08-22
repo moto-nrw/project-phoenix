@@ -77,6 +77,7 @@ var pyreportalErrorStrings = []string{
 	"no active session",
 
 	// Visit / room / activity (POST /checkin)
+	"no room available for this activity",
 	"failed to end visit record",
 	"failed to create visit record",
 	"failed to get room information",
@@ -132,7 +133,10 @@ var pyreportalErrorCodes = []string{
 	"rfid_tag_not_found",
 	"rfid_tag_inactive",
 	"rfid_tag_not_staff",
-	"reopen_status_conflict",
+	// "reopen_status_conflict" was retired with #2402: a repeated check-in
+	// now starts a new work block instead of reopening the closed one, so
+	// the backend never emits the code again. PyrePortal's handler for it is
+	// dead code and can be removed there independently.
 	"planned_start_not_reached",
 	"deviation_reason_required",
 	"invalid_staff_clock_state",
@@ -160,6 +164,8 @@ var extraGuardSources = []string{
 // contains "PyrePortal" so failures in CI logs land the reader directly on
 // this file — and the file-top comment explains the coupling.
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
+	t.Parallel()
+
 	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
 	iotDir := filepath.Dir(thisFile)                  // backend/api/iot

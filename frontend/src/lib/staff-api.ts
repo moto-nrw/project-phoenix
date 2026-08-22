@@ -25,6 +25,8 @@ export interface BackendStaffResponse {
   was_present_today?: boolean;
   work_status?: string;
   absence_type?: string;
+  /** The school's own Abwesenheitsart wording for today's absence (#2403). */
+  absence_type_label?: string;
 }
 
 interface ActiveSupervisionResponse {
@@ -77,6 +79,8 @@ export interface Staff {
   // Time-tracking
   workStatus?: string;
   absenceType?: string;
+  /** The school's own Abwesenheitsart wording, "" for a standard type (#2403). */
+  absenceTypeLabel?: string;
   isFinancialProfile?: boolean;
   isLimitedProfile?: boolean;
 }
@@ -318,6 +322,7 @@ function mapStaffMember(
     wasPresentToday: staff.was_present_today,
     workStatus: staff.work_status,
     absenceType: staff.absence_type,
+    absenceTypeLabel: staff.absence_type_label,
   };
 }
 
@@ -447,6 +452,7 @@ class StaffService {
       wasPresentToday: staff.was_present_today,
       workStatus: staff.work_status,
       absenceType: staff.absence_type,
+      absenceTypeLabel: staff.absence_type_label,
     };
   }
 
@@ -727,7 +733,11 @@ interface StaffSessionBreak {
 }
 
 export interface StaffHistorySession {
-  id?: number;
+  // Backend int64, quoted as a decimal string ON THE WIRE already
+  // (SessionResponse.MarshalJSON) and carried through unchanged: parsing it as
+  // a JSON number would round anything past 2^53 before any client-side
+  // .toString() could run, and the block-edit lookup matches on this id.
+  id?: string;
   date: string;
   status?: "present" | "home_office";
   // Channel the row was created on. `app` = self-service Web/App,
@@ -760,6 +770,8 @@ class StaffHistoryService {
     if (!response.ok) {
       throw new Error(`Failed to fetch staff history: ${response.statusText}`);
     }
+    // The wire row IS StaffHistorySession — the id arrives quoted, so there is
+    // nothing to convert and no number to round.
     const json = (await response.json()) as {
       data: { sessions: StaffHistorySession[] };
     };
@@ -773,6 +785,10 @@ export interface StaffAbsenceRow {
   id: number;
   staff_id: number;
   absence_type: string;
+  /** School-defined Abwesenheitsart (#2403); absent for the standard types. */
+  absence_type_id?: string | null;
+  /** The school's own wording; empty for the standard types. */
+  absence_type_label?: string;
   date_start: string;
   date_end: string;
   half_day: boolean;
@@ -786,6 +802,22 @@ export interface StaffAbsenceRow {
   working_days?: number | null;
   requested_at?: string;
   duration_days?: number;
+}
+
+// Eine Zeile des Anfragen-Moduls (#2433): der Antrag plus die Namen, die die
+// Liste anzeigt. Leere Namen heißen "Unbekannt" (gelöschtes Konto).
+export interface StaffAbsenceRequestRow extends Omit<
+  StaffAbsenceRow,
+  "id" | "staff_id" | "approved_by"
+> {
+  id: string;
+  staff_id: string;
+  approved_by?: string | null;
+  staff_name: string;
+  decided_by_name?: string;
+  /** Zeitpunkt der letzten Änderung; trägt bei zurückgezogenen Anträgen das
+   *  Rücknahme-Datum, für das es kein eigenes Feld gibt. */
+  updated_at?: string;
 }
 
 // Vacation takeover at the moto introduction (#2132): days already taken
@@ -984,7 +1016,10 @@ class StaffAbsenceService {
     }
   }
 
-  async approve(absenceId: number, decisionNote?: string): Promise<void> {
+  async approve(
+    absenceId: number | string,
+    decisionNote?: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/approve`,
       {
@@ -1013,9 +1048,37 @@ class StaffAbsenceService {
     return json.data ?? [];
   }
 
+  // Anfragen-Modul, Reiter Mitarbeitende (#2433): offene Anträge oder die
+  // Historie der entschiedenen, jeweils mit den Namen, die die Liste zeigt.
+  // Suche und Art-Filter wirken serverseitig.
+  async listRequests(
+    view: "open" | "history",
+    filters: { search?: string; types?: readonly string[] } = {},
+  ): Promise<StaffAbsenceRequestRow[]> {
+    const params = new URLSearchParams({ view });
+    if (filters.search?.trim()) params.set("search", filters.search.trim());
+    if (filters.types && filters.types.length > 0)
+      params.set("types", filters.types.join(","));
+    const response = await sessionFetch(
+      `/api/staff/absences/requests?${params.toString()}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch absence requests: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: StaffAbsenceRequestRow[] | null;
+    };
+    return json.data ?? [];
+  }
+
   // Rückfrage: moves a requested absence into status "question" with a
   // mandatory note from the Leitung (#1419).
-  async question(absenceId: number, decisionNote: string): Promise<void> {
+  async question(
+    absenceId: number | string,
+    decisionNote: string,
+  ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/question`,
       {
@@ -1030,7 +1093,7 @@ class StaffAbsenceService {
     }
   }
 
-  async deny(absenceId: number, decisionNote: string): Promise<void> {
+  async deny(absenceId: number | string, decisionNote: string): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/absences/${absenceId}/deny`,
       {
@@ -1098,13 +1161,16 @@ import { parseISODate, toISODate } from "./date-helpers";
 import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
+  mapDailyProjectionResponse,
   mapDailyTargetsResponse,
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
+  type BackendDailyProjection,
   type BackendDailyTarget,
+  type DayProjection,
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
   type BackendMonthSummary,
@@ -1169,6 +1235,29 @@ class StaffMonthSummaryService {
     return mapMonthSummaryResponse(json.data);
   }
 
+  // Admin counterpart to timeTrackingService.getDailyProjection (#2443): Soll,
+  // Gutschrift, Ist und Saldo je Tag, gerechnet wie die Monatskarte — so kann
+  // die Tageszeile der Karte darüber nicht widersprechen.
+  async getDailyProjection(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, DayProjection>> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch daily projection: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendDailyProjection[] | null;
+    };
+    return mapDailyProjectionResponse(json.data);
+  }
+
   // Admin counterpart to timeTrackingService.getScheduleTargets — the same
   // date-valid Soll the Monatskarte is computed from, so card and table can
   // never disagree after a schedule change (#1842).
@@ -1177,7 +1266,7 @@ class StaffMonthSummaryService {
     from: string,
     to: string,
   ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to });
+    const params = new URLSearchParams({ from, to, target_only: "true" });
     const response = await sessionFetch(
       `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
     );
@@ -1294,9 +1383,9 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to update session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to update session: ${response.statusText}`,
       );
     }
   }
@@ -1316,12 +1405,29 @@ class StaffSessionService {
       },
     );
     if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(
-        body || `Failed to create session: ${response.statusText}`,
+      await throwSessionWriteError(
+        response,
+        `Failed to create session: ${response.statusText}`,
       );
     }
   }
+}
+
+// Admin session writes fail with a stable code; the accompanying message
+// carries dynamic content (the conflicting interval) and is not presentable
+// as-is, so the mapping happens here instead of by sniffing the raw body in
+// the modal.
+async function throwSessionWriteError(
+  response: Response,
+  fallback: string,
+): Promise<never> {
+  const error = await readStaffAPIError(response, fallback);
+  if (error.code === "work_session_overlap") {
+    throw new Error(
+      "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+    );
+  }
+  throw new Error(error.message);
 }
 
 interface StaffAPIError {

@@ -9,7 +9,6 @@ import { LogoutModal } from "~/components/ui/logout-modal";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
-import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import {
   useTenantRoutingModeSafe,
   useTenantSafe,
@@ -87,8 +86,12 @@ export function Header() {
   const parentPageTitle = (() => {
     if (mode !== "parent") return null;
     if (pathname === "/" || pathname === "/parents") return tParentNav("start");
-    if (pathname === "/parents/children") return tParentNav("children");
-    if (pathname.startsWith("/parents/children/"))
+    if (pathname === "/parents/children" || pathname === "/children")
+      return tParentNav("children");
+    if (
+      pathname.startsWith("/parents/children/") ||
+      pathname.startsWith("/children/")
+    )
       return tParentNav("childProfile");
     if (matchesPathPrefix(pathname, "/parents/messages"))
       return tParentNav("messages");
@@ -99,6 +102,15 @@ export function Header() {
       return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
+    if (pathname === "/parents/calendar" || pathname === "/calendar")
+      return tParentNav("calendar");
+    if (pathname === "/parents/feedback" || pathname === "/feedback")
+      return tParentNav("feedback");
+    if (
+      matchesPathPrefix(pathname, "/parents/enroll") ||
+      matchesPathPrefix(pathname, "/enroll")
+    )
+      return tParentNav("enroll");
     return null;
   })();
   // Schul-Portal (#2207): die Klassenansicht ist die Root-Seite des
@@ -215,9 +227,18 @@ export function Header() {
                 isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
+                hideLabelOnMobile={mode === "parent"}
               />
             )}
             <BreadcrumbDivider />
+            {/* Elternportal: Seitentitel auch auf Mobilgeräten anzeigen —
+                die Breadcrumb-Komponenten sind hidden md:flex, ohne diesen
+                Titel fehlt unterhalb md jede Ortsangabe (#Elternapp-Audit). */}
+            {mode === "parent" && (
+              <span className="min-w-0 truncate text-sm font-semibold text-gray-900 md:hidden">
+                {displayedPageTitle}
+              </span>
+            )}
             <HeaderBreadcrumb
               pathname={pathname}
               pageTitle={displayedPageTitle}
@@ -245,12 +266,10 @@ export function Header() {
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              <RefreshButton />
+              {mode !== "parent" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}
-            {mode === "parent" ? <LanguageSwitcher compact /> : null}
-
             {/* User menu */}
             <div ref={profileMenuRef} className="relative">
               <ProfileTrigger
@@ -258,6 +277,7 @@ export function Header() {
                 displayAvatar={displayAvatar}
                 userRole={userRole}
                 isOpen={isProfileMenuOpen}
+                compactOnTablet={mode === "parent"}
                 onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
               />
               <ProfileDropdownMenu
@@ -301,6 +321,10 @@ function enrichReferrerWithParam(referrer: string): string {
     if (groupId) return `/ogs-groups?group=${groupId}`;
   }
   if (referrer === "/active-supervisions") {
+    // Prefer the precise session key (#2265); the room key is the legacy
+    // fallback for state written before session tracking existed.
+    const sessionId = localStorage.getItem("supervision-last-session");
+    if (sessionId) return `/active-supervisions?session=${sessionId}`;
     const roomId = localStorage.getItem("sidebar-last-room");
     if (roomId) return `/active-supervisions?room=${roomId}`;
   }

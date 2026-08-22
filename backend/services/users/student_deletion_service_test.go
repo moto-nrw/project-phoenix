@@ -51,23 +51,6 @@ func newStudentDeletionTestService(
 	)
 }
 
-func cleanupStudentDeletionTest(
-	t *testing.T,
-	db *bun.DB,
-	studentIDs, personIDs, assignmentIDs, instanceIDs, roomIDs, accountIDs, auditIDs []int64,
-) {
-	t.Helper()
-	_, err := db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id IN (?)`, bun.List(studentIDs)).Exec(context.Background())
-	require.NoError(t, err)
-	testpkg.CleanupTableRecords(t, db, "audit.student_deletions", auditIDs...)
-	testpkg.CleanupTableRecords(t, db, "schedule.instance_students", assignmentIDs...)
-	testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instanceIDs...)
-	testpkg.CleanupTableRecords(t, db, "users.students", studentIDs...)
-	testpkg.CleanupTableRecords(t, db, "users.persons", personIDs...)
-	testpkg.CleanupTableRecords(t, db, "facilities.rooms", roomIDs...)
-	testpkg.CleanupAuthFixtures(t, db, accountIDs...)
-}
-
 func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
 	t.Helper()
 	var count int
@@ -77,10 +60,11 @@ func tableRowCount(t *testing.T, db *bun.DB, table string, id int64) int {
 }
 
 func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteService", "Target", "1a")
@@ -147,17 +131,6 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		VALUES (?, ?, ?, 'parent')
 		RETURNING id
 	`, target.TenantID, target.PersonID, legacyGuardianAccount.ID).Scan(ctx, &legacyGuardianLinkID))
-	var auditID int64
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.persons_guardians", legacyGuardianLinkID)
-		testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
-		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID, spared.ID}, []int64{target.PersonID, spared.PersonID},
-			[]int64{targetAssignment.ID, sparedAssignment.ID}, []int64{instance.ID},
-			[]int64{room.ID}, []int64{actor.ID, childAccount.ID, messageGuardianAccount.ID}, []int64{auditID})
-		testpkg.CleanupParentAccountFixtures(t, db, legacyGuardianAccount.ID)
-		testpkg.CleanupRFIDCards(t, db, card.ID)
-	})
 
 	preview, err := service.Preview(ctx, target.ID)
 	require.NoError(t, err)
@@ -234,7 +207,6 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 		ORDER BY id DESC
 		LIMIT 1
 	`, target.TenantID, actor.ID).Scan(ctx, &audit))
-	auditID = audit.ID
 	assert.Equal(t, target.ID, audit.StudentID)
 	assert.Equal(t, actor.ID, audit.ActorAccountID)
 	assert.Equal(t, usersService.StudentDeletionReasonTestData, audit.Reason)
@@ -252,26 +224,20 @@ func TestStudentDeletionService_DeletePreservesSharedInstanceAndAnonymizesPerson
 }
 
 func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	hostingTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.CleanupTenantTestData(t, db, hostingTenantID)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, hostingTenantID) })
 	testpkg.EnsureTestTenant(t, db, hostingTenantID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "CrossTenant", "Visitor", "1a")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-cross-tenant@example.com")
 	hostingGroup := testpkg.CreateTestActiveGroupForTenant(t, db, hostingTenantID)
 	hostedVisit := testpkg.CreateTestVisitForTenant(t, db, hostingTenantID, target.ID, hostingGroup.ID, time.Now(), nil)
-	t.Cleanup(func() {
-		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID}, []int64{target.PersonID}, nil, nil, nil, []int64{actor.ID}, nil)
-		testpkg.CleanupTableRecords(t, db, "active.visits", hostedVisit.ID)
-	})
 
 	preview, err := service.Preview(ctx, target.ID)
 	require.NoError(t, err)
@@ -290,10 +256,11 @@ func TestStudentDeletionService_DeleteCountsCrossTenantVisits(t *testing.T) {
 }
 
 func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
@@ -311,8 +278,6 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 		_, _ = db.NewDelete().TableExpr(`audit.data_access_log`).Where(`id = ?`, accessLogID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr(`audit.data_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr(`audit.student_deletions`).Where(`student_id = ?`, target.ID).Exec(context.Background())
-		testpkg.CleanupActivityFixtures(t, db, target.ID)
-		testpkg.CleanupAuthFixtures(t, db, actor.ID)
 	})
 
 	preview, err := service.Preview(ctx, target.ID)
@@ -348,10 +313,11 @@ func TestStudentDeletionService_PreviewExcludesPreservedDeletionAudits(t *testin
 }
 
 func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Target", "1a")
@@ -365,11 +331,6 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 	preview, err := service.Preview(ctx, target.ID)
 	require.NoError(t, err)
 	assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
-	t.Cleanup(func() {
-		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID}, []int64{target.PersonID}, []int64{assignment.ID}, []int64{instance.ID},
-			[]int64{room.ID}, []int64{actor.ID}, nil)
-	})
 
 	_, err = service.Delete(ctx, usersService.StudentDeletionInput{
 		StudentID:           target.ID,
@@ -385,10 +346,11 @@ func TestStudentDeletionService_DeleteRejectsStalePreview(t *testing.T) {
 }
 
 func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repos := repositories.NewFactory(db)
 	service := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
 	target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Read", "1a")
@@ -400,10 +362,6 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 		VALUES (?, ?, ?)
 		RETURNING id
 	`, target.TenantID, target.ID, parentAccount.ID).Scan(ctx, &messageThreadID))
-	t.Cleanup(func() {
-		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID}, []int64{target.PersonID}, nil, nil, nil, []int64{actor.ID, parentAccount.ID}, nil)
-	})
 
 	preview, err := service.Preview(ctx, target.ID)
 	require.NoError(t, err)
@@ -427,21 +385,22 @@ func TestStudentDeletionService_DeleteRejectsStalePreviewAfterMessageRead(t *tes
 }
 
 func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	service := newStudentDeletionTestService(db, nil, nil)
 
-	_, err := service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{})
+	_, err := service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{})
 	require.ErrorIs(t, err, usersService.ErrStudentDeletionPreviewChanged)
 
-	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+	_, err = service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
 		StudentID:           1,
 		ActorAccountID:      1,
 		ExpectedFingerprint: "aabb",
 	})
 	require.ErrorIs(t, err, usersService.ErrStudentDeletionNotAcknowledged)
 
-	_, err = service.Delete(testpkg.TenantContext(1), usersService.StudentDeletionInput{
+	_, err = service.Delete(testpkg.Ctx(t), usersService.StudentDeletionInput{
 		StudentID:           1,
 		ActorAccountID:      1,
 		ExpectedFingerprint: "aabb",
@@ -452,14 +411,11 @@ func TestStudentDeletionService_DeleteRejectsIncompleteConfirmation(t *testing.T
 }
 
 func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteAlumnus", "Target", "1a")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", student.PersonID)
-	})
 	_, err := db.NewUpdate().
 		TableExpr(`users.students AS "student"`).
 		Set(`status = ?`, userModels.StudentStatusAlumnus).
@@ -472,14 +428,11 @@ func TestStudentDeletionService_PreviewRejectsAlumnus(t *testing.T) {
 }
 
 func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "DeleteMissingAudit", "Target", "1a")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "users.students", student.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", student.PersonID)
-	})
 	service := newStudentDeletionTestService(db, repositories.NewFactory(db).DataDeletion, nil)
 	preview, err := service.Preview(ctx, student.ID)
 	require.NoError(t, err)
@@ -497,10 +450,11 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditRepositoryIsMissing(t *t
 }
 
 func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	auditErr := errors.New("audit unavailable")
 	service := newStudentDeletionTestService(db, repositories.NewFactory(db).DataDeletion, failingStudentDeletionAudit{err: auditErr})
 	target := testpkg.CreateTestStudent(t, db, "DeleteRollback", "Target", "1a")
@@ -511,11 +465,6 @@ func TestStudentDeletionService_DeleteRollsBackWhenAuditFails(t *testing.T) {
 	})
 	assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 	actor := testpkg.CreateTestAccount(t, db, "student-delete-rollback@example.com")
-	t.Cleanup(func() {
-		cleanupStudentDeletionTest(t, db,
-			[]int64{target.ID}, []int64{target.PersonID}, []int64{assignment.ID}, []int64{instance.ID},
-			[]int64{room.ID}, []int64{actor.ID}, nil)
-	})
 
 	preview, err := service.Preview(ctx, target.ID)
 	require.NoError(t, err)

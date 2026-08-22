@@ -108,6 +108,8 @@ func matchedStudentSubmit(firstName string) SubmitChild {
 // re-resolved against the new identity before the decision service renews
 // anything (#1663).
 func TestReconcileMatchedStudent_RepinsAfterIdentityEdit(t *testing.T) {
+	t.Parallel()
+
 	newStudent := int64(900)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &newStudent, false)
 	oldPin := int64(100)
@@ -128,6 +130,8 @@ func TestReconcileMatchedStudent_RepinsAfterIdentityEdit(t *testing.T) {
 // An unchanged identity keeps its pin: dropping it would send approval down the
 // fresh-create branch and duplicate the very student this audience renews.
 func TestReconcileMatchedStudent_KeepsPinForUnchangedIdentity(t *testing.T) {
+	t.Parallel()
+
 	pin := int64(100)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &pin, false)
 	child := matchedStudentChild(11, &pin)
@@ -145,6 +149,8 @@ func TestReconcileMatchedStudent_KeepsPinForUnchangedIdentity(t *testing.T) {
 // existing_students cannot be re-resolved: the stale pin must be cleared so
 // approval creates a fresh record rather than renewing a stranger.
 func TestReconcileMatchedStudent_ClearsStalePinWhenAudienceNoLongerMatches(t *testing.T) {
+	t.Parallel()
+
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceOpen, nil, false)
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
@@ -161,6 +167,8 @@ func TestReconcileMatchedStudent_ClearsStalePinWhenAudienceNoLongerMatches(t *te
 // On an existing_students phase an edit to a child that matches no enrolled
 // student is not a fresh create — it is an invalid submission for the phase.
 func TestReconcileMatchedStudent_RejectsUnmatchableIdentityOnExistingStudentsPhase(t *testing.T) {
+	t.Parallel()
+
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, nil, false)
 	oldPin := int64(100)
 	child := matchedStudentChild(11, &oldPin)
@@ -174,6 +182,8 @@ func TestReconcileMatchedStudent_RejectsUnmatchableIdentityOnExistingStudentsPha
 // The re-resolved pin is only allowed to stand when the guardian holds
 // parent_portal.enrollment.submit on THAT student.
 func TestReconcileMatchedStudent_RejectsUnpermittedNewMatch(t *testing.T) {
+	t.Parallel()
+
 	newStudent := int64(900)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &newStudent, false)
 	f.auth.granted = false
@@ -191,6 +201,8 @@ func TestReconcileMatchedStudent_RejectsUnpermittedNewMatch(t *testing.T) {
 // Reopening it to under_review puts both in competition again — the uniqueness
 // guard must therefore run at reopen time, not only at insert time (#1663).
 func TestReconcileMatchedStudent_RejectsReopenCollidingWithAnotherRequest(t *testing.T) {
+	t.Parallel()
+
 	pin := int64(100)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
@@ -206,6 +218,8 @@ func TestReconcileMatchedStudent_RejectsReopenCollidingWithAnotherRequest(t *tes
 // A rejected child whose own data did NOT change stays rejected, so it never
 // re-enters competition and must not be blocked by another request's pin.
 func TestReconcileMatchedStudent_SkipsUniquenessForChildStayingRejected(t *testing.T) {
+	t.Parallel()
+
 	pin := int64(100)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
@@ -220,6 +234,8 @@ func TestReconcileMatchedStudent_SkipsUniquenessForChildStayingRejected(t *testi
 // Once approval materialized the student, SyncApprovedChildData owns that live
 // record and the pin is history — reconciliation must not touch it.
 func TestReconcileMatchedStudent_SkipsMaterializedChild(t *testing.T) {
+	t.Parallel()
+
 	pin := int64(100)
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, &pin, true)
 	child := matchedStudentChild(11, &pin)
@@ -236,6 +252,8 @@ func TestReconcileMatchedStudent_SkipsMaterializedChild(t *testing.T) {
 // Rollover children resolve their existing student through the rollover source
 // chain, which takes precedence at approval — a pin here would be dead data.
 func TestReconcileMatchedStudent_SkipsRolloverChild(t *testing.T) {
+	t.Parallel()
+
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceExistingStudents, nil, false)
 	child := matchedStudentChild(11, nil)
 	source := int64(9)
@@ -250,6 +268,8 @@ func TestReconcileMatchedStudent_SkipsRolloverChild(t *testing.T) {
 // An unpinned child on an ordinary phase is the common case and must stay a
 // pure no-op — no lookups, no probes, no writes.
 func TestReconcileMatchedStudent_NoOpForUnpinnedOrdinaryChild(t *testing.T) {
+	t.Parallel()
+
 	f := newMatchedStudentFixture(enrollmentModels.PhaseAudienceOpen, nil, true)
 	child := matchedStudentChild(11, nil)
 
@@ -263,6 +283,8 @@ func TestReconcileMatchedStudent_NoOpForUnpinnedOrdinaryChild(t *testing.T) {
 // postApprovalChildStatus has to mirror the write loop's status decisions,
 // because the uniqueness guard keys on whether the child ends up active.
 func TestPostApprovalChildStatus(t *testing.T) {
+	t.Parallel()
+
 	row := &enrollmentModels.ChangeRequest{
 		BaseSnapshot:     map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna"}}},
 		ProposedSnapshot: map[string]any{"children": []any{map[string]any{"id": int64(11), "first_name": "Anna-Lena"}}},
@@ -299,6 +321,8 @@ func TestPostApprovalChildStatus(t *testing.T) {
 }
 
 func TestPtrInt64Equal(t *testing.T) {
+	t.Parallel()
+
 	a, b := int64(5), int64(5)
 	c := int64(6)
 	assert.True(t, ptrInt64Equal(nil, nil))
@@ -313,6 +337,8 @@ func TestPtrInt64Equal(t *testing.T) {
 // available_school_classes, so an available-but-ineligible class must still be
 // rejected there (#1663).
 func TestValidateChildClassEligibility(t *testing.T) {
+	t.Parallel()
+
 	phase := &enrollmentModels.Phase{
 		EligibleSchoolClasses:  []string{"2a"},
 		AvailableSchoolClasses: []string{"2a", "3b"},

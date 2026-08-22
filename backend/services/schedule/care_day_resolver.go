@@ -91,14 +91,23 @@ func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotSchedule
 // instead of the derivation it overrides (#1747 review).
 //
 // A row that already carries a real attendance status tells its own story and
-// reports unknown — with one exception: an absence a broad day status (sick /
-// excused / class trip) wrote and still owns. ApplyStatusDay stamps every
-// expected row of the day, including days the child was never booked into care,
-// and keeps its provenance in student_status_day_id (a check-in and a manual
-// PATCH both clear that column). Until the block ends and MarkNotScheduled
-// undoes it, such a row is a false absence, so it keeps the non-booking
-// verdict. A cancelled care day WAS booked, so its absence is real and stays
-// one, and a manual absence is never relabelled.
+// reports unknown — with two exceptions that still count as non-bookings when
+// the plan says the child was never expected:
+//
+//  1. An absence a broad day status (sick / excused / class trip) wrote and
+//     still owns via student_status_day_id. ApplyStatusDay stamps every
+//     expected row of the day, including days the child was never booked into
+//     care (a check-in and a manual PATCH both clear that column).
+//  2. An absence a partial-day excusal wrote and still owns via
+//     pickup_exception_id. ApplyPartialAbsence does the same for blocks that
+//     start at or after the cutoff; without recognizing that provenance the
+//     planner treats the active absence as real and under-counts non-scheduled
+//     children until session end.
+//
+// Until the block ends and MarkNotScheduled undoes it, such a row is a false
+// absence, so it keeps the non-booking verdict. A cancelled care day WAS
+// booked, so its absence is real and stays one, and a manual absence is never
+// relabelled.
 func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent, planVerdict CareDayStatus) CareDayStatus {
 	if row == nil {
 		return CareDayUnknown
@@ -113,7 +122,10 @@ func AttendanceRowCareDay(instanceCompleted bool, row *schedule.InstanceStudent,
 		return CareDayUnknown
 	}
 	if row.Status != schedule.AttendanceStatusExpected {
-		if row.StudentStatusDayID != nil && planVerdict == CareDayNotScheduled {
+		// Plan-owned absences on a not-scheduled day remain non-bookings while
+		// the block is active. Manual status already returned above.
+		if planVerdict == CareDayNotScheduled &&
+			(row.StudentStatusDayID != nil || row.PickupExceptionID != nil) {
 			return CareDayNotScheduled
 		}
 		return CareDayUnknown
@@ -132,17 +144,17 @@ type CareDayService interface {
 
 	// ResolveForRange returns the care-day status of every requested child for
 	// every date in the inclusive [from, to] window, keyed student → date.
-	// Costs the same four queries as ResolveForDate regardless of window
-	// length: weekly plans are recurring, so they are loaded once and combined
-	// with the window's exceptions in memory.
+	// Query count stays constant regardless of window length: recurring staff
+	// plans, booking-derived pickup baselines and exceptions are batch-loaded
+	// and combined in memory.
 	ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]CareDayStatus, error)
 }
 
-// CareDayDependencies carries the four repositories the derivation reads.
+// CareDayDependencies carries the read boundaries the derivation uses.
 type CareDayDependencies struct {
 	ArrivalSchedules  schedule.StudentArrivalScheduleRepository
 	ArrivalExceptions schedule.StudentArrivalExceptionRepository
-	PickupSchedules   schedule.StudentPickupScheduleRepository
+	PickupBaselines   PickupBaselineReader
 	PickupExceptions  schedule.StudentPickupExceptionRepository
 }
 
@@ -153,7 +165,7 @@ type careDayService struct {
 // NewCareDayService builds the care-day derivation.
 func NewCareDayService(deps CareDayDependencies) CareDayService {
 	if deps.ArrivalSchedules == nil || deps.ArrivalExceptions == nil ||
-		deps.PickupSchedules == nil || deps.PickupExceptions == nil {
+		deps.PickupBaselines == nil || deps.PickupExceptions == nil {
 		panic("schedule.NewCareDayService: required dependency is nil")
 	}
 	return &careDayService{deps: deps}
@@ -196,12 +208,11 @@ func (s *careDayService) ResolveForRange(
 
 // carePlans is the in-memory projection every date lookup reads from.
 type carePlans struct {
-	// arrivalByStudentWeekday / pickupByStudentWeekday hold the recurring
-	// weekly plan; hasPlan records that a child has ANY plan row, which is what
-	// separates "not booked today" from "no plan on file".
+	// The arrival plan is undated. Pickup baselines can change within the
+	// range when booking validity changes, so they are keyed by date.
 	arrivalByStudentWeekday map[int64]map[int]*schedule.StudentArrivalSchedule
-	pickupByStudentWeekday  map[int64]map[int]*schedule.StudentPickupSchedule
-	hasPlan                 map[int64]bool
+	pickupByStudentDate     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule
+	hasPlan                 map[int64]map[timezone.Date]bool
 
 	arrivalExceptions map[int64]map[timezone.Date]*schedule.StudentArrivalException
 	pickupExceptions  map[int64]map[timezone.Date]*schedule.StudentPickupException
@@ -210,17 +221,38 @@ type carePlans struct {
 func (s *careDayService) loadCarePlans(
 	ctx context.Context, studentIDs []int64, from, to timezone.Date,
 ) (*carePlans, error) {
-	plans := &carePlans{
+	plans := newCarePlans()
+	if err := s.loadArrivalPlans(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	if err := s.loadPickupPlans(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	if err := s.loadCareExceptions(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
+func newCarePlans() *carePlans {
+	return &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
-		pickupByStudentWeekday:  map[int64]map[int]*schedule.StudentPickupSchedule{},
-		hasPlan:                 map[int64]bool{},
+		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
+		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
 		pickupExceptions:        map[int64]map[timezone.Date]*schedule.StudentPickupException{},
 	}
+}
 
+func (s *careDayService) loadArrivalPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
 	arrivals, err := s.deps.ArrivalSchedules.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, row := range arrivals {
 		if row == nil {
@@ -232,59 +264,90 @@ func (s *careDayService) loadCarePlans(
 			plans.arrivalByStudentWeekday[row.StudentID] = byWeekday
 		}
 		byWeekday[row.Weekday] = row
-		plans.hasPlan[row.StudentID] = true
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			plans.markHasPlan(row.StudentID, date)
+		}
 	}
+	return nil
+}
 
-	pickups, err := s.deps.PickupSchedules.FindByStudentIDs(ctx, studentIDs)
+func (s *careDayService) loadPickupPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
+	pickups, err := s.deps.PickupBaselines.Project(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
-	for _, row := range pickups {
-		if row == nil {
-			continue
+	for _, studentID := range studentIDs {
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if pickups.HasPlan(studentID, date) {
+				plans.markHasPlan(studentID, date)
+			}
+			row := pickups.ForDate(studentID, date)
+			if row == nil {
+				continue
+			}
+			if plans.pickupByStudentDate[studentID] == nil {
+				plans.pickupByStudentDate[studentID] = make(map[timezone.Date]*schedule.StudentPickupSchedule)
+			}
+			plans.pickupByStudentDate[studentID][date] = row
 		}
-		byWeekday, ok := plans.pickupByStudentWeekday[row.StudentID]
-		if !ok {
-			byWeekday = map[int]*schedule.StudentPickupSchedule{}
-			plans.pickupByStudentWeekday[row.StudentID] = byWeekday
-		}
-		byWeekday[row.Weekday] = row
-		plans.hasPlan[row.StudentID] = true
 	}
+	return nil
+}
 
+func (s *careDayService) loadCareExceptions(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
 	arrivalExceptions, err := s.deps.ArrivalExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, exc := range arrivalExceptions {
-		if exc == nil {
-			continue
-		}
-		byDate, ok := plans.arrivalExceptions[exc.StudentID]
-		if !ok {
-			byDate = map[timezone.Date]*schedule.StudentArrivalException{}
-			plans.arrivalExceptions[exc.StudentID] = byDate
-		}
-		byDate[exc.ExceptionDate] = exc
+		plans.addArrivalException(exc)
 	}
 
 	pickupExceptions, err := s.deps.PickupExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, exc := range pickupExceptions {
-		if exc == nil {
-			continue
-		}
-		byDate, ok := plans.pickupExceptions[exc.StudentID]
-		if !ok {
-			byDate = map[timezone.Date]*schedule.StudentPickupException{}
-			plans.pickupExceptions[exc.StudentID] = byDate
-		}
-		byDate[exc.ExceptionDate] = exc
+		plans.addPickupException(exc)
 	}
+	return nil
+}
 
-	return plans, nil
+func (p *carePlans) addArrivalException(row *schedule.StudentArrivalException) {
+	if row == nil {
+		return
+	}
+	if p.arrivalExceptions[row.StudentID] == nil {
+		p.arrivalExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentArrivalException)
+	}
+	p.arrivalExceptions[row.StudentID][row.ExceptionDate] = row
+}
+
+func (p *carePlans) addPickupException(row *schedule.StudentPickupException) {
+	if row == nil {
+		return
+	}
+	if p.pickupExceptions[row.StudentID] == nil {
+		p.pickupExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentPickupException)
+	}
+	p.pickupExceptions[row.StudentID][row.ExceptionDate] = row
+}
+
+func (p *carePlans) markHasPlan(studentID int64, date timezone.Date) {
+	if p.hasPlan[studentID] == nil {
+		p.hasPlan[studentID] = make(map[timezone.Date]bool)
+	}
+	p.hasPlan[studentID][date] = true
 }
 
 // statusFor derives one child's status on one date.
@@ -320,7 +383,7 @@ func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus
 		// cancellation branch of ResolveDayPlanning. Somebody stated the child
 		// is out today, which is an absence to record, not a missing booking.
 		return CareDayCancelled
-	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID]:
+	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID][date]:
 		return CareDayUnknown
 	default:
 		// The plan covers other weekdays, just not this one.
@@ -364,7 +427,7 @@ func (p *carePlans) effectivePickup(studentID int64, date timezone.Date) *Effect
 	if weekday > schedule.WeekdayFriday {
 		return result
 	}
-	if sched, ok := p.pickupByStudentWeekday[studentID][weekday]; ok && sched != nil {
+	if sched, ok := p.pickupByStudentDate[studentID][date]; ok && sched != nil {
 		pickup := sched.PickupTime
 		result.PickupTime = &pickup
 	}

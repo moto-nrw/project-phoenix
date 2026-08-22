@@ -2,7 +2,7 @@
 
 import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 /**
@@ -19,7 +19,18 @@ import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 export default function CalendarPeriodsPage() {
   const { isReady } = useRequireAdmin();
 
-  if (!isReady) return <Loading fullPage={false} />;
+  if (!isReady) {
+    return (
+      <SkeletonRegion
+        label="Kalenderzeiträume werden geladen"
+        testId="loading"
+        className="-mt-1.5 w-full space-y-8"
+      >
+        <TableSkeleton rows={5} columns={3} />
+        <TableSkeleton rows={4} columns={3} />
+      </SkeletonRegion>
+    );
+  }
 
   return (
     <div className="-mt-1.5 w-full space-y-8">

@@ -17,11 +17,12 @@ import (
 // ============================================================================
 
 func TestPasswordResetTokenRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates password reset token with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "resetToken")
@@ -49,11 +50,12 @@ func TestPasswordResetTokenRepository_Create(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing token by ID", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "resetFindByID")
@@ -82,11 +84,12 @@ func TestPasswordResetTokenRepository_FindByID(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds token by token string", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "resetFindByToken")
@@ -115,11 +118,12 @@ func TestPasswordResetTokenRepository_FindByToken(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all tokens for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "resetByAccount")
@@ -160,11 +164,12 @@ func TestPasswordResetTokenRepository_FindByAccountID(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds valid token", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "validResetToken")
@@ -212,11 +217,12 @@ func TestPasswordResetTokenRepository_FindValidByToken(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("marks token as used", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "markUsed")
@@ -242,11 +248,12 @@ func TestPasswordResetTokenRepository_MarkAsUsed(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("marks all tokens as used for account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "invalidateAll")
@@ -284,12 +291,13 @@ func TestPasswordResetTokenRepository_InvalidateTokensByAccountID(t *testing.T) 
 	})
 }
 
+// Deliberately NOT parallel: unscoped sweep — the delete runs across all
+// tenants, so beside a parallel test it removes that test's rows too.
 func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes expired and used tokens", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deleteExpired")
@@ -337,11 +345,12 @@ func TestPasswordResetTokenRepository_DeleteExpiredTokens(t *testing.T) {
 }
 
 func TestPasswordResetTokenRepository_UpdateDeliveryResult(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).PasswordResetToken
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates delivery metadata", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deliveryResult")

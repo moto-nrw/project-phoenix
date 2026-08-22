@@ -14,6 +14,8 @@ import (
 // second copy of the same reminder. Its guards run before any SQL: a malformed
 // claim must fail loudly instead of writing a row nothing can match later.
 func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
+	t.Parallel()
+
 	repo := &AppointmentRecipientRepository{}
 	ctx := tenant.WithTenantID(context.Background(), 41)
 	occurrence := timezone.NewDate(2026, 4, 2)
@@ -44,6 +46,8 @@ func TestClaimReminderPushRejectsIncompleteClaims(t *testing.T) {
 // Claims live in a tenant-scoped table. Without a tenant in context the SQL
 // would run unscoped, so the repository refuses rather than reaching the DB.
 func TestReminderPushClaimsRequireATenant(t *testing.T) {
+	t.Parallel()
+
 	repo := &AppointmentRecipientRepository{}
 	occurrence := timezone.NewDate(2026, 4, 2)
 
@@ -58,6 +62,8 @@ func TestReminderPushClaimsRequireATenant(t *testing.T) {
 // The reminder scan asks for the overrides of the appointments it found. An
 // empty ask must not become an unbounded `IN ()` query.
 func TestFindByAppointmentIDsAndStartDatesShortCircuitsEmptyInput(t *testing.T) {
+	t.Parallel()
+
 	repo := &AppointmentOccurrenceOverrideRepository{}
 	ctx := tenant.WithTenantID(context.Background(), 41)
 	dates := []timezone.Date{timezone.NewDate(2026, 4, 2)}

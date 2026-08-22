@@ -20,8 +20,10 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -42,6 +44,7 @@ type InstanceStatusResponse struct {
 	InstanceID  int64  `json:"instance_id"`
 	Status      string `json:"status"`
 	CompletedAt string `json:"completed_at,omitempty"`
+	ReopenUntil string `json:"reopen_until,omitempty"`
 }
 
 // startInstance handles POST /instances/{id}/start.
@@ -95,7 +98,11 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instance, err := rs.InstanceService.Complete(r.Context(), id)
+	claims := jwt.ClaimsFromCtx(r.Context())
+	ctx := scheduleSvc.WithLifecycleActor(r.Context(), int64(claims.ID))
+	// Planner complete has no live visit roster. An empty body (the historic
+	// e2e contract) is accepted; confirmation stays on the operations path.
+	instance, err := rs.InstanceService.Complete(ctx, id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -105,7 +112,29 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 	if instance.CompletedAt != nil {
 		resp.CompletedAt = instance.CompletedAt.UTC().Format("2006-01-02T15:04:05Z")
 	}
+	if instance.ReopenUntil != nil {
+		resp.ReopenUntil = instance.ReopenUntil.UTC().Format("2006-01-02T15:04:05Z")
+	}
 	common.Respond(w, r, http.StatusOK, resp, "Instance completed")
+}
+
+func (rs *Resource) reopenInstance(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
+		return
+	}
+	if rs.InstanceService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.InstanceService.Reopen(r.Context(), id, int64(claims.ID), authorize.HasEffectiveAdminScope(r.Context()))
+	if err != nil {
+		renderInstanceLifecycleError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, StartInstanceResponse{InstanceID: result.Instance.ID, Status: result.Instance.Status, ActiveGroupID: result.ActiveGroupID, Warnings: result.Warnings}, "Instance reopened")
 }
 
 // cancelInstance handles POST /instances/{id}/cancel.
@@ -187,6 +216,21 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
+	case errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "start_too_early"))
+	case errors.Is(err, scheduleSvc.ErrInstanceStartExpired):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "start_window_expired"))
+	case errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "complete_too_early"))
+	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
+	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict):
+		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
+		errors.Is(err, activeSvc.ErrRoomCapacityExceeded):
+		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),

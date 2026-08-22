@@ -2,15 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { ChevronLeft, ChevronRight, Utensils } from "lucide-react";
 
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Loading } from "~/components/ui/loading";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Button } from "~/components/ui/button";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
-import {
-  ParentPage,
-  ParentPageHeader,
-  ParentPageSkeleton,
-} from "~/components/parent/parent-page";
+import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
@@ -49,6 +48,22 @@ function workWeekDates(mondayISO: string): string[] {
   });
 }
 
+function isoWeek(iso: string): number {
+  const date = parseISODate(iso);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const weekOne = new Date(date.getFullYear(), 0, 4);
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - weekOne.getTime()) / 86_400_000 -
+        3 +
+        ((weekOne.getDay() + 6) % 7)) /
+        7,
+    )
+  );
+}
+
 // One dish tile as shown in the today card and the desktop grid. On the
 // highlighted "today" column the tile is solid white (neutral ring) so it stays
 // opaque against the faint tint instead of looking washed out.
@@ -77,11 +92,92 @@ function DishCard({
   );
 }
 
+function MealPlanWeekSkeleton({ loadingLabel }: { loadingLabel: string }) {
+  const dishWidths = ["w-4/5", "w-3/5", "w-full", "w-4/5", "w-3/4"];
+
+  return (
+    <div aria-busy="true" data-testid="meal-plan-week-skeleton">
+      <div role="status" aria-label={loadingLabel} className="sr-only">
+        {loadingLabel}
+      </div>
+
+      <div className="md:hidden" aria-hidden="true">
+        <div className="border-b border-gray-200">
+          <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="h-5 w-12 rounded-full" />
+          </div>
+          <div className="p-3">
+            <div className="rounded-lg bg-gray-50 p-3 ring-1 ring-gray-100">
+              <Skeleton className="h-5 w-3/4" />
+              <Skeleton className="mt-2 h-4 w-1/2" />
+            </div>
+          </div>
+        </div>
+        <div className="divide-y divide-gray-100">
+          {dishWidths.slice(1).map((width, index) => (
+            <div key={index} className="flex gap-3 px-4 py-3">
+              <div className="w-20 shrink-0 space-y-2">
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-3 w-10" />
+              </div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className={`h-4 ${width}`} />
+                <Skeleton className="h-3 w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div
+        className="hidden grid-cols-5 divide-x divide-gray-200 md:grid"
+        aria-hidden="true"
+      >
+        {dishWidths.map((width, index) => (
+          <div key={index}>
+            <div className="space-y-2 border-b border-gray-200 px-4 py-3">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-3 w-10" />
+            </div>
+            <div className="min-h-48 p-3">
+              <div className="rounded-lg bg-gray-50 p-3 ring-1 ring-gray-100">
+                <Skeleton className={`h-5 ${width}`} />
+                <Skeleton className="mt-2 h-4 w-2/3" />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MealPlanLoadingSection({ loadingLabel }: { loadingLabel: string }) {
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+      <div
+        className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
+        aria-hidden="true"
+      >
+        <Skeleton className="size-8 rounded-md" />
+        <div className="min-w-40 space-y-2 py-0.5">
+          <Skeleton className="mx-auto h-4 w-28" />
+          <Skeleton className="mx-auto h-3 w-36" />
+        </div>
+        <Skeleton className="size-8 rounded-md" />
+      </div>
+      <MealPlanWeekSkeleton loadingLabel={loadingLabel} />
+    </section>
+  );
+}
+
 export function ParentMealPlanPage() {
   const t = useTranslations("parentMealPlan");
   const locale = useLocale();
 
   const [schools, setSchools] = useState<SchoolOption[]>([]);
+  const [hasLinkedChildren, setHasLinkedChildren] = useState(false);
   const [selectedTenant, setSelectedTenant] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
   const [entries, setEntries] = useState<MealPlanEntry[]>([]);
@@ -142,6 +238,7 @@ export function ParentMealPlanPage() {
           }
         });
         if (cancelled) return;
+        setHasLinkedChildren(children.length > 0);
         setSchools(enabled);
         setSelectedTenant(enabled[0]?.tenantId ?? null);
       } catch (err) {
@@ -234,77 +331,129 @@ export function ParentMealPlanPage() {
       day: "2-digit",
       month: "2-digit",
     });
+  const weekRange = t("dateRange", {
+    start: parseISODate(weekDates[0]!).toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "2-digit",
+    }),
+    end: parseISODate(weekDates[4]!).toLocaleDateString(locale, {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }),
+  });
 
   // Today only counts when it falls inside the displayed (work) week.
   const todayInWeek = weekDates.includes(today);
 
-  if (loadingSchools) {
-    return <ParentPageSkeleton rows={2} />;
-  }
-
   return (
     <ParentPage>
-      <ParentPageHeader title={t("title")} description={t("subtitle")} />
+      <ParentPageHeader
+        kicker={t("kicker")}
+        title={t("title")}
+        description={t("subtitle")}
+        actions={
+          schools.length > 1 ? (
+            <CustomSelect
+              value={selectedTenant ?? ""}
+              options={schools.map((school) => ({
+                value: school.tenantId,
+                label: school.schoolName,
+              }))}
+              onChange={setSelectedTenant}
+              ariaLabel={t("school")}
+              className="w-full sm:w-60"
+            />
+          ) : undefined
+        }
+      />
 
-      {schoolsError ? (
+      {loadingSchools ? (
+        <MealPlanLoadingSection loadingLabel={t("loading")} />
+      ) : schoolsError ? (
         <Alert type="error" message={t("loadError")} />
+      ) : !hasLinkedChildren ? (
+        <EmptyState
+          icon={<Utensils className="h-10 w-10" />}
+          title={t("noLinkedChildrenTitle")}
+          description={t("noLinkedChildren")}
+          className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
+        />
       ) : schools.length === 0 ? (
-        <div className="moto-content-surface rounded-2xl border p-5 text-sm text-gray-500 shadow-sm backdrop-blur-md">
-          {t("empty")}
-        </div>
+        <EmptyState
+          icon={<Utensils className="h-10 w-10" />}
+          title={t("emptyTitle")}
+          description={t("empty")}
+          className="moto-content-surface rounded-2xl border px-5 shadow-sm backdrop-blur-md"
+        />
       ) : (
-        <>
-          <section className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:flex-row sm:flex-wrap sm:items-start">
-            {schools.length > 1 && (
-              <div className="flex w-full flex-col gap-1.5 sm:w-64">
-                <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-                  {t("school")}
+        <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+          <nav
+            aria-label={t("weekNavigation")}
+            className="flex items-center justify-center gap-2 border-b border-gray-200 px-3 py-2.5"
+          >
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t("previousWeek")}
+              disabled={!weekReady || weekOffset === 0}
+              onClick={() => setWeekOffset(0)}
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <div
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              className="min-w-40 text-center"
+            >
+              <p className="text-sm font-semibold text-gray-900">
+                {t("calendarWeek", { week: isoWeek(mondayISO) })}
+                <span className="ml-1.5 text-gray-500">
+                  · {weekOffset === 0 ? t("thisWeek") : t("nextWeek")}
                 </span>
-                <CustomSelect
-                  value={selectedTenant ?? ""}
-                  options={schools.map((s) => ({
-                    value: s.tenantId,
-                    label: s.schoolName,
-                  }))}
-                  onChange={(v) => setSelectedTenant(v)}
-                  ariaLabel={t("school")}
-                />
-              </div>
-            )}
-
-            <div className="flex w-full flex-col gap-1.5 sm:w-56">
-              <span className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-                {t("week")}
-              </span>
-              <CustomSelect
-                value={String(weekOffset)}
-                options={[
-                  { value: "0", label: t("thisWeek") },
-                  { value: "1", label: t("nextWeek") },
-                ]}
-                onChange={(v) => setWeekOffset(Number(v) as 0 | 1)}
-                ariaLabel={t("week")}
-              />
+              </p>
+              <p className="text-xs text-gray-500">{weekRange}</p>
             </div>
-          </section>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              aria-label={t("nextWeek")}
+              disabled={!weekReady || weekOffset === 1}
+              onClick={() => setWeekOffset(1)}
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </nav>
 
           {!weekReady ? (
-            <Loading fullPage={false} />
+            <MealPlanWeekSkeleton loadingLabel={t("loading")} />
           ) : weekError ? (
-            <Alert type="error" message={t("loadError")} />
-          ) : weekIsEmpty ? (
-            <div className="moto-content-surface rounded-2xl border p-8 text-center text-sm text-gray-500 shadow-sm backdrop-blur-md">
-              {t("emptyWeek")}
+            <div className="p-4">
+              <Alert type="error" message={t("loadError")} />
             </div>
+          ) : weekIsEmpty ? (
+            <EmptyState
+              icon={<Utensils className="h-10 w-10" />}
+              title={
+                weekOffset === 0
+                  ? t("emptyThisWeekTitle")
+                  : t("emptyNextWeekTitle")
+              }
+              description={t("emptyWeek")}
+              className="px-5"
+            />
           ) : (
-            <div>
+            <>
               {/* Mobile: today first, then the rest of the week as a list. */}
-              <div className="space-y-4 md:hidden">
+              <div className="md:hidden">
                 {todayInWeek &&
                   (() => {
                     const dishes = dishesByDate.get(today) ?? [];
                     return (
-                      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
+                      <div className="overflow-hidden border-b border-gray-200">
                         <div className="flex items-center justify-between gap-2 border-b border-gray-200 px-4 py-3">
                           <div className="text-sm font-semibold text-gray-900">
                             {weekdayLabel(today)}
@@ -328,10 +477,7 @@ export function ParentMealPlanPage() {
                     );
                   })()}
 
-                <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-                  <div className="border-b border-gray-200 px-4 py-2.5 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                    {weekOffset === 0 ? t("weekHeading") : t("nextWeek")}
-                  </div>
+                <div className="overflow-hidden">
                   <div className="divide-y divide-gray-100">
                     {weekDates
                       .filter((date) => !(todayInWeek && date === today))
@@ -375,7 +521,7 @@ export function ParentMealPlanPage() {
               </div>
 
               {/* Desktop: full five-column week grid. */}
-              <div className="moto-content-surface hidden overflow-hidden rounded-2xl border shadow-sm md:block">
+              <div className="hidden md:block">
                 <div className="grid grid-cols-5 divide-x divide-gray-200">
                   {weekDates.map((date) => {
                     const dishes = dishesByDate.get(date) ?? [];
@@ -423,9 +569,9 @@ export function ParentMealPlanPage() {
                   })}
                 </div>
               </div>
-            </div>
+            </>
           )}
-        </>
+        </section>
       )}
     </ParentPage>
   );

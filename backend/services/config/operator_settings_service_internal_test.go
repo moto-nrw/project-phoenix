@@ -28,6 +28,8 @@ func (s *stubAttendanceChecker) HasOpenAttendanceOn(_ context.Context, _ timezon
 }
 
 func TestCheckPresenceModeSwitch_IgnoresOtherKeys(t *testing.T) {
+	t.Parallel()
+
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
@@ -38,6 +40,8 @@ func TestCheckPresenceModeSwitch_IgnoresOtherKeys(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_ForceBypass(t *testing.T) {
+	t.Parallel()
+
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
@@ -48,6 +52,8 @@ func TestCheckPresenceModeSwitch_ForceBypass(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_NonPresenceForceIsNoop(t *testing.T) {
+	t.Parallel()
+
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
@@ -58,6 +64,8 @@ func TestCheckPresenceModeSwitch_NonPresenceForceIsNoop(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_NilCheckerIsNoop(t *testing.T) {
+	t.Parallel()
+
 	err := CheckPresenceModeSwitch(
 		context.Background(),
 		nil,
@@ -68,6 +76,8 @@ func TestCheckPresenceModeSwitch_NilCheckerIsNoop(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_BlocksWithOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	checker := &stubAttendanceChecker{exists: true}
 	err := CheckPresenceModeSwitch(
 		context.Background(),
@@ -80,6 +90,8 @@ func TestCheckPresenceModeSwitch_BlocksWithOpenAttendance(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_PassesWithNoOpenAttendance(t *testing.T) {
+	t.Parallel()
+
 	checker := &stubAttendanceChecker{exists: false}
 	err := CheckPresenceModeSwitch(
 		context.Background(),
@@ -92,6 +104,8 @@ func TestCheckPresenceModeSwitch_PassesWithNoOpenAttendance(t *testing.T) {
 }
 
 func TestCheckPresenceModeSwitch_WrapsCheckerError(t *testing.T) {
+	t.Parallel()
+
 	sentinel := errors.New("db down")
 	checker := &stubAttendanceChecker{err: sentinel}
 	err := CheckPresenceModeSwitch(
@@ -104,6 +118,8 @@ func TestCheckPresenceModeSwitch_WrapsCheckerError(t *testing.T) {
 }
 
 func TestErrPresenceModeSwitchBlocked_IsSentinel(t *testing.T) {
+	t.Parallel()
+
 	wrapped := fmt.Errorf("set value: %w", ErrPresenceModeSwitchBlocked)
 	assert.True(t, errors.Is(wrapped, ErrPresenceModeSwitchBlocked))
 

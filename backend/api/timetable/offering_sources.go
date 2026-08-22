@@ -40,9 +40,10 @@ type offeringSourceOptionResponse struct {
 }
 
 type offeringSourcedTemplateResponse struct {
-	ID          int64  `json:"id"`
-	Name        string `json:"name"`
-	GradeLevels []int  `json:"grade_levels,omitempty"`
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	GradeLevels   []int    `json:"grade_levels,omitempty"`
+	SchoolClasses []string `json:"school_classes,omitempty"`
 }
 
 // listOfferingSources handles GET /api/timetable/offering-sources.
@@ -78,9 +79,10 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 		sourced := make([]offeringSourcedTemplateResponse, 0, len(option.SourcedTemplates))
 		for _, tmpl := range option.SourcedTemplates {
 			sourced = append(sourced, offeringSourcedTemplateResponse{
-				ID:          tmpl.ID,
-				Name:        tmpl.Name,
-				GradeLevels: tmpl.GradeLevels,
+				ID:            tmpl.ID,
+				Name:          tmpl.Name,
+				GradeLevels:   tmpl.GradeLevels,
+				SchoolClasses: tmpl.SchoolClasses,
 			})
 		}
 		phaseServiceStart := ""
@@ -107,6 +109,17 @@ func (rs *Resource) listOfferingSources(w http.ResponseWriter, r *http.Request) 
 type combinedOfferingCountsResponse struct {
 	TotalCount  int            `json:"total_count"`
 	GradeCounts map[string]int `json:"grade_counts"`
+	// Students is the deduplicated child list behind the counts (#2482): the
+	// editor derives the Klassen options, the per-class counts, and the diff
+	// against a manually curated roster from it. Ids only — the editor already
+	// holds the tenant's students for its roster picker and resolves names
+	// locally.
+	Students []combinedOfferingStudentResponse `json:"students"`
+}
+
+type combinedOfferingStudentResponse struct {
+	StudentID   int64  `json:"student_id"`
+	SchoolClass string `json:"school_class,omitempty"`
 }
 
 // getCombinedOfferingSourceCounts handles
@@ -147,9 +160,17 @@ func (rs *Resource) getCombinedOfferingSourceCounts(w http.ResponseWriter, r *ht
 	for grade, count := range counts.GradeCounts {
 		gradeCounts[strconv.Itoa(grade)] = count
 	}
+	students := make([]combinedOfferingStudentResponse, 0, len(counts.Students))
+	for _, student := range counts.Students {
+		students = append(students, combinedOfferingStudentResponse{
+			StudentID:   student.StudentID,
+			SchoolClass: student.SchoolClass,
+		})
+	}
 	common.Respond(w, r, http.StatusOK, combinedOfferingCountsResponse{
 		TotalCount:  counts.TotalCount,
 		GradeCounts: gradeCounts,
+		Students:    students,
 	}, "Combined offering source counts retrieved")
 }
 

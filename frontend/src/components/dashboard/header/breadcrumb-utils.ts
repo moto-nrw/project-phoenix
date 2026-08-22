@@ -58,12 +58,19 @@ const mainRoutes: Record<string, string> = {
   "/active-supervisions": "Aktuelle Aufsicht",
   // Ohne Navigationseintrag, nur über Verlinkung erreichbar.
   "/reminders": "Erinnerungen",
+  // Abwesenheits-Übersicht (#2288): bewusst ohne Seitenleisten-Eintrag,
+  // erreichbar über das Aktionsmenü der Kindersuche.
+  "/absences": "Abwesenheiten",
   "/profile": "Profil",
   // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
   // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
   // einen Eintrag, damit während des Client-Redirects kein falscher Titel
   // aufblitzt.
   "/planung": PLANNING_SECTION.label,
+  // Alt-Route der Freigabeansicht; nur noch ein Redirect-Frame auf /anfragen
+  // (#2429). Der Eintrag verhindert, dass während des Client-Redirects kurz
+  // "Home" aufblitzt.
+  "/admin/change-requests": STAFF_FLAT_PAGES.anfragen.label,
   // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
   [DATABASE_SECTION.href]: DATABASE_SECTION.label,
   [PARENT_SECTION.href]: PARENT_SECTION.label,
@@ -96,6 +103,8 @@ const subPageLabels: Record<string, string> = {
   details: "Details",
   permissions: "Berechtigungen",
   "opening-balances": "Eröffnungssalden",
+  // Klassenlisteneinträge (#2382): Kinder ohne OGS-Datensatz.
+  "class-list": "Klassenliste",
 };
 
 /**
@@ -236,7 +245,7 @@ export function getBreadcrumbLabel(referrer: string): string {
   // the active sidebar entry agree with how the user actually got here.
   if (referrer.startsWith("/rooms/") || referrer.startsWith("/rooms?"))
     return "Räume";
-  return "Kindersuche";
+  return "Alle Kinder";
 }
 
 /**

@@ -304,6 +304,33 @@ describe("exportCareUsageReport", () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:care-usage-report");
   });
 
+  it("sends the compact layout in the export body", async () => {
+    const fetchFn = mockFetch(
+      async () =>
+        ({
+          ok: true,
+          headers: new Headers(),
+          blob: async () => new Blob(["PDF"]),
+        }) as unknown as Response,
+    );
+
+    await exportCareUsageReport(
+      { phase_id: "42", pickup_time: "14:30" },
+      "pdf",
+      "compact",
+    );
+
+    const [, init] = fetchFn.mock.calls[0]!;
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      format: "pdf",
+      layout: "compact",
+      filters: {
+        phase_id: "42",
+        pickup_time: "14:30",
+      },
+    });
+  });
+
   it("keeps an explicit empty care offering filter in the export body", async () => {
     const fetchFn = mockFetch(
       async () =>

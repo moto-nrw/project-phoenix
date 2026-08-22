@@ -21,22 +21,22 @@ import (
 // an error) and the positive-limit tail load, which must return the most recent
 // `limit` messages back in oldest-first chat order.
 func TestParentMessage_FindByIDAndTail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
 	bodies := []string{"eins", "zwei", "drei"}
 	var lastID int64
 	for _, b := range bodies {
-		m := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, b)
+		m := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, b)
 		require.NoError(t, msgRepo.Create(ctx, m))
 		lastID = m.ID
 	}
@@ -65,22 +65,22 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 // (event_type, ref_table, ref_id) and ignore a same-ref decision pill, a plain
 // chat message, and a non-matching ref (nil, not an error).
 func TestParentMessage_FindEventByRef(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
 
 	const refTable = "schedule.care_schedule_change_requests"
 	refID := int64(4242)
 
-	pill := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
+	pill := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage gestellt")
 	pill.Kind = usersModels.ParentMessageKindEvent
 	pill.EventType = "request_created"
 	pill.EventActorKind = usersModels.ParentMessageSenderGuardian
@@ -89,13 +89,13 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	require.NoError(t, msgRepo.Create(ctx, pill))
 
 	// Same ref, but a decision pill (different event_type) — must NOT match.
-	decision := newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
+	decision := newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderSystem, "Anfrage bestätigt")
 	decision.Kind = usersModels.ParentMessageKindEvent
 	decision.EventType = "request_status"
 	decision.RefTable = refTable
 	decision.RefID = &refID
 	require.NoError(t, msgRepo.Create(ctx, decision))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
 
 	found, err := msgRepo.FindEventByRef(ctx, thread.ID, "request_created", refTable, refID)
 	require.NoError(t, err)
@@ -113,56 +113,47 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	assert.Nil(t, none)
 }
 
-// TestListInboxForStaff_GroupScoped pins the non-admin staff scoping branches of
-// applyStaffScope: a staffer who supervises the child's education group sees the
-// conversation, a staffer scoped to a DIFFERENT group does not, and a staffer who
-// supervises NO groups (empty slice) sees nothing at all (the `1 = 0` guard that
-// stops an unscoped staffer from reading the whole tenant inbox).
-func TestListInboxForStaff_GroupScoped(t *testing.T) {
+// TestListInboxForStaff_ScopeFlag pins both branches of applyStaffScope after
+// #2329: allStudents = true (admin / verified staff) reads the tenant inbox,
+// allStudents = false (guest, guardian — anyone the service refuses) hits the
+// `1 = 0` guard and reads nothing at all. The group the child sits in no longer
+// takes part in the decision.
+func TestListInboxForStaff_ScopeFlag(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	group := testpkg.CreateTestEducationGroup(t, db, "Gruppe Sonne")
 	testpkg.AssignStudentToGroup(t, db, chain.StudentID, group.ID)
 
-	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
-	defer testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, staffAccount.ID)
-	defer testpkg.CleanupParentMessagingForAccount(t, db, staffAccount.ID)
+	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
 	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
 	msgRepo := usersRepo.NewParentMessageRepository(db)
 	readRepo := usersRepo.NewParentMessageReadRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
-	thread := newThread(chain.StudentID, chain.AccountID)
+	thread := newThread(t, chain.StudentID, chain.AccountID)
 	require.NoError(t, threadRepo.Create(ctx, thread))
-	require.NoError(t, msgRepo.Create(ctx, newMessage(thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
+	require.NoError(t, msgRepo.Create(ctx, newMessage(t, thread.ID, chain.StudentID, chain.AccountID, usersModels.ParentMessageSenderGuardian, "Frage")))
 
-	// Supervises the child's group → sees the conversation, unread = 1.
-	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, false, []int64{group.ID}, false)
+	// Verified staff → sees the conversation regardless of the child's group.
+	inbox, err := readRepo.ListInboxForStaff(ctx, staffAccount.ID, true, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 1)
 	assert.Equal(t, 1, inbox[0].UnreadCount)
 
-	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, false, []int64{group.ID})
+	count, err := readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, true)
 	require.NoError(t, err)
 	assert.Equal(t, 1, count)
 
-	// Scoped to a different group → sees nothing.
-	otherGroup := testpkg.CreateTestEducationGroup(t, db, "Gruppe Mond")
-	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, false, []int64{otherGroup.ID}, false)
+	// Not admitted → the 1=0 guard yields nothing, never the whole tenant inbox.
+	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, false, false)
 	require.NoError(t, err)
-	assert.Empty(t, inbox, "a staffer scoped to a group the child is not in must not see the conversation")
+	assert.Empty(t, inbox, "a caller outside the staff scope must not read the tenant inbox")
 
-	// Supervises no groups at all → the 1=0 guard yields nothing.
-	inbox, err = readRepo.ListInboxForStaff(ctx, staffAccount.ID, false, nil, false)
-	require.NoError(t, err)
-	assert.Empty(t, inbox, "an unscoped staffer must not read the whole tenant inbox")
-
-	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, false, nil)
+	count, err = readRepo.UnreadMessageCountForStaff(ctx, staffAccount.ID, false)
 	require.NoError(t, err)
 	assert.Equal(t, 0, count)
 }

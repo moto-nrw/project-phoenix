@@ -30,7 +30,6 @@ import (
 func buildAnnouncementService(t *testing.T, newsEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:             repos.ParentChild,
@@ -83,10 +82,13 @@ func seedPublishedAnnouncement(
 	return a
 }
 
+// Deliberately NOT parallel: parent announcements are tenant-less. The feed
+// this asserts on is the whole clone's, so an announcement another test
+// publishes shows up in it.
 func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
@@ -104,12 +106,12 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, unread)
 
-	// Reading it clears the unread badge.
+	// Reading alone does not clear the badge while confirmation is still due.
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, *ann.PublishedAt))
 
 	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
 	require.NoError(t, err)
-	assert.Zero(t, unread)
+	assert.Equal(t, 1, unread)
 
 	feed, err = svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
@@ -118,6 +120,9 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 
 	// Acknowledge is valid because the announcement requires it.
 	require.NoError(t, svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt))
+	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
+	require.NoError(t, err)
+	assert.Zero(t, unread)
 
 	feed, err = svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
@@ -125,10 +130,13 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	assert.NotNil(t, feed[0].AcknowledgedAt, "acknowledgement now reflected in the feed")
 }
 
+// Deliberately NOT parallel: parent announcements are tenant-less. The feed
+// this asserts on is the whole clone's, so an announcement another test
+// publishes shows up in it.
 func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -141,10 +149,13 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementStale)
 }
 
+// Deliberately NOT parallel: parent announcements are tenant-less. The feed
+// this asserts on is the whole clone's, so an announcement another test
+// publishes shows up in it.
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -155,9 +166,11 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 }
 
 func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, _ := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	// A high id that does not exist collapses to not-found (never leaks existence).
@@ -165,10 +178,13 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 	assert.ErrorIs(t, err, parentService.ErrAnnouncementNotFound)
 }
 
+// Deliberately NOT parallel: parent announcements are tenant-less. The feed
+// this asserts on is the whole clone's, so an announcement another test
+// publishes shows up in it.
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, false) // feature OFF
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
@@ -189,6 +205,8 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 }
 
 func TestAnnouncementFeed_RejectsNonPositiveAccount(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildAnnouncementService(t, true)
 	ctx := context.Background()
 

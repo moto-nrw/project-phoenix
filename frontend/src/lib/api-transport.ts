@@ -1,7 +1,12 @@
 import axios from "axios";
 import type { AxiosError, AxiosRequestConfig, AxiosResponse } from "axios";
 import { env } from "~/env";
+import { sanitizeEndpoint } from "~/lib/log-sanitize";
 import { createLogger } from "~/lib/logger";
+import {
+  rateLimitBlockedError,
+  recordRateLimit,
+} from "~/lib/rate-limit-backoff";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 
 /**
@@ -31,6 +36,9 @@ const api = createAxios({
 // Note: This interceptor only runs in client-side code
 api.interceptors.request.use(
   async (config) => {
+    const rateLimitError = rateLimitBlockedError(config.method);
+    if (rateLimitError) return Promise.reject(rateLimitError);
+
     // Only try to get session if we're in the browser. getCachedSession
     // deduplicates concurrent session lookups — every raw getSession() call is
     // its own network round trip to /api/auth/session (#2123).
@@ -42,13 +50,13 @@ api.interceptors.request.use(
         config.headers.Authorization = `Bearer ${session.user.token}`;
         logger.debug("token injected in request", {
           method: config.method?.toUpperCase(),
-          url: config.url,
+          url: sanitizeEndpoint(config.url ?? ""),
           has_token: true,
         });
       } else {
         logger.debug("no token available for request", {
           method: config.method?.toUpperCase(),
-          url: config.url,
+          url: sanitizeEndpoint(config.url ?? ""),
         });
       }
     }
@@ -150,11 +158,20 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
 
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers?.["retry-after"];
+      recordRateLimit(
+        typeof retryAfter === "string" ? retryAfter : null,
+        originalRequest?.method,
+      );
+      throw error;
+    }
+
     // Log non-401 errors
     if (error.response?.status !== 401) {
       logger.error("api request failed", {
         method: originalRequest?.method?.toUpperCase(),
-        url: originalRequest?.url,
+        url: sanitizeEndpoint(originalRequest?.url ?? ""),
         status: error.response?.status,
         error: error.message,
       });
@@ -172,7 +189,7 @@ api.interceptors.response.use(
 
     logger.info("token expired, attempting refresh", {
       method: originalRequest.method?.toUpperCase(),
-      url: originalRequest.url,
+      url: sanitizeEndpoint(originalRequest.url ?? ""),
       retry_count: originalRequest._retryCount,
       caller_id: callerId,
     });
@@ -181,7 +198,7 @@ api.interceptors.response.use(
     if (originalRequest._retryCount > 3) {
       logger.warn("max token refresh retries reached", {
         method: originalRequest.method?.toUpperCase(),
-        url: originalRequest.url,
+        url: sanitizeEndpoint(originalRequest.url ?? ""),
         retry_count: originalRequest._retryCount,
         action: "redirecting to login",
       });
@@ -193,7 +210,7 @@ api.interceptors.response.use(
     if (isRefreshing) {
       logger.debug("token refresh in progress, queueing request", {
         caller_id: callerId,
-        url: originalRequest.url,
+        url: sanitizeEndpoint(originalRequest.url ?? ""),
       });
       return queueRequestForRefresh(originalRequest, callerId);
     }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"slices"
 	"strings"
@@ -41,8 +42,7 @@ var canonicalDayISOWeekday = map[string]int{
 
 // CanonicalDayToISOWeekday translates a stored day abbreviation ("mon") into
 // its ISO weekday number (1=Mon..7=Sun). Lives on the model so enrollment
-// materialization and the parents-portal read view cannot drift apart on the
-// mapping.
+// writes and the schedule projection cannot drift apart on the mapping.
 func CanonicalDayToISOWeekday(day string) (int, bool) {
 	weekday, ok := canonicalDayISOWeekday[strings.ToLower(strings.TrimSpace(day))]
 	return weekday, ok
@@ -76,6 +76,11 @@ var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
 // ErrCareOfferingDaysRequired marks the missing-weekday validation so the
 // HTTP layer can attach a stable error code for the admin editor (#1885).
 var ErrCareOfferingDaysRequired = errors.New("available_days must contain at least one day")
+
+// ErrCareOfferingPickupTimesRequired marks an active care offering whose
+// weekday plan has no unambiguous pickup time. The admin API maps it to a
+// stable client error code.
+var ErrCareOfferingPickupTimesRequired = errors.New("active care offering requires pickup_times for every weekday")
 
 const (
 	AvailabilityMatchAll = "all"
@@ -218,6 +223,11 @@ type CareOffering struct {
 	// parent must pick. See SelectionRule* constants.
 	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
 	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
+	// PickupTimes is the booking-derived pickup baseline per weekday
+	// ({"mon":"14:30"}). Keys are canonical day codes within
+	// AvailableDays; values are wall-clock HH:MM. The schedule service projects
+	// them through each booking's validity window (ADR 0001).
+	PickupTimes map[string]string `bun:"pickup_times,type:jsonb" json:"pickup_times,omitempty"`
 
 	// AutoAddTriggerOfferingIDs is loaded from
 	// enrollment.care_offering_auto_triggers. It is not a column on
@@ -290,6 +300,11 @@ func (c *CareOffering) Validate() error {
 	if c.SelectionRule != SelectionRuleOptional && c.SelectionGroup == "" {
 		return errors.New("a selection rule requires a selection_group name")
 	}
+	normalizedTimes, err := normalizePickupTimes(c.PickupTimes, c.AvailableDays)
+	if err != nil {
+		return err
+	}
+	c.PickupTimes = normalizedTimes
 	// A required offering must be available to every child, so it cannot
 	// carry a hard capacity limit - otherwise a full offering would block
 	// every new enrollment in the phase. The admin editor prevents the
@@ -298,6 +313,48 @@ func (c *CareOffering) Validate() error {
 		return errors.New("a required care offering must not have a capacity limit")
 	}
 	return nil
+}
+
+// normalizePickupTimes canonicalizes the Angebots-Gehzeit map: keys are
+// lowercased day codes, values trimmed HH:MM strings. Empty values are
+// dropped; an empty result becomes nil so the jsonb column stores NULL.
+func normalizePickupTimes(times map[string]string, availableDays []string) (map[string]string, error) {
+	if len(times) == 0 {
+		return nil, nil
+	}
+	available := make(map[string]bool, len(availableDays))
+	for _, d := range availableDays {
+		available[strings.ToLower(d)] = true
+	}
+	out := make(map[string]string, len(times))
+	for day, hhmm := range times {
+		key := strings.ToLower(strings.TrimSpace(day))
+		value := strings.TrimSpace(hhmm)
+		if value == "" {
+			continue
+		}
+		if !canonicalDaySet[key] {
+			return nil, fmt.Errorf("pickup_times key %q is not a known day abbreviation", day)
+		}
+		if key == "sat" || key == "sun" {
+			return nil, fmt.Errorf("pickup_times day %q must be Monday through Friday", key)
+		}
+		if !available[key] {
+			return nil, fmt.Errorf("pickup_times day %q is not in available_days", key)
+		}
+		parsed, err := time.Parse("15:04", value)
+		if err != nil {
+			return nil, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm)
+		}
+		// Store canonically zero-padded: the pickup projection's
+		// latest-wins rule compares these strings lexicographically, so
+		// "9:30" must become "09:30".
+		out[key] = parsed.Format("15:04")
+	}
+	if len(out) == 0 {
+		return nil, nil
+	}
+	return out, nil
 }
 
 func normalizeGradeLevels(levels []int) ([]int, error) {
@@ -464,6 +521,55 @@ type RequestChildOfferingRepository interface {
 	// (approval not yet materialized) and alumni are excluded. Empty input
 	// returns an empty slice without a query.
 	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// ListApprovedByStudentIDsInRange returns the approved offering links that
+	// overlap the inclusive calendar window [from, to]. Callers still apply the
+	// link's half-open [valid_from, valid_until) bounds per projected date.
+	// The custom repository query is required because generic filters cannot
+	// express its approved-child/student joins plus interval overlap. Empty
+	// input returns an empty slice without a query.
+	ListApprovedByStudentIDsInRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*ApprovedOfferingChild, error)
+
+	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
+	// bookings whose validity interval overlaps [from, until) by offering and
+	// by the child's target grade level. A child is counted once per
+	// (offering, grade) pair no matter how many intervals it holds there.
+	// Children without a target grade level are reported with a nil
+	// GradeLevel — availability rules never match a missing grade, so those
+	// bookings conflict with every rule (see
+	// CareOfferingAvailabilityRule.MatchesGradeLevel). Empty input returns an
+	// empty slice without a query.
+	//
+	// NOT phase-scoped, for the same reason as
+	// CountMaxActiveByCareOfferingIDsInRange: an availability rule lives on
+	// the care_offering row and therefore applies to every booking of that
+	// row, whichever phase's request it hangs off.
+	CountActiveGradeLevelsByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) ([]*CareOfferingGradeLevelCount, error)
+
+	// CountMaxActiveByCareOfferingIDsInRange is the batched form of
+	// CountMaxActiveByCareOfferingInRange — peak simultaneous occupancy per
+	// offering in one query. Offerings with no overlapping booking are absent
+	// from the map; read a missing key as zero. Empty input returns an empty
+	// map without a query.
+	//
+	// It counts the SAME population as the capacity gate, deliberately
+	// including bookings from every phase that references the offering. The
+	// two must not diverge: this number drives the admin dialog's occupancy
+	// hint, so a narrower count offers a slot the gate then refuses (#2186
+	// review). Capacity is a property of the care_offering row, and any
+	// booking of that row whose validity overlaps the window occupies one of
+	// its slots.
+	CountMaxActiveByCareOfferingIDsInRange(ctx context.Context, careOfferingIDs []int64, from, until timezone.Date) (map[int64]int, error)
+}
+
+// CareOfferingGradeLevelCount is one (offering, grade level) bucket of the
+// current bookings. It answers "how many booked children would a grade-level
+// availability rule exclude" without shipping any child data to the client.
+type CareOfferingGradeLevelCount struct {
+	CareOfferingID int64
+	// GradeLevel is nil for booked children whose target grade is unknown.
+	GradeLevel *int16
+	Count      int
 }
 
 // ApprovedOfferingChild is one approved, still-relevant offering selection

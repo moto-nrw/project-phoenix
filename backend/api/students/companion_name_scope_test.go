@@ -13,16 +13,18 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// TestGetStudentCompanions_RedactsUnreadableNames pins the read scope of the
+// TestGetStudentCompanions_NamesVisibleAcrossGroups pins the read scope of the
 // COMPANION names, not just of the subject.
 //
-// Linking across groups is the point of a Laufgemeinschaft, so a group
-// supervisor routinely opens a child of theirs whose companion belongs to
-// another group. Under the default gdpr.student_data_scope
-// (group_supervisors_only) that other child's first and last name are personal
-// data the caller may not read — the link itself stays visible (they may edit
-// the list), the name does not.
-func TestGetStudentCompanions_RedactsUnreadableNames(t *testing.T) {
+// Linking across groups is the point of a Laufgemeinschaft, so a staff member
+// routinely opens a child whose companion belongs to another group. Since
+// #2329 student reads are tenant-wide for staff, so the far end of the link
+// carries its name too — the per-companion redaction only ever fires for a
+// caller who has no full access at all, and such a caller is already refused on
+// the subject itself.
+func TestGetStudentCompanions_NamesVisibleAcrossGroups(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CompanionScope", "Supervisor")
@@ -34,7 +36,6 @@ func TestGetStudentCompanions_RedactsUnreadableNames(t *testing.T) {
 	crossGroup := testpkg.CreateTestStudent(t, tc.db, "CompanionScope", "Fremd", "CS2")
 	// Students before groups: the cleanup deletes education.groups in the same
 	// pass, and a group still referenced by a student cannot go.
-	defer testpkg.CleanupActivityFixtures(t, tc.db, subject.ID, sameGroup.ID, crossGroup.ID, myGroup.ID, otherGroup.ID, teacher.ID)
 
 	testpkg.AssignStudentToGroup(t, tc.db, subject.ID, myGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, sameGroup.ID, myGroup.ID)
@@ -81,13 +82,13 @@ func TestGetStudentCompanions_RedactsUnreadableNames(t *testing.T) {
 	}
 
 	mine, ok := byID[sameGroup.ID]
-	require.True(t, ok, "the supervised companion must be listed")
-	assert.Equal(t, "CompanionScope", mine.first, "a companion in the caller's own group keeps its name")
+	require.True(t, ok, "the companion in the caller's own group must be listed")
+	assert.Equal(t, "CompanionScope", mine.first)
 	assert.Equal(t, "Nachbar", mine.last)
 
 	foreign, ok := byID[crossGroup.ID]
 	require.True(t, ok, "the cross-group link itself must stay visible")
-	assert.Empty(t, foreign.first, "a companion outside the caller's read scope must not disclose its name")
-	assert.Empty(t, foreign.last, "a companion outside the caller's read scope must not disclose its name")
-	assert.Equal(t, []string{"mon"}, foreign.weekdays, "the weekdays of a redacted link still travel")
+	assert.Equal(t, "CompanionScope", foreign.first, "staff read every child of the tenant since #2329")
+	assert.Equal(t, "Fremd", foreign.last)
+	assert.Equal(t, []string{"mon"}, foreign.weekdays)
 }

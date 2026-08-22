@@ -19,6 +19,8 @@ import (
 )
 
 func TestAnnouncementService_CreateAnnouncement_NilAnnouncement(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{}
@@ -38,6 +40,8 @@ func TestAnnouncementService_CreateAnnouncement_NilAnnouncement(t *testing.T) {
 }
 
 func TestAnnouncementService_CreateAnnouncement_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{}
@@ -122,6 +126,8 @@ func existingAnnouncement() *platform.Announcement {
 // --- Targeting: nil normalization ---
 
 func TestAnnouncementService_CreateAnnouncement_NilTargetingNormalized(t *testing.T) {
+	t.Parallel()
+
 	var captured *platform.Announcement
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		m.announcementRepo.createFn = func(_ context.Context, a *platform.Announcement) error {
@@ -146,6 +152,8 @@ func TestAnnouncementService_CreateAnnouncement_NilTargetingNormalized(t *testin
 // --- Update: validation error, targeting, audit log ---
 
 func TestAnnouncementService_UpdateAnnouncement_ValidationError(t *testing.T) {
+	t.Parallel()
+
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
 			return existingAnnouncement(), nil
@@ -159,6 +167,8 @@ func TestAnnouncementService_UpdateAnnouncement_ValidationError(t *testing.T) {
 }
 
 func TestAnnouncementService_UpdateAnnouncement_AuditLogTargetingChanges(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		existing     func() *platform.Announcement
@@ -242,6 +252,8 @@ func TestAnnouncementService_UpdateAnnouncement_AuditLogTargetingChanges(t *test
 // --- validateTargetingIDs errors (table-driven, covers create + update) ---
 
 func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		orgCountFn    func(context.Context, []int64) (int, error)
@@ -337,6 +349,8 @@ func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
 // trashed Träger — which would silently vanish once the org is restored and could
 // leak the announcement to unintended audiences.
 func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedOrgTarget(t *testing.T) {
+	t.Parallel()
+
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		// Simulate repository behavior: the org row exists but is soft-deleted,
 		// so CountByIDs returns 0 for the requested ID.
@@ -362,6 +376,8 @@ func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedOrgTarget(t *t
 // TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget is
 // the school-tenant analogue of the org test above.
 func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget(t *testing.T) {
+	t.Parallel()
+
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		m.schoolRepo.CountByIDsFn = func(_ context.Context, ids []int64) (int, error) {
 			assert.Equal(t, []int64{99}, ids)
@@ -392,6 +408,8 @@ func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget(t
 // entirely. Without this test a future refactor could resurrect the old
 // validateTargetingIDs call-path on update and break the preservation contract.
 func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedOrgTarget(t *testing.T) {
+	t.Parallel()
+
 	var countByIDsCalls int
 	var updateCalled bool
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
@@ -430,6 +448,8 @@ func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedOrgTar
 // TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchoolTarget
 // is the school-tenant analogue of the org preservation test above.
 func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchoolTarget(t *testing.T) {
+	t.Parallel()
+
 	var countByIDsCalls int
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
@@ -462,6 +482,8 @@ func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchool
 // in as a NEW target during an update. Only additions relative to the existing
 // record are validated, so this path must still flow through CountByIDs.
 func TestAnnouncementService_UpdateAnnouncement_RejectsNewlyAddedSoftDeletedOrgTarget(t *testing.T) {
+	t.Parallel()
+
 	var updateCalled bool
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
 		m.announcementRepo.findByIDFn = func(context.Context, int64) (*platform.Announcement, error) {
@@ -495,6 +517,8 @@ func TestAnnouncementService_UpdateAnnouncement_RejectsNewlyAddedSoftDeletedOrgT
 }
 
 func TestAnnouncementService_DeleteAnnouncement_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -518,6 +542,8 @@ func TestAnnouncementService_DeleteAnnouncement_NotFound(t *testing.T) {
 }
 
 func TestAnnouncementService_ListAnnouncements_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		listFn: func(ctx context.Context, includeInactive bool) ([]*platform.Announcement, error) {
@@ -550,6 +576,8 @@ func TestAnnouncementService_ListAnnouncements_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_PublishAnnouncement_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -583,6 +611,8 @@ func TestAnnouncementService_PublishAnnouncement_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_PublishAnnouncement_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -606,6 +636,8 @@ func TestAnnouncementService_PublishAnnouncement_NotFound(t *testing.T) {
 }
 
 func TestAnnouncementService_UnpublishAnnouncement_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	now := time.Now()
 	announcementRepo := &mockAnnouncementRepoShared{
@@ -641,6 +673,8 @@ func TestAnnouncementService_UnpublishAnnouncement_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_GetUnreadForUser_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
@@ -673,6 +707,8 @@ func TestAnnouncementService_GetUnreadForUser_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_CountUnread_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
@@ -696,6 +732,8 @@ func TestAnnouncementService_CountUnread_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_MarkSeen_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
@@ -718,6 +756,8 @@ func TestAnnouncementService_MarkSeen_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_MarkDismissed_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{}
 	viewRepo := &mockAnnouncementViewRepoShared{
@@ -740,6 +780,8 @@ func TestAnnouncementService_MarkDismissed_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_GetStats_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -783,6 +825,8 @@ func TestAnnouncementService_GetStats_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_GetStats_AnnouncementNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -806,6 +850,8 @@ func TestAnnouncementService_GetStats_AnnouncementNotFound(t *testing.T) {
 }
 
 func TestAnnouncementService_GetViewDetails_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -846,6 +892,8 @@ func TestAnnouncementService_GetViewDetails_Success(t *testing.T) {
 }
 
 func TestAnnouncementService_GetViewDetails_AnnouncementNotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	announcementRepo := &mockAnnouncementRepoShared{
 		findByIDFn: func(ctx context.Context, id int64) (*platform.Announcement, error) {
@@ -869,12 +917,16 @@ func TestAnnouncementService_GetViewDetails_AnnouncementNotFound(t *testing.T) {
 }
 
 func TestIsAnnouncementExpired_Nil(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	a := &platform.Announcement{}
 	assert.False(t, platformSvc.IsAnnouncementExpired(a, now))
 }
 
 func TestIsAnnouncementExpired_Future(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	future := now.Add(24 * time.Hour)
 	a := &platform.Announcement{ExpiresAt: &future}
@@ -882,6 +934,8 @@ func TestIsAnnouncementExpired_Future(t *testing.T) {
 }
 
 func TestIsAnnouncementExpired_Past(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	past := now.Add(-24 * time.Hour)
 	a := &platform.Announcement{ExpiresAt: &past}

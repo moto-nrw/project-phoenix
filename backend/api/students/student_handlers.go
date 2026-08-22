@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -158,7 +160,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Applied here, before in-memory pagination, so server-side counts and
 	// page boundaries reflect the filtered set (no client-side full-page
 	// fetch needed).
-	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus)
+	responses = applyAdministrativeFilters(responses, params.bus, params.photoConsent, params.pickupStatus, planningDate)
 
 	// Apply in-memory pagination if response-derived filters were used.
 	if params.hasInMemoryFilters() {
@@ -180,7 +182,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Projection happens last, after every filter, sort and pagination step has
 	// run on the full responses — the two views differ on the wire only (#2097).
 	if params.slimView {
-		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses), pagination, "Students retrieved successfully")
+		common.RespondPaginated(w, r, http.StatusOK, slimStudentResponses(responses, planningDate), pagination, "Students retrieved successfully")
 		return
 	}
 	common.RespondPaginated(w, r, http.StatusOK, responses, pagination, "Students retrieved successfully")
@@ -235,7 +237,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 		if !nonEmpty {
 			return []*users.Student{}, 0, nil
 		}
-	case params.groupID > 0:
+	case len(params.groupIDs) > 0:
 		students, totalCount, done, err := rs.resolveGroupFilter(ctx, params)
 		if err != nil {
 			return nil, 0, err
@@ -273,8 +275,8 @@ func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *stud
 		return false, nil
 	}
 
-	if params.groupID > 0 {
-		ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		ids, err = rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -305,8 +307,8 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 	// group_id so the response stays consistent with the active-group chip in the
 	// search UI. group_id lives on the Student row, so a single bulk lookup is
 	// enough.
-	if params.groupID > 0 {
-		filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+	if len(params.groupIDs) > 0 {
+		filtered, err := rs.filterStudentIDsByGroups(ctx, ids, params.groupIDs)
 		if err != nil {
 			return false, err
 		}
@@ -316,7 +318,7 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 		ids = filtered
 	}
 
-	// params.groupID is intentionally NOT cleared even though buildBaseFilter
+	// params.groupIDs is intentionally NOT cleared even though buildBaseFilter
 	// ignores it, because the room and group intersection was already computed
 	// above, so re-applying group_id downstream would be redundant.
 	params.studentIDs = ids
@@ -328,14 +330,17 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
 	if err != nil {
 		return nil, 0, false, err
 	}
 
-	// Fast path for true group-only requests keeps existing behavior.
+	// Fast path for true group-only requests: no SQL round trip for the page,
+	// but the requested window still has to be honored, because this path never
+	// reaches the query's LIMIT/OFFSET (#2218 review). The total stays the whole
+	// selection, so the reported count keeps naming every child of the groups.
 	if params.canUseGroupOnlyShortcut() {
-		return students, len(students), true, nil
+		return params.pageOfGroupStudents(students), len(students), true, nil
 	}
 
 	if len(students) == 0 {
@@ -382,7 +387,46 @@ func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	classes, err = rs.appendClassListEntryClasses(r.Context(), classes)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
+}
+
+// appendClassListEntryClasses unions the classes that exist only through
+// class-list-only entries (#2382) into the dropdown list: a class whose
+// children are all list entries must still be selectable for class lists.
+// Dedupe uses the LOWER(TRIM(...)) identity every class comparison uses.
+func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []string) ([]string, error) {
+	if rs.ClassListEntryService == nil {
+		return classes, nil
+	}
+	entries, err := rs.ClassListEntryService.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		seen[strings.ToLower(strings.TrimSpace(class))] = true
+	}
+	added := false
+	for _, entry := range entries {
+		key := strings.ToLower(strings.TrimSpace(entry.SchoolClass))
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		classes = append(classes, strings.TrimSpace(entry.SchoolClass))
+		added = true
+	}
+	if added {
+		sort.SliceStable(classes, func(i, j int) bool {
+			return collation.CompareSchoolClasses(classes[i], classes[j]) < 0
+		})
+	}
+	return classes, nil
 }
 
 // getStudent handles getting a student by ID
@@ -416,14 +460,16 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 			ActiveService: rs.ActiveService,
 			PersonService: rs.PersonService,
 		}),
-		HasFullAccess:        hasFullAccess,
-		HasWriteAccess:       hasWriteAccess,
-		AttendanceLogEnabled: attendanceLogEnabled,
-		FeedbackEnabled:      feedbackEnabled,
+		HasFullAccess:         hasFullAccess,
+		HasWriteAccess:        hasWriteAccess,
+		HasAbsenceWriteAccess: rs.checkStudentAbsenceWriteAccess(r, student),
+		AttendanceLogEnabled:  attendanceLogEnabled,
+		FeedbackEnabled:       feedbackEnabled,
 	}
 	now := rs.Now()
 	rs.applyStatusDaysForDateToResponse(r.Context(), &response.StudentResponse, now)
 
+	attendances := map[int64]*activeService.AttendanceStatus{}
 	if hasFullAccess {
 		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 		if err != nil {
@@ -434,16 +480,19 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		} else {
 			applyActualTimesFromAttendance(&response.StudentResponse, attendanceStatus)
 		}
-
-		single := []StudentResponse{response.StudentResponse}
-		if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
-			student.ID: attendanceStatus,
-		}); err != nil {
-			renderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		response.StudentResponse = single[0]
+		attendances[student.ID] = attendanceStatus
 	}
+
+	// Runs for a restricted entry too: the day-planning fields stay behind
+	// HasFullAccess inside, but the pending excused-absence note belongs to
+	// whoever decides that request — under open care that person supervises no
+	// group and sees every child restricted (#2232).
+	single := []StudentResponse{response.StudentResponse}
+	if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, attendances); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	response.StudentResponse = single[0]
 
 	// Add supervisor contacts for users without full access
 	if !hasFullAccess && group != nil {
@@ -1129,13 +1178,12 @@ var errSickExcusedConflict = errors.New("sick and excused conflict on locked row
 // concurrent delete.
 var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot and lock")
 
-// In-tx sentinel: the pre-tx canUpdateStudent check ran on student.GroupID from
-// the snapshot. canUpdateStudent decides off group membership, so a concurrent
-// admin moving the student into a different group between snapshot and lock can
-// leave the caller without write authority on the locked row. Re-checking
-// against fresh closes that window. Mapped to 403 in the outer switch so the
-// response status matches what the pre-tx gate would emit.
-var errStudentReassigned = errors.New("student reassigned out of caller's scope mid-update")
+// In-tx sentinel: the pre-tx authorizeStudentUpdate check ran on the snapshot
+// row. Re-checking against the locked row keeps the payload-aware permission
+// decision (users:update vs absence-only, #2232) honest under concurrency.
+// Mapped to 403 in the outer switch so the response status matches what the
+// pre-tx gate would emit.
+var errStudentReassigned = errors.New("caller lost write authority on this student mid-update")
 
 // lockStudentForUpdate takes the row lock and re-validates every precondition
 // against the LOCKED row rather than the pre-transaction snapshot, so a
@@ -1150,8 +1198,10 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 	}
 
 	// Re-check authorisation against the LOCKED row. A concurrent admin
-	// reassignment could otherwise let a non-supervisor mutate the row.
-	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+	// reassignment could otherwise let a non-supervisor mutate the row. Uses the
+	// same payload-aware gate as the pre-tx check so an absence-only write that
+	// was authorized by the open-care absence gate is not rejected here (#2232).
+	if _, ok, _ := rs.authorizeStudentUpdate(ctx, userPermissions, fresh, req); !ok {
 		return nil, errStudentReassigned
 	}
 
@@ -1361,9 +1411,11 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 			ErrCodeSickExcusedConflict,
 		)
 	case errors.Is(err, errStudentReassigned):
-		return common.ErrorForbidden(errors.New("you can only update students in groups you supervise"))
+		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):
 		return common.ErrorNotFound(errors.New("student not found"))
+	case errors.Is(err, activeService.ErrStudentStatusDayPartialAbsenceConflict):
+		return common.ErrorConflictWithCode(err, "partial_absence_conflict")
 	// The merged plan (request modes applied onto the stored row) can violate
 	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
 	// anderem Kind" day on a child with no stored note. That is client input,
@@ -1452,17 +1504,16 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Centralized permission check for updating student data
+	// Centralized permission check for updating student data. An absence-only
+	// payload may additionally pass through the action-scoped absence gate
+	// (open care, #2232) — hasFullWriteAccess stays false in that case, so the
+	// response is built for a caller who may NOT read the child's full record.
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	hasFullWriteAccess, authorized, authErr := rs.authorizeStudentUpdate(r.Context(), userPermissions, student, req)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-
-	// Track whether the user is admin or group supervisor
-	isAdmin := authorize.HasAdminWildcard(userPermissions)
-	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
@@ -1504,9 +1555,57 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin users and group supervisors can see full data including detailed location
-	hasFullAccess := isAdmin || isGroupSupervisor
-	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess, companionsChanged)
+	// Admin users and group supervisors can see full data including detailed
+	// location; an absence-only writer under open care cannot.
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullWriteAccess, companionsChanged)
+}
+
+// errStudentUpdatePermissionRequired is the 403 for a caller who reached
+// PUT /students/{id} through the users:absence branch of the route gate and
+// then sent something other than a pure absence payload.
+var errStudentUpdatePermissionRequired = errors.New("the users:update permission is required to edit this student's data")
+
+// authorizeStudentUpdate is the PUT /students/{id} gate. It reports the full
+// write verdict separately from the effective one because the two diverge for
+// an absence-only payload: the caller may then be authorized by the
+// action-scoped absence gate (canManageStudentAbsence) without holding write
+// authority on the child's record at all, and the response must not be built as
+// if they did.
+//
+// The absence fallback is only ever consulted for a payload that carries
+// NOTHING but sick/excused (see UpdateStudentRequest.isAbsenceOnly), so it can
+// never let a Stammdaten field through.
+//
+// The full path additionally requires users:update. The route gate admits
+// users:update OR users:absence, but canUpdateStudent decides supervision only
+// and never re-checks the permission — it was written when users:update was
+// the route's sole gate. Without this check a users:absence holder who happens
+// to supervise the child's group would inherit the entire Stammdaten write
+// (address, class, notes) from that supervision, which is exactly the
+// separation the dedicated permission exists to keep.
+func (rs *Resource) authorizeStudentUpdate(
+	ctx context.Context,
+	userPermissions []string,
+	student *users.Student,
+	req *UpdateStudentRequest,
+) (hasFullWriteAccess, authorized bool, authErr error) {
+	if !authorize.HasPermission(permissions.UsersUpdate, userPermissions) {
+		if !req.isAbsenceOnly() {
+			return false, false, errStudentUpdatePermissionRequired
+		}
+		absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+		return false, absenceOK, absenceErr
+	}
+
+	fullOK, fullErr := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+	if fullOK || !req.isAbsenceOnly() {
+		return fullOK, fullOK, fullErr
+	}
+	// On denial the absence gate reports the supervisor gate's own reason
+	// wherever the tenant is not running open care, so the familiar 403 text
+	// survives unchanged.
+	absenceOK, absenceErr := rs.canManageStudentAbsence(ctx, userPermissions, student)
+	return false, absenceOK, absenceErr
 }
 
 // deleteStudent handles deleting a student and their associated person record
@@ -1697,7 +1796,7 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 	// where the visible-student authorization and UX live.
 	if !student.IsAlumnus() {
 		renderError(w, r, common.ErrorConflictMessage(
-			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden in der Kindersuche gelöscht."))
+			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden unter „Alle Kinder“ gelöscht."))
 		return
 	}
 

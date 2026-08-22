@@ -81,10 +81,15 @@ func listStudentIDs(t *testing.T, body []byte) []int64 {
 // filters and grouping modes do not read. The child detail page fetches the
 // full record separately.
 func TestListStudents_SlimProjection(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
+	// Pin the clock to a fixed Monday: departure_modes exist for mon-fri only
+	// (departureDayKey has no weekend mapping), so a real-today run fails on
+	// every Saturday/Sunday CI run.
+	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Slim", "Kind", "SL1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	req := testutil.NewRequest("GET", "/?view=slim&include_pickup_times=true&include_arrival_times=true", nil)
@@ -98,8 +103,8 @@ func TestListStudents_SlimProjection(t *testing.T) {
 		"address_street", "address_city", "address_postal_code",
 		"extra_info", "health_info", "supervisor_notes",
 		"bus_days", "pickup_days", "departure_days", "allowed_departure_modes",
+		"pickup_status",
 		"departure_companion_note",
-		"day_planning_reason",
 		"photo_consent_given_at", "photo_consent_given_by",
 		"agb_accepted_at", "data_processing_accepted_at", "email_contact_accepted_at",
 		"created_at", "updated_at",
@@ -112,10 +117,11 @@ func TestListStudents_SlimProjection(t *testing.T) {
 	// Everything the Kindersuche cards, filters and badges do read.
 	for _, required := range []string{
 		"id", "first_name", "last_name", "school_class",
-		"current_location", "sick", "excused", "class_trip", "has_full_access",
+		"current_location", "sick", "excused", "class_trip", "day_planning_reason", "departure_modes", "has_full_access",
 	} {
 		assert.Contains(t, body, required, "slim student list must include %q", required)
 	}
+	assert.Contains(t, body, `"departure_modes":["pickup"]`)
 }
 
 // TestListStudents_FullViewKeepsWideProjection pins the default: only an
@@ -123,10 +129,11 @@ func TestListStudents_SlimProjection(t *testing.T) {
 // GET /api/students (room detail, companion picker, roster search, …) keep the
 // payload they read today.
 func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Wide", "Kind", "WD1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 
 	for _, view := range []string{"", "?view=full"} {
@@ -150,6 +157,8 @@ func TestListStudents_FullViewKeepsWideProjection(t *testing.T) {
 // TestListStudents_InvalidView rejects an unknown view instead of silently
 // serving the full payload — a typo in a caller must surface immediately.
 func TestListStudents_InvalidView(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	req := testutil.NewRequest("GET", "/?view=compact", nil)
@@ -161,6 +170,8 @@ func TestListStudents_InvalidView(t *testing.T) {
 // only: both views return the same children in the same order, so filtering,
 // day planning and pagination are untouched.
 func TestListStudents_SlimViewSameRows(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	var studentIDs []int64
@@ -169,7 +180,6 @@ func TestListStudents_SlimViewSameRows(t *testing.T) {
 		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
 		studentIDs = append(studentIDs, student.ID)
 	}
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentIDs...)
 
 	query := "search=SameRows&include_pickup_times=true&include_arrival_times=true&page_size=100"
 
@@ -190,16 +200,15 @@ func TestListStudents_SlimViewSameRows(t *testing.T) {
 // endpoint (benchmark 2026-07-30, #2063) because the page requests up to 1000
 // rows of the full projection in one trip.
 func TestListStudents_SlimPayloadBudget(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	var studentIDs []int64
 	const listSize = 30
 	for i := range listSize {
 		student := testpkg.CreateTestStudent(t, tc.db, "Budget", fmt.Sprintf("Produktionskind%02d", i), "BG1")
 		fillWideStudentFields(t, tc.db, student.ID, student.PersonID)
-		studentIDs = append(studentIDs, student.ID)
 	}
-	defer testpkg.CleanupActivityFixtures(t, tc.db, studentIDs...)
 
 	query := "search=Produktionskind&include_pickup_times=true&include_arrival_times=true&page_size=100"
 

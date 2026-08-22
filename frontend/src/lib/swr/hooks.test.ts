@@ -445,6 +445,38 @@ describe("SWR Hooks", () => {
       expect(matcher("unrelated-bar")).toBe(false);
     });
 
+    it("passes only the matcher when called without options (revalidate path)", () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const { result } = renderHook(() => useTenantMutateMatching(["foo"]));
+      void result.current();
+
+      const lastCall = mockSwrMutate.mock.calls.at(-1);
+      expect(lastCall).toHaveLength(1);
+    });
+
+    it("clears matching entries without revalidation when called with { clear: true }", () => {
+      // The clear path exists for consumers that must never act on
+      // pre-mutation data: with the global keepPreviousData config a plain
+      // revalidation still serves the stale entry first, so the entry has to
+      // be deleted (data: undefined, revalidate: false).
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const { result } = renderHook(() =>
+        useTenantMutateMatching(["timetable-sammel-vertretung-"]),
+      );
+      void result.current({ clear: true });
+
+      const lastCall = mockSwrMutate.mock.calls.at(-1);
+      expect(lastCall).toHaveLength(3);
+      expect(lastCall?.[1]).toBeUndefined();
+      expect(lastCall?.[2]).toEqual({ revalidate: false });
+
+      // Same matcher contract as the revalidate path: tenant-scoped.
+      const matcher = lastCall?.[0] as (key: unknown) => boolean;
+      expect(matcher("school-a:timetable-sammel-vertretung-x")).toBe(true);
+      expect(matcher("school-b:timetable-sammel-vertretung-x")).toBe(false);
+      expect(matcher("school-a:unrelated")).toBe(false);
+    });
+
     it("returns the same callback when called with a fresh array of identical contents", () => {
       // Stability guard: callers pass a literal array each render. Without
       // the joined-string dep, useCallback would re-create the function every

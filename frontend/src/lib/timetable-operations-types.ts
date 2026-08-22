@@ -25,6 +25,9 @@ export interface PlannedTimetableInstance {
   isSubstitute: boolean;
   isAbsent: boolean;
   rosterPreview: TimetableRosterRow[];
+  canStart?: boolean;
+  startAvailableAt?: string;
+  startExpiresAt?: string;
 }
 
 interface TimetableRosterInstance {
@@ -35,6 +38,11 @@ interface TimetableRosterInstance {
   activeGroupId: string | null;
   roomId: string;
   roomName?: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  canComplete: boolean;
+  completeAvailableAt: string;
 }
 
 export interface TimetableRosterRow {
@@ -62,6 +70,19 @@ export interface TimetableRosterRow {
    * isCareDayExpected, never against a single value.
    */
   careDayStatus: CareDayStatus;
+  /**
+   * Names the other running instance where this child is currently recorded
+   * present (#2265). Null when no parallel block holds the child as present;
+   * older backends omit the field entirely.
+   */
+  parallelPresentIn?: TimetableParallelPresence | null;
+}
+
+interface TimetableParallelPresence {
+  instanceId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface TimetableRosterWarning {
@@ -81,6 +102,13 @@ interface TimetableRosterWarning {
 export interface TimetableRoster {
   instance: TimetableRosterInstance;
   rows: TimetableRosterRow[];
+  /**
+   * Set only on check-in responses that auto-moved the child out of another
+   * running session (#2386). Carries the origin's display name; an empty
+   * string means the move happened but the origin has no resolvable name.
+   * Null when no move happened; older backends omit the field.
+   */
+  movedFrom?: string | null;
 }
 
 export interface StartOperationResult {
@@ -116,6 +144,9 @@ interface BackendPlannedTimetableInstance {
   is_substitute?: boolean;
   is_absent?: boolean;
   roster_preview?: BackendRosterRow[];
+  can_start?: boolean;
+  start_available_at?: string;
+  start_expires_at?: string;
 }
 
 interface BackendRosterInstance {
@@ -126,6 +157,11 @@ interface BackendRosterInstance {
   active_group_id?: number | null;
   room_id: number;
   room_name?: string | null;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 interface BackendRosterRow {
@@ -145,6 +181,12 @@ interface BackendRosterRow {
   visit_entry_time?: string | null;
   warnings?: BackendRosterWarning[];
   care_day_status?: TimetableRosterRow["careDayStatus"];
+  parallel_present_in?: {
+    instance_id: number;
+    title: string;
+    start_time: string;
+    end_time: string;
+  } | null;
 }
 
 interface BackendRosterWarning {
@@ -160,6 +202,7 @@ interface BackendRosterWarning {
 export interface BackendTimetableRoster {
   instance: BackendRosterInstance;
   rows: BackendRosterRow[];
+  moved_from?: string | null;
 }
 
 export interface BackendStartOperationResult {
@@ -191,6 +234,9 @@ export function mapPlannedInstance(
     isSubstitute: raw.is_substitute ?? false,
     isAbsent: raw.is_absent ?? false,
     rosterPreview: (raw.roster_preview ?? []).map(mapRosterRow),
+    canStart: raw.can_start ?? false,
+    startAvailableAt: raw.start_available_at ?? "",
+    startExpiresAt: raw.start_expires_at ?? "",
   };
 }
 
@@ -211,6 +257,14 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
     checkedOutAt: row.checked_out_at ?? null,
     visitEntryTime: row.visit_entry_time ?? null,
     careDayStatus: row.care_day_status ?? "unknown",
+    parallelPresentIn: row.parallel_present_in
+      ? {
+          instanceId: row.parallel_present_in.instance_id.toString(),
+          title: row.parallel_present_in.title,
+          startTime: row.parallel_present_in.start_time,
+          endTime: row.parallel_present_in.end_time,
+        }
+      : null,
     warnings: (row.warnings ?? []).map((warning) => ({
       kind: warning.kind,
       message: warning.message,
@@ -234,8 +288,14 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       activeGroupId: raw.instance.active_group_id?.toString() ?? null,
       roomId: raw.instance.room_id.toString(),
       roomName: raw.instance.room_name ?? null,
+      date: raw.instance.date ?? "",
+      startTime: raw.instance.start_time ?? "",
+      endTime: raw.instance.end_time ?? "",
+      canComplete: raw.instance.can_complete ?? false,
+      completeAvailableAt: raw.instance.complete_available_at ?? "",
     },
     rows: raw.rows.map(mapRosterRow),
+    movedFrom: raw.moved_from ?? null,
   };
 }
 

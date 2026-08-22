@@ -338,6 +338,9 @@ func (m *trackingMockActiveService) CheckOutStudent(ctx context.Context, student
 func (m *trackingMockActiveService) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *trackingMockActiveService) ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*activeSvc.SchoolCheckinBatchResult, error) {
+	return nil, nil
+}
 func (m *trackingMockActiveService) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
 	if m.checkTeacherStudentAccessFunc != nil {
 		return m.checkTeacherStudentAccessFunc(ctx, teacherID, studentID)
@@ -366,6 +369,8 @@ func createTrackingRequest(t *testing.T, body TrackingIndicatorsRequest) *http.R
 // --- Tests ---
 
 func TestGetTrackingIndicators_InvalidBody(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := httptest.NewRequest(http.MethodPost, "/tracking-indicators", bytes.NewReader([]byte("not json")))
@@ -377,6 +382,8 @@ func TestGetTrackingIndicators_InvalidBody(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := createTrackingRequest(t, TrackingIndicatorsRequest{StudentIDs: []int64{}})
@@ -395,6 +402,8 @@ func TestGetTrackingIndicators_EmptyStudentIDs(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := createTrackingRequest(t, TrackingIndicatorsRequest{StudentIDs: []int64{10, 0}})
@@ -406,6 +415,8 @@ func TestGetTrackingIndicators_InvalidStudentID(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_NegativeStudentID(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	req := createTrackingRequest(t, TrackingIndicatorsRequest{StudentIDs: []int64{10, -5}})
@@ -417,6 +428,8 @@ func TestGetTrackingIndicators_NegativeStudentID(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_SettingsError(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(func(ctx context.Context, key string) (bool, error) {
 		return false, errors.New("settings service error")
 	}, nil)
@@ -438,6 +451,8 @@ func TestGetTrackingIndicators_SettingsError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_Disabled(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(func(ctx context.Context, key string) (bool, error) {
 		return false, nil
 	}, nil)
@@ -458,6 +473,8 @@ func TestGetTrackingIndicators_Disabled(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_NoLabelsConfigured(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(
 		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
@@ -483,6 +500,8 @@ func TestGetTrackingIndicators_NoLabelsConfigured(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_LabelResolutionError(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(
 		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
@@ -508,6 +527,8 @@ func TestGetTrackingIndicators_LabelResolutionError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_Success(t *testing.T) {
+	t.Parallel()
+
 	labelValues := map[string]string{
 		config.KeyTrackingIndicator1: "Hausaufgaben",
 		config.KeyTrackingIndicator2: "Mensa",
@@ -555,6 +576,8 @@ func TestGetTrackingIndicators_Success(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(
 		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
@@ -584,6 +607,8 @@ func TestGetTrackingIndicators_ServiceError(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_WhitespaceOnlyLabels(t *testing.T) {
+	t.Parallel()
+
 	settings := newTrackingMockSettingsService(
 		func(ctx context.Context, key string) (bool, error) {
 			return true, nil
@@ -609,6 +634,8 @@ func TestGetTrackingIndicators_WhitespaceOnlyLabels(t *testing.T) {
 }
 
 func TestGetTrackingIndicators_PartialLabelsConfigured(t *testing.T) {
+	t.Parallel()
+
 	labelValues := map[string]string{
 		config.KeyTrackingIndicator1: "Mensa",
 		config.KeyTrackingIndicator2: "",

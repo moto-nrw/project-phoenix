@@ -421,8 +421,7 @@ func buildRunningActivities(
 			if tmpl.Category != nil {
 				category = tmpl.Category.Name
 			}
-			capacity := tmpl.MaxParticipants
-			maxCapacity = &capacity
+			maxCapacity = tmpl.ParticipantLimit()
 		} else if inst, ok := instanceByActiveGroup[g.ID]; ok {
 			name = inst.Title
 		}

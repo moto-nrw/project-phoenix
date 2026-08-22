@@ -272,6 +272,9 @@ func (s *stubActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ boo
 func (s *stubActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (s *stubActiveService) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeSvc.SchoolCheckinBatchResult, error) {
+	return nil, nil
+}
 func (s *stubActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
@@ -318,6 +321,8 @@ func staffClaims() jwt.AppClaims {
 // =============================================================================
 
 func TestIsAdminWithSupervisionOverview_NonAdmin(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
@@ -329,6 +334,8 @@ func TestIsAdminWithSupervisionOverview_NonAdmin(t *testing.T) {
 }
 
 func TestIsAdminWithSupervisionOverview_NilSettings(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: nil}
 	r := newRequestWithClaims("GET", "/", adminClaims())
 
@@ -336,6 +343,8 @@ func TestIsAdminWithSupervisionOverview_NilSettings(t *testing.T) {
 }
 
 func TestIsAdminWithSupervisionOverview_SettingDisabled(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
@@ -347,6 +356,8 @@ func TestIsAdminWithSupervisionOverview_SettingDisabled(t *testing.T) {
 }
 
 func TestIsAdminWithSupervisionOverview_SettingEnabled(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
@@ -358,6 +369,8 @@ func TestIsAdminWithSupervisionOverview_SettingEnabled(t *testing.T) {
 }
 
 func TestIsAdminWithSupervisionOverview_SettingError(t *testing.T) {
+	t.Parallel()
+
 	// Key not in map → ResolveBool returns error
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{}),
@@ -372,6 +385,8 @@ func TestIsAdminWithSupervisionOverview_SettingError(t *testing.T) {
 // =============================================================================
 
 func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
@@ -386,6 +401,8 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_OpenCareAllowsPermissionBearingStaff(t *testing.T) {
+	t.Parallel()
+
 	settings := mockSettingsSvc(map[string]bool{})
 	settings.ResolveStringFn = func(_ context.Context, key string) (string, error) {
 		assert.Equal(t, configModel.KeyGroupMode, key)
@@ -401,6 +418,8 @@ func TestGetAllActiveSupervisions_OpenCareAllowsPermissionBearingStaff(t *testin
 }
 
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: nil}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -411,6 +430,8 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
@@ -425,6 +446,8 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
+	t.Parallel()
+
 	// Empty boolValues → ResolveBool returns error for the key
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{}),
@@ -438,6 +461,8 @@ func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
@@ -458,6 +483,8 @@ func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	past := now.Add(-2 * time.Hour)
 	endedTime := now.Add(-1 * time.Hour)
@@ -503,6 +530,8 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 }
 
 func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		SettingsService: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,

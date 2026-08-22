@@ -38,12 +38,16 @@ func newTestLogger(buf *bytes.Buffer, format string, level string) *slog.Logger 
 }
 
 func TestNew_SetsDefault(t *testing.T) {
+	t.Parallel()
+
 	logger := applog.New(applog.Config{Level: "info", Format: "json"})
 	require.NotNil(t, logger)
 	assert.Equal(t, logger.Handler(), slog.Default().Handler())
 }
 
 func TestNew_JSONOutput(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	logger = logger.With(slog.String("env", "production"))
@@ -64,6 +68,8 @@ func TestNew_JSONOutput(t *testing.T) {
 }
 
 func TestNew_TextOutput(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := newTestLogger(&buf, "text", "info")
 
@@ -79,6 +85,8 @@ func TestNew_TextOutput(t *testing.T) {
 }
 
 func TestNew_LevelFiltering(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		configLevel string
 		logLevel    slog.Level
@@ -109,6 +117,8 @@ func TestNew_LevelFiltering(t *testing.T) {
 }
 
 func TestNew_ParsesLevels(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		level string
 		want  slog.Level
@@ -128,6 +138,8 @@ func TestNew_ParsesLevels(t *testing.T) {
 }
 
 func TestNew_EnvAttribute(t *testing.T) {
+	t.Parallel()
+
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewJSONHandler(&buf, nil))
 	logger = logger.With(slog.String("env", "test"))
@@ -140,6 +152,7 @@ func TestNew_EnvAttribute(t *testing.T) {
 	assert.Equal(t, "test", parsed["env"])
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNew_StdlibLogRouting(t *testing.T) {
 	// Verify that after SetDefault + SetLogLoggerLevel(WARN),
 	// stdlib log.Printf calls appear as WARN-level slog output

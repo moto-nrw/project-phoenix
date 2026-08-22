@@ -50,6 +50,61 @@ describe("PresenceBadge", () => {
     ).toBe(true);
   });
 
+  // Issue #2405 — the yard follows the Schulhof room's colour when a school
+  // set one. Binary mode has no room visit, so the backend resolves the room
+  // once and ships the hex in `current_room_color`.
+  it("renders Schulhof in the configured room color when one is set", () => {
+    render(
+      <PresenceBadge
+        student={{
+          current_location: "Schulhof",
+          current_room_color: "#A3D977",
+        }}
+      />,
+    );
+    const pill = getPill();
+    expect(pill.getAttribute("data-presence-state")).toBe("schulhof");
+    expect(
+      bgMatchesBrandColor(
+        pill,
+        getLocationBadgeTone("#A3D977").backgroundColor,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps the orange Schulhof default when the room color is blank", () => {
+    render(
+      <PresenceBadge
+        student={{ current_location: "Schulhof", current_room_color: "  " }}
+      />,
+    );
+    expect(
+      bgMatchesBrandColor(
+        getPill(),
+        getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD).backgroundColor,
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores a room color for the Anwesend state", () => {
+    // Regression guard: only the yard state may adopt the room hex here —
+    // Anwesend/Abwesend have no room behind them in binary mode.
+    render(
+      <PresenceBadge
+        student={{
+          current_location: "Anwesend",
+          current_room_color: "#A3D977",
+        }}
+      />,
+    );
+    expect(
+      bgMatchesBrandColor(
+        getPill(),
+        getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM).backgroundColor,
+      ),
+    ).toBe(true);
+  });
+
   it("renders Abwesend in brand red when checked out", () => {
     render(<PresenceBadge student={{ current_location: "Zuhause" }} />);
     expect(screen.getByText("Zuhause")).toBeInTheDocument();

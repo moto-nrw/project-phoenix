@@ -34,6 +34,18 @@ describe("NotificationPreferencesSection", () => {
     api.disableAllNotificationPreferences.mockResolvedValue(undefined);
   });
 
+  it("reserves grouped rows and header action while preferences load", () => {
+    api.fetchNotificationPreferences.mockReturnValue(new Promise(() => {}));
+
+    render(<NotificationPreferencesSection portal="parent" />);
+
+    const skeleton = screen.getByTestId("notification-preferences-skeleton");
+    expect(skeleton.querySelectorAll(".min-h-16")).toHaveLength(5);
+    expect(skeleton.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
+      10,
+    );
+  });
+
   it("renders the catalogue grouped under German headings", async () => {
     render(<NotificationPreferencesSection />);
 
@@ -210,6 +222,91 @@ describe("NotificationPreferencesSection", () => {
     expect(
       screen.queryByRole("button", { name: "Alle deaktivieren" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers one primary action to enable every parent notification", async () => {
+    api.fetchNotificationPreferences.mockResolvedValue({
+      tenant_enabled: true,
+      types: [
+        {
+          ...preferences().types[0],
+          enabled: true,
+        },
+        {
+          key: "parent_message",
+          label: "Neue Nachricht der OGS",
+          description: "Wenn die OGS zu einem Kind schreibt.",
+          group: "mitteilungen",
+          enabled: false,
+          available: true,
+        },
+      ],
+    });
+    render(<NotificationPreferencesSection portal="parent" />);
+
+    expect(
+      await screen.findByText(
+        "Bleiben Sie über Nachrichten und wichtige Änderungen zu Ihrem Kind informiert.",
+      ),
+    ).toBeVisible();
+    const enableAllButton = screen.getByRole("button", {
+      name: "Alle aktivieren",
+    });
+    expect(enableAllButton).toHaveClass(
+      "rounded-lg",
+      "px-4",
+      "py-2",
+      "text-sm",
+    );
+    expect(enableAllButton).not.toHaveClass("min-h-12", "rounded-xl", "w-full");
+    fireEvent.click(enableAllButton);
+
+    await waitFor(() =>
+      expect(api.setNotificationPreference).toHaveBeenCalledWith(
+        "parent_message",
+        true,
+        "parent",
+      ),
+    );
+    expect(api.setNotificationPreference).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Alle aktiviert")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Alle aktivieren" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Alle deaktivieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the compact completed status when all parent notifications are on", async () => {
+    api.fetchNotificationPreferences.mockResolvedValue(
+      preferences({ enabled: true }),
+    );
+    render(<NotificationPreferencesSection portal="parent" />);
+
+    expect(await screen.findByText("Alle aktiviert")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Alle aktivieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps the parent action available when enabling all fails", async () => {
+    api.setNotificationPreference.mockRejectedValue(new Error("boom"));
+    render(<NotificationPreferencesSection portal="parent" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Alle aktivieren" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Einstellungen konnten nicht geändert werden.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Alle aktivieren" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Alle aktiviert")).not.toBeInTheDocument();
   });
 
   it("uses the parent portal when asked to", async () => {

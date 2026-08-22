@@ -33,6 +33,10 @@ import {
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
+import {
+  CardGridSkeleton,
+  SkeletonRegion,
+} from "~/components/ui/page-skeletons";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -156,7 +160,13 @@ export function AdminEnrollmentsList() {
 
   if (loading) {
     return (
-      <p className="text-sm text-gray-500">Anmeldungen werden geladen...</p>
+      <SkeletonRegion label="Anmeldungen werden geladen" className="mt-4">
+        <CardGridSkeleton
+          cards={3}
+          rowsPerCard={2}
+          className="grid grid-cols-1 gap-4"
+        />
+      </SkeletonRegion>
     );
   }
 
@@ -233,12 +243,12 @@ function ChangeRequestsOverview({
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
               Familien können nach einer Entscheidung Korrekturen einreichen.
-              Offene Anfragen prüfst du gesammelt in der Review-Ansicht.
+              Offene Anfragen prüfst du gesammelt im Anfragen-Modul.
             </p>
           </div>
         </div>
         <Link
-          href={tenantPath("/admin/enrollments/change-requests")}
+          href={tenantPath("/anfragen")}
           className="inline-flex h-9 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
         >
           Anfragen prüfen

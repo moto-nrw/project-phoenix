@@ -9,6 +9,7 @@ import { de } from "date-fns/locale";
 import "react-day-picker/style.css";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
+import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import {
   clampCalendarWidth,
@@ -126,6 +127,7 @@ type DatePickerProps =
       // Overrides for the built-in German control labels, for those same
       // parent-facing surfaces.
       readonly labels?: DatePickerLabels;
+      readonly iconOnly?: boolean;
     }
   | {
       readonly mode: "multiple";
@@ -157,6 +159,7 @@ export function DatePicker({
 }: DatePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
   // null until the trigger rect has been measured. The portal renders only once
@@ -174,7 +177,9 @@ export function DatePicker({
   // Known only after the trigger is measured; until then assume the roomy
   // variant, which is what every field wider than a filter chip gets.
   const isCompactPanel =
-    popoverPosition !== null && popoverPosition.width < COMPACT_CARD_MAX_WIDTH;
+    calendarLayout === "inline" ||
+    (popoverPosition !== null &&
+      popoverPosition.width < COMPACT_CARD_MAX_WIDTH);
   const locale = isMultiple ? de : (props.locale ?? de);
   const labels = resolveLabels(isMultiple ? undefined : props.labels);
   const displayValue = isMultiple
@@ -185,6 +190,12 @@ export function DatePicker({
         // everywhere. Switching it to "P" is a separate, test-pinned decision.
         format(props.value, "dd.MM.yyyy", { locale })
       : null;
+  const iconOnly = !isMultiple && props.iconOnly === true;
+  const canClear =
+    Boolean(displayValue) &&
+    !iconOnly &&
+    !isDisabled &&
+    !(!isMultiple && (props.hideClearButton || props.required));
 
   // Portals only exist client-side; render nothing on the server pass.
   useEffect(() => {
@@ -197,6 +208,28 @@ export function DatePicker({
   useEffect(() => {
     if (isDisabled) setIsOpen(false);
   }, [isDisabled]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          '[role="combobox"][aria-expanded="true"], [role="listbox"]',
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setIsOpen(false);
+      triggerRef.current?.focus();
+    };
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => document.removeEventListener("keydown", closeOnEscape, true);
+  }, [isOpen]);
 
   const syncPopoverPosition = useCallback(() => {
     if (!containerRef.current) return;
@@ -331,83 +364,46 @@ export function DatePicker({
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
-      <button
-        type="button"
-        id={isMultiple ? undefined : props.id}
-        aria-label={isMultiple ? undefined : props.ariaLabel}
-        // The trigger is a plain button, and ARIA does not allow aria-invalid /
-        // aria-required on that role (oxlint jsx-a11y enforces it). The invalid
-        // state is therefore carried visually plus by the caller's own error
-        // text, and `aria-describedby` links the two when the caller passes it.
-        aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
-        disabled={isDisabled}
-        onClick={toggleOpen}
-        // The background is picked in exactly one place: a base `bg-white` plus
-        // a conditional `bg-gray-50` are two utilities of equal specificity, and
-        // which one wins depends on Tailwind's output order — the disabled state
-        // silently rendered white.
-        className={`flex w-full items-center justify-between rounded-lg border transition-all ${
-          TRIGGER_SIZE_CLASS[
-            (isMultiple ? undefined : props.controlSize) ?? "sm"
-          ]
-        } ${
-          !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
-        } ${
-          isDisabled
-            ? "cursor-not-allowed bg-gray-50 text-gray-400"
-            : isOpen
-              ? "border-gray-300 bg-gray-50"
-              : "bg-white hover:bg-gray-50"
-        }`}
-      >
-        <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
-          {displayValue ?? placeholder}
-        </span>
-        <div className="flex items-center gap-1">
-          {displayValue &&
-            !isDisabled &&
-            !(!isMultiple && (props.hideClearButton || props.required)) && (
-              <span
-                role="button"
-                tabIndex={0}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isMultiple) {
-                    props.onChangeDates([]);
-                  } else {
-                    props.onChange(null);
-                  }
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.stopPropagation();
-                    if (isMultiple) {
-                      props.onChangeDates([]);
-                    } else {
-                      props.onChange(null);
-                    }
-                  }
-                }}
-                className="rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                aria-label={labels.clear}
-              >
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </span>
-            )}
+      <div className="flex items-center gap-1" data-date-picker-controls>
+        <button
+          ref={triggerRef}
+          type="button"
+          id={isMultiple ? undefined : props.id}
+          aria-label={
+            isMultiple
+              ? undefined
+              : (props.ariaLabel ?? (iconOnly ? "Kalender öffnen" : undefined))
+          }
+          aria-expanded={isOpen}
+          aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+          disabled={isDisabled}
+          onClick={toggleOpen}
+          className={`flex items-center rounded-lg border transition-all ${
+            iconOnly
+              ? "h-10 w-10 shrink-0 justify-center"
+              : `min-w-0 flex-1 justify-between ${
+                  TRIGGER_SIZE_CLASS[
+                    (isMultiple ? undefined : props.controlSize) ?? "sm"
+                  ]
+                }`
+          } ${
+            !isMultiple && props.invalid ? "border-moto-red" : "border-gray-200"
+          } ${
+            isDisabled
+              ? "cursor-not-allowed bg-gray-50 text-gray-400"
+              : isOpen
+                ? "border-gray-300 bg-gray-50"
+                : "bg-white hover:bg-gray-50"
+          }`}
+        >
+          {!iconOnly && (
+            <span className={displayValue ? "text-gray-900" : "text-gray-500"}>
+              {displayValue ?? placeholder}
+            </span>
+          )}
           <svg
-            className="h-4 w-4 text-gray-400"
+            className="h-4 w-4 shrink-0 text-gray-400"
+            aria-hidden="true"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -419,8 +415,41 @@ export function DatePicker({
               d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-        </div>
-      </button>
+        </button>
+        {canClear && (
+          <button
+            type="button"
+            onClick={() => {
+              if (isMultiple) {
+                props.onChangeDates([]);
+              } else {
+                props.onChange(null);
+              }
+            }}
+            className={`flex shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+              !isMultiple && props.controlSize === "lg"
+                ? "h-11 w-11"
+                : "h-8 w-8"
+            }`}
+            aria-label={labels.clear}
+          >
+            <svg
+              className="h-4 w-4"
+              aria-hidden="true"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        )}
+      </div>
 
       {/* The overlay/inline layouts render in place; the popover layout renders
           the calendar into document.body at a viewport-fixed position. Portals
@@ -438,7 +467,7 @@ export function DatePicker({
               <FocusScope asChild loop trapped>
                 <div
                   ref={popoverRef}
-                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+                  className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
                   style={{
                     top: popoverPosition.top,
                     left: popoverPosition.left,
@@ -452,7 +481,7 @@ export function DatePicker({
             ) : (
               <div
                 ref={popoverRef}
-                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+                className="fixed z-[10001] max-h-[calc(100dvh-1rem)] overflow-x-hidden overflow-y-auto overscroll-contain"
                 style={{
                   top: popoverPosition.top,
                   left: popoverPosition.left,
@@ -509,6 +538,12 @@ function DatePickerCalendar({
   readonly onChange: (date: Date | null) => void;
 }) {
   const [month, setMonth] = useState(value ?? new Date());
+  const controlledMonthTime = value?.getTime();
+
+  useEffect(() => {
+    if (controlledMonthTime === undefined) return;
+    setMonth(new Date(controlledMonthTime));
+  }, [controlledMonthTime]);
 
   return (
     <div
@@ -714,6 +749,186 @@ export function ISODatePicker({
   );
 }
 
+interface ISODateInputProps {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+  readonly onValidityChange?: (valid: boolean) => void;
+  readonly min?: string;
+  readonly max?: string;
+  readonly invalidDateError?: string;
+  readonly minDateError?: string;
+  readonly maxDateError?: string;
+  readonly disabled?: boolean;
+}
+
+export function ISODateInput({
+  id,
+  label,
+  value,
+  onChange,
+  onValidityChange,
+  min,
+  max,
+  invalidDateError = "Bitte geben Sie ein gültiges Datum im Format TT.MM.JJJJ ein.",
+  minDateError = "Das Datum liegt vor dem zulässigen Zeitraum.",
+  maxDateError = "Das Datum liegt nach dem zulässigen Zeitraum.",
+  disabled,
+}: ISODateInputProps) {
+  const [inputValue, setInputValue] = useState(() =>
+    formatISODateInputValue(value),
+  );
+  const [inputError, setInputError] = useState<string | null>(() =>
+    validateStoredISODate(
+      value,
+      min,
+      max,
+      invalidDateError,
+      minDateError,
+      maxDateError,
+    ),
+  );
+  const errorId = `${id}-error`;
+
+  useEffect(() => {
+    setInputValue(formatISODateInputValue(value));
+    const nextError = validateStoredISODate(
+      value,
+      min,
+      max,
+      invalidDateError,
+      minDateError,
+      maxDateError,
+    );
+    setInputError(nextError);
+    onValidityChange?.(nextError === null);
+  }, [
+    value,
+    min,
+    max,
+    invalidDateError,
+    minDateError,
+    maxDateError,
+    onValidityChange,
+  ]);
+
+  const validate = (nextValue: string, showIncompleteError: boolean) => {
+    const trimmed = nextValue.trim();
+    if (trimmed === "") {
+      setInputError(null);
+      onValidityChange?.(true);
+      onChange("");
+      return;
+    }
+
+    const isoDate = parseGermanDateInput(trimmed);
+    let nextError: string | null = null;
+    if (!isoDate) {
+      if (showIncompleteError || trimmed.length >= 10) {
+        nextError = invalidDateError;
+      }
+    } else if (min && isoDate < min) {
+      nextError = minDateError;
+    } else if (max && isoDate > max) {
+      nextError = maxDateError;
+    }
+
+    setInputError(nextError);
+    const valid = Boolean(isoDate) && nextError === null;
+    onValidityChange?.(valid);
+    if (valid && isoDate) onChange(isoDate);
+  };
+
+  return (
+    <div>
+      <label
+        htmlFor={id}
+        className="mb-2 block text-sm font-medium text-gray-700"
+      >
+        {label}
+      </label>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            id={id}
+            name={id}
+            type="text"
+            controlSize="compact"
+            inputMode="numeric"
+            autoComplete="bday"
+            placeholder="TT.MM.JJJJ"
+            maxLength={10}
+            value={inputValue}
+            disabled={disabled}
+            aria-invalid={inputError ? true : undefined}
+            aria-describedby={inputError ? errorId : undefined}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              setInputValue(nextValue);
+              validate(nextValue, false);
+            }}
+            onBlur={() => validate(inputValue, true)}
+            className={inputError ? "ring-moto-red" : ""}
+          />
+        </div>
+        <DatePicker
+          value={toDateOrNull(value)}
+          minDate={toDateOrNull(min) ?? undefined}
+          maxDate={toDateOrNull(max) ?? undefined}
+          onChange={(date) => {
+            const isoDate = date ? toISODate(date) : "";
+            setInputValue(formatISODateInputValue(isoDate));
+            setInputError(null);
+            onValidityChange?.(true);
+            onChange(isoDate);
+          }}
+          iconOnly
+          hideClearButton
+          monthYearNavigation
+          disabled={disabled}
+          ariaLabel={`${label} im Kalender auswählen`}
+          invalid={Boolean(inputError)}
+        />
+      </div>
+      {inputError && (
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
+          {inputError}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function parseGermanDateInput(value: string): string | null {
+  const match = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(value);
+  if (!match) return null;
+  const isoDate = `${match[3]}-${match[2]}-${match[1]}`;
+  return isValidISODate(isoDate) ? isoDate : null;
+}
+
+function validateStoredISODate(
+  value: string,
+  min: string | undefined,
+  max: string | undefined,
+  invalidDateError: string,
+  minDateError: string,
+  maxDateError: string,
+): string | null {
+  if (value === "") return null;
+  const isoDate = value.slice(0, 10);
+  if (!isValidISODate(isoDate)) return invalidDateError;
+  if (min && isoDate < min) return minDateError;
+  if (max && isoDate > max) return maxDateError;
+  return null;
+}
+
+function formatISODateInputValue(value: string): string {
+  const isoDate = value.slice(0, 10);
+  if (!isValidISODate(isoDate)) return value;
+  return `${isoDate.slice(8, 10)}.${isoDate.slice(5, 7)}.${isoDate.slice(0, 4)}`;
+}
+
 // Accepts both a bare "YYYY-MM-DD" and a full backend timestamp
 // ("2015-03-04T00:00:00Z"), because several master-data endpoints return the
 // latter for what is semantically a calendar day. Taking the leading day
@@ -753,7 +968,7 @@ const NAV_OPTION_ACTIVE_CLASS =
   "flex w-full cursor-pointer items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors";
 
 const NAV_SELECT_CLASS =
-  "inline-flex h-9 min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
+  "inline-flex h-9 w-full min-w-0 cursor-pointer items-center justify-between gap-1.5 overflow-hidden rounded-lg border border-gray-200 bg-white px-2.5 text-sm leading-5 font-medium text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
 // The offered years always include the month currently on screen, so a value
 // outside the caller's bounds (legacy data) still shows its own year instead of
@@ -802,7 +1017,7 @@ function CalendarNavHeader({
 
   return (
     <div
-      className={`flex items-center justify-between ${
+      className={`grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center ${
         compact ? "mb-3 gap-1" : "mb-4 gap-2"
       }`}
     >
@@ -831,7 +1046,7 @@ function CalendarNavHeader({
         // OS-level popup, which cannot be styled to match the kit and does not
         // exist in the DOM (so it never appears in a screenshot or a test).
         // The menu z-index has to clear the calendar's own portal.
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-center gap-1">
           <ListboxDropdown
             ariaLabel={labels.month}
             value={String(month.getMonth())}
@@ -842,6 +1057,7 @@ function CalendarNavHeader({
             onChange={(next) =>
               onMonthChange(new Date(month.getFullYear(), Number(next), 1))
             }
+            containerClassName="relative min-w-0"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             optionClassName={NAV_OPTION_CLASS}
@@ -860,6 +1076,7 @@ function CalendarNavHeader({
             onChange={(next) =>
               onMonthChange(new Date(Number(next), month.getMonth(), 1))
             }
+            containerClassName="relative min-w-0"
             className={NAV_SELECT_CLASS}
             menuClassName={NAV_MENU_CLASS}
             optionClassName={NAV_OPTION_CLASS}
@@ -913,7 +1130,7 @@ function buildSingleDisabledMatchers(
   return matchers;
 }
 
-// A panel narrower than this cannot afford the roomier padding: at the 222px
+// A panel narrower than this cannot afford the roomier padding: at a very small
 // minimum, p-4 would shave the day buttons below their 20px floor and truncate
 // the "Juli 2026" caption. Below the threshold the card falls back to p-3 and
 // spends the space on the grid instead.
@@ -926,11 +1143,11 @@ function getCalendarContainerClass(
   const base = `rounded-xl border border-gray-200 bg-white shadow-lg ${
     compact ? "p-3" : "p-4"
   }`;
-  // The floating layouts get their width from the portal wrapper, which is
-  // sized to the trigger; inline takes its parent's width and only needs the
-  // legible-minimum floor.
+  // The floating layouts get their width from the portal wrapper. Inline
+  // calendars belong to their container, but retain the minimum width needed
+  // for 20px day buttons with compact card padding.
   if (calendarLayout === "inline") {
-    return `${base} mt-2 w-full min-w-[222px]`;
+    return `${base} mt-2 w-full min-w-[222px] max-w-full`;
   }
   return `${base} w-full`;
 }

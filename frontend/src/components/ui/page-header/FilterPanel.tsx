@@ -10,6 +10,7 @@ import {
   type FilterSection,
 } from "./types";
 import { CustomSelect } from "../custom-select";
+import { MultiSelect } from "../multi-select";
 import { InfoSection } from "../detail-modal-components";
 
 // Viewport Y just below the sticky app topbar — the line the panel docks to.
@@ -273,34 +274,35 @@ export function FilterPanel({
         );
 
       case "dropdown":
+        // A multi-select is a dropdown, not a wall of toggle chips: a school
+        // with ten groups and eight classes turns a flat chip grid into two
+        // unreadable blocks, and it grows with every class the school adds.
         if (filter.multiSelect) {
           return (
-            <div className="flex flex-wrap gap-1.5">
-              {filter.options.map((option) =>
-                optionButton(
-                  filter,
-                  option,
-                  selectedValues,
-                  "",
-                  <>
-                    {option.label}
-                    {option.count !== undefined && (
-                      <span
-                        className={`ml-2 text-xs ${
-                          selectedValues.includes(option.value)
-                            ? isQuiet
-                              ? "text-blue-500"
-                              : "text-gray-300"
-                            : "text-gray-500"
-                        }`}
-                      >
-                        ({option.count})
-                      </span>
-                    )}
-                  </>,
-                ),
-              )}
-            </div>
+            <MultiSelect
+              id={`mobile-filter-${filter.id}`}
+              ariaLabel={filter.label}
+              testId={`filter-${filter.id}`}
+              value={selectedValues}
+              onChange={(next) => filter.onChange(next)}
+              placeholder={filter.emptyLabel ?? `Alle ${filter.label}`}
+              summaryLabel={
+                filter.summaryLabel ??
+                ((count) => `${count} ${filter.label} gewählt`)
+              }
+              triggerClassName={
+                isQuiet
+                  ? "moto-content-surface h-10 w-full font-medium hover:border-gray-300"
+                  : "h-10 w-full border-gray-200 bg-gray-50 font-medium"
+              }
+              options={filter.options.map((option) => ({
+                value: option.value,
+                label:
+                  option.count !== undefined
+                    ? `${option.label} (${option.count})`
+                    : option.label,
+              }))}
+            />
           );
         }
         return (

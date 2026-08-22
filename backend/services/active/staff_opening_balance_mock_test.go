@@ -18,6 +18,8 @@ import (
 // staff_balance_adjustment_service_mock_test.go.
 
 func TestStaffBalanceAdjustmentService_OpeningAllowsNegativeTarget(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -50,6 +52,8 @@ func TestStaffBalanceAdjustmentService_OpeningAllowsNegativeTarget(t *testing.T)
 }
 
 func TestStaffBalanceAdjustmentService_OpeningDeltaTargetsEnteredBalance(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -75,6 +79,8 @@ func TestStaffBalanceAdjustmentService_OpeningDeltaTargetsEnteredBalance(t *test
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsSecondOpening(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -103,6 +109,8 @@ func TestStaffBalanceAdjustmentService_OpeningRejectsSecondOpening(t *testing.T)
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsOpenDay(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -134,6 +142,8 @@ func TestStaffBalanceAdjustmentService_OpeningRejectsOpenDay(t *testing.T) {
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsOutOfRangeTarget(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -180,6 +190,8 @@ func (r *typeFilteringBalanceAdjustmentRepo) List(ctx context.Context, options *
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsExistingLaterReset(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -254,7 +266,6 @@ func (s *failingBalanceMonthService) GetClosingBalanceAsOf(ctx context.Context, 
 }
 
 func newOpeningTestService(events *[]string, repo activeModels.StaffBalanceAdjustmentRepository, month WorkTimeMonthService) StaffBalanceAdjustmentService {
-	_ = events
 	return NewStaffBalanceAdjustmentService(
 		repo,
 		month,
@@ -264,6 +275,8 @@ func newOpeningTestService(events *[]string, repo activeModels.StaffBalanceAdjus
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsInvalidRequests(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -334,6 +347,8 @@ func TestStaffBalanceAdjustmentService_OpeningRejectsInvalidRequests(t *testing.
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsDateBeforeAccountStart(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	repo := &recordingBalanceAdjustmentRepo{events: &events}
 	service := newOpeningTestService(&events, repo, &recordingBalanceMonthService{events: &events})
@@ -350,6 +365,8 @@ func TestStaffBalanceAdjustmentService_OpeningRejectsDateBeforeAccountStart(t *t
 }
 
 func TestStaffBalanceAdjustmentService_OpeningPropagatesRepositoryFailures(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.New("db down")
 	yesterday := timezone.TodayDate().AddDays(-1)
 
@@ -402,6 +419,8 @@ func TestStaffBalanceAdjustmentService_OpeningPropagatesRepositoryFailures(t *te
 // must not take the per-staff lock, or concurrent imports could deadlock on
 // file order.
 func TestStaffBalanceAdjustmentService_ValidateOpeningTakesNoLock(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	repo := &recordingBalanceAdjustmentRepo{events: &events}
 	service := newOpeningTestService(&events, repo, &recordingBalanceMonthService{events: &events})
@@ -417,6 +436,8 @@ func TestStaffBalanceAdjustmentService_ValidateOpeningTakesNoLock(t *testing.T) 
 }
 
 func TestStaffBalanceAdjustmentService_ValidateOpeningReportsTheSameRejection(t *testing.T) {
+	t.Parallel()
+
 	events := []string{}
 	existing := &activeModels.StaffBalanceAdjustment{
 		StaffID:       41,

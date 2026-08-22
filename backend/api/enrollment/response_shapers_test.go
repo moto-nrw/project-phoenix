@@ -20,6 +20,8 @@ import (
 // --- toCareOfferingResponse ----------------------------------------------
 
 func TestToCareOfferingResponse_StringifiesIDs(t *testing.T) {
+	t.Parallel()
+
 	desc := "Spätbetreuung mit Hausaufgabenhilfe"
 	cap := 30
 	price := 12000
@@ -57,6 +59,8 @@ func TestToCareOfferingResponse_StringifiesIDs(t *testing.T) {
 }
 
 func TestToCareOfferingResponse_PreservesNilPointers(t *testing.T) {
+	t.Parallel()
+
 	// Optional pointer fields → nil in / nil out so omitempty drops them
 	// from JSON. The form needs to distinguish "no capacity" (unlimited)
 	// from "capacity: 0" (full).
@@ -74,6 +78,8 @@ func TestToCareOfferingResponse_PreservesNilPointers(t *testing.T) {
 }
 
 func TestToCareOfferingResponseIncludesAvailabilityRule(t *testing.T) {
+	t.Parallel()
+
 	o := &enrollmentModels.CareOffering{AvailabilityRule: &enrollmentModels.CareOfferingAvailabilityRule{
 		Match: enrollmentModels.AvailabilityMatchAll,
 		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
@@ -88,6 +94,8 @@ func TestToCareOfferingResponseIncludesAvailabilityRule(t *testing.T) {
 // --- renderPublicEnrollmentError -----------------------------------------
 
 func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T) {
+	t.Parallel()
+
 	// The public catalog endpoint returns 404 with a stable code when
 	// enrollment is disabled, so the parent form can render "Anmeldung
 	// derzeit nicht möglich" instead of a generic error.
@@ -99,6 +107,8 @@ func TestRenderPublicEnrollmentError_EnrollmentDisabled404WithCode(t *testing.T)
 }
 
 func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
+	t.Parallel()
+
 	// A stale parent link to a phase whose enrollment window is closed
 	// returns 404 with a stable code so the form explains the
 	// Anmeldefrist instead of "nicht gefunden".
@@ -110,6 +120,8 @@ func TestRenderPublicEnrollmentError_WindowClosed404WithCode(t *testing.T) {
 }
 
 func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
+	t.Parallel()
+
 	// Any other error → bare 404 (no stable code). The catalog endpoint
 	// intentionally hides the difference between "phase not found" and
 	// "phase not yet open" from unauthenticated callers.
@@ -123,6 +135,8 @@ func TestRenderPublicEnrollmentError_OtherErrorPlain404(t *testing.T) {
 // --- toPhaseResponse -----------------------------------------------------
 
 func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
+	t.Parallel()
+
 	openAt := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
 	closeAt := time.Date(2026, 8, 31, 23, 59, 0, 0, time.UTC)
 	deadline := time.Date(2027, 6, 30, 18, 0, 0, 0, time.UTC)
@@ -180,6 +194,8 @@ func TestToPhaseResponse_StringifiesIDsAndFormatsDates(t *testing.T) {
 }
 
 func TestToPhaseResponse_NilOptionalPointersStayNil(t *testing.T) {
+	t.Parallel()
+
 	// Fresh, non-rollover phase with no enrollment window — every
 	// optional pointer field must round-trip as nil so omitempty drops
 	// them from JSON. A non-rollover phase shouldn't render the review
@@ -206,6 +222,8 @@ func TestToPhaseResponse_NilOptionalPointersStayNil(t *testing.T) {
 // --- toFormSchemaResponse ------------------------------------------------
 
 func TestToFormSchemaResponse_StringifiesIDs(t *testing.T) {
+	t.Parallel()
+
 	created := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
 	s := &enrollmentModels.FormSchema{
 		Model:     baseModel.Model{ID: 1234, CreatedAt: created},
@@ -229,6 +247,8 @@ func TestToFormSchemaResponse_StringifiesIDs(t *testing.T) {
 }
 
 func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
+	t.Parallel()
+
 	// Fields ordering matters — the form renders them in sort_order.
 	// The shaper must not reorder, even if sort_order is set out of
 	// sequence.
@@ -249,6 +269,8 @@ func TestToFormSchemaResponse_PreservesFieldOrder(t *testing.T) {
 }
 
 func TestToPublicFormSchemaResponse_OmitsRawLegalBlocks(t *testing.T) {
+	t.Parallel()
+
 	s := &enrollmentModels.FormSchema{
 		Model:   baseModel.Model{ID: 1234},
 		Version: 2,

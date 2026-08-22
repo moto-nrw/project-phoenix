@@ -99,6 +99,7 @@ type Student struct {
 	ClassTrip          bool       `json:"class_trip"`
 	ClassTripSince     *time.Time `json:"class_trip_since,omitempty"`
 	DayPlanningStatus  string     `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string    `json:"pending_excused_note,omitempty"`
 	ArrivalTime        *string    `json:"arrival_time,omitempty"`
@@ -331,7 +332,7 @@ func (s *service) loadStudents(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("resolve student photos setting: %w", err)
 	}
-	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext, s.deps.Settings, s.deps.Logger)
+	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext)
 	state.projected = projectStudents(students, data, access, photosEnabled)
 	return s.applyStatusDays(ctx, state)
 }
@@ -387,6 +388,7 @@ func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activ
 		result.Attendances = attendances
 	}
 	if mode == activeService.PresenceModeBinary {
+		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
 		return result, nil
 	}
 	return s.loadDetailedLocations(ctx, result)
@@ -559,7 +561,10 @@ func (s *service) loadTimetable(ctx context.Context, studentIDs []int64, date ti
 }
 
 func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
-	if s.deps.ExcusedRequests == nil || !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
+	// Same gate as the student list/detail badge: whoever may decide the
+	// request may see its note — users:update, or users:absence under open
+	// care (#2232). See authorize.CanReviewExcusedAbsenceRequests.
+	if s.deps.ExcusedRequests == nil || !authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
 		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
 	}
 	return s.deps.ExcusedRequests.PendingByStudentForDate(ctx, date)
@@ -568,13 +573,25 @@ func (s *service) loadPendingExcused(ctx context.Context, date timezone.Date) (m
 func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbsenceRequest) {
 	for i := range state.projected {
 		student := &state.projected[i]
+		// The parent's pending note runs FIRST and outside the full-access
+		// branch below — same split as the student list (#2232): the note is
+		// the review queue's signal, gated by the permission to decide the
+		// request, not by read access to the child's record. Under open care
+		// the deciding staffer supervises no group, so every child reaches
+		// them restricted; tying the note to full access would hide exactly
+		// the request they own. loadPendingExcused already returns an empty
+		// map for anyone who may not review.
+		if request := pending[student.ID]; request != nil {
+			note := request.Note
+			student.PendingExcusedNote = &note
+		}
 		if !student.fullAccess {
 			continue
 		}
 		_, hasTimetable := state.timetable[student.ID]
 		attendance := state.data.locations.Attendances[student.ID]
 		decision := scheduleService.ResolveDayPlanning(scheduleService.DayPlanningInputs{
-			HasActualAttendance: attendance != nil && attendance.CheckInTime != nil && attendance.Status != "not_checked_in",
+			HasActualAttendance: attendance.IsCurrentlyPresent(),
 			Sick:                student.Sick,
 			ClassTrip:           student.ClassTrip,
 			Excused:             student.Excused,
@@ -586,11 +603,8 @@ func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbs
 		if decision.ComesToday {
 			student.DayPlanningStatus = "comes_today"
 		}
+		student.DayPlanningReason = decision.Reason
 		student.DayPlanningLabel = planningLabel(decision)
-		if request := pending[student.ID]; request != nil {
-			note := request.Note
-			student.PendingExcusedNote = &note
-		}
 		applyTimes(student, state.arrivals[student.ID], attendance)
 	}
 }

@@ -116,7 +116,6 @@ func tenantSequenceACLEntries(t *testing.T, db *bun.DB, sequence string) []strin
 // DELETE only where a tenant-scoped retention job needs it.
 func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tables := auditSchemaTables(t, db)
 	require.NotEmpty(t, tables, "expected tables in the audit schema")
@@ -193,7 +192,6 @@ func TestAuditSchemaAppendOnlyForTenantRole(t *testing.T) {
 // per-table assertions above would catch it — after the fact.
 func TestAuditSchemaDefaultACLIsAppendOnly(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	var aclItems []string
 	require.NoError(t, db.NewRaw(`

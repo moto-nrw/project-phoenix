@@ -12,6 +12,8 @@ import (
 )
 
 func TestOccurrenceStartInstant(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a timed appointment starts at its wall clock, in Berlin", func(t *testing.T) {
 		appointment := helperAppointment()
 		start := occurrenceStartInstant(appointment)
@@ -65,6 +67,8 @@ func TestOccurrenceStartInstant(t *testing.T) {
 }
 
 func TestAppointmentWithOverride(t *testing.T) {
+	t.Parallel()
+
 	t.Run("moves the appointment onto the occurrence and keeps its span", func(t *testing.T) {
 		appointment := helperAppointment()
 		appointment.EndDate = timezone.NewDate(2026, 1, 6) // a two-day appointment
@@ -95,6 +99,8 @@ func TestAppointmentWithOverride(t *testing.T) {
 }
 
 func TestReminderOccurrences(t *testing.T) {
+	t.Parallel()
+
 	window := func(from, to timezone.Date) (timezone.Date, timezone.Date) { return from, to }
 
 	t.Run("a one-off inside the window yields its single date", func(t *testing.T) {
@@ -137,6 +143,8 @@ func TestReminderOccurrences(t *testing.T) {
 // things plus the current appointment revision. A content edit must be able to
 // replace a pending reminder that was cancelled as stale.
 func TestAppointmentReminderKey(t *testing.T) {
+	t.Parallel()
+
 	base := appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7)
 
 	assert.Equal(t, base, appointmentReminderKey(42, 3, timezone.NewDate(2026, 1, 5), 7),
@@ -151,6 +159,8 @@ func TestAppointmentReminderKey(t *testing.T) {
 }
 
 func TestAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {
+	t.Parallel()
+
 	// The push payload leaves the backend and is rendered on a lock screen. An
 	// appointment title is free text a staff member typed and routinely contains
 	// a family name ("Gespräch Familie Müller").

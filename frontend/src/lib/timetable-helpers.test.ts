@@ -28,6 +28,7 @@ import {
   getYearRange,
   groupInstancesByDate,
   mapApplyDeviations,
+  mapBulkSubstitution,
   mapMoveStaff,
   mapStaffPool,
   mapAttendance,
@@ -781,6 +782,60 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps a bulk-substitution result per day and aggregates warnings (#2284)", () => {
+    expect(
+      mapBulkSubstitution({
+        days: [
+          {
+            date: "2026-08-18",
+            affected_instances: [
+              {
+                instance_id: 43,
+                title: "Mensa",
+                start_time: "12:00",
+                action: "substituted",
+              },
+            ],
+            warnings: [{}, {}],
+          },
+          {
+            date: "2026-08-19",
+            affected_instances: [],
+            warnings: [{}],
+          },
+        ],
+        total_affected: 3,
+      }),
+    ).toEqual({
+      days: [
+        {
+          date: "2026-08-18",
+          affectedInstances: [
+            {
+              instanceId: "43",
+              title: "Mensa",
+              startTime: "12:00",
+              action: "substituted",
+            },
+          ],
+          warningCount: 2,
+        },
+        { date: "2026-08-19", affectedInstances: [], warningCount: 1 },
+      ],
+      totalAffected: 3,
+      warningCount: 3,
+    });
+  });
+
+  it("maps a bulk-substitution result with missing optional collections (#2284)", () => {
+    expect(
+      mapBulkSubstitution({
+        days: undefined as never,
+        total_affected: undefined as never,
+      }),
+    ).toEqual({ days: [], totalAffected: 0, warningCount: 0 });
+  });
+
   it("maps deviation fields on an instance: reason, ack and cancel note (#1840)", () => {
     const mapped = mapInstance({
       id: 42,
@@ -868,6 +923,63 @@ describe("backend mappers", () => {
 
     const withNeither = mapInstance(base);
     expect(withNeither.seriesNotes).toBeUndefined();
+  });
+
+  it("maps actor-aware reopen eligibility", () => {
+    expect(
+      mapInstance({
+        id: 42,
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+        title: "Mensa",
+        status: "completed",
+        is_spontaneous: false,
+        is_live: false,
+        activity_type: "care",
+        room_id: 3,
+        room_name: "Mensa",
+        staff: [],
+        students: [],
+        staff_count: 0,
+        absent_staff_count: 0,
+        expected_students_count: 0,
+        present_students_count: 0,
+        required_staff_count: 0,
+        assigned_staff_count: 0,
+        can_reopen: true,
+        can_complete: true,
+        complete_available_at: "2026-05-04T13:00:00+02:00",
+      }).canReopen,
+    ).toBe(true);
+    expect(
+      mapInstance({
+        id: 42,
+        date: "2026-05-04",
+        start_time: "12:00",
+        end_time: "13:00",
+        title: "Mensa",
+        status: "active",
+        is_spontaneous: false,
+        is_live: true,
+        activity_type: "care",
+        room_id: 3,
+        room_name: "Mensa",
+        staff: [],
+        students: [],
+        staff_count: 0,
+        absent_staff_count: 0,
+        expected_students_count: 0,
+        present_students_count: 0,
+        required_staff_count: 0,
+        assigned_staff_count: 0,
+        can_complete: false,
+        complete_available_at: "2026-05-04T13:00:00+02:00",
+      }),
+    ).toMatchObject({
+      canComplete: false,
+      completeAvailableAt: "2026-05-04T13:00:00+02:00",
+    });
   });
 
   it("maps templates", () => {
@@ -1825,8 +1937,18 @@ describe("mapOfferingSourceOptions (#2137)", () => {
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [
-          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
-          { id: "8", name: "Frühbetreuung alle", gradeLevels: [] },
+          {
+            id: "7",
+            name: "Frühbetreuung Jg. 1",
+            gradeLevels: [1],
+            schoolClasses: [],
+          },
+          {
+            id: "8",
+            name: "Frühbetreuung alle",
+            gradeLevels: [],
+            schoolClasses: [],
+          },
         ],
         legacyLinkedTemplateId: "7",
       },
@@ -1891,10 +2013,12 @@ describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
       mapCombinedOfferingCounts({
         total_count: 18,
         grade_counts: { "0": 2, "1": 9, "2": 7 },
+        students: [{ student_id: 5, school_class: "1b" }],
       }),
     ).toEqual({
       totalCount: 18,
       gradeCounts: { 0: 2, 1: 9, 2: 7 },
+      students: [{ studentId: "5", schoolClass: "1b" }],
     });
   });
 
@@ -1904,6 +2028,6 @@ describe("mapCombinedOfferingCounts (Mehrfach-Quelle)", () => {
         total_count: undefined as never,
         grade_counts: undefined as never,
       }),
-    ).toEqual({ totalCount: 0, gradeCounts: {} });
+    ).toEqual({ totalCount: 0, gradeCounts: {}, students: [] });
   });
 });

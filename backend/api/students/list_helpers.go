@@ -1,8 +1,10 @@
 package students
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
+	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -17,13 +19,18 @@ import (
 
 // studentListParams holds all query parameters for student listing
 type studentListParams struct {
-	schoolClass         string
-	guardianName        string
-	firstName           string
-	lastName            string
-	location            string
-	locationState       string
-	groupID             int64
+	// schoolClasses filters by exact class names. Several may be selected at
+	// once (#2218: two groups supervised together need "3a AND 4b" in one
+	// list); an empty slice means every class.
+	schoolClasses []string
+	guardianName  string
+	firstName     string
+	lastName      string
+	location      string
+	locationState string
+	// groupIDs filters by educational group. Several may be selected at once
+	// (#2218); an empty slice means every group.
+	groupIDs            []int64
 	roomID              int64
 	search              string
 	page                int
@@ -37,11 +44,12 @@ type studentListParams struct {
 	// Empty means the school-local today. Parsed and validated in the handler
 	// via resolvePlanningDate so an invalid value is a 400, not a silent today.
 	date string
-	// gradeLevel filters by the first numeric run in school_class (issue #1838,
-	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
-	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
-	// 0 = off.
-	gradeLevel int
+	// gradeLevels filters by the first numeric run in school_class (issue #1838,
+	// Zielgruppe "Jahrgang"). Answered in SQL by base.Filter.FirstNumberIn, which
+	// reads the same first digit run schoolclass.GradePrefix reads in Go — a
+	// LIKE 'N%' could not, it would match grade 1 against "13a". Several levels
+	// may be selected at once (#2218); empty = off.
+	gradeLevels []int
 	// Administrative filters (#1492). Resolved against the enriched response
 	// objects in the same in-memory pass as dayStatus so pagination and counts
 	// stay correct. bus/photoConsent are "yes"/"no"; pickupStatus is one of the
@@ -84,10 +92,96 @@ func parseStudentListView(value string) (bool, error) {
 	}
 }
 
+// parseMultiValueParam splits a filter parameter that may name several values
+// at once (#2218). Values travel comma-separated (`school_class=3a,4b`);
+// repeated parameters (`school_class=3a&school_class=4b`) are accepted too so a
+// hand-built URL behaves the same. Blanks are dropped and duplicates collapsed,
+// preserving the caller's order.
+//
+// A separator that can also occur inside a value needs an escape, or the two
+// are indistinguishable: users.students.school_class is free text, so a school
+// may well run a class called "A,B" (#2218 review). A comma that belongs to the
+// value is therefore written `\,` and a literal backslash `\\`; the frontend
+// encodes both (lib/multi-value-param.ts) and the export request carries the
+// same shape. Values without either character encode to themselves, so every
+// hand-written `?school_class=3a,4b` keeps working unchanged.
+func parseMultiValueParam(raw []string) []string {
+	values := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, entry := range raw {
+		for _, value := range splitEscapedList(entry) {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			if _, duplicate := seen[value]; duplicate {
+				continue
+			}
+			seen[value] = struct{}{}
+			values = append(values, value)
+		}
+	}
+	return values
+}
+
+// splitEscapedList cuts one parameter at its unescaped commas and unescapes the
+// pieces. A trailing lone backslash is dropped rather than treated as escaping
+// the terminator — it cannot have come from the encoder, and swallowing it is
+// the reading that never invents a value.
+func splitEscapedList(raw string) []string {
+	values := []string{}
+	var current strings.Builder
+	escaped := false
+	for _, r := range raw {
+		switch {
+		case escaped:
+			current.WriteRune(r)
+			escaped = false
+		case r == '\\':
+			escaped = true
+		case r == ',':
+			values = append(values, current.String())
+			current.Reset()
+		default:
+			current.WriteRune(r)
+		}
+	}
+	return append(values, current.String())
+}
+
+// parseGroupIDList turns a possibly repeated, comma-separated group_id
+// parameter into positive group ids. Non-numeric and non-positive entries are
+// dropped, which keeps the historical single-value contract: an unusable
+// group_id has always meant "no group restriction" rather than a 400.
+func parseGroupIDList(raw []string) []int64 {
+	values := parseMultiValueParam(raw)
+	groupIDs := make([]int64, 0, len(values))
+	for _, value := range values {
+		if groupID, err := strconv.ParseInt(value, 10, 64); err == nil && groupID > 0 {
+			groupIDs = append(groupIDs, groupID)
+		}
+	}
+	return groupIDs
+}
+
+// parseGradeLevelList turns a possibly repeated, comma-separated grade_level
+// parameter into positive grade levels, dropping unusable entries for the same
+// reason as parseGroupIDList.
+func parseGradeLevelList(raw []string) []int {
+	values := parseMultiValueParam(raw)
+	levels := make([]int, 0, len(values))
+	for _, value := range values {
+		if level, err := strconv.Atoi(value); err == nil && level > 0 {
+			levels = append(levels, level)
+		}
+	}
+	return levels
+}
+
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
 	params := &studentListParams{
-		schoolClass:   r.URL.Query().Get("school_class"),
+		schoolClasses: parseMultiValueParam(r.URL.Query()["school_class"]),
 		guardianName:  r.URL.Query().Get("guardian_name"),
 		firstName:     r.URL.Query().Get("first_name"),
 		lastName:      r.URL.Query().Get("last_name"),
@@ -96,12 +190,9 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		search:        r.URL.Query().Get("search"),
 	}
 
-	// Parse group ID if provided
-	if groupIDStr := r.URL.Query().Get("group_id"); groupIDStr != "" {
-		if groupID, err := strconv.ParseInt(groupIDStr, 10, 64); err == nil {
-			params.groupID = groupID
-		}
-	}
+	// Parse group IDs if provided. Unparseable entries are skipped rather than
+	// rejected, matching the historical single-value behavior.
+	params.groupIDs = parseGroupIDList(r.URL.Query()["group_id"])
 
 	// Parse room ID if provided. Filters the list to students currently
 	// checked-in to any active group taking place in this room (joins via
@@ -113,12 +204,8 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		}
 	}
 
-	// Parse grade level if provided (issue #1838, Zielgruppe "Jahrgang").
-	if gradeLevelStr := r.URL.Query().Get("grade_level"); gradeLevelStr != "" {
-		if gradeLevel, err := strconv.Atoi(gradeLevelStr); err == nil && gradeLevel > 0 {
-			params.gradeLevel = gradeLevel
-		}
-	}
+	// Parse grade levels if provided (issue #1838, Zielgruppe "Jahrgang").
+	params.gradeLevels = parseGradeLevelList(r.URL.Query()["grade_level"])
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
@@ -144,10 +231,15 @@ func (p *studentListParams) hasPersonFilters() bool {
 	return p.search != "" || p.firstName != "" || p.lastName != "" || p.location != ""
 }
 
+// hasInMemoryFilters reports whether a filter can only be decided on the
+// enriched response, which costs this request its SQL pagination: the query then
+// has to return every matching row so the filter and the page boundary see the
+// same set. Grade level is deliberately NOT one of them any more (#2218 review)
+// — buildBaseFilter answers it in SQL, so `?grade_level=3,4` stays a normal
+// paginated query instead of fetching and enriching the whole school per page.
 func (p *studentListParams) hasInMemoryFilters() bool {
 	return p.hasPersonFilters() ||
 		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
-		p.gradeLevel > 0 ||
 		p.hasAdministrativeFilters()
 }
 
@@ -159,12 +251,56 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 		isActiveFilterValue(p.pickupStatus)
 }
 
+// canUseGroupOnlyShortcut reports whether the request is nothing but a group
+// selection, so the materialized group members already are the answer. Every
+// other filter must be listed here: the shortcut never runs the SQL query, so a
+// filter it does not name would simply not be applied. Grade level is named
+// explicitly because it is answered in SQL now and therefore no longer covered
+// by hasInMemoryFilters.
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
-	return p.schoolClass == "" &&
+	return len(p.schoolClasses) == 0 &&
+		len(p.gradeLevels) == 0 &&
 		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
 		!p.hasInMemoryFilters()
+}
+
+// pageOfGroupStudents cuts the requested page out of the already materialized
+// group-only result. That fast path never reaches the SQL LIMIT/OFFSET, so
+// without this a `?group_id=7,9&page_size=1` request would answer with every
+// child of both groups while the pagination metadata claimed a one-row page
+// (#2218 review) — and a selection larger than a caller's page size could never
+// be walked page by page. Exports (fetchAll) keep every row: their in-memory
+// filters run after the fetch, so a page here would silently shorten the list.
+//
+// The group query carries no ORDER BY, so the slice is sorted by id before it is
+// cut: without a stable order two requests for neighbouring pages could hand
+// back overlapping or disjoint rows.
+//
+// common.ParsePagination already clamps both values, but the offset is checked
+// for overflow before it is multiplied out anyway: this path must not depend on
+// its caller to stay off a negative slice index.
+func (p *studentListParams) pageOfGroupStudents(students []*users.Student) []*users.Student {
+	if p.fetchAll || p.page <= 0 || p.pageSize <= 0 {
+		return students
+	}
+
+	slices.SortFunc(students, func(a, b *users.Student) int {
+		return cmp.Compare(a.ID, b.ID)
+	})
+
+	// A window that far out holds nothing anyway, so bail before the
+	// multiplication rather than after it has wrapped into a negative index.
+	if p.page-1 > (math.MaxInt-p.pageSize)/p.pageSize {
+		return []*users.Student{}
+	}
+
+	start := (p.page - 1) * p.pageSize
+	if start >= len(students) {
+		return []*users.Student{}
+	}
+	return students[start:min(start+p.pageSize, len(students))]
 }
 
 // isActiveFilterValue treats both empty and the neutral "all" sentinel as "off".
@@ -189,8 +325,20 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// Alumni (graduated via grade transition, soft-deleted) are invisible to
 	// every staff list and export.
 	filter.NotIn("status", string(users.StudentStatusAlumnus))
-	if schoolClass := strings.TrimSpace(p.schoolClass); schoolClass != "" {
-		filter.TrimEqual("school_class", schoolClass)
+	// Several classes may be selected at once (#2218); TrimIn collapses to the
+	// single-value TrimEqual when exactly one is requested.
+	if len(p.schoolClasses) > 0 {
+		filter.TrimIn("school_class", p.schoolClasses...)
+	}
+	// The school year reads the first number out of the same free-text class
+	// name that matchesGradeLevel reads in Go — in SQL, so the year filter keeps
+	// LIMIT/OFFSET and the count query narrows with it (#2218 review).
+	if len(p.gradeLevels) > 0 {
+		levels := make([]string, len(p.gradeLevels))
+		for i, level := range p.gradeLevels {
+			levels[i] = strconv.Itoa(level)
+		}
+		filter.FirstNumberIn("school_class", levels...)
 	}
 	if p.guardianName != "" {
 		filter.ILike("guardian_name", "%"+p.guardianName+"%")
@@ -231,7 +379,7 @@ func (p *studentListParams) buildCountOptions() *base.QueryOptions {
 // Thin wrapper that injects this Resource's services into the shared common
 // helper so per-student access checks stay cheap when iterating a list.
 func (rs *Resource) determineStudentAccess(r *http.Request) *studentAccessContext {
-	return common.DetermineStudentAccess(r, rs.UserContextService, rs.SettingsService, rs.Logger)
+	return common.DetermineStudentAccess(r, rs.UserContextService)
 }
 
 // collectIDsFromStudents extracts IDs needed for bulk loading
@@ -293,20 +441,39 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 	return studentLocation == location
 }
 
-// matchesGradeLevel reports whether schoolClass's first numeric run equals
-// gradeLevel. gradeLevel <= 0 means the filter is off (matches everything).
+// matchesGradeLevel reports whether schoolClass's first numeric run equals any
+// of gradeLevels. An empty slice means the filter is off (matches everything).
 // Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
 // so e.g. grade 1 does not also match "13a".
-func matchesGradeLevel(schoolClass string, gradeLevel int) bool {
-	if gradeLevel <= 0 {
+//
+// The filter itself is applied in SQL (base.Filter.FirstNumberIn) so it keeps
+// its pagination; this stays as the in-memory twin the response builder runs,
+// where it now only ever confirms what the query already decided. Should the
+// two ever disagree, a page comes back short — never with a child of a year
+// nobody asked for.
+func matchesGradeLevel(schoolClass string, gradeLevels []int) bool {
+	if len(gradeLevels) == 0 {
 		return true
 	}
-	return schoolclass.GradePrefix(schoolClass) == strconv.Itoa(gradeLevel)
+	prefix := schoolclass.GradePrefix(schoolClass)
+	for _, gradeLevel := range gradeLevels {
+		if gradeLevel > 0 && prefix == strconv.Itoa(gradeLevel) {
+			return true
+		}
+	}
+	return false
 }
 
 // applyInMemoryPagination applies pagination to an already-filtered slice
 func applyInMemoryPagination(responses []StudentResponse, page, pageSize int) ([]StudentResponse, int) {
 	totalCount := len(responses)
+
+	// A window this far out holds nothing, and computing its offset would wrap
+	// into a negative slice index (#2218 review). common.ParsePagination clamps
+	// both values, but this helper takes them as plain ints from any caller.
+	if page <= 0 || pageSize <= 0 || page-1 > (math.MaxInt-pageSize)/pageSize {
+		return []StudentResponse{}, totalCount
+	}
 
 	startIndex := (page - 1) * pageSize
 	endIndex := startIndex + pageSize

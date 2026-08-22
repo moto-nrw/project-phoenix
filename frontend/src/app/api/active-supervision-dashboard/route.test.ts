@@ -1,6 +1,11 @@
 /**
- * Tests for Active Supervision Dashboard BFF Route
- * Tests the endpoint that consolidates 8+ API calls into 1 for performance
+ * Tests for the Active Supervision Dashboard proxy route (#2096).
+ *
+ * The former BFF fan-out (~11 backend calls, silent-empty fallbacks) moved
+ * into the aggregated Go endpoint /api/active/supervision-dashboard; its
+ * semantics are pinned by backend tests. This suite covers the thin proxy:
+ * one backend call, group_id forwarding, wire→camelCase mapping, and error
+ * propagation (no swallowed sub-loads).
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Session } from "next-auth";
@@ -52,7 +57,6 @@ function createMockContext(
 }
 
 const defaultSession = mockSessionData() as ExtendedSession;
-const emptyPlannedNowResponse = { data: { instances: [] } };
 
 interface ApiResponse<T> {
   success: boolean;
@@ -64,11 +68,22 @@ async function parseJsonResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
+const emptyWire = {
+  groups: [],
+  unclaimed_groups: [],
+  educational_groups: [],
+  schulhof_status: null,
+  capabilities: { web_spontaneous_activities_enabled: false },
+  active_sessions: [],
+  planned_now: [],
+  visits: [],
+  tracking_indicators: { labels: [], results: {} },
+  pickup_times: [],
+  arrival_times: [],
+};
+
 describe("GET /api/active-supervision-dashboard", () => {
   beforeEach(() => {
-    // mockReset also clears any pending `mockResolvedValueOnce` queue so
-    // unmatched mocks from a previous test cannot leak into the next one
-    // (vi.clearAllMocks only clears call history, not the once-queue).
     mockApiGet.mockReset();
     mockAuth.mockReset();
     mockAuth.mockResolvedValue(defaultSession);
@@ -77,626 +92,250 @@ describe("GET /api/active-supervision-dashboard", () => {
   it("returns 401 when not authenticated", async () => {
     mockAuth.mockResolvedValueOnce(null);
 
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
 
     expect(response.status).toBe(401);
   });
 
-  it("returns early with unclaimed groups when no supervised groups", async () => {
-    const unclaimedGroups = [
-      { id: 1, name: "Schulhof", room: { id: 10, name: "Schulhof" } },
-    ];
-    const educationalGroups = [
-      { id: 2, name: "OGS Gruppe A", room: { id: 20, name: "Raum 101" } },
-    ];
-    const staff = { id: 5, person_id: 50 };
+  it("issues exactly one backend request without group_id", async () => {
+    mockApiGet.mockResolvedValueOnce({ data: emptyWire });
 
-    // Mock parallel API calls - supervised returns empty
-    mockApiGet
-      .mockResolvedValueOnce({ data: [] }) // supervised groups
-      .mockResolvedValueOnce({ data: unclaimedGroups }) // unclaimed groups
-      .mockResolvedValueOnce({ data: staff }) // staff
-      .mockResolvedValueOnce({ data: educationalGroups }) // educational groups
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse); // planned now
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: unknown[];
-        unclaimedGroups: Array<{ id: string; name: string }>;
-        currentStaff: { id: string } | null;
-        educationalGroups: Array<{ id: string; name: string }>;
-        firstRoomVisits: unknown[];
-        firstRoomId: string | null;
-      }>
-    >(response);
-
-    expect(json.data.supervisedGroups).toEqual([]);
-    expect(json.data.unclaimedGroups).toHaveLength(1);
-    expect(json.data.unclaimedGroups[0]?.id).toBe("1");
-    expect(json.data.currentStaff?.id).toBe("5");
-    expect(json.data.educationalGroups).toHaveLength(1);
-    expect(json.data.firstRoomVisits).toEqual([]);
-    expect(json.data.firstRoomId).toBeNull();
-  });
-
-  it("fetches upcoming planned timetable slots with roster preview", async () => {
-    mockApiGet
-      .mockResolvedValueOnce({ data: [] }) // supervised groups
-      .mockResolvedValueOnce({ data: [] }) // unclaimed groups
-      .mockResolvedValueOnce({ data: { id: 5, person_id: 50 } }) // staff
-      .mockResolvedValueOnce({ data: [] }) // educational groups
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce({
-        data: {
-          instances: [
-            {
-              id: 10,
-              title: "Hausaufgaben",
-              date: "2026-06-04",
-              start_time: "14:00",
-              end_time: "15:00",
-              room_id: 20,
-              room_name: "Lernraum",
-              status: "planned",
-              is_overdue: false,
-              minutes_until_start: 30,
-              expected_students_count: 1,
-              present_students_count: 0,
-              assigned_staff_ids: [5],
-              is_assigned: true,
-              is_primary: true,
-              is_substitute: false,
-              is_absent: false,
-              roster_preview: [
-                {
-                  student_id: 99,
-                  student_name: "Mia Bauer",
-                  school_class: "2a",
-                  group_name: "Sternengruppe",
-                  planned: true,
-                  is_unplanned: false,
-                  currently_present: false,
-                  status: "expected",
-                  warnings: [
-                    {
-                      kind: "arrival_after_slot_start",
-                      message:
-                        "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
-                      expected_arrival: "14:30",
-                      slot_start: "14:00",
-                      expected_group_id: 12,
-                      expected_group_name: "Klasse 2a",
-                      current_education_group_id: 13,
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      }); // planned now
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-    expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/timetable/operations/planned-now?horizon_minutes=480&limit=5&include_roster=true",
-      defaultSession.user.token,
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
     );
 
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        plannedNow: Array<{
-          id: string;
-          roomName: string | null;
-          isPrimary: boolean;
-          rosterPreview: Array<{
-            studentId: string;
-            studentName: string;
-            warnings: Array<{
-              kind: string;
-              message: string;
-              expectedArrival: string | null;
-              slotStart: string | null;
-              expectedGroupId: string | null;
-              expectedGroupName: string | null;
-              currentEducationGroupId: string | null;
-            }>;
-          }>;
-        }>;
-      }>
-    >(response);
-
-    expect(json.data.plannedNow[0]).toMatchObject({
-      id: "10",
-      roomName: "Lernraum",
-      isPrimary: true,
-    });
-    expect(json.data.plannedNow[0]?.rosterPreview[0]).toMatchObject({
-      studentId: "99",
-      studentName: "Mia Bauer",
-      warnings: [
-        {
-          kind: "arrival_after_slot_start",
-          message: "Erwartete Ankunft liegt nach dem Start dieser Betreuung.",
-          expectedArrival: "14:30",
-          slotStart: "14:00",
-          expectedGroupId: "12",
-          expectedGroupName: "Klasse 2a",
-          currentEducationGroupId: "13",
-        },
-      ],
-    });
+    expect(response.status).toBe(200);
+    expect(mockApiGet).toHaveBeenCalledTimes(1);
+    expect(mockApiGet).toHaveBeenCalledWith(
+      "/api/active/supervision-dashboard",
+      expect.any(String),
+    );
   });
 
-  it("fetches supervised groups with room data and visits", async () => {
-    const supervisedGroups = [
-      {
-        id: 1,
-        name: "Schulhof",
-        room_id: 10,
-        room: { id: 10, name: "Schulhof" },
-      },
-    ];
-    const unclaimedGroups = [] as Array<{
-      id: number;
-      name: string;
-      room?: { id: number; name: string };
-    }>;
-    const staff = { id: 5, person_id: 50 };
-    const educationalGroups = [
-      { id: 2, name: "OGS A", room: { id: 20, name: "Raum 101" } },
-    ];
-    const visits = [
-      {
-        id: 100,
-        student_id: 200,
-        active_group_id: 1,
-        check_in_time: "2024-01-15T10:00:00Z",
-        student_name: "Max Mustermann",
-        school_class: "1a",
-        group_name: "OGS Gruppe A",
-        is_active: true,
-      },
-      {
-        id: 101,
-        student_id: 201,
-        active_group_id: 1,
-        check_in_time: "2024-01-15T09:00:00Z",
-        check_out_time: "2024-01-15T10:30:00Z",
-        student_name: "Lisa Schmidt",
-        school_class: "2b",
-        group_name: "OGS Gruppe B",
-        is_active: false, // Should be filtered out
-      },
-    ];
+  it("forwards a valid group_id and drops an invalid one", async () => {
+    mockApiGet.mockResolvedValue({ data: emptyWire });
 
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: unclaimedGroups })
-      .mockResolvedValueOnce({ data: staff })
-      .mockResolvedValueOnce({ data: educationalGroups })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: visits }); // visits for first group
+    await GET(
+      createMockRequest("/api/active-supervision-dashboard?group_id=42"),
+      createMockContext(),
+    );
+    expect(mockApiGet).toHaveBeenLastCalledWith(
+      "/api/active/supervision-dashboard?group_id=42",
+      expect.any(String),
+    );
 
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
+    await GET(
+      createMockRequest("/api/active-supervision-dashboard?group_id=abc"),
+      createMockContext(),
+    );
+    expect(mockApiGet).toHaveBeenLastCalledWith(
+      "/api/active/supervision-dashboard",
+      expect.any(String),
+    );
+  });
 
+  it("maps the wire projection to the camelCase dashboard shape", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        ...emptyWire,
+        groups: [
+          {
+            id: "7",
+            name: "Malen",
+            room_id: "10",
+            room_name: "Raum 101",
+            room_color: "#83CD2D",
+          },
+        ],
+        selected_group_id: "7",
+        unclaimed_groups: [{ id: "9", room_name: "Schulhof" }],
+        current_staff_id: "5",
+        educational_groups: [{ id: "2", name: "OGS A", room_name: "Raum 101" }],
+        schulhof_status: {
+          exists: true,
+          room_id: 30,
+          room_name: "Schulhof",
+          activity_group_id: 31,
+          active_group_id: 32,
+          is_user_supervising: true,
+          supervision_id: 33,
+          supervisor_count: 1,
+          student_count: 4,
+          supervisors: [
+            { id: 33, staff_id: 5, name: "Max Muster", is_current_user: true },
+          ],
+        },
+        capabilities: { web_spontaneous_activities_enabled: true },
+        active_sessions: [
+          {
+            active_group_id: 7,
+            instance_id: 70,
+            title: "Fußball",
+            start_time: "14:00",
+            end_time: "15:00",
+          },
+        ],
+        visits: [
+          {
+            student_id: "100",
+            student_name: "Kind Eins",
+            school_class: "1a",
+            group_name: "OGS A",
+            active_group_id: "7",
+            check_in_time: "2026-08-19T10:00:00Z",
+            actual_arrival_time: "12:00",
+            sick: false,
+            excused: false,
+          },
+        ],
+        tracking_indicators: {
+          labels: ["Hausaufgaben"],
+          results: { "100": [true] },
+        },
+        pickup_times: [
+          {
+            student_id: "100",
+            date: "2026-08-19",
+            weekday_name: "Mittwoch",
+            pickup_time: "15:30",
+            is_exception: true,
+            day_notes: [{ id: "1", content: "Oma holt ab" }],
+          },
+        ],
+        arrival_times: [
+          {
+            student_id: "100",
+            date: "2026-08-19",
+            weekday_name: "Mittwoch",
+            expected_arrival: "11:45",
+            is_exception: false,
+          },
+        ],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
     expect(response.status).toBe(200);
 
     const json = await parseJsonResponse<
       ApiResponse<{
-        supervisedGroups: Array<{ id: string; name: string }>;
+        supervisedGroups: Array<{
+          id: string;
+          room_id?: string;
+          room?: { id: string; name: string; color?: string | null };
+        }>;
+        unclaimedGroups: Array<{ id: string; room?: { name: string } }>;
+        currentStaff: { id: string } | null;
+        educationalGroups: Array<{ id: string; name: string }>;
         firstRoomVisits: Array<{
           studentId: string;
           studentName: string;
+          activeGroupId: string;
           isActive: boolean;
+          actualArrivalTime?: string;
         }>;
         firstRoomId: string | null;
-      }>
-    >(response);
-
-    expect(json.data.supervisedGroups).toHaveLength(1);
-    expect(json.data.supervisedGroups[0]?.id).toBe("1");
-    expect(json.data.firstRoomId).toBe("1");
-
-    // Only active visits should be returned
-    expect(json.data.firstRoomVisits).toHaveLength(1);
-    expect(json.data.firstRoomVisits[0]?.studentName).toBe("Max Mustermann");
-    expect(json.data.firstRoomVisits[0]?.isActive).toBe(true);
-  });
-
-  it("fetches room data when not included in supervised group response", async () => {
-    const supervisedGroups = [
-      { id: 1, name: "Schulhof", room_id: 10 }, // No room object, needs fetch
-    ];
-    const roomData = { id: 10, name: "Schulhof" };
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] }) // unclaimed
-      .mockResolvedValueOnce({ data: null }) // staff (not found)
-      .mockResolvedValueOnce({ data: [] }) // educational groups
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: roomData }) // room fetch
-      .mockResolvedValueOnce({ data: [] }); // visits
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: Array<{
-          id: string;
-          name: string;
-          room?: { id: string; name: string };
+        selectedGroupId: string | null;
+        schulhofStatus: {
+          exists: boolean;
+          activeGroupId: string | null;
+          supervisors: Array<{ staffId: string; isCurrentUser: boolean }>;
+        } | null;
+        capabilities?: { webSpontaneousActivitiesEnabled: boolean };
+        activeSessions: Array<{ activeGroupId: string; title: string }>;
+        trackingIndicators: {
+          labels: string[];
+          results: Record<string, boolean[]>;
+        };
+        pickupTimes: Array<{
+          studentId: string;
+          pickupTime: string | null;
+          dayNotes: Array<{ content: string }>;
+        }>;
+        arrivalTimes: Array<{
+          studentId: string;
+          expectedArrival: string | null;
         }>;
       }>
     >(response);
 
-    expect(json.data.supervisedGroups[0]?.room?.name).toBe("Schulhof");
+    const data = json.data;
+    expect(data.supervisedGroups).toEqual([
+      {
+        id: "7",
+        name: "Malen",
+        room_id: "10",
+        room: { id: "10", name: "Raum 101", color: "#83CD2D" },
+      },
+    ]);
+    expect(data.unclaimedGroups[0]).toMatchObject({
+      id: "9",
+      room: { name: "Schulhof" },
+    });
+    expect(data.currentStaff).toEqual({ id: "5" });
+    expect(data.educationalGroups[0]).toMatchObject({ id: "2", name: "OGS A" });
+    expect(data.firstRoomVisits[0]).toMatchObject({
+      studentId: "100",
+      studentName: "Kind Eins",
+      activeGroupId: "7",
+      isActive: true,
+      actualArrivalTime: "12:00",
+    });
+    expect(data.firstRoomId).toBe("7");
+    expect(data.selectedGroupId).toBe("7");
+    expect(data.schulhofStatus).toMatchObject({
+      exists: true,
+      activeGroupId: "32",
+      supervisors: [{ staffId: "5", isCurrentUser: true }],
+    });
+    expect(data.capabilities?.webSpontaneousActivitiesEnabled).toBe(true);
+    expect(data.activeSessions[0]).toMatchObject({
+      activeGroupId: "7",
+      title: "Fußball",
+    });
+    expect(data.trackingIndicators).toEqual({
+      labels: ["Hausaufgaben"],
+      results: { "100": [true] },
+    });
+    expect(data.pickupTimes[0]).toMatchObject({
+      studentId: "100",
+      pickupTime: "15:30",
+      dayNotes: [{ id: "1", content: "Oma holt ab" }],
+    });
+    expect(data.arrivalTimes[0]).toMatchObject({
+      studentId: "100",
+      expectedArrival: "11:45",
+    });
   });
 
-  it("propagates supervised fetch errors so real outages surface", async () => {
-    // The supervised fetch is authoritative — if the backend is down or
-    // returning 5xx, the BFF must NOT silently return an empty dashboard.
-    // Other parallel fetches (unclaimed, staff, edu, schulhof) still fall
-    // back to safe defaults individually.
-    mockApiGet
-      .mockRejectedValueOnce(new Error("API error (500): backend unavailable")) // supervised
-      .mockRejectedValueOnce(new Error("Unclaimed groups error"))
-      .mockRejectedValueOnce(new Error("Staff error"))
-      .mockRejectedValueOnce(new Error("Educational groups error"))
-      .mockRejectedValueOnce(new Error("Schulhof status error"))
-      .mockResolvedValueOnce(emptyPlannedNowResponse);
+  it("propagates backend errors instead of degrading to empty sections", async () => {
+    mockApiGet.mockRejectedValueOnce(new Error("API error (403): forbidden"));
 
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard?group_id=42"),
+      createMockContext(),
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it("propagates backend 500s", async () => {
+    mockApiGet.mockRejectedValueOnce(
+      new Error("API error (500): schulhof load failed"),
+    );
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
 
     expect(response.status).toBe(500);
-  });
-
-  it("keeps normal supervision available while disabling a failed Schulhof status", async () => {
-    mockApiGet
-      .mockResolvedValueOnce({ data: [] }) // supervised
-      .mockResolvedValueOnce({ data: [] }) // unclaimed
-      .mockResolvedValueOnce({ data: { id: 5, person_id: 50 } }) // staff
-      .mockResolvedValueOnce({ data: [] }) // educational groups
-      .mockRejectedValueOnce(
-        new Error("API error (500): Schulhof status unavailable"),
-      )
-      .mockResolvedValueOnce(emptyPlannedNowResponse);
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-    const json =
-      await parseJsonResponse<ApiResponse<{ schulhofStatus: unknown }>>(
-        response,
-      );
-    expect(json.data.schulhofStatus).toBeNull();
-  });
-
-  it("falls back to own supervisions when admin endpoint returns 403", async () => {
-    // Dual-role / setting-disabled admin: /supervisors/all returns 403 and
-    // the BFF should silently use the caregiver endpoint. Tested with an
-    // explicit admin session so the admin endpoint is actually attempted.
-    const adminSession = {
-      ...mockSessionData(),
-      user: { ...mockSessionData().user, roles: ["admin"] },
-    } as ExtendedSession;
-    // Both route-wrapper and the handler itself call auth(), so mock the
-    // resolved value (not Once) so both calls see the admin session.
-    mockAuth.mockResolvedValue(adminSession);
-    const ownGroups = [{ id: 42, name: "Raum A", room: { id: 9, name: "A" } }];
-    // Promise.all fires the 6 parallel calls synchronously in array order
-    // (supervised, unclaimed, staff, edu, schulhof, plannedNow). The 7th mock
-    // is consumed asynchronously by the fallback apiGet inside the supervised
-    // catch.
-    mockApiGet
-      .mockRejectedValueOnce(new Error("API error (403): forbidden")) // supervised
-      .mockResolvedValueOnce({ data: [] }) // unclaimed
-      .mockResolvedValueOnce({ data: null }) // staff
-      .mockResolvedValueOnce({ data: [] }) // educational
-      .mockResolvedValueOnce({ data: { exists: false } }) // schulhof
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: ownGroups }); // caregiver fallback
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-    const json =
-      await parseJsonResponse<
-        ApiResponse<{ supervisedGroups: Array<{ id: string }> }>
-      >(response);
-    expect(json.data.supervisedGroups).toHaveLength(1);
-    expect(json.data.supervisedGroups[0]?.id).toBe("42");
-  });
-
-  it("handles null response data safely", async () => {
-    mockApiGet
-      .mockResolvedValueOnce({ data: null }) // supervised (null instead of array)
-      .mockResolvedValueOnce({ data: null }) // unclaimed
-      .mockResolvedValueOnce({ data: null }) // staff
-      .mockResolvedValueOnce({ data: null }) // educational groups
-      .mockResolvedValueOnce({ data: null }) // Schulhof status
-      .mockResolvedValueOnce({ data: null }); // planned now
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: unknown[];
-        unclaimedGroups: unknown[];
-        firstRoomId: string | null;
-      }>
-    >(response);
-
-    expect(json.data.supervisedGroups).toEqual([]);
-    expect(json.data.unclaimedGroups).toEqual([]);
-    expect(json.data.firstRoomId).toBeNull();
-  });
-
-  it("handles 403 error for visits without crashing", async () => {
-    const supervisedGroups = [
-      { id: 1, name: "Schulhof", room: { id: 10, name: "Schulhof" } },
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { id: 5 } })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockRejectedValueOnce(new Error("403 Forbidden")); // visits fetch fails with 403
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: unknown[];
-        firstRoomVisits: unknown[];
-        firstRoomId: string | null;
-      }>
-    >(response);
-
-    // Should still return supervised groups, just with empty visits
-    expect(json.data.supervisedGroups).toHaveLength(1);
-    expect(json.data.firstRoomVisits).toEqual([]);
-    expect(json.data.firstRoomId).toBe("1");
-  });
-
-  it("handles room fetch failure without crashing", async () => {
-    const supervisedGroups = [
-      { id: 1, name: "Schulhof", room_id: 10 }, // No room object
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: null })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockRejectedValueOnce(new Error("Room not found")) // room fetch fails
-      .mockResolvedValueOnce({ data: [] }); // visits
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: Array<{
-          id: string;
-          name: string;
-          room?: { id: string; name: string };
-        }>;
-      }>
-    >(response);
-
-    // Should still have the group, just without room data
-    expect(json.data.supervisedGroups).toHaveLength(1);
-    expect(json.data.supervisedGroups[0]?.id).toBe("1");
-    expect(json.data.supervisedGroups[0]?.room).toBeUndefined();
-  });
-
-  it("converts backend int64 IDs to frontend strings", async () => {
-    const supervisedGroups = [
-      { id: 123456789, name: "Test", room: { id: 987654321, name: "Room" } },
-    ];
-    const staff = { id: 555666777 };
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: staff })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: [] }); // visits
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: Array<{
-          id: string;
-          room?: { id: string };
-        }>;
-        currentStaff: { id: string };
-      }>
-    >(response);
-
-    // All IDs should be strings
-    expect(typeof json.data.supervisedGroups[0]?.id).toBe("string");
-    expect(json.data.supervisedGroups[0]?.id).toBe("123456789");
-    expect(json.data.supervisedGroups[0]?.room?.id).toBe("987654321");
-    expect(json.data.currentStaff.id).toBe("555666777");
-  });
-
-  it("handles supervised group without room_id", async () => {
-    const supervisedGroups = [
-      { id: 1, name: "Draussen" }, // No room_id, no room object
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] }) // unclaimed
-      .mockResolvedValueOnce({ data: null }) // staff
-      .mockResolvedValueOnce({ data: [] }) // educational groups
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: [] }); // visits
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: Array<{
-          id: string;
-          name: string;
-          room_id?: string;
-          room?: { id: string; name: string };
-        }>;
-      }>
-    >(response);
-
-    expect(json.data.supervisedGroups).toHaveLength(1);
-    expect(json.data.supervisedGroups[0]?.id).toBe("1");
-    expect(json.data.supervisedGroups[0]?.room_id).toBeUndefined();
-    expect(json.data.supervisedGroups[0]?.room).toBeUndefined();
-  });
-
-  it("handles visits with missing optional fields", async () => {
-    const supervisedGroups = [
-      { id: 1, name: "Test", room: { id: 10, name: "Room A" } },
-    ];
-    const visits = [
-      {
-        id: 100,
-        student_id: 200,
-        active_group_id: 1,
-        check_in_time: "2024-01-15T10:00:00Z",
-        // Missing: student_name, school_class, group_name
-        is_active: true,
-      },
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: null })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: visits });
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        firstRoomVisits: Array<{
-          studentName: string;
-          schoolClass: string;
-          groupName: string;
-        }>;
-      }>
-    >(response);
-
-    // Should use empty string defaults for missing optional fields
-    expect(json.data.firstRoomVisits).toHaveLength(1);
-    expect(json.data.firstRoomVisits[0]?.studentName).toBe("");
-    expect(json.data.firstRoomVisits[0]?.schoolClass).toBe("");
-    expect(json.data.firstRoomVisits[0]?.groupName).toBe("");
-  });
-
-  it("sorts supervised groups by room name", async () => {
-    const supervisedGroups = [
-      { id: 2, name: "Group B", room: { id: 20, name: "Zimmer" } },
-      { id: 1, name: "Group A", room: { id: 10, name: "Aula" } },
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: supervisedGroups })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: null })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse) // planned now
-      .mockResolvedValueOnce({ data: [] }); // visits for first (Aula)
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        supervisedGroups: Array<{ id: string; name: string }>;
-        firstRoomId: string | null;
-      }>
-    >(response);
-
-    // Sorted by room name: "Aula" before "Zimmer"
-    expect(json.data.supervisedGroups[0]?.id).toBe("1");
-    expect(json.data.firstRoomId).toBe("1");
-  });
-
-  it("maps unclaimed groups with room names correctly", async () => {
-    const unclaimedGroups = [
-      { id: 5, name: "Unclaimed", room: { id: 50, name: "Hof" } },
-      { id: 6, name: "No Room" }, // No room object
-    ];
-
-    mockApiGet
-      .mockResolvedValueOnce({ data: [] }) // no supervised groups
-      .mockResolvedValueOnce({ data: unclaimedGroups })
-      .mockResolvedValueOnce({ data: null })
-      .mockResolvedValueOnce({ data: [] })
-      .mockResolvedValueOnce({ data: { exists: false } }) // Schulhof status
-      .mockResolvedValueOnce(emptyPlannedNowResponse); // planned now
-
-    const request = createMockRequest("/api/active-supervision-dashboard");
-    const response = await GET(request, createMockContext());
-
-    const json = await parseJsonResponse<
-      ApiResponse<{
-        unclaimedGroups: Array<{
-          id: string;
-          name: string;
-          room?: { name: string };
-        }>;
-      }>
-    >(response);
-
-    expect(json.data.unclaimedGroups).toHaveLength(2);
-    expect(json.data.unclaimedGroups[0]?.room?.name).toBe("Hof");
-    expect(json.data.unclaimedGroups[1]?.room).toBeUndefined();
   });
 });

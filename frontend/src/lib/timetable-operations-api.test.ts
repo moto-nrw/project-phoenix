@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { timetableOperationsApi } from "./timetable-operations-api";
+import {
+  timetableOperationsApi,
+  TimetableOperationsApiError,
+  isReopenUnavailableError,
+} from "./timetable-operations-api";
 
 describe("timetableOperationsApi", () => {
   let originalFetch: typeof fetch;
@@ -74,6 +78,25 @@ describe("timetableOperationsApi", () => {
 
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/timetable/operations/planned-now?horizon_minutes=480&limit=5&include_roster=true",
+      {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+  });
+
+  it("fetches past blocks with the scope query (#2335)", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: { instances: [] },
+      }),
+    );
+
+    await timetableOperationsApi.plannedNow({ scope: "past" });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/planned-now?scope=past",
       {
         credentials: "include",
         headers: { Accept: "application/json" },
@@ -230,6 +253,21 @@ describe("timetableOperationsApi", () => {
     );
   });
 
+  it("maps moved_from from auto-move check-in responses (#2386)", async () => {
+    const mockFetch = vi.mocked(globalThis.fetch);
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { ...rosterPayload(134), moved_from: "GT 1" } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: rosterPayload(134) }));
+
+    const moved = await timetableOperationsApi.checkIn("134", "440");
+    const plain = await timetableOperationsApi.checkIn("134", "440");
+
+    expect(moved.movedFrom).toBe("GT 1");
+    expect(plain.movedFrom).toBeNull();
+  });
+
   it("patches attendance and completes an instance", async () => {
     const mockFetch = vi.mocked(globalThis.fetch);
     mockFetch
@@ -241,7 +279,9 @@ describe("timetableOperationsApi", () => {
       substatus: "sick",
       note: "abgemeldet",
     });
-    await timetableOperationsApi.complete("135");
+    await expect(timetableOperationsApi.complete("135", [])).resolves.toEqual({
+      reopenUntil: undefined,
+    });
 
     expect(mockFetch).toHaveBeenNthCalledWith(
       1,
@@ -266,6 +306,30 @@ describe("timetableOperationsApi", () => {
       {
         method: "POST",
         credentials: "include",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ confirmed_present_student_ids: [] }),
+      },
+    );
+  });
+
+  it("reopens a recently completed instance", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse({
+        data: { instance_id: 135, active_group_id: 77, status: "active" },
+      }),
+    );
+    await expect(timetableOperationsApi.reopen("135")).resolves.toMatchObject({
+      instanceId: "135",
+      activeGroupId: "77",
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/timetable/operations/instances/135/reopen",
+      {
+        method: "POST",
+        credentials: "include",
         headers: { Accept: "application/json" },
       },
     );
@@ -284,15 +348,62 @@ describe("timetableOperationsApi", () => {
         json: () => Promise.reject(new Error("not json")),
       } as Response);
 
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Nicht erlaubt",
     );
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 418)",
     );
-    await expect(timetableOperationsApi.complete("136")).rejects.toThrow(
+    await expect(timetableOperationsApi.complete("136", [])).rejects.toThrow(
       "Anfrage fehlgeschlagen (HTTP 500)",
     );
+  });
+
+  it("keeps http status and backend code on operations errors", async () => {
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce(
+      jsonResponse({ error: "Raum belegt", code: "room_conflict" }, false, 409),
+    );
+
+    const err = await timetableOperationsApi.reopen("137").then(
+      () => {
+        throw new Error("expected reopen to fail");
+      },
+      (caught: unknown) => caught,
+    );
+    expect(err).toBeInstanceOf(TimetableOperationsApiError);
+    expect(err).toMatchObject({
+      name: "TimetableOperationsApiError",
+      httpStatus: 409,
+      code: "room_conflict",
+    });
+    expect(isReopenUnavailableError(err)).toBe(false);
+  });
+});
+
+describe("isReopenUnavailableError", () => {
+  it("treats only terminal reopen failures as unavailable", () => {
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError("Raum belegt", 409),
+      ),
+    ).toBe(false);
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError(
+          "invalid instance transition: reopen window expired",
+          409,
+          "invalid_transition",
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isReopenUnavailableError(
+        new TimetableOperationsApiError("nicht berechtigt", 403),
+      ),
+    ).toBe(true);
+    expect(
+      isReopenUnavailableError(new Error("completion snapshot missing")),
+    ).toBe(true);
   });
 });
 

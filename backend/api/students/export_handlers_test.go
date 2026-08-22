@@ -18,6 +18,8 @@ import (
 var testExportDate = timezone.NewDate(2026, time.July, 15)
 
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
+	t.Parallel()
+
 	params := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{
 			Search:      "  mila  ",
@@ -28,15 +30,17 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	})
 
 	assert.Equal(t, "mila", params.search)
-	assert.Equal(t, int64(17), params.groupID)
+	assert.Equal(t, []int64{17}, params.groupIDs)
 	assert.Equal(t, int64(42), params.roomID)
-	assert.Equal(t, "3a", params.schoolClass)
+	assert.Equal(t, []string{"3a"}, params.schoolClasses)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
 }
 
 func TestExportSelectionTooLarge(t *testing.T) {
+	t.Parallel()
+
 	// The cap is inclusive: a full page still exports, one over does not.
 	assert.False(t, exportSelectionTooLarge(0))
 	assert.False(t, exportSelectionTooLarge(studentExportPageSize-1))
@@ -55,6 +59,8 @@ func TestExportSelectionTooLarge(t *testing.T) {
 // fetch, so a paginated page would silently drop matching children past the
 // boundary. buildQueryOptions must therefore leave pagination off.
 func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
+	t.Parallel()
+
 	params := exportRequestToListParams(studentExportRequest{
 		Preset: listexport.PresetBirthdayList,
 		// No search / group / class: without fetchAll this would paginate.
@@ -72,37 +78,47 @@ func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
 // nil for anything that fits and a ready-to-render error only once the document
 // would exceed the row cap.
 func TestExportSelectionCapError(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, exportSelectionCapError(0))
 	assert.Nil(t, exportSelectionCapError(studentExportPageSize))
 	require.NotNil(t, exportSelectionCapError(studentExportPageSize+1))
 }
 
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
+	t.Parallel()
+
 	consentYes := true
 	consentNo := false
 	students := []StudentResponse{
 		{
-			ID:                101,
-			SchoolClass:       "Klasse 1a",
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			HasFullAccess:     true,
+			ID:                      101,
+			SchoolClass:             "Klasse 1a",
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                102,
-			SchoolClass:       "Klasse 2a",
-			Bus:               false,
-			PhotoConsentGiven: &consentNo,
-			PickupStatus:      "Wird abgeholt",
-			HasFullAccess:     true,
+			ID:                      102,
+			SchoolClass:             "Klasse 2a",
+			Bus:                     false,
+			PhotoConsentGiven:       &consentNo,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           true,
 		},
 		{
-			ID:            103,
-			SchoolClass:   "Klasse 3a",
-			Bus:           true,
-			PickupStatus:  "Wird abgeholt",
-			HasFullAccess: false,
+			ID:                      103,
+			SchoolClass:             "Klasse 3a",
+			Bus:                     true,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			HasFullAccess:           false,
 		},
 	}
 
@@ -135,7 +151,7 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -146,6 +162,8 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 }
 
 func TestApplyExportFiltersClassTripStatus(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 101, ClassTrip: true},
 		{ID: 102, Excused: true},
@@ -153,13 +171,15 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 		{ID: 104, Location: "Zuhause"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly)
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly, testExportDate)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(101), got[0].ID)
 }
 
 func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	responses := []StudentResponse{
 		{ID: 101, HasFullAccess: true},
@@ -177,51 +197,61 @@ func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *test
 	require.NotNil(t, responses[1].PhotoConsentGiven)
 	assert.False(t, *responses[1].PhotoConsentGiven)
 
-	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly)
+	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly, testExportDate)
 	require.Len(t, yes, 1)
 	assert.Equal(t, int64(101), yes[0].ID)
 
-	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly)
+	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly, testExportDate)
 	require.Len(t, no, 1)
 	assert.Equal(t, int64(102), no[0].ID)
 }
 
 func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
+	t.Parallel()
+
 	consentYes := true
 	consentNo := false
 	// 201/204 come today; 202/203 are planned absent (krank/entschuldigt → not_coming_today).
 	students := []StudentResponse{
 		{
-			ID:                201,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			DayPlanningStatus: DayPlanningStatusComesToday,
-			HasFullAccess:     true,
+			ID:                      201,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusComesToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                202,
-			Bus:               false,
-			PhotoConsentGiven: &consentNo,
-			PickupStatus:      "Wird abgeholt",
-			DayPlanningStatus: DayPlanningStatusNotComingToday,
-			HasFullAccess:     true,
+			ID:                      202,
+			Bus:                     false,
+			PhotoConsentGiven:       &consentNo,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusNotComingToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                203,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Wird abgeholt",
-			DayPlanningStatus: DayPlanningStatusNotComingToday,
-			HasFullAccess:     true,
+			ID:                      203,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Wird abgeholt",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DeparturePickup}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusNotComingToday,
+			HasFullAccess:           true,
 		},
 		{
-			ID:                204,
-			Bus:               true,
-			PhotoConsentGiven: &consentYes,
-			PickupStatus:      "Geht alleine nach Hause",
-			DayPlanningStatus: DayPlanningStatusComesToday,
-			HasFullAccess:     true,
+			ID:                      204,
+			Bus:                     true,
+			PhotoConsentGiven:       &consentYes,
+			PickupStatus:            "Geht alleine nach Hause",
+			AllowedDepartureModes:   users.AllowedDepartureModes{users.PickupDayWednesday: {users.DepartureAlone}},
+			DepartureRuleConfigured: true,
+			DayPlanningStatus:       DayPlanningStatusComesToday,
+			HasFullAccess:           true,
 		},
 	}
 
@@ -264,7 +294,7 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly, testExportDate)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -275,6 +305,8 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 }
 
 func TestExportRequestToListParamsParsesDayStatus(t *testing.T) {
+	t.Parallel()
+
 	params := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{DayStatus: "not_coming_today"},
 	})
@@ -289,6 +321,8 @@ func TestExportRequestToListParamsParsesDayStatus(t *testing.T) {
 }
 
 func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
+	t.Parallel()
+
 	labels := exportFilterLabels(studentExportFilters{
 		Bus:          "yes",
 		PhotoConsent: "no",
@@ -306,7 +340,51 @@ func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 	assert.Contains(t, labels, "Tagesplanung: Kommt heute nicht")
 }
 
+// #2218: an export started from the Kindersuche inherits the page's filters,
+// so a multi-class / multi-group selection must survive the trip into the list
+// query instead of collapsing to its first value.
+func TestExportRequestToListParamsAcceptsMultipleClassesAndGroups(t *testing.T) {
+	t.Parallel()
+
+	params := exportRequestToListParams(studentExportRequest{
+		Filters: studentExportFilters{
+			SchoolClass: "3a, 4b",
+			GroupID:     "17,19",
+		},
+	})
+
+	assert.Equal(t, []string{"3a", "4b"}, params.schoolClasses)
+	assert.Equal(t, []int64{17, 19}, params.groupIDs)
+}
+
+// The school-year filter runs in memory over the fetched rows, so it needs the
+// same multi-value semantics — and the printed header must name every selected
+// year rather than only the first (#2218).
+func TestApplyExportFiltersMultipleSchoolYears(t *testing.T) {
+	t.Parallel()
+
+	students := []StudentResponse{
+		{ID: 201, SchoolClass: "2a"},
+		{ID: 202, SchoolClass: "3a"},
+		{ID: 203, SchoolClass: "Klasse 4b"},
+	}
+
+	got := applyExportFilters(students, studentExportFilters{Year: "3,4"}, listexport.PresetOGSWeekly, testExportDate)
+
+	gotIDs := make([]int64, 0, len(got))
+	for _, student := range got {
+		gotIDs = append(gotIDs, student.ID)
+	}
+	assert.Equal(t, []int64{202, 203}, gotIDs)
+
+	labels := exportFilterLabels(studentExportFilters{Year: "3,4", SchoolClass: "3a,4b"})
+	assert.Contains(t, labels, "Stufe: 3, 4")
+	assert.Contains(t, labels, "Klasse: 3a, 4b")
+}
+
 func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		plan weeklySchedule
@@ -356,6 +434,8 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 }
 
 func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{
 			ID:                101,
@@ -413,6 +493,8 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 // student export (#1694): the "mit wem" note is appended only when the resolved
 // plan actually allows the accompanied ("Mit anderem Kind") mode.
 func TestDepartureExportCell(t *testing.T) {
+	t.Parallel()
+
 	t.Run("appends companion note for an accompanied day", func(t *testing.T) {
 		got := departureExportCell(StudentResponse{
 			AllowedDepartureModes: users.AllowedDepartureModes{
@@ -494,6 +576,8 @@ func TestDepartureExportCell(t *testing.T) {
 }
 
 func TestDepartureSummary(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		allowed users.AllowedDepartureModes
@@ -531,6 +615,8 @@ func TestDepartureSummary(t *testing.T) {
 }
 
 func TestSortExportResponsesGermanNameOrder(t *testing.T) {
+	t.Parallel()
+
 	responses := []StudentResponse{
 		{FirstName: "Jan", LastName: "Zimmermann"},
 		{FirstName: "Emre", LastName: "Özdemir"},
@@ -562,6 +648,8 @@ func TestSortExportResponsesGermanNameOrder(t *testing.T) {
 }
 
 func TestSortExportResponsesPickupStaysTimeOnly(t *testing.T) {
+	t.Parallel()
+
 	early := "12:00"
 	late := "16:00"
 	responses := []StudentResponse{

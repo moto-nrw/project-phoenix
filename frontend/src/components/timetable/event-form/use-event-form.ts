@@ -39,6 +39,7 @@ import {
   getGermanWeekdayLong,
   latestISODate,
   materializedRecurrenceDates,
+  normalizeSchoolClass,
   offeringPhaseStartWarning,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
@@ -56,18 +57,22 @@ import {
   initialStaffIDs,
   initialStudentIDs,
   isoWeekday,
+  parseMaxParticipants,
   parseRequiredStaffOverride,
+  plannedStudentIds,
   rosterForWeekday,
   rosterSeedForWeekday,
   schoolClassLabel,
   seedWeekdayRosters,
   sortPeople,
+  sourceScopesOverlap,
   targetCohortActionLabel,
 } from "./form-model";
 import type {
   EventFormState,
   PersonOption,
   RepeatMode,
+  SourceFilterMode,
   WeekdayRosterState,
 } from "./form-model";
 import type {
@@ -173,6 +178,11 @@ const FOLLOW_UP_WARNING =
 type QuickRepeatPreset =
   "einmalig" | "woechentlich-am" | "jeden-wochentag" | "benutzerdefiniert";
 
+type SeriesEditScope = "single" | "following" | "all";
+
+const isSeriesEditScope = (value: string): value is SeriesEditScope =>
+  value === "single" || value === "following" || value === "all";
+
 function mondayOfWeekISO(dateISO: string): string {
   const date = parseISODate(dateISO);
   date.setDate(date.getDate() - (isoWeekday(dateISO) - 1));
@@ -245,6 +255,7 @@ export function useEventForm({
       defaultEndTime,
     ),
   );
+  const initialFormSnapshot = useRef<EventFormState | null>(null);
   const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
     () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
   );
@@ -278,6 +289,11 @@ export function useEventForm({
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
   } | null>(null);
+  const [selectedInstanceScope, setSelectedInstanceScope] =
+    useState<SeriesEditScope | null>(null);
+  const [scopedSeries, setScopedSeries] = useState<TimetableTemplate | null>(
+    null,
+  );
   const [scopeClosingDayWarning, setScopeClosingDayWarning] = useState<{
     conflict: ClosingDayConflict;
     scope: "all" | "following";
@@ -358,16 +374,50 @@ export function useEventForm({
   // re-implementing any validation rule.
   const lastValidationErrors = useRef<Record<string, string>>({});
 
+  const effectiveSeries = initialSeries ?? scopedSeries;
   const isEditingInstance = initialInstance !== null;
-  const isEditingSeries = initialSeries !== null;
+  const isEditingSeries = effectiveSeries !== null;
   const isConverting = convertInstance !== null;
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
-  const choiceDialogOpen = pendingSeriesEdit !== null;
-  const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const scopeSelectionRequired = Boolean(
+    initialInstance?.activityGroupId &&
+    !initialSeries &&
+    selectedInstanceScope === null,
+  );
+  const choiceDialogOpen = scopeSelectionRequired || pendingSeriesEdit !== null;
+  const canDeleteSeries = initialSeries !== null && onDeleteSeries;
   const selectedCalendarPeriod = useMemo(
     () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
     [calendarPeriods, form.calendarPeriodId],
   );
+  // #2226: a stored series that has not started yet may be pulled forward to
+  // an earlier start date. Only the direct series editor offers it — scoped
+  // occurrence edits keep the stored envelope. `original` is the stored
+  // Serienbeginn (the upper bound), `min` the earliest pickable date (today,
+  // clamped to the period start). The predecessor bound of a split successor
+  // is not known here; the backend rejects an overlap with a German message.
+  const seriesStartEdit = useMemo(() => {
+    const storedSeriesStart = initialSeries?.schedules[0]?.validFrom ?? "";
+    if (initialSeries === null || storedSeriesStart <= berlinTodayISO()) {
+      return null;
+    }
+    return {
+      original: storedSeriesStart,
+      min: latestISODate(
+        berlinTodayISO(),
+        selectedCalendarPeriod?.startDate ?? "",
+      ),
+    };
+  }, [initialSeries, selectedCalendarPeriod?.startDate]);
+  // The pull actually requested by the form: an earlier date than stored.
+  // Unchanged (or cleared) sends nothing, keeping the PUT idempotent for
+  // clients that never touch the field.
+  const pulledSeriesStart =
+    seriesStartEdit !== null &&
+    form.seriesStartDate !== "" &&
+    form.seriesStartDate < seriesStartEdit.original
+      ? form.seriesStartDate
+      : null;
   const abWeekCycleSlot = useMemo(
     () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
     [selectedCalendarPeriod, form.date],
@@ -423,12 +473,12 @@ export function useEventForm({
     return options;
   }, [form.targetGradeLevels, gradeLevelMax]);
   const initialGradeTargets = new Set(
-    (initialSeries?.targets ?? []).flatMap((target) =>
+    (effectiveSeries?.targets ?? []).flatMap((target) =>
       target.gradeLevel === undefined ? [] : [String(target.gradeLevel)],
     ),
   );
-  if (initialSeries?.targetGradeLevel !== undefined) {
-    initialGradeTargets.add(String(initialSeries.targetGradeLevel));
+  if (effectiveSeries?.targetGradeLevel !== undefined) {
+    initialGradeTargets.add(String(effectiveSeries.targetGradeLevel));
   }
   const preservesGradeAboveTenantCap =
     gradeLevelMax !== undefined &&
@@ -481,6 +531,7 @@ export function useEventForm({
     listKindTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
+    initialFormSnapshot.current = nextForm;
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
@@ -489,6 +540,8 @@ export function useEventForm({
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setPendingSeriesEdit(null);
+    setSelectedInstanceScope(null);
+    setScopedSeries(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
     setConflictWarnings([]);
@@ -677,11 +730,13 @@ export function useEventForm({
     // #2135: a series starts at its start date, not the period start. For a
     // new series that is the picked Datum; a stored series keeps the
     // schedules' validFrom. Never probe dates the materializer skips.
-    const from = initialSeries
+    const from = effectiveSeries
       ? latestISODate(
           period.startDate,
           today,
-          initialSeries.schedules[0]?.validFrom ?? "",
+          // #2226: a pulled-forward start widens the probed window — the new
+          // days in front of the stored validFrom will materialize too.
+          pulledSeriesStart ?? effectiveSeries.schedules[0]?.validFrom ?? "",
         )
       : latestISODate(period.startDate, form.date || "");
     const shared = {
@@ -689,7 +744,7 @@ export function useEventForm({
       endTime: form.endTime,
       excludeInstanceId: convertInstance?.id,
       concreteInstanceDate: convertInstance ? form.date : undefined,
-      replanActivityGroupId: initialSeries?.id,
+      replanActivityGroupId: effectiveSeries?.id,
       calendarPeriodId: period.id,
       weekPattern: form.weekPattern,
     };
@@ -722,10 +777,11 @@ export function useEventForm({
   }, [
     calendarPeriods,
     convertInstance,
+    effectiveSeries,
     form,
     initialInstance?.id,
-    initialSeries,
     isSeriesFlow,
+    pulledSeriesStart,
     staffIDsForSave,
   ]);
   const coverageProbeKey = JSON.stringify(coverageProbes);
@@ -1124,6 +1180,10 @@ export function useEventForm({
         nextType === "angebot" ? current.sourceCareOfferingIds : [],
       sourceGradeLevels:
         nextType === "angebot" ? current.sourceGradeLevels : [],
+      sourceSchoolClasses:
+        nextType === "angebot" ? current.sourceSchoolClasses : [],
+      sourceFilterMode:
+        nextType === "angebot" ? current.sourceFilterMode : "alle",
       // Leaving "angebot" clears the source above, so the manual roster
       // stashed when the source was picked must come back with it, exactly
       // like clearing the source in place. Keeping the emptied list would
@@ -1190,6 +1250,35 @@ export function useEventForm({
       }
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
+      }
+      // #2233: leer = unbegrenzt; alles andere muss eine ganze Zahl ≥ 1 sein
+      // (deckt sich mit dem Backend: "greater than zero when set").
+      if (
+        form.maxParticipants.trim() !== "" &&
+        parseMaxParticipants(form.maxParticipants) === null
+      ) {
+        errors.maxParticipants =
+          "Bitte eine ganze Zahl größer als 0 angeben oder das Feld leer lassen.";
+      }
+      // #2226: the pulled-forward Serienbeginn may only move earlier, never
+      // into the past and never out of the period. An unchanged value passes.
+      if (seriesStartEdit !== null && form.seriesStartDate !== "") {
+        if (form.seriesStartDate > seriesStartEdit.original) {
+          errors.seriesStartDate =
+            "Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden.";
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < berlinTodayISO()
+        ) {
+          errors.seriesStartDate =
+            "Das Datum darf nicht in der Vergangenheit liegen.";
+        } else if (
+          form.seriesStartDate !== seriesStartEdit.original &&
+          form.seriesStartDate < seriesStartEdit.min
+        ) {
+          errors.seriesStartDate =
+            "Das Datum muss im gewählten Planungszeitraum liegen.";
+        }
       }
       // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
       // two-week period. Otherwise the A/B week_pattern either fires weekly or
@@ -1365,11 +1454,23 @@ export function useEventForm({
       form.sourceCareOfferingIds.length > 0
         ? form.sourceCareOfferingIds.map(Number)
         : null,
+    // Jahrgang und Klasse schließen sich aus (#2482): der aktive Modus
+    // bestimmt, welche Liste gesendet wird; die andere geht als explizites
+    // null raus, damit ein gespeicherter Filter beim Umschalten wirklich
+    // fällt statt vom presence-aware PUT wieder hereingezogen zu werden.
     source_grade_levels:
       form.targetGroupType === "angebot" &&
       form.sourceCareOfferingIds.length > 0 &&
+      form.sourceFilterMode === "jahrgang" &&
       form.sourceGradeLevels.length > 0
         ? [...form.sourceGradeLevels].sort((a, b) => a - b)
+        : null,
+    source_school_classes:
+      form.targetGroupType === "angebot" &&
+      form.sourceCareOfferingIds.length > 0 &&
+      form.sourceFilterMode === "klasse" &&
+      form.sourceSchoolClasses.length > 0
+        ? [...form.sourceSchoolClasses].sort((a, b) => a.localeCompare(b, "de"))
         : null,
     targets:
       form.targetGroupType === "jahrgang"
@@ -1391,6 +1492,11 @@ export function useEventForm({
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
     required_staff: parseRequiredStaffOverride(form.requiredStaff),
+    // #2233: explicit value or explicit null ("unbegrenzt"). The update
+    // endpoint is presence-aware, so clearing the field must send null; the
+    // form is always seeded from the stored series (formFromSeries, also on
+    // the scoped all/following path), so an untouched value round-trips.
+    max_participants: parseMaxParticipants(form.maxParticipants),
     // A sourced roster is server-managed — the backend rejects student_ids
     // next to a source.
     student_ids:
@@ -1728,6 +1834,13 @@ export function useEventForm({
         template.sourceGradeLevels.length > 0
           ? template.sourceGradeLevels
           : null,
+      source_school_classes:
+        template.sourceCareOfferingIds &&
+        template.sourceCareOfferingIds.length > 0 &&
+        template.sourceSchoolClasses &&
+        template.sourceSchoolClasses.length > 0
+          ? template.sourceSchoolClasses
+          : null,
       targets: template.targets?.map((target) => ({
         type: target.type,
         grade_level: target.gradeLevel,
@@ -1736,8 +1849,11 @@ export function useEventForm({
           ? Number(target.educationGroupId)
           : undefined,
       })),
-      max_participants:
-        template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      // The occurrence editor never shows the Teilnehmergrenze (#2233), so a
+      // scope save must echo the stored series value — null included, the
+      // update endpoint is presence-aware and an omitted field would also
+      // keep it, but the explicit echo keeps this builder self-describing.
+      max_participants: template.maxParticipants,
       // An occurrence form starts from the occurrence's own pin, which is
       // blank when it inherits from the series. Preserve the fetched template
       // override until the user explicitly edits this field.
@@ -1804,6 +1920,35 @@ export function useEventForm({
       } catch (err) {
         logger.error("series_replan_chunk_failed", {
           template_id: templateId,
+          from: chunk.from,
+          to: chunk.to,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    }
+    return true;
+  };
+
+  /** Materializes only dates exposed by a pull-forward, preserving existing instances. */
+  const materializePulledForwardWindow = async (
+    fromISO: string,
+    storedStartISO: string,
+  ): Promise<boolean> => {
+    for (const chunk of chunkDateRange(
+      fromISO,
+      storedStartISO,
+      MATERIALIZE_CHUNK_DAYS,
+    )) {
+      try {
+        const result = await timetableService.materialize(chunk.from, chunk.to);
+        if (
+          result.warnings.some((warning) => warning.code === "no_active_period")
+        ) {
+          break;
+        }
+      } catch (err) {
+        logger.error("series_materialize_chunk_failed", {
           from: chunk.from,
           to: chunk.to,
           error: err instanceof Error ? err.message : String(err),
@@ -1929,9 +2074,28 @@ export function useEventForm({
     if (
       isEditingInstance &&
       initialInstance?.activityGroupId &&
-      !initialSeries
+      !initialSeries &&
+      selectedInstanceScope !== null
     ) {
-      setPendingSeriesEdit({ roomId: parsed.roomId });
+      if (selectedInstanceScope === "single") {
+        setSubmitting(true);
+        try {
+          await checkCoverageBeforeSave(coverageProbes);
+          const saved = await timetableService.update(
+            initialInstance.id,
+            instanceBody(parsed.roomId, initialInstance.activityGroupId),
+          );
+          toastSuccess("Termin gespeichert");
+          onSaved({ kind: "instance", instance: saved });
+          onClose();
+        } catch (err) {
+          handleScopeError("single", err);
+        } finally {
+          setSubmitting(false);
+        }
+        return;
+      }
+      await handleScopeSelect(selectedInstanceScope, { roomId: parsed.roomId });
       return;
     }
 
@@ -1962,12 +2126,29 @@ export function useEventForm({
       if (initialSeries) {
         const seriesId = initialSeries.id;
         const categoryId = parsed.categoryId;
+        const { seriesStartDate: _currentStart, ...currentWithoutStart } = form;
+        const { seriesStartDate: _initialStart, ...initialWithoutStart } =
+          initialFormSnapshot.current ?? form;
+        const isStartDateOnlyPull =
+          pulledSeriesStart !== null &&
+          JSON.stringify(currentWithoutStart) ===
+            JSON.stringify(initialWithoutStart);
         const runSeriesEdit = async () => {
-          await timetableService.updateTemplate(
-            seriesId,
-            seriesBody(parsed.roomId, categoryId),
-          );
-          if (await replanTemplateFuture(seriesId)) {
+          await timetableService.updateTemplate(seriesId, {
+            ...seriesBody(parsed.roomId, categoryId),
+            // #2226: pull the Serienbeginn forward when the user picked an
+            // earlier date; unchanged keeps the stored envelope untouched.
+            ...(pulledSeriesStart !== null
+              ? { start_date: pulledSeriesStart }
+              : {}),
+          });
+          const followUpOk = isStartDateOnlyPull
+            ? await materializePulledForwardWindow(
+                pulledSeriesStart,
+                seriesStartEdit!.original,
+              )
+            : await replanTemplateFuture(seriesId);
+          if (followUpOk) {
             toastSuccess("Regeltermin gespeichert");
           } else {
             toastWarning(FOLLOW_UP_WARNING);
@@ -1975,26 +2156,28 @@ export function useEventForm({
           onSaved({ kind: "series", seriesId });
         };
 
-        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
-        // the "Alle Termine" scope, so it needs the same lost-edits warning.
-        // replanTemplateFuture re-plans [today, period end]; probe that window.
-        const editsTo =
-          findPeriod(form.calendarPeriodId)?.endDate ??
-          weekTo ??
-          berlinTodayISO();
+        // #1875: edits that rebuild existing instances need the same warning
+        // as "Alle Termine". A start-only pull only inserts the opened gap and
+        // therefore preserves individual adjustments without a probe.
         let lost: EditedInWindowResult | null = null;
-        try {
-          const probe = await timetableService.countEditedInWindow(
-            seriesId,
-            berlinTodayISO(),
-            editsTo,
-          );
-          if (probe.count > 0) lost = probe;
-        } catch (probeErr) {
-          logger.warn("edited_in_window_probe_failed", {
-            error:
-              probeErr instanceof Error ? probeErr.message : String(probeErr),
-          });
+        if (!isStartDateOnlyPull) {
+          const editsTo =
+            findPeriod(form.calendarPeriodId)?.endDate ??
+            weekTo ??
+            berlinTodayISO();
+          try {
+            const probe = await timetableService.countEditedInWindow(
+              seriesId,
+              berlinTodayISO(),
+              editsTo,
+            );
+            if (probe.count > 0) lost = probe;
+          } catch (probeErr) {
+            logger.warn("edited_in_window_probe_failed", {
+              error:
+                probeErr instanceof Error ? probeErr.message : String(probeErr),
+            });
+          }
         }
         if (lost) {
           setLostEdits({
@@ -2232,9 +2415,14 @@ export function useEventForm({
     const chainScalars = chainResolved
       ? chainPreservedScalars(template)
       : { preserved: {}, edited: false };
-    const body = chainResolved
-      ? { ...templateBodyFromForm(template, roomId), ...chainScalars.preserved }
-      : templateBodyFromForm(template, roomId);
+    const body = scopedSeries
+      ? seriesBody(roomId, Number(form.categoryId))
+      : chainResolved
+        ? {
+            ...templateBodyFromForm(template, roomId),
+            ...chainScalars.preserved,
+          }
+        : templateBodyFromForm(template, roomId);
     const scopeProbes = seriesCoverageProbes(
       template,
       body,
@@ -2254,46 +2442,71 @@ export function useEventForm({
     if (chainResolved) {
       const rosterFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
-      const studentScope = studentRosterTouched.current
-        ? changedRosterIDs(form.studentIds, initialStudentIDsSnapshot)
-        : [];
-      const staffScope = staffRosterTouched.current ? changedStaffIDs() : [];
-      // #2187 review: with per-weekday rosters this form describes exactly ONE
-      // weekday, so the mirroring must not judge the predecessor's other
-      // weekdays against it. A series with one shared roster sends no weekday
-      // scope — there the edit really does describe every weekday.
-      const editedWeekday = isoWeekday(initialInstance.date);
       const perWeekdaySeries = template.weekdayAssignments.length > 0;
-      const scopeWeekdays = perWeekdaySeries ? [editedWeekday] : [];
-      // A per-weekday successor only carries assignments for the weekdays it
-      // still runs. When the split moved it off the clicked one, the body says
-      // nothing about that day, so there is nothing to mirror — sending the
-      // anchor anyway would judge the predecessor against a roster that never
-      // mentioned the weekday.
-      const weekdayDescribed =
-        !perWeekdaySeries ||
-        template.weekdayAssignments.some(
-          (assignment) => assignment.weekday === editedWeekday,
+      const studentScope = new Set<number>();
+      const staffScope = new Set<number>();
+      const scopeWeekdays: number[] = [];
+      let primaryChanged = false;
+
+      if (scopedSeries && perWeekdaySeries) {
+        for (const assignment of template.weekdayAssignments) {
+          const next = form.weekdayRosters[assignment.weekday];
+          if (!next) continue;
+          const changedStudents = changedRosterIDs(
+            next.studentIds,
+            assignment.studentIds,
+          );
+          const changedStaff = changedRosterIDs(
+            next.staffIds,
+            assignment.staffIds,
+          );
+          const weekdayPrimaryChanged =
+            next.primaryStaffId !== assignment.primaryStaffId;
+          if (
+            changedStudents.length > 0 ||
+            changedStaff.length > 0 ||
+            weekdayPrimaryChanged
+          ) {
+            scopeWeekdays.push(assignment.weekday);
+            changedStudents.forEach((id) => studentScope.add(id));
+            changedStaff.forEach((id) => staffScope.add(id));
+            for (const id of [next.primaryStaffId, assignment.primaryStaffId]) {
+              const numeric = Number(id);
+              if (id && Number.isFinite(numeric) && numeric > 0) {
+                staffScope.add(numeric);
+              }
+            }
+            primaryChanged ||= weekdayPrimaryChanged;
+          }
+        }
+      } else {
+        changedRosterIDs(form.studentIds, initialStudentIDsSnapshot).forEach(
+          (id) => studentScope.add(id),
         );
+        changedStaffIDs().forEach((id) => staffScope.add(id));
+        primaryChanged = primaryStaffTouched();
+      }
+      const studentScopeIDs = [...studentScope];
+      const staffScopeIDs = [...staffScope];
       const rosterChanged =
-        weekdayDescribed && (studentScope.length > 0 || staffScope.length > 0);
+        studentScopeIDs.length > 0 || staffScopeIDs.length > 0;
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
         ...(rosterChanged
           ? {
               series_roster_from: rosterFrom,
-              ...(studentScope.length > 0
-                ? { series_roster_scope_student_ids: studentScope }
+              ...(studentScopeIDs.length > 0
+                ? { series_roster_scope_student_ids: studentScopeIDs }
                 : {}),
-              ...(staffScope.length > 0
-                ? { series_roster_scope_staff_ids: staffScope }
+              ...(staffScopeIDs.length > 0
+                ? { series_roster_scope_staff_ids: staffScopeIDs }
                 : {}),
               ...(scopeWeekdays.length > 0
                 ? { series_roster_scope_weekdays: scopeWeekdays }
                 : {}),
               // primary_staff_id names the successor's Hauptbetreuung; it may
               // only reach a predecessor row when the user moved it.
-              ...(primaryStaffTouched()
+              ...(primaryChanged
                 ? { series_roster_primary_changed: true }
                 : {}),
             }
@@ -2442,9 +2655,60 @@ export function useEventForm({
     onClose();
   };
 
-  const handleScopeSelect = async (scope: string) => {
-    if (submitting) return;
-    const pending = pendingSeriesEdit;
+  const handleInitialScopeSelect = async (scope: string) => {
+    if (
+      submitting ||
+      !initialInstance?.activityGroupId ||
+      !isSeriesEditScope(scope)
+    ) {
+      return;
+    }
+    if (scope === "single") {
+      setSelectedInstanceScope("single");
+      return;
+    }
+
+    const typedScope = scope === "following" ? "following" : "all";
+    setSubmitting(true);
+    setValidationError(null);
+    try {
+      const template = await timetableService.getTemplate(
+        initialInstance.activityGroupId,
+        form.calendarPeriodId,
+      );
+      const nextForm = formFromSeries(
+        template,
+        initialInstance.date,
+        defaultCalendarPeriodId,
+      );
+      setScopedSeries(template);
+      setForm(nextForm);
+      setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+      setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+      setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+      requiredStaffTouched.current = false;
+      studentRosterTouched.current = false;
+      staffRosterTouched.current = false;
+      listKindTouched.current = false;
+      setSelectedInstanceScope(typedScope);
+    } catch (err) {
+      const message = timetableSeriesErrorMessage(
+        err,
+        "Regeltermin konnte nicht geladen werden",
+      );
+      setValidationError(message);
+      toastError(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  async function handleScopeSelect(
+    scope: string,
+    pendingOverride?: { roomId: number },
+  ) {
+    if (submitting || !isSeriesEditScope(scope)) return;
+    const pending = pendingOverride ?? pendingSeriesEdit;
     const groupId = initialInstance?.activityGroupId;
     if (!pending || !initialInstance || !groupId) return;
 
@@ -2472,10 +2736,9 @@ export function useEventForm({
     const typedScope = scope === "following" ? "following" : "all";
     setSubmitting(true);
     try {
-      const template = await timetableService.getTemplate(
-        groupId,
-        form.calendarPeriodId,
-      );
+      const template =
+        scopedSeries ??
+        (await timetableService.getTemplate(groupId, form.calendarPeriodId));
       // #2187: the occurrence may belong to a capped predecessor of a split
       // chain; the backend then returns the living successor. Every series-
       // scope write from here on targets THAT template, never the
@@ -2492,7 +2755,9 @@ export function useEventForm({
       const periodEnd =
         findPeriod(templateCalendarPeriodId)?.endDate ??
         findPeriod(form.calendarPeriodId)?.endDate;
-      const body = templateBodyFromForm(template, pending.roomId);
+      const body = scopedSeries
+        ? seriesBody(pending.roomId, Number(form.categoryId))
+        : templateBodyFromForm(template, pending.roomId);
       const scopeFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
       const closingConflict = findScopeClosingDayConflict(
@@ -2524,7 +2789,7 @@ export function useEventForm({
     } finally {
       setSubmitting(false);
     }
-  };
+  }
 
   const confirmScopeClosingDay = async () => {
     if (submitting) return;
@@ -2778,6 +3043,9 @@ export function useEventForm({
   // The manual shared roster as it was before a source was selected in this
   // session — restored when the source is cleared again (#2147 review).
   const preSourceStudentIdsRef = useRef<string[]>([]);
+  // Same value as render-visible state: the Umstiegs-Vorschau (#2482) has to
+  // re-render when the stash changes, and a ref never triggers that.
+  const [preSourceStudentIds, setPreSourceStudentIds] = useState<string[]>([]);
   const wantsOfferingSources =
     expanded && isSeriesFlow && form.targetGroupType === "angebot";
   useEffect(() => {
@@ -2828,12 +3096,19 @@ export function useEventForm({
   // until it answers, the per-offering sums serve as an optimistic preview.
   const [combinedSourceCounts, setCombinedSourceCounts] =
     useState<CombinedOfferingCounts | null>(null);
+  // Without this the Klassen-Auswahl would sit in "wird ermittelt ..."
+  // forever after a failed request — a dead end with nothing the admin can
+  // act on (.claude/rules/verstaendlichkeit.md).
+  const [combinedSourceCountsError, setCombinedSourceCountsError] = useState<
+    string | null
+  >(null);
   const combinedCountsKey = form.sourceCareOfferingIds.join(",");
   useEffect(() => {
     // Reset FIRST: after adding or removing an offering the previous exact
     // counts describe the old selection — until the new answer lands, the
     // per-offering sums must serve as the preview again.
     setCombinedSourceCounts(null);
+    setCombinedSourceCountsError(null);
     if (!wantsOfferingSources || combinedCountsKey === "") {
       return;
     }
@@ -2850,7 +3125,12 @@ export function useEventForm({
         logger.error("combined_offering_counts_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (!cancelled) setCombinedSourceCounts(null);
+        if (!cancelled) {
+          setCombinedSourceCounts(null);
+          setCombinedSourceCountsError(
+            "Die Kinder der gewählten Angebote konnten nicht geladen werden. Bitte schließen Sie das Fenster und öffnen Sie es erneut.",
+          );
+        }
       });
     return () => {
       cancelled = true;
@@ -2885,26 +3165,153 @@ export function useEventForm({
     return [...grades].sort((a, b) => a - b);
   }, [form.sourceGradeLevels, selectedOfferingSources]);
 
+  // The class filter (#2482) is evaluated on the child list the combined
+  // endpoint returns — Klassen are free text and cannot be derived from the
+  // per-offering Jahrgang buckets. While the answer is outstanding the editor
+  // says so instead of showing a wrong "0 Kinder".
+  const sourceCountsPending =
+    selectedOfferingSources.length > 0 &&
+    combinedSourceCounts === null &&
+    combinedSourceCountsError === null;
+
+  // Klassen offered for the filter: every class with enrolled children plus
+  // the already-selected ones, so a saved filter stays visible even when its
+  // class currently has no children.
+  const sourceClassOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const student of combinedSourceCounts?.students ?? []) {
+      const label = student.schoolClass.trim();
+      if (label === "") continue;
+      const key = normalizeSchoolClass(label);
+      if (!byKey.has(key)) byKey.set(key, label);
+    }
+    for (const selected of form.sourceSchoolClasses) {
+      const label = selected.trim();
+      if (label === "") continue;
+      const key = normalizeSchoolClass(label);
+      if (!byKey.has(key)) byKey.set(key, label);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, "de"));
+  }, [combinedSourceCounts, form.sourceSchoolClasses]);
+
+  const sourceClassCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const student of combinedSourceCounts?.students ?? []) {
+      const key = normalizeSchoolClass(student.schoolClass);
+      if (key === "") continue;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [combinedSourceCounts]);
+
+  // The children the current filter captures, by id. Only derivable once the
+  // combined endpoint answered; the counts below fall back to sums until then.
+  const sourceFilteredStudentIds = useMemo(() => {
+    const students = combinedSourceCounts?.students ?? [];
+    if (students.length === 0) return [] as string[];
+    if (form.sourceFilterMode === "klasse") {
+      const selected = new Set(
+        form.sourceSchoolClasses.map(normalizeSchoolClass),
+      );
+      if (selected.size === 0) return students.map((s) => s.studentId);
+      return students
+        .filter((student) =>
+          selected.has(normalizeSchoolClass(student.schoolClass)),
+        )
+        .map((student) => student.studentId);
+    }
+    if (
+      form.sourceFilterMode === "jahrgang" &&
+      form.sourceGradeLevels.length > 0
+    ) {
+      const selected = new Set(form.sourceGradeLevels);
+      return students
+        .filter((student) => {
+          const grade = getSchoolYear(student.schoolClass.trim());
+          return grade !== null && selected.has(Number(grade));
+        })
+        .map((student) => student.studentId);
+    }
+    return students.map((student) => student.studentId);
+  }, [
+    combinedSourceCounts,
+    form.sourceFilterMode,
+    form.sourceGradeLevels,
+    form.sourceSchoolClasses,
+  ]);
+
   // Live count of children the current filter captures — deduplicated
   // across the selected offerings once the combined endpoint answered.
   const sourceFilteredCount = useMemo(() => {
     if (selectedOfferingSources.length === 0) return 0;
-    if (form.sourceGradeLevels.length === 0) {
-      if (combinedSourceCounts) return combinedSourceCounts.totalCount;
-      return selectedOfferingSources.reduce(
-        (sum, offering) => sum + offering.totalCount,
+    if (combinedSourceCounts) {
+      if (
+        form.sourceFilterMode === "alle" ||
+        (form.sourceFilterMode === "jahrgang" &&
+          form.sourceGradeLevels.length === 0) ||
+        (form.sourceFilterMode === "klasse" &&
+          form.sourceSchoolClasses.length === 0)
+      ) {
+        return combinedSourceCounts.totalCount;
+      }
+      return sourceFilteredStudentIds.length;
+    }
+    // Before the exact answer lands only the Jahrgang path has per-offering
+    // sums to fall back on.
+    if (
+      form.sourceFilterMode === "jahrgang" &&
+      form.sourceGradeLevels.length > 0
+    ) {
+      return form.sourceGradeLevels.reduce(
+        (sum, grade) => sum + (sourceGradeCounts[grade] ?? 0),
         0,
       );
     }
-    return form.sourceGradeLevels.reduce(
-      (sum, grade) => sum + (sourceGradeCounts[grade] ?? 0),
+    if (form.sourceFilterMode === "klasse") return 0;
+    return selectedOfferingSources.reduce(
+      (sum, offering) => sum + offering.totalCount,
       0,
     );
   }, [
+    form.sourceFilterMode,
     form.sourceGradeLevels,
+    form.sourceSchoolClasses,
     selectedOfferingSources,
     combinedSourceCounts,
     sourceGradeCounts,
+    sourceFilteredStudentIds,
+  ]);
+
+  // Umstiegs-Vorschau (#2482): converting a manually curated Regeltermin into
+  // a sourced one replaces its child list. Naming who joins and who drops out
+  // BEFORE the save is the "keine stille Übernahme falscher Kinderlisten"
+  // requirement — the school at Berg had wrong manual lists and no way to see
+  // it. Only shown while a manual roster was actually replaced in this
+  // session and the exact child set is known.
+  const sourceRosterDiff = useMemo(() => {
+    if (preSourceStudentIds.length === 0) return null;
+    if (selectedOfferingSources.length === 0) return null;
+    if (!combinedSourceCounts) return null;
+    const nameOf = (id: string) =>
+      students.find((student) => student.id === id)?.name ?? "Unbekanntes Kind";
+    const next = new Set(sourceFilteredStudentIds);
+    const previous = new Set(preSourceStudentIds);
+    const added = sourceFilteredStudentIds
+      .filter((id) => !previous.has(id))
+      .map(nameOf)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    const removed = preSourceStudentIds
+      .filter((id) => !next.has(id))
+      .map(nameOf)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    if (added.length === 0 && removed.length === 0) return null;
+    return { added, removed };
+  }, [
+    preSourceStudentIds,
+    selectedOfferingSources,
+    combinedSourceCounts,
+    sourceFilteredStudentIds,
+    students,
   ]);
 
   // OGS am Berg: series start before the phase service window leaves the first
@@ -2913,13 +3320,21 @@ export function useEventForm({
     return offeringPhaseStartWarning(selectedOfferingSources[0], form.date);
   }, [selectedOfferingSources, form.date]);
 
-  // Other Termine sourcing the same offering whose Jahrgang subsets overlap
-  // the current filter (empty filter = alle Jahrgänge). Advisory only — the
-  // save is never blocked, mirroring the conflict warnings.
+  // Other Termine sourcing the same offering whose Zielgruppe overlaps the
+  // current filter (kein Filter = alle Kinder). Advisory only — the save is
+  // never blocked, mirroring the conflict warnings. Klassen- und
+  // Jahrgangsfilter (#2482) werden gemeinsam geprüft: „1b“ und „Jahrgang 1“
+  // greifen auf dieselben Kinder zu, auch wenn die Listen nichts gemeinsam
+  // haben.
   const sourceOverlapWarnings = useMemo(() => {
     if (selectedOfferingSources.length === 0) return [] as string[];
-    const currentTemplateId = initialSeries?.id;
-    const selected = form.sourceGradeLevels;
+    const currentTemplateId = effectiveSeries?.id;
+    const selectedGrades =
+      form.sourceFilterMode === "jahrgang" ? form.sourceGradeLevels : [];
+    const selectedClasses =
+      form.sourceFilterMode === "klasse"
+        ? form.sourceSchoolClasses.map(normalizeSchoolClass)
+        : [];
     const seen = new Set<string>();
     const warnings: string[] = [];
     for (const offering of selectedOfferingSources) {
@@ -2927,26 +3342,37 @@ export function useEventForm({
         if (template.id === currentTemplateId || seen.has(template.id)) {
           continue;
         }
-        const other = template.gradeLevels;
+        const otherClasses = template.schoolClasses.map(normalizeSchoolClass);
         if (
-          selected.length > 0 &&
-          other.length > 0 &&
-          !other.some((grade) => selected.includes(grade))
+          !sourceScopesOverlap(
+            selectedGrades,
+            selectedClasses,
+            template.gradeLevels,
+            otherClasses,
+          )
         ) {
           continue;
         }
         seen.add(template.id);
         const scope =
-          template.gradeLevels.length > 0
-            ? `Jahrgang ${template.gradeLevels.join(", ")}`
-            : "alle Jahrgänge";
+          otherClasses.length > 0
+            ? `Klasse ${template.schoolClasses.join(", ")}`
+            : template.gradeLevels.length > 0
+              ? `Jahrgang ${template.gradeLevels.join(", ")}`
+              : "alle Kinder des Angebots";
         warnings.push(
-          `„${template.name}“ nutzt dasselbe Angebot „${offering.name}“ (${scope}). Kinder mit gemeinsamem Jahrgang werden in beiden Regelterminen eingeplant.`,
+          `„${template.name}“ nutzt dasselbe Angebot „${offering.name}“ (${scope}). Kinder, die in beide Zielgruppen fallen, werden in beiden Regelterminen eingeplant.`,
         );
       }
     }
     return warnings;
-  }, [form.sourceGradeLevels, initialSeries?.id, selectedOfferingSources]);
+  }, [
+    form.sourceFilterMode,
+    form.sourceGradeLevels,
+    form.sourceSchoolClasses,
+    effectiveSeries?.id,
+    selectedOfferingSources,
+  ]);
 
   const applySourceOfferingIds = (nextIds: string[]) => {
     // Selecting the first source clears the manual roster (server-managed).
@@ -2955,7 +3381,13 @@ export function useEventForm({
     // on save (#2147 review). The ref is touched here, outside the updater,
     // so the updater stays pure.
     if (nextIds.length > 0 && form.sourceCareOfferingIds.length === 0) {
+      // The ref feeds the RESTORE path, so it keeps the shared list verbatim:
+      // clearing the last source puts exactly that list back. The diff state
+      // instead takes every child the manual plan held, per-weekday lists
+      // included — otherwise the Umstiegs-Vorschau reports "nothing falls
+      // away" for a plan whose children live per weekday (#2482).
       preSourceStudentIdsRef.current = form.studentIds;
+      setPreSourceStudentIds(plannedStudentIds(form));
     }
     if (nextIds.length > 0 && form.perWeekdayRoster) {
       staffRosterTouched.current = true;
@@ -2970,6 +3402,10 @@ export function useEventForm({
         // survives adding/removing single offerings and falls only with the
         // last source.
         sourceGradeLevels: nextIds.length > 0 ? current.sourceGradeLevels : [],
+        sourceSchoolClasses:
+          nextIds.length > 0 ? current.sourceSchoolClasses : [],
+        sourceFilterMode:
+          nextIds.length > 0 ? current.sourceFilterMode : "alle",
         // The sourced roster is server-managed; clearing the last source
         // restores the manual roster picked before the first source was set.
         studentIds:
@@ -3023,6 +3459,7 @@ export function useEventForm({
     // template would otherwise restore (and save) another template's picks
     // (#2147 review round 10).
     preSourceStudentIdsRef.current = [];
+    setPreSourceStudentIds([]);
   }, [isOpen]);
 
   const changeSourceOfferings = (nextIds: string[]) => {
@@ -3051,6 +3488,33 @@ export function useEventForm({
       sourceGradeLevels: current.sourceGradeLevels.includes(grade)
         ? current.sourceGradeLevels.filter((item) => item !== grade)
         : [...current.sourceGradeLevels, grade].sort((a, b) => a - b),
+    }));
+  };
+
+  const toggleSourceSchoolClass = (schoolClass: string) => {
+    const key = normalizeSchoolClass(schoolClass);
+    setForm((current) => ({
+      ...current,
+      sourceSchoolClasses: current.sourceSchoolClasses.some(
+        (item) => normalizeSchoolClass(item) === key,
+      )
+        ? current.sourceSchoolClasses.filter(
+            (item) => normalizeSchoolClass(item) !== key,
+          )
+        : [...current.sourceSchoolClasses, schoolClass.trim()].sort((a, b) =>
+            a.localeCompare(b, "de"),
+          ),
+    }));
+  };
+
+  // Jahrgang und Klasse schließen sich aus (#2482): der Wechsel leert die
+  // Liste, die nicht mehr gilt, damit im Formular nie beide gefüllt sind.
+  const changeSourceFilterMode = (mode: SourceFilterMode) => {
+    setForm((current) => ({
+      ...current,
+      sourceFilterMode: mode,
+      sourceGradeLevels: mode === "jahrgang" ? current.sourceGradeLevels : [],
+      sourceSchoolClasses: mode === "klasse" ? current.sourceSchoolClasses : [],
     }));
   };
 
@@ -3200,7 +3664,10 @@ export function useEventForm({
     handleConfirmSeriesDelete,
     expanded,
     choiceDialogOpen,
+    scopeSelectionRequired,
+    isScopedSeriesEdit: scopedSeries !== null,
     setPendingSeriesEdit,
+    handleInitialScopeSelect,
     handleScopeSelect,
     scopeClosingDayWarning,
     setScopeClosingDayWarning,
@@ -3215,6 +3682,7 @@ export function useEventForm({
     isEditingInstance,
     isEditingSeries,
     isSeriesFlow,
+    seriesStartEdit,
     canDeleteSeries,
     gradeLevelMax,
     targetGradeOptions,
@@ -3229,7 +3697,12 @@ export function useEventForm({
     sourcePhaseLockId,
     sourceGradeOptions,
     sourceGradeCounts,
+    sourceClassOptions,
+    sourceClassCounts,
     sourceFilteredCount,
+    sourceCountsPending,
+    sourceCountsError: combinedSourceCountsError,
+    sourceRosterDiff,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
@@ -3237,6 +3710,8 @@ export function useEventForm({
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
     toggleSourceGradeLevel,
+    toggleSourceSchoolClass,
+    changeSourceFilterMode,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,

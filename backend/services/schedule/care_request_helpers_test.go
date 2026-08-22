@@ -33,6 +33,8 @@ func carePayload(days ...map[string]any) map[string]any {
 // localized parents portal both render.
 
 func TestGermanAllowedDepartureModes(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name  string
 		modes []usersModels.DepartureMode
@@ -67,6 +69,8 @@ func TestGermanAllowedDepartureModes(t *testing.T) {
 }
 
 func TestDepartureModeKeys(t *testing.T) {
+	t.Parallel()
+
 	// An empty set must resolve to the explicit "alone" key, never an
 	// ambiguous empty slice a localized client would render as blank.
 	if got := departureModeKeys(nil); len(got) != 1 || got[0] != string(usersModels.DepartureAlone) {
@@ -89,6 +93,8 @@ func TestDepartureModeKeys(t *testing.T) {
 }
 
 func TestCareDashIfEmpty(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"":            "—",
 		"   ":         "—", // whitespace-only collapses to the em dash placeholder
@@ -103,6 +109,8 @@ func TestCareDashIfEmpty(t *testing.T) {
 }
 
 func TestIsCareRequestPendingUniqueViolation(t *testing.T) {
+	t.Parallel()
+
 	if isCareRequestPendingUniqueViolation(nil) {
 		t.Error("isCareRequestPendingUniqueViolation(nil) = true, want false")
 	}
@@ -116,6 +124,8 @@ func TestIsCareRequestPendingUniqueViolation(t *testing.T) {
 // validation and approve-time apply, so its accept/reject decisions are the
 // business contract both paths depend on.
 func TestBuildCareScheduleChanges_Valid(t *testing.T) {
+	t.Parallel()
+
 	changes, err := buildCareScheduleChanges(carePayload(
 		careDay(1, "bus", "07:30", "15:00"),
 		careDay(5, "pickup", "", "16:30"),
@@ -141,7 +151,26 @@ func TestBuildCareScheduleChanges_Valid(t *testing.T) {
 	}
 }
 
+func TestBuildCareScheduleChanges_CareDays(t *testing.T) {
+	t.Parallel()
+
+	active := careDay(2, "pickup", "", "15:30")
+	active["scheduled"] = true
+	inactive := careDay(4, "", "", "")
+	inactive["scheduled"] = false
+
+	changes, err := buildCareScheduleChanges(carePayload(active, inactive))
+	if err != nil {
+		t.Fatalf("buildCareScheduleChanges care days = %v", err)
+	}
+	if !changes.scheduled[2] || changes.scheduled[4] {
+		t.Fatalf("scheduled changes = %v, want Tuesday active and Thursday inactive", changes.scheduled)
+	}
+}
+
 func TestBuildCareScheduleChanges_Rejections(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		payload map[string]any
@@ -157,6 +186,8 @@ func TestBuildCareScheduleChanges_Rejections(t *testing.T) {
 		{"midnight pickup", carePayload(careDay(1, "", "", "00:00"))},
 		{"malformed arrival", carePayload(careDay(1, "", "7:3", ""))},
 		{"out-of-range clock", carePayload(careDay(1, "", "25:00", ""))},
+		{"active day without plan", carePayload(map[string]any{"weekday": 1, "scheduled": true})},
+		{"inactive day with pickup", carePayload(map[string]any{"weekday": 1, "scheduled": false, "pickup": "15:00"})},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -172,6 +203,8 @@ func TestBuildCareScheduleChanges_Rejections(t *testing.T) {
 // duplicate/out-of-order weekday rows collapse into one entry per weekday in
 // fixed Mon..Fri order, and a payload with no actual change is rejected.
 func TestCanonicalizeCareSchedulePayload_DedupsAndOrders(t *testing.T) {
+	t.Parallel()
+
 	canon, err := canonicalizeCareSchedulePayload(carePayload(
 		careDay(5, "", "", "16:00"),    // Friday first (out of order)
 		careDay(1, "bus", "07:30", ""), // Monday
@@ -198,6 +231,8 @@ func TestCanonicalizeCareSchedulePayload_DedupsAndOrders(t *testing.T) {
 }
 
 func TestCanonicalizeCareSchedulePayload_RejectsEmpty(t *testing.T) {
+	t.Parallel()
+
 	_, err := canonicalizeCareSchedulePayload(carePayload())
 	if !errors.Is(err, ErrInvalidCareRequestPayload) {
 		t.Errorf("canonicalize(no weekdays) err = %v, want ErrInvalidCareRequestPayload", err)
@@ -205,6 +240,8 @@ func TestCanonicalizeCareSchedulePayload_RejectsEmpty(t *testing.T) {
 }
 
 func TestParseCareWallClock(t *testing.T) {
+	t.Parallel()
+
 	tm, err := parseCareWallClock("07:30")
 	if err != nil {
 		t.Fatalf("parseCareWallClock(07:30) = %v", err)
@@ -223,6 +260,8 @@ func TestParseCareWallClock(t *testing.T) {
 }
 
 func TestCareStructToMapRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	in := careSchedulePayload{Weekdays: []careWeekdayPayload{{Weekday: 2, Mode: "bus", Arrival: "08:00"}}}
 	m, err := careStructToMap(in)
 	if err != nil {

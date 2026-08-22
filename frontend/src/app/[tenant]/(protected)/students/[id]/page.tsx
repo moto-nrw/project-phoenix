@@ -10,6 +10,7 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -48,6 +49,11 @@ import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
 import {
+  AggregatedRequestList,
+  type AggregatedRequestFilters,
+} from "~/components/students/aggregated-request-list";
+import { SectionCard } from "~/components/ui/section-card";
+import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
@@ -73,10 +79,17 @@ import {
   deleteStudentStatusDay,
   fetchStudentStatusDays,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import { fetchStudentCarePlanDay } from "~/lib/student-care-plan-api";
+import {
+  deleteStudentPartialAbsence,
+  fetchStudentPartialAbsences,
+  saveStudentPartialAbsence,
+} from "~/lib/student-partial-absences-api";
 import { StudentDetailSkeleton } from "./page-skeleton";
 
 type TodayArrival = {
@@ -101,6 +114,7 @@ type StudentTabId =
   | "betreuungszeiten"
   | "anmeldungen"
   | "dokumente"
+  | "aenderungsprotokoll"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
@@ -111,6 +125,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
   dokumente: "Dokumente",
+  aenderungsprotokoll: "Änderungsprotokoll",
   historie: "Historie",
 };
 
@@ -124,11 +139,13 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "betreuungsplan",
   "betreuungszeiten",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
+  "aenderungsprotokoll",
   "historie",
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
@@ -139,12 +156,14 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "betreuungszeiten",
   "anmeldungen",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "anmeldungen",
+  "aenderungsprotokoll",
   "historie",
 ];
 
@@ -159,20 +178,17 @@ function resolveActiveTab(
 
 /**
  * @param hasStudentReadAccess the backend's READ predicate for this child,
- *   `has_full_access` on the student response. Despite the wire name this is
- *   NOT the strict supervisor/admin check — that one is `has_write_access`.
- *   It resolves to `authorize.CanReadStudent`, which honours
- *   `gdpr.student_data_scope`: under `all_staff` EVERY staff member gets `true`
- *   here, under `group_supervisors_only` only the child's supervisors (and
- *   admins) do. See api/students/authorization.go — `checkStudentReadAccess`
- *   (scope-aware, this flag) vs `checkStudentFullAccess` (scope-ignoring, the
- *   write flag).
+ *   `has_full_access` on the student response: true for admins and every
+ *   verified staff member (#2329), false for guest/guardian accounts. See
+ *   api/students/authorization.go — `checkStudentReadAccess` (this flag) vs
+ *   `checkStudentFullAccess` (the write flag).
  */
 function studentTabs(
   hasStudentReadAccess: boolean,
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
   canViewDocuments: boolean,
+  canViewRequestLog: boolean,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -189,12 +205,11 @@ function studentTabs(
   // oversight: those routes gate on read access per student too
   // (resolveStudentForRead → authorize.CanReadStudent in
   // api/timetable/student_day.go) — the SAME predicate behind the flag above,
-  // so the two can never disagree. A staff member who may read the child under
-  // `all_staff` therefore lands in the full-access set and DOES get the tab;
-  // one who may not gets 403 from the care-plan endpoints, so widening the tab
-  // would only surface a permanently failing panel, and ?tab=betreuungsplan is
-  // clamped away for the same reason. Widening staff access to a child's plan
-  // is a backend (gdpr.student_data_scope) decision, not a frontend one.
+  // so the two can never disagree. Every verified staff member lands in the
+  // full-access set and DOES get the tab (#2329); a caller without read access
+  // (guest/guardian) gets 403 from the care-plan endpoints, so widening the
+  // tab would only surface a permanently failing panel, and
+  // ?tab=betreuungsplan is clamped away for the same reason.
   const withCarePlan = canViewCarePlan
     ? base
     : base.filter((tab) => tab !== "betreuungsplan");
@@ -205,9 +220,15 @@ function studentTabs(
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
-  return canViewDocuments
+  const withDocuments = canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
+  // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
+  // RequiresAnyPermission(users:update, users:absence). Without either, the
+  // list would only answer 403, so the tab stays away.
+  return canViewRequestLog
+    ? withDocuments
+    : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -306,6 +327,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
+  const nfcEnabled = useNFCEnabled();
   const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
@@ -351,6 +373,7 @@ function StudentDetailPageContent() {
     error,
     hasFullAccess,
     hasWriteAccess,
+    hasAbsenceWriteAccess,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -380,6 +403,11 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
+  // Same gate the aggregate request route uses (#2437).
+  const canViewRequestLog =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "users:absence"));
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -387,8 +415,15 @@ function StudentDetailPageContent() {
         canViewEnrollments,
         canViewCarePlan,
         canViewDocuments,
+        canViewRequestLog,
       ),
-    [canViewEnrollments, canViewCarePlan, hasFullAccess, canViewDocuments],
+    [
+      canViewEnrollments,
+      canViewCarePlan,
+      hasFullAccess,
+      canViewDocuments,
+      canViewRequestLog,
+    ],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
@@ -483,19 +518,60 @@ function StudentDetailPageContent() {
   );
   const [statusDayRange, setStatusDayRange] =
     useState<StatusDayRange>(getStatusDayRange);
+  // Status days follow the absence gate, not the read gate: whoever may write
+  // a child's absences may read them (the backend widened the per-child check
+  // on GET /{id}/status-days for exactly this, #2232). Without this the
+  // planning dialog opened empty for a school without feste Gruppen — existing
+  // sick days stayed invisible and could not be cleared.
+  const canReadStatusDays = hasFullAccess || hasAbsenceWriteAccess;
+  // A partial excusal ("Ab Uhrzeit") is a pickup exception, not a status day:
+  // its endpoints require users:update at the route AND full care access to the
+  // child in the handler. The absence permission grants neither, so the scope
+  // switch stays hidden for an absence-only staffer instead of offering a save
+  // that would fail (#2232).
+  const canPlanPartialExcusal =
+    hasFullAccess &&
+    hasWriteAccess &&
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
-    hasFullAccess && studentId
+    canReadStatusDays && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
       : null,
     async () =>
       fetchStudentStatusDays(studentId, statusDayRange.from, statusDayRange.to),
     { revalidateOnFocus: false },
   );
+  const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
+    useSWRAuth(
+      hasFullAccess && studentId
+        ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
+        : null,
+      async () =>
+        fetchStudentPartialAbsences(
+          studentId,
+          statusDayRange.from,
+          statusDayRange.to,
+        ),
+      { revalidateOnFocus: false },
+    );
   const ensureStatusDayRange = useCallback((from: string, to: string) => {
     setStatusDayRange((current) => extendStatusDayRange(current, [from, to]));
   }, []);
   const loadPlannedStatusExistingDays = useCallback(
-    (from: string, to: string) => fetchStudentStatusDays(studentId, from, to),
+    (from: string, to: string) => {
+      ensureStatusDayRange(from, to);
+      return fetchStudentStatusDays(studentId, from, to);
+    },
+    [ensureStatusDayRange, studentId],
+  );
+  const loadPlannedPartialAbsences = useCallback(
+    (from: string, to: string) =>
+      fetchStudentPartialAbsences(studentId, from, to),
+    [studentId],
+  );
+  const loadPlannedCarePlanDay = useCallback(
+    (date: string) => fetchStudentCarePlanDay(studentId, date),
     [studentId],
   );
   // Reason attached to today's sick day (set by staff or by a parent via the
@@ -623,9 +699,14 @@ function StudentDetailPageContent() {
     }
   }, [loading, student, sessionStatus, urlTab, activeTab, handleTabChange]);
 
-  // Show loading state
+  // Show loading state. `referrer` needs no fetched data (it's derived from
+  // the `?from=` query param above), so the BackButton renders for real here
+  // instead of a placeholder — see page-skeleton.tsx. The rest of the body
+  // stays skeletonized: `visibleTabs` and the FullAccessView/LimitedAccessView
+  // split both depend on `hasFullAccess`, a field on the student object that
+  // isn't known until this fetch resolves.
   if (loading) {
-    return <StudentDetailSkeleton />;
+    return <StudentDetailSkeleton referrer={referrer} />;
   }
 
   // Show error state
@@ -909,7 +990,9 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof StudentStatusDayConflictError) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        toast.warning(err.message);
+      } else if (err instanceof StudentStatusDayConflictError) {
         const conflicts = err.conflicts
           .map(
             (day) =>
@@ -950,6 +1033,70 @@ function StudentDetailPageContent() {
       throw err;
     } finally {
       setDeletingPlannedStatusDayId(null);
+    }
+  };
+
+  const handleSavePartialAbsence = async (
+    partialAbsenceId: string | null,
+    date: string,
+    fromTime: string,
+    reason?: string,
+  ) => {
+    if (!student) return;
+    setPlannedStatusLoading(true);
+    try {
+      await saveStudentPartialAbsence(
+        studentId,
+        partialAbsenceId,
+        date,
+        fromTime,
+        reason,
+      );
+      setStatusDayRange((current) => extendStatusDayRange(current, [date]));
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success(
+        partialAbsenceId
+          ? `Entschuldigung für ${student.name} wurde aktualisiert`
+          : `Entschuldigung für ${student.name} wurde gespeichert`,
+      );
+      setPlannedStatusModal(null);
+    } catch (err) {
+      logger.error("partial_absence_save_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Entschuldigung konnte nicht gespeichert werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
+    }
+  };
+
+  const handleDeletePartialAbsence = async (partialAbsenceId: string) => {
+    setPlannedStatusLoading(true);
+    try {
+      await deleteStudentPartialAbsence(studentId, partialAbsenceId);
+      await Promise.all([
+        mutatePartialAbsences(),
+        mutate(`pickup-data-${studentId}`),
+      ]);
+      refreshData();
+      toast.success("Teilentschuldigung wurde entfernt");
+    } catch (err) {
+      logger.error("partial_absence_delete_failed", {
+        student_id: studentId,
+        partial_absence_id: partialAbsenceId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error("Teilentschuldigung konnte nicht entfernt werden");
+      throw err;
+    } finally {
+      setPlannedStatusLoading(false);
     }
   };
 
@@ -998,7 +1145,8 @@ function StudentDetailPageContent() {
       return (
         <p className="text-moto-amber-strong text-sm">
           Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
-          Aufsicht in einem Raum über ein NFC-Tablet.
+          Aufsicht in einem Raum über{" "}
+          {nfcEnabled ? "ein NFC-Tablet" : "die Web-App"}.
         </p>
       );
     }
@@ -1053,6 +1201,7 @@ function StudentDetailPageContent() {
             student={student}
             studentId={studentId}
             hasWriteAccess={hasWriteAccess}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
             showCheckout={showCheckout}
@@ -1089,12 +1238,20 @@ function StudentDetailPageContent() {
             supervisors={supervisors}
             showCheckout={showCheckout}
             showCheckin={showCheckin}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             activeTab={activeTab}
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
             onTabChange={handleTabChange}
             onCheckoutClick={() => setShowConfirmCheckout(true)}
             onCheckinClick={() => setShowConfirmCheckin(true)}
+            onSickClick={handleSickClick}
+            sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
           />
         )}
       </div>
@@ -1259,11 +1416,17 @@ function StudentDetailPageContent() {
         studentName={student.name}
         isSubmitting={plannedStatusLoading}
         existingDays={statusDays}
+        existingPartialAbsences={partialAbsences}
+        canPlanPartialExcusal={canPlanPartialExcusal}
         deletingStatusDayId={deletingPlannedStatusDayId}
         onClose={() => setPlannedStatusModal(null)}
         loadExistingDays={loadPlannedStatusExistingDays}
+        loadPartialAbsences={loadPlannedPartialAbsences}
+        loadCarePlanDay={loadPlannedCarePlanDay}
         onSubmit={handleCreatePlannedStatus}
         onDeleteStatusDay={handleDeletePlannedStatus}
+        onSubmitPartialAbsence={handleSavePartialAbsence}
+        onDeletePartialAbsence={handleDeletePartialAbsence}
       />
     </>
   );
@@ -1281,12 +1444,23 @@ interface LimitedAccessViewProps {
   supervisors: SupervisorContact[];
   showCheckout: boolean;
   showCheckin: boolean;
+  /** Absence actions are gated separately from read access: a school without
+   *  feste Gruppen lets staff report absences for children whose record they
+   *  may only see redacted (#2232). */
+  hasAbsenceWriteAccess: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   onTabChange: (tab: string) => void;
   onCheckoutClick: () => void;
   onCheckinClick: () => void;
+  onSickClick: () => void;
+  sickLoading: boolean;
+  isQuickExcused: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
 }
 
 function LimitedAccessView({
@@ -1297,23 +1471,72 @@ function LimitedAccessView({
   supervisors,
   showCheckout,
   showCheckin,
+  hasAbsenceWriteAccess,
   activeTab,
   tabs,
   canViewEnrollments,
   onTabChange,
   onCheckoutClick,
   onCheckinClick,
+  onSickClick,
+  sickLoading,
+  isQuickExcused,
+  onExcusedClick,
+  excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
+  // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin) && (
+      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
         <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
           {showCheckout && (
             <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
           )}
           {showCheckin && (
             <StudentCheckinSection onCheckinClick={onCheckinClick} />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentSickReportSection
+              isSick={student.sick ?? false}
+              sickSince={student.sick_since}
+              onToggle={onSickClick}
+              isLoading={sickLoading}
+            />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentExcusedReportSection
+              isExcused={isQuickExcused}
+              excusedSince={isQuickExcused ? student.excused_since : undefined}
+              onToggle={onExcusedClick}
+              isLoading={excusedLoading}
+            />
+          )}
+          {hasAbsenceWriteAccess && (
+            <StudentStatusActionsMenu
+              isClassTrip={student.class_trip ?? false}
+              classTripSince={student.class_trip_since}
+              onPlanClassTrip={onClassTripClick}
+              isLoading={plannedStatusLoading}
+            />
           )}
         </div>
       )}
@@ -1351,6 +1574,27 @@ function LimitedAccessView({
           </TabsContent>
         ) : null}
 
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
+
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
             studentId={studentId}
@@ -1373,6 +1617,8 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
+  /** See LimitedAccessViewProps.hasAbsenceWriteAccess (#2232). */
+  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   showCheckout: boolean;
@@ -1405,6 +1651,7 @@ function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
+  hasAbsenceWriteAccess,
   attendanceLogEnabled,
   feedbackEnabled,
   showCheckout,
@@ -1433,6 +1680,16 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
   const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
     studentId,
     true,
@@ -1458,9 +1715,17 @@ function FullAccessView({
   useEffect(() => {
     if (activeTab === "dokumente") setDocumentsTabSeen(true);
   }, [activeTab]);
+  // Das Änderungsprotokoll fragt fünf Historien-Quellen ab (#2437) — erst beim
+  // ersten Öffnen laden, danach gemountet lassen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasWriteAccess) && (
+      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
         <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
           {showCheckout && (
             <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
@@ -1468,7 +1733,7 @@ function FullAccessView({
           {showCheckin && (
             <StudentCheckinSection onCheckinClick={onCheckinClick} />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentSickReportSection
               isSick={student.sick ?? false}
               sickSince={student.sick_since}
@@ -1476,7 +1741,7 @@ function FullAccessView({
               isLoading={sickLoading}
             />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentExcusedReportSection
               isExcused={isQuickExcused}
               excusedSince={isQuickExcused ? student.excused_since : undefined}
@@ -1484,7 +1749,7 @@ function FullAccessView({
               isLoading={excusedLoading}
             />
           )}
-          {hasWriteAccess && (
+          {hasAbsenceWriteAccess && (
             <StudentStatusActionsMenu
               isClassTrip={student.class_trip ?? false}
               classTripSince={student.class_trip_since}
@@ -1587,6 +1852,27 @@ function FullAccessView({
         <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
           {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
         </TabsContent>
+
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

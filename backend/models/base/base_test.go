@@ -8,6 +8,8 @@ import (
 )
 
 func TestModel_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	m := Model{
 		ID:        42,
@@ -29,6 +31,8 @@ func TestModel_Fields(t *testing.T) {
 }
 
 func TestStringIDModel_Fields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	m := StringIDModel{
 		ID:        "RFID12345678",
@@ -50,6 +54,8 @@ func TestStringIDModel_Fields(t *testing.T) {
 }
 
 func TestDatabaseError_Error(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      *DatabaseError
@@ -91,6 +97,8 @@ func TestDatabaseError_Error(t *testing.T) {
 }
 
 func TestDatabaseError_Unwrap(t *testing.T) {
+	t.Parallel()
+
 	t.Run("with original error", func(t *testing.T) {
 		originalErr := errors.New("original error")
 		dbErr := &DatabaseError{
@@ -116,6 +124,8 @@ func TestDatabaseError_Unwrap(t *testing.T) {
 }
 
 func TestContextWithTx_And_TxFromContext(t *testing.T) {
+	t.Parallel()
+
 	t.Run("extract tx from context without tx", func(t *testing.T) {
 		ctx := context.Background()
 

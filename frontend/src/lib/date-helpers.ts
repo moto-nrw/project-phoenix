@@ -23,24 +23,30 @@ const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
   hourCycle: "h23",
 });
 
-const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  timeZone: "Europe/Berlin",
-});
+function berlinDateFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "Europe/Berlin",
+  });
+}
 
-const BERLIN_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  day: "2-digit",
-  month: "2-digit",
-  year: "numeric",
-  timeZone: "Europe/Berlin",
-});
+function chatDayMonthFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
 
-const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("de-DE", {
-  hour: "2-digit",
-  minute: "2-digit",
-  timeZone: "Europe/Berlin",
-});
+function chatTimeFormatter(locale: string): Intl.DateTimeFormat {
+  return new Intl.DateTimeFormat(locale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Berlin",
+  });
+}
 
 /**
  * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
@@ -79,6 +85,28 @@ export function isValidISODate(s: string): boolean {
   return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
 }
 
+/**
+ * ISO-8601 calendar week number of a "YYYY-MM-DD" date (Mon-based; week 1 is
+ * the week holding the first Thursday). Schools plan in calendar weeks, so a
+ * date field that decides a school week shows its KW beside the date.
+ */
+export function isoWeekNumber(s: string): number {
+  const date = parseISODate(s);
+  date.setHours(0, 0, 0, 0);
+  // Thursday of the current week decides the year and the week.
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86_400_000 -
+        3 +
+        ((week1.getDay() + 6) % 7)) /
+        7,
+    )
+  );
+}
+
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
 export function todayISO(): string {
   return toISODate(new Date());
@@ -97,6 +125,21 @@ export function berlinTodayISO(at: Date = new Date()): string {
   const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(at);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * Midnight (00:00:00) of the Berlin calendar day an instant falls on, as the
+ * actual instant — the boundary a running work block has to be clamped to so
+ * its minutes before midnight stay booked on the previous day.
+ *
+ * Derived from the previous day's 23:59:59 plus a second rather than by
+ * subtracting 24h, so the DST nights (23h and 25h long) land on the real
+ * midnight instead of one hour beside it.
+ */
+export function berlinDayStart(at: Date = new Date()): Date {
+  const dayBefore = parseISODate(berlinTodayISO(at));
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return new Date(new Date(endOfBerlinDayISO(dayBefore)).getTime() + 1_000);
 }
 
 /**
@@ -184,24 +227,28 @@ export function groupByDate<T extends Record<string, unknown>>(
 }
 
 /**
- * Format a date string to German locale format
+ * Format a date string for the requested locale.
  * @param dateString ISO date string
  * @param includeWeekday Whether to include the weekday in the format
  * @returns Formatted date string (e.g., "15.12.2023" or "Freitag, 15. Dezember 2023")
  */
-export function formatDate(dateString: string, includeWeekday = false): string {
+export function formatDate(
+  dateString: string,
+  includeWeekday = false,
+  locale = "de-DE",
+): string {
   const date = ISO_DATE_RE.test(dateString)
     ? parseISODate(dateString)
     : new Date(dateString);
   if (includeWeekday) {
-    return date.toLocaleDateString("de-DE", {
+    return date.toLocaleDateString(locale, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
   }
-  return date.toLocaleDateString("de-DE", {
+  return date.toLocaleDateString(locale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -222,10 +269,10 @@ export function formatDate(dateString: string, includeWeekday = false): string {
  * Falls back to the raw input for an unparseable value, matching the chat
  * formatters — a malformed timestamp must not blank the surrounding line.
  */
-export function formatBerlinDate(dateString: string): string {
+export function formatBerlinDate(dateString: string, locale = "de-DE"): string {
   const date = new Date(dateString);
   if (Number.isNaN(date.getTime())) return dateString;
-  return BERLIN_DATE_FORMATTER.format(date);
+  return berlinDateFormatter(locale).format(date);
 }
 
 /**
@@ -248,11 +295,11 @@ export function formatTime(dateString: string): string {
  * portions use the school timezone so the calendar date and clock cannot
  * disagree for guardians viewing from another timezone.
  */
-export function formatChatTime(iso: string): string {
+export function formatChatTime(iso: string, locale = "de-DE"): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
-  return `${dayMonth}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  const dayMonth = chatDayMonthFormatter(locale).format(date);
+  return `${dayMonth}, ${chatTimeFormatter(locale).format(date)}`;
 }
 
 /**
@@ -262,11 +309,21 @@ export function formatChatTime(iso: string): string {
  * messages list. Both portions use the school timezone so full and compact
  * chat timestamps cannot disagree for viewers outside Europe/Berlin.
  */
-export function formatChatDateTime(iso: string | undefined): string {
+export function formatChatDateTime(
+  iso: string | undefined,
+  locale = "de-DE",
+): string {
   if (!iso) return "";
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return `${BERLIN_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
+  return `${berlinDateFormatter(locale).format(date)}, ${chatTimeFormatter(locale).format(date)}`;
+}
+
+/** Clock-only chat timestamp for narrow list rows. */
+export function formatChatClockTime(iso: string, locale = "de-DE"): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return chatTimeFormatter(locale).format(date);
 }
 
 /**
@@ -345,4 +402,33 @@ export function getStartDateForTimeRange(
 
   startDate.setHours(0, 0, 0, 0);
   return startDate;
+}
+
+/**
+ * Wie lange etwas schon liegt, als kurze deutsche Angabe ("heute",
+ * "gestern", "vor 5 Tagen"). Für Warteschlangen, in denen das Alter eines
+ * Eintrags die eigentliche Dringlichkeit trägt und ein Datum erst im Kopf
+ * ausgerechnet werden müsste.
+ *
+ * Gezählt werden Berliner Kalendertage, nicht 24-Stunden-Blöcke: eine
+ * Anfrage von gestern 23:00 Uhr ist heute früh "gestern" und nicht "heute".
+ * `at` ist injizierbar, damit Tests nicht an der echten Uhr hängen.
+ *
+ * Gibt null zurück, wenn der Wert nicht lesbar ist — dann zeigt die Zeile
+ * eben kein Alter, statt "NaN" zu schreiben.
+ */
+export function relativeDaysLabel(
+  dateString: string,
+  at: Date = new Date(),
+): string | null {
+  const then = berlinDayFromISO(dateString);
+  if (then === null) return null;
+  const today = parseISODate(berlinTodayISO(at));
+  const days = Math.round(
+    (today.getTime() - then.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  if (Number.isNaN(days) || days < 0) return null;
+  if (days === 0) return "heute";
+  if (days === 1) return "gestern";
+  return `vor ${days} Tagen`;
 }

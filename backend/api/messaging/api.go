@@ -43,9 +43,8 @@ func (rs *Resource) Router() chi.Router {
 		// deliberately requires only users:read (+ CanReadStudent), NOT
 		// users:update: messaging authority is defined to equal student-read
 		// authority, so any staffer who may read a child may message that child's
-		// guardians. Under gdpr.student_data_scope='all_staff' that is school-wide
-		// — an accepted, signed-off policy (the guardian always sees the sender as
-		// "OGS <Schule>", never an individual).
+		// guardians — school-wide since #2329, an accepted, signed-off policy (the
+		// guardian always sees the sender as "OGS <Schule>", never an individual).
 		read := authorize.RequiresPermission(permissions.UsersRead)
 		r.With(read, withTx).Get("/", rs.listInbox)
 		r.With(read, withTx).Get("/unread-count", rs.unreadCount)
@@ -119,7 +118,8 @@ type StartThreadRequest struct {
 }
 
 type PostMessageRequest struct {
-	Body string `json:"body"`
+	Body                 string `json:"body"`
+	HandledUpToMessageID string `json:"handled_up_to_message_id,omitempty"`
 }
 
 type OpenThreadRequest struct {
@@ -252,7 +252,16 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body)
+	var handledUpToMessageID int64
+	if req.HandledUpToMessageID != "" {
+		parsed, parseErr := strconv.ParseInt(req.HandledUpToMessageID, 10, 64)
+		if parseErr != nil || parsed <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid handled message ID")))
+			return
+		}
+		handledUpToMessageID = parsed
+	}
+	messages, err := rs.Service.PostMessage(r.Context(), threadID, req.Body, handledUpToMessageID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -347,6 +356,8 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, messagingService.ErrGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))
+	case errors.Is(err, messagingService.ErrHandledBoundaryRequired):
+		common.RenderError(w, r, common.ErrorConflictMessage("Der Nachrichtenverlauf hat sich geändert. Bitte laden Sie die Seite neu."))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("messaging request failed", err))
 	}

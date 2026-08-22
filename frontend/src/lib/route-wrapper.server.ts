@@ -173,11 +173,24 @@ function createNoBodyHandler<T>(
 }
 
 /**
+ * Options for body-carrying route handlers.
+ */
+interface BodyHandlerOptions {
+  /**
+   * Enforce this byte limit while READING the request body — an oversized
+   * payload is rejected with 413 before it is buffered or parsed, mirroring
+   * a backend-side MaxBytesReader bound.
+   */
+  maxBodyBytes?: number;
+}
+
+/**
  * Base route handler for requests with body (POST, PUT)
  */
 function createWithBodyHandler<T, B>(
   handler: WithBodyHandler<T, B>,
   formatResponse: ResponseFormatter<T>,
+  options?: BodyHandlerOptions,
 ) {
   return withTenantAuth(async (request, context): RouteHandlerResponse<T> => {
     try {
@@ -187,7 +200,7 @@ function createWithBodyHandler<T, B>(
       }
 
       const safeParams = await extractParams(request, context);
-      const body = await parseRequestBody<B>(request);
+      const body = await parseRequestBody<B>(request, options?.maxBodyBytes);
       const executeHandler = (token: string) =>
         handler(request, body, token, safeParams);
 
@@ -224,8 +237,9 @@ const formatBodyHandlerResponse = <T>(data: T) =>
  */
 export function createPostHandler<T, B = unknown>(
   handler: WithBodyHandler<T, B>,
+  options?: BodyHandlerOptions,
 ) {
-  return createWithBodyHandler(handler, formatBodyHandlerResponse);
+  return createWithBodyHandler(handler, formatBodyHandlerResponse, options);
 }
 
 /**

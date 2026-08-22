@@ -41,11 +41,16 @@ func NewCareScheduleChangeRequestRepository(db *bun.DB) schedule.CareScheduleCha
 // GetPendingForStudent returns the student's open request, or nil when none
 // exists. The partial unique index guarantees at most one.
 func (r *CareScheduleChangeRequestRepository) GetPendingForStudent(ctx context.Context, studentID int64) (*schedule.CareScheduleChangeRequest, error) {
+	return r.GetPendingForStudentAndKind(ctx, studentID, schedule.CareRequestKindWeeklySchedule)
+}
+
+func (r *CareScheduleChangeRequestRepository) GetPendingForStudentAndKind(ctx context.Context, studentID int64, requestKind string) (*schedule.CareScheduleChangeRequest, error) {
 	row := new(schedule.CareScheduleChangeRequest)
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(row).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
 		Where(`"care_schedule_change_request".student_id = ?`, studentID).
+		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
@@ -59,22 +64,76 @@ func (r *CareScheduleChangeRequestRepository) GetPendingForStudent(ctx context.C
 	return row, nil
 }
 
-// ListPendingForTenant returns every pending request for the current tenant
-// (resolved via RLS / the tenant filter), newest-first.
-func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.Context) ([]*schedule.CareScheduleChangeRequest, error) {
+// ListPendingForTenant returns the pending requests of BOTH kinds (weekly plan
+// and single-day pickup change) for the current tenant, newest submission
+// first, narrowed and paged by filters. One query rather than one per kind:
+// a keyset page has to be cut across the whole queue, not per kind.
+func (r *CareScheduleChangeRequestRepository) ListPendingForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
+	return r.listPending(ctx, nil, filters)
+}
+
+// ListPendingForTenantAndKind is ListPendingForTenant narrowed to one request
+// kind.
+func (r *CareScheduleChangeRequestRepository) ListPendingForTenantAndKind(ctx context.Context, requestKind string, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
+	return r.listPending(ctx, []string{requestKind}, filters)
+}
+
+func (r *CareScheduleChangeRequestRepository) listPending(ctx context.Context, kinds []string, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
 	var rows []*schedule.CareScheduleChangeRequest
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
 		Where(`"care_schedule_change_request".status = ?`, schedule.CareRequestStatusPending)
+	if len(kinds) > 0 {
+		query = query.Where(`"care_schedule_change_request".request_kind IN (?)`, bun.List(kinds))
+	}
 
 	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
-	query = query.
-		OrderExpr(`"care_schedule_change_request".created_at DESC`).
-		OrderExpr(`"care_schedule_change_request".id DESC`)
+	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filters)
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending care schedule change requests", Err: err}
+	}
+	return rows, nil
+}
+
+// ListDecidedForTenant returns the tenant's decided care-schedule requests
+// (approved, rejected, withdrawn) newest-decision-first via keyset pagination
+// on (updated_at, id). Every Decide stamps updated_at and decided rows are
+// terminal, so it is the decision instant (withdrawn rows carry no
+// reviewed_at). A zero BeforeInstant returns the first page.
+func (r *CareScheduleChangeRequestRepository) ListDecidedForTenant(ctx context.Context, filters modelBase.RequestQueueFilters) ([]*schedule.CareScheduleChangeRequest, error) {
+	var rows []*schedule.CareScheduleChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".status IN (?)`, bun.List([]string{
+			schedule.CareRequestStatusApproved,
+			schedule.CareRequestStatusRejected,
+			schedule.CareRequestStatusWithdrawn,
+		}))
+
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	query = base.ApplyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filters)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list decided care schedule change requests", Err: err}
+	}
+	return rows, nil
+}
+
+func (r *CareScheduleChangeRequestRepository) ListRecentForStudentAndKind(ctx context.Context, studentID int64, requestKind string, since time.Time) ([]*schedule.CareScheduleChangeRequest, error) {
+	var rows []*schedule.CareScheduleChangeRequest
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Where(`"care_schedule_change_request".student_id = ?`, studentID).
+		Where(`"care_schedule_change_request".request_kind = ?`, requestKind).
+		Where(`("care_schedule_change_request".status = ? OR "care_schedule_change_request".updated_at >= ?)`, schedule.CareRequestStatusPending, since)
+	query = base.WithTenantFilter(ctx, query, "care_schedule_change_request")
+	query = query.OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`)
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list recent care schedule change requests", Err: err}
 	}
 	return rows, nil
 }
@@ -162,6 +221,27 @@ func (r *CareScheduleChangeRequestRepository) Decide(ctx context.Context, id int
 		// No pending row with this id under the current tenant — already
 		// decided, withdrawn, or not found.
 		return ErrCareRequestNotPending
+	}
+	return nil
+}
+
+// UpdateDecisionSnapshot stores the frozen review diff on a decided row (ADR
+// 0002, #2430). Separate from Decide so the race-guarded transition keeps its
+// signature; callers write the snapshot in the same transaction.
+func (r *CareScheduleChangeRequestRepository) UpdateDecisionSnapshot(ctx context.Context, id int64, snapshot *schedule.CareRequestDecisionSnapshot) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*schedule.CareScheduleChangeRequest)(nil)).
+		ModelTableExpr(tableExprCareScheduleChangeRequestsAsReq).
+		Set("decision_snapshot = ?", snapshot).
+		Set("updated_at = ?", time.Now()).
+		Where(`"care_schedule_change_request".id = ?`, id)
+	q = base.WithTenantFilter(ctx, q, "care_schedule_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update care request decision snapshot", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return ErrCareRequestNotFound
 	}
 	return nil
 }

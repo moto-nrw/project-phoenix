@@ -46,6 +46,8 @@ func (s *existingSchulhofActivityService) ListGroups(context.Context, *base.Quer
 }
 
 func TestSchulhofActivityGroupRejectsLegacyNonCanonicalRoomBeforeExistingActivityReturn(t *testing.T) {
+	t.Parallel()
+
 	facilityService := &nonCanonicalSchulhofFacilityService{
 		room: &facilityModels.Room{Name: "schulhof", IsSystem: true},
 	}
@@ -65,6 +67,8 @@ func TestSchulhofActivityGroupRejectsLegacyNonCanonicalRoomBeforeExistingActivit
 }
 
 func TestSchulhofActivityGroupSelectsDedicatedActivityAmongSameNameActivities(t *testing.T) {
+	t.Parallel()
+
 	room := &facilityModels.Room{
 		Model:    base.Model{ID: 42},
 		Name:     constants.SchulhofRoomName,

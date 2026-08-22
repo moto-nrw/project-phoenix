@@ -3,6 +3,7 @@ package auth_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -20,24 +21,16 @@ import (
 )
 
 func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
-	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	const tenantID int64 = 9911
+	db, svc := testutil.SetupAPITest(t)
+
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	_, err := db.ExecContext(context.Background(),
 		`UPDATE platform.schools SET hidden = true WHERE id = ?`, tenantID)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(),
-			`UPDATE platform.schools SET hidden = false WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.schools WHERE id = ?`, tenantID)
-		_, _ = db.ExecContext(context.Background(),
-			`DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -46,7 +39,8 @@ func TestResolveTenant_HiddenSchoolReturnsHiddenFlag(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
 
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=t9911", nil)
+	req := httptest.NewRequest("GET",
+		fmt.Sprintf("/auth/tenant/resolve?slug=t%d", tenantID), nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 

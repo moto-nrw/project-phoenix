@@ -19,15 +19,15 @@ import (
 )
 
 func TestActivityService_GetStudentEnrollments_HidesGraduatedChild(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	service := setupActivityService(t, db)
 
 	group := testpkg.CreateTestActivityGroup(t, db, "alumnus-student-read")
 	student := testpkg.CreateTestStudent(t, db, "Read", "Graduate", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID)
 
 	require.NoError(t, service.EnrollStudent(ctx, group.ID, student.ID))
 

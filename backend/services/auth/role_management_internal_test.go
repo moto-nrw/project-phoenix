@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,11 +204,11 @@ type roleManagementTokenRepo struct {
 	deleteByAccountIDFn func(context.Context, int64) error
 }
 
-func (r roleManagementTokenRepo) DeleteByAccountID(ctx context.Context, accountID int64) error {
+func (r roleManagementTokenRepo) DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
 	if r.deleteByAccountIDFn != nil {
-		return r.deleteByAccountIDFn(ctx, accountID)
+		return nil, r.deleteByAccountIDFn(ctx, accountID)
 	}
-	return nil
+	return nil, nil
 }
 
 func newRoleManagementService(
@@ -217,6 +218,27 @@ func newRoleManagementService(
 	rolePermissionRepo authModel.RolePermissionRepository,
 	tokenRepo authModel.TokenRepository,
 ) *Service {
+	svc, _, _, _ := newRoleManagementServiceWithIdentity(
+		roleRepo, accountRepo, accountRoleRepo, rolePermissionRepo, tokenRepo)
+	return svc
+}
+
+// newRoleManagementServiceWithIdentity additionally exposes the identity
+// repositories. Assigning a staff-tier role provisions the school identity in
+// the same transaction (#2222), so these are reached on every assign; with no
+// person for the account the provisioning is a no-op, which is what keeps the
+// cases above about role assignment alone.
+func newRoleManagementServiceWithIdentity(
+	roleRepo authModel.RoleRepository,
+	accountRepo authModel.AccountRepository,
+	accountRoleRepo authModel.AccountRoleRepository,
+	rolePermissionRepo authModel.RolePermissionRepository,
+	tokenRepo authModel.TokenRepository,
+) (*Service, *stubPersonRepository, func() []*userModel.Staff, *stubTeacherRepository) {
+	persons := newStubPersonRepository()
+	staff, staffAll := newStubStaffRepository()
+	teachers := newStubTeacherRepository()
+
 	return &Service{
 		repos: &repositories.Factory{
 			Role:           roleRepo,
@@ -224,12 +246,18 @@ func newRoleManagementService(
 			AccountRole:    accountRoleRepo,
 			RolePermission: rolePermissionRepo,
 			Token:          tokenRepo,
+			Person:         persons,
+			Staff:          staff,
+			Teacher:        teachers,
+			Student:        newStubStudentRepository(),
 		},
 		logger: slog.Default(),
-	}
+	}, persons, staffAll, teachers
 }
 
 func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns mapped role names", func(t *testing.T) {
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{
@@ -271,6 +299,8 @@ func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
 }
 
 func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns mapped avatar paths", func(t *testing.T) {
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{},
@@ -312,6 +342,8 @@ func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
 }
 
 func TestRoleManagement_UpdateRole_ReturnsNotFoundOnLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	svc := newRoleManagementService(
 		roleManagementRoleRepo{
 			findByIDFn: func(context.Context, interface{}) (*authModel.Role, error) {
@@ -330,6 +362,8 @@ func TestRoleManagement_UpdateRole_ReturnsNotFoundOnLookupFailure(t *testing.T) 
 }
 
 func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) {
+	t.Parallel()
+
 	baseRoleRepo := roleManagementRoleRepo{
 		findByIDFn: func(context.Context, interface{}) (*authModel.Role, error) {
 			return &authModel.Role{Model: base.Model{ID: 77}}, nil
@@ -401,6 +435,8 @@ func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) 
 }
 
 func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ListRoles wraps repository failures", func(t *testing.T) {
 		expectedErr := errors.New("list failed")
 		svc := newRoleManagementService(
@@ -443,6 +479,8 @@ func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
 }
 
 func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 9)
 	account := &authModel.Account{Model: base.Model{ID: 12}}
 	role := &authModel.Role{Model: base.Model{ID: 34}}
@@ -577,5 +615,99 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 		err := svc.RemoveRoleFromAccount(context.Background(), 12, 34)
 		require.NoError(t, err)
 		assert.Equal(t, int64(12), revokedAccountID)
+	})
+}
+
+// Handing a staff-tier role to an account is the same act as inviting one, and
+// owes the same identity (#2222). Without this the tenant RBAC endpoint is a
+// further way to produce the broken state: an account that holds the role, logs
+// in, and is not staff as far as the database is concerned.
+func TestRoleManagement_AssignRoleProvisionsSchoolIdentity(t *testing.T) {
+	t.Parallel()
+
+	ctx := tenant.WithTenantID(context.Background(), 9)
+	account := &authModel.Account{Model: base.Model{ID: 12}}
+	tenantID := int64(9)
+
+	newEnv := func(role *authModel.Role) (*Service, *stubPersonRepository, func() []*userModel.Staff, *stubTeacherRepository) {
+		return newRoleManagementServiceWithIdentity(
+			roleManagementRoleRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModel.Role, error) {
+					return role, nil
+				},
+			},
+			roleManagementAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModel.Account, error) {
+					return account, nil
+				},
+			},
+			roleManagementAccountRoleRepo{
+				findByAccountAndRoleFn: func(context.Context, int64, int64) (*authModel.AccountRole, error) {
+					return nil, sql.ErrNoRows
+				},
+				createFn: func(context.Context, *authModel.AccountRole) error { return nil },
+			},
+			roleManagementRolePermissionRepo{},
+			roleManagementTokenRepo{},
+		)
+	}
+
+	seedPerson := func(t *testing.T, persons *stubPersonRepository) *userModel.Person {
+		t.Helper()
+		accountID := account.ID
+		person := &userModel.Person{FirstName: "Vorhandene", LastName: "Person", AccountID: &accountID}
+		person.SetTenantID(tenantID)
+		require.NoError(t, persons.Create(ctx, person))
+		return person
+	}
+
+	t.Run("custom caregiver-tier role gets staff record and caregiver profile", func(t *testing.T) {
+		tier := authModel.BaseRoleUser
+		role := &authModel.Role{Model: base.Model{ID: 34}, Name: "OGS-Kraft", BaseRole: &tier, TenantID: &tenantID}
+		svc, persons, staffAll, teachers := newEnv(role)
+		person := seedPerson(t, persons)
+
+		require.NoError(t, svc.AssignRoleToAccount(ctx, 12, 34))
+
+		require.Len(t, staffAll(), 1, "a staff-tier role owes a staff record")
+		assert.Equal(t, person.ID, staffAll()[0].PersonID)
+		require.Len(t, teachers.All(), 1, "caregiver tier reads through users.teachers")
+	})
+
+	t.Run("custom admin-tier role gets a staff record without a caregiver profile", func(t *testing.T) {
+		tier := authModel.BaseRoleAdmin
+		role := &authModel.Role{Model: base.Model{ID: 34}, Name: "OGS-Leitung", BaseRole: &tier, TenantID: &tenantID}
+		svc, persons, staffAll, teachers := newEnv(role)
+		seedPerson(t, persons)
+
+		require.NoError(t, svc.AssignRoleToAccount(ctx, 12, 34))
+
+		require.Len(t, staffAll(), 1)
+		require.Empty(t, teachers.All())
+	})
+
+	t.Run("guardian-tier role provisions nothing", func(t *testing.T) {
+		tier := authModel.BaseRoleGuardian
+		role := &authModel.Role{Model: base.Model{ID: 34}, Name: "Sorgeberechtigt", BaseRole: &tier, TenantID: &tenantID}
+		svc, persons, staffAll, teachers := newEnv(role)
+		seedPerson(t, persons)
+
+		require.NoError(t, svc.AssignRoleToAccount(ctx, 12, 34))
+
+		require.Empty(t, staffAll(), "guardians are deliberately not personnel")
+		require.Empty(t, teachers.All())
+	})
+
+	// The endpoint carries no identity fields, so it must not invent a person —
+	// the same line the operator role change draws. The assignment still stands.
+	t.Run("account without a person at this school is left alone", func(t *testing.T) {
+		tier := authModel.BaseRoleAdmin
+		role := &authModel.Role{Model: base.Model{ID: 34}, Name: "OGS-Leitung", BaseRole: &tier, TenantID: &tenantID}
+		svc, persons, staffAll, _ := newEnv(role)
+
+		require.NoError(t, svc.AssignRoleToAccount(ctx, 12, 34))
+
+		require.Empty(t, persons.people, "a role assignment may not conjure an identity")
+		require.Empty(t, staffAll())
 	})
 }

@@ -60,6 +60,9 @@ describe("timetable operation mappers", () => {
       isPrimary: true,
       isSubstitute: false,
       isAbsent: false,
+      canStart: false,
+      startAvailableAt: "",
+      startExpiresAt: "",
       rosterPreview: [
         {
           studentId: "420",
@@ -75,6 +78,7 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           checkedOutAt: null,
+          parallelPresentIn: null,
           visitEntryTime: null,
           warnings: [],
           careDayStatus: "unknown",
@@ -132,6 +136,11 @@ describe("timetable operation mappers", () => {
         activeGroupId: "221",
         roomId: "222",
         roomName: null,
+        date: "",
+        startTime: "",
+        endTime: "",
+        canComplete: false,
+        completeAvailableAt: "",
       },
       rows: [
         {
@@ -151,6 +160,7 @@ describe("timetable operation mappers", () => {
           visitEntryTime: "2026-05-10T12:01:00Z",
           warnings: [],
           careDayStatus: "unknown",
+          parallelPresentIn: null,
         },
         {
           studentId: "421",
@@ -166,11 +176,13 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           checkedOutAt: null,
+          parallelPresentIn: null,
           visitEntryTime: null,
           warnings: [],
           careDayStatus: "unknown",
         },
       ],
+      movedFrom: null,
     });
   });
 
@@ -209,6 +221,9 @@ describe("timetable operation mappers", () => {
       isPrimary: false,
       isSubstitute: false,
       isAbsent: false,
+      canStart: false,
+      startAvailableAt: "",
+      startExpiresAt: "",
       rosterPreview: [],
     });
   });
@@ -317,6 +332,11 @@ describe("timetable operation mappers", () => {
         isSpontaneous: false,
         roomId: "224",
         roomName: "Raum B",
+        date: "",
+        startTime: "",
+        endTime: "",
+        canComplete: false,
+        completeAvailableAt: "",
       },
       rows: [
         {
@@ -333,11 +353,13 @@ describe("timetable operation mappers", () => {
           note: null,
           checkedInAt: null,
           checkedOutAt: null,
+          parallelPresentIn: null,
           visitEntryTime: null,
           warnings: [],
           careDayStatus: "unknown",
         },
       ],
+      movedFrom: null,
     });
   });
 

@@ -61,6 +61,7 @@ type InvitationServiceConfig struct {
 	PersonRepo        userModels.PersonRepository
 	StaffRepo         userModels.StaffRepository
 	TeacherRepo       userModels.TeacherRepository
+	StudentRepo       userModels.StudentRepository
 	SchoolRepo        platformModels.SchoolRepository
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
@@ -86,6 +87,7 @@ type invitationService struct {
 	personRepo        userModels.PersonRepository
 	staffRepo         userModels.StaffRepository
 	teacherRepo       userModels.TeacherRepository
+	studentRepo       userModels.StudentRepository
 	schoolRepo        platformModels.SchoolRepository
 	dispatcher        *email.Dispatcher
 	frontendURL       string
@@ -123,6 +125,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		personRepo:        config.PersonRepo,
 		staffRepo:         config.StaffRepo,
 		teacherRepo:       config.TeacherRepo,
+		studentRepo:       config.StudentRepo,
 		schoolRepo:        config.SchoolRepo,
 		dispatcher:        dispatcher,
 		frontendURL:       trimmedFrontend,
@@ -442,18 +445,9 @@ func (s *invitationService) createAccountWithRole(
 	passwordHash, firstName, lastName string,
 	existingAccount *authModels.Account,
 ) (*authModels.Account, error) {
-	person, err := s.createPerson(ctx, firstName, lastName, invitation.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
 	account, err := s.createOrUpdateAccount(ctx, invitation.Email, passwordHash, existingAccount)
 	if err != nil {
 		return nil, err
-	}
-
-	if err := s.personRepo.LinkToAccount(ctx, person.ID, account.ID); err != nil {
-		return nil, &AuthError{Op: "link person to account", Err: err}
 	}
 
 	if err := s.createAccountTenant(ctx, account.ID, invitation.TenantID); err != nil {
@@ -472,7 +466,7 @@ func (s *invitationService) createAccountWithRole(
 		return nil, err
 	}
 
-	if err := s.createStaffAndTeacherIfSystemRole(ctx, person.ID, invitation); err != nil {
+	if err := s.provisionSchoolIdentity(ctx, account.ID, firstName, lastName, invitation); err != nil {
 		return nil, err
 	}
 
@@ -560,20 +554,6 @@ func (s *invitationService) ensureInvitationTargetAllowed(ctx context.Context, e
 	return nil
 }
 
-// createPerson creates a new person record with the given tenant ID.
-// tenantID is passed explicitly because invitation acceptance is a public route.
-func (s *invitationService) createPerson(ctx context.Context, firstName, lastName string, tenantID int64) (*userModels.Person, error) {
-	person := &userModels.Person{
-		FirstName: firstName,
-		LastName:  lastName,
-	}
-	person.SetTenantID(tenantID)
-	if err := s.personRepo.Create(ctx, person); err != nil {
-		return nil, &AuthError{Op: "create person", Err: err}
-	}
-	return person, nil
-}
-
 // createAccount creates a new account record.
 func (s *invitationService) createAccount(ctx context.Context, email, passwordHash string) (*authModels.Account, error) {
 	account := &authModels.Account{
@@ -633,7 +613,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	if role == nil {
 		return &AuthError{Op: "assign caregiver role", Err: fmt.Errorf("role not found")}
 	}
-	if shouldCreateTeacherForRole(role.Name) {
+	if IsPlatformCaregiverRole(role) {
 		return nil
 	}
 	// Defense in depth for tokens minted before the creation-side check
@@ -676,49 +656,56 @@ func ResolveSystemRoleByName(ctx context.Context, repo authModels.RoleRepository
 	return nil, nil
 }
 
-// createStaffAndTeacherIfSystemRole creates staff and teacher records for system roles.
-func (s *invitationService) createStaffAndTeacherIfSystemRole(
+// provisionSchoolIdentity gives the invited account the person, staff and (for
+// caregiver roles) teacher records it needs to be usable at the school.
+//
+// This used to run only for platform roles, which left an account invited with
+// a school's own role holding a person and nothing else (#2222). Who is
+// personnel is decided by role tier now, in one place, for every flow that
+// grants school access.
+//
+// A failed role lookup is an error, not a reason to skip: skipping produces
+// exactly the broken half-state, silently.
+func (s *invitationService) provisionSchoolIdentity(
 	ctx context.Context,
-	personID int64,
+	accountID int64,
+	firstName, lastName string,
 	invitation *authModels.InvitationToken,
 ) error {
 	role, err := s.roleRepo.FindByID(ctx, invitation.RoleID)
-	if err != nil || role == nil || !role.IsSystem {
-		return nil // Not a system role or error looking up - skip staff/teacher creation
+	if err != nil {
+		return &AuthError{Op: "provision school identity", Err: err}
+	}
+	if role == nil {
+		return &AuthError{Op: "provision school identity", Err: ErrRoleNotAssignable}
 	}
 
-	staff := &userModels.Staff{PersonID: personID}
-	staff.SetTenantID(invitation.TenantID)
-	if err := s.staffRepo.Create(ctx, staff); err != nil {
-		return &AuthError{Op: "create staff", Err: err}
-	}
-
-	// A Lehrkraft never gets a caregiver profile, caregiver_enabled or not —
-	// same invariant as assignCaregiverRoleIfRequested (#1772).
-	caregiverUpgrade := invitation.CaregiverEnabled && !IsLehrkraftSystemRole(role)
-	if !shouldCreateTeacherForRole(role.Name) && !caregiverUpgrade {
-		return nil
-	}
-
-	teacher := &userModels.Teacher{StaffID: staff.ID}
-	teacher.SetTenantID(invitation.TenantID)
+	var position string
 	if invitation.Position != nil {
-		teacher.Role = *invitation.Position
-	}
-	if err := s.teacherRepo.Create(ctx, teacher); err != nil {
-		return &AuthError{Op: "create teacher", Err: err}
+		position = *invitation.Position
 	}
 
+	_, err = EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
+		Persons:  s.personRepo,
+		Staff:    s.staffRepo,
+		Teachers: s.teacherRepo,
+		Students: s.studentRepo,
+	}, SchoolIdentityInput{
+		AccountID: accountID,
+		TenantID:  invitation.TenantID,
+		Role:      role,
+		FirstName: firstName,
+		LastName:  lastName,
+		Position:  position,
+		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or not —
+		// same invariant as assignCaregiverRoleIfRequested (#1772).
+		CaregiverUpgrade: invitation.CaregiverEnabled && !IsLehrkraftSystemRole(role),
+		CreatePerson:     true,
+	})
+	if err != nil {
+		return &AuthError{Op: "provision school identity", Err: err}
+	}
 	return nil
-}
-
-func shouldCreateTeacherForRole(roleName string) bool {
-	switch strings.ToLower(strings.TrimSpace(roleName)) {
-	case "user", "teacher":
-		return true
-	default:
-		return false
-	}
 }
 
 // ResendInvitation queues another email for an existing invitation if it is still valid.

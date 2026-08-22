@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import {
   useCallback,
   type CSSProperties,
@@ -15,6 +15,8 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
+import { cn } from "~/lib/utils";
+
 export interface ListboxDropdownOption<K extends string> {
   readonly value: K;
   readonly label: string;
@@ -24,7 +26,19 @@ export interface ListboxDropdownOption<K extends string> {
 interface ListboxDropdownProps<K extends string> {
   readonly value: K;
   readonly options: readonly ListboxDropdownOption<K>[];
+  /**
+   * Called with the option the user activated. In multi mode (see
+   * {@link ListboxDropdownProps.selectedValues}) this is a TOGGLE — the caller
+   * adds or removes the value from its own selection.
+   */
   readonly onChange: (next: K) => void;
+  /**
+   * Turns the listbox into a multi-select: options render as checkable rows,
+   * activating one toggles it and keeps the menu open, and the list announces
+   * itself as multi-selectable. `value` still anchors keyboard focus (pass the
+   * first selected value, or "" for none). Undefined = single select.
+   */
+  readonly selectedValues?: readonly K[];
   readonly id?: string;
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
@@ -62,6 +76,38 @@ interface ListboxDropdownProps<K extends string> {
     selectedLabel: string;
     open: boolean;
   }) => ReactNode;
+  /**
+   * Controlled open state. Omit to let the listbox own it; pass it when the
+   * caller has to close the menu itself after an action of its own (adding an
+   * entry, saving a name).
+   */
+  readonly open?: boolean;
+  readonly onOpenChange?: (open: boolean) => void;
+  /**
+   * Renders a filter field at the top of the menu. The caller owns the text
+   * and passes the options it has already filtered — the same text usually
+   * means something to the caller too (the name of an entry to add), so the
+   * listbox must not keep it to itself. Typeahead switches off while the field
+   * is there: it would fight the field for the same keystrokes.
+   */
+  readonly searchValue?: string;
+  readonly onSearchChange?: (value: string) => void;
+  readonly searchPlaceholder?: string;
+  /** Keys the search field does not use itself (Enter and the like). */
+  readonly onSearchKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /** Slot between the search field and the option list. */
+  readonly menuHeader?: ReactNode;
+  /** Slot under the option list, e.g. a row that adds the typed name. */
+  readonly menuFooter?: ReactNode;
+  /** Classes for the scrollable option list in search/slot mode. */
+  readonly listClassName?: string;
+  /**
+   * Controls rendered next to an option, OUTSIDE its button — a button inside
+   * a button is invalid, and the row must stay one option to a screen reader.
+   */
+  readonly renderOptionActions?: (
+    option: ListboxDropdownOption<K>,
+  ) => ReactNode;
 }
 
 const TYPEAHEAD_RESET_MS = 500;
@@ -152,6 +198,7 @@ export function ListboxDropdown<K extends string>({
   value,
   options,
   onChange,
+  selectedValues,
   id,
   ariaLabel,
   ariaLabelledBy,
@@ -174,12 +221,24 @@ export function ListboxDropdown<K extends string>({
   triggerRole = "button",
   testId,
   renderTrigger,
+  open: openProp,
+  onOpenChange,
+  searchValue,
+  onSearchChange,
+  searchPlaceholder = "Suchen",
+  onSearchKeyDown,
+  menuHeader,
+  menuFooter,
+  listClassName = "",
+  renderOptionActions,
 }: ListboxDropdownProps<K>) {
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLUListElement>(null);
+  // The outermost portaled node: the option list itself, or the panel wrapping
+  // it once a search field or a slot is in play.
+  const menuRef = useRef<HTMLElement | null>(null);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const typeaheadBufferRef = useRef("");
   const typeaheadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,12 +259,28 @@ export function ListboxDropdown<K extends string>({
   // do not re-scroll after a suppressed hover focus move.
   const lastScrollFocusIndexRef = useRef<number | null>(null);
   const lastScrollMenuStyleRef = useRef<CSSProperties | null>(null);
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (openProp === undefined) setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [onOpenChange, openProp],
+  );
+  const searchable = onSearchChange !== undefined;
+  const searchRef = useRef<HTMLInputElement>(null);
+  // Which half of the menu owns focus while a search field is present: the
+  // field until an arrow key steps into the list, so typing keeps landing in
+  // the field instead of being swallowed by an option.
+  const [optionsFocused, setOptionsFocused] = useState(false);
   const [menuStyle, setMenuStyle] = useState<CSSProperties | null>(null);
   const selectedIndex = selectedIndexForValue(options, value);
   const [focusIndex, setFocusIndex] = useState(selectedIndex);
   const selectedOption = options.find((option) => option.value === value);
   const selectedLabel = selectedOption?.label ?? placeholder;
+  const isMulti = selectedValues !== undefined;
+  const selectedValueSet = new Set<string>(selectedValues ?? []);
   const portalContainer =
     typeof document === "undefined"
       ? null
@@ -225,7 +300,7 @@ export function ListboxDropdown<K extends string>({
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  }, [open, setOpen]);
 
   const updateMenuPosition = useCallback(() => {
     const trigger = buttonRef.current;
@@ -337,7 +412,17 @@ export function ListboxDropdown<K extends string>({
     const option = optionRefs.current[focusIndex];
     // preventScroll: native focus scrolling would still jump the list on hover
     // even when we skip the explicit scrollIntoView below.
-    option?.focus({ preventScroll: true });
+    if (searchable && !optionsFocused) {
+      // Only pull focus INTO the menu, never around inside it: a slot may own
+      // focus (the rename field of the Abwesenheitsart select), and re-running
+      // this effect must not yank it back to the search field mid-edit.
+      const active = document.activeElement;
+      const insideMenu =
+        active instanceof Node && menuRef.current?.contains(active);
+      if (!insideMenu) searchRef.current?.focus({ preventScroll: true });
+    } else {
+      option?.focus({ preventScroll: true });
+    }
     // A long list (the calendar's 101 years) otherwise opens scrolled to the
     // top, with the current value off-screen. This waits for menuStyle, because
     // the maxHeight it carries is what makes the menu scrollable at all —
@@ -373,7 +458,12 @@ export function ListboxDropdown<K extends string>({
     }
 
     option?.scrollIntoView({ block: "nearest" });
-  }, [open, focusIndex, menuStyle]);
+  }, [open, focusIndex, menuStyle, optionsFocused, searchable]);
+
+  // Every fresh opening starts in the search field again.
+  useEffect(() => {
+    if (!open) setOptionsFocused(false);
+  }, [open]);
 
   const resetTypeahead = useCallback(() => {
     typeaheadBufferRef.current = "";
@@ -392,16 +482,19 @@ export function ListboxDropdown<K extends string>({
   const closeAndReturnFocus = useCallback(() => {
     setOpen(false);
     buttonRef.current?.focus();
-  }, []);
+  }, [setOpen]);
 
   const selectAt = useCallback(
     (index: number) => {
       const option = options[index];
       if (!option || option.disabled) return;
       onChange(option.value);
+      // A multi-select stays open: picking a second class without reopening
+      // the menu is the whole point of the mode.
+      if (isMulti) return;
       closeAndReturnFocus();
     },
-    [closeAndReturnFocus, onChange, options],
+    [closeAndReturnFocus, isMulti, onChange, options],
   );
 
   const markOpenScrollTo = (index: number) => {
@@ -419,6 +512,9 @@ export function ListboxDropdown<K extends string>({
   const handleTypeaheadKey = (
     event: KeyboardEvent<HTMLButtonElement>,
   ): boolean => {
+    // A search field IS the type-to-find affordance; running both would give
+    // one keystroke two meanings.
+    if (searchable) return false;
     const { key } = event;
     if (key.length !== 1 || event.ctrlKey || event.metaKey || event.altKey) {
       return false;
@@ -508,6 +604,38 @@ export function ListboxDropdown<K extends string>({
     }
   };
 
+  const moveFocus = (direction: 1 | -1) => {
+    suppressFocusScrollRef.current = false;
+    setOptionsFocused(true);
+    setFocusIndex((prev) => nextEnabledIndex(options, prev, direction));
+  };
+
+  const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      // Stepping out of the field moves on from the current choice, exactly
+      // like the arrow keys do inside the list. With nothing chosen there is
+      // nothing to move on from, so the first step lands on the first option
+      // instead of skipping it.
+      if (!optionsFocused && selectedOption === undefined) {
+        suppressFocusScrollRef.current = false;
+        setOptionsFocused(true);
+        setFocusIndex(firstEnabledIndex(options));
+        return;
+      }
+      moveFocus(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      event.nativeEvent.stopImmediatePropagation();
+      closeAndReturnFocus();
+      return;
+    }
+    onSearchKeyDown?.(event);
+  };
+
   const handleOptionKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (handleTypeaheadKey(event)) return;
     switch (event.key) {
@@ -557,6 +685,131 @@ export function ListboxDropdown<K extends string>({
     }
   };
 
+  const hasPanel =
+    searchable || menuHeader !== undefined || menuFooter !== undefined;
+
+  // The option list itself. It is the whole menu for a plain select, and the
+  // middle of the panel once a search field or a slot joins it.
+  const optionList = (
+    <ul
+      ref={(node) => {
+        if (!hasPanel) menuRef.current = node;
+      }}
+      id={listboxId}
+      role="listbox"
+      aria-multiselectable={isMulti || undefined}
+      style={
+        hasPanel
+          ? undefined
+          : (menuStyle ?? { position: "fixed", visibility: "hidden" })
+      }
+      className={hasPanel ? `min-h-0 flex-1 ${listClassName}` : menuClassName}
+      // The menu is portaled to document.body, so it sits OUTSIDE the
+      // modal's [data-modal-content] subtree. useScrollLock cancels every
+      // wheel/touchmove outside that subtree, which would make an open
+      // menu inside a scroll-locked modal impossible to scroll. Marking
+      // the menu as modal content whitelists it in the scroll-lock
+      // predicate so its own options can be reached.
+      data-modal-content="true"
+      // Vaul/Radix dismiss the dialog on a pointerdown whose target is
+      // outside the dialog content node. This menu is portaled to
+      // document.body, so it is NOT inside that node — without this
+      // guard the first press on an option reads as an outside
+      // interaction and closes the drawer BEFORE the option's click can
+      // select a value. Stopping propagation keeps the press from
+      // reaching the document-level dismissal listeners; the option's
+      // own onClick still fires. The internal outside-press handler
+      // guards with menuRef.contains, so it is unaffected.
+      onPointerDown={(event) => event.stopPropagation()}
+      onMouseDown={(event) => event.stopPropagation()}
+      aria-label={ariaLabel}
+      // Points at the field's label element, never at the trigger: a
+      // combobox referenced via aria-labelledby contributes its VALUE
+      // (accname step 2E), which would name the popup after the current
+      // selection instead of the field.
+      aria-labelledby={ariaLabelledBy}
+    >
+      {options.map((option, index) => {
+        // In multi mode "active" means "checked"; the single-select
+        // notion of one current value does not apply.
+        const isActive = isMulti
+          ? selectedValueSet.has(option.value)
+          : option.value === value;
+        const isFocused = index === focusIndex;
+        const actions = renderOptionActions?.(option);
+        return (
+          // The option role lives on the inner button; the list item
+          // is pure structure and must not surface in the a11y tree.
+          <li
+            key={option.value}
+            role="presentation"
+            className={actions ? "flex items-center gap-1" : undefined}
+          >
+            <button
+              ref={(el) => {
+                optionRefs.current[index] = el;
+              }}
+              id={`${listboxId}-option-${index}`}
+              type="button"
+              role="option"
+              aria-label={option.label}
+              aria-selected={isActive}
+              aria-disabled={option.disabled || undefined}
+              disabled={option.disabled}
+              tabIndex={isFocused ? 0 : -1}
+              onClick={() => selectAt(index)}
+              onKeyDown={handleOptionKeyDown}
+              onMouseEnter={() => {
+                if (option.disabled) return;
+                suppressFocusScrollRef.current = true;
+                setFocusIndex(index);
+              }}
+              // cn, not a template literal: the class list needs a real
+              // separator, and Prettier's Tailwind plugin strips a leading
+              // space inside the appended string — which silently glued
+              // "text-gray-700" and "min-w-0" together before.
+              className={cn(
+                option.disabled
+                  ? disabledOptionClassName
+                  : isActive || isFocused
+                    ? activeOptionClassName
+                    : optionClassName,
+                actions && "min-w-0 flex-1",
+              )}
+            >
+              {isMulti ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+                      isActive
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-300 bg-white"
+                    }`}
+                  >
+                    {isActive ? <Check className="h-3 w-3" /> : null}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {option.label}
+                  </span>
+                </>
+              ) : (
+                // The label must be able to shrink and clip whether or not the
+                // row carries actions: as a bare flex child its min-width stays
+                // auto, so one long custom name widens the option past the menu
+                // and scrolls the list sideways on narrow viewports.
+                <span className="min-w-0 flex-1 truncate" title={option.label}>
+                  {option.label}
+                </span>
+              )}
+            </button>
+            {actions}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   return (
     <div
       ref={(node) => {
@@ -576,7 +829,7 @@ export function ListboxDropdown<K extends string>({
           // Ref write stays outside setOpen — React may re-run functional
           // updaters, so side effects inside them are invalid (react-doctor).
           if (!open) markOpenScrollTo(selectedIndex);
-          setOpen((prev) => !prev);
+          setOpen(!open);
           setFocusIndex(selectedIndex);
         }}
         onKeyDown={handleTriggerKeyDown}
@@ -608,8 +861,11 @@ export function ListboxDropdown<K extends string>({
           renderTrigger({ selectedLabel, open })
         ) : (
           <>
-            <span>{selectedLabel}</span>
-            <ChevronDown className="h-4 w-4 text-gray-400" aria-hidden />
+            <span className="min-w-0 truncate">{selectedLabel}</span>
+            <ChevronDown
+              className="h-4 w-4 shrink-0 text-gray-400"
+              aria-hidden
+            />
           </>
         )}
       </button>
@@ -618,76 +874,51 @@ export function ListboxDropdown<K extends string>({
           // ancestors cannot clip them. Calendar navigation instead supplies its
           // own fixed panel as the portal scope to stay inside that FocusScope.
           createPortal(
-            <ul
-              ref={menuRef}
-              id={listboxId}
-              role="listbox"
-              style={menuStyle ?? { position: "fixed", visibility: "hidden" }}
-              className={menuClassName}
-              // The menu is portaled to document.body, so it sits OUTSIDE the
-              // modal's [data-modal-content] subtree. useScrollLock cancels every
-              // wheel/touchmove outside that subtree, which would make an open
-              // menu inside a scroll-locked modal impossible to scroll. Marking
-              // the menu as modal content whitelists it in the scroll-lock
-              // predicate so its own options can be reached.
-              data-modal-content="true"
-              // Vaul/Radix dismiss the dialog on a pointerdown whose target is
-              // outside the dialog content node. This menu is portaled to
-              // document.body, so it is NOT inside that node — without this
-              // guard the first press on an option reads as an outside
-              // interaction and closes the drawer BEFORE the option's click can
-              // select a value. Stopping propagation keeps the press from
-              // reaching the document-level dismissal listeners; the option's
-              // own onClick still fires. The internal outside-press handler
-              // guards with menuRef.contains, so it is unaffected.
-              onPointerDown={(event) => event.stopPropagation()}
-              onMouseDown={(event) => event.stopPropagation()}
-              aria-label={ariaLabel}
-              // Points at the field's label element, never at the trigger: a
-              // combobox referenced via aria-labelledby contributes its VALUE
-              // (accname step 2E), which would name the popup after the current
-              // selection instead of the field.
-              aria-labelledby={ariaLabelledBy}
-            >
-              {options.map((option, index) => {
-                const isActive = option.value === value;
-                const isFocused = index === focusIndex;
-                return (
-                  // The option role lives on the inner button; the list item
-                  // is pure structure and must not surface in the a11y tree.
-                  <li key={option.value} role="presentation">
-                    <button
-                      ref={(el) => {
-                        optionRefs.current[index] = el;
-                      }}
-                      id={`${listboxId}-option-${index}`}
-                      type="button"
-                      role="option"
-                      aria-label={option.label}
-                      aria-selected={isActive}
-                      disabled={option.disabled}
-                      tabIndex={isFocused ? 0 : -1}
-                      onClick={() => selectAt(index)}
-                      onKeyDown={handleOptionKeyDown}
-                      onMouseEnter={() => {
-                        if (option.disabled) return;
-                        suppressFocusScrollRef.current = true;
-                        setFocusIndex(index);
-                      }}
-                      className={
-                        option.disabled
-                          ? disabledOptionClassName
-                          : isActive || isFocused
-                            ? activeOptionClassName
-                            : optionClassName
-                      }
-                    >
-                      {option.label}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>,
+            hasPanel ? (
+              <div
+                ref={(node) => {
+                  menuRef.current = node;
+                }}
+                style={{
+                  ...(menuStyle ?? { position: "fixed", visibility: "hidden" }),
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+                className={menuClassName}
+                data-modal-content="true"
+                // A pure container: the search field, the listbox and the slot
+                // content carry the semantics, this element only positions
+                // them and keeps the dismissal handlers off the dialog.
+                role="presentation"
+                onPointerDown={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                {searchable ? (
+                  <div className="relative p-2 pb-1">
+                    <Search
+                      aria-hidden="true"
+                      className="pointer-events-none absolute top-1/2 left-4.5 h-4 w-4 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      ref={searchRef}
+                      type="text"
+                      value={searchValue ?? ""}
+                      onChange={(event) => onSearchChange?.(event.target.value)}
+                      onKeyDown={handleSearchKeyDown}
+                      placeholder={searchPlaceholder}
+                      aria-label={searchPlaceholder}
+                      aria-controls={listboxId}
+                      className="h-9 w-full rounded-md border border-gray-200 bg-white pr-3 pl-8 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none"
+                    />
+                  </div>
+                ) : null}
+                {menuHeader}
+                {optionList}
+                {menuFooter}
+              </div>
+            ) : (
+              optionList
+            ),
             portalContainer,
           )
         : null}

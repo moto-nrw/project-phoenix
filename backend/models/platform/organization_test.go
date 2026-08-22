@@ -8,11 +8,15 @@ import (
 )
 
 func TestOrganization_Validate_Valid(t *testing.T) {
+	t.Parallel()
+
 	o := &Organization{Name: "Stadt Altenberge", Slug: "stadt-altenberge"}
 	assert.NoError(t, o.Validate())
 }
 
 func TestOrganization_Validate_EmptyName(t *testing.T) {
+	t.Parallel()
+
 	o := &Organization{Name: "", Slug: "test"}
 	err := o.Validate()
 	assert.Error(t, err)
@@ -20,6 +24,8 @@ func TestOrganization_Validate_EmptyName(t *testing.T) {
 }
 
 func TestOrganization_Validate_EmptySlug(t *testing.T) {
+	t.Parallel()
+
 	o := &Organization{Name: "Test", Slug: ""}
 	err := o.Validate()
 	assert.Error(t, err)
@@ -27,6 +33,8 @@ func TestOrganization_Validate_EmptySlug(t *testing.T) {
 }
 
 func TestOrganization_Validate_InvalidSlugFormat(t *testing.T) {
+	t.Parallel()
+
 	o := &Organization{Name: "Test", Slug: "UPPER_CASE"}
 	err := o.Validate()
 	assert.Error(t, err)
@@ -34,6 +42,8 @@ func TestOrganization_Validate_InvalidSlugFormat(t *testing.T) {
 }
 
 func TestOrganization_Validate_ReservedSlug(t *testing.T) {
+	t.Parallel()
+
 	for _, slug := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "help", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(slug, func(t *testing.T) {
 			o := &Organization{Name: "Test Org", Slug: slug}
@@ -45,6 +55,8 @@ func TestOrganization_Validate_ReservedSlug(t *testing.T) {
 }
 
 func TestOrganization_Validate_TrimsAndLowercases(t *testing.T) {
+	t.Parallel()
+
 	o := &Organization{Name: "  Test Org  ", Slug: "  My-Slug  "}
 	err := o.Validate()
 	assert.NoError(t, err)
@@ -53,6 +65,8 @@ func TestOrganization_Validate_TrimsAndLowercases(t *testing.T) {
 }
 
 func TestOrganization_IsDeleted(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns false when deleted_at is nil", func(t *testing.T) {
 		o := &Organization{Name: "Test", Slug: "test"}
 		assert.False(t, o.IsDeleted())

@@ -13,6 +13,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/services/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,8 +29,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 	// Register pool closure before fixture cleanups. testing.Cleanup runs in
 	// LIFO order, so groups/periods created later are deleted while the pool is
 	// still open instead of leaking into subsequent package tests.
-	t.Cleanup(func() { _ = db.Close() })
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewCareOfferingService(enrollmentService.CareOfferingServiceConfig{
 		Repo:                     repoFactory.CareOffering,
@@ -42,6 +42,7 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 		PhaseRepo:                repoFactory.Phase,
 		Logger:                   slog.Default(),
 	})
+	bindTestPickupResyncer(t, svc)
 
 	phase := &enrollmentModels.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
@@ -51,8 +52,8 @@ func setupCareTest(t *testing.T) (*bun.DB, enrollmentService.CareOfferingService
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	phase.SetTenantID(1)
-	ctx := testpkg.TenantContext(1)
+	phase.SetTenantID(testpkg.Tenant(t))
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, repoFactory.Phase.Create(ctx, phase))
 
 	cleanup := func() {
@@ -80,11 +81,8 @@ func createCareOfferingTestPeriod(t *testing.T, db *bun.DB, name string, start, 
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.TenantContext(1), period))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID)
-	})
+	period.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	return period
 }
 
@@ -101,23 +99,20 @@ func createCareOfferingTemplateGroup(t *testing.T, db *bun.DB, name string) *act
 		Type:            activitiesModels.GroupTypeCare,
 		IsTemplate:      true,
 	}
-	group.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).ActivityGroup.Create(testpkg.TenantContext(1), group))
+	group.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).ActivityGroup.Create(testpkg.Ctx(t), group))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
 			TableExpr("activities.schedules").
 			Where("activity_group_id = ?", group.ID).
 			Exec(context.Background())
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	})
 	return group
 }
 
 func createCareOfferingTemplateSchedule(t *testing.T, db *bun.DB, groupID int64, weekday int, periodID *int64) {
 	t.Helper()
-	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, 1, "CareTemplate")
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "CareTemplate")
 	schedule := &activitiesModels.Schedule{
 		Weekday:          weekday,
 		TimeframeID:      &timeframe.ID,
@@ -125,32 +120,94 @@ func createCareOfferingTemplateSchedule(t *testing.T, db *bun.DB, groupID int64,
 		WeekPattern:      0,
 		CalendarPeriodID: periodID,
 	}
-	schedule.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
+	schedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 }
 
-func baseLinkedOffering(phaseID int64, groupID int64) *enrollmentModels.CareOffering {
+func baseLinkedOffering(t *testing.T, phaseID int64, groupID int64) *enrollmentModels.CareOffering {
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:         phaseID,
 		ActivityGroupID: &groupID,
 		Name:            "Linked Template",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
+		PickupTimes:     map[string]string{"mon": "14:30"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	return offering
 }
 
-func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
-	db, svc, phase, cleanup := setupCareTest(t)
+func carePickupTimes(days ...string) map[string]string {
+	times := make(map[string]string, len(days))
+	for _, day := range days {
+		times[day] = "14:30"
+	}
+	return times
+}
+
+func bindTestPickupResyncer(
+	t *testing.T,
+	service enrollmentService.CareOfferingService,
+) *enrollmenttest.PickupResyncer {
+	t.Helper()
+	resyncer := &enrollmenttest.PickupResyncer{}
+	binder, ok := service.(enrollmentService.CareOfferingPickupResyncBinder)
+	require.True(t, ok)
+	binder.SetPickupResyncer(resyncer)
+	return resyncer
+}
+
+func TestCareOfferingService_Create_RequiresPickupTimesForActiveCareDays(t *testing.T) {
+	t.Parallel()
+
+	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	_ = db
-	ctx := testpkg.TenantContext(1)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID: phase.ID, Name: "Ohne Gehzeit", AvailableDays: []string{"mon"}, IsActive: true,
+	}
+	offering.SetTenantID(testpkg.Tenant(t))
+
+	_, err := svc.Create(testpkg.Ctx(t), offering)
+
+	require.ErrorIs(t, err, enrollmentModels.ErrCareOfferingPickupTimesRequired)
+}
+
+func TestCareOfferingService_Create_AllowsMissingPickupTimesOutsideActiveCare(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		active  bool
+		care    bool
+		careSet bool
+	}{
+		{name: "inactive", active: false},
+		{name: "not care", active: true, care: false, careSet: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, svc, phase, cleanup := setupCareTest(t)
+			defer cleanup()
+			offering := &enrollmentModels.CareOffering{
+				PhaseID: phase.ID, Name: tt.name, AvailableDays: []string{"mon"},
+				IsActive: tt.active, CountsAsCare: tt.care, CountsAsCareSet: tt.careSet,
+			}
+			offering.SetTenantID(testpkg.Tenant(t))
+
+			_, err := svc.Create(testpkg.Ctx(t), offering)
+
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
+	t.Parallel()
+
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:             phase.ID,
@@ -160,9 +217,10 @@ func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
 		IncludesHolidayCare: false,
 		IncludesLunch:       true,
 		IsActive:            true,
+		PickupTimes:         carePickupTimes("mon", "tue", "wed", "thu", "fri"),
 		SortOrder:           0,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 
 	created, err := svc.Create(ctx, offering)
 	require.NoError(t, err)
@@ -176,6 +234,8 @@ func TestCareOfferingService_Create_AndListByPhase(t *testing.T) {
 }
 
 func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T) {
+	t.Parallel()
+
 	db, _, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	repos := repositories.NewFactory(db)
@@ -195,12 +255,14 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 		},
 		Logger: slog.Default(),
 	})
-	ctx := testpkg.TenantContext(1)
+	bindTestPickupResyncer(t, svc)
+	ctx := testpkg.Ctx(t)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Recurrence-gated offering",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
 
@@ -214,18 +276,21 @@ func TestCareOfferingService_MutationsAcquireTemplateRecurrenceGate(t *testing.T
 }
 
 func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	active := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Aktiv",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
-	active.SetTenantID(1)
+	active.SetTenantID(testpkg.Tenant(t))
 	_, err := svc.Create(ctx, active)
 	require.NoError(t, err)
 
@@ -236,7 +301,7 @@ func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       false,
 	}
-	inactive.SetTenantID(1)
+	inactive.SetTenantID(testpkg.Tenant(t))
 	_, err = svc.Create(ctx, inactive)
 	require.NoError(t, err)
 
@@ -247,9 +312,11 @@ func TestCareOfferingService_ListActiveByPhase_FiltersInactive(t *testing.T) {
 }
 
 func TestCareOfferingService_GetByID_NotFoundSentinel(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
@@ -257,18 +324,21 @@ func TestCareOfferingService_GetByID_NotFoundSentinel(t *testing.T) {
 }
 
 func TestCareOfferingService_Update_AppliesChanges(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Original",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	created, err := svc.Create(ctx, offering)
 	require.NoError(t, err)
 
@@ -283,6 +353,8 @@ func TestCareOfferingService_Update_AppliesChanges(t *testing.T) {
 }
 
 func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 
@@ -292,7 +364,7 @@ func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
 	group := createCareOfferingTemplateGroup(t, db, "care-valid-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	created, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	created, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.NoError(t, err)
 	require.NotNil(t, created.ActivityGroupID)
@@ -300,9 +372,11 @@ func TestCareOfferingService_Create_ValidatesLinkedTemplate(t *testing.T) {
 }
 
 func TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := createCareOfferingTestPeriod(t, db, "care-template-fallback-period",
 		timezone.NewDate(2026, 8, 1),
@@ -312,16 +386,18 @@ func TestCareOfferingService_Create_UsesTemplateCalendarPeriodFallback(t *testin
 	require.NoError(t, repositories.NewFactory(db).ActivityGroup.Update(ctx, group))
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, nil)
 
-	created, err := svc.Create(ctx, baseLinkedOffering(phase.ID, group.ID))
+	created, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
 	require.NotNil(t, created.ActivityGroupID)
 	assert.Equal(t, group.ID, *created.ActivityGroupID)
 }
 
 func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	t.Cleanup(cleanup)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	rootPeriod := createCareOfferingTestPeriod(t, db, "care-series-root-period",
 		timezone.NewDate(2026, 8, 1),
@@ -343,23 +419,25 @@ func TestCareOfferingService_Create_RejectsIncompatibleSplitSeriesSegment(t *tes
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: root.ID,
 		ValidUntil: &boundary,
 	}
-	rootSchedule.SetTenantID(1)
+	rootSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, rootSchedule))
 	successorSchedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: successor.ID,
 		ValidFrom: &boundary,
 	}
-	successorSchedule.SetTenantID(1)
+	successorSchedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, successorSchedule))
 
-	_, err := svc.Create(ctx, baseLinkedOffering(phase.ID, root.ID))
+	_, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, root.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
 }
 
 func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	t.Cleanup(cleanup)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	period := createCareOfferingTestPeriod(t, db, "care-no-overlap-period",
 		timezone.NewDate(2026, 8, 1),
 		timezone.NewDate(2028, 8, 31))
@@ -372,14 +450,16 @@ func TestCareOfferingService_Create_RejectsTemplateOutsidePhaseWindow(t *testing
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 		ValidFrom: &startsAfterPhase,
 	}
-	schedule.SetTenantID(1)
+	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.ActivitySchedule.Create(ctx, schedule))
 
-	_, err := svc.Create(ctx, baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorContains(t, err, "no recurrence segment")
 }
 
 func TestCareOfferingService_Create_RejectsUnavailableOfferingWeekday(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "care-weekday-period",
@@ -387,28 +467,32 @@ func TestCareOfferingService_Create_RejectsUnavailableOfferingWeekday(t *testing
 	group := createCareOfferingTemplateGroup(t, db, "care-weekday-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayTuesday, &period.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "weekday")
 }
 
 func TestCareOfferingService_Create_RejectsAdvertisedDayAbsentFromShortPhase(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	phase.ServiceStartDate = timezone.NewDate(2026, time.April, 21) // Tuesday
 	phase.ServiceEndDate = timezone.NewDate(2026, time.April, 22)   // Wednesday
-	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.TenantContext(1), phase))
+	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.Ctx(t), phase))
 	period := createCareOfferingTestPeriod(t, db, "care-zero-occurrence-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-zero-occurrence-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "has no occurrence during the enrollment phase")
 }
 
 func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	anchor := timezone.NewDate(2026, time.August, 31) // Monday, week A
@@ -417,67 +501,64 @@ func TestCareOfferingService_Create_RequiresEveryABWeekOccurrence(t *testing.T) 
 		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
 		WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	repos := repositories.NewFactory(db)
-	require.NoError(t, repos.CalendarPeriod.Create(testpkg.TenantContext(1), period))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
+	require.NoError(t, repos.CalendarPeriod.Create(testpkg.Ctx(t), period))
 	group := createCareOfferingTemplateGroup(t, db, "care-ab-template")
-	weekATimeframe := testpkg.CreateTestTimeframeForTenant(t, db, 1, "Care AB A")
-	weekBTimeframe := testpkg.CreateTestTimeframeForTenant(t, db, 1, "Care AB B")
+	weekATimeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care AB A")
+	weekBTimeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care AB B")
 	weekA := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 		WeekPattern: 1, CalendarPeriodID: &period.ID, TimeframeID: &weekATimeframe.ID,
 	}
-	weekA.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), weekA))
-	offering := baseLinkedOffering(phase.ID, group.ID)
+	weekA.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), weekA))
+	offering := baseLinkedOffering(t, phase.ID, group.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), offering)
+	_, err := svc.Create(testpkg.Ctx(t), offering)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 
 	weekB := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 		WeekPattern: 2, CalendarPeriodID: &period.ID, TimeframeID: &weekBTimeframe.ID,
 	}
-	weekB.SetTenantID(1)
-	require.NoError(t, repos.ActivitySchedule.Create(testpkg.TenantContext(1), weekB))
+	weekB.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repos.ActivitySchedule.Create(testpkg.Ctx(t), weekB))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("activities.schedules").Where("activity_group_id = ?", group.ID).Exec(context.Background())
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", weekATimeframe.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", weekBTimeframe.ID)
 	})
-	_, err = svc.Create(testpkg.TenantContext(1), offering)
+	_, err = svc.Create(testpkg.Ctx(t), offering)
 	require.NoError(t, err, "complementary A/B rows cover every advertised Monday")
 }
 
 func TestCareOfferingService_Create_AllowsNonOccurrencePhaseBoundaries(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	phase.ServiceStartDate = timezone.NewDate(2026, time.April, 17) // Friday
 	phase.ServiceEndDate = timezone.NewDate(2026, time.April, 26)   // Sunday
-	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.TenantContext(1), phase))
+	require.NoError(t, repositories.NewFactory(db).Phase.Update(testpkg.Ctx(t), phase))
 	period := createCareOfferingTestPeriod(t, db, "care-boundary-period",
 		timezone.NewDate(2026, 4, 1), timezone.NewDate(2026, 4, 30))
 	group := createCareOfferingTemplateGroup(t, db, "care-boundary-template")
 	validFrom := timezone.NewDate(2026, time.April, 20)  // first Monday
 	validUntil := timezone.NewDate(2026, time.April, 21) // exclusive after it
-	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, 1, "Care boundary")
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, testpkg.Tenant(t), "Care boundary")
 	schedule := &activitiesModels.Schedule{
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 		CalendarPeriodID: &period.ID, TimeframeID: &timeframe.ID, ValidFrom: &validFrom, ValidUntil: &validUntil,
 	}
-	schedule.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.TenantContext(1), schedule))
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", schedule.ID)
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", timeframe.ID)
-	})
+	schedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
 }
 
 func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := &scheduleModels.CalendarPeriod{
@@ -486,48 +567,50 @@ func TestCareOfferingService_Create_ActiveOfferingRequiresActivePeriod(t *testin
 		StartDate:  timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
 		WeekCycleLength: 1, IsActive: false,
 	}
-	period.SetTenantID(1)
-	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.TenantContext(1), period))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
+	period.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, repositories.NewFactory(db).CalendarPeriod.Create(testpkg.Ctx(t), period))
 	group := createCareOfferingTemplateGroup(t, db, "inactive-care-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
-	offering := baseLinkedOffering(phase.ID, group.ID)
+	offering := baseLinkedOffering(t, phase.ID, group.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), offering)
+	_, err := svc.Create(testpkg.Ctx(t), offering)
 	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
 	require.ErrorContains(t, err, "active calendar period")
 
 	offering.IsActive = false
-	_, err = svc.Create(testpkg.TenantContext(1), offering)
+	_, err = svc.Create(testpkg.Ctx(t), offering)
 	require.NoError(t, err, "inactive drafts may be staged against inactive future periods")
 }
 
 func TestCareOfferingService_Create_RejectsNonTemplateActivityGroup(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := testpkg.CreateTestActivityGroup(t, db, "Care-NonTemplate")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-	})
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must reference a timetable template")
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithoutSchedules(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := createCareOfferingTemplateGroup(t, db, "care-empty-template")
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "at least one schedule")
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithoutUniquePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	periodA := createCareOfferingTestPeriod(t, db, "care-period-a",
@@ -540,25 +623,29 @@ func TestCareOfferingService_Create_RejectsTemplateWithoutUniquePeriod(t *testin
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &periodA.ID)
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayTuesday, &periodB.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "one calendar_period_id")
 }
 
 func TestCareOfferingService_Create_RejectsTemplateWithNullPeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	group := createCareOfferingTemplateGroup(t, db, "care-null-period-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, nil)
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "calendar_period_id")
 }
 
 func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "care-short-period",
@@ -567,7 +654,7 @@ func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 	group := createCareOfferingTemplateGroup(t, db, "care-short-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
+	_, err := svc.Create(testpkg.Ctx(t), baseLinkedOffering(t, phase.ID, group.ID))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
@@ -575,16 +662,18 @@ func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 }
 
 func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	period := createCareOfferingTestPeriod(t, db, "care-short-update-period",
 		timezone.NewDate(2026, 9, 1),
 		timezone.NewDate(2026, 12, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-short-update-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	offering := baseLinkedOffering(phase.ID, group.ID)
+	offering := baseLinkedOffering(t, phase.ID, group.ID)
 	offering.ActivityGroupID = nil
 	created, err := svc.Create(ctx, offering)
 	require.NoError(t, err)
@@ -597,15 +686,17 @@ func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing
 }
 
 func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	period := createCareOfferingTestPeriod(t, db, "care-weekday-update-period",
 		timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "care-weekday-update-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	created, err := svc.Create(ctx, baseLinkedOffering(phase.ID, group.ID))
+	created, err := svc.Create(ctx, baseLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
 
 	created.AvailableDays = []string{"mon", "tue"}
@@ -615,10 +706,34 @@ func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing
 	require.ErrorContains(t, err, "weekday")
 }
 
+func TestCareOfferingService_Update_RefreshesPickupProjectionConsumers(t *testing.T) {
+	t.Parallel()
+
+	_, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	offering := &enrollmentModels.CareOffering{
+		PhaseID: phase.ID, Name: "Gehzeit alt",
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays:  []string{"mon"}, PickupTimes: map[string]string{"mon": "14:30"},
+		IsActive: true,
+	}
+	created, err := svc.Create(ctx, offering)
+	require.NoError(t, err)
+
+	resyncer := bindTestPickupResyncer(t, svc)
+	created.PickupTimes = map[string]string{"mon": "15:00"}
+
+	require.NoError(t, svc.Update(ctx, created))
+	assert.Equal(t, []int64{created.ID}, resyncer.OfferingIDs)
+}
+
 func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	source := &enrollmentModels.CareOffering{
 		PhaseID:             phase.ID,
@@ -631,7 +746,7 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 		CountsAsCare:        false,
 		CountsAsCareSet:     true,
 	}
-	source.SetTenantID(1)
+	source.SetTenantID(testpkg.Tenant(t))
 	created, err := svc.Create(ctx, source)
 	require.NoError(t, err)
 
@@ -645,7 +760,7 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	target.SetTenantID(1)
+	target.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.Phase.Create(ctx, target))
 	t.Cleanup(func() {
 		bg := context.Background()
@@ -674,9 +789,11 @@ func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 }
 
 func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T) {
+	t.Parallel()
+
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := createCareOfferingTestPeriod(t, db, "care-clone-source-period",
 		timezone.NewDate(2026, 8, 1),
@@ -684,7 +801,7 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 	group := createCareOfferingTemplateGroup(t, db, "care-clone-source-template")
 	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
 
-	source := baseLinkedOffering(phase.ID, group.ID)
+	source := baseLinkedOffering(t, phase.ID, group.ID)
 	created, err := svc.Create(ctx, source)
 	require.NoError(t, err)
 
@@ -697,7 +814,7 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	target.SetTenantID(1)
+	target.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.Phase.Create(ctx, target))
 	t.Cleanup(func() {
 		bg := context.Background()
@@ -719,18 +836,21 @@ func TestCareOfferingService_Clone_ClearsLinkedTemplateAcrossPhases(t *testing.T
 }
 
 func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Soon-deleted",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	created, err := svc.Create(ctx, offering)
 	require.NoError(t, err)
 
@@ -746,18 +866,21 @@ func TestCareOfferingService_Delete_RemovesRow(t *testing.T) {
 // alone only flips the templates to manual rosters and would leave their
 // offering-derived enrollment rows behind.
 func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:        phase.ID,
 		Name:           "Detached-on-delete",
 		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:  []string{"mon"},
+		PickupTimes:    carePickupTimes("mon"),
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	created, err := svc.Create(ctx, offering)
 	require.NoError(t, err)
 
@@ -773,9 +896,11 @@ func TestCareOfferingService_Delete_DetachesSourcedTemplates(t *testing.T) {
 }
 
 func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
+	t.Parallel()
+
 	_, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	groupOffering := func(name, rule string) *enrollmentModels.CareOffering {
 		o := &enrollmentModels.CareOffering{
@@ -783,11 +908,12 @@ func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 			Name:           name,
 			DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
 			AvailableDays:  []string{"mon"},
+			PickupTimes:    carePickupTimes("mon"),
 			IsActive:       true,
 			SelectionGroup: "tag",
 			SelectionRule:  rule,
 		}
-		o.SetTenantID(1)
+		o.SetTenantID(testpkg.Tenant(t))
 		return o
 	}
 
@@ -819,6 +945,8 @@ func TestCareOfferingService_RejectsMixedRuleInSameGroup(t *testing.T) {
 }
 
 func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *testing.T) {
+	t.Parallel()
+
 	for _, rule := range []string{
 		enrollmentModels.SelectionRuleExactlyOne,
 		enrollmentModels.SelectionRuleAtMostOne,
@@ -826,18 +954,19 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 		t.Run(rule, func(t *testing.T) {
 			_, svc, phase, cleanup := setupCareTest(t)
 			defer cleanup()
-			ctx := testpkg.TenantContext(1)
+			ctx := testpkg.Ctx(t)
 
 			trigger := &enrollmentModels.CareOffering{
 				PhaseID:        phase.ID,
 				Name:           "Ganztag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:  []string{"mon"},
+				PickupTimes:    carePickupTimes("mon"),
 				IsActive:       true,
 				SelectionGroup: "umfang",
 				SelectionRule:  rule,
 			}
-			trigger.SetTenantID(1)
+			trigger.SetTenantID(testpkg.Tenant(t))
 			createdTrigger, err := svc.Create(ctx, trigger)
 			require.NoError(t, err)
 
@@ -846,12 +975,13 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 				Name:                      "Randstunde",
 				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:             []string{"mon"},
+				PickupTimes:               carePickupTimes("mon"),
 				IsActive:                  true,
 				SelectionGroup:            "umfang",
 				SelectionRule:             rule,
 				AutoAddTriggerOfferingIDs: []int64{createdTrigger.ID},
 			}
-			target.SetTenantID(1)
+			target.SetTenantID(testpkg.Tenant(t))
 
 			_, err = svc.Create(ctx, target)
 
@@ -862,6 +992,8 @@ func TestCareOfferingService_RejectsAutoAddTriggersInExclusiveSelectionGroup(t *
 }
 
 func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroups(t *testing.T) {
+	t.Parallel()
+
 	for _, tc := range []struct {
 		name        string
 		triggerRule string
@@ -884,18 +1016,19 @@ func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 		t.Run(tc.name, func(t *testing.T) {
 			_, svc, phase, cleanup := setupCareTest(t)
 			defer cleanup()
-			ctx := testpkg.TenantContext(1)
+			ctx := testpkg.Ctx(t)
 
 			trigger := &enrollmentModels.CareOffering{
 				PhaseID:        phase.ID,
 				Name:           "Ganztag",
 				DaysOfWeekMode: enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:  []string{"mon"},
+				PickupTimes:    carePickupTimes("mon"),
 				IsActive:       true,
 				SelectionGroup: "umfang",
 				SelectionRule:  tc.triggerRule,
 			}
-			trigger.SetTenantID(1)
+			trigger.SetTenantID(testpkg.Tenant(t))
 			createdTrigger, err := svc.Create(ctx, trigger)
 			require.NoError(t, err)
 
@@ -904,12 +1037,13 @@ func TestCareOfferingService_AllowsAutoAddTriggersOutsideExclusiveSelectionGroup
 				Name:                      "Randstunde",
 				DaysOfWeekMode:            enrollmentModels.DaysOfWeekModeParentChoice,
 				AvailableDays:             []string{"mon"},
+				PickupTimes:               carePickupTimes("mon"),
 				IsActive:                  true,
 				SelectionGroup:            tc.targetGroup,
 				SelectionRule:             tc.targetRule,
 				AutoAddTriggerOfferingIDs: []int64{createdTrigger.ID},
 			}
-			target.SetTenantID(1)
+			target.SetTenantID(testpkg.Tenant(t))
 
 			_, err = svc.Create(ctx, target)
 

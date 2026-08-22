@@ -12,26 +12,31 @@ import (
 )
 
 func TestLockStaffShiftWritesRequiresTenant(t *testing.T) {
+	t.Parallel()
+
 	err := LockStaffShiftWrites(context.Background(), &bun.DB{}, 7)
 	require.Error(t, err)
 	assert.EqualError(t, err, "tenant id is required")
 }
 
 func TestLockStaffShiftWritesWrapsAcquireError(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+
+	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	err := LockStaffShiftWrites(ctx, db, 7)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "lock staff shift writes")
 }
 
 func TestLockStaffShiftWritesTakesAdvisoryLock(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	err := tenant.WithTenantTx(context.Background(), db, 1, func(ctx context.Context, _ bun.Tx) error {
+	db := testpkg.SetupTestDB(t)
+
+	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		return LockStaffShiftWrites(ctx, db, 7)
 	})
 	require.NoError(t, err)

@@ -37,6 +37,8 @@ export interface PageHeaderWithSearchProps {
     readonly onChange: (value: string) => void;
     readonly placeholder?: string;
     readonly className?: string;
+    /** Forwarded to the underlying `<input>` (combobox role, ARIA wiring, disabled state, etc.). */
+    readonly inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
   };
 
   // Filter configuration
@@ -49,6 +51,18 @@ export interface PageHeaderWithSearchProps {
   // Custom action buttons
   readonly actionButton?: React.ReactNode; // Desktop action button (shown in tab row with full styling)
   readonly mobileActionButton?: React.ReactNode; // Mobile action button (compact version in tab row)
+
+  /**
+   * Bedienelement, das auf JEDER Breite in der Reiterzeile bleibt, rechts
+   * neben den Reitern bzw. neben deren mobilem Dropdown.
+   *
+   * Der Unterschied zu `actionButton`/`mobileActionButton`: die beiden wandern
+   * auf Mobil in die Titelzeile, sobald `title` gesetzt ist. Das passt für
+   * einen Knopf, der zur Seite gehört, nicht aber für eine zweite Auswahl, die
+   * neben den Reitern stehen soll (Anfragen: Reiter + Offen/Historie).
+   * Erfordert `tabs`; ohne Reiter gibt es keine Reiterzeile.
+   */
+  readonly tabsRowAction?: React.ReactNode;
 
   /**
    * Optional kebab-menu (⋮) items rendered right of the tabs/title row.
@@ -149,6 +163,17 @@ export interface FilterConfig {
   readonly onChange: (value: string | string[]) => void;
   readonly options: FilterOption[];
   readonly multiSelect?: boolean;
+  /**
+   * Trigger text of a multi-select whose selection is empty. Defaults to
+   * `Alle {label}`; set it when that reads wrong ("Alle Stufe").
+   */
+  readonly emptyLabel?: string;
+  /**
+   * Trigger text of a multi-select once more than two values are chosen, so a
+   * long selection does not overflow the trigger. Defaults to
+   * `{n} {label} gewählt`.
+   */
+  readonly summaryLabel?: (count: number) => string;
   readonly className?: string;
   /**
    * For `type: "custom"` — the control rendered in place of the option

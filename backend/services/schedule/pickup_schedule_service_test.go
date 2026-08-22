@@ -33,9 +33,6 @@ func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, db, "Pickup", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	})
 
 	return staff.ID
 }
@@ -45,15 +42,15 @@ func createPickupServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 // =============================================================================
 
 func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
 			sched := &scheduleModels.StudentPickupSchedule{
@@ -81,15 +78,15 @@ func TestPickupScheduleService_GetStudentPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -117,15 +114,15 @@ func TestPickupScheduleService_GetStudentPickupScheduleForWeekday(t *testing.T) 
 }
 
 func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -142,7 +139,6 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 
 	t.Run("updates existing schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -179,15 +175,15 @@ func TestPickupScheduleService_UpsertStudentPickupSchedule(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates multiple schedules in transaction", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedules := []*scheduleModels.StudentPickupSchedule{
 			{
@@ -218,7 +214,6 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 
 	t.Run("rolls back on validation error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedules := []*scheduleModels.StudentPickupSchedule{
 			{
@@ -250,15 +245,15 @@ func TestPickupScheduleService_UpsertBulkStudentPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -280,15 +275,15 @@ func TestPickupScheduleService_DeleteStudentPickupSchedule(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
 			sched := &scheduleModels.StudentPickupSchedule{
@@ -316,15 +311,15 @@ func TestPickupScheduleService_DeleteAllStudentPickupSchedules(t *testing.T) {
 // =============================================================================
 
 func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -341,7 +336,6 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 
 	t.Run("upserts when exception already exists for date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use Berlin timezone for consistent date handling
 		exceptionDate := timezone.NewDate(2024, 3, 20)
@@ -388,16 +382,71 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 	})
 }
 
-func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
+func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Guardian", fmt.Sprintf("Partial-%d", time.Now().UnixNano()), "1a")
+	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", time.Now().UnixNano()))
+	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("guardian-partial-%d@test.local", time.Now().UnixNano()))
+
+	date := timezone.TodayDate().AddDays(4)
+	pickupTime := timezone.WallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
+	guardianID := guardian.ID
+	guardianPickup := &scheduleModels.StudentPickupException{
+		StudentID:         student.ID,
+		ExceptionDate:     date,
+		PickupTime:        &pickupTime,
+		Source:            scheduleModels.ExceptionSourceGuardian,
+		CreatedByGuardian: &guardianID,
+	}
+	require.NoError(t, repoFactory.StudentPickupException.Create(ctx, guardianPickup))
+
+	partial, err := serviceFactory.PartialAbsence.Create(ctx, schedule.PartialAbsenceInput{
+		StudentID: student.ID,
+		Date:      date,
+		FromTime:  timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
+		Reason:    "Termin",
+		StaffID:   staff.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, guardianPickup.ID, partial.ID, "the partial must reuse the guardian pickup row")
+
+	staffPickup := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	_, err = serviceFactory.PickupSchedule.CreateOrReclaimException(
+		ctx,
+		student.ID,
+		date,
+		&staffPickup,
+		testpkg.StrPtr("staff override"),
+		staff.ID,
+		func() (int64, error) { return staff.ID, nil },
+	)
+	require.ErrorIs(t, err, schedule.ErrCareExceptionContainsPartialAbsence)
+
+	fresh, err := repoFactory.StudentPickupException.FindByID(ctx, guardianPickup.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	require.NotNil(t, fresh.ExcusedFrom, "failed reclaim must preserve partial metadata")
+	assert.Equal(t, "13:30", timezone.WallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, fresh.Source)
+}
+
+func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use consistent base date to avoid any timezone edge cases
 		baseDate := timezone.TodayDate()
@@ -420,15 +469,15 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use consistent base date to avoid timezone edge cases
 		baseDate := timezone.TodayDate()
@@ -466,15 +515,15 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 }
 
 func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -499,12 +548,12 @@ func TestPickupScheduleService_UpdateStudentPickupException(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "PickupPatch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
@@ -541,12 +590,12 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 }
 
 func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupPickupScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "PickupClear", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
@@ -577,16 +626,107 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 	assert.Nil(t, updated.Reason)
 }
 
-func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
+func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeChange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	student := testpkg.CreateTestStudent(t, db, "Test", "UpsertOwns", "1a")
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createPickupServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 4)
+	from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exception := &scheduleModels.StudentPickupException{
+		StudentID:             student.ID,
+		ExceptionDate:         exceptionDate,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+
+	// Collision-update path: a second create for the same date with a different
+	// wall-clock must drop partial ownership so delete cannot wipe the override.
+	newPickup := timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	override := &scheduleModels.StudentPickupException{
+		StudentID:     student.ID,
+		ExceptionDate: exceptionDate,
+		PickupTime:    &newPickup,
+		Source:        scheduleModels.ExceptionSourceStaff,
+		CreatedBy:     staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, override))
+
+	fresh, err := service.GetStudentPickupExceptionForDate(ctx, student.ID, exceptionDate)
+	require.NoError(t, err)
+	require.NotNil(t, fresh)
+	require.NotNil(t, fresh.PickupTime)
+	assert.Equal(t, "15:00", timezone.WallClock(*fresh.PickupTime).Format("15:04"))
+	assert.False(t, fresh.ExcusedOwnsPickupTime,
+		"upsert with a new wall-clock must drop partial ownership of the pickup time")
+	require.NotNil(t, fresh.ExcusedFrom, "partial metadata itself is preserved until explicit delete")
+}
+
+func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnership(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupPickupScheduleService(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Test", "PartialOwns", "1a")
+
+	ctx := testpkg.TenantContext(student.TenantID)
+	staffID := createPickupServiceTestStaffID(t, db)
+	exceptionDate := timezone.NewDate(2024, 4, 3)
+	pickupTime := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exception := &scheduleModels.StudentPickupException{
+		StudentID:             student.ID,
+		ExceptionDate:         exceptionDate,
+		PickupTime:            &pickupTime,
+		ExcusedFrom:           &pickupTime,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staffID,
+	}
+	require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+
+	// Same wall-clock with a different date anchor must not look like a time edit.
+	sameClockDifferentAnchor := time.Date(2024, 4, 3, 13, 30, 0, 0, time.UTC)
+	updatedReason := "Arzttermin"
+	updated, err := service.UpdateException(
+		ctx,
+		exception.ID,
+		student.ID,
+		exceptionDate,
+		&updatedReason,
+		&sameClockDifferentAnchor,
+		false,
+		func() (int64, error) { return staffID, nil },
+	)
+	require.NoError(t, err)
+	require.NotNil(t, updated.ExcusedFrom)
+	assert.True(t, updated.ExcusedOwnsPickupTime,
+		"identical wall-clock must keep partial ownership so delete can reclaim the pickup row")
+	require.NotNil(t, updated.PickupTime)
+	assert.Equal(t, "13:30", timezone.WallClock(*updated.PickupTime).Format("15:04"))
+}
+
+func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentPickupException{
 			StudentID:     student.ID,
@@ -604,19 +744,47 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 		results, err := service.GetStudentPickupExceptions(ctx, student.ID)
 		require.NoError(t, err)
 		assert.Empty(t, results)
+
+		err = service.DeleteStudentPickupException(ctx, exception.ID)
+		require.ErrorIs(t, err, schedule.ErrCareExceptionNotFound,
+			"a repeated or concurrent losing delete must be classified as not found")
+	})
+
+	t.Run("rejects a pickup exception shared with a partial absence", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Delete-%d", time.Now().UnixNano()), "1a")
+		staffID := createPickupServiceTestStaffID(t, db)
+		date := timezone.TodayDate().AddDays(5)
+		from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		exception := &scheduleModels.StudentPickupException{
+			StudentID:             student.ID,
+			ExceptionDate:         date,
+			PickupTime:            &from,
+			ExcusedFrom:           &from,
+			ExcusedCreatedBy:      &staffID,
+			ExcusedOwnsPickupTime: true,
+			CreatedBy:             staffID,
+		}
+		require.NoError(t, service.CreateStudentPickupException(ctx, exception))
+
+		err := service.DeleteStudentPickupException(ctx, exception.ID)
+		require.ErrorIs(t, err, schedule.ErrCareExceptionContainsPartialAbsence)
+		fresh, findErr := service.GetStudentPickupExceptionByID(ctx, exception.ID)
+		require.NoError(t, findErr)
+		require.NotNil(t, fresh)
+		require.NotNil(t, fresh.ExcusedFrom)
 	})
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use consistent base date to avoid timezone edge cases
 		baseDate := timezone.TodayDate()
@@ -639,6 +807,38 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
+
+	t.Run("rejects the batch when one exception owns a partial absence", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Bulk-%d", time.Now().UnixNano()), "1a")
+		staffID := createPickupServiceTestStaffID(t, db)
+		date := timezone.TodayDate().AddDays(6)
+		ordinary := &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: date.AddDays(-1),
+			PickupTime:    testpkg.TimePtr(timezone.WallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
+			CreatedBy:     staffID,
+		}
+		require.NoError(t, service.CreateStudentPickupException(ctx, ordinary))
+		from := timezone.WallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		partial := &scheduleModels.StudentPickupException{
+			StudentID:             student.ID,
+			ExceptionDate:         date,
+			PickupTime:            &from,
+			ExcusedFrom:           &from,
+			ExcusedCreatedBy:      &staffID,
+			ExcusedOwnsPickupTime: true,
+			CreatedBy:             staffID,
+		}
+		require.NoError(t, service.CreateStudentPickupException(ctx, partial))
+
+		err := service.DeleteAllStudentPickupExceptions(ctx, student.ID)
+		require.ErrorIs(t, err, schedule.ErrCareExceptionContainsPartialAbsence)
+		rows, findErr := service.GetStudentPickupExceptions(ctx, student.ID)
+		require.NoError(t, findErr)
+		require.Len(t, rows, 2, "the transaction must roll back the ordinary deletion")
+		assert.Equal(t, ordinary.ID, rows[0].ID)
+		require.NotNil(t, rows[1].ExcusedFrom)
+	})
 }
 
 // =============================================================================
@@ -646,15 +846,15 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 // =============================================================================
 
 func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns combined schedule and exception data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -683,15 +883,15 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns exception when present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		recurringNote := "Pick up at the side entrance"
 		sched := &scheduleModels.StudentPickupSchedule{
@@ -730,7 +930,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("returns schedule when no exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentPickupSchedule{
 			StudentID:  student.ID,
@@ -756,7 +955,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("returns nil pickup time for weekend", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use a fixed Saturday date at noon to avoid timezone boundary issues
 		// January 13, 2024 is a Saturday, and noon UTC is still Saturday in Berlin
@@ -770,7 +968,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("returns nil when no schedule and no exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use a fixed Wednesday date at noon to avoid timezone boundary issues
 		// January 10, 2024 is a Wednesday
@@ -785,7 +982,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("returns schedule with notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		notes := "Pick up with grandma"
 		sched := &scheduleModels.StudentPickupSchedule{
@@ -812,7 +1008,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("falls back to recurring schedule notes when exception reason is blank", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		recurringNote := "Wait at the side entrance"
 		sched := &scheduleModels.StudentPickupSchedule{
@@ -847,7 +1042,6 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 	t.Run("handles Sunday correctly", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use a fixed Sunday date at noon to avoid timezone boundary issues
 		// January 14, 2024 is a Sunday
@@ -861,17 +1055,17 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns effective times for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "1b")
 		student3 := testpkg.CreateTestStudent(t, db, "Student", "Three", "1c")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 
 		// Use a fixed Thursday date at noon to avoid timezone boundary issues
 		// January 11, 2024 is a Thursday
@@ -935,7 +1129,6 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 	t.Run("handles weekend correctly for all students", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use a fixed Sunday date at noon to avoid timezone boundary issues
 		// January 14, 2024 is a Sunday
@@ -950,7 +1143,6 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 	t.Run("returns schedule notes in bulk lookup", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Use a fixed Monday date at noon to avoid timezone boundary issues
 		// January 8, 2024 is a Monday
@@ -978,7 +1170,6 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 	t.Run("falls back to recurring schedule notes in bulk lookup when exception reason is blank", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		testDate := timezone.NewDate(2024, 1, 8)
 
@@ -1019,15 +1210,15 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 // =============================================================================
 
 func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1057,7 +1248,6 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 
 	t.Run("fails validation for empty content", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1074,15 +1264,15 @@ func TestPickupScheduleService_CreateStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1103,15 +1293,15 @@ func TestPickupScheduleService_GetStudentPickupNoteByID(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := 0; i < 3; i++ {
@@ -1140,15 +1330,15 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 }
 
 func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		targetDate := timezone.NewDate(2024, 3, 20)
 
@@ -1183,15 +1373,15 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 }
 
 func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1229,15 +1419,15 @@ func TestPickupScheduleService_UpdateStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentPickupNote{
 			StudentID: student.ID,
@@ -1259,15 +1449,15 @@ func TestPickupScheduleService_DeleteStudentPickupNote(t *testing.T) {
 }
 
 func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := 1; i <= 5; i++ {
@@ -1292,14 +1482,14 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 }
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	studentA := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentA", "BP-A")
 	studentB := testpkg.CreateTestStudent(t, db, "BulkPickup", "StudentB", "BP-B")
-	defer testpkg.CleanupActivityFixtures(t, db, studentA.ID, studentB.ID)
 
 	note := "Oma holt ab"
 	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
@@ -1339,13 +1529,13 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules(t *testing.T) {
 }
 
 func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSelection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAllowed", "Student", "BP-A")
 	denied := testpkg.CreateTestStudent(t, db, "BulkPickupDenied", "Student", "BP-B")
-	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
 	result, err := service.BulkUpsertPickupSchedules(ctx, schedule.ArrivalScheduleBulkFilter{
 		StudentIDs: []int64{allowed.ID, denied.ID},
@@ -1364,13 +1554,13 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_RollsBackUnauthorizedSe
 // Production canUpdateStudent returns (false, err) on deny; that must map to
 // ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
 func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUnauthorized(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	allowed := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrA", "Student", "BP-E1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkPickupAuthErrB", "Student", "BP-E2")
-	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
 	result, err := service.BulkUpsertPickupSchedules(ctx, schedule.ArrivalScheduleBulkFilter{
 		StudentIDs: []int64{allowed.ID, denied.ID},

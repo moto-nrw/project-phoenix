@@ -35,10 +35,25 @@ import {
   updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
-import { availableCareOfferings } from "~/lib/care-offering-availability";
+import {
+  availableCareOfferings,
+  careOfferingAvailabilityReason,
+} from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingStats,
+  fetchCareOfferingBookingStats,
+  formatOfferingOccupancy,
+  offeringIsFull,
+} from "~/lib/care-offering-booking-stats";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import {
+  BLOCKED_OFFERING_ROW_TONE,
+  OfferingRowShell,
+} from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -51,6 +66,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
 import {
+  useTenant,
   useCareOfferingsEnabled,
   useWaitlistEnabled,
 } from "~/lib/tenant-context";
@@ -86,6 +102,7 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
   const router = useTenantRouter();
@@ -100,6 +117,8 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   >(null);
   const [restoreOpen, setRestoreOpen] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [approvalWithoutOfferingChildId, setApprovalWithoutOfferingChildId] =
+    useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -202,6 +221,23 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     );
   }
 
+  const requestDecision = (
+    child: AdminRequestChild,
+    status: DecisionStatus,
+  ) => {
+    if (
+      status === "approved" &&
+      careOfferingsEnabled &&
+      data.care_offering_selection_mode === "optional" &&
+      child.offerings_unavailable !== true &&
+      (child.offerings?.length ?? 0) === 0
+    ) {
+      setApprovalWithoutOfferingChildId(child.id);
+      return;
+    }
+    void handleDecide(child.id, status);
+  };
+
   const submittedAt = formatDateTime(data.submitted_at, {
     day: "2-digit",
     month: "long",
@@ -299,7 +335,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   onReasonChange={(value) =>
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
-                  onDecide={(status) => void handleDecide(child.id, status)}
+                  onDecide={(status) => requestDecision(child, status)}
                   onOfferingsChanged={() => void load()}
                   onDataCorrected={handleDataCorrected}
                   onDelete={() =>
@@ -328,6 +364,22 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </aside>
         </div>
       </section>
+      <ConfirmationModal
+        isOpen={approvalWithoutOfferingChildId !== null}
+        onClose={() => setApprovalWithoutOfferingChildId(null)}
+        onConfirm={() => {
+          const childId = approvalWithoutOfferingChildId;
+          setApprovalWithoutOfferingChildId(null);
+          if (childId !== null) void handleDecide(childId, "approved");
+        }}
+        title="Anmeldung bestätigen"
+        confirmText="Trotzdem bestätigen"
+      >
+        <Alert
+          type="warning"
+          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+        />
+      </ConfirmationModal>
       <ConfirmationModal
         isOpen={restoreOpen}
         onClose={() => setRestoreOpen(false)}
@@ -1098,6 +1150,114 @@ function OfferingAttributePills({
   );
 }
 
+/**
+ * One-line occupancy hint under an offering in the admin pickers. Renders
+ * nothing when there is no stats entry, so a failed stats load degrades to
+ * the previous UI instead of an empty placeholder (#2186).
+ */
+function OfferingOccupancyLine({
+  stats,
+}: Readonly<{ stats: CareOfferingBookingStats | undefined }>) {
+  const label = formatOfferingOccupancy(stats);
+  if (!label) return null;
+  return (
+    <span
+      className={`mt-1 block text-xs ${
+        offeringIsFull(stats) ? "text-moto-amber-strong" : "text-gray-500"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/**
+ * An offering the child's grade level rules out. Parents never see these;
+ * admins must, or a configured restriction reads as a missing feature
+ * (#2186). A booking the child already holds stays removable — Bestandsschutz
+ * means the rule does not revoke it, not that it can never be corrected — but
+ * a blocked offering can never be newly added here. The documented workaround
+ * is to relax the rule in the Angebots-Katalog first.
+ *
+ * `automaticDays` are days derived from a trigger offering. The backend
+ * re-derives them on every save regardless of the availability rule, so the
+ * row must show them as HELD even though there is no manual tick behind them
+ * — an empty checkbox next to a booking the backend keeps is a lie (#2186
+ * review). They are also not removable here: they disappear only with their
+ * trigger.
+ */
+function BlockedOfferingRow({
+  offering,
+  gradeLevel,
+  gradeLevelMax,
+  booked,
+  automaticDays,
+  stats,
+  onRemove,
+}: Readonly<{
+  offering: CareOffering;
+  gradeLevel: number | null | undefined;
+  gradeLevelMax: number | null;
+  booked: boolean;
+  automaticDays: readonly string[];
+  stats: CareOfferingBookingStats | undefined;
+  onRemove: () => void;
+}>) {
+  const reason = careOfferingAvailabilityReason(
+    offering,
+    gradeLevel,
+    gradeLevelMax ?? undefined,
+  );
+  const inputId = `blocked-offering-${offering.id}`;
+  const heldAutomatically = automaticDays.length > 0;
+  return (
+    <OfferingRowShell tone={BLOCKED_OFFERING_ROW_TONE}>
+      {/* A real <label> is load-bearing, not decoration: the kit Checkbox
+          renders an sr-only input behind a pointer-events-none visual, so
+          without the label wrapping it a mouse click on the box does nothing
+          (#2186 review). */}
+      <label
+        htmlFor={inputId}
+        className={`flex items-start gap-3 ${booked ? "cursor-pointer" : "cursor-not-allowed"}`}
+      >
+        <Checkbox
+          id={inputId}
+          className="mt-0.5"
+          checked={booked || heldAutomatically}
+          disabled={!booked}
+          onChange={onRemove}
+          aria-label={`${offering.name} bleibt gebucht`}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-medium text-gray-500">
+              {offering.name}
+            </span>
+            {booked ? (
+              <StatusBadge
+                tone="orange"
+                label="bereits gebucht"
+                title="Diese Buchung bleibt bestehen. Sie kann hier entfernt, aber nicht erneut hinzugefügt werden."
+              />
+            ) : null}
+            {heldAutomatically ? (
+              <StatusBadge
+                tone="blue"
+                label={`automatisch mitgebucht: ${formatAdminDays(automaticDays)}`}
+                title="Diese Tage werden aus dem auslösenden Angebot abgeleitet und bleiben bestehen, solange dieses gebucht ist. Sie können hier nicht einzeln entfernt werden."
+              />
+            ) : null}
+          </div>
+          {reason ? (
+            <span className="mt-1 block text-xs text-gray-500">{reason}</span>
+          ) : null}
+          <OfferingOccupancyLine stats={stats} />
+        </div>
+      </label>
+    </OfferingRowShell>
+  );
+}
+
 export function ChildOfferingAdjustment({
   child,
   onSaved,
@@ -1110,9 +1270,23 @@ export function ChildOfferingAdjustment({
   onSaved: () => void;
 }>) {
   const careOfferingsEnabled = useCareOfferingsEnabled();
+  // The tenant's configured ceiling, so a blocked-offering reason names only
+  // grades this school actually has (#2186 review).
+  const { tenant } = useTenant();
+  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
+    ? tenant.gradeLevelMax
+    : null;
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
+  // Offerings the child's grade level rules out. Kept separate from `catalog`
+  // so payload building and the auto-add preview keep operating on exactly
+  // the selectable set, while the UI can still SHOW the blocked ones with a
+  // reason instead of leaving a silent gap in the list (#2186).
+  const [blockedCatalog, setBlockedCatalog] = useState<CareOffering[]>([]);
   const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
+  const [bookingStats, setBookingStats] = useState<
+    Record<string, CareOfferingBookingStats>
+  >({});
   const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() =>
     initialManualOfferingIDs(child.offerings),
@@ -1156,19 +1330,22 @@ export function ChildOfferingAdjustment({
       offerings,
       child.target_grade_level,
     );
-    const fetchedIDs = new Set(offerings.map((offering) => offering.id));
     const availableIDs = new Set(available.map((offering) => offering.id));
-    const nextSelected = new Set(
-      [...initialManualOfferingIDs(child.offerings)].filter(
-        (id) => !fetchedIDs.has(id) || availableIDs.has(id),
-      ),
-    );
+    // Bestandsschutz: a booking the child already holds survives a rule that
+    // was tightened after the fact. Dropping it here would silently delete
+    // the booking on the next save — the exact failure mode #2186 reports,
+    // in the flow meant to fix it. adjustmentPayloadOfferings carries such
+    // ids through via the child's existing offerings.
+    const nextSelected = new Set(initialManualOfferingIDs(child.offerings));
     for (const offering of available) {
       if (offering.is_active && offering.is_required) {
         nextSelected.add(offering.id);
       }
     }
     setCatalog(available);
+    setBlockedCatalog(
+      offerings.filter((offering) => !availableIDs.has(offering.id)),
+    );
     setSelected(nextSelected);
   };
 
@@ -1177,6 +1354,19 @@ export function ChildOfferingAdjustment({
     setOpen(true);
     setError(null);
     setDays(initialManualOfferingDays(child.offerings));
+    // Occupancy is advisory: without it a full offering only announces itself
+    // as an error after the whole correction is submitted (#2186). Loaded
+    // beside the catalog rather than awaited with it — a slow or failing
+    // stats call must never keep the editor in its loading state.
+    void fetchCareOfferingBookingStats(phaseId)
+      .then(setBookingStats)
+      .catch((statsErr: unknown) => {
+        setBookingStats({});
+        logger.warn("offering_adjustment_booking_stats_failed", {
+          error:
+            statsErr instanceof Error ? statsErr.message : String(statsErr),
+        });
+      });
     if (catalogLoaded) {
       resetEditorSelection(rawCatalog);
       return;
@@ -1194,6 +1384,7 @@ export function ChildOfferingAdjustment({
           : "Betreuungsangebote konnten nicht geladen werden";
       setError(message);
       setCatalog([]);
+      setBlockedCatalog([]);
       setRawCatalog([]);
       setCatalogLoaded(false);
     } finally {
@@ -1204,6 +1395,15 @@ export function ChildOfferingAdjustment({
   const preview = useMemo(
     () => materializeClientOfferingPreview(catalog, selected, days, child),
     [catalog, child, days, selected],
+  );
+
+  // Blocked offerings are excluded from `catalog`, so the client-side preview
+  // above never covers them. Their derived days therefore have to come from
+  // what is on file — otherwise a booking the backend keeps re-deriving reads
+  // as unbooked in the editor (#2186 review).
+  const automaticDaysOnFile = useMemo(
+    () => automaticOfferingDays(child.offerings),
+    [child.offerings],
   );
 
   const handleToggle = (offering: CareOffering) => {
@@ -1405,6 +1605,9 @@ export function ChildOfferingAdjustment({
                                     {offering.description}
                                   </span>
                                 ) : null}
+                                <OfferingOccupancyLine
+                                  stats={bookingStats[offering.id]}
+                                />
                               </span>
                             </label>
 
@@ -1432,6 +1635,33 @@ export function ChildOfferingAdjustment({
                           </div>
                         );
                       })}
+                      {blockedCatalog.length > 0 ? (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                            Für dieses Kind nicht wählbar
+                          </p>
+                          {blockedCatalog.map((offering) => (
+                            <BlockedOfferingRow
+                              key={offering.id}
+                              offering={offering}
+                              gradeLevel={child.target_grade_level}
+                              gradeLevelMax={gradeLevelMax}
+                              booked={selected.has(offering.id)}
+                              automaticDays={
+                                automaticDaysOnFile[offering.id] ?? []
+                              }
+                              stats={bookingStats[offering.id]}
+                              onRemove={() =>
+                                setSelected((prev) => {
+                                  const next = new Set(prev);
+                                  next.delete(offering.id);
+                                  return next;
+                                })
+                              }
+                            />
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                   )}
 
@@ -1487,6 +1717,22 @@ function initialManualOfferingIDs(
     if (!automaticOnly) ids.add(offering.offering_id);
   }
   return ids;
+}
+
+/**
+ * The days each booking on file holds automatically, i.e. derived from a
+ * trigger offering rather than ticked by anyone. Keyed by offering id, absent
+ * when a booking has none.
+ */
+function automaticOfferingDays(
+  offerings?: AdminRequestChildOffering[],
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const offering of offerings ?? []) {
+    const automatic = offering.automatic_selected_days ?? [];
+    if (automatic.length > 0) out[offering.offering_id] = [...automatic];
+  }
+  return out;
 }
 
 function initialManualOfferingDays(

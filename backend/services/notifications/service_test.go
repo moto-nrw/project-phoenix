@@ -59,6 +59,8 @@ func tenantEvent(tenantID int64) notifications.Event {
 }
 
 func TestNotifyDisabledByDefault(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(enabledSettings(false), nil, notifications.NewSSEChannel(broadcaster))
 
@@ -68,6 +70,8 @@ func TestNotifyDisabledByDefault(t *testing.T) {
 }
 
 func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(enabledSettings(true), nil, notifications.NewSSEChannel(broadcaster))
 
@@ -91,6 +95,8 @@ func TestNotifyDeliversTenantScopedSSE(t *testing.T) {
 }
 
 func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
+	t.Parallel()
+
 	channel := &recordingChannel{name: "recording"}
 	svc := notifications.NewService(enabledSettings(true), nil, channel)
 	ctx, commit := tenant.WithAfterCommitHooksForTest(context.Background())
@@ -117,11 +123,12 @@ func TestNotifyDefersDeliveryUntilCommit(t *testing.T) {
 }
 
 func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 
@@ -145,6 +152,8 @@ func TestNotifyDropsQueuedDeliveryOnRollback(t *testing.T) {
 }
 
 func TestNotifyAdminGuardianAndGroupRouting(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := notifications.NewService(enabledSettings(true), nil, notifications.NewSSEChannel(broadcaster))
 
@@ -183,6 +192,8 @@ func TestNotifyAdminGuardianAndGroupRouting(t *testing.T) {
 }
 
 func TestNotifyValidation(t *testing.T) {
+	t.Parallel()
+
 	svc := notifications.NewService(enabledSettings(true), nil)
 	ctx := context.Background()
 
@@ -238,6 +249,8 @@ func TestNotifyValidation(t *testing.T) {
 }
 
 func TestNotifyChannelErrorDoesNotPropagate(t *testing.T) {
+	t.Parallel()
+
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	broadcaster.Err = assert.AnError
 	svc := notifications.NewService(enabledSettings(true), nil, notifications.NewSSEChannel(broadcaster))
@@ -247,6 +260,8 @@ func TestNotifyChannelErrorDoesNotPropagate(t *testing.T) {
 }
 
 func TestNotifyConfigurationErrors(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	withoutSettings := notifications.NewService(nil, nil)
@@ -266,6 +281,8 @@ func TestNotifyConfigurationErrors(t *testing.T) {
 }
 
 func TestNotifyContinuesAfterChannelFailureAndLogs(t *testing.T) {
+	t.Parallel()
+
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	failing := &recordingChannel{name: "failing", err: assert.AnError}
@@ -284,6 +301,8 @@ func TestNotifyContinuesAfterChannelFailureAndLogs(t *testing.T) {
 }
 
 func TestSSEChannelRejectsUnknownAudienceScope(t *testing.T) {
+	t.Parallel()
+
 	channel := notifications.NewSSEChannel(testpkg.NewRecordingBroadcaster())
 	event := tenantEvent(41)
 	event.Audience.Scope = "unknown"
@@ -296,6 +315,8 @@ func TestSSEChannelRejectsUnknownAudienceScope(t *testing.T) {
 // with #2003 the channel is real, and the guaranteed no-op case is now
 // "VAPID keys not configured" (the behavior every keyless environment gets).
 func TestWebPushChannelUnconfigured(t *testing.T) {
+	t.Parallel()
+
 	event := tenantEvent(41)
 
 	defaultLoggerChannel := notifications.NewWebPushChannel(nil, nil, notifications.VAPIDConfig{}, nil)

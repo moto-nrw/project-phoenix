@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -140,13 +141,17 @@ type FormSchemaServiceConfig struct {
 	Repo        enrollmentModels.FormSchemaRepository
 	PhaseRepo   enrollmentModels.PhaseRepository
 	RequestRepo enrollmentModels.RequestRepository
-	Logger      *slog.Logger
+	// Settings backs the Heimweg-Beschränkung publish guard (#2381). Nil
+	// (some unit setups) skips the guard.
+	Settings classCollectionResolver
+	Logger   *slog.Logger
 }
 
 type formSchemaService struct {
 	repo        enrollmentModels.FormSchemaRepository
 	phaseRepo   enrollmentModels.PhaseRepository
 	requestRepo enrollmentModels.RequestRepository
+	settings    classCollectionResolver
 	logger      *slog.Logger
 }
 
@@ -161,6 +166,7 @@ func NewFormSchemaService(cfg FormSchemaServiceConfig) FormSchemaService {
 		repo:        cfg.Repo,
 		phaseRepo:   cfg.PhaseRepo,
 		requestRepo: cfg.RequestRepo,
+		settings:    cfg.Settings,
 		logger:      logger,
 	}
 }
@@ -498,6 +504,10 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		return nil, fmt.Errorf("invalid schema: %w", err)
 	}
 
+	if err := s.ensureSingleModeGradesCollectable(ctx, fields); err != nil {
+		return nil, err
+	}
+
 	nextVersion, err := s.repo.NextVersionForName(ctx, name)
 	if err != nil {
 		return nil, fmt.Errorf("compute next version: %w", err)
@@ -534,6 +544,48 @@ func (s *formSchemaService) createOrVersion(ctx context.Context, name string, fi
 		slog.Int("field_count", len(fields)))
 
 	return schema, nil
+}
+
+// ensureSingleModeGradesCollectable rejects publishing a schema whose
+// Heimweg-Beschränkung (single_mode_grades, #2381) the school cannot apply:
+// the rule keys on each child's declared target grade level, which the form
+// only collects while enrollment.collect_grade_level is on. With collection
+// off the rule would silently never restrict anyone, so the publish fails
+// loudly and the admin enables grade collection (or clears the rule) first.
+// Mirrors ensureEligibleGradeLevelsCollectable, including the per-tenant
+// lock against a concurrent settings write (#1663); the settings side does
+// not check schemas symmetrically — disabling grade collection later just
+// makes the rule inert (children without a grade fall back to multi-select),
+// which is the documented no-rule behaviour, not a bypass.
+func (s *formSchemaService) ensureSingleModeGradesCollectable(ctx context.Context, fields []enrollmentModels.FormField) error {
+	if s.settings == nil {
+		return nil
+	}
+	restricted := false
+	for i := range fields {
+		if len(fields[i].SingleModeGrades) > 0 {
+			restricted = true
+			break
+		}
+	}
+	if !restricted {
+		return nil
+	}
+	if locker, ok := s.settings.(interface {
+		LockClassCollectionPair(context.Context) error
+	}); ok {
+		if err := locker.LockClassCollectionPair(ctx); err != nil {
+			return fmt.Errorf("lock class-collection pair: %w", err)
+		}
+	}
+	collectGrade, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	if !collectGrade {
+		return fmt.Errorf("invalid schema: single_mode_grades requires the grade-level collection setting (Klassenstufen-Abfrage) to be active")
+	}
+	return nil
 }
 
 // repointPhasesToVersion moves every phase bound to an older version of

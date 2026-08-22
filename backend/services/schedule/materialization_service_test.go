@@ -27,6 +27,8 @@ import (
 // -----------------------------------------------------------------------------
 
 func TestResolveWindow(t *testing.T) {
+	t.Parallel()
+
 	mustDate := func(y int, m time.Month, d int) timezone.Date {
 		return timezone.NewDate(y, m, d)
 	}
@@ -103,6 +105,8 @@ func TestResolveWindow(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIsEnrollmentValidOn(t *testing.T) {
+	t.Parallel()
+
 	d := func(y int, m time.Month, day int) timezone.Date {
 		return timezone.NewDate(y, m, day)
 	}
@@ -231,6 +235,8 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 }
 
 func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
+	t.Parallel()
+
 	enrollment := &activities.StudentEnrollment{}
 	assert.False(t, enrollmentStudentIsAlumnus(enrollment))
 }
@@ -241,6 +247,8 @@ func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIsSupervisorValidOn(t *testing.T) {
+	t.Parallel()
+
 	d := func(y int, m time.Month, day int) timezone.Date {
 		return timezone.NewDate(y, m, day)
 	}
@@ -259,6 +267,8 @@ func TestIsSupervisorValidOn(t *testing.T) {
 }
 
 func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	periodID := int64(100)
@@ -289,6 +299,8 @@ func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestApplyException(t *testing.T) {
+	t.Parallel()
+
 	startBase := time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
 	endBase := time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)
 	roomBase := int64(500)
@@ -343,6 +355,8 @@ func TestApplyException(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestExtractTimeOfDay(t *testing.T) {
+	t.Parallel()
+
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	require.NoError(t, err)
 
@@ -371,6 +385,8 @@ func TestExtractTimeOfDay(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestPeriodSelection(t *testing.T) {
+	t.Parallel()
+
 	d := func(y int, m time.Month, day int) timezone.Date {
 		return timezone.NewDate(y, m, day)
 	}
@@ -467,6 +483,8 @@ func TestPeriodSelection(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestIsoWeekday(t *testing.T) {
+	t.Parallel()
+
 	mon := timezone.NewDate(2026, 4, 20)
 	assert.Equal(t, 1, isoWeekday(mon))
 	assert.Equal(t, 2, isoWeekday(mon.AddDays(1)))
@@ -642,6 +660,8 @@ func (materializationAllowCalendarService) ShouldMaterialize(int, timezone.Date,
 }
 
 func TestMaterializeForTenant_DuplicateInsertRaceDoesNotCopyChildren(t *testing.T) {
+	t.Parallel()
+
 	svc, date := newMaterializationBranchService(materializationFakeInstanceRepo{inserted: false})
 
 	result, err := svc.MaterializeForTenant(
@@ -660,6 +680,8 @@ func TestMaterializeForTenant_DuplicateInsertRaceDoesNotCopyChildren(t *testing.
 }
 
 func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
+	t.Parallel()
+
 	svc, date := newMaterializationBranchService(materializationFakeInstanceRepo{
 		inserted: false,
 		err:      errors.New("database unavailable"),
@@ -688,6 +710,8 @@ func TestMaterializeForTenant_TemplateInsertErrorBubbles(t *testing.T) {
 }
 
 func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
+	t.Parallel()
+
 	svc, saturday := newMaterializationBranchServiceForSchedule(
 		materializationFakeInstanceRepo{inserted: true},
 		timezone.NewDate(2026, time.April, 25),
@@ -706,6 +730,8 @@ func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
 }
 
 func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 4, 20)
 
 	t.Run("warns and no-ops without active periods", func(t *testing.T) {
@@ -767,6 +793,8 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 }
 
 func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 4, 20)
 	period := &schedule.CalendarPeriod{
 		StartDate: date.AddDays(-30),
@@ -921,6 +949,8 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 }
 
 func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 4, 20)
 	validFrom := date
 	periodID := int64(400)
@@ -1016,6 +1046,10 @@ func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(co
 	return 0, nil
 }
 
+func (r *materializationCountingStudentRepo) ApplyActivePartialAbsencesForInstance(context.Context, int64, timezone.Date) (int, error) {
+	return 0, nil
+}
+
 type materializationCountingStaffRepo struct {
 	schedule.InstanceStaffRepository
 	rows []*schedule.InstanceStaff
@@ -1094,6 +1128,8 @@ func newMaterializationBranchServiceForSchedule(
 // -----------------------------------------------------------------------------
 
 func TestScheduleEndedOn(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.June, 15)
 	until := timezone.NewDate(2026, time.June, 15)
 
@@ -1113,6 +1149,8 @@ func TestScheduleEndedOn(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestScheduleNotStartedOn(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.August, 13)
 	from := timezone.NewDate(2026, time.August, 13)
 

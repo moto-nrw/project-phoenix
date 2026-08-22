@@ -24,7 +24,7 @@ type updateTemplateRequest struct {
 	RoomID          int64         `json:"room_id"`
 	CategoryID      int64         `json:"category_id"`
 	PlanningTrackID nullableInt64 `json:"planning_track_id"`
-	MaxParticipants *int          `json:"max_participants,omitempty"`
+	MaxParticipants nullableInt   `json:"max_participants"`
 	// RequiredStaff is the optional manual Personalbedarf override (#1839);
 	// omitted/null clears the override (derive from the Betreuungsschlüssel).
 	RequiredStaff    *int   `json:"required_staff,omitempty"`
@@ -43,6 +43,11 @@ type updateTemplateRequest struct {
 	// template's dynamic Angebots-Belegung by simply not knowing them.
 	SourceCareOfferingIDs nullableInt64Slice `json:"source_care_offering_ids"`
 	SourceGradeLevels     nullableIntSlice   `json:"source_grade_levels"`
+	// SourceSchoolClasses is the Klassenfilter (#2482), same presence
+	// contract. Mutually exclusive with source_grade_levels: submitting one
+	// non-empty filter drops a carried-over other one, submitting both
+	// non-empty is a 400.
+	SourceSchoolClasses nullableStringSlice `json:"source_school_classes"`
 	// ListKind classifies the template for printable daily lists (#1565);
 	// omitted/null/empty clears it.
 	ListKind *string `json:"list_kind,omitempty"`
@@ -76,6 +81,12 @@ type updateTemplateRequest struct {
 	// edit. primary_staff_id always names THIS segment's lead, so it may only
 	// travel to a predecessor row when the user actually moved it.
 	SeriesRosterPrimaryChanged bool `json:"series_roster_primary_changed,omitempty"`
+	// StartDate (#2226, YYYY-MM-DD) pulls a not-yet-started series forward:
+	// schedule envelope and series-managed roster move to this earlier date.
+	// Must lie within the pinned calendar period, not in the past, before the
+	// stored series start, and clear of any predecessor segment's window.
+	// Omitted = the stored validity envelope stays untouched.
+	StartDate *string `json:"start_date,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -106,29 +117,8 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	// The offering-source pair is presence-aware: an omitted source id merges
-	// the STORED source in after bind (applyOfferingSourcePresence / the split
-	// service). Validating a submitted Jahrgangsfilter against the
-	// not-yet-merged nil source here would reject a legitimate filter-only
-	// edit of a sourced template (#2147 review round 14), so the pair enters
-	// the bind-time validation only when the source id itself was submitted.
-	// The merged state is always re-validated service-side
-	// (validateOfferingSourceInput → ErrOfferingSourceInvalid → 400).
-	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
-	if !req.SourceCareOfferingIDs.Set {
-		sourceGradeLevelsForBind = nil
-	}
-	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
-		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, req.Targets,
-	)
-	if err != nil {
+	if err := req.normalizeTargetAndSourceFields(); err != nil {
 		return err
-	}
-	req.TargetGroupType = targetType
-	req.TargetSchoolClass = schoolClass
-	if req.SourceCareOfferingIDs.Set {
-		req.SourceGradeLevels.Value = sourceGradeLevels
 	}
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
@@ -138,15 +128,64 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// normalizeTargetAndSourceFields canonicalizes the Zielgruppe and the
+// offering-source rule on the request in place.
+//
+// The offering-source pair is presence-aware: an omitted source id merges the
+// STORED source in after bind (applyOfferingSourcePresence / the split
+// service). Validating a submitted Jahrgangsfilter against the not-yet-merged
+// nil source here would reject a legitimate filter-only edit of a sourced
+// template (#2147 review round 14), so the pair enters the bind-time
+// validation only when the source id itself was submitted. The merged state is
+// always re-validated service-side (validateOfferingSourceInput →
+// ErrOfferingSourceInvalid → 400).
+func (req *updateTemplateRequest) normalizeTargetAndSourceFields() error {
+	sourceGradeLevelsForBind := req.SourceGradeLevels.Value
+	sourceSchoolClassesForBind := req.SourceSchoolClasses.Value
+	if !req.SourceCareOfferingIDs.Set {
+		sourceGradeLevelsForBind = nil
+		sourceSchoolClassesForBind = nil
+	}
+	targetType, schoolClass, sourceGradeLevels, sourceSchoolClasses, err := normalizeTemplateTargetFields(
+		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
+		req.SourceCareOfferingIDs.Value, sourceGradeLevelsForBind, sourceSchoolClassesForBind, req.Targets,
+	)
+	if err != nil {
+		return err
+	}
+	req.TargetGroupType = targetType
+	req.TargetSchoolClass = schoolClass
+	if req.SourceCareOfferingIDs.Set {
+		req.SourceGradeLevels.Value = sourceGradeLevels
+		req.SourceSchoolClasses.Value = sourceSchoolClasses
+		return nil
+	}
+	if !req.SourceSchoolClasses.Set {
+		return nil
+	}
+	// A filter-only edit of a sourced template skips the merged validation
+	// above (the source is merged in later), so the class list is trimmed and
+	// duplicate-checked here — otherwise " 1b " would be stored with its
+	// padding and shown back to the school that way (#2482).
+	normalized, err := activitiesModel.NormalizeSourceSchoolClasses(req.SourceSchoolClasses.Value)
+	if err != nil {
+		return err
+	}
+	req.SourceSchoolClasses.Value = normalized
+	return nil
+}
+
 // parsedUpdateTemplate holds the request plus values derived from cheap format
 // validation (clock window, defaulted week pattern and cap).
 type parsedUpdateTemplate struct {
-	req              *updateTemplateRequest
-	startTime        time.Time
-	endTime          time.Time
-	weekPattern      int
-	maxParticipants  int
-	seriesRosterFrom *timezone.Date
+	req                     *updateTemplateRequest
+	startTime               time.Time
+	endTime                 time.Time
+	weekPattern             int
+	maxParticipants         int
+	maxParticipantsProvided bool
+	seriesRosterFrom        *timezone.Date
+	startDate               *timezone.Date
 }
 
 // parseUpdateTemplateRequest binds and format-validates the request. Format
@@ -162,7 +201,7 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
 		return nil, false
 	}
-	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
+	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants.Value)
 	if !ok {
 		return nil, false
 	}
@@ -175,13 +214,25 @@ func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsed
 		}
 		seriesRosterFrom = &parsedDate
 	}
+	var startDate *timezone.Date
+	if req.StartDate != nil {
+		parsedDate, err := berlinDate(*req.StartDate)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				errors.New("invalid start_date format, expected YYYY-MM-DD")))
+			return nil, false
+		}
+		startDate = &parsedDate
+	}
 	return &parsedUpdateTemplate{
-		req:              req,
-		startTime:        timing.startTime,
-		endTime:          timing.endTime,
-		weekPattern:      timing.weekPattern,
-		maxParticipants:  timing.maxParticipants,
-		seriesRosterFrom: seriesRosterFrom,
+		req:                     req,
+		startTime:               timing.startTime,
+		endTime:                 timing.endTime,
+		weekPattern:             timing.weekPattern,
+		maxParticipants:         timing.maxParticipants,
+		maxParticipantsProvided: req.MaxParticipants.Set,
+		seriesRosterFrom:        seriesRosterFrom,
+		startDate:               startDate,
 	}, true
 }
 
@@ -306,8 +357,10 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	parsed.req.CalendarPeriodID = updateCalendarPeriodID(
+		parsed.startDate, parsed.req.CalendarPeriodID, templates[0])
 	applyOfferingSourcePresence(parsed.req, templates[0])
-	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, nil)
+	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID, parsed.startDate)
 	if !ok {
 		return
 	}
@@ -337,6 +390,25 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
 }
 
+// updateCalendarPeriodID keeps the stored pin when a pull-forward omits the
+// field. The schedule pin is more specific than the template-level fallback,
+// matching the materializer's period resolution. Carrying the resolved pin
+// both enforces its bounds and prevents the replacement update from clearing
+// it. Updates without start_date preserve the existing omission semantics.
+func updateCalendarPeriodID(
+	startDate *timezone.Date,
+	requestedPeriodID *int64,
+	existing templateResponse,
+) *int64 {
+	if startDate == nil || requestedPeriodID != nil {
+		return requestedPeriodID
+	}
+	if len(existing.Schedules) > 0 && existing.Schedules[0].CalendarPeriodID != nil {
+		return existing.Schedules[0].CalendarPeriodID
+	}
+	return existing.CalendarPeriodID
+}
+
 // applyOfferingSourcePresence resolves the presence-aware offering-source
 // fields against the stored template (#2147 review round 12): an omitted
 // field keeps the stored value — a client sending the pre-#2137 full update
@@ -354,16 +426,62 @@ func applyOfferingSourcePresence(req *updateTemplateRequest, existing templateRe
 	if !req.SourceCareOfferingIDs.Set && len(existing.SourceCareOfferingIDs) > 0 {
 		req.SourceCareOfferingIDs.Value = slices.Clone(existing.SourceCareOfferingIDs)
 	}
+	// The filter follows the source: a kept or carried source keeps the stored
+	// filter; a source cleared by explicit null takes the filter down with it.
+	if len(req.SourceCareOfferingIDs.Value) == 0 {
+		clearOfferingSourceFiltersWhenSourceMissing(req)
+		return
+	}
+	applyOfferingSourceFilters(req, existing)
+}
+
+func clearOfferingSourceFiltersWhenSourceMissing(req *updateTemplateRequest) {
+	// Preserve an explicitly submitted filter so model validation rejects it
+	// instead of returning success after silently discarding client input.
+	if hasSubmittedOfferingSourceFilter(req) {
+		return
+	}
+	req.SourceGradeLevels.Value = nil
+	req.SourceSchoolClasses.Value = nil
+}
+
+func hasSubmittedOfferingSourceFilter(req *updateTemplateRequest) bool {
+	return req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0 ||
+		req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0
+}
+
+func applyOfferingSourceFilters(req *updateTemplateRequest, existing templateResponse) {
+	// Grade and class filter are mutually exclusive (#2482), so an explicitly
+	// submitted non-empty filter also DROPS the other one instead of letting
+	// it be carried in from storage — switching a Regeltermin from Jahrgang
+	// to Klasse would otherwise fail with "cannot be combined" on a filter
+	// the client never sent.
+	submittedGrades := req.SourceGradeLevels.Set && len(req.SourceGradeLevels.Value) > 0
+	submittedClasses := req.SourceSchoolClasses.Set && len(req.SourceSchoolClasses.Value) > 0
+	inheritSourceGradeLevels(req, existing, submittedClasses)
+	inheritSourceSchoolClasses(req, existing, submittedGrades)
+}
+
+func inheritSourceGradeLevels(req *updateTemplateRequest, existing templateResponse, submittedClasses bool) {
 	if req.SourceGradeLevels.Set {
 		return
 	}
-	// The filter follows the source: a kept or carried source keeps the stored
-	// filter; a source cleared by explicit null takes the filter down with it.
-	if len(req.SourceCareOfferingIDs.Value) > 0 {
-		req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
-	} else {
+	if submittedClasses {
 		req.SourceGradeLevels.Value = nil
+		return
 	}
+	req.SourceGradeLevels.Value = slices.Clone(existing.SourceGradeLevels)
+}
+
+func inheritSourceSchoolClasses(req *updateTemplateRequest, existing templateResponse, submittedGrades bool) {
+	if req.SourceSchoolClasses.Set {
+		return
+	}
+	if submittedGrades || len(req.SourceGradeLevels.Value) > 0 {
+		req.SourceSchoolClasses.Value = nil
+		return
+	}
+	req.SourceSchoolClasses.Value = slices.Clone(existing.SourceSchoolClasses)
 }
 
 // validateLegacyTemplateWorkdays permits an update to retain a weekend
@@ -416,6 +534,7 @@ func buildUpdateTemplateInput(
 			RoomID:                  req.RoomID,
 			EducationGroupID:        req.EducationGroupID,
 			MaxParticipants:         parsed.maxParticipants,
+			MaxParticipantsProvided: parsed.maxParticipantsProvided,
 			RequiredStaff:           normalizeRequiredStaff(req.RequiredStaff),
 			CalendarPeriodID:        req.CalendarPeriodID,
 			TargetGroupType:         req.TargetGroupType,
@@ -423,6 +542,7 @@ func buildUpdateTemplateInput(
 			TargetSchoolClass:       req.TargetSchoolClass,
 			SourceCareOfferingIDs:   req.SourceCareOfferingIDs.Value,
 			SourceGradeLevels:       req.SourceGradeLevels.Value,
+			SourceSchoolClasses:     req.SourceSchoolClasses.Value,
 			ListKind:                req.ListKind,
 			Notes:                   normalizeNotes(req.Notes),
 		},
@@ -438,6 +558,7 @@ func buildUpdateTemplateInput(
 		WeekdayAssignments: toServiceWeekdayAssignments(req.WeekdayAssignments),
 		GradeLevelMax:      gradeLevelMax,
 		SeriesRosterFrom:   parsed.seriesRosterFrom,
+		StartDate:          parsed.startDate,
 
 		SeriesRosterScopeStudentIDs: req.SeriesRosterScopeStudentIDs,
 		SeriesRosterScopeStaffIDs:   req.SeriesRosterScopeStaffIDs,
@@ -462,6 +583,7 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
 	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case renderTemplateStartPullError(w, r, err):
 	case renderTemplateEducationGroupError(w, r, err):
 	case renderTemplateCareOfferingConflict(w, r, err):
 	case renderTemplateRosterRebaseConflict(w, r, err):
@@ -469,6 +591,43 @@ func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
 	}
+}
+
+// Stable codes for the pull-forward series-start rejections (#2226) so the
+// planner can map them without matching the German text.
+const (
+	ErrCodeTemplateStartNotEarlier       = "timetable.template_start_not_earlier"
+	ErrCodeTemplateStartInPast           = "timetable.template_start_in_past"
+	ErrCodeTemplateStartPredecessorClash = "timetable.template_start_predecessor_overlap"
+)
+
+// renderTemplateStartPullError maps the pull-forward series-start rejections
+// (#2226) to German 400s. Like the care-offering conflict above, the message
+// itself is user-facing German — the planner shows it verbatim.
+func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err error) bool {
+	switch {
+	case errors.Is(err, scheduleSvc.ErrTemplateStartNotEarlier):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
+			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
+			ErrCodeTemplateStartNotEarlier,
+		))
+	case errors.Is(err, scheduleSvc.ErrTemplateStartInPast):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
+			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
+			ErrCodeTemplateStartInPast,
+		))
+	case errors.Is(err, scheduleSvc.ErrTemplateStartPredecessorOverlap):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
+			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),
+			ErrCodeTemplateStartPredecessorClash,
+		))
+	default:
+		return false
+	}
+	return true
 }
 
 func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {

@@ -49,12 +49,19 @@ import {
   toDateKey,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
-import { parseISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  endOfBerlinDayISO,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import type { BalanceAdjustment } from "~/lib/time-tracking-helpers";
+import {
+  balanceSessionEnd,
+  type BalanceAdjustment,
+} from "~/lib/time-tracking-helpers";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
 import { StundenkontoPanel } from "./stundenkonto-panel";
@@ -142,12 +149,23 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   }, [timeTrackingConfig?.accountStartDate, today]);
 
   const accountStartKey = toDateKey(accountAnchor);
+  const accountHistoryStartKey = useMemo(() => {
+    const previousDay = new Date(accountAnchor);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [accountAnchor]);
   const yearEndKey = toDateKey(today);
   const adjustmentHistoryEndKey = "9999-12-31";
   const { data: accountSessions, isLoading: sessionsLoading } = useSWRAuth<
     StaffHistorySession[]
-  >(`staff-history-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
-    staffHistoryService.getHistory(staffId, accountStartKey, yearEndKey),
+  >(
+    `staff-history-account-${staffId}-${accountHistoryStartKey}-${yearEndKey}`,
+    () =>
+      staffHistoryService.getHistory(
+        staffId,
+        accountHistoryStartKey,
+        yearEndKey,
+      ),
   );
   const { data: accountAbsences, isLoading: absencesLoading } = useSWRAuth<
     StaffAbsenceRow[]
@@ -759,20 +777,53 @@ function countAbsenceDays(
   return counts;
 }
 
-function countSessionDaysInRange(
+// Exported for the unit test: the counters answer "how many days was this
+// person at work", which is decided here and nowhere else.
+export function countSessionDaysInRange(
   sessions: readonly StaffHistorySession[],
   from: Date,
   to: Date,
 ): { present: number; homeOffice: number } {
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
+  const minutesByDay = new Map<
+    string,
+    {
+      present: number;
+      homeOffice: number;
+      hasPresentBlock: boolean;
+      hasHomeOfficeBlock: boolean;
+    }
+  >();
+  for (const session of sessions) {
+    for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
+      if (date < fromKey || date > toKey) continue;
+      const day = minutesByDay.get(date) ?? {
+        present: 0,
+        homeOffice: 0,
+        hasPresentBlock: false,
+        hasHomeOfficeBlock: false,
+      };
+      if (session.status === "home_office") {
+        day.homeOffice += minutes;
+        day.hasHomeOfficeBlock = true;
+      } else {
+        day.present += minutes;
+        day.hasPresentBlock = true;
+      }
+      minutesByDay.set(date, day);
+    }
+  }
   let present = 0;
   let homeOffice = 0;
-  for (const s of sessions) {
-    const key = s.date.slice(0, 10);
-    if (key < fromKey || key > toKey) continue;
-    if (s.status === "home_office") homeOffice += 1;
-    else present += 1;
+  for (const day of minutesByDay.values()) {
+    // Minutes decide WHERE a day counts, the block decides THAT it counts. A
+    // day whose blocks net nothing (a shift that was all break, a stamp that
+    // was just opened) is still a day at work and must not vanish from the
+    // counters.
+    if (day.homeOffice > day.present) homeOffice += 1;
+    else if (day.present > 0 || day.hasPresentBlock) present += 1;
+    else if (day.hasHomeOfficeBlock) homeOffice += 1;
   }
   return { present, homeOffice };
 }
@@ -868,6 +919,128 @@ interface TrendPoint {
   balance: number;
 }
 
+// Splits each block at Berlin midnight before the chart series aggregate it.
+// History rows retain their original check-in date by design, but the monthly
+// balance books their net time on every Berlin calendar day the interval
+// touches. Charts must use the same allocation or a night block shifts Ist and
+// Saldo into the wrong day/week.
+export function indexSessionNetMinutesByBerlinDate(
+  sessions: readonly StaffHistorySession[],
+): Map<string, number> {
+  const byDate = new Map<string, number>();
+  for (const session of sessions) {
+    for (const [date, minutes] of splitSessionNetMinutesByBerlinDate(session)) {
+      byDate.set(date, (byDate.get(date) ?? 0) + minutes);
+    }
+  }
+  return byDate;
+}
+
+function splitSessionNetMinutesByBerlinDate(
+  session: StaffHistorySession,
+): Map<string, number> {
+  const start = new Date(session.check_in_time);
+  const checkOut = session.check_out_time
+    ? new Date(session.check_out_time)
+    : null;
+  // Same live limit as the balance: an open block must not be split through
+  // "now", or its capped net minutes land on a day it never worked.
+  const end = balanceSessionEnd(
+    { date: session.date, checkIn: start, checkOut },
+    new Date(),
+  );
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    !end.getTime() ||
+    end <= start
+  ) {
+    return new Map([[session.date.slice(0, 10), session.net_minutes]]);
+  }
+
+  const grossByDate = new Map<string, number>();
+  const breakByDate = new Map<string, number>();
+  let cursor = start;
+  while (cursor < end) {
+    const date = berlinTodayISO(cursor);
+    const nextMidnight =
+      new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
+    const segmentEnd = new Date(Math.min(nextMidnight, end.getTime()));
+    const grossMinutes = (segmentEnd.getTime() - cursor.getTime()) / 60_000;
+    grossByDate.set(date, (grossByDate.get(date) ?? 0) + grossMinutes);
+
+    for (const workBreak of session.breaks ?? []) {
+      const breakStart = new Date(workBreak.started_at);
+      const breakEnd = workBreak.ended_at ? new Date(workBreak.ended_at) : end;
+      if (
+        Number.isNaN(breakStart.getTime()) ||
+        Number.isNaN(breakEnd.getTime())
+      ) {
+        continue;
+      }
+      const overlapStart = Math.max(cursor.getTime(), breakStart.getTime());
+      const overlapEnd = Math.min(segmentEnd.getTime(), breakEnd.getTime());
+      if (overlapEnd > overlapStart) {
+        breakByDate.set(
+          date,
+          (breakByDate.get(date) ?? 0) + (overlapEnd - overlapStart) / 60_000,
+        );
+      }
+    }
+    cursor = segmentEnd;
+  }
+
+  const rawNetByDate = new Map<string, number>();
+  if ((session.breaks?.length ?? 0) === 0 && session.break_minutes > 0) {
+    // Legacy rows have only the cached aggregate. Mirror netMinutesByDate:
+    // consume it from the earliest Berlin segment instead of smearing a pause
+    // across days whose actual pause time is unknown.
+    let remainingBreakMinutes = session.break_minutes;
+    for (const [date, grossMinutes] of grossByDate) {
+      const deducted = Math.min(grossMinutes, remainingBreakMinutes);
+      breakByDate.set(date, deducted);
+      remainingBreakMinutes -= deducted;
+    }
+  }
+  let totalRawNet = 0;
+  for (const [date, grossMinutes] of grossByDate) {
+    const netMinutes = Math.max(0, grossMinutes - (breakByDate.get(date) ?? 0));
+    rawNetByDate.set(date, netMinutes);
+    totalRawNet += netMinutes;
+  }
+  return distributeNetMinutes(rawNetByDate, totalRawNet, session.net_minutes);
+}
+
+function distributeNetMinutes(
+  rawNetByDate: ReadonlyMap<string, number>,
+  totalRawNet: number,
+  netMinutes: number,
+): Map<string, number> {
+  if (totalRawNet <= 0) {
+    // A block whose whole duration is break time nets nothing — but it did
+    // happen, and the day it happened on has to stay in the result: the
+    // presence counters read the days, not the minutes, so dropping it would
+    // hide a worked day from "Anwesend"/"Homeoffice" (#2402).
+    return new Map(rawNetByDate);
+  }
+
+  const shares = [...rawNetByDate.entries()].map(([date, rawMinutes]) => {
+    const exact = (rawMinutes / totalRawNet) * netMinutes;
+    return { date, minutes: Math.floor(exact), remainder: exact % 1 };
+  });
+  let remaining =
+    netMinutes - shares.reduce((sum, share) => sum + share.minutes, 0);
+  shares.sort(
+    (left, right) =>
+      right.remainder - left.remainder || left.date.localeCompare(right.date),
+  );
+  for (let index = 0; remaining > 0; index = (index + 1) % shares.length) {
+    shares[index]!.minutes += 1;
+    remaining -= 1;
+  }
+  return new Map(shares.map(({ date, minutes }) => [date, minutes]));
+}
+
 // Cumulative weekly balance series over [from, to]. Running total starts at 0
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
@@ -880,8 +1053,7 @@ function buildWeeklyBalanceSeriesRange(
   to: Date,
 ): TrendPoint[] {
   const points: TrendPoint[] = [];
-  const sessionsByDate = new Map<string, StaffHistorySession>();
-  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
   // Stundenkonto-Buchungen (#1420) als Stufen am Wirksamkeitstag — gespiegelt
   // zum Server (addAdjustments): der Saldo-Verlauf muss nach einer Auszahlung
@@ -912,7 +1084,7 @@ function buildWeeklyBalanceSeriesRange(
     const clippedEnd = weekEnd > to ? to : weekEnd;
     const weekDelta = computeWeekDelta(
       targets,
-      sessionsByDate,
+      istByDate,
       creditByDate,
       adjustmentByDate,
       clippedStart,
@@ -929,7 +1101,7 @@ function buildWeeklyBalanceSeriesRange(
 
 function computeWeekDelta(
   targets: TargetsByDay,
-  sessionsByDate: Map<string, StaffHistorySession>,
+  istByDate: ReadonlyMap<string, number>,
   creditByDate: ReadonlyMap<string, number>,
   adjustmentByDate: ReadonlyMap<string, number>,
   weekStart: Date,
@@ -945,9 +1117,9 @@ function computeWeekDelta(
     day.setDate(day.getDate() + i);
     const key = toDateKey(day);
     soll += targets.get(key) ?? 0;
-    const session = sessionsByDate.get(key);
-    if (session) {
-      ist += session.net_minutes;
+    const dayIst = istByDate.get(key);
+    if (dayIst !== undefined) {
+      ist += dayIst;
     } else {
       ist += creditByDate.get(key) ?? 0;
     }
@@ -986,8 +1158,7 @@ function buildDailyIstSollSeriesRange(
   from: Date,
   to: Date,
 ): DailyTrendPoint[] {
-  const sessionsByDate = new Map<string, StaffHistorySession>();
-  for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
+  const istByDate = indexSessionNetMinutesByBerlinDate(sessions);
   const creditByDate = indexAbsenceCreditByDay(targets, absences);
 
   const result: DailyTrendPoint[] = [];
@@ -1003,10 +1174,10 @@ function buildDailyIstSollSeriesRange(
     if (dow < 5) {
       const key = toDateKey(day);
       const soll = targets.get(key) ?? 0;
-      const session = sessionsByDate.get(key);
+      const dayIst = istByDate.get(key);
       let ist = 0;
-      if (session) {
-        ist = session.net_minutes;
+      if (dayIst !== undefined) {
+        ist = dayIst;
       } else {
         ist = creditByDate.get(key) ?? 0;
       }

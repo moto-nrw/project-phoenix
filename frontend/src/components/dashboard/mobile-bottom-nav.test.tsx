@@ -249,6 +249,20 @@ describe("MobileBottomNav", () => {
       const spacer = container.querySelector(".h-16");
       expect(spacer).toBeInTheDocument();
     });
+
+    it("prefixes the Anfragen overflow link in path-routing mode", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "vacation:approve",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/anfragen",
+      );
+    });
   });
 
   describe("active route detection", () => {
@@ -1012,40 +1026,6 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       expect(screen.getByText("Feedback")).toBeInTheDocument();
-    });
-  });
-
-  describe("parent mode navigation", () => {
-    beforeEach(() => {
-      mockUseShellAuth.mockReturnValue({
-        user: { name: "Parent", email: "parent@example.com", roles: [] },
-        profile: { firstName: "Parent" },
-        status: "authenticated",
-        isSessionExpired: false,
-        logout: vi.fn(),
-        mode: "parent",
-        homeUrl: "/parents",
-
-        profileUrl: "/parents/profile",
-      });
-      mockUsePathname.mockReturnValue("/parents/calendar");
-    });
-
-    it("keeps the parents calendar entry labelled 'Kalender'", () => {
-      // Bewusst NICHT umbenannt: der Eltern-Eintrag kommt aus dem eigenen
-      // Übersetzungsschlüssel parentNav.calendar. Nur der Staff-Eintrag auf
-      // /calendar heißt jetzt "Mein Kalender".
-      render(<MobileBottomNav />);
-
-      // Haupteinträge tragen ihr Label immer als aria-label (sichtbar nur,
-      // wenn aktiv), deshalb per Rolle+Name gesucht.
-      expect(screen.getByRole("link", { name: "Kalender" })).toHaveAttribute(
-        "href",
-        "/parents/calendar",
-      );
-      expect(
-        screen.queryByRole("link", { name: "Mein Kalender" }),
-      ).not.toBeInTheDocument();
     });
   });
 

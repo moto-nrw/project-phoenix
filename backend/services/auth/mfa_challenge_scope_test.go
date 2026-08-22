@@ -23,6 +23,8 @@ import (
 func rateLimitWindowStart() time.Time { return time.Now().Add(-time.Hour) }
 
 func TestMFAService_ResendChallengeForScope_InvalidToken_ReturnsTokenInvalid(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := newExtraMFAService(t)
 
 	renewed, err := svc.ResendChallengeForScope(
@@ -34,6 +36,8 @@ func TestMFAService_ResendChallengeForScope_InvalidToken_ReturnsTokenInvalid(t *
 }
 
 func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t *testing.T) {
+	t.Parallel()
+
 	svc, repos, accID := newExtraMFAService(t)
 	ctx := context.Background()
 	require.NoError(t, svc.Enroll(ctx, accID))
@@ -59,6 +63,8 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 }
 
 func TestMFAService_ResendChallengeForScope_SchoolScope_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	svc, _, accID := newExtraMFAService(t)
 	ctx := context.Background()
 	require.NoError(t, svc.Enroll(ctx, accID))

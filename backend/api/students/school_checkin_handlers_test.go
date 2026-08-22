@@ -4,13 +4,14 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLabelForAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		status string
 		want   string
@@ -30,6 +31,8 @@ func TestLabelForAttendanceStatus(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_CheckedIn(t *testing.T) {
+	t.Parallel()
+
 	checkin := time.Now().Add(-1 * time.Hour)
 	status := &activeService.AttendanceStatus{
 		StudentID:   42,
@@ -51,6 +54,8 @@ func TestBuildSchoolCheckinResponse_CheckedIn(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_OnYard(t *testing.T) {
+	t.Parallel()
+
 	checkin := time.Now().Add(-2 * time.Hour)
 	yard := time.Now().Add(-15 * time.Minute)
 	status := &activeService.AttendanceStatus{
@@ -69,6 +74,8 @@ func TestBuildSchoolCheckinResponse_OnYard(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
+	t.Parallel()
+
 	checkout := time.Now().Add(-5 * time.Minute)
 	status := &activeService.AttendanceStatus{
 		StudentID:    42,
@@ -83,6 +90,8 @@ func TestBuildSchoolCheckinResponse_CheckedOut(t *testing.T) {
 }
 
 func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	status := &activeService.AttendanceStatus{
 		StudentID: 42,
 		Status:    "not_checked_in",
@@ -97,10 +106,14 @@ func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 }
 
 // =============================================================================
-// isIdempotentSchoolCheckin — pure decision logic, no mocks needed
+// activeService.IsSchoolCheckinNoop — pure decision logic, no mocks needed
+// (moved from the handler into services/active with the batch orchestration,
+// review #2372; cases and assertions unchanged)
 // =============================================================================
 
 func TestIsIdempotentSchoolCheckin(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name          string
 		action        string
@@ -120,36 +133,7 @@ func TestIsIdempotentSchoolCheckin(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.wantNoOp, isIdempotentSchoolCheckin(tc.action, tc.currentStatus))
+			assert.Equal(t, tc.wantNoOp, activeService.IsSchoolCheckinNoop(tc.action, tc.currentStatus))
 		})
 	}
-}
-
-// =============================================================================
-// evaluateWebCheckinAccess — pure decision logic
-// =============================================================================
-
-func TestEvaluateWebCheckinAccess_AllStaff_AlwaysAllows(t *testing.T) {
-	// all_staff ignores the supervisor flag entirely.
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessAllStaff, false))
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessAllStaff, true))
-}
-
-func TestEvaluateWebCheckinAccess_GroupSupervisors_AllowsSupervisor(t *testing.T) {
-	assert.NoError(t, evaluateWebCheckinAccess(configModel.WebCheckinAccessGroupSupervisors, true))
-}
-
-func TestEvaluateWebCheckinAccess_GroupSupervisors_DeniesNonSupervisor(t *testing.T) {
-	err := evaluateWebCheckinAccess(configModel.WebCheckinAccessGroupSupervisors, false)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not a supervisor")
-}
-
-func TestEvaluateWebCheckinAccess_UnknownMode_FallsThroughToSupervisorCheck(t *testing.T) {
-	// Defense in depth: an unrecognised mode string treats the caller as
-	// non-all-staff, so the supervisor flag decides. If the tenant has a
-	// broken setting value we fail closed rather than silently granting.
-	assert.NoError(t, evaluateWebCheckinAccess("garbage-value", true))
-	err := evaluateWebCheckinAccess("garbage-value", false)
-	require.Error(t, err)
 }

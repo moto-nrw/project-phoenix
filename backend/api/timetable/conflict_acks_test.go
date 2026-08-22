@@ -37,10 +37,8 @@ type ackSetup struct {
 func buildAckSetup(t *testing.T) *ackSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("ack-%d@example.com", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID) })
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(context.Background(),
 			"DELETE FROM schedule.timetable_conflict_acks WHERE account_id = ?", account.ID)
@@ -92,6 +90,8 @@ func decodeAckList(t *testing.T, w *httptest.ResponseRecorder) []string {
 }
 
 func TestConflictAcks_AcknowledgeListUnacknowledge(t *testing.T) {
+	t.Parallel()
+
 	s := buildAckSetup(t)
 	router := conflictAckRouter(s.res, 1, s.accountID)
 
@@ -119,6 +119,8 @@ func TestConflictAcks_AcknowledgeListUnacknowledge(t *testing.T) {
 }
 
 func TestConflictAcks_InvalidFingerprintRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildAckSetup(t)
 	router := conflictAckRouter(s.res, 1, s.accountID)
 
@@ -129,9 +131,10 @@ func TestConflictAcks_InvalidFingerprintRejected(t *testing.T) {
 }
 
 func TestConflictAcks_ScopedPerAccount(t *testing.T) {
+	t.Parallel()
+
 	s := buildAckSetup(t)
 	other := testpkg.CreateTestAccount(t, s.db, fmt.Sprintf("ack-other-%d@example.com", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "auth.accounts", other.ID) })
 
 	mine := conflictAckRouter(s.res, 1, s.accountID)
 	theirs := conflictAckRouter(s.res, 1, other.ID)
@@ -151,6 +154,8 @@ func TestConflictAcks_ScopedPerAccount(t *testing.T) {
 }
 
 func TestConflictAcks_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildAckSetup(t)
 	tenantOne := conflictAckRouter(s.res, 1, s.accountID)
 	tenantOther := conflictAckRouter(s.res, 999, s.accountID)
@@ -165,6 +170,8 @@ func TestConflictAcks_TenantIsolation(t *testing.T) {
 }
 
 func TestConflictAcks_MissingAccountRejected(t *testing.T) {
+	t.Parallel()
+
 	s := buildAckSetup(t)
 	// Claims with ID 0 — e.g. a token shape that never carried an account.
 	router := conflictAckRouter(s.res, 1, 0)

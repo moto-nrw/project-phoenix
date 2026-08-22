@@ -118,6 +118,30 @@ func (r *Repository[T]) FindByID(ctx context.Context, id any) (T, error) {
 	return entityVal, nil
 }
 
+// FindByIDForUpdate is FindByID with a row lock held until the surrounding
+// transaction finishes. Callers use it when a state check and subsequent
+// mutation must be atomic.
+func (r *Repository[T]) FindByIDForUpdate(ctx context.Context, id any) (T, error) {
+	var entity T
+	entityType := reflect.TypeFor[T]()
+	if entityType.Kind() == reflect.Pointer {
+		entityType = entityType.Elem()
+	}
+	entityVal := reflect.New(entityType).Interface().(T)
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+	query := GetDB(ctx, r.DB).NewSelect().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where(fmt.Sprintf(`"%s".id = ?`, entityName), id).
+		For("UPDATE")
+	query = r.applyTenantFilter(ctx, query, entityName)
+	if err := query.Scan(ctx); err != nil {
+		return entity, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
+	}
+	return entityVal, nil
+}
+
 // FindByIDOrNil behaves like FindByID but returns the zero value and a nil error
 // when no row matches, instead of a wrapped sql.ErrNoRows. Repositories whose
 // service layer treats "not found" as nil (rather than an error) delegate their
@@ -210,7 +234,11 @@ func (r *Repository[T]) Delete(ctx context.Context, id any) error {
 
 // List retrieves entities matching the filters
 func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, error) {
-	var entities []T
+	// Empty, not nil: "no rows" is an empty list, and callers serialize the
+	// result straight to JSON — a nil slice becomes null and every consumer
+	// has to special-case it (#2419 surfaced this once tests stopped sharing
+	// one tenant full of other tests' rows).
+	entities := make([]T, 0)
 
 	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
 	// Convert EntityName from CamelCase to snake_case for consistent alias
@@ -244,10 +272,10 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 
 // ListWithOptions retrieves entities matching the query options, supporting
 // the full Filter operator set plus sorting and pagination. The single-table
-// twin of the hand-rolled per-repo List(QueryOptions) copies; returns a nil
-// slice when nothing matches (callers that must serialize JSON [] coerce).
+// twin of the hand-rolled per-repo List(QueryOptions) copies; returns an empty
+// slice when nothing matches, so the JSON is [] rather than null.
 func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
-	var entities []T
+	entities := make([]T, 0)
 
 	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)

@@ -34,11 +34,9 @@ type plannedConflictsSetup struct {
 func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Conf-Room-%d", suffix))
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, 0, room.ID) })
 
 	res := NewResource(Dependencies{
 		TimetableData: testTimetableData(db),
@@ -48,7 +46,7 @@ func buildPlannedConflictsSetup(t *testing.T) *plannedConflictsSetup {
 	return &plannedConflictsSetup{
 		res:    res,
 		db:     db,
-		ctx:    testpkg.TenantContext(1),
+		ctx:    testpkg.Ctx(t),
 		roomID: room.ID,
 		date:   timezone.NewDate(2026, time.June, 22),
 	}
@@ -90,6 +88,8 @@ func decodePlannedConflicts(t *testing.T, w *httptest.ResponseRecorder) PlannedC
 }
 
 func TestConflicts_BadRequestMatrix(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -120,6 +120,8 @@ func TestConflicts_BadRequestMatrix(t *testing.T) {
 }
 
 func TestConflicts_EmptyWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
@@ -136,13 +138,14 @@ func TestConflicts_EmptyWarnings(t *testing.T) {
 }
 
 func TestConflicts_RoomOverlapAloneYieldsNoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
 	// #2139: several groups may share a room — a probe that only shares the
 	// room with an overlapping instance answers 200 with zero warnings.
-	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Raum"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+	testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Raum"})
 
 	w := doPlannedConflicts(t, router, fmt.Sprintf(
 		"/conflicts?date=%s&start_time=14:30&end_time=15:30&room_id=%d", s.date.String(), s.roomID))
@@ -153,17 +156,14 @@ func TestConflicts_RoomOverlapAloneYieldsNoWarning(t *testing.T) {
 }
 
 func TestConflicts_StaffSameRoomYieldsNoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Parallel"})
 	staff := testpkg.CreateTestStaff(t, s.db, "Conf", fmt.Sprintf("SameRoom-%d", time.Now().UnixNano()))
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, staff.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
 
 	// Same staff, overlapping window, SAME room — sanctioned (#2139).
 	w := doPlannedConflicts(t, router, fmt.Sprintf(
@@ -176,17 +176,14 @@ func TestConflicts_StaffSameRoomYieldsNoWarning(t *testing.T) {
 }
 
 func TestConflicts_StaffWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Personal"})
 	staff := testpkg.CreateTestStaff(t, s.db, "Conf", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
-	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, staff.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff.ID, testpkg.InstanceStaffOpts{})
 
 	w := doPlannedConflicts(t, router, fmt.Sprintf(
 		"/conflicts?date=%s&start_time=14:30&end_time=15:30&staff_ids=%d", s.date.String(), staff.ID))
@@ -200,17 +197,14 @@ func TestConflicts_StaffWarning(t *testing.T) {
 }
 
 func TestConflicts_StudentWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Kind"})
 	student := testpkg.CreateTestStudent(t, s.db, "Conf-Kid", fmt.Sprintf("One-%d", time.Now().UnixNano()), "2b")
-	row := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, student.ID, 0, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	w := doPlannedConflicts(t, router, fmt.Sprintf(
 		"/conflicts?date=%s&start_time=14:30&end_time=15:30&student_ids=%d", s.date.String(), student.ID))
@@ -224,11 +218,12 @@ func TestConflicts_StudentWarning(t *testing.T) {
 }
 
 func TestConflicts_ExcludeInstance(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := plannedConflictsRouter(s.ctx, s.res)
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conf-Selbst"})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	w := doPlannedConflicts(t, router, fmt.Sprintf(
 		"/conflicts?date=%s&start_time=14:30&end_time=15:30&room_id=%d&exclude_instance_id=%d",

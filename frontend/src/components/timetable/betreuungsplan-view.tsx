@@ -41,6 +41,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { PlanLegend, type PlanLegendEntry } from "~/components/ui/plan-legend";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
@@ -227,6 +228,14 @@ function TimetablesContent() {
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const canManageSchedules = hasPermission(session, "schedules:manage");
+  // Leseansicht (#2283): ohne users:read dürfen die tenantweiten Kinder- und
+  // Personallisten nicht geladen werden (403) — Namen kommen dann pro Termin
+  // über den Teilnehmer-Endpunkt ins Detail-Modal.
+  const canReadTenantRosters = hasPermission(session, "users:read");
+  // Anmeldephasen (Bedarf-Chip) hängen am echten Endpunkt-Gate config:read,
+  // Perioden-Bootstrap an schedules:create — keine Proxy-Permissions.
+  const canReadEnrollmentPhases = hasPermission(session, "config:read");
+  const canBootstrapPeriods = hasPermission(session, "schedules:create");
   const canManageCategories = hasPermission(
     session,
     "activities:manage_categories",
@@ -242,7 +251,11 @@ function TimetablesContent() {
   const rawDay = params.d;
   const requestedDayISO =
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
-  const view: TimetableView = parseViewParam(params.view);
+  // Leseansicht (#2283): Nicht-Planende sehen nur die Wochenansicht — ein
+  // ?v=monat/serien-Deeplink fällt still auf die Woche zurück.
+  const view: TimetableView = canManageSchedules
+    ? parseViewParam(params.view)
+    : "week";
   // The monthly calendar and series period lookup retain their requested
   // calendar date. Only the workweek view snaps weekend anchors to Monday.
   const dayISO =
@@ -423,7 +436,9 @@ function TimetablesContent() {
   // the week view deliberately does not expose.
   const gapsFromISO =
     fetchFromISO < todayTargetISO ? todayTargetISO : fetchFromISO;
-  const shouldLoadGaps = view === "week" && fetchToISO >= todayTargetISO;
+  // Lücken sind Planungswerkzeug — in der Leseansicht weder Chip noch Fetch.
+  const shouldLoadGaps =
+    canManageSchedules && view === "week" && fetchToISO >= todayTargetISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
@@ -434,17 +449,25 @@ function TimetablesContent() {
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
   const { data: staffData } = useSWRAuth(
-    status === "authenticated" ? "timetable-staff-list" : null,
+    status === "authenticated" && canReadTenantRosters
+      ? "timetable-staff-list"
+      : null,
     () => staffService.getAllStaff(),
   );
   const { data: studentData } = useSWRAuth(
-    status === "authenticated" ? "timetable-student-list" : null,
+    status === "authenticated" && canReadTenantRosters
+      ? "timetable-student-list"
+      : null,
     () => fetchStudents({ page_size: 500 }),
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
   // Zuordnung.
   const { data: phasesData, error: phasesError } = useSWRAuth(
-    status === "authenticated" ? PHASES_SWR_KEY : null,
+    // Leseansicht (#2283): Anmeldephasen sind admin-gegated; ohne
+    // schedules:manage würde der Abruf nur 403-Rauschen erzeugen.
+    status === "authenticated" && canReadEnrollmentPhases
+      ? PHASES_SWR_KEY
+      : null,
     () => listPhases(),
     { revalidateOnFocus: false },
   );
@@ -507,6 +530,9 @@ function TimetablesContent() {
     if (periodsLoading || periodsError || periods === undefined) return;
     if (periods.length > 0) return;
     if (settingsSchemaLoading || timetableDisabled) return;
+    // Leseansicht (#2283): ohne schedules:create würde der Bootstrap ohnehin
+    // mit 403 abgewiesen — gar nicht erst versuchen.
+    if (!canBootstrapPeriods) return;
     if (bootstrapAttemptedRef.current) return;
     bootstrapAttemptedRef.current = true;
     void calendarPeriodService
@@ -530,6 +556,7 @@ function TimetablesContent() {
         }
       });
   }, [
+    canBootstrapPeriods,
     periods,
     periodsError,
     periodsLoading,
@@ -636,7 +663,9 @@ function TimetablesContent() {
   // nach Fingerprint (beide beteiligten Termine tragen denselben). Die
   // Quittierung ist Nutzerdatenzustand und kommt pro Konto vom Backend.
   const { data: ackData } = useSWRAuth(
-    status === "authenticated" ? CONFLICT_ACKS_SWR_KEY : null,
+    status === "authenticated" && canManageSchedules
+      ? CONFLICT_ACKS_SWR_KEY
+      : null,
     () => timetableService.getConflictAcks(),
   );
   const ackedFingerprints = useMemo(() => new Set(ackData ?? []), [ackData]);
@@ -687,12 +716,16 @@ function TimetablesContent() {
     [conflictEntries, ackedFingerprints],
   );
 
-  // Quittierte Konflikte verschwinden auch von den Terminkarten und aus dem
-  // Detail-Modal — sonst zählt der Banner anders als das Raster markiert.
+  // Die Leseansicht zeigt keine Konflikthinweise. Für Planende verschwinden
+  // quittierte Konflikte auch von den Terminkarten und aus dem Detail-Modal —
+  // sonst zählt der Banner anders als das Raster markiert.
   const visibleInstances = useMemo(
     () =>
-      instances.map((inst) =>
-        inst.conflictWarnings.some(
+      instances.map((inst) => {
+        if (!canManageSchedules && inst.conflictWarnings.length > 0) {
+          return { ...inst, conflictWarnings: [] };
+        }
+        return inst.conflictWarnings.some(
           (warning) =>
             warning.fingerprint && ackedFingerprints.has(warning.fingerprint),
         )
@@ -704,9 +737,9 @@ function TimetablesContent() {
                   !ackedFingerprints.has(warning.fingerprint),
               ),
             }
-          : inst,
-      ),
-    [instances, ackedFingerprints],
+          : inst;
+      }),
+    [instances, ackedFingerprints, canManageSchedules],
   );
 
   const handleHideConflict = useCallback(
@@ -802,8 +835,11 @@ function TimetablesContent() {
             toast.success("Aktivität gestartet");
           }
         } else if (action === "complete") {
-          await timetableService.complete(selectedInstance.id);
+          await timetableService.complete(selectedInstance.id, []);
           toast.success("Aktivität beendet");
+        } else if (action === "reopen") {
+          await timetableService.reopen(selectedInstance.id);
+          toast.success("Aktivität wieder geöffnet");
         } else {
           await timetableService.cancel(selectedInstance.id);
           toast.success("Aktivität abgesagt");
@@ -1130,17 +1166,16 @@ function TimetablesContent() {
     toast,
   ]);
 
-  if (status === "loading") {
-    return <TimetablePageSkeleton />;
-  }
+  // While the session or the settings schema loads we cannot tell yet
+  // whether the feature is enabled or what the caller may do. The
+  // PlanningContextBar (title, navigation) renders immediately regardless —
+  // only the calendar-grid content below falls back to its skeleton, and
+  // permission-dependent toolbar bits (view switcher, export, "Neu") stay
+  // hidden until they resolve (hasPermission(undefined, …) is false while
+  // loading).
+  const showSkeleton = status === "loading" || settingsSchemaLoading;
 
-  // While the settings schema loads we cannot tell yet whether the feature
-  // is enabled — show the normal skeleton instead of flashing the planner.
-  if (settingsSchemaLoading) {
-    return <TimetablePageSkeleton />;
-  }
-
-  if (timetableDisabled) {
+  if (!showSkeleton && timetableDisabled) {
     return (
       <PlanningDisabledState
         pageTitle="Betreuungsplan"
@@ -1169,21 +1204,26 @@ function TimetablesContent() {
   // Text, eine gerahmte Pille daneben wäre das dritte Formvokabular in einer
   // Zeile. Als Link bleibt sie unterstrichen bei Hover, sonst reiner Text.
   const originChipClassName = "border-transparent bg-transparent px-0";
-  const demandOriginChip = phasesError ? null : phasesData === undefined ? (
-    <OriginChip
-      label="Bedarf wird ermittelt …"
-      className={originChipClassName}
-    />
-  ) : demandOrigin.href ? (
-    <Link
-      href={tenantPath(demandOrigin.href)}
-      className="inline-flex hover:underline"
-    >
+  const demandOriginChip =
+    !canReadEnrollmentPhases || phasesError ? null : phasesData ===
+      undefined ? (
+      <OriginChip
+        label="Bedarf wird ermittelt …"
+        className={originChipClassName}
+      />
+    ) : demandOrigin.href ? (
+      <Link
+        href={tenantPath(demandOrigin.href)}
+        className="inline-flex hover:underline"
+      >
+        <OriginChip
+          label={demandOrigin.label}
+          className={originChipClassName}
+        />
+      </Link>
+    ) : (
       <OriginChip label={demandOrigin.label} className={originChipClassName} />
-    </Link>
-  ) : (
-    <OriginChip label={demandOrigin.label} className={originChipClassName} />
-  );
+    );
 
   // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
   // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Reiner
@@ -1237,20 +1277,23 @@ function TimetablesContent() {
         }
         onToday={showTodayButton ? goToToday : undefined}
         viewSwitcher={
-          <Tabs
-            value={viewToTab(view)}
-            onValueChange={(v) => setViewParam(v as ViewParam)}
-          >
-            <TabsList variant="default">
-              <TabsTrigger value="woche">Woche</TabsTrigger>
-              <TabsTrigger value="monat">Monat</TabsTrigger>
-              <TabsTrigger value="serien">Serien</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          // Leseansicht (#2283): nur die Woche — kein Umschalter.
+          canManageSchedules ? (
+            <Tabs
+              value={viewToTab(view)}
+              onValueChange={(v) => setViewParam(v as ViewParam)}
+            >
+              <TabsList variant="default">
+                <TabsTrigger value="woche">Woche</TabsTrigger>
+                <TabsTrigger value="monat">Monat</TabsTrigger>
+                <TabsTrigger value="serien">Serien</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : undefined
         }
         actions={
           <>
-            {hiddenConflictsMenuItems.length > 0 ? (
+            {canManageSchedules && hiddenConflictsMenuItems.length > 0 ? (
               // Mit ausgeblendeten Konflikten trägt das Menü den Wieder-
               // einstieg und muss überall erreichbar sein (auch mobil und in
               // der Monatsansicht); die Zeilenhöhe bleibt an die Wochenansicht
@@ -1263,6 +1306,7 @@ function TimetablesContent() {
                 ]}
               />
             ) : (
+              canManageSchedules &&
               view === "week" && (
                 // Die Zeilenhöhe des Wochenrasters ist eine Desktop-Feinjustage:
                 // mobil wird das Raster ohnehin tageweise gezeigt, und der Knopf
@@ -1280,7 +1324,7 @@ function TimetablesContent() {
                 Export die Woche meint, die gerade zu sehen ist. Unter sm nur
                 das Symbol — die Kopfzeile trägt hier schon drei Ansichts-Tabs
                 und "Neu". */}
-            {canExportBetreuungsplan && (
+            {canManageSchedules && canExportBetreuungsplan && (
               <Button
                 type="button"
                 variant="outline"
@@ -1295,10 +1339,20 @@ function TimetablesContent() {
                 </span>
               </Button>
             )}
-            <TimetableAddMenu
-              onAddInstance={openEventCreate}
-              onAddSeries={openSeriesCreate}
-            />
+            {/* Leseansicht (#2283): ohne schedules:manage gibt es kein "Neu";
+                das Badge erklärt den Unterschied zum Admin-Bildschirm. */}
+            {canManageSchedules ? (
+              <TimetableAddMenu
+                onAddInstance={openEventCreate}
+                onAddSeries={openSeriesCreate}
+              />
+            ) : (
+              <StatusBadge
+                label="Nur ansehen"
+                tone="gray"
+                title="Du kannst den Betreuungsplan ansehen. Ändern können ihn nur Admins."
+              />
+            )}
           </>
         }
       >
@@ -1312,6 +1366,7 @@ function TimetablesContent() {
             onCreate={openPeriodCreate}
             onEdit={openPeriodEdit}
             onSelect={jumpToPeriod}
+            canManage={canManageSchedules}
           />
         )}
         {demandOriginChip}
@@ -1337,18 +1392,25 @@ function TimetablesContent() {
             Noch kein Planungszeitraum
           </h2>
           <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-            Lege einen Planungszeitraum an, um Angebote und Termine im
-            Betreuungsplan zu planen.
+            {canManageSchedules
+              ? "Lege einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+              : "Es gibt noch keinen Planungszeitraum. Ein Admin muss ihn zuerst anlegen."}
           </p>
-          <div className="mt-4 flex justify-center">
-            <Button type="button" variant="primary" onClick={openPeriodCreate}>
-              Planungszeitraum anlegen
-            </Button>
-          </div>
+          {canManageSchedules && (
+            <div className="mt-4 flex justify-center">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={openPeriodCreate}
+              >
+                Planungszeitraum anlegen
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <>
-          {shouldLoadInstances && (
+          {canManageSchedules && shouldLoadInstances && (
             <ConflictWarningsBanner
               openConflicts={openConflicts}
               hiddenConflicts={hiddenConflicts}
@@ -1372,7 +1434,7 @@ function TimetablesContent() {
             )}
 
           {view === "month" &&
-            (isInstanceDataLoading ? (
+            (showSkeleton || isInstanceDataLoading ? (
               <TimetableContentSkeleton view="month" />
             ) : (
               <MonthPlannerGrid
@@ -1388,7 +1450,7 @@ function TimetablesContent() {
 
           {view === "week" && (
             <>
-              {isInstanceDataLoading ? (
+              {showSkeleton || isInstanceDataLoading ? (
                 <TimetableContentSkeleton view="week" />
               ) : (
                 <WeeklyCalendarGrid
@@ -1396,7 +1458,7 @@ function TimetablesContent() {
                   instances={visibleInstances}
                   selectedId={selectedInstanceId}
                   onInstanceClick={handleSelectInstance}
-                  onSlotClick={openQuickCreate}
+                  onSlotClick={canManageSchedules ? openQuickCreate : undefined}
                   gapInstanceIds={gapInstanceIds}
                   closingDays={closingDays}
                   todayISO={todayISO}
@@ -1410,9 +1472,13 @@ function TimetablesContent() {
                           title: weekHasFullPeriodCoverage
                             ? "Diese Woche hat noch keine Termine"
                             : "Diese Woche hat keinen Planungszeitraum",
-                          description: weekHasFullPeriodCoverage
-                            ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
-                            : "Lege zuerst einen aktiven Planungszeitraum an.",
+                          // Leseansicht (#2283): keine Handlungsaufforderung
+                          // an Leute, die nicht planen dürfen.
+                          description: canManageSchedules
+                            ? weekHasFullPeriodCoverage
+                              ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
+                              : "Lege zuerst einen aktiven Planungszeitraum an."
+                            : "Für diese Woche ist noch nichts geplant.",
                         }
                       : undefined
                   }
@@ -1423,11 +1489,12 @@ function TimetablesContent() {
 
           {view === "series" && (
             <>
-              {templatesLoading ? (
+              {showSkeleton || templatesLoading ? (
                 <TimetableContentSkeleton view="series" />
               ) : (
                 <TemplateList
                   templates={templates}
+                  canManage={canManageSchedules}
                   onCreate={openSeriesCreate}
                   onEdit={(template) => {
                     setEditingInstance(null);
@@ -1449,32 +1516,48 @@ function TimetablesContent() {
         instance={selectedInstance}
         onClose={() => handleSelectInstance(null)}
         onLifecycleAction={handleLifecycle}
-        onDeleteCancelled={handleDeleteCancelledInstance}
-        onDeleteFollowing={handleDeleteFollowingInstances}
-        onEdit={(instance) => {
-          setEditingInstance(instance);
-          setEditingTemplate(null);
-          setConvertingInstance(null);
-          setEventDefaultRepeat("none");
-          setEventModalOpen(true);
-        }}
-        onRepeat={(instance) => {
-          if (assignedPeriods.length === 0) {
-            toast.warning(
-              "Lege zuerst einen Planungszeitraum für diese Woche an.",
-            );
-            openPeriodCreate();
-            return;
-          }
-          setEditingInstance(null);
-          setEditingTemplate(null);
-          setConvertingInstance(instance);
-          setEventDefaultRepeat("weekly");
-          setEventModalOpen(true);
-        }}
+        canManage={canManageSchedules}
+        fetchParticipantNames={!canReadTenantRosters}
+        onDeleteCancelled={
+          canManageSchedules ? handleDeleteCancelledInstance : undefined
+        }
+        onDeleteFollowing={
+          canManageSchedules ? handleDeleteFollowingInstances : undefined
+        }
+        onEdit={
+          canManageSchedules
+            ? (instance) => {
+                setEditingInstance(instance);
+                setEditingTemplate(null);
+                setConvertingInstance(null);
+                setEventDefaultRepeat("none");
+                setEventModalOpen(true);
+              }
+            : undefined
+        }
+        onRepeat={
+          canManageSchedules
+            ? (instance) => {
+                if (assignedPeriods.length === 0) {
+                  toast.warning(
+                    "Lege zuerst einen Planungszeitraum für diese Woche an.",
+                  );
+                  openPeriodCreate();
+                  return;
+                }
+                setEditingInstance(null);
+                setEditingTemplate(null);
+                setConvertingInstance(instance);
+                setEventDefaultRepeat("weekly");
+                setEventModalOpen(true);
+              }
+            : undefined
+        }
         staffNames={staffNames}
         studentNames={studentNames}
-        onAttendancePatch={handleAttendancePatch}
+        onAttendancePatch={
+          canManageSchedules ? handleAttendancePatch : undefined
+        }
         editDeferred={false}
         suspended={eventModalOpen || poolInstance !== null}
         onOpenPool={setPoolInstance}

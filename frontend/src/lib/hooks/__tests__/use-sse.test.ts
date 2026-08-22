@@ -193,7 +193,6 @@ describe("useSSE Hook", () => {
         active_group_id: "123",
         data: {
           student_id: "456",
-          student_name: "Test Student",
         },
         timestamp: new Date().toISOString(),
       };
@@ -223,6 +222,34 @@ describe("useSSE Hook", () => {
       };
 
       mockEventSource?.triggerMessage(testEvent, "student_checkin");
+
+      await waitFor(
+        () => {
+          expect(onMessage).toHaveBeenCalledWith(testEvent);
+        },
+        { timeout: 500 },
+      );
+    });
+
+    it("subscribes to bulk_student_checkin named events", async () => {
+      const onMessage = vi.fn();
+      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+
+      await waitForEventSource();
+      mockEventSource?.triggerOpen();
+
+      expect(
+        requireLatestEventSource().hasListener("bulk_student_checkin"),
+      ).toBe(true);
+
+      const testEvent: SSEEvent = {
+        type: "bulk_student_checkin",
+        active_group_id: "123",
+        data: { student_ids: ["42", "77"] },
+        timestamp: new Date().toISOString(),
+      };
+
+      mockEventSource?.triggerMessage(testEvent, "bulk_student_checkin");
 
       await waitFor(
         () => {

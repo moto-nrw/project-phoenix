@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -174,6 +173,16 @@ type dayPlanningTimes struct {
 }
 
 func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) (dayPlanningTimes, error) {
+	// The parent's pending note runs FIRST and outside the full-access branch
+	// below: it is the review queue's signal, not part of the day plan, and its
+	// audience is whoever may decide the request. In a school without fixed
+	// groups that person supervises no group, so every child reaches them as a
+	// restricted entry — tying the note to the read scope would hide from the
+	// deciding staffer exactly the request they own (#2232).
+	if err := rs.applyPendingExcusedNotes(ctx, responses, planningDate); err != nil {
+		return dayPlanningTimes{}, err
+	}
+
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if len(fullAccessIDs) == 0 {
 		return dayPlanningTimes{}, nil
@@ -191,13 +200,38 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	if err != nil {
 		return dayPlanningTimes{}, err
 	}
-	pendingExcused, err := rs.loadPendingExcusedForDayPlanning(ctx, planningDate)
-	if err != nil {
-		return dayPlanningTimes{}, err
-	}
 
-	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, pendingExcused, isToday)
+	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, isToday)
 	return dayPlanningTimes{arrivals: arrivals, pickups: pickups}, nil
+}
+
+// applyPendingExcusedNotes attaches the guardian's note of a pending
+// excused-absence request to the children it was submitted for.
+//
+// Per-child scope comes from the loader: PendingByStudentForDate returns only
+// the children the caller may DECIDE the request for (the queue's own
+// AbsenceWritableStudentFilter), so a group supervisor still sees nothing
+// beyond their own children and no second filter is needed here.
+func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []StudentResponse, date timezone.Date) error {
+	if len(responses) == 0 {
+		return nil
+	}
+	pendingExcused, err := rs.loadPendingExcusedForDayPlanning(ctx, date)
+	if err != nil {
+		return err
+	}
+	if len(pendingExcused) == 0 {
+		return nil
+	}
+	for i := range responses {
+		req, ok := pendingExcused[responses[i].ID]
+		if !ok {
+			continue
+		}
+		note := req.Note
+		responses[i].PendingExcusedNote = &note
+	}
+	return nil
 }
 
 func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
@@ -282,15 +316,16 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // parent's note without changing the planning status — the child stays
 // "expected" until staff decide the request.
 //
-// The badge exposes the parent's note and belongs to the users:update-gated
-// review queue (Änderungsanfragen). This enrichment also runs inside the
-// users:read list/detail/export handlers, so a read-only group supervisor
-// would otherwise see the note and approval marker without any right to the
-// queue or to decide the request. Only enrich when the caller actually holds
-// the review permission that gates the queue itself.
+// The badge exposes the parent's note and belongs to the review queue
+// (Änderungsanfragen). This enrichment also runs inside the users:read
+// list/detail/export handlers, so a read-only group supervisor would otherwise
+// see the note and approval marker without any right to the queue or to decide
+// the request. Only enrich when the caller actually holds a permission that
+// gates the queue itself — users:update, or users:absence for the staff who
+// decide exactly these requests in a school without fixed groups (#2232).
 func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*activeModels.ExcusedAbsenceRequest, error) {
 	if rs.ExcusedRequestService == nil ||
-		!authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
+		!authorize.CanReviewExcusedAbsenceRequests(jwt.PermissionsFromCtx(ctx)) {
 		return map[int64]*activeModels.ExcusedAbsenceRequest{}, nil
 	}
 	return rs.ExcusedRequestService.PendingByStudentForDate(ctx, date)
@@ -302,7 +337,6 @@ func applyDayPlanning(
 	pickups map[int64]*scheduleService.EffectivePickupTime,
 	attendances map[int64]*activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
-	pendingExcused map[int64]*activeModels.ExcusedAbsenceRequest,
 	isToday bool,
 ) {
 	for i := range responses {
@@ -314,10 +348,6 @@ func applyDayPlanning(
 		responses[i].DayPlanningStatus = status
 		responses[i].DayPlanningReason = reason
 		responses[i].DayPlanningLabel = label
-		if req, ok := pendingExcused[id]; ok {
-			note := req.Note
-			responses[i].PendingExcusedNote = &note
-		}
 	}
 }
 
@@ -438,7 +468,7 @@ func resetLiveLocationFields(responses []StudentResponse) {
 }
 
 func hasActualAttendanceToday(attendance *activeService.AttendanceStatus) bool {
-	return attendance != nil && attendance.CheckInTime != nil && attendance.Status != "not_checked_in"
+	return attendance.IsCurrentlyPresent()
 }
 
 func attendanceMapFromSnapshot(snapshot *common.StudentDataSnapshot) map[int64]*activeService.AttendanceStatus {

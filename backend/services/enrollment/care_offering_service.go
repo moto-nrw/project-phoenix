@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -61,6 +62,53 @@ type CareOfferingService interface {
 	// the new phase. Use case: cloning last year's catalog into this year's
 	// phase, then editing what changed.
 	Clone(ctx context.Context, sourceID int64, targetPhaseID int64) (*enrollmentModels.CareOffering, error)
+
+	// ListBookingStats reports, per offering of the phase, how full it
+	// currently is and how its bookings distribute across grade levels.
+	// Admin-only: it is what lets the manual-enrollment and offering-
+	// adjustment dialogs show occupancy up front instead of failing at save,
+	// and what lets the availability-rule editor say how many existing
+	// bookings a rule would contradict. Read-only, no child data leaves the
+	// backend.
+	ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error)
+}
+
+// CareOfferingBookingStat is one offering's admin-facing booking summary.
+type CareOfferingBookingStat struct {
+	OfferingID int64
+	// Capacity is nil for an unlimited offering.
+	Capacity *int
+	// Booked is the peak number of children holding a slot simultaneously
+	// inside the phase's remaining capacity window — the exact number the
+	// capacity gate compares against Capacity when a new booking is saved.
+	Booked int
+	// GradeLevels maps a child's target grade level to how many booked
+	// children carry it. Bookings whose grade is unknown are counted in
+	// UnknownGradeCount instead; an availability rule never matches a missing
+	// grade, so they contradict every rule.
+	GradeLevels       map[int]int
+	UnknownGradeCount int
+}
+
+// RolloverOfferingCatalogCloner is the narrow contract the rollover
+// service consumes (#2249). Kept separate from CareOfferingService — like
+// CareOfferingSeriesValidator — so HTTP-layer mocks never implement an
+// operation that is not an enrollment endpoint.
+//
+// CloneCatalogForRollover copies EVERY care offering of the source phase,
+// plus effective legacy bookings that reference an earlier phase, into the
+// target phase and returns the source→target offering ID mapping. Unlike the
+// admin Clone it keeps the linked timetable template
+// (activity_group_id): the link resolution is split-series-aware, so a
+// template whose recurrence covers the target phase keeps feeding
+// materialization, and one that does not fails validation here —
+// aborting the rollover atomically instead of producing a booking that
+// only breaks at Freigabe. Auto-add triggers are remapped inside the
+// cloned catalog. Sourced templates (source_care_offering_ids, #2137)
+// are deliberately NOT rewritten — re-pointing period-bound templates at
+// the new phase's offerings is planning work the admin owns.
+type RolloverOfferingCatalogCloner interface {
+	CloneCatalogForRollover(ctx context.Context, sourcePhaseID int64, targetPhaseID int64, carriedOfferingIDs []int64) (map[int64]int64, error)
 }
 
 // CareOfferingSeriesValidator is the narrow cross-domain contract used by the
@@ -144,14 +192,31 @@ type CareOfferingSourceResyncBinder interface {
 	SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer)
 }
 
+// CareOfferingPickupResyncer refreshes the still-materialized consumers of
+// the date-aware pickup projection after an offering edit.
+type CareOfferingPickupResyncer interface {
+	ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error
+}
+
+// CareOfferingPickupResyncBinder late-binds the decision service, which is
+// constructed after the care-offering service in the production factory.
+type CareOfferingPickupResyncBinder interface {
+	SetPickupResyncer(resyncer CareOfferingPickupResyncer)
+}
+
 type careOfferingService struct {
 	CareOfferingServiceConfig
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
+	pickupResyncer          CareOfferingPickupResyncer
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
 func (s *careOfferingService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
 	s.sourcedTemplateResyncer = resyncer
+}
+
+func (s *careOfferingService) SetPickupResyncer(resyncer CareOfferingPickupResyncer) {
+	s.pickupResyncer = resyncer
 }
 
 // NewCareOfferingService builds the service.
@@ -736,6 +801,16 @@ func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offeri
 	if err != nil {
 		return err
 	}
+	return s.validateLinkedTemplateForMaterialization(ctx, offering, phase, deps, requiresMaterialization)
+}
+
+func (s *careOfferingService) validateLinkedTemplateForMaterialization(
+	ctx context.Context,
+	offering *enrollmentModels.CareOffering,
+	phase *enrollmentModels.Phase,
+	deps careOfferingTemplateDeps,
+	requiresMaterialization bool,
+) error {
 	segments, err := resolveCareOfferingLinkedGroupsForPhase(ctx, deps, *offering.ActivityGroupID, phase)
 	if err != nil {
 		return err
@@ -946,8 +1021,8 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if offering == nil {
 		return nil, careOfferingInvalidf("offering is required")
 	}
-	if err := offering.Validate(); err != nil {
-		return nil, wrapCareOfferingInvalid(err, "validate care offering")
+	if err := validateCareOfferingWrite(offering); err != nil {
+		return nil, err
 	}
 	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
 		return nil, err
@@ -980,8 +1055,8 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if offering == nil || offering.ID <= 0 {
 		return careOfferingInvalidf("offering with valid id is required")
 	}
-	if err := offering.Validate(); err != nil {
-		return wrapCareOfferingInvalid(err, "validate care offering")
+	if err := validateCareOfferingWrite(offering); err != nil {
+		return err
 	}
 	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
 		return err
@@ -1007,7 +1082,44 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.resyncSourcedTemplates(ctx, offering.ID); err != nil {
 		return err
 	}
+	if err := s.resyncPickupProjection(ctx, offering.ID); err != nil {
+		return err
+	}
 	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	return nil
+}
+
+func validateCareOfferingWrite(offering *enrollmentModels.CareOffering) error {
+	if err := offering.Validate(); err != nil {
+		return wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if !offering.IsActive || !offering.CountsAsCare {
+		return nil
+	}
+	missing := make([]string, 0, len(offering.AvailableDays))
+	for _, day := range offering.AvailableDays {
+		key := strings.ToLower(strings.TrimSpace(day))
+		weekday, ok := enrollmentModels.CanonicalDayToISOWeekday(key)
+		if ok && weekday <= scheduleModels.WeekdayFriday && offering.PickupTimes[key] == "" {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return wrapCareOfferingInvalid(
+		fmt.Errorf("%w: %s", enrollmentModels.ErrCareOfferingPickupTimesRequired, strings.Join(missing, ", ")),
+		"validate care offering pickup times",
+	)
+}
+
+func (s *careOfferingService) resyncPickupProjection(ctx context.Context, offeringID int64) error {
+	if s.pickupResyncer == nil {
+		return errors.New("care offering update: pickup resyncer not configured")
+	}
+	if err := s.pickupResyncer.ReconcileOfferingPickupForOffering(ctx, offeringID); err != nil {
+		return fmt.Errorf("care offering update: resync pickup projection: %w", err)
+	}
 	return nil
 }
 
@@ -1104,6 +1216,8 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 
 	clone := *source
 	clone.ID = 0 // BIGSERIAL - let the DB assign
+	clone.CreatedAt = time.Time{}
+	clone.UpdatedAt = time.Time{}
 	clone.PhaseID = targetPhaseID
 	if source.PhaseID != targetPhaseID && clone.ActivityGroupID != nil {
 		clone.ActivityGroupID = nil
@@ -1126,4 +1240,267 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 		slog.Int64("clone_id", clone.ID),
 		slog.Int64("target_phase_id", targetPhaseID))
 	return &clone, nil
+}
+
+// bookingStatsWindow is the half-open date range ListBookingStats counts in.
+// It reproduces applyCapacityOverflowCore's window so the displayed occupancy
+// is the same number the capacity gate will apply at save time: from today
+// (or the phase start, if the phase has not begun) through the last service
+// day inclusive.
+//
+// A phase whose service window has already ended would otherwise yield an
+// empty range. Rather than reporting a meaningless zero, the window collapses
+// onto the final service day so the dialog shows the phase's end state.
+func bookingStatsWindow(phase *enrollmentModels.Phase) (from, until timezone.Date) {
+	today := timezone.TodayDate()
+	if phase == nil || phase.ServiceEndDate.IsZero() {
+		return today, today.AddDays(1)
+	}
+	from = today
+	if phase.ServiceStartDate.After(from) {
+		from = phase.ServiceStartDate
+	}
+	until = phase.ServiceEndDate.AddDays(1)
+	if !from.Before(until) {
+		return phase.ServiceEndDate, phase.ServiceEndDate.AddDays(1)
+	}
+	return from, until
+}
+
+func (s *careOfferingService) ListBookingStats(ctx context.Context, phaseID int64) ([]CareOfferingBookingStat, error) {
+	if phaseID <= 0 {
+		return nil, careOfferingInvalidf("phase_id must be positive")
+	}
+	if s.RequestChildOfferingRepo == nil {
+		return nil, errors.New("request child offering repository is not configured")
+	}
+	if s.PhaseRepo == nil {
+		return nil, errors.New("phase repository is not configured")
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, careOfferingInvalidf("phase does not exist")
+		}
+		return nil, fmt.Errorf("booking stats: phase lookup: %w", err)
+	}
+	offerings, err := s.Repo.ListByPhase(ctx, phaseID)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: list offerings: %w", err)
+	}
+	stats := make([]CareOfferingBookingStat, 0, len(offerings))
+	if len(offerings) == 0 {
+		return stats, nil
+	}
+
+	from, until := bookingStatsWindow(phase)
+	ids := make([]int64, 0, len(offerings))
+	for _, offering := range offerings {
+		ids = append(ids, offering.ID)
+	}
+	gradeCounts, err := s.RequestChildOfferingRepo.CountActiveGradeLevelsByCareOfferingIDs(ctx, ids, from, until)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: count grade levels: %w", err)
+	}
+	grades := make(map[int64]map[int]int, len(offerings))
+	unknown := make(map[int64]int, len(offerings))
+	for _, row := range gradeCounts {
+		if row == nil {
+			continue
+		}
+		if row.GradeLevel == nil {
+			unknown[row.CareOfferingID] += row.Count
+			continue
+		}
+		if grades[row.CareOfferingID] == nil {
+			grades[row.CareOfferingID] = make(map[int]int)
+		}
+		grades[row.CareOfferingID][int(*row.GradeLevel)] += row.Count
+	}
+
+	peaks, err := s.RequestChildOfferingRepo.CountMaxActiveByCareOfferingIDsInRange(ctx, ids, from, until)
+	if err != nil {
+		return nil, fmt.Errorf("booking stats: count peak occupancy: %w", err)
+	}
+
+	for _, offering := range offerings {
+		// Absent key = no booking overlaps the window = zero occupancy.
+		booked := peaks[offering.ID]
+		byGrade := grades[offering.ID]
+		if byGrade == nil {
+			byGrade = map[int]int{}
+		}
+		stats = append(stats, CareOfferingBookingStat{
+			OfferingID:        offering.ID,
+			Capacity:          offering.Capacity,
+			Booked:            booked,
+			GradeLevels:       byGrade,
+			UnknownGradeCount: unknown[offering.ID],
+		})
+	}
+	return stats, nil
+}
+
+// CloneCatalogForRollover implements the rollover-facing catalog copy.
+// See the interface doc for the contract. Callers run it inside the
+// rollover's tenant transaction, so a validation failure on any single
+// offering rolls back the whole follow-up phase.
+func (s *careOfferingService) CloneCatalogForRollover(ctx context.Context, sourcePhaseID int64, targetPhaseID int64, carriedOfferingIDs []int64) (map[int64]int64, error) {
+	if sourcePhaseID <= 0 {
+		return nil, careOfferingInvalidf("source phase id must be positive")
+	}
+	if targetPhaseID <= 0 {
+		return nil, careOfferingInvalidf("target phase id must be positive")
+	}
+	if sourcePhaseID == targetPhaseID {
+		return nil, careOfferingInvalidf("source and target phase must differ")
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
+	}
+
+	sources, err := s.Repo.ListByPhase(ctx, sourcePhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("rollover catalog clone: list source offerings: %w", err)
+	}
+	sourceByID := make(map[int64]*enrollmentModels.CareOffering, len(sources)+len(carriedOfferingIDs))
+	carriedByID := make(map[int64]bool, len(carriedOfferingIDs))
+	for _, offeringID := range carriedOfferingIDs {
+		carriedByID[offeringID] = true
+	}
+	for _, source := range sources {
+		sourceByID[source.ID] = source
+	}
+	for _, offeringID := range carriedOfferingIDs {
+		if _, ok := sourceByID[offeringID]; ok {
+			continue
+		}
+		source, findErr := s.Repo.FindByID(ctx, offeringID)
+		if findErr != nil {
+			return nil, fmt.Errorf("rollover catalog clone: load carried offering %d: %w", offeringID, findErr)
+		}
+		sources = append(sources, source)
+		sourceByID[offeringID] = source
+	}
+	if err := validateCatalogGroupRuleConsistency(sources); err != nil {
+		return nil, fmt.Errorf("rollover catalog clone: %w", err)
+	}
+
+	mapping := make(map[int64]int64, len(sources))
+	for _, source := range sources {
+		requiresMaterialization := source.IsActive || carriedByID[source.ID]
+		clone := *source
+		clone.ID = 0 // BIGSERIAL — let the DB assign
+		clone.CreatedAt = time.Time{}
+		clone.UpdatedAt = time.Time{}
+		clone.PhaseID = targetPhaseID
+		// Triggers reference offering IDs; they are remapped and written
+		// in the second pass once every clone has its ID.
+		clone.AutoAddTriggerOfferingIDs = nil
+		if err := s.validateAvailabilityRule(ctx, &clone); err != nil {
+			return nil, fmt.Errorf("rollover catalog clone: offering %q (%d): %w", source.Name, source.ID, err)
+		}
+		if err := s.validateRolloverCloneLinkedGroup(ctx, &clone, requiresMaterialization); err != nil {
+			return nil, fmt.Errorf("rollover catalog clone: offering %q (%d): %w", source.Name, source.ID, err)
+		}
+		// Group-rule consistency was checked across the complete clone set
+		// before the first row was inserted.
+		if err := s.Repo.Create(ctx, &clone); err != nil {
+			return nil, fmt.Errorf("rollover catalog clone: offering %q (%d): %w", source.Name, source.ID, err)
+		}
+		mapping[source.ID] = clone.ID
+	}
+
+	for _, source := range sources {
+		if len(source.AutoAddTriggerOfferingIDs) == 0 {
+			continue
+		}
+		remapped := make([]int64, 0, len(source.AutoAddTriggerOfferingIDs))
+		for _, triggerID := range source.AutoAddTriggerOfferingIDs {
+			cloneTriggerID, ok := mapping[triggerID]
+			if !ok {
+				// Save-path validation pins triggers to the same phase,
+				// so this only fires for legacy rows. Carrying a
+				// cross-phase trigger forward would create exactly the
+				// mixed-phase state the rollover exists to prevent.
+				s.Logger.Warn("rollover catalog clone: dropping trigger outside the source phase",
+					slog.Int64("offering_id", source.ID),
+					slog.Int64("trigger_offering_id", triggerID))
+				continue
+			}
+			remapped = append(remapped, cloneTriggerID)
+		}
+		if len(remapped) == 0 {
+			continue
+		}
+		if err := s.Repo.ReplaceAutoAddTriggers(ctx, mapping[source.ID], remapped); err != nil {
+			return nil, fmt.Errorf("rollover catalog clone: remap triggers for offering %d: %w", source.ID, err)
+		}
+	}
+
+	s.Logger.Info("care offering catalog cloned for rollover",
+		slog.Int64("source_phase_id", sourcePhaseID),
+		slog.Int64("target_phase_id", targetPhaseID),
+		slog.Int("offering_count", len(mapping)))
+	return mapping, nil
+}
+
+// validateRolloverCloneLinkedGroup validates a clone's activity-group link
+// with the same tolerance the decision materialization applies: a linked
+// TEMPLATE must cover the target phase (full validateLinkedTemplate), while
+// a historical non-template link — which the admin catalog no longer allows
+// but Decide still materializes — is carried verbatim. Rejecting those would
+// wedge every rollover of a phase carrying pre-template-era links.
+func (s *careOfferingService) validateRolloverCloneLinkedGroup(ctx context.Context, clone *enrollmentModels.CareOffering, requiresMaterialization bool) error {
+	if clone == nil || clone.ActivityGroupID == nil {
+		return nil
+	}
+	deps := careOfferingTemplateDeps{
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
+	}
+	if err := deps.validateActivityGroupLookup(); err != nil {
+		return err
+	}
+	group, err := s.ActivityGroupRepo.FindByID(ctx, *clone.ActivityGroupID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return careOfferingInvalidf("activity_group_id does not reference a group in this tenant")
+		}
+		return fmt.Errorf("load linked activity group: %w", err)
+	}
+	if group == nil || !group.IsTemplate {
+		return nil
+	}
+	if s.PhaseRepo == nil {
+		return errors.New("phase validation dependency is not configured")
+	}
+	phase, err := s.PhaseRepo.FindByID(ctx, clone.PhaseID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return careOfferingInvalidf("phase_id does not reference a phase in this tenant")
+		}
+		return fmt.Errorf("load care offering phase: %w", err)
+	}
+	if phase == nil {
+		return careOfferingInvalidf("phase_id does not reference a phase in this tenant")
+	}
+	return s.validateLinkedTemplateForMaterialization(ctx, clone, phase, deps, requiresMaterialization)
+}
+
+func validateCatalogGroupRuleConsistency(offerings []*enrollmentModels.CareOffering) error {
+	rules := make(map[string]string)
+	for _, offering := range offerings {
+		group := strings.TrimSpace(offering.SelectionGroup)
+		if group == "" {
+			continue
+		}
+		rule := normalizeSelectionRule(offering.SelectionRule)
+		if existing, ok := rules[group]; ok && existing != rule {
+			return fmt.Errorf("%w: group %q uses both %q and %q", ErrCareOfferingGroupRuleConflict, group, existing, rule)
+		}
+		rules[group] = rule
+	}
+	return nil
 }

@@ -285,6 +285,8 @@ func TestTokenAuth_Verifier_ReturnsMiddleware(t *testing.T) {
 // =============================================================================
 
 func TestParseStructToMap_AppClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := AppClaims{
 		ID:          42,
 		Sub:         "test@test.com",
@@ -315,7 +317,24 @@ func TestParseStructToMap_AppClaims(t *testing.T) {
 	assert.Equal(t, int64(1234567800), result["iat"])
 }
 
+func TestParseStructToMap_AppClaimsFamilyID(t *testing.T) {
+	t.Parallel()
+
+	claims := AppClaims{
+		ID:       42,
+		Sub:      "test@test.com",
+		Roles:    []string{"user"},
+		FamilyID: "family-xyz",
+	}
+
+	result, err := ParseStructToMap(claims)
+	require.NoError(t, err)
+	assert.Equal(t, "family-xyz", result["family_id"])
+}
+
 func TestParseStructToMap_RefreshClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := RefreshClaims{
 		ID:    42,
 		Token: "refresh-token",
@@ -333,6 +352,8 @@ func TestParseStructToMap_RefreshClaims(t *testing.T) {
 }
 
 func TestParseStructToMap_EmptySlices(t *testing.T) {
+	t.Parallel()
+
 	claims := AppClaims{
 		ID:          1,
 		Sub:         "test@test.com",
@@ -349,6 +370,8 @@ func TestParseStructToMap_EmptySlices(t *testing.T) {
 }
 
 func TestParseStructToMap_NilSlices(t *testing.T) {
+	t.Parallel()
+
 	claims := AppClaims{
 		ID:          1,
 		Sub:         "test@test.com",
@@ -368,6 +391,8 @@ func TestParseStructToMap_NilSlices(t *testing.T) {
 // =============================================================================
 
 func TestRandStringBytes_GeneratesCorrectLength(t *testing.T) {
+	t.Parallel()
+
 	lengths := []int{10, 32, 64, 128}
 
 	for _, length := range lengths {
@@ -377,6 +402,8 @@ func TestRandStringBytes_GeneratesCorrectLength(t *testing.T) {
 }
 
 func TestRandStringBytes_GeneratesUniqueValues(t *testing.T) {
+	t.Parallel()
+
 	results := make(map[string]bool)
 
 	for i := 0; i < 100; i++ {
@@ -387,6 +414,8 @@ func TestRandStringBytes_GeneratesUniqueValues(t *testing.T) {
 }
 
 func TestRandStringBytes_ContainsOnlyValidChars(t *testing.T) {
+	t.Parallel()
+
 	validChars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 	result, _ := randstr.String(1000, randstr.Alphanumeric)

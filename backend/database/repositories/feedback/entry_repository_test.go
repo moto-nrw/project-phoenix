@@ -17,15 +17,15 @@ import (
 // ============================================================================
 
 func TestEntryRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Create a test student for FK
 	student := testpkg.CreateTestStudent(t, db, "Feedback", "Student", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("creates entry with valid data", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -40,7 +40,6 @@ func TestEntryRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, entry.ID)
 
-		testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 	})
 
 	t.Run("creates mensa feedback entry", func(t *testing.T) {
@@ -58,7 +57,6 @@ func TestEntryRepository_Create(t *testing.T) {
 		assert.NotZero(t, entry.ID)
 		assert.True(t, entry.IsMensaFeedback)
 
-		testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 	})
 
 	t.Run("create with nil entry should fail", func(t *testing.T) {
@@ -82,14 +80,14 @@ func TestEntryRepository_Create(t *testing.T) {
 }
 
 func TestEntryRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds existing entry", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -101,7 +99,6 @@ func TestEntryRepository_FindByID(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		found, err := repo.FindByID(ctx, entry.ID)
 		require.NoError(t, err)
@@ -117,14 +114,14 @@ func TestEntryRepository_FindByID(t *testing.T) {
 }
 
 func TestEntryRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Update", "Student", "3a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("updates entry", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -136,7 +133,6 @@ func TestEntryRepository_Update(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entry.Value = feedback.ValueNegative
 		err = repo.Update(ctx, entry)
@@ -149,14 +145,14 @@ func TestEntryRepository_Update(t *testing.T) {
 }
 
 func TestEntryRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Delete", "Student", "4a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("deletes existing entry", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -184,15 +180,15 @@ func TestEntryRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_FindByStudentID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "5a")
 	student2 := testpkg.CreateTestStudent(t, db, "Student", "Two", "5b")
-	defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
 
 	t.Run("finds entries by student ID", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -221,7 +217,6 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry3)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID, entry3.ID)
 
 		entries, err := repo.FindByStudentID(ctx, student1.ID)
 		require.NoError(t, err)
@@ -234,14 +229,14 @@ func TestEntryRepository_FindByStudentID(t *testing.T) {
 }
 
 func TestEntryRepository_FindByDay(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Day", "Student", "6a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries by day", func(t *testing.T) {
 		today := timezone.TodayDate()
@@ -264,7 +259,6 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		entries, err := repo.FindByDay(ctx, today)
 		require.NoError(t, err)
@@ -281,14 +275,14 @@ func TestEntryRepository_FindByDay(t *testing.T) {
 }
 
 func TestEntryRepository_FindByDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "7a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds entries in date range", func(t *testing.T) {
 		today := timezone.TodayDate()
@@ -312,7 +306,6 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, entry2)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry1.ID, entry2.ID)
 
 		entries, err := repo.FindByDateRange(ctx, weekAgo, today)
 		require.NoError(t, err)
@@ -321,14 +314,14 @@ func TestEntryRepository_FindByDateRange(t *testing.T) {
 }
 
 func TestEntryRepository_FindMensaFeedback(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Mensa", "Student", "8a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds mensa feedback entries", func(t *testing.T) {
 		now := timezone.TodayDate()
@@ -351,7 +344,6 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, regularEntry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", mensaEntry.ID, regularEntry.ID)
 
 		entries, err := repo.FindMensaFeedback(ctx, true)
 		require.NoError(t, err)
@@ -372,14 +364,14 @@ func TestEntryRepository_FindMensaFeedback(t *testing.T) {
 }
 
 func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "StudentRange", "Test", "9a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("finds student entries in date range", func(t *testing.T) {
 		today := timezone.TodayDate()
@@ -395,7 +387,6 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entries, err := repo.FindByStudentAndDateRange(ctx, student.ID, weekAgo, today)
 		require.NoError(t, err)
@@ -417,14 +408,14 @@ func TestEntryRepository_FindByStudentAndDateRange(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_DeleteOlderThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Student", "14a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("deletes entries older than N days", func(t *testing.T) {
 		// ARRANGE: old entry (100 days ago) + recent entry (today)
@@ -448,7 +439,6 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, recentEntry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", oldEntry.ID, recentEntry.ID)
 
 		// Count entries for this student before delete
 		entriesBefore, err := repo.FindByStudentID(ctx, student.ID)
@@ -478,7 +468,6 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 		}
 		err := repo.Create(ctx, recentEntry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", recentEntry.ID)
 
 		// ACT
 		deleted, err := repo.DeleteOlderThan(ctx, 365)
@@ -494,14 +483,14 @@ func TestEntryRepository_DeleteOlderThan(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "13a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("lists all entries", func(t *testing.T) {
 		today := timezone.TodayDate()
@@ -514,7 +503,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entries, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -533,7 +521,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"is_mensa_feedback": true,
@@ -558,7 +545,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"day_from": yesterday,
@@ -582,7 +568,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"day_to": today.AddDays(1),
@@ -603,7 +588,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"value_like": "pos",
@@ -627,7 +611,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"student_id": student.ID,
@@ -651,7 +634,6 @@ func TestEntryRepository_List(t *testing.T) {
 
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		filters := map[string]interface{}{
 			"is_mensa_feedback": nil,
@@ -663,14 +645,14 @@ func TestEntryRepository_List(t *testing.T) {
 }
 
 func TestEntryRepository_Update_EdgeCases(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "UpdateEdge", "Student", "14a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	t.Run("update with nil entry should fail", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -688,7 +670,6 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 		}
 		err := repo.Create(ctx, entry)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 		entry.Value = "invalid_value"
 		err = repo.Update(ctx, entry)
@@ -701,14 +682,14 @@ func TestEntryRepository_Update_EdgeCases(t *testing.T) {
 // ============================================================================
 
 func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).FeedbackEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "FilterType", "Student", "15a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// Create entry for testing
 	now := timezone.TodayDate()
@@ -720,7 +701,6 @@ func TestEntryRepository_List_InvalidFilterTypes(t *testing.T) {
 	}
 	err := repo.Create(ctx, entry)
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "feedback.entries", entry.ID)
 
 	t.Run("day_from with non-time value is ignored", func(t *testing.T) {
 		filters := map[string]interface{}{

@@ -3,8 +3,11 @@ import {
   bulkCreateStudentStatusDays,
   createStudentStatusDays,
   deleteStudentStatusDay,
+  fetchStatusDayOverview,
   fetchStudentStatusDays,
+  StatusDayOverviewForbiddenError,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
 } from "./student-status-days-api";
 
 const backendDay = {
@@ -89,6 +92,26 @@ describe("student-status-days-api", () => {
         status: "excused",
       }),
     ]);
+  });
+
+  it("maps partial-absence conflicts to a dedicated error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json(
+        {
+          status: "error",
+          error: "student status day conflicts with a partial absence",
+          code: "partial_absence_conflict",
+        },
+        { status: 409 },
+      ),
+    );
+
+    const error = await createStudentStatusDays("42", "sick", [
+      "2026-05-26",
+    ]).catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(StudentStatusDayPartialAbsenceConflictError);
+    expect((error as Error).message).toMatch(/Abmeldung ab einer Uhrzeit/);
   });
 
   it("deletes a planned status day", async () => {
@@ -241,5 +264,79 @@ describe("student-status-days-api", () => {
     await expect(deleteStudentStatusDay("42", "7")).rejects.toThrow(
       "Geplanter Eintrag konnte nicht gelöscht werden",
     );
+  });
+
+  it("fetches the tenant-wide status day overview", async () => {
+    const overview = {
+      from: "2026-05-25",
+      to: "2026-05-29",
+      groups: [{ id: "3", name: "Igel" }],
+      page: 1,
+      page_size: 50,
+      has_more: false,
+      entries: [
+        {
+          id: "7",
+          student_id: "42",
+          first_name: "Kim",
+          last_name: "Muster",
+          school_class: "1a",
+          group_id: "3",
+          group_name: "Igel",
+          date: "2026-05-26",
+          status: "excused",
+          label: "Entschuldigt",
+          reported_at: "2026-05-25T08:00:00Z",
+          source: "planned",
+        },
+      ],
+    };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({ status: "success", data: overview }),
+      );
+
+    const result = await fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+      page: 1,
+      query: "",
+      status: "all",
+      groupId: "all",
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/status-days?from=2026-05-25&to=2026-05-29&page=1&page_size=50",
+    );
+    expect(result).toEqual(overview);
+  });
+
+  it("throws the dedicated forbidden error when the overview returns 403", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("forbidden", { status: 403 }),
+    );
+
+    await expect(
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
+    ).rejects.toBeInstanceOf(StatusDayOverviewForbiddenError);
+  });
+
+  it("throws a fallback message when the overview request fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response("nope", { status: 500 }),
+    );
+
+    await expect(
+      fetchStatusDayOverview("2026-05-25", "2026-05-29", {
+        page: 1,
+        query: "",
+        status: "all",
+        groupId: "all",
+      }),
+    ).rejects.toThrow("Abwesenheiten konnten nicht geladen werden");
   });
 });

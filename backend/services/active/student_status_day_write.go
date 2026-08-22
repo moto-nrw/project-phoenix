@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -20,6 +21,10 @@ import (
 // between the initial authorization and the locked re-read inside the write
 // transaction. Handlers map it to 403.
 var ErrStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
+
+// ErrStudentStatusDayPartialAbsenceConflict prevents broad day statuses from
+// erasing a more precise time-specific excusal without an explicit decision.
+var ErrStudentStatusDayPartialAbsenceConflict = errors.New("student status day conflicts with a partial absence")
 
 // MaxStudentStatusDayConflictDetails is the maximum number of conflict rows
 // returned in a 409 response body. Larger totals are reported via Total only so
@@ -102,6 +107,12 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 		if !wc.Authorize(ctx, fresh) {
 			return ErrStudentStatusDayReassigned
 		}
+		if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+			return err
+		}
+		if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
+			return err
+		}
 
 		conflicts, err := s.findRequestedActiveConflicts(ctx, studentID, dates)
 		if err != nil {
@@ -151,6 +162,14 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 			}
 			lockedStudents[studentID] = fresh
 		}
+		for _, studentID := range sortedIDs {
+			if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+				return err
+			}
+			if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
+				return err
+			}
+		}
 
 		// Phase 2: preflight every student/date pair so no existing sick,
 		// excused, or class-trip row is cleared or overwritten. Keep only a
@@ -198,6 +217,50 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 		}
 		return nil
 	})
+}
+
+func lockStudentStatusDates(ctx context.Context, db *bun.DB, studentID int64, dates []timezone.Date) error {
+	sortedDates := append([]timezone.Date(nil), dates...)
+	slices.SortFunc(sortedDates, timezone.Date.Compare)
+	for _, date := range sortedDates {
+		if err := careplanning.LockExceptionDay(ctx, db, studentID, date); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
+	ctx context.Context, studentID int64, dates []timezone.Date,
+) error {
+	if s.pickupExceptions == nil || len(dates) == 0 {
+		return nil
+	}
+	requested := make(map[timezone.Date]struct{}, len(dates))
+	for _, date := range dates {
+		requested[date] = struct{}{}
+	}
+	rows, err := s.pickupExceptions.FindByStudentIDAndDateRange(
+		ctx,
+		studentID,
+		slices.MinFunc(dates, timezone.Date.Compare),
+		slices.MaxFunc(dates, timezone.Date.Compare),
+	)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		// Auto-derived excusals (pulled-forward pickup time, #2360) do not
+		// block a broad day status: the two coexist via disjoint slot
+		// ownership, and refusing would make every pickup change block a sick
+		// report. Only a staff-set manual partial absence conflicts.
+		if row != nil && row.HasManualPartialAbsence() {
+			if _, matches := requested[row.ExceptionDate]; matches {
+				return ErrStudentStatusDayPartialAbsenceConflict
+			}
+		}
+	}
+	return nil
 }
 
 // findRequestedActiveConflicts returns active status-day rows that already

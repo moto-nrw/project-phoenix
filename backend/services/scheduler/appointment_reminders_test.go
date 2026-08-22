@@ -36,6 +36,8 @@ func (f *fakeReminderQueuer) EnqueueDueAppointmentReminders(_ context.Context, f
 }
 
 func TestAppointmentReminderWindow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("the first window after boot recovers the bounded lookback", func(t *testing.T) {
 		s := &Scheduler{logger: slog.Default()}
 		now := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
@@ -97,6 +99,8 @@ func TestAppointmentReminderWindow(t *testing.T) {
 }
 
 func TestRunAppointmentRemindersForTenant(t *testing.T) {
+	t.Parallel()
+
 	scanFrom := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
 	scanTo := scanFrom.Add(appointmentReminderInterval)
 

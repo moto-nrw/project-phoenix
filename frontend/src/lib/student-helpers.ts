@@ -136,7 +136,7 @@ export const DEPARTURE_WEEKDAYS: ReadonlyArray<{
 ] as const;
 
 /** German labels for the departure modes (shown in forms and badges). */
-const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
+export const DEPARTURE_MODE_LABELS: Record<DepartureMode, string> = {
   alone: "Geht zu Fuß",
   bus: "Fährt Bus",
   pickup: "Wird abgeholt",
@@ -462,10 +462,10 @@ export interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
-  // Parent's note for a still-pending "entschuldigt" request covering today
-  // (operations.parent_excused_requires_approval). Informational only — it does
+  // Parent's note for a still-pending absence request covering today.
+  // Informational only — it does
   // NOT change day_planning_status; the child stays "expected" until the OGS
-  // confirms. Absent when there is no pending excused request for today.
+  // confirms. Absent when there is no pending absence request for today.
   pending_excused_note?: string;
   guardian_name?: string; // Optional: Legacy field, use guardian_profiles instead
   guardian_contact?: string; // Optional: Legacy field, use guardian_profiles instead
@@ -547,9 +547,11 @@ export interface BackendSlimStudent {
   class_trip: boolean;
   class_trip_since?: string;
   day_planning_status?: "comes_today" | "not_coming_today";
+  day_planning_reason?: string;
   day_planning_label?: string;
   pending_excused_note?: string;
-  pickup_status?: string;
+  departure_modes?: DepartureMode[];
+  departure_label?: string;
   pickup_time?: string;
   pickup_is_exception?: boolean;
   pickup_notes?: string;
@@ -578,6 +580,9 @@ export interface SupervisorContact {
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
   has_write_access: boolean;
+  /** Absence actions only (krank / entschuldigt / Klassenfahrt) — a superset of
+   *  has_write_access in a school without fixed groups (#2232). */
+  has_absence_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   attendance_log_enabled: boolean;
 }
@@ -643,6 +648,8 @@ export interface Student {
   // for how the child leaves; bus_days/pickup_days are derived from it (#1610).
   departure_days?: DepartureDays;
   allowed_departure_modes?: AllowedDepartureModes;
+  departure_modes?: DepartureMode[];
+  departure_label?: string;
   // Sickness status (only visible to supervisors/admins)
   sick?: boolean;
   sick_since?: string;
@@ -675,6 +682,9 @@ export interface Student {
   // Additional fields for access control
   has_full_access?: boolean;
   has_write_access?: boolean;
+  /** May report/clear absences for this child, even without Stammdaten write
+   *  access (open care, #2232). */
+  has_absence_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   // Feature flag: tenant has attendance log enabled
   attendance_log_enabled?: boolean;
@@ -862,9 +872,11 @@ export function mapSlimStudentResponse(
     class_trip: backendStudent.class_trip,
     class_trip_since: backendStudent.class_trip_since,
     day_planning_status: backendStudent.day_planning_status,
+    day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
     pending_excused_note: backendStudent.pending_excused_note,
-    pickup_status: backendStudent.pickup_status,
+    departure_modes: backendStudent.departure_modes,
+    departure_label: backendStudent.departure_label,
     pickup_time: backendStudent.pickup_time,
     pickup_is_exception: backendStudent.pickup_is_exception,
     pickup_notes: backendStudent.pickup_notes,
@@ -904,6 +916,8 @@ export function mapStudentDetailResponse(
   // Then add the additional fields
   student.has_full_access = backendStudent.has_full_access;
   student.has_write_access = backendStudent.has_write_access;
+  student.has_absence_write_access =
+    backendStudent.has_absence_write_access ?? backendStudent.has_write_access;
   student.group_supervisors = backendStudent.group_supervisors;
   student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 

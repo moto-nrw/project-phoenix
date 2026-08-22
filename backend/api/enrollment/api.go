@@ -141,6 +141,9 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/care-offerings", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listCareOfferings)
+			// Static segment, registered before the {id} sub-router so chi
+			// matches it as a literal path rather than an offering id.
+			r.With(authorize.RequiresPermission("config:read")).Get("/booking-stats", rs.listCareOfferingBookingStats)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createCareOffering)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getCareOffering)
@@ -167,6 +170,9 @@ func (rs *Resource) Router() chi.Router {
 				// landed in pending_admin_review on a phase created
 				// FROM this phase. Both require config:manage.
 				r.With(authorize.RequiresPermission("config:manage")).Post("/rollover", rs.createRollover)
+				// Read-only dry run for the rollover form (#2251); same
+				// permission as the create it precedes.
+				r.With(authorize.RequiresPermission("config:manage")).Get("/rollover-preview", rs.previewRollover)
 				r.With(authorize.RequiresPermission("config:read")).Get("/review", rs.listRolloverReview)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/manual-bootstrap", rs.getManualEnrollmentBootstrap)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/late-invites", rs.createLateInvite)
@@ -218,6 +224,10 @@ func (rs *Resource) Router() chi.Router {
 		})
 		r.Route("/admin/change-requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
+			// Anmeldungsänderungen in the shared display format of the request
+			// module, open or history, keyset-paginated (#2435).
+			r.With(authorize.RequiresPermission("config:manage")).Get("/list", rs.listChangeRequestReviewEntries)
+			r.With(authorize.RequiresPermission("config:manage")).Get("/pending-count", rs.pendingChangeRequestReviewCount)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)

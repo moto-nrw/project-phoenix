@@ -30,6 +30,13 @@ type systemSpace struct {
 	categoryDesc string
 	color        string
 
+	// roomColorless leaves the auto-created room's color NULL instead of
+	// stamping `color`. Set for the Schulhof (#2405): its color is now
+	// admin-configurable, and an unset color is what makes the documented
+	// orange default apply. The category keeps `color` either way — that is
+	// an activity-category attribute, not a room badge.
+	roomColorless bool
+
 	activityName    string
 	maxParticipants int
 	selectActivity  func(groups []*activities.Group, room *facilities.Room) *activities.Group
@@ -55,14 +62,16 @@ func (s *CheckinService) ensureSystemRoom(ctx context.Context, sp systemSpace) (
 
 	capacity := sp.roomCapacity
 	category := sp.categoryName
-	color := sp.color
 
 	newRoom := &facilities.Room{
 		Name:     sp.roomName,
 		Capacity: &capacity,
 		Category: &category,
-		Color:    &color,
 		IsSystem: true,
+	}
+	if !sp.roomColorless {
+		color := sp.color
+		newRoom.Color = &color
 	}
 
 	if err := s.facilities.CreateRoom(ctx, newRoom); err != nil {

@@ -61,12 +61,13 @@ func ValidatePushEndpoint(endpoint string) error {
 type PushSubscription struct {
 	base.Model `bun:"schema:iot,table:push_subscriptions"`
 	base.TenantModel
-	AccountID int64  `bun:"account_id,notnull" json:"account_id"`
-	Portal    string `bun:"portal,notnull" json:"portal"`
-	Endpoint  string `bun:"endpoint,notnull" json:"endpoint"`
-	P256dh    string `bun:"p256dh,notnull" json:"-"`
-	Auth      string `bun:"auth,notnull" json:"-"`
-	UserAgent string `bun:"user_agent,notnull,default:''" json:"user_agent"`
+	AccountID     int64  `bun:"account_id,notnull" json:"account_id"`
+	Portal        string `bun:"portal,notnull" json:"portal"`
+	Endpoint      string `bun:"endpoint,notnull" json:"endpoint"`
+	P256dh        string `bun:"p256dh,notnull" json:"-"`
+	Auth          string `bun:"auth,notnull" json:"-"`
+	UserAgent     string `bun:"user_agent,notnull,default:''" json:"user_agent"`
+	TokenFamilyID string `bun:"token_family_id,notnull,default:''" json:"-"`
 }
 
 // Validate ensures push subscription data is valid.
@@ -106,8 +107,32 @@ type PushSubscriptionRepository interface {
 	// across tenants. Callers must use an admin transaction.
 	DeleteParentByEndpoint(ctx context.Context, endpoint string) error
 	// DeleteStaffByAccountID removes every staff-portal subscription for an
-	// account across tenants. Callers must use an admin transaction.
+	// account across tenants. Callers must use an admin transaction and
+	// reserve this for account-wide session revocation, not a single-device
+	// logout.
 	DeleteStaffByAccountID(ctx context.Context, accountID int64) error
+	// DeleteParentByAccountID removes every parent-portal subscription for an
+	// account across tenants. Callers must use an admin transaction and
+	// reserve this for account-wide session revocation, not a single-device
+	// logout.
+	DeleteParentByAccountID(ctx context.Context, accountID int64) error
+	// DeleteByTokenFamilyID removes subscriptions registered by one
+	// refresh-token family, any portal, across tenants. Callers must use an
+	// admin transaction. An empty family ID is a no-op so pre-binding rows
+	// are not swept by an unbound logout.
+	DeleteByTokenFamilyID(ctx context.Context, accountID int64, familyID string) error
+	// DeleteStaffUnboundByAccount removes staff-portal subscriptions that were
+	// never bound to a token family. tenantID > 0 limits the delete to that
+	// school. Callers must use an admin transaction.
+	DeleteStaffUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteParentUnboundByAccount removes parent-portal subscriptions that
+	// were never bound to a token family. tenantID > 0 limits the delete to
+	// that school. Callers must use an admin transaction.
+	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteOrphanedSubscriptions removes push rows whose token family is gone
+	// or whose account has no live session left for that portal. Unbound
+	// parent rows stay if any parent session exists on the account.
+	DeleteOrphanedSubscriptions(ctx context.Context) error
 	// FindForTenantStaff returns all staff-portal subscriptions of the current tenant.
 	FindForTenantStaff(ctx context.Context) ([]*PushSubscription, error)
 

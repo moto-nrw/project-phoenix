@@ -381,30 +381,13 @@ func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool
 		return true, nil
 	}
 
-	// Student must have a group for non-admin operations
-	if student.GroupID == nil {
-		return false, fmt.Errorf("only administrators can modify guardians for students without assigned groups")
-	}
-
-	// Check if user is a staff member who supervises the student's group
+	// Any verified staff member may modify guardians of any active student
+	// (#2329).
 	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 	if err != nil || staff == nil {
 		return false, fmt.Errorf("insufficient permissions to modify this student's guardians")
 	}
-
-	// Check if staff supervises the student's group
-	educationGroups, err := rs.UserContextService.GetMyGroups(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get supervised groups")
-	}
-
-	for _, group := range educationGroups {
-		if group.ID == *student.GroupID {
-			return true, nil
-		}
-	}
-
-	return false, fmt.Errorf("you can only modify guardians for students in groups you supervise")
+	return true, nil
 }
 
 // canModifyGuardian checks if the current user can modify a guardian profile
@@ -434,33 +417,9 @@ func (rs *Resource) canModifyGuardian(ctx context.Context, guardianID int64) (bo
 		return false, fmt.Errorf("only administrators can modify guardians with no linked students")
 	}
 
-	// Check if staff supervises at least one of the guardian's students
-	educationGroups, err := rs.UserContextService.GetMyGroups(ctx)
-	if err != nil {
-		return false, fmt.Errorf("failed to get supervised groups")
-	}
-
-	// Build map of supervised group IDs for efficient lookup
-	supervisedGroupIDs := make(map[int64]bool)
-	for _, group := range educationGroups {
-		supervisedGroupIDs[group.ID] = true
-	}
-
-	// Check if any of the guardian's students are in supervised groups
-	for _, studentRel := range studentsWithRel {
-		// Get full student details to check their group
-		student, err := rs.PersonService.GetStudentByID(ctx, studentRel.Student.ID)
-		if err != nil {
-			continue
-		}
-
-		// Check if this student's group is supervised by current user
-		if student.GroupID != nil && supervisedGroupIDs[*student.GroupID] {
-			return true, nil
-		}
-	}
-
-	return false, fmt.Errorf("you can only modify guardians for students in groups you supervise")
+	// Any verified staff member may modify guardians linked to students
+	// (#2329).
+	return true, nil
 }
 
 // listGuardians handles listing all guardians with pagination. This is the
@@ -578,19 +537,11 @@ func (rs *Resource) createGuardian(w http.ResponseWriter, r *http.Request) {
 	// Admin users can create guardians without additional checks
 	isAdmin := authorize.HasAdminWildcard(userPermissions)
 
-	// Non-admin users must be staff members with supervised groups
+	// Non-admin users must be verified staff members (#2329)
 	if !isAdmin {
-		// Check if user is staff member
 		staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 		if err != nil || staff == nil {
 			common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create guardian profiles")))
-			return
-		}
-
-		// Non-admin staff must supervise at least one group to create guardians
-		educationGroups, err := rs.UserContextService.GetMyGroups(r.Context())
-		if err != nil || len(educationGroups) == 0 {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators or group supervisors can create guardian profiles")))
 			return
 		}
 	}

@@ -273,6 +273,7 @@ const (
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
+	ErrCodeEnrollmentDepartureModeLimit          = "enrollment.departure_mode_limit"
 	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
 	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
 	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
@@ -335,6 +336,9 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
+	// Heimweg-Beschränkung (#2381) also wraps ErrInvalidSubmission.
+	case errors.Is(err, enrollmentService.ErrDepartureModeLimitExceeded):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDepartureModeLimit))
 	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
 	// so their specific matches must precede the generic case below.
 	case errors.Is(err, enrollmentService.ErrSelectedDayNotAvailable):
@@ -427,6 +431,10 @@ type StatusChildResponse struct {
 	LastName     string  `json:"last_name"`
 	Status       string  `json:"status"`
 	StatusReason *string `json:"status_reason,omitempty"`
+	// Locked marks a child that is already taken over into care. Its data
+	// stays readable through the status link, but changes to it run through
+	// the parent app only (ADR 0003).
+	Locked bool `json:"locked"`
 }
 
 type EditBootstrapResponse struct {
@@ -477,6 +485,9 @@ type EditDraftChildResponse struct {
 	CustomData        map[string]any                 `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
+	// Locked marks a child that is already taken over into care: the change
+	// form shows it read-only and points to the parent app (ADR 0003).
+	Locked bool `json:"locked"`
 }
 
 type EditDraftOfferingDayResponse struct {
@@ -556,6 +567,7 @@ func (rs *Resource) getStatus(w http.ResponseWriter, r *http.Request) {
 			LastName:     c.LastName,
 			Status:       c.Status,
 			StatusReason: c.StatusReason,
+			Locked:       enrollmentService.ChildTakenOver(c),
 		})
 	}
 	for _, g := range guardians {
@@ -655,12 +667,16 @@ func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian)
 func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
 	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
 	for _, child := range draft.Children {
-		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID], draft.CareOfferingsEnabled))
+		offeringLinks := draft.OfferingsByChild[child.ID]
+		if !draft.CareOfferingsEnabled && !enrollmentService.ChildTakenOver(child) {
+			offeringLinks = nil
+		}
+		responses = append(responses, toEditDraftChildResponse(child, offeringLinks))
 	}
 	return responses
 }
 
-func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering, careOfferingsEnabled bool) EditDraftChildResponse {
+func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering) EditDraftChildResponse {
 	response := EditDraftChildResponse{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
@@ -670,9 +686,7 @@ func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLink
 		TargetSchoolClass: child.TargetSchoolClass,
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
-	}
-	if !careOfferingsEnabled {
-		return response
+		Locked:            enrollmentService.ChildTakenOver(child),
 	}
 	for _, link := range offeringLinks {
 		response.OfferingIDs = append(response.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))

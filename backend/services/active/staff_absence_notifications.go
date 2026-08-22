@@ -76,6 +76,17 @@ func (s *staffAbsenceService) absenceEmailsEnabled(ctx context.Context) bool {
 	return enabled
 }
 
+// absenceEmailTypeLabel is the wording an absence email uses. The school's own
+// Abwesenheitsart wins when the row carries one (#2403) — the mail should read
+// "Regenerationstag", not the generic "Sonstige Abwesenheit" the base type
+// resolves to.
+func absenceEmailTypeLabel(a *activeModels.StaffAbsence) string {
+	if a.AbsenceTypeLabel != "" {
+		return a.AbsenceTypeLabel
+	}
+	return absenceTypeLabelGerman(a.AbsenceType)
+}
+
 // absenceTypeLabelGerman maps the absence type to its German UI label.
 func absenceTypeLabelGerman(absenceType string) string {
 	switch absenceType {
@@ -103,6 +114,7 @@ func formatAbsenceDateRange(a *activeModels.StaffAbsence) string {
 // a new request arrived (#1419 4d). Called after the request row is created;
 // failures only log — email must never block the workflow.
 func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absence *activeModels.StaffAbsence) {
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
@@ -152,7 +164,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 				"FirstName":        approver.FirstName,
 				"LastName":         approver.LastName,
 				"RequesterName":    requesterName,
-				"AbsenceTypeLabel": absenceTypeLabelGerman(absence.AbsenceType),
+				"AbsenceTypeLabel": absenceEmailTypeLabel(absence),
 				"DateRange":        formatAbsenceDateRange(absence),
 				"Note":             absence.Note,
 				"PreviousQuestion": previousQuestion,
@@ -166,6 +178,7 @@ func (s *staffAbsenceService) notifyAbsenceRequested(ctx context.Context, absenc
 // notifyAbsenceDecision emails the requesting staff member about an approve /
 // decline / Rückfrage on their request (#1419 4d).
 func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence *activeModels.StaffAbsence) {
+	StampAbsenceTypeLabels(ctx, s.absenceTypes, []*activeModels.StaffAbsence{absence})
 	if !s.absenceEmailsEnabled(ctx) {
 		return
 	}
@@ -204,7 +217,7 @@ func (s *staffAbsenceService) notifyAbsenceDecision(ctx context.Context, absence
 		Content: map[string]any{
 			"FirstName":        requester.FirstName,
 			"LastName":         requester.LastName,
-			"AbsenceTypeLabel": absenceTypeLabelGerman(absence.AbsenceType),
+			"AbsenceTypeLabel": absenceEmailTypeLabel(absence),
 			"DateRange":        formatAbsenceDateRange(absence),
 			"DecisionNote":     absence.DecisionNote,
 			"LinkURL":          linkURL,

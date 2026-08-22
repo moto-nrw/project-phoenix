@@ -201,7 +201,7 @@ vi.mock("~/lib/location-helper", async (importOriginal) => {
     isHomeLocation: vi.fn(() => false),
     isSchoolyardLocation: vi.fn(() => false),
     isTransitLocation: vi.fn(() => false),
-    parseLocation: vi.fn(() => ({ room: "Room 1", status: "Anwesend" })),
+    parseLocation: actual.parseLocation,
   };
 });
 
@@ -435,6 +435,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { useSession } from "next-auth/react";
 import { isHomeLocation } from "~/lib/location-helper";
 import { groupTransferService } from "~/lib/group-transfer-api";
 import type {
@@ -486,6 +487,47 @@ function wireStudent(
   };
 }
 
+beforeEach(() => {
+  vi.mocked(useSession)
+    .mockReset()
+    .mockReturnValue({
+      data: { user: { token: "test-token" } },
+      status: "authenticated",
+    } as never);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+  vi.mocked(isHomeLocation).mockReset().mockReturnValue(false);
+  mockSearchParamsGet.mockReset().mockReturnValue(null);
+  mockUserContext.mockReset().mockReturnValue({
+    userContext: { currentStaff: null },
+    isLoading: false,
+    error: undefined,
+    isReady: true,
+  });
+  vi.mocked(groupTransferService.getAllAvailableStaff)
+    .mockReset()
+    .mockResolvedValue([]);
+  vi.mocked(groupTransferService.getStaffByRole)
+    .mockReset()
+    .mockResolvedValue([]);
+  vi.mocked(groupTransferService.getActiveTransfersForGroup)
+    .mockReset()
+    .mockResolvedValue([]);
+  vi.mocked(groupTransferService.transferGroup)
+    .mockReset()
+    .mockResolvedValue(undefined);
+  vi.mocked(groupTransferService.cancelTransferBySubstitutionId)
+    .mockReset()
+    .mockResolvedValue(undefined);
+});
+
 describe("OGSGroupPage", () => {
   const mockMutate = vi.fn();
 
@@ -509,8 +551,12 @@ describe("OGSGroupPage", () => {
   it("shows loading state initially", async () => {
     render(<OGSGroupPage />);
 
-    // Initial loading state should show the page-shell skeleton
-    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
+    // Real chrome (header) renders immediately; only the student-grid data
+    // region skeletonizes while access/data resolve (showSkeleton pattern).
+    expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("student-card-grid-skeleton"),
+    ).toBeInTheDocument();
   });
 
   it("renders with SSE error boundary wrapper", () => {
@@ -586,8 +632,12 @@ describe("OGSGroupPage", () => {
 
     render(<OGSGroupPage />);
 
-    // Should show the page-shell skeleton while SWR is loading
-    expect(screen.getByTestId("ogs-groups-skeleton")).toBeInTheDocument();
+    // Header renders immediately; the student-grid data region shows the
+    // skeleton while SWR is loading (showSkeleton pattern).
+    expect(screen.getByTestId("page-header")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("student-card-grid-skeleton"),
+    ).toBeInTheDocument();
   });
 
   it("displays group data when available", async () => {

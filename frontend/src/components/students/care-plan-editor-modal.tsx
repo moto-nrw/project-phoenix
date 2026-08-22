@@ -18,7 +18,10 @@ import type {
   DayData as PickupDayData,
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
-import { formatPickupTime } from "~/lib/pickup-schedule-helpers";
+import {
+  formatPickupTime,
+  pickupScheduleSourceLabel,
+} from "~/lib/pickup-schedule-helpers";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -64,6 +67,12 @@ interface CarePlanEditorModalProps {
   readonly weeklyPickup: PickupScheduleFormData[];
   readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
   readonly onSubmitWeekly: (payload: CarePlanWeeklySubmit) => Promise<void>;
+  /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
+   * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
+  readonly onResetPickupToOffering?: (
+    weekday: number,
+    date: string,
+  ) => Promise<void>;
   readonly onCreateArrivalNote?: (
     date: string,
     content: string,
@@ -107,6 +116,7 @@ export function CarePlanEditorModal({
   weeklyPickup,
   onSubmitException,
   onSubmitWeekly,
+  onResetPickupToOffering,
   onCreateArrivalNote = noopNoteAction,
   onUpdateArrivalNote = noopNoteAction,
   onDeleteArrivalNote = noopNoteAction,
@@ -123,6 +133,7 @@ export function CarePlanEditorModal({
   const [arrivalReason, setArrivalReason] = useState("");
   const [pickupMode, setPickupMode] = useState<PickupMode>("regular");
   const [pickupTime, setPickupTime] = useState("");
+  const [isResettingPickup, setIsResettingPickup] = useState(false);
   const [pickupReason, setPickupReason] = useState("");
   const [weeklyRows, setWeeklyRows] = useState<WeeklyRow[]>([]);
   const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
@@ -278,6 +289,22 @@ export function CarePlanEditorModal({
     toast.error(message);
   };
 
+  const handleResetPickupToOffering = async (weekday: number, date: string) => {
+    if (!onResetPickupToOffering) return;
+    setError(null);
+    setIsResettingPickup(true);
+    try {
+      await onResetPickupToOffering(weekday, date);
+    } catch {
+      const message =
+        "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsResettingPickup(false);
+    }
+  };
+
   const performSave = async () => {
     setError(null);
     setIsSubmitting(true);
@@ -430,6 +457,43 @@ export function CarePlanEditorModal({
                   showReason={pickupMode !== "regular"}
                 />
               </div>
+              {pickupPulledForward(pickupMode, pickupTime, pickupDay) ? (
+                <div className="border-moto-amber/40 bg-moto-amber-soft text-moto-amber-strong flex items-start gap-2.5 rounded-xl border px-4 py-3 text-sm">
+                  <Clock
+                    className="mt-0.5 h-4 w-4 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    Abholung vorverlegt: Betreuungsblöcke, die um {pickupTime}{" "}
+                    Uhr oder später beginnen, werden für diesen Tag automatisch
+                    abgemeldet (entschuldigt). Wird die Zeit wieder geändert
+                    oder die Ausnahme entfernt, gilt der reguläre Plan.
+                  </span>
+                </div>
+              ) : null}
+              {onResetPickupToOffering &&
+              pickupDay?.baseSchedule &&
+              pickupDay.offeringSchedule &&
+              pickupDay.baseSchedule.source !== "care_offering" ? (
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    disabled={isResettingPickup}
+                    onClick={() =>
+                      void handleResetPickupToOffering(
+                        pickupDay.weekday,
+                        toDayISO(pickupDay.date),
+                      )
+                    }
+                  >
+                    {isResettingPickup
+                      ? "Setzt zurück…"
+                      : "Abholung auf Angebots-Gehzeit zurücksetzen"}
+                  </Button>
+                </div>
+              ) : null}
               <DayNotesEditor
                 key={toDayISO(arrivalDay.date)}
                 date={toDayISO(arrivalDay.date)}
@@ -1046,10 +1110,28 @@ function formatRegularArrival(day: ArrivalDayData | null): string {
     : "nicht geplant";
 }
 
+/**
+ * True when the entered day pickup time is EARLIER than the weekly baseline —
+ * the backend then derives an automatic partial absence for the blocks after
+ * the new time (#2360). Mirrors the backend trigger: no baseline, equal, or
+ * later times never couple, so no hint is shown for them.
+ */
+function pickupPulledForward(
+  mode: PickupMode,
+  time: string,
+  day: PickupDayData | null,
+): boolean {
+  if (mode !== "time" || !TIME_PATTERN.test(time)) return false;
+  if (!day?.baseSchedule?.pickupTime) return false;
+  const baseline = formatPickupTime(day.baseSchedule.pickupTime);
+  if (!TIME_PATTERN.test(baseline)) return false;
+  return time.padStart(5, "0") < baseline.padStart(5, "0");
+}
+
 function formatRegularPickup(day: PickupDayData | null): string {
-  return day?.baseSchedule?.pickupTime
-    ? formatPickupTime(day.baseSchedule.pickupTime)
-    : "nicht geplant";
+  if (!day?.baseSchedule?.pickupTime) return "nicht geplant";
+  const time = formatPickupTime(day.baseSchedule.pickupTime);
+  return `${time} (${pickupScheduleSourceLabel(day.baseSchedule)})`;
 }
 
 function buildWeeklyRows(

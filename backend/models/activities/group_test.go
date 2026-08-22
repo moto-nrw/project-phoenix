@@ -12,6 +12,8 @@ func int64Ptr(v int64) *int64 { return &v }
 func intPtr(v int) *int       { return &v }
 
 func TestGroupValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   *Group
@@ -62,7 +64,7 @@ func TestGroupValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "Invalid max participants (zero)",
+			name: "Unlimited participants",
 			group: &Group{
 				Name:            "Test Group",
 				MaxParticipants: 0,
@@ -70,7 +72,7 @@ func TestGroupValidate(t *testing.T) {
 				CategoryID:      1,
 				CreatedBy:       int64Ptr(1),
 			},
-			wantErr: true,
+			wantErr: false,
 		},
 		{
 			name: "Invalid max participants (negative)",
@@ -153,6 +155,8 @@ func TestGroupValidate(t *testing.T) {
 }
 
 func TestGroupHasAvailableSpots(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name                   string
 		group                  *Group
@@ -183,6 +187,14 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 			currentEnrollmentCount: 12,
 			want:                   false,
 		},
+		{
+			name: "Unlimited group always has available spots",
+			group: &Group{
+				MaxParticipants: 0,
+			},
+			currentEnrollmentCount: 1000,
+			want:                   true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -195,6 +207,8 @@ func TestGroupHasAvailableSpots(t *testing.T) {
 }
 
 func TestGroup_GetID(t *testing.T) {
+	t.Parallel()
+
 	group := &Group{
 		Model:           base.Model{ID: 42},
 		Name:            "Test",
@@ -208,6 +222,8 @@ func TestGroup_GetID(t *testing.T) {
 }
 
 func TestGroup_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	group := &Group{
 		Model:           base.Model{CreatedAt: now},
@@ -222,6 +238,8 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 }
 
 func TestGroup_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	group := &Group{
 		Model:           base.Model{UpdatedAt: now},
@@ -238,6 +256,8 @@ func TestGroup_GetUpdatedAt(t *testing.T) {
 // TestGroupValidate_CreatedBy verifies that Validate() does not require CreatedBy.
 // CreatedBy is nullable (system-created groups have created_by = NULL).
 func TestGroupValidate_CreatedBy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   *Group
@@ -278,6 +298,8 @@ func TestGroupValidate_CreatedBy(t *testing.T) {
 }
 
 func TestGroup_IsOwnedBy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   *Group
@@ -328,6 +350,8 @@ func TestGroup_IsOwnedBy(t *testing.T) {
 }
 
 func TestGroup_IsSupervisedBy(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   *Group
@@ -423,6 +447,8 @@ func baseValidGroup() *Group {
 }
 
 func TestGroupValidate_TargetGroup(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   func() *Group
@@ -593,6 +619,8 @@ func TestGroupValidate_TargetGroup(t *testing.T) {
 }
 
 func TestIsValidTargetGroupType(t *testing.T) {
+	t.Parallel()
+
 	valid := []string{"", TargetGroupTypeJahrgang, TargetGroupTypeKlasse, TargetGroupTypeGruppe, TargetGroupTypeAngebot, TargetGroupTypeNone}
 	for _, v := range valid {
 		if !IsValidTargetGroupType(v) {
@@ -609,6 +637,8 @@ func TestIsValidTargetGroupType(t *testing.T) {
 }
 
 func TestGroupValidateTargetGroup_TrimsSchoolClass(t *testing.T) {
+	t.Parallel()
+
 	class := "  Klasse 3a  "
 	group := baseValidGroup()
 	group.TargetGroupType = TargetGroupTypeKlasse
@@ -623,6 +653,8 @@ func TestGroupValidateTargetGroup_TrimsSchoolClass(t *testing.T) {
 }
 
 func TestGroupValidateTargetGroup_CanonicalizesEmptyType(t *testing.T) {
+	t.Parallel()
+
 	group := baseValidGroup()
 
 	if err := group.ValidateTargetGroup(); err != nil {

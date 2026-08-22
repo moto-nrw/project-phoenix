@@ -29,6 +29,8 @@ import type {
   StaffPoolResponse,
   BackendDeviationHistoryResponse,
   BackendApplyDeviationsResponse,
+  BackendBulkSubstitutionResponse,
+  BulkSubstitutionResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -488,6 +490,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     note: s.note,
     checkedInAt: s.checked_in_at,
     careDayStatus: s.care_day_status ?? "unknown",
+    earlyPickupTime: s.early_pickup_time ?? undefined,
   }));
   const studentIds =
     students.length > 0
@@ -542,6 +545,9 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,
     requiredStaffOverride: raw.required_staff_override ?? undefined,
+    canReopen: raw.can_reopen === true,
+    canComplete: raw.can_complete === true,
+    completeAvailableAt: raw.complete_available_at,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -747,6 +753,26 @@ export function mapApplyDeviations(
   };
 }
 
+export function mapBulkSubstitution(
+  raw: BackendBulkSubstitutionResponse,
+): BulkSubstitutionResponse {
+  const days = (raw.days ?? []).map((day) => ({
+    date: day.date,
+    affectedInstances: (day.affected_instances ?? []).map((item) => ({
+      instanceId: String(item.instance_id),
+      title: item.title,
+      startTime: item.start_time,
+      action: item.action,
+    })),
+    warningCount: (day.warnings ?? []).length,
+  }));
+  return {
+    days,
+    totalAffected: raw.total_affected ?? 0,
+    warningCount: days.reduce((sum, day) => sum + day.warningCount, 0),
+  };
+}
+
 export function mapStartInstanceResult(
   raw: BackendStartInstanceResult,
 ): StartInstanceResult {
@@ -771,6 +797,7 @@ export function mapInstanceStatusResult(
     instanceId: String(raw.instance_id),
     status: raw.status,
     completedAt: raw.completed_at,
+    reopenUntil: raw.reopen_until,
   };
 }
 
@@ -963,6 +990,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           ? template.source_care_offering_ids.map(String)
           : undefined,
       sourceGradeLevels: template.source_grade_levels ?? undefined,
+      sourceSchoolClasses: template.source_school_classes ?? undefined,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
@@ -1028,7 +1056,11 @@ export function mapCombinedOfferingCounts(
     const parsed = Number(grade);
     if (!Number.isNaN(parsed)) gradeCounts[parsed] = count;
   }
-  return { totalCount: raw.total_count ?? 0, gradeCounts };
+  const students = (raw.students ?? []).map((student) => ({
+    studentId: String(student.student_id),
+    schoolClass: student.school_class ?? "",
+  }));
+  return { totalCount: raw.total_count ?? 0, gradeCounts, students };
 }
 
 export function mapOfferingSourceOptions(
@@ -1052,6 +1084,7 @@ export function mapOfferingSourceOptions(
         id: String(template.id),
         name: template.name,
         gradeLevels: template.grade_levels ?? [],
+        schoolClasses: template.school_classes ?? [],
       })),
       legacyLinkedTemplateId:
         offering.legacy_linked_template_id !== undefined &&
@@ -1060,6 +1093,21 @@ export function mapOfferingSourceOptions(
           : undefined,
     };
   });
+}
+
+/**
+ * Bringt einen Klassennamen auf die Form, in der verglichen wird: getrimmt
+ * und kleingeschrieben.
+ *
+ * Muss mit `internal/schoolclass.Normalize` im Backend übereinstimmen, denn
+ * beide Seiten entscheiden über dieselben Kinder: der Editor zeigt an, wen
+ * ein Klassenfilter erfasst, der Resync plant sie tatsächlich ein. Go
+ * verwendet `strings.ToLower` (ohne Locale), deshalb hier `toLowerCase()` und
+ * NICHT `toLocaleLowerCase("de")` — sonst können die beiden Seiten bei
+ * ungewöhnlichen Zeichen unterschiedlich urteilen (#2482).
+ */
+export function normalizeSchoolClass(schoolClass: string): string {
+  return schoolClass.trim().toLowerCase();
 }
 
 /**

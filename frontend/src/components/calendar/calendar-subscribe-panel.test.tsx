@@ -58,6 +58,32 @@ describe("CalendarSubscribePanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("passes the subscription URL to Apple Calendar on macOS", async () => {
+    const userAgent = vi
+      .spyOn(window.navigator, "userAgent", "get")
+      .mockReturnValue(
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140 Safari/537.36",
+      );
+    mockGetFeed.mockResolvedValue({
+      url: "https://parents.test/api/calendar-feed/abc",
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+
+    render(<CalendarSubscribePanel />);
+    fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
+
+    const subscribeLink = await screen.findByRole("link", {
+      name: /Im Kalender abonnieren/,
+    });
+    await waitFor(() =>
+      expect(subscribeLink).toHaveAttribute(
+        "href",
+        "webcal://parents.test/api/calendar-feed/abc",
+      ),
+    );
+    userAgent.mockRestore();
+  });
+
   it("prompts to regenerate when the link is not re-displayable", async () => {
     // The backend only stores the token hash, so an already-generated feed
     // returns empty URLs (show-once). The panel offers a regenerate instead.
@@ -76,14 +102,16 @@ describe("CalendarSubscribePanel", () => {
       screen.queryByRole("link", { name: /Im Kalender abonnieren/ }),
     ).toBeNull();
     const regenerate = await screen.findByRole("button", {
-      name: /Neuen Abo-Link erzeugen/,
+      name: /Neuen Abo-Link erstellen/,
     });
 
     fireEvent.click(regenerate);
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(
-        screen.getByDisplayValue("https://parents.test/api/calendar-feed/fresh"),
+        screen.getByDisplayValue(
+          "https://parents.test/api/calendar-feed/fresh",
+        ),
       ).toBeInTheDocument(),
     );
   });
@@ -102,7 +130,7 @@ describe("CalendarSubscribePanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Abo-Link anzeigen/ }));
     await screen.findByRole("link", { name: /Im Kalender abonnieren/ });
 
-    fireEvent.click(screen.getByRole("button", { name: /Link neu generieren/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Link neu erstellen/ }));
     await waitFor(() => expect(mockRotateFeed).toHaveBeenCalledOnce());
     await waitFor(() =>
       expect(

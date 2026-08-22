@@ -103,6 +103,9 @@ func (s *service) syncAttendanceForVisitRevision(
 	if s.AttendanceRepo == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
 		return nil
 	}
+	if err := s.AttendanceRepo.LockStudentAttendance(ctx, previous.StudentID); err != nil {
+		return err
+	}
 	rows, err := s.AttendanceRepo.FindByStudentAndDate(
 		ctx, previous.StudentID, timezone.DateFromTime(previous.EntryTime),
 	)
@@ -171,12 +174,18 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 		return
 	}
 
+	s.clearSickFlagOnCheckin(ctx, student, time.Now())
+}
+
+// clearSickFlagOnCheckin is the write core of autoClearStudentSickness,
+// operating on an already-loaded student so batch callers holding the row
+// lock don't re-read per child (review #2372). No-op when the flag is unset.
+func (s *service) clearSickFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
 	if student.Sick == nil || !*student.Sick {
 		return
 	}
 
-	now := time.Now()
-	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
+	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDaySick, student.SickSince, now, active.StudentStatusSourceNextCheckin)
 
 	falseVal := false
 	student.Sick = &falseVal
@@ -184,14 +193,14 @@ func (s *service) autoClearStudentSickness(ctx context.Context, studentID int64)
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear sickness on check-in",
-			slog.Int64("student_id", studentID),
+			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
 
 	s.getLogger().Info("auto-cleared sickness on student check-in",
-		slog.Int64("student_id", studentID),
+		slog.Int64("student_id", student.ID),
 	)
 }
 
@@ -208,12 +217,17 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 		return
 	}
 
+	s.clearExcusedFlagOnCheckin(ctx, student, time.Now())
+}
+
+// clearExcusedFlagOnCheckin is the write core of autoClearStudentExcused —
+// same already-loaded-student contract as clearSickFlagOnCheckin.
+func (s *service) clearExcusedFlagOnCheckin(ctx context.Context, student *userModels.Student, now time.Time) {
 	if student.Excused == nil || !*student.Excused {
 		return
 	}
 
-	now := time.Now()
-	s.recordStudentStatusForClear(ctx, studentID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
+	s.recordStudentStatusForClear(ctx, student.ID, active.StudentStatusDayExcused, student.ExcusedSince, now, active.StudentStatusSourceNextCheckin)
 
 	falseVal := false
 	student.Excused = &falseVal
@@ -221,14 +235,14 @@ func (s *service) autoClearStudentExcused(ctx context.Context, studentID int64) 
 
 	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		s.getLogger().Warn("failed to auto-clear excused on check-in",
-			slog.Int64("student_id", studentID),
+			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		return
 	}
 
 	s.getLogger().Info("auto-cleared excused on student check-in",
-		slog.Int64("student_id", studentID),
+		slog.Int64("student_id", student.ID),
 	)
 }
 
@@ -280,6 +294,21 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
+	s.clearPlannedStatusRows(ctx, studentID, nil, rows, now)
+}
+
+// clearPlannedStatusRows is the write core of autoClearPlannedStudentStatuses,
+// operating on pre-fetched status-day rows so batch callers can load every
+// student's rows in one query (review #2372). student may be nil — it is
+// fetched lazily only when a flag actually needs clearing; batch callers pass
+// their already-locked row to skip that read too.
+func (s *service) clearPlannedStatusRows(
+	ctx context.Context,
+	studentID int64,
+	student *userModels.Student,
+	rows []*active.StudentStatusDay,
+	now time.Time,
+) {
 	hasPlannedSick := false
 	hasPlannedExcused := false
 	for _, row := range rows {
@@ -311,9 +340,12 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 		return
 	}
 
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil {
-		return
+	if student == nil {
+		loaded, err := s.StudentRepo.FindByID(ctx, studentID)
+		if err != nil || loaded == nil {
+			return
+		}
+		student = loaded
 	}
 
 	falseVal := false
@@ -338,19 +370,32 @@ func (s *service) autoClearPlannedStudentStatuses(ctx context.Context, studentID
 // attendance_status/substatus/note so subscribers see the flipped attendance
 // state alongside the check-in line.
 func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot) {
+	// Der Raum-Check-in der detaillierten Betriebsart schreibt seine eigene
+	// Anwesenheitszeile und laeuft NICHT ueber registerCheckinBroadcast, also
+	// weckt er die Sorgeberechtigten hier selbst.
+	s.wakeGuardiansAfterCommit(ctx, visit.StudentID)
+
 	if s.Broadcaster == nil {
+		return
+	}
+	s.emitVisitCreated(ctx, visit, snapshot, s.getStudentForSSE(ctx, visit.StudentID))
+}
+
+// emitVisitCreated publishes a visit using routing data already resolved in
+// the request transaction. Move events reuse the same student record for their
+// checkout and check-in halves.
+func (s *service) emitVisitCreated(ctx context.Context, visit *active.Visit, snapshot *AttendanceSnapshot, studentRec *userModels.Student) {
+	if s.Broadcaster == nil || visit == nil {
 		return
 	}
 
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
 	studentID := fmt.Sprintf("%d", visit.StudentID)
 
-	studentName, studentRec := s.getStudentDisplayData(ctx, visit.StudentID)
 	eduGroupIDs := eduGroupIDsOf(studentRec)
 
 	data := realtime.EventData{
-		StudentID:   &studentID,
-		StudentName: &studentName,
+		StudentID: &studentID,
 	}
 	if len(eduGroupIDs) > 0 {
 		data.GroupIDs = &eduGroupIDs
@@ -363,7 +408,7 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 		data,
 	)
 
-	if err := s.Broadcaster.BroadcastToGroup(tenant.FromContext(ctx), activeGroupID, event); err != nil {
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
 		s.getLogger().Error("SSE broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("event_type", "student_checkin"),
@@ -371,26 +416,46 @@ func (s *service) broadcastVisitCreated(ctx context.Context, visit *active.Visit
 			slog.String("student_id", studentID),
 		)
 	}
+	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
-	s.broadcastToEducationalGroup(ctx, studentRec, event)
-
-	// Notify every client of the tenant so dashboard counts refresh, scoped to
-	// the affected educational group when known (#2057).
-	s.broadcastDashboardCountsChanged(ctx, eduGroupIDs)
-	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, activeSupervisionReasonStudentMoved)
+	// One precise tenant event replaces the old dashboard_counts_changed +
+	// active_supervision_changed pair.
+	s.broadcastSupervisionRefresh(ctx, activeGroupID, activeSupervisionReasonStudentMoved, eduGroupIDs)
 }
 
-// getStudentDisplayData fetches student name for display
-func (s *service) getStudentDisplayData(ctx context.Context, studentID int64) (string, *userModels.Student) {
+// broadcastRosterRefreshToTopics preserves active-supervision invalidation for
+// an older frontend during a rolling deploy. It is group-scoped rather than
+// tenant-wide, so only clients entitled to this roster pay for the compatibility
+// frame; BroadcastToGroups still deduplicates clients subscribed to both topics.
+func (s *service) broadcastRosterRefreshToTopics(ctx context.Context, activeGroupID string, studentRec *userModels.Student, eduGroupIDs []string) {
+	reason := activeSupervisionReasonStudentMoved
+	data := realtime.EventData{Reason: &reason}
+	if len(eduGroupIDs) > 0 {
+		data.GroupIDs = &eduGroupIDs
+	}
+	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
+	if err := s.broadcastVisitEvent(ctx, activeGroupID, studentRec, event); err != nil {
+		s.getLogger().Warn("SSE roster compatibility broadcast failed",
+			slog.String("error", err.Error()),
+			slog.String("active_group_id", activeGroupID),
+		)
+	}
+}
+
+func (s *service) broadcastVisitEvent(ctx context.Context, activeGroupID string, studentRec *userModels.Student, event realtime.Event) error {
+	topics := []string{activeGroupID}
+	if studentRec != nil && studentRec.GroupID != nil {
+		topics = append(topics, fmt.Sprintf("edu:%d", *studentRec.GroupID))
+	}
+	return s.Broadcaster.BroadcastToGroups(tenant.FromContext(ctx), topics, event)
+}
+
+// getStudentForSSE resolves only routing data. Names are never consumed by SSE
+// clients and used to cost an additional person query per attendance change.
+func (s *service) getStudentForSSE(ctx context.Context, studentID int64) *userModels.Student {
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil || student == nil {
-		return "", nil
+		return nil
 	}
-
-	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
-	if err != nil || person == nil {
-		return "", student
-	}
-
-	return fmt.Sprintf("%s %s", person.FirstName, person.LastName), student
+	return student
 }

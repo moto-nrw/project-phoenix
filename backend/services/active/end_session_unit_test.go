@@ -203,6 +203,7 @@ type mockVisitRepository struct {
 	listActiveStudentIDsByRoomIDFunc      func(ctx context.Context, roomID int64) ([]int64, error)
 	getTodayVisitNamesFunc                func(ctx context.Context, studentIDs []int64) ([]active.VisitGroupNames, error)
 	endVisitsByActiveGroupIDsFunc         func(ctx context.Context, activeGroupIDs []int64) (int64, error)
+	endVisitsByIDsFunc                    func(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error)
 	transferVisitsFromRecentSessionsFunc  func(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
 	transferActiveVisitsBetweenGroupsFunc func(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
 }
@@ -348,6 +349,13 @@ func (m *mockVisitRepository) ListOpenVisitStudentIDsByRoom(ctx context.Context)
 	return nil, nil
 }
 
+func (m *mockVisitRepository) EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*active.Visit, error) {
+	if m.endVisitsByIDsFunc != nil {
+		return m.endVisitsByIDsFunc(ctx, ids, at)
+	}
+	return nil, nil
+}
+
 func (m *mockVisitRepository) EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error) {
 	if m.endVisitsByActiveGroupIDsFunc != nil {
 		return m.endVisitsByActiveGroupIDsFunc(ctx, activeGroupIDs)
@@ -468,6 +476,8 @@ func (m *mockGroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*a
 // This covers the error path when supervisorRepo.FindByActiveGroupID returns an error.
 // The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Create a mock DB using sqlmock (no transaction expectations needed --
@@ -518,6 +528,8 @@ func TestEndActivitySession_FindByActiveGroupIDError(t *testing.T) {
 }
 
 func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	var createdStaffIDs []int64
@@ -542,6 +554,8 @@ func TestAssignMultipleSupervisorsNonCritical_PreservesBestEffortAssignments(t *
 // This covers the error path when supervisorRepo.EndSupervision returns an error.
 // The handler layer now owns the transaction via WithTenantTx; the service no longer wraps with RunInTx.
 func TestEndActivitySession_EndSupervisionError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	// Create a mock DB using sqlmock (no transaction expectations needed --

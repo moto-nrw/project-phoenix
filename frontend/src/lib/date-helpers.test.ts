@@ -10,12 +10,16 @@ import {
   toISODate,
   parseISODate,
   isValidISODate,
+  isoWeekNumber,
   todayISO,
   berlinTodayISO,
+  berlinDayStart,
   endOfBerlinDayISO,
   formatChatTime,
   formatChatDateTime,
+  formatChatClockTime,
   formatBerlinDate,
+  relativeDaysLabel,
 } from "./date-helpers";
 
 describe("toISODate", () => {
@@ -76,6 +80,21 @@ describe("isValidISODate", () => {
   });
 });
 
+describe("isoWeekNumber", () => {
+  it("counts the ISO week, Monday-based", () => {
+    // 01.02.2027 ist ein Montag in KW 5, 09.11.2026 ein Montag in KW 46.
+    expect(isoWeekNumber("2027-02-01")).toBe(5);
+    expect(isoWeekNumber("2026-11-09")).toBe(46);
+  });
+
+  it("puts the days around New Year in the week that holds their Thursday", () => {
+    // 01.01.2027 ist ein Freitag und gehört noch zur KW 53 des Vorjahres.
+    expect(isoWeekNumber("2027-01-01")).toBe(53);
+    // 04.01.2027 ist der Montag der ersten Kalenderwoche.
+    expect(isoWeekNumber("2027-01-04")).toBe(1);
+  });
+});
+
 describe("todayISO", () => {
   it("returns today's local calendar date as YYYY-MM-DD", () => {
     expect(todayISO()).toBe(toISODate(new Date()));
@@ -109,6 +128,34 @@ describe("endOfBerlinDayISO", () => {
   it("uses the CET end of day for a selected winter date", () => {
     expect(endOfBerlinDayISO(new Date(2026, 0, 20))).toBe(
       "2026-01-20T22:59:59.000Z",
+    );
+  });
+});
+
+describe("berlinDayStart", () => {
+  it("returns Berlin midnight for a winter instant", () => {
+    expect(berlinDayStart(new Date("2026-01-15T01:30:00Z")).toISOString()).toBe(
+      "2026-01-14T23:00:00.000Z",
+    );
+  });
+
+  it("returns Berlin midnight for a summer instant", () => {
+    expect(berlinDayStart(new Date("2026-07-20T10:00:00Z")).toISOString()).toBe(
+      "2026-07-19T22:00:00.000Z",
+    );
+  });
+
+  // The night the clocks go forward is 23h long; subtracting 24h from the
+  // following midnight would land an hour beside the real day boundary.
+  it("hits the real midnight on the night DST starts", () => {
+    expect(berlinDayStart(new Date("2026-03-29T12:00:00Z")).toISOString()).toBe(
+      "2026-03-28T23:00:00.000Z",
+    );
+  });
+
+  it("hits the real midnight on the night DST ends", () => {
+    expect(berlinDayStart(new Date("2026-10-25T12:00:00Z")).toISOString()).toBe(
+      "2026-10-24T22:00:00.000Z",
     );
   });
 });
@@ -197,6 +244,12 @@ describe("formatBerlinDate", () => {
 
   it("falls back to the raw input for an unparseable value", () => {
     expect(formatBerlinDate("nicht-datum")).toBe("nicht-datum");
+  });
+
+  it("uses the requested locale", () => {
+    expect(formatBerlinDate("2026-07-20T21:59:59.000Z", "en-GB")).toBe(
+      "20/07/2026",
+    );
   });
 });
 
@@ -306,6 +359,13 @@ describe("formatDate", () => {
 
     expect(result).toContain("Mittwoch");
     expect(result).toContain("10. Juni 2026");
+  });
+
+  it("uses the requested locale for parent-facing dates", () => {
+    expect(formatDate("2026-06-10", false, "en-US")).toBe("06/10/2026");
+    expect(formatDate("2026-06-10", true, "en-US")).toContain(
+      "Wednesday, June 10, 2026",
+    );
   });
 });
 
@@ -546,6 +606,12 @@ describe("formatChatTime", () => {
     // HH:MM part
     expect(parts[1]).toMatch(/^\d{2}:\d{2}$/);
   });
+
+  it("uses the requested locale", () => {
+    expect(formatChatTime("2026-06-10T08:05:00Z", "en-GB")).toBe(
+      "10/06, 10:05",
+    );
+  });
 });
 
 describe("formatChatDateTime", () => {
@@ -579,5 +645,51 @@ describe("formatChatDateTime", () => {
     const result = formatChatDateTime("2026-06-10");
     expect(typeof result).toBe("string");
     expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("uses the requested locale", () => {
+    expect(formatChatDateTime("2026-06-10T08:05:00Z", "en-GB")).toBe(
+      "10/06/2026, 10:05",
+    );
+  });
+});
+
+describe("formatChatClockTime", () => {
+  it("formats only the Berlin clock time for compact chat lists", () => {
+    expect(formatChatClockTime("2026-01-01T23:30:00Z")).toBe("00:30");
+  });
+
+  it("returns the raw input for an invalid timestamp", () => {
+    expect(formatChatClockTime("garbage")).toBe("garbage");
+  });
+
+  it("uses the requested locale", () => {
+    expect(formatChatClockTime("2026-06-10T20:05:00Z", "en-US")).toBe(
+      "10:05 PM",
+    );
+  });
+});
+
+describe("relativeDaysLabel", () => {
+  const jetzt = new Date("2026-08-20T09:00:00Z");
+
+  it("nennt denselben Berliner Kalendertag heute", () => {
+    expect(relativeDaysLabel("2026-08-20T05:30:00Z", jetzt)).toBe("heute");
+  });
+
+  it("zaehlt Kalendertage, nicht 24-Stunden-Bloecke", () => {
+    // 21:00 UTC am 19.08. ist 23:00 Berlin, also gestern — keine 24h her.
+    expect(relativeDaysLabel("2026-08-19T21:00:00Z", jetzt)).toBe("gestern");
+  });
+
+  it("schreibt aeltere Eintraege als Tagesabstand", () => {
+    expect(relativeDaysLabel("2026-08-15T09:00:00Z", jetzt)).toBe(
+      "vor 5 Tagen",
+    );
+  });
+
+  it("gibt fuer unlesbare und zukuenftige Werte null zurueck", () => {
+    expect(relativeDaysLabel("keinDatum", jetzt)).toBeNull();
+    expect(relativeDaysLabel("2026-08-25T09:00:00Z", jetzt)).toBeNull();
   });
 });

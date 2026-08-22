@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
@@ -80,13 +81,13 @@ func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
-		StudentRepo:   repos.Student,
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         repos.Student,
+		PickupExceptionRepo: repos.StudentPickupException,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				configModels.KeyParentSickNoteEnabled: sickEnabled,
@@ -106,7 +107,6 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
@@ -137,9 +137,10 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 // --- SubmitSickNote ---
 
 func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", activeModels.StudentStatusDaySick)
@@ -159,13 +160,14 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 }
 
 func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	notifier := &recordingParentAbsenceNotifier{}
 	require.Implements(t, (*parentService.AbsenceNotifierSetter)(nil), svc)
 	svc.(parentService.AbsenceNotifierSetter).SetAbsenceNotifier(notifier)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	for range 2 {
 		_, err := svc.SubmitSickNote(
@@ -192,9 +194,10 @@ func TestSubmitSickNote_ResubmitDoesNotNotifyAgain(t *testing.T) {
 // UI already hides (ChildFeatures.NotesEnabled gates on the same permission). See
 // .claude/rules/guardian-parent-permissions.md.
 func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// Downgrade the guardian to read-only portal access (no notes.write).
 	_, err := db.ExecContext(context.Background(), `
@@ -215,9 +218,10 @@ func TestChildMessaging_RequiresNotesWritePermission(t *testing.T) {
 // clean ErrEmptyNote (→ 400) BEFORE any insert. Without it the empty body would
 // reach the chk_parent_messages_body_not_blank CHECK and surface as a raw 500.
 func TestPostChildMessage_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, "   \n\t ")
 	require.ErrorIs(t, err, parentService.ErrEmptyNote)
@@ -227,9 +231,10 @@ func TestPostChildMessage_EmptyBody(t *testing.T) {
 // (maxParentNoteLen = 2000) on the messaging path, mirroring the sick-note
 // ReasonTooLong guard. 2001 runes → ErrNoteTooLong (→ 400), never a silent insert.
 func TestPostChildMessage_BodyTooLong(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, strings.Repeat("x", 2001))
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
@@ -244,9 +249,10 @@ func TestPostChildMessage_BodyTooLong(t *testing.T) {
 // (BodyTooLong above) was re-tested after the rewrite; this pins the boundary
 // from the accepting side so the rune-count semantics can't quietly revert.
 func TestPostChildMessage_AllowsMultibyteUpToRuneLimit(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	body := strings.Repeat("ä", maxMessageRunesForTest)
 	view, err := svc.PostChildMessage(context.Background(), chain.AccountID, chain.StudentID, body)
@@ -265,9 +271,10 @@ const maxMessageRunesForTest = 2000
 // fully-permitted guardian still cannot post a message or submit a request. The
 // frontend hides the composer on the same flag; this asserts the API agrees.
 func TestChildMessaging_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	ctx := context.Background()
 	_, err := svc.PostChildMessage(ctx, chain.AccountID, chain.StudentID, "Hallo OGS")
@@ -281,9 +288,10 @@ func TestChildMessaging_FeatureDisabled(t *testing.T) {
 // writing into account B's family thread); enforcement lives in resolveOwnedChild,
 // so this pins it directly against a future refactor of that resolve path.
 func TestPostChildMessage_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -301,9 +309,10 @@ func TestPostChildMessage_NotOwned(t *testing.T) {
 // marks the thread read, so an ownership bypass here would both leak a message and
 // silently advance the wrong reader's cursor.
 func TestGetChildConversation_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db, _ := buildMessagingWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -317,16 +326,18 @@ func TestGetChildConversation_NotOwned(t *testing.T) {
 }
 
 func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	future := timezone.TodayDate().AddDays(7)
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{future}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{future}, "Fieber", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
-	assert.Nil(t, sickResult.StatusDays[0].Note, "no reason supplied → note stays nil")
+	require.NotNil(t, sickResult.StatusDays[0].Note)
+	assert.Equal(t, "Fieber", *sickResult.StatusDays[0].Note)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -334,18 +345,56 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
 }
 
-func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildWriteService(t, true, true)
 	repos := repositories.NewFactory(db)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
+
+	date := timezone.TodayDate().AddDays(7)
+	from := timezone.WallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
+	staffID := staff.ID
+	pickup := &scheduleModels.StudentPickupException{
+		StudentID:             chain.StudentID,
+		ExceptionDate:         date,
+		PickupTime:            &from,
+		ExcusedFrom:           &from,
+		ExcusedCreatedBy:      &staffID,
+		ExcusedOwnsPickupTime: true,
+		Source:                scheduleModels.ExceptionSourceStaff,
+		CreatedBy:             staff.ID,
+	}
+	pickup.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+
+	_, err := svc.SubmitSickNote(
+		context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{date}, "Fieber", activeModels.StudentStatusDaySick,
+	)
+	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
+
+	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
+		testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date,
+	)
+	require.NoError(t, findErr)
+	assert.Empty(t, rows)
+}
+
+func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:     repos.ParentChild,
-		StatusDayRepo: repos.StudentStatusDay,
+		ChildRepo:           repos.ParentChild,
+		StatusDayRepo:       repos.StudentStatusDay,
+		PickupExceptionRepo: repos.StudentPickupException,
 		StudentRepo: &pausingStudentRepository{
 			StudentRepository: repos.Student,
 			locked:            parentLocked,
@@ -424,15 +473,18 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 }
 
 func TestSubmitSickNote_NoDates(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	_, err := svc.SubmitSickNote(context.Background(), 123, 456, nil, "", activeModels.StudentStatusDaySick)
 	require.ErrorIs(t, err, parentService.ErrNoDates)
 }
 
 func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
 	defer func() {
@@ -446,9 +498,10 @@ func TestSubmitSickNote_NotOwnedChild(t *testing.T) {
 }
 
 func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, false, true) // sick disabled
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick)
@@ -456,9 +509,10 @@ func TestSubmitSickNote_FeatureDisabled(t *testing.T) {
 }
 
 func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := db.ExecContext(context.Background(), `
 		UPDATE users.students_guardians
@@ -473,19 +527,32 @@ func TestSubmitSickNote_MissingGuardianPermission(t *testing.T) {
 }
 
 func TestSubmitSickNote_ReasonTooLong(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, strings.Repeat("x", 2001), activeModels.StudentStatusDaySick)
 	require.ErrorIs(t, err, parentService.ErrNoteTooLong)
 }
 
-func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{timezone.TodayDate()}, "   ", activeModels.StudentStatusDaySick)
+	require.ErrorIs(t, err, parentService.ErrEmptyNote)
+}
+
+func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildWriteService(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
@@ -498,7 +565,7 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 		Source:     activeModels.StudentStatusSourcePlanned,
 	}))
 
-	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "", activeModels.StudentStatusDaySick)
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 1)
 	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
@@ -512,13 +579,14 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 // --- ListSickDays ---
 
 func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{day}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
@@ -530,13 +598,14 @@ func TestListSickDays_ReturnsSickOnlyAfterSubmit(t *testing.T) {
 }
 
 func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(2)
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{day}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
 	_, err = db.ExecContext(context.Background(), `
@@ -553,6 +622,8 @@ func TestListSickDays_AllowsPortalAccessWithoutWritePermissions(t *testing.T) {
 }
 
 func TestListSickDays_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	from := timezone.TodayDate()
 	_, err := svc.ListSickDays(context.Background(), 999999, 888888, from, timezone.NewDate(from.Year, from.Month+1, from.Day))
@@ -564,12 +635,13 @@ func TestListSickDays_NotOwned(t *testing.T) {
 // unrelated active excused row that falls on Tuesday inside the min..max
 // range.
 func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
-	tctx := testpkg.TenantContext(1)
+	tctx := testpkg.Ctx(t)
 
 	base := timezone.TodayDate().AddDays(7)
 	mon := base
@@ -586,7 +658,7 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	}))
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{mon, wed}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{mon, wed}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	require.Len(t, sickResult.StatusDays, 2, "only the two submitted sick days, not the Tuesday excused row")
 	for _, r := range sickResult.StatusDays {
@@ -598,9 +670,10 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 // --- SubmitSickNote: excused ("Termin/Abwesenheit") path (issue #1735) ---
 
 func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, bc, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", activeModels.StudentStatusDayExcused)
@@ -623,15 +696,16 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 }
 
 func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// First report sick today (flips the live sick flag), then switch the same
 	// day to an excused absence: the stale live sick flag must be cleared so the
 	// flag stays consistent with the now-cleared sick status day.
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{timezone.TodayDate()}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
 	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -647,9 +721,10 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 }
 
 func TestSubmitSickNote_InvalidStatus(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "", "class_trip")
@@ -657,14 +732,15 @@ func TestSubmitSickNote_InvalidStatus(t *testing.T) {
 }
 
 func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	sickDay := timezone.TodayDate().AddDays(2)
 	excusedDay := timezone.TodayDate().AddDays(4)
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{sickDay}, "", activeModels.StudentStatusDaySick)
+		[]timezone.Date{sickDay}, "Krank", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	_, err = svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{excusedDay}, "Termin", activeModels.StudentStatusDayExcused)
@@ -688,12 +764,13 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 // own excused day on a different date still shows. Guards the privacy fix for
 // the issue #1735 follow-up review.
 func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	statusRepo := repositories.NewFactory(db).StudentStatusDay
-	tctx := testpkg.TenantContext(1)
+	tctx := testpkg.Ctx(t)
 
 	staffExcusedDay := timezone.TodayDate().AddDays(2)
 	parentExcusedDay := timezone.TodayDate().AddDays(4)
@@ -729,9 +806,10 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 // --- ChildFeatures ---
 
 func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, false) // sick on, notes off
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	flags, err := svc.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -740,9 +818,10 @@ func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
 }
 
 func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
+	t.Parallel()
+
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
 	_, err := db.ExecContext(context.Background(), `
@@ -772,6 +851,8 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 }
 
 func TestChildFeatures_NotOwned(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := buildWriteService(t, true, true)
 	_, err := svc.ChildFeatures(context.Background(), 999999, 888888)
 	require.ErrorIs(t, err, parentService.ErrChildNotLinked)

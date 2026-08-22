@@ -41,28 +41,6 @@ func (r *WorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staf
 	return lockStaffBalanceWrites(ctx, r.db, staffID)
 }
 
-// GetByStaffAndDate returns the work session for a staff member on a given date
-func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
-	session := new(active.WorkSession)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(session).
-		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
-		Where(`"work_session".staff_id = ?`, staffID).
-		Where(`"work_session".date = ?`, date)
-
-	query = base.WithTenantFilter(ctx, query, "work_session")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "get by staff and date",
-			Err: err,
-		}
-	}
-
-	return session, nil
-}
-
 // GetCurrentByStaffID returns the active (not checked out) session for a staff member today
 func (r *WorkSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	return r.getOpenByStaffAndDate(ctx, staffID, timezone.TodayDate(), false)
@@ -107,20 +85,35 @@ func (r *WorkSessionRepository) getOpenByStaffAndDate(ctx context.Context, staff
 	return session, nil
 }
 
-// GetLatestOpenByStaffID returns the most recent not-checked-out session of a
+// GetLatestOpenByStaffID returns the most recent STILL RUNNING session of a
 // staff member, regardless of the day it was opened on. Unlike
 // GetCurrentByStaffID it does not filter on today, so a session that was opened
 // before Berlin midnight and is still running stays visible after the rollover
 // instead of looking like "no session today".
+//
+// "Still running" is the same live window the balance applies
+// (services/active.BalanceSessionEnd): a block filed on today (or later) always
+// counts, an older one only while its check-in is inside
+// active.MaxOpenWorkSessionDuration. Past that limit the block has stopped
+// counting as work everywhere else — the balance no longer credits it and the
+// presence map no longer reports its owner as present — so it must stop
+// counting as "clocked in" here too. Without the cutoff a single forgotten
+// checkout would be reported as the current session forever and would reject
+// every later check-in with "already checked in", leaving the staff member
+// unable to stamp at all (#2402). The expired row stays open on disk and is
+// resolved where it belongs: the auto-checkout job, or an admin edit.
 func (r *WorkSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
 
+	now := time.Now()
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(session).
 		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".check_out_time IS NULL`).
-		OrderExpr(`"work_session".date DESC`).
+		Where(`("work_session".date >= ? OR "work_session".check_in_time > ?)`,
+			timezone.DateFromTime(now), now.Add(-active.MaxOpenWorkSessionDuration)).
+		OrderExpr(`"work_session".date DESC, "work_session".check_in_time DESC`).
 		Limit(1)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
@@ -158,6 +151,69 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 	return session, nil
 }
 
+// ListOverlappingByStaffID returns every block of a staff member whose
+// [check-in, check-out) interval intersects the given interval. A nil "to"
+// means the candidate interval is open-ended, so every block reaching past
+// "from" intersects it; an open sibling (check_out_time IS NULL) runs to
+// infinity and intersects anything starting after its check-in.
+//
+// The comparison runs on the timestamps, never on the date column: a block is
+// filed on the day of its check-in but may reach into the following days, so a
+// date window would miss exactly the blocks that overlap across midnight.
+func (r *WorkSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*active.WorkSession, error) {
+	var sessions []*active.WorkSession
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&sessions).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id = ?`, staffID).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from).
+		OrderExpr(`"work_session".check_in_time ASC`)
+
+	if to != nil {
+		query = query.Where(`"work_session".check_in_time < ?`, *to)
+	}
+
+	query = base.WithTenantFilter(ctx, query, "work_session")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list overlapping by staff ID",
+			Err: err,
+		}
+	}
+
+	return sessions, nil
+}
+
+// ListOverlappingByStaffIDs batches interval reads for the cross-staff
+// Stundenkonto overview. Unlike date-based history, this deliberately includes
+// a block that started before the requested calendar range.
+func (r *WorkSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*active.WorkSession, error) {
+	result := make(map[int64][]*active.WorkSession, len(staffIDs))
+	if len(staffIDs) == 0 {
+		return result, nil
+	}
+
+	var sessions []*active.WorkSession
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&sessions).
+		ModelTableExpr(tableExprActiveWorkSessionsAsSession).
+		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`("work_session".check_out_time IS NULL OR "work_session".check_out_time > ?)`, from).
+		OrderExpr(`"work_session".staff_id ASC, "work_session".check_in_time ASC`)
+	if to != nil {
+		query = query.Where(`"work_session".check_in_time < ?`, *to)
+	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list overlapping by staff IDs", Err: err}
+	}
+	for _, session := range sessions {
+		result[session.StaffID] = append(result[session.StaffID], session)
+	}
+	return result, nil
+}
+
 // GetHistoryByStaffID returns work sessions for a staff member in a date range
 func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*active.WorkSession, error) {
 	var sessions []*active.WorkSession
@@ -167,7 +223,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date >= ?`, from).
 		Where(`"work_session".date <= ?`, to).
-		OrderExpr(`"work_session".date ASC`)
+		OrderExpr(`"work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 
@@ -204,9 +260,25 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 	return sessions, nil
 }
 
-// GetTodayPresenceMap returns a map of staff IDs to their work status for today
+// GetTodayPresenceMap returns a map of staff IDs to their work status for today.
+//
+// Besides today's blocks it also picks up still-open blocks filed on an earlier
+// date: a block opened before Berlin midnight keeps running after the rollover,
+// and its owner is working right now even though no row carries today's date.
+// Filtering on the date alone would report that person as absent and drop them
+// out of on-duty notification filtering (#2402).
+//
+// That pickup is bounded by the same live limit the balance applies
+// (active.MaxOpenWorkSessionDuration, see services/active.BalanceSessionEnd):
+// an open block still counts while its check-in is inside that window, and a
+// block filed on today counts regardless. Anything older is a checkout that
+// never happened, not a person at work — without the cutoff a single
+// forgotten checkout would keep its owner "present" for weeks, in today's
+// overview as well as in on-duty notification filtering.
 func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
-	today := timezone.TodayDate()
+	now := time.Now()
+	today := timezone.DateFromTime(now)
+	liveOpenSince := now.Add(-active.MaxOpenWorkSessionDuration)
 
 	var results []struct {
 		StaffID      int64      `bun:"staff_id"`
@@ -219,7 +291,8 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".staff_id`).
 		ColumnExpr(`"work_session".status`).
 		ColumnExpr(`"work_session".check_out_time`).
-		Where(`"work_session".date = ?`, today)
+		Where(`("work_session".date = ? OR ("work_session".check_out_time IS NULL AND "work_session".check_in_time > ?))`,
+			today, liveOpenSince)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 
@@ -319,7 +392,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffI
 		Where(`"work_session".staff_id IN (?)`, bun.List(staffIDs)).
 		Where(`"work_session".date >= ?`, from).
 		Where(`"work_session".date <= ?`, to).
-		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC`)
+		OrderExpr(`"work_session".staff_id ASC, "work_session".date ASC, "work_session".check_in_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, "work_session")
 

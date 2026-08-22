@@ -1,9 +1,10 @@
 // components/ui/loading.tsx
-// Skeleton Loader using shadcn/ui Skeleton component
+// Neutral loading state for guards and token flows where the future layout is
+// unknown. Pages with a known shape use colocated skeletons instead.
 
 "use client";
 
-import { Skeleton } from "~/components/ui/skeleton";
+import { SpinnerIcon } from "~/components/ui/icons";
 
 interface LoadingProps {
   readonly message?: string;
@@ -16,28 +17,18 @@ export function Loading({
 }: LoadingProps) {
   const containerClasses = fullPage
     ? "fixed inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50"
-    : "flex items-center justify-start pt-24 pb-12"; // Changed justify-center to justify-start with top padding
+    : "flex min-h-40 items-center justify-center py-8";
 
   return (
     <output
       className={containerClasses}
       aria-label={message}
       aria-live="polite"
+      aria-busy="true"
     >
-      <div className="mx-auto flex w-full max-w-xs flex-col items-center gap-2 px-4">
-        {/* Text line skeleton */}
-        <Skeleton className="h-4 w-full rounded-full" />
-
-        {/* Circular skeleton */}
-        <Skeleton className="h-10 w-10 rounded-full" />
-
-        {/* Rectangular skeleton */}
-        <Skeleton className="h-14 w-52 rounded-md" />
-
-        {/* Rounded skeleton */}
-        <Skeleton className="h-14 w-52 rounded-lg" />
-        {/* SR-only message for assistive tech */}
-        <span className="sr-only">{message}</span>
+      <div className="flex items-center gap-3 text-gray-600">
+        <SpinnerIcon className="h-6 w-6 motion-reduce:animate-none" />
+        <span className="text-sm font-medium">{message}</span>
       </div>
     </output>
   );

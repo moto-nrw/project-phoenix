@@ -15,6 +15,8 @@ import (
 // wem" note, so a stale or direct API caller gets a 400 from Bind rather than
 // the model invariant surfacing as a 500 on persist.
 func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
+	t.Parallel()
+
 	t.Run("allowed_departure_modes accompanied without note is rejected", func(t *testing.T) {
 		modes := users.AllowedDepartureModes{
 			users.PickupDayMonday: []users.DepartureMode{users.DepartureAccompanied},
@@ -115,6 +117,8 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 // handler has row-locked every submitted id — a caller could otherwise name
 // hundreds of children and hold their rows until the eventual 400.
 func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
+	t.Parallel()
+
 	entries := func(n int) *[]CompanionEntry {
 		list := make([]CompanionEntry, 0, n)
 		for i := range n {
@@ -158,6 +162,8 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 // snapshot would both submit everything they saw, and the later write would
 // delete the earlier one's committed links without anything objecting.
 func TestUpdateStudentRequestBind_CompanionsFingerprint(t *testing.T) {
+	t.Parallel()
+
 	list := []CompanionEntry{{CompanionStudentID: 7, Weekdays: []string{"mon"}}}
 
 	t.Run("a list without a fingerprint is rejected", func(t *testing.T) {
@@ -185,6 +191,8 @@ func TestUpdateStudentRequestBind_CompanionsFingerprint(t *testing.T) {
 // departure-plan write, which trims links the new plan no longer allows) and
 // stay silent for everything else.
 func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
+	t.Parallel()
+
 	firstName := "Max"
 	note := "Nachbarskind"
 	sick := true
@@ -235,6 +243,8 @@ func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
 // into a DIFFERENT child's id — so a quoted decimal has to be accepted verbatim
 // alongside the plain number older clients send.
 func TestCompanionEntryUnmarshal_AcceptsStringIDs(t *testing.T) {
+	t.Parallel()
+
 	// Above 2^53: a JS client cannot round-trip this through a number at all.
 	const beyondSafeInteger = int64(9007199254740993)
 

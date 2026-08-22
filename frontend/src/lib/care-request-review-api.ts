@@ -20,10 +20,22 @@ export interface StaffCareRequest {
   readonly first_name: string;
   readonly last_name: string;
   readonly status: CareRequestStatus;
+  readonly request_kind: "weekly_schedule" | "pickup_change";
   readonly diff: readonly RequestDiffEntry[];
-  readonly reason?: string;
+  readonly request_reason?: string;
+  readonly decision_reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
+  readonly affected_blocks: readonly AffectedCareBlock[];
+  readonly impact_available: boolean;
+  readonly impact_token: string;
+}
+
+interface AffectedCareBlock {
+  readonly id: string;
+  readonly title: string;
+  readonly start_time: string;
+  readonly end_time: string;
 }
 
 interface Envelope<T> {
@@ -74,36 +86,23 @@ async function readError(
   return new CareRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending parent care-schedule change requests. */
-export async function listCareScheduleChangeRequests(): Promise<
-  StaffCareRequest[]
-> {
-  const response = await fetch("/api/students/care-schedule-change-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Betreuungszeit-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffCareRequest[]>);
-}
-
 /** Approves (applies the weekly plan) or rejects one care-schedule request. */
 export async function decideCareScheduleChangeRequest(
   requestId: string,
   approve: boolean,
-  reason?: string,
+  reason: string | undefined,
+  impactToken: string,
 ): Promise<StaffCareRequest> {
   const response = await fetch(
     `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}/decide`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ approve, reason: reason ?? "" }),
+      body: JSON.stringify({
+        approve,
+        reason: reason ?? "",
+        impact_token: impactToken,
+      }),
     },
   );
   if (!response.ok) {
@@ -113,4 +112,28 @@ export async function decideCareScheduleChangeRequest(
     );
   }
   return unwrap((await response.json()) as Envelope<StaffCareRequest>);
+}
+
+/**
+ * One decided care-schedule change request in the staff history. Mirrors
+ * api/students.CareRequestHistoryResponse: `diff` replays the alt → neu
+ * comparison frozen at decision time (#2430); rows decided before the
+ * snapshot existed (and withdrawals) omit it, and the payload-derived
+ * requested summary (each entry's old side empty) is the fallback.
+ */
+export interface StaffCareRequestHistoryEntry {
+  readonly id: string;
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly status: CareRequestStatus;
+  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly requested: readonly RequestDiffEntry[];
+  /** Frozen decision-time diff; absent without a snapshot. */
+  readonly diff?: readonly RequestDiffEntry[];
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  readonly decided_at: string;
+  /** Absent for withdrawn rows (no reviewer). */
+  readonly decided_by_name?: string;
 }

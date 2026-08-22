@@ -8,6 +8,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestHasAfterCommitHooks(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, tenant.HasAfterCommitHooks(context.Background()))
+	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
+	assert.True(t, tenant.HasAfterCommitHooks(ctx))
+	drain()
+}
+
 // TestRegisterAfterCommit_RunsInlineWithoutTx locks down the contract that
 // callers outside any WithTenantTx (e.g. tests, CLI commands, scheduler init)
 // see fn fire synchronously instead of being silently dropped. The
@@ -15,6 +24,8 @@ import (
 // commit — would silently never execute, which is a worse failure mode than
 // running once now.
 func TestRegisterAfterCommit_RunsInlineWithoutTx(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	tenant.RegisterAfterCommit(context.Background(), func() {
 		called = true
@@ -25,6 +36,8 @@ func TestRegisterAfterCommit_RunsInlineWithoutTx(t *testing.T) {
 // TestRegisterAfterCommit_NilFnIsNoop covers the null-callback case so callers
 // that conditionally produce a hook can pass nil without guarding.
 func TestRegisterAfterCommit_NilFnIsNoop(t *testing.T) {
+	t.Parallel()
+
 	// No assertions besides "does not panic" — nil fn must be silently ignored.
 	tenant.RegisterAfterCommit(context.Background(), nil)
 }

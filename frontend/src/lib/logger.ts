@@ -85,6 +85,9 @@ export interface Logger {
    */
   error(msg: string, context?: Record<string, unknown>): void;
 
+  /** Ship queued client logs without blocking navigation. */
+  flush(): Promise<void>;
+
   /**
    * Create child logger with merged context
    */
@@ -177,6 +180,10 @@ class ServerLogger implements Logger {
     this.log("error", msg, context);
   }
 
+  flush(): Promise<void> {
+    return Promise.resolve();
+  }
+
   child(context: Record<string, unknown>): Logger {
     return new ServerLogger({
       ...this.config,
@@ -220,6 +227,8 @@ class ClientLogger implements Logger {
   private flushTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly BATCH_SIZE = 10;
   private readonly BATCH_INTERVAL_MS = 5000; // 5 seconds
+  // Browsers limit all in-flight keepalive request bodies to about 64 KiB.
+  private readonly MAX_KEEPALIVE_PAYLOAD_BYTES = 60 * 1024;
 
   constructor(config: Required<LoggerConfig>) {
     this.config = config;
@@ -314,13 +323,14 @@ class ClientLogger implements Logger {
   /**
    * Flush batch to API endpoint
    */
-  private async flush(): Promise<void> {
+  async flush(): Promise<void> {
     if (this.batch.length === 0) return;
 
     const payload: LogBatch = {
       entries: this.batch,
       timestamp: new Date().toISOString(),
     };
+    const body = JSON.stringify(payload);
 
     // Clear batch immediately (avoid duplicates)
     this.batch = [];
@@ -330,7 +340,10 @@ class ClientLogger implements Logger {
       const response = await fetch("/api/logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body,
+        keepalive:
+          new TextEncoder().encode(body).byteLength <=
+          this.MAX_KEEPALIVE_PAYLOAD_BYTES,
       });
 
       if (!response.ok) {

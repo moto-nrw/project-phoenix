@@ -191,10 +191,11 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		slog.Int64("student_id", visit.StudentID),
 	)
 	row.Status = scheduleModel.AttendanceStatusPresent
-	if row.StudentStatusDayID != nil {
+	if row.StudentStatusDayID != nil || row.PickupExceptionID != nil {
 		row.Substatus = nil
 	}
 	row.StudentStatusDayID = nil
+	row.PickupExceptionID = nil
 	// A reopen (checked-out row) re-stamps checked_in_at with the re-entry
 	// time — mirrors the repo UPDATE's session boundary.
 	if row.CheckedOutAt != nil || row.CheckedInAt == nil {
@@ -301,10 +302,11 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 	}
 	if updated {
 		row.Status = scheduleModel.AttendanceStatusPresent
-		if row.StudentStatusDayID != nil {
+		if row.StudentStatusDayID != nil || row.PickupExceptionID != nil {
 			row.Substatus = nil
 		}
 		row.StudentStatusDayID = nil
+		row.PickupExceptionID = nil
 		if row.CheckedOutAt != nil || row.CheckedInAt == nil {
 			row.CheckedInAt = &at
 		}
@@ -314,7 +316,13 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 }
 
 func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool {
-	if row == nil || row.Status == scheduleModel.AttendanceStatusExpected || row.StudentStatusDayID != nil {
+	// Expected rows, broad day-status absences, and partial-excusal absences
+	// are all plan projections: a real check-in may replace them. Manual
+	// absences (no provenance) and already-open presence stay put.
+	if row == nil ||
+		row.Status == scheduleModel.AttendanceStatusExpected ||
+		row.StudentStatusDayID != nil ||
+		row.PickupExceptionID != nil {
 		return false
 	}
 	return row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedOutAt == nil
@@ -478,6 +486,172 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 		s.getLogger().Error("roomless attendance checkout mirror UPDATE failed",
 			slog.Int64("instance_id", latest.InstanceID),
 			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// MirrorCheckInAtBatch resolves many roomless check-ins at one shared instant
+// with one candidate query and one guarded UPDATE (review #2372). Per student
+// the same rule as MirrorCheckInAt applies: exactly one currently-running
+// booked slot, ambiguous or unbooked students stay unassigned, and rows in a
+// manual or already-open state are preserved.
+func (s *AttendanceSyncService) MirrorCheckInAtBatch(ctx context.Context, studentIDs []int64, at time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("roomless attendance batch mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+		}
+	}()
+	if len(studentIDs) == 0 {
+		return
+	}
+
+	rows, err := s.instanceStudentRepo.FindCurrentCandidatesByStudentIDs(
+		ctx, studentIDs, timezone.DateFromTime(at), at,
+	)
+	if err != nil {
+		s.getLogger().Warn("roomless attendance batch mirror: candidate lookup failed",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	byStudent := make(map[int64][]*scheduleModel.InstanceStudent, len(studentIDs))
+	for _, row := range rows {
+		byStudent[row.StudentID] = append(byStudent[row.StudentID], row)
+	}
+
+	keys := make([]scheduleModel.InstanceStudentKey, 0, len(byStudent))
+	for studentID, candidates := range byStudent {
+		if len(candidates) != 1 {
+			s.getLogger().Debug("roomless attendance batch mirror: slot assignment is not unique",
+				slog.Int64("student_id", studentID),
+				slog.Int("candidate_count", len(candidates)),
+			)
+			continue
+		}
+		if shouldPreserveAttendanceOnCheckin(candidates[0]) {
+			continue
+		}
+		keys = append(keys, scheduleModel.InstanceStudentKey{
+			InstanceID: candidates[0].InstanceID,
+			StudentID:  studentID,
+		})
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err := s.instanceStudentRepo.UpdateAttendanceFromCheckinBatch(ctx, keys, at); err != nil {
+		s.getLogger().Error("roomless attendance batch mirror UPDATE failed",
+			slog.Int("row_count", len(keys)),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// MirrorCheckOutAtBatch closes many students' latest open slot attendance at
+// one shared instant: one slot query and one guarded UPDATE (review #2372).
+// Per student the same rule as MirrorCheckOutAt applies — only the most
+// recently checked-in open present row of the day closes.
+func (s *AttendanceSyncService) MirrorCheckOutAtBatch(ctx context.Context, studentIDs []int64, at time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("roomless attendance batch checkout mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+		}
+	}()
+	if len(studentIDs) == 0 {
+		return
+	}
+
+	day := timezone.DateFromTime(at)
+	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, day)
+	if err != nil {
+		s.getLogger().Warn("roomless attendance batch checkout mirror: slot lookup failed",
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	latestByStudent := make(map[int64]*scheduleModel.InstanceStudent, len(studentIDs))
+	for _, row := range rows {
+		if row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil || row.CheckedOutAt != nil {
+			continue
+		}
+		latest := latestByStudent[row.StudentID]
+		if latest == nil || row.CheckedInAt.After(*latest.CheckedInAt) {
+			latestByStudent[row.StudentID] = row
+		}
+	}
+	keys := make([]scheduleModel.InstanceStudentKey, 0, len(latestByStudent))
+	for studentID, row := range latestByStudent {
+		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: row.InstanceID, StudentID: studentID})
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err := s.instanceStudentRepo.UpdateAttendanceCheckoutBatch(ctx, keys, at); err != nil {
+		s.getLogger().Error("roomless attendance batch checkout mirror UPDATE failed",
+			slog.Int("row_count", len(keys)),
+			slog.String("error", err.Error()),
+		)
+	}
+}
+
+// MirrorCheckOutForVisits stamps the slot checkout for many visits ended at
+// one shared instant. Instances are resolved once per distinct active group
+// and all slot checkouts land in one guarded UPDATE (review #2372) — the
+// per-visit read of MirrorCheckOutForVisit exists only for its SSE snapshot,
+// which bulk events do not carry (#848), so the batch skips it and relies on
+// the UPDATE's own guards.
+func (s *AttendanceSyncService) MirrorCheckOutForVisits(ctx context.Context, visits []*activeModel.Visit, at time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("attendance batch visit checkout mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+		}
+	}()
+	if len(visits) == 0 {
+		return
+	}
+
+	instanceByGroup := make(map[int64]*scheduleModel.ActivityInstance)
+	keys := make([]scheduleModel.InstanceStudentKey, 0, len(visits))
+	for _, visit := range visits {
+		if visit == nil || visit.ActiveGroupID <= 0 {
+			continue
+		}
+		instance, seen := instanceByGroup[visit.ActiveGroupID]
+		if !seen {
+			var err error
+			instance, err = s.instanceRepo.FindByActiveGroupID(ctx, visit.ActiveGroupID)
+			if err != nil {
+				s.getLogger().Warn("attendance batch mirror: find instance by active_group_id failed",
+					slog.Int64("active_group_id", visit.ActiveGroupID),
+					slog.String("error", err.Error()),
+				)
+				instance = nil
+			}
+			instanceByGroup[visit.ActiveGroupID] = instance
+		}
+		if instance == nil {
+			continue // walk-in / no bridged instance — nothing to mirror
+		}
+		keys = append(keys, scheduleModel.InstanceStudentKey{InstanceID: instance.ID, StudentID: visit.StudentID})
+	}
+	if len(keys) == 0 {
+		return
+	}
+	if err := s.instanceStudentRepo.UpdateAttendanceCheckoutBatch(ctx, keys, at); err != nil {
+		s.getLogger().Error("attendance batch visit checkout mirror UPDATE failed",
+			slog.Int("row_count", len(keys)),
 			slog.String("error", err.Error()),
 		)
 	}

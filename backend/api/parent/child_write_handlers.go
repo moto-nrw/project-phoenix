@@ -29,7 +29,8 @@ const (
 // SubmitSickNoteRequest is the wire shape for POST
 // /parent/me/children/{studentId}/sick-note. Status is the absence kind the
 // parent chose: "sick" (Krankmeldung) or "excused" (Termin/Abwesenheit). An
-// empty status defaults to "sick" so older clients keep working.
+// empty status defaults to "sick" so older clients keep working. Reason is
+// required for both absence kinds.
 type SubmitSickNoteRequest struct {
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason"`
@@ -60,11 +61,12 @@ func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
 	}
 }
 
-// ParentExcusedRequestResponse is the parent-facing projection of a pending or
-// recently-decided excused-absence approval request (#1845).
+// ParentExcusedRequestResponse is the legacy-named parent projection of a
+// pending or recently decided absence approval request.
 type ParentExcusedRequestResponse struct {
 	ID             string     `json:"id"`
 	StudentID      string     `json:"student_id"`
+	AbsenceStatus  string     `json:"absence_status"`
 	Status         string     `json:"status"`
 	Dates          []string   `json:"dates"`
 	Note           string     `json:"note"`
@@ -86,6 +88,7 @@ func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, acc
 	return ParentExcusedRequestResponse{
 		ID:             strconv.FormatInt(req.ID, 10),
 		StudentID:      strconv.FormatInt(req.StudentID, 10),
+		AbsenceStatus:  req.AbsenceStatus,
 		Status:         req.Status,
 		Dates:          dates,
 		Note:           req.Note,
@@ -142,18 +145,18 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 	// Backward-compatibility (#1845 review): ALWAYS respond with the bare
 	// status-day array — the shape every client (including tabs loaded before the
 	// approval gate was enabled) already calls .map() on. When the school gates an
-	// excused absence the request is created server-side but NOT returned here;
+	// absence the request is created server-side but NOT returned here;
 	// StatusDays is empty and the child stays "expected". New clients discover the
 	// freshly-created pending request via GET .../excused-requests (they refetch
 	// after a submit). Returning a {status_days, pending_request} object on this
 	// path would crash an already-open #1735-era tab — which has the "excused"
 	// option but expects an array — and make it report a false failure, so the
 	// parent could resubmit and create a duplicate pending request.
-	common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
+	common.Respond(w, r, http.StatusCreated, statusDays, "Absence submitted")
 }
 
-// listExcusedRequests returns the child's pending + recently-decided excused
-// approval requests (#1845), so the parent UI can show their status.
+// listExcusedRequests returns the child's pending + recently decided absence
+// approval requests, so the parent UI can show their status.
 func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := rs.parentAccountID(w, r)
 	if !ok {
@@ -265,10 +268,13 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	SickRequiresApproval         bool `json:"sick_requires_approval"`
 	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
 	NotesEnabled                 bool `json:"notes_enabled"`
 	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
+	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
 	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
 	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
 	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
@@ -301,10 +307,13 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
+		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
+		PickupManageAllowed:          flags.PickupManageAllowed,
+		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		RelatedAccountsInviteEnabled: flags.RelatedAccountsInviteEnabled,
 		RelatedAccountsRemoveEnabled: flags.RelatedAccountsRemoveEnabled,
 		MasterDataEditEnabled:        flags.MasterDataEditEnabled,
@@ -441,6 +450,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "master_data_no_changes"))
 	case errors.Is(err, parentService.ErrCareExceptionConflict):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
+	case errors.Is(err, parentService.ErrCareExceptionAlreadyLeft):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_already_left"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
 	case errors.Is(err, parentService.ErrExcusedRequestNotFound):
@@ -457,8 +468,14 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_request_already_pending"))
 	case errors.Is(err, parentService.ErrInvalidCareRequestPayload):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "invalid_request_payload"))
+	case errors.Is(err, parentService.ErrCareRequestFieldDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "care_request_field_disabled"))
 	case errors.Is(err, parentService.ErrNoCareException):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_no_time"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_required"))
+	case errors.Is(err, parentService.ErrCareExceptionReasonTooLong):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_reason_too_long"))
 	case errors.Is(err, parentService.ErrPastCareDate):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, "care_exception_past_date"))
 	case errors.Is(err, parentService.ErrCareDateTooFar):

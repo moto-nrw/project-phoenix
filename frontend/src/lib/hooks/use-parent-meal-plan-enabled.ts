@@ -2,15 +2,17 @@
 
 import useSWR from "swr";
 
-import { getChildFeatures, listMyChildren } from "~/lib/parent-api";
+import { getChildFeatures, listMyChildren, type Child } from "~/lib/parent-api";
 
 // Resolve whether any school the parent has a child at runs a meal plan.
 // Mirrors the resolution the parent meal-plan page performs (list children,
 // one representative child per tenant, read per-child features) so the
 // parents-portal nav only advertises Essensplan when at least one linked
 // school has operations.meal_plan_enabled turned on.
-async function fetchAnyMealPlanEnabled(): Promise<boolean> {
-  const children = await listMyChildren();
+async function fetchAnyMealPlanEnabled(
+  knownChildren?: readonly Child[],
+): Promise<boolean> {
+  const children = knownChildren ?? (await listMyChildren());
   // One representative student per tenant — features are school-scoped.
   const repByTenant = new Map<string, string>();
   for (const child of children) {
@@ -35,10 +37,20 @@ async function fetchAnyMealPlanEnabled(): Promise<boolean> {
  * no linked school runs a meal plan, so the nav link stays hidden until the
  * feature is confirmed available rather than leading to an empty page.
  */
-export function useParentMealPlanEnabled(enabled: boolean): boolean {
+export function useParentMealPlanEnabled(
+  enabled: boolean,
+  children?: readonly Child[] | null,
+): boolean {
   const { data } = useSWR(
-    enabled ? "parent-meal-plan-enabled" : null,
-    fetchAnyMealPlanEnabled,
+    enabled && children !== null
+      ? children === undefined
+        ? "parent-meal-plan-enabled"
+        : [
+            "parent-meal-plan-enabled",
+            children.map((child) => child.student_id).join(","),
+          ]
+      : null,
+    () => fetchAnyMealPlanEnabled(children ?? undefined),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

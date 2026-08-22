@@ -26,7 +26,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // createSourceCareOffering creates a phase plus one care offering that is NOT
@@ -59,6 +58,7 @@ func createSourceCareOffering(
 		Name:               fmt.Sprintf("Frühbetreuung %d", suffix),
 		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon"},
+		PickupTimes:        map[string]string{"mon": "14:30"},
 		IsActive:           true,
 		CountsAsCare:       true,
 		CountsAsCareSet:    true,
@@ -73,8 +73,6 @@ func createSourceCareOffering(
 	}))
 
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.care_offerings", created.ID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.phases", phase.ID)
 	}}, s.extraCleanups...)
 	return created
 }
@@ -92,9 +90,6 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 		} {
 			_, err := s.db.NewRaw(stmt, templateID).Exec(s.ctx)
 			assert.NoError(t, err)
-		}
-		if len(timeframeIDs) > 0 {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.timeframes", timeframeIDs...)
 		}
 	}}, s.extraCleanups...)
 }
@@ -134,7 +129,6 @@ func linkApprovedChildToOffering(
 	link.SetTenantID(s.tenantID)
 	require.NoError(t, repositories.NewFactory(s.db).RequestChildOffering.Create(s.ctx, link))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_child_offerings", link.ID)
 	}}, s.extraCleanups...)
 }
 
@@ -143,6 +137,8 @@ func linkApprovedChildToOffering(
 // successful editor create was the Schule-am-Berg report (kids selected
 // via Angebote + Jahrgangsfilter, then "Keine Kinder geplant").
 func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -227,7 +223,71 @@ func TestTemplateOfferingSource_CreateAndMaterializeCopiesSourcedKids(t *testing
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, rows[0].Status)
 }
 
+func TestTemplateOfferingSource_PullForwardWidensSourcedRoster(t *testing.T) {
+	t.Parallel()
+
+	newStart := futureMonday(1)
+	oldStart := newStart.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, newStart)
+	defer s.runCleanup(t)
+
+	offering := createSourceCareOffering(t, s, s.period.StartDate, s.period.EndDate)
+	linkApprovedChildToOffering(t, s, offering, s.students[0], "1a")
+	name := fmt.Sprintf("Angebots-Pull-Forward-%d", time.Now().UnixNano())
+	result, err := s.factory.TimetableData.CreateTemplate(s.ctx, scheduleSvc.CreateTemplateInput{
+		Name:                  name,
+		Type:                  activitiesModels.GroupTypeCare,
+		Weekdays:              []int{activitiesModels.WeekdayMonday},
+		StartTime:             time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:               time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:                s.roomID,
+		CategoryID:            s.categoryID,
+		MaxParticipants:       20,
+		CalendarPeriodID:      &s.period.ID,
+		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+		SourceCareOfferingIDs: []int64{offering.ID},
+		RosterValidFrom:       oldStart,
+		ScheduleValidFrom:     &oldStart,
+		GradeLevelMax:         schoolclass.MaxGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, s, result.TemplateID, result.TimeframeID)
+
+	require.NoError(t, s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: result.TemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:                  name,
+			Type:                  activitiesModels.GroupTypeCare,
+			CategoryID:            s.categoryID,
+			RoomID:                s.roomID,
+			MaxParticipants:       20,
+			CalendarPeriodID:      &s.period.ID,
+			TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: []int64{offering.ID},
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		TimeframeID:      result.TimeframeID,
+		CalendarPeriodID: &s.period.ID,
+		RosterValidFrom:  oldStart,
+		StartDate:        &newStart,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
+	}))
+
+	var sourced []activitiesModels.StudentEnrollment
+	require.NoError(t, s.db.NewSelect().
+		Model(&sourced).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".activity_group_id = ?`, result.TemplateID).
+		Where(`"student_enrollment".enrollment_request_child_id IS NOT NULL`).
+		Scan(s.ctx))
+	require.Len(t, sourced, 1)
+	assert.Equal(t, newStart, sourced[0].ValidFrom,
+		"offering-derived roster must follow the pulled-forward schedule boundary")
+}
+
 func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -267,6 +327,8 @@ func TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering(t *testi
 }
 
 func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -334,6 +396,8 @@ func TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule(t *testing.T) {
 }
 
 func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -387,6 +451,8 @@ func TestTemplateOfferingSource_SplitSuccessorInheritsTheRule(t *testing.T) {
 }
 
 func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -443,6 +509,8 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotDropsTheRule(t *testing.T) {
 // editor cannot replace (#2147 review). Manual rows carry over unchanged and
 // the predecessor's rows stay untouched.
 func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -536,6 +604,8 @@ func TestTemplateOfferingSource_SplitAwayFromAngebotClearsSourcedRoster(t *testi
 // and the changed feed must reconcile the carried roster — a row of a child
 // the new rule no longer wants may not survive the carry-over.
 func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -615,6 +685,8 @@ func TestTemplateOfferingSource_SplitAppliesRequestedSourceChange(t *testing.T) 
 // the rule is gone and the source-fed rows the carry-over copied are removed,
 // while the manual roster survives (#2147 review round 14).
 func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -695,6 +767,8 @@ func TestTemplateOfferingSource_SplitClearsSourceOnExplicitNull(t *testing.T) {
 // could never materialize its children, so the template save rejects it
 // instead of persisting a dead rule (#2137).
 func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -763,6 +837,8 @@ func TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod(t *testi
 // The editor's selector only offers active offerings; a direct request naming
 // a retired offering must be rejected the same way (#2147 review round 9).
 func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -798,6 +874,8 @@ func TestTemplateOfferingSource_RejectsInactiveOffering(t *testing.T) {
 // persist a state create/update reject, so the split must refuse it too
 // (#2147 review).
 func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -837,7 +915,6 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 	latePeriod.SetTenantID(s.tenantID)
 	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, latePeriod))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", latePeriod.ID)
 	}}, s.extraCleanups...)
 
 	_, err = s.factory.TemplateSplit.Split(s.ctx, scheduleSvc.TemplateSplitInput{
@@ -869,6 +946,8 @@ func TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod(t *testing.
 // still-planned instance rows, so the update has to reconcile the manual
 // roster back onto existing occurrences afterwards (#2147 review, round 4).
 func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -908,7 +987,6 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 	instance.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)
@@ -949,6 +1027,8 @@ func TestTemplateOfferingSource_SourceRemovalKeepsManualChildOnOccurrences(t *te
 // already-materialized future occurrences, because the materializer never
 // revisits an existing instance (#2147 review, round 5).
 func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrences(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(3)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
 	defer s.runCleanup(t)
@@ -989,7 +1069,6 @@ func TestTemplateOfferingSource_ConversionRemovesRetiredManualChildFromOccurrenc
 	instance.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_instances", instance.ID)
 	s.extraCleanups = append([]func(){func() {
 		_, _ = s.db.NewRaw(`DELETE FROM schedule.instance_students WHERE instance_id = ?`, instance.ID).Exec(s.ctx)
 	}}, s.extraCleanups...)

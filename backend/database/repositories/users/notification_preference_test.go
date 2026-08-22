@@ -15,16 +15,16 @@ import (
 // TestNotificationPreferenceRepository pins the store that decides whether a
 // notification may be delivered to a person at all.
 func TestNotificationPreferenceRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).NotificationPreference
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	suffix := time.Now().UnixNano()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pref-%d@example.com", suffix))
 	other := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pref-other-%d@example.com", suffix))
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID, other.ID)
 
 	upsert := func(t *testing.T, accountID int64, notificationType string, enabled bool) {
 		t.Helper()
@@ -150,7 +150,7 @@ func TestNotificationPreferenceRepository(t *testing.T) {
 	})
 
 	t.Run("does not leak another tenant's decisions", func(t *testing.T) {
-		const otherTenant int64 = 99047
+		otherTenant := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, otherTenant)
 
 		foreignCtx := testpkg.TenantContext(otherTenant)

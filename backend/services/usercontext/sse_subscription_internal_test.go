@@ -277,6 +277,9 @@ func (m *mockActiveSvcForSSE) CheckOutStudent(_ context.Context, _, _ int64, _ b
 func (m *mockActiveSvcForSSE) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
 	return nil, nil
 }
+func (m *mockActiveSvcForSSE) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeSvc.SchoolCheckinBatchResult, error) {
+	return nil, nil
+}
 func (m *mockActiveSvcForSSE) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
 	return false, nil
 }
@@ -330,6 +333,8 @@ func (s *sseStaffRepoStub) FindByPersonID(_ context.Context, _ int64) (*userMode
 // =============================================================================
 
 func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
+	t.Parallel()
+
 	for _, permission := range []string{"admin:*", "*:*"} {
 		t.Run(permission, func(t *testing.T) {
 			rs := &userContextService{
@@ -360,6 +365,8 @@ func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
 }
 
 func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
+	t.Parallel()
+
 	// Admin SSE path now enumerates active.groups directly so unclaimed groups
 	// still receive live events. Synthetic GroupSupervisor entries are built
 	// from the list.
@@ -391,6 +398,8 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 }
 
 func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 200}, GroupID: 20, StaffID: 42},
 	}
@@ -417,6 +426,8 @@ func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
 }
 
 func TestResolveSupervisions_NonAdmin(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 300}, GroupID: 30, StaffID: 42},
 	}
@@ -441,6 +452,8 @@ func TestResolveSupervisions_NonAdmin(t *testing.T) {
 }
 
 func TestResolveSupervisions_NilSettingsService(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 400}, GroupID: 40, StaffID: 42},
 	}
@@ -463,6 +476,8 @@ func TestResolveSupervisions_NilSettingsService(t *testing.T) {
 }
 
 func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 500}, GroupID: 50, StaffID: 42},
 	}
@@ -485,6 +500,8 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 }
 
 func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		isAdmin  bool
@@ -535,6 +552,8 @@ func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
 }
 
 func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
 		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
@@ -555,6 +574,8 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 }
 
 func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
 		sseSettings: mockSettingsSvc(map[string]bool{}),
 		sseActiveSvc: &mockActiveSvcForSSE{
@@ -573,6 +594,8 @@ func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
 }
 
 func TestResolveSupervisions_GetAllError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
 		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
@@ -597,6 +620,8 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 // included in the SSE topic list — closing the prior divergence between
 // HTTP (/supervisors/all → ListActiveGroups) and SSE (→ FindAllActive).
 func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	// Two active groups, including one that would have been missed by the
 	// previous GetAllActiveSupervisions path (no supervisor row).
@@ -630,6 +655,8 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 // =============================================================================
 
 func TestSSESetupError_ErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	err := &SSESetupError{Message: "Account not found", Status: http.StatusUnauthorized}
 
 	assert.Equal(t, "SSE setup: Account not found", err.Error())
@@ -637,6 +664,8 @@ func TestSSESetupError_ErrorMessage(t *testing.T) {
 }
 
 func TestSSESetupError_AsMatchesTypedError(t *testing.T) {
+	t.Parallel()
+
 	var err error = &SSESetupError{Message: "forbidden", Status: http.StatusForbidden}
 
 	var setupErr *SSESetupError
@@ -646,6 +675,8 @@ func TestSSESetupError_AsMatchesTypedError(t *testing.T) {
 }
 
 func TestSSESetupError_AsDistinguishesErrors(t *testing.T) {
+	t.Parallel()
+
 	var setupErr *SSESetupError
 	assert.False(t, errors.As(assert.AnError, &setupErr),
 		"Regular error should not match *SSESetupError")

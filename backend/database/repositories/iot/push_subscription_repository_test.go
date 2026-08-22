@@ -37,9 +37,13 @@ func createAccountTenantMapping(t *testing.T, db *bun.DB, accountID, tenantID in
 		Status:      authModels.AccountTenantStatusActive,
 		ActivatedAt: &now,
 	}
+	// Upsert: since #2419 CreateTestAccount already maps a fixture account to
+	// the tenant of the test that created it.
 	_, err := db.NewInsert().
 		Model(mapping).
 		ModelTableExpr("auth.account_tenants").
+		On("CONFLICT (account_id, tenant_id) DO UPDATE").
+		Set("status = EXCLUDED.status, activated_at = EXCLUDED.activated_at").
 		Exec(context.Background())
 	require.NoError(t, err)
 }
@@ -90,7 +94,7 @@ func setAccountTenantStatus(t *testing.T, db *bun.DB, status string, accountIDs 
 	_, err := db.NewUpdate().
 		TableExpr("auth.account_tenants").
 		Set("status = ?", status).
-		Where("tenant_id = ?", 1).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("account_id IN (?)", bun.List(accountIDs)).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -125,7 +129,7 @@ func assignSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64, roleN
 	require.NoError(t, err)
 }
 
-func newSubscription(accountID int64, portal, endpoint string) *iotModels.PushSubscription {
+func newSubscription(tb testing.TB, accountID int64, portal, endpoint string) *iotModels.PushSubscription {
 	sub := &iotModels.PushSubscription{
 		AccountID: accountID,
 		Portal:    portal,
@@ -134,7 +138,7 @@ func newSubscription(accountID int64, portal, endpoint string) *iotModels.PushSu
 		Auth:      "auth-key",
 		UserAgent: "test-agent",
 	}
-	sub.SetTenantID(1)
+	sub.SetTenantID(testpkg.Tenant(tb))
 	return sub
 }
 
@@ -158,28 +162,29 @@ func hasSubscriptionEndpoint(subs []*iotModels.PushSubscription, endpoint string
 }
 
 func TestPushSubscriptionRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	otherTenantCtx := tenant.WithTenantID(context.Background(), 2)
 
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-%d@example.com", time.Now().UnixNano()))
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-parent-%d@example.com", time.Now().UnixNano()))
 	defer testpkg.CleanupAuthFixtures(t, db, account.ID, guardian.ID)
 	defer cleanupPushSubscriptions(t, db, account.ID, guardian.ID)
-	createAccountTenantMapping(t, db, account.ID, 1)
-	createAccountTenantMapping(t, db, guardian.ID, 1)
-	assignSystemRole(t, db, account.ID, 1, authModels.BaseRoleUser)
-	assignSystemRole(t, db, guardian.ID, 1, authModels.BaseRoleGuardian)
+	createAccountTenantMapping(t, db, account.ID, testpkg.Tenant(t))
+	createAccountTenantMapping(t, db, guardian.ID, testpkg.Tenant(t))
+	assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleUser)
+	assignSystemRole(t, db, guardian.ID, testpkg.Tenant(t), authModels.BaseRoleGuardian)
 
 	endpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/%d", time.Now().UnixNano())
 
 	t.Run("upsert inserts and refreshes by (tenant, endpoint)", func(t *testing.T) {
-		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, endpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, endpoint)))
 
-		rotated := newSubscription(account.ID, iotModels.PushPortalStaff, endpoint)
+		rotated := newSubscription(t, account.ID, iotModels.PushPortalStaff, endpoint)
 		rotated.P256dh = "rotated-p256dh"
 		require.NoError(t, repo.Upsert(ctx, rotated))
 
@@ -198,7 +203,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("guardian finder returns only parent-portal rows of that account", func(t *testing.T) {
 		parentEndpoint := endpoint + "/parent"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(guardian.ID, iotModels.PushPortalParent, parentEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, guardian.ID, iotModels.PushPortalParent, parentEndpoint)))
 
 		subs, err := repo.FindForGuardians(ctx, []int64{guardian.ID}, nil)
 		require.NoError(t, err)
@@ -207,7 +212,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		// A stale staff-portal row must not restore tenant delivery after the
 		// account becomes guardian-only.
-		require.NoError(t, repo.Upsert(ctx, newSubscription(
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
 			guardian.ID,
 			iotModels.PushPortalStaff,
 			endpoint+"/guardian-staff",
@@ -218,7 +223,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		// Conversely, a parent-portal row for a staff-only account is not a
 		// guardian recipient.
-		require.NoError(t, repo.Upsert(ctx, newSubscription(
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
 			account.ID,
 			iotModels.PushPortalParent,
 			endpoint+"/staff-parent",
@@ -230,12 +235,11 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("child scope answers parent_portal.access for that child", func(t *testing.T) {
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 		defer cleanupPushSubscriptions(t, db, chain.AccountID)
 
 		chainCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 		childEndpoint := fmt.Sprintf("https://fcm.googleapis.com/fcm/send/child-%d", time.Now().UnixNano())
-		require.NoError(t, repo.Upsert(chainCtx, newSubscription(chain.AccountID, iotModels.PushPortalParent, childEndpoint)))
+		require.NoError(t, repo.Upsert(chainCtx, newSubscription(t, chain.AccountID, iotModels.PushPortalParent, childEndpoint)))
 
 		subs, err := repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{chain.StudentID})
 		require.NoError(t, err)
@@ -245,7 +249,6 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		// Another family's child in the same school: the relationship carries the
 		// permission, so being a guardian somewhere is not access everywhere.
 		otherFamily := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, otherFamily)
 		subs, err = repo.FindForGuardians(chainCtx, []int64{chain.AccountID}, []int64{otherFamily.StudentID})
 		require.NoError(t, err)
 		assert.Empty(t, subs, "no relationship to that child means no push about it")
@@ -283,8 +286,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
 		otherSchoolCtx := tenant.WithTenantID(context.Background(), otherSchool.ID)
 		sharedEndpoint := endpoint + "/shared-parent-device"
-		tenantOneSub := newSubscription(guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
-		tenantTwoSub := newSubscription(guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
+		tenantOneSub := newSubscription(t, guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
+		tenantTwoSub := newSubscription(t, guardian.ID, iotModels.PushPortalParent, sharedEndpoint)
 		tenantTwoSub.SetTenantID(otherSchool.ID)
 		require.NoError(t, repo.Upsert(ctx, tenantOneSub))
 		require.NoError(t, repo.Upsert(otherSchoolCtx, tenantTwoSub))
@@ -308,7 +311,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Empty(t, subscriptionsForAccount(subs, account.ID), "account without admin role must not appear")
 
 		// Grant the seeded admin role and expect the subscription to appear.
-		assignSystemRole(t, db, account.ID, 1, authModels.BaseRoleAdmin)
+		assignSystemRole(t, db, account.ID, testpkg.Tenant(t), authModels.BaseRoleAdmin)
 
 		subs, err = repo.FindForTenantAdmins(ctx)
 		require.NoError(t, err)
@@ -364,7 +367,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
 		raceEndpoint := endpoint + "/refresh-race"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, raceEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, raceEndpoint)))
 
 		var sentSnapshot iotModels.PushSubscription
 		require.NoError(t, db.NewSelect().
@@ -374,7 +377,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			Where(`"push_subscription".endpoint = ?`, raceEndpoint).
 			Scan(context.Background()))
 
-		refreshed := newSubscription(account.ID, iotModels.PushPortalStaff, raceEndpoint)
+		refreshed := newSubscription(t, account.ID, iotModels.PushPortalStaff, raceEndpoint)
 		refreshed.P256dh = "refreshed-p256dh"
 		refreshed.Auth = "refreshed-auth"
 		require.NoError(t, repo.Upsert(ctx, refreshed))
@@ -393,7 +396,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.Equal(t, "refreshed-p256dh", current.P256dh)
 		assert.Equal(t, "refreshed-auth", current.Auth)
 
-		rebound := newSubscription(guardian.ID, iotModels.PushPortalParent, raceEndpoint)
+		rebound := newSubscription(t, guardian.ID, iotModels.PushPortalParent, raceEndpoint)
 		rebound.P256dh = current.P256dh
 		rebound.Auth = current.Auth
 		require.NoError(t, repo.Upsert(ctx, rebound))
@@ -420,8 +423,8 @@ func TestPushSubscriptionRepository(t *testing.T) {
 	t.Run("account-wide staff deletion preserves parent subscriptions", func(t *testing.T) {
 		staffEndpoint := endpoint + "/logout-staff"
 		parentEndpoint := endpoint + "/logout-parent"
-		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalStaff, staffEndpoint)))
-		require.NoError(t, repo.Upsert(ctx, newSubscription(account.ID, iotModels.PushPortalParent, parentEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, staffEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalParent, parentEndpoint)))
 
 		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.DeleteStaffByAccountID(adminCtx, account.ID)
@@ -438,6 +441,111 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		for _, subscription := range remaining {
 			assert.Equal(t, iotModels.PushPortalParent, subscription.Portal)
 		}
+	})
+
+	t.Run("family deletion removes only that family's staff rows", func(t *testing.T) {
+		keepEndpoint := endpoint + "/family-keep"
+		dropEndpoint := endpoint + "/family-drop"
+		keep := newSubscription(t, account.ID, iotModels.PushPortalStaff, keepEndpoint)
+		keep.TokenFamilyID = "family-keep"
+		drop := newSubscription(t, account.ID, iotModels.PushPortalStaff, dropEndpoint)
+		drop.TokenFamilyID = "family-drop"
+		require.NoError(t, repo.Upsert(ctx, keep))
+		require.NoError(t, repo.Upsert(ctx, drop))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "family-drop")
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalStaff).
+			Scan(context.Background()))
+		assert.True(t, hasSubscriptionEndpoint(remaining, keepEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(remaining, dropEndpoint))
+	})
+
+	t.Run("unbound deletion is limited to the requested school", func(t *testing.T) {
+		here := newSubscription(t, account.ID, iotModels.PushPortalStaff, endpoint+"/unbound-here")
+		here.TokenFamilyID = ""
+		otherSchool := createPushTestSchool(t, db)
+		there := newSubscription(t, account.ID, iotModels.PushPortalStaff, endpoint+"/unbound-there")
+		there.TokenFamilyID = ""
+		there.SetTenantID(otherSchool.ID)
+		require.NoError(t, repo.Upsert(ctx, here))
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.Upsert(adminCtx, there)
+		}))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteStaffUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".token_family_id = ?`, "").
+			Scan(context.Background()))
+		assert.False(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-here"))
+		assert.True(t, hasSubscriptionEndpoint(remaining, endpoint+"/unbound-there"))
+	})
+
+	t.Run("family deletion removes parent rows for that family", func(t *testing.T) {
+		keepEndpoint := endpoint + "/parent-family-keep"
+		dropEndpoint := endpoint + "/parent-family-drop"
+		keep := newSubscription(t, account.ID, iotModels.PushPortalParent, keepEndpoint)
+		keep.TokenFamilyID = "parent-family-keep"
+		drop := newSubscription(t, account.ID, iotModels.PushPortalParent, dropEndpoint)
+		drop.TokenFamilyID = "parent-family-drop"
+		require.NoError(t, repo.Upsert(ctx, keep))
+		require.NoError(t, repo.Upsert(ctx, drop))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteByTokenFamilyID(adminCtx, account.ID, "parent-family-drop")
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalParent).
+			Scan(context.Background()))
+		assert.True(t, hasSubscriptionEndpoint(remaining, keepEndpoint))
+		assert.False(t, hasSubscriptionEndpoint(remaining, dropEndpoint))
+	})
+
+	t.Run("parent unbound deletion is limited to the requested school", func(t *testing.T) {
+		here := newSubscription(t, account.ID, iotModels.PushPortalParent, endpoint+"/parent-unbound-here")
+		here.TokenFamilyID = ""
+		otherSchool := createPushTestSchool(t, db)
+		there := newSubscription(t, account.ID, iotModels.PushPortalParent, endpoint+"/parent-unbound-there")
+		there.TokenFamilyID = ""
+		there.SetTenantID(otherSchool.ID)
+		require.NoError(t, repo.Upsert(ctx, here))
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.Upsert(adminCtx, there)
+		}))
+
+		require.NoError(t, tenant.WithAdminTx(context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
+			return repo.DeleteParentUnboundByAccount(adminCtx, account.ID, tenant.FromContext(ctx))
+		}))
+
+		var remaining []*iotModels.PushSubscription
+		require.NoError(t, db.NewSelect().
+			Model(&remaining).
+			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
+			Where(`"push_subscription".account_id = ?`, account.ID).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalParent).
+			Where(`"push_subscription".token_family_id = ?`, "").
+			Scan(context.Background()))
+		assert.False(t, hasSubscriptionEndpoint(remaining, endpoint+"/parent-unbound-here"))
+		assert.True(t, hasSubscriptionEndpoint(remaining, endpoint+"/parent-unbound-there"))
 	})
 
 	t.Run("guardian finder excludes subscriptions without a tenant mapping", func(t *testing.T) {
@@ -457,11 +565,12 @@ func TestPushSubscriptionRepository(t *testing.T) {
 }
 
 func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := iotRepo.NewPushSubscriptionRepository(db)
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	directAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-direct-admin-%d@example.com", time.Now().UnixNano()))
 	roleAdmin := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-role-admin-%d@example.com", time.Now().UnixNano()))
 	ordinary := testpkg.CreateTestAccount(t, db, fmt.Sprintf("push-ordinary-%d@example.com", time.Now().UnixNano()))
@@ -473,9 +582,9 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		roleAdmin.ID:   "role-admin",
 		ordinary.ID:    "ordinary",
 	} {
-		createAccountTenantMapping(t, db, accountID, 1)
-		assignSystemRole(t, db, accountID, 1, authModels.BaseRoleUser)
-		require.NoError(t, repo.Upsert(ctx, newSubscription(
+		createAccountTenantMapping(t, db, accountID, testpkg.Tenant(t))
+		assignSystemRole(t, db, accountID, testpkg.Tenant(t), authModels.BaseRoleUser)
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t,
 			accountID,
 			iotModels.PushPortalStaff,
 			"https://fcm.googleapis.com/fcm/send/"+suffix,
@@ -499,7 +608,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		PermissionID: adminWildcardID,
 		Granted:      true,
 	}
-	directGrant.SetTenantID(1)
+	directGrant.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(directGrant).ModelTableExpr("auth.account_permissions").Exec(context.Background())
 	require.NoError(t, err)
 
@@ -511,7 +620,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 	roleGrant := &authModels.AccountRole{AccountID: roleAdmin.ID, RoleID: wildcardRole.ID}
-	roleGrant.SetTenantID(1)
+	roleGrant.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(roleGrant).ModelTableExpr("auth.account_roles").Exec(context.Background())
 	require.NoError(t, err)
 
@@ -522,7 +631,7 @@ func TestPushSubscriptionRepositoryEffectiveAdmins(t *testing.T) {
 	assert.Empty(t, subscriptionsForAccount(subs, ordinary.ID), "ordinary staff must not receive admin push")
 
 	var tenantRoleSubs []*iotModels.PushSubscription
-	err = tenant.WithTenantTx(context.Background(), db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		tenantRoleSubs, err = repo.FindForTenantAdmins(txCtx)
 		return err
 	})

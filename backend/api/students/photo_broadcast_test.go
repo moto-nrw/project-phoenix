@@ -11,6 +11,8 @@ import (
 )
 
 func TestResourceBroadcastStudentUpdated(t *testing.T) {
+	t.Parallel()
+
 	// nil broadcaster: no-op.
 	(&Resource{}).broadcastStudentUpdated(42, 100)
 

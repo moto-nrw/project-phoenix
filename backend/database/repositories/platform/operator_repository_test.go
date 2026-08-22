@@ -12,11 +12,12 @@ import (
 )
 
 func TestOperatorRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := &platformModels.Operator{
@@ -31,7 +32,6 @@ func TestOperatorRepository_Create(t *testing.T) {
 		assert.NotZero(t, operator.ID)
 		assert.NotZero(t, operator.CreatedAt)
 
-		defer cleanupTestOperator(t, db, operator.ID)
 	})
 
 	t.Run("NilOperator", func(t *testing.T) {
@@ -78,15 +78,15 @@ func TestOperatorRepository_Create(t *testing.T) {
 }
 
 func TestOperatorRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "find@example.com", "Find Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		found, err := repo.FindByID(ctx, operator.ID)
 		require.NoError(t, err)
@@ -104,15 +104,15 @@ func TestOperatorRepository_FindByID(t *testing.T) {
 }
 
 func TestOperatorRepository_FindByEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "email@example.com", "Email Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		found, err := repo.FindByEmail(ctx, "email@example.com")
 		require.NoError(t, err)
@@ -129,15 +129,15 @@ func TestOperatorRepository_FindByEmail(t *testing.T) {
 }
 
 func TestOperatorRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("Success", func(t *testing.T) {
 		operator := createTestOperator(t, db, "update@example.com", "Original Name")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		operator.DisplayName = "Updated Name"
 		operator.Active = false
@@ -160,7 +160,6 @@ func TestOperatorRepository_Update(t *testing.T) {
 
 	t.Run("ValidationError", func(t *testing.T) {
 		operator := createTestOperator(t, db, "validate@example.com", "Test")
-		defer cleanupTestOperator(t, db, operator.ID)
 
 		operator.Email = "invalid-email"
 		err := repo.Update(ctx, operator)
@@ -169,11 +168,12 @@ func TestOperatorRepository_Update(t *testing.T) {
 }
 
 func TestOperatorRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "delete@example.com", "To Delete")
 
@@ -193,14 +193,14 @@ func TestOperatorRepository_Delete(t *testing.T) {
 // models that needs to be resolved in production code.
 
 func TestOperatorRepository_UpdateLastLogin(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platform.NewOperatorRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	operator := createTestOperator(t, db, "login@example.com", "Login Test")
-	defer cleanupTestOperator(t, db, operator.ID)
 
 	// Initially no last login
 	assert.Nil(t, operator.LastLogin)

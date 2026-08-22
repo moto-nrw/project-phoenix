@@ -25,6 +25,8 @@ func validOperatorRefreshToken() *OperatorRefreshToken {
 }
 
 func TestOperatorRefreshToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*OperatorRefreshToken)
@@ -82,6 +84,8 @@ func TestOperatorRefreshToken_Validate(t *testing.T) {
 }
 
 func TestOperatorRefreshToken_EntityAccessors(t *testing.T) {
+	t.Parallel()
+
 	token := validOperatorRefreshToken()
 
 	assert.Equal(t, token.ID, token.GetID())

@@ -52,7 +52,6 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 		}
 		testpkg.CleanupTenantTestData(t, db, tenantID)
 		testpkg.CleanupAccount(t, db, account.ID)
-		_ = db.Close()
 	}
 	return ctx, repo, account.ID, tenantID, cleanup
 }
@@ -60,6 +59,8 @@ func newOverrideRepoTestFixtures(t *testing.T) (
 // --- UpsertGlobal -----------------------------------------------------
 
 func TestMFAOverrideRepository_UpsertGlobal_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -80,6 +81,8 @@ func TestMFAOverrideRepository_UpsertGlobal_HappyPath(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertGlobal_UpdatesExistingRow(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -107,6 +110,8 @@ func TestMFAOverrideRepository_UpsertGlobal_UpdatesExistingRow(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertGlobal_NilRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, _, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -116,6 +121,8 @@ func TestMFAOverrideRepository_UpsertGlobal_NilRejected(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertGlobal_ValidationBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -152,6 +159,8 @@ func TestMFAOverrideRepository_UpsertGlobal_ValidationBranches(t *testing.T) {
 // --- UpsertTenant -----------------------------------------------------
 
 func TestMFAOverrideRepository_UpsertTenant_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -174,6 +183,8 @@ func TestMFAOverrideRepository_UpsertTenant_HappyPath(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertTenant_UpdatesExistingRow(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -196,6 +207,8 @@ func TestMFAOverrideRepository_UpsertTenant_UpdatesExistingRow(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertTenant_NilRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, _, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -203,6 +216,8 @@ func TestMFAOverrideRepository_UpsertTenant_NilRejected(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_UpsertTenant_ValidationBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -242,6 +257,8 @@ func TestMFAOverrideRepository_UpsertTenant_ValidationBranches(t *testing.T) {
 // --- FindGlobal / FindByAccountAndTenant ------------------------------
 
 func TestMFAOverrideRepository_FindGlobal_ReturnsNilWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -251,6 +268,8 @@ func TestMFAOverrideRepository_FindGlobal_ReturnsNilWhenAbsent(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_FindByAccountAndTenant_ReturnsNilWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -260,6 +279,8 @@ func TestMFAOverrideRepository_FindByAccountAndTenant_ReturnsNilWhenAbsent(t *te
 }
 
 func TestMFAOverrideRepository_FindByAccountAndTenant_TenantIDZeroIsBlocked(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -280,6 +301,8 @@ func TestMFAOverrideRepository_FindByAccountAndTenant_TenantIDZeroIsBlocked(t *t
 // --- DeleteGlobal / DeleteTenant --------------------------------------
 
 func TestMFAOverrideRepository_DeleteGlobal_RemovesRow(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -296,6 +319,8 @@ func TestMFAOverrideRepository_DeleteGlobal_RemovesRow(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_DeleteGlobal_NoopWhenAbsent(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -304,6 +329,8 @@ func TestMFAOverrideRepository_DeleteGlobal_NoopWhenAbsent(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_DeleteTenant_RemovesRow(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -319,6 +346,8 @@ func TestMFAOverrideRepository_DeleteTenant_RemovesRow(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_DeleteTenant_TenantIDZeroRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -328,6 +357,8 @@ func TestMFAOverrideRepository_DeleteTenant_TenantIDZeroRejected(t *testing.T) {
 // --- ListByAccount / DeleteAllByAccount -------------------------------
 
 func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -350,6 +381,8 @@ func TestMFAOverrideRepository_ListByAccount_GlobalRowComesFirst(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_ListByAccount_EmptyWhenNone(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -359,6 +392,8 @@ func TestMFAOverrideRepository_ListByAccount_EmptyWhenNone(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsCount(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, tenantID, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 
@@ -382,6 +417,8 @@ func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsCount(t *testing.T) {
 }
 
 func TestMFAOverrideRepository_DeleteAllByAccount_ReturnsZeroWhenNothingToDelete(t *testing.T) {
+	t.Parallel()
+
 	ctx, repo, accountID, _, cleanup := newOverrideRepoTestFixtures(t)
 	defer cleanup()
 

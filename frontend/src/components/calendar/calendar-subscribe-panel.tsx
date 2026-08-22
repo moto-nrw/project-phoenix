@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Link, RefreshCw } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { CalendarDays, Copy, Link, RefreshCw } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import {
   getParentCalendarFeed,
@@ -12,16 +14,13 @@ import {
   type CalendarFeedInfo,
 } from "~/lib/personal-calendar-api";
 
-function messageFrom(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
-
 /**
  * Parents-portal panel to subscribe an external calendar (Apple/Google/Outlook)
  * to the family Termine. Once subscribed, new, changed and cancelled
  * appointments sync automatically — no per-event import needed.
  */
 export function CalendarSubscribePanel() {
+  const t = useTranslations("parentCalendarSubscribe");
   const toast = useToast();
   const [feed, setFeed] = useState<CalendarFeedInfo | null>(null);
   const [open, setOpen] = useState(false);
@@ -32,8 +31,8 @@ export function CalendarSubscribePanel() {
     try {
       setFeed(await getParentCalendarFeed());
       setOpen(true);
-    } catch (error) {
-      toast.error(messageFrom(error, "Abo-Link konnte nicht geladen werden."));
+    } catch {
+      toast.error(t("loadError"));
     } finally {
       setLoading(false);
     }
@@ -43,9 +42,9 @@ export function CalendarSubscribePanel() {
     setLoading(true);
     try {
       setFeed(await rotateParentCalendarFeed());
-      toast.success("Neuer Abo-Link erstellt. Der alte Link ist ungültig.");
-    } catch (error) {
-      toast.error(messageFrom(error, "Abo-Link konnte nicht erneuert werden."));
+      toast.success(t("regenerated"));
+    } catch {
+      toast.error(t("rotateError"));
     } finally {
       setLoading(false);
     }
@@ -54,130 +53,100 @@ export function CalendarSubscribePanel() {
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Link kopiert.");
+      toast.success(t("copied"));
     } catch {
-      toast.error("Kopieren nicht möglich. Bitte den Link manuell markieren.");
+      toast.error(t("copyFailed"));
     }
   };
 
   return (
-    <div className="moto-content-surface rounded-2xl border border-gray-200 p-4 shadow-sm sm:p-6">
-      <div className="flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
-          <MotoConceptIcon concept="calendar" size={22} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Kalender abonnieren
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-gray-600">
-            Abonnieren Sie die Termine einmalig in Ihrem Handy-Kalender. Neue,
-            geänderte und abgesagte Termine erscheinen danach automatisch – ohne
-            jeden Termin einzeln hinzuzufügen.
-          </p>
-
-          {!open ? (
+    <SectionCard
+      icon={CalendarDays}
+      title={t("title")}
+      description={t("description")}
+      bodyClassName="mt-4"
+      actions={
+        !open ? (
+          <div className="flex w-full justify-end sm:w-auto">
+            <Button type="button" size="md" isLoading={loading} onClick={load}>
+              <Link className="mr-2 size-4" aria-hidden />
+              {t("showLink")}
+            </Button>
+          </div>
+        ) : feed && !feed.url ? (
+          <Button type="button" size="md" isLoading={loading} onClick={rotate}>
+            <RefreshCw className="mr-2 size-4" aria-hidden />
+            {t("createNew")}
+          </Button>
+        ) : feed?.url ? (
+          <>
+            <ButtonLink href={feed.webcal_url} size="md">
+              <CalendarDays className="mr-2 size-4" aria-hidden />
+              {t("subscribe")}
+            </ButtonLink>
             <Button
               type="button"
               size="md"
-              className="mt-4"
+              variant="outline"
               isLoading={loading}
-              onClick={load}
+              onClick={rotate}
             >
-              <Link className="h-4 w-4" aria-hidden />
-              Abo-Link anzeigen
+              <RefreshCw className="mr-2 size-4" aria-hidden />
+              {t("regenerate")}
             </Button>
-          ) : null}
-
-          {open && feed && feed.url ? (
-            <div className="mt-4 space-y-4">
-              <a
-                href={feed.webcal_url}
-                className="bg-moto-green hover:bg-moto-green-hover inline-flex h-10 items-center justify-center gap-1.5 rounded-md px-4 text-sm font-semibold text-gray-950 transition-colors"
-              >
-                <MotoConceptIcon concept="calendar" size={16} />
-                Im Kalender abonnieren
-              </a>
-
-              <div>
-                <label
-                  htmlFor="calendar-feed-url"
-                  className="mb-1 block text-xs font-medium text-gray-500"
-                >
-                  Abo-Link (zum Kopieren)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
+          </>
+        ) : undefined
+      }
+    >
+      <div className="min-w-0">
+        {open && feed && feed.url ? (
+          <div className="mt-4 space-y-4">
+            <div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <Input
                     id="calendar-feed-url"
+                    label={t("linkLabel")}
                     readOnly
                     value={feed.url}
+                    controlSize="compact"
                     onFocus={(event) => event.target.select()}
-                    className="h-9 w-full rounded-md border-0 bg-gray-50 px-3 text-xs text-gray-700 ring-1 ring-gray-200 ring-inset"
+                    className="bg-gray-50 text-gray-700"
                   />
-                  <Button
-                    type="button"
-                    size="compact"
-                    variant="outline"
-                    onClick={() => copy(feed.url)}
-                  >
-                    <Copy className="h-4 w-4" aria-hidden />
-                    Kopieren
-                  </Button>
                 </div>
-                <p className="mt-1 text-xs text-gray-500">
-                  Aus Sicherheitsgründen wird dieser Link nur jetzt angezeigt.
-                  Kopieren Sie ihn gleich in Ihren Kalender.
-                </p>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => copy(feed.url)}
+                >
+                  <Copy className="mr-2 size-4" aria-hidden />
+                  {t("copy")}
+                </Button>
               </div>
-
-              <div className="rounded-lg bg-gray-50 p-3 text-xs leading-5 text-gray-600">
-                <p className="font-semibold text-gray-700">So geht&apos;s:</p>
-                <p className="mt-1">
-                  <span className="font-medium">iPhone/iPad:</span>{" "}
-                  Einstellungen → Kalender → Accounts → Account hinzufügen →
-                  Andere → Kalenderabo hinzufügen, dann den Link einfügen.
-                </p>
-                <p className="mt-1">
-                  <span className="font-medium">Android:</span> In Google
-                  Kalender (am Computer) → Weitere Kalender → Per URL, dann den
-                  Link einfügen. Der Kalender synchronisiert dann auch am Handy.
-                </p>
-              </div>
-
-              <Button
-                type="button"
-                size="compact"
-                variant="ghost"
-                className="text-gray-500"
-                isLoading={loading}
-                onClick={rotate}
-              >
-                <RefreshCw className="h-4 w-4" aria-hidden />
-                Link neu generieren
-              </Button>
+              <p className="mt-1 text-xs leading-5 text-gray-500">
+                {t("linkOnce")}
+              </p>
             </div>
-          ) : null}
 
-          {open && feed && !feed.url ? (
-            <div className="mt-4 space-y-3">
-              <div className="rounded-lg bg-gray-50 p-3 text-sm leading-6 text-gray-600">
-                Ihr Abo-Link ist bereits aktiv. Aus Sicherheitsgründen wird er
-                nicht erneut angezeigt. Falls Sie ihn nicht mehr haben, erzeugen
-                Sie einen neuen Link – der bisherige wird dann ungültig.
-              </div>
-              <Button
-                type="button"
-                size="md"
-                isLoading={loading}
-                onClick={rotate}
-              >
-                <RefreshCw className="h-4 w-4" aria-hidden />
-                Neuen Abo-Link erzeugen
-              </Button>
+            <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+              <p className="font-semibold text-gray-700">{t("howToTitle")}</p>
+              <p className="mt-1">{t("howToMac")}</p>
+              <p className="mt-1">{t("howToApple")}</p>
+              <p className="mt-1">{t("howToAndroid")}</p>
             </div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
+
+        {open && feed && !feed.url ? (
+          <div className="mt-4">
+            <div className="rounded-xl bg-gray-50 p-3 text-sm leading-6 text-gray-600">
+              {t("alreadyActive")}
+            </div>
+          </div>
+        ) : null}
       </div>
-    </div>
+    </SectionCard>
   );
 }

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
+import { availableParallelism } from "node:os";
 
 // Pin the test process to Berlin time. The app reasons in Europe/Berlin
 // wall-clock (backend timestamps, reminder thresholds, calendar-date handling),
@@ -15,11 +16,26 @@ export default defineConfig({
   test: {
     environment: "happy-dom",
     globals: true,
+    // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
+    // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
+    // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
+    pool: "threads",
+    // Lokal höchstens die Hälfte der CPUs und nie mehr als vier Worker.
+    // Gemessen auf 231 Dateien: 8 → 4 Worker senkt CPU um 19% und Peak-RSS
+    // von 3,8 auf 2,7 GB; die Wandzeit steigt von 53 auf 67 Sekunden. CI hat
+    // einen isolierten Runner und nutzt deshalb alle bezahlten CPUs.
+    maxWorkers: process.env.CI
+      ? availableParallelism()
+      : Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2))),
     setupFiles: ["./src/test/setup.ts"],
     exclude: ["**/node_modules/**", "**/e2e/**"], // Exclude Playwright tests
     coverage: {
       provider: "v8",
-      reporter: ["text", "json", "html", "lcov"],
+      // CI uploads only lcov.info for SonarCloud. Building JSON/HTML trees and
+      // printing a 1,000-file table wastes CPU, disk, and log bandwidth.
+      reporter: process.env.CI
+        ? ["lcovonly"]
+        : ["text", "json", "html", "lcov"],
       reportOnFailure: true, // Generate coverage even when tests fail
       exclude: [
         "node_modules/",
@@ -33,8 +49,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "~": path.resolve(__dirname, "./src"),
-      "@": path.resolve(__dirname, "./src"),
+      "~": path.resolve(import.meta.dirname, "./src"),
+      "@": path.resolve(import.meta.dirname, "./src"),
     },
   },
 });

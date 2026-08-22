@@ -4,13 +4,17 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
 
-function TestPopover({ scoped = false }: Readonly<{ scoped?: boolean }>) {
+function TestPopover({
+  scoped = false,
+  preferredWidth,
+}: Readonly<{ scoped?: boolean; preferredWidth?: number }>) {
   const [open, setOpen] = useState(false);
   const popover = (
     <AnchoredPopover
       open={open}
       onOpenChange={setOpen}
       ariaLabel="Testauswahl"
+      preferredWidth={preferredWidth}
       renderTrigger={({ ref, toggle }) => (
         <button ref={ref} type="button" onClick={toggle}>
           Öffnen
@@ -60,6 +64,15 @@ describe("AnchoredPopover", () => {
 
     expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
       position: "fixed",
+    });
+  });
+
+  it("uses a preferred panel width independently from the trigger", () => {
+    render(<TestPopover preferredWidth={380} />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+
+    expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
+      width: "380px",
     });
   });
 });

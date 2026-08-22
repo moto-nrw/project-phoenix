@@ -48,6 +48,7 @@ export function PageHeaderWithSearch({
   onClearAllFilters,
   actionButton,
   mobileActionButton,
+  tabsRowAction,
   overflowMenu,
   primaryAction,
   compactOnScroll = false,
@@ -79,6 +80,11 @@ export function PageHeaderWithSearch({
   const hasActiveFilters = useMemo(() => {
     return filters.some((filter) => {
       if (filter.type === "custom") return false;
+      // A multi-select reports its value as an array and treats the empty
+      // selection as its default ("alle"), so the first-option comparison
+      // below would mark it active in every default state — an array is never
+      // equal to an option string.
+      if (Array.isArray(filter.value)) return filter.value.length > 0;
       const defaultValue = filter.options[0]?.value;
       return filter.value !== defaultValue;
     });
@@ -133,12 +139,13 @@ export function PageHeaderWithSearch({
       )}
 
       {/* Tabs + Badge/ActionButton inline (when tabs exist) */}
-      {tabs && (
+      {(tabs ?? tabsRowAction) && (
         <TabsSection
           tabs={tabs}
           hasTitle={hasTitle}
           actionButton={actionButton}
           mobileActionButton={mobileActionButton}
+          tabsRowAction={tabsRowAction}
           statusIndicator={statusIndicator}
           badge={badge}
           overflowMenu={overflowMenu}
@@ -249,10 +256,11 @@ function useFilterPanelAnchor(
 }
 
 interface TabsSectionProps {
-  readonly tabs: NonNullable<PageHeaderWithSearchProps["tabs"]>;
+  readonly tabs?: PageHeaderWithSearchProps["tabs"];
   readonly hasTitle: boolean;
   readonly actionButton?: React.ReactNode;
   readonly mobileActionButton?: React.ReactNode;
+  readonly tabsRowAction?: React.ReactNode;
   readonly statusIndicator?: PageHeaderWithSearchProps["statusIndicator"];
   readonly badge?: PageHeaderWithSearchProps["badge"];
   readonly overflowMenu?: PageHeaderWithSearchProps["overflowMenu"];
@@ -263,6 +271,7 @@ function TabsSection({
   hasTitle,
   actionButton,
   mobileActionButton,
+  tabsRowAction,
   statusIndicator,
   badge,
   overflowMenu,
@@ -271,8 +280,16 @@ function TabsSection({
 
   return (
     <div className="mt-4 mb-4 md:mt-0">
-      <div className="flex items-center justify-between gap-2 md:items-end md:gap-4">
-        <NavigationTabs {...tabs} className="min-w-0 flex-1" />
+      <div className="flex flex-wrap items-center justify-between gap-2 md:flex-nowrap md:items-end md:gap-4">
+        {tabs ? (
+          <NavigationTabs {...tabs} className="min-w-0 flex-[1_1_10rem]" />
+        ) : null}
+
+        {tabsRowAction ? (
+          <div className="flex flex-shrink-0 items-center pb-1 md:pb-3">
+            {tabsRowAction}
+          </div>
+        ) : null}
 
         <DesktopTabsActionArea
           hasTitle={hasTitle}
@@ -517,6 +534,18 @@ function DesktopSearchSection({
 
   const hasActionContent = hasInlineRightAnchor || hasOverflowMenu;
 
+  // With a primaryAction the header splits into two rows. On a page whose
+  // filters live in the popover (quiet variant) and that has no inline right
+  // anchor, the second row would carry nothing but the kebab — a lone icon on
+  // its own line reads as a layout accident. Keep it in row 1 next to the
+  // primary action there, and drop the empty second row entirely.
+  const hasInlineFilters = hasFilters && !showFilterPopover;
+  const kebabJoinsPrimaryRow =
+    hasPrimaryAction &&
+    hasOverflowMenu &&
+    !hasInlineRightAnchor &&
+    !hasInlineFilters;
+
   const showSearchRow =
     search !== undefined || hasFilters || hasActionContent || hasPrimaryAction;
 
@@ -602,12 +631,15 @@ function DesktopSearchSection({
                 )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
               {primaryAction}
+              {kebabJoinsPrimaryRow ? (
+                <OverflowMenu items={overflowMenu} />
+              ) : null}
             </div>
           </div>
         )}
 
         {/* Row 2: filters left, action + kebab right */}
-        {((hasFilters && !showFilterPopover) || hasActionContent) && (
+        {(hasInlineFilters || hasInlineRightAnchor) && (
           <div className="mb-3 flex items-center gap-3">
             {inlineDesktopFilters}
 
@@ -633,7 +665,7 @@ function DesktopSearchSection({
               badge={badge}
             />
 
-            {hasOverflowMenu ? (
+            {hasOverflowMenu && !kebabJoinsPrimaryRow ? (
               <div className={hasInlineRightAnchor ? "" : "ml-auto"}>
                 <OverflowMenu items={overflowMenu} />
               </div>

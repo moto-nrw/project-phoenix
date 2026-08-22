@@ -108,6 +108,10 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if rs.rejectFrozenAttendanceWrite(w, r, instanceID) {
+		return
+	}
+
 	if verrs := validateAttendancePatch(patch, current); len(verrs) > 0 {
 		renderValidationErrors(w, r, verrs)
 		return
@@ -132,6 +136,28 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 	)
 
 	common.Respond(w, r, http.StatusOK, mapAttendanceToResponse(updated), "Attendance updated")
+}
+
+func (rs *Resource) rejectFrozenAttendanceWrite(w http.ResponseWriter, r *http.Request, instanceID int64) bool {
+	ctx := r.Context()
+	if err := rs.TimetableData.LockInstanceAttendance(ctx, instanceID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock attendance failed", err))
+		return true
+	}
+	inst, err := rs.TimetableData.GetActivityInstance(ctx, instanceID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return true
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
+		return true
+	}
+	if inst != nil && (inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled) {
+		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance is frozen after completion")))
+		return true
+	}
+	return false
 }
 
 // parseAttendancePathIDs reads instance_id and student_id from the path.

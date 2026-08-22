@@ -169,10 +169,16 @@ export async function fetchThread(threadId: string): Promise<ThreadDetail> {
 export async function postMessage(
   threadId: string,
   body: string,
+  handledUpToMessageId?: string,
 ): Promise<Message[]> {
   const result = await postEnvelope<Message[]>(
     `/api/messages/threads/${threadId}`,
-    { body },
+    {
+      body,
+      ...(handledUpToMessageId
+        ? { handled_up_to_message_id: handledUpToMessageId }
+        : {}),
+    },
     "Nachricht konnte nicht gesendet werden",
   );
   return result.data ?? [];

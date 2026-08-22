@@ -47,7 +47,6 @@ func (s stubExcused) ListForStudent(_ context.Context, _ int64, _ time.Time) ([]
 func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsenceRequestService) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentService.NewService(parentService.ServiceConfig{
@@ -66,6 +65,8 @@ func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsen
 // translates the excused-request service's validation sentinels onto its own
 // stable parent sentinels (so the handler renders consistent status codes).
 func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	day := timezone.TodayDate().AddDays(3)
 	cases := []struct {
 		name string
@@ -75,13 +76,14 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 		{"no dates", absenceSvc.ErrExcusedRequestNoDates, parentService.ErrNoDates},
 		{"empty note", absenceSvc.ErrExcusedRequestEmptyNote, parentService.ErrEmptyNote},
 		{"note too long", absenceSvc.ErrExcusedRequestNoteTooLong, parentService.ErrNoteTooLong},
+		{"overlap", absenceSvc.ErrExcusedRequestOverlap, parentService.ErrExcusedRequestOverlap},
+		{"partial absence conflict", absenceSvc.ErrExcusedRequestStatusConflict, parentService.ErrCareExceptionConflict},
 		{"other error is wrapped", errors.New("boom"), nil},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, db := buildParentServiceWithExcused(t, stubExcused{createErr: tc.in})
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
-			defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 			_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 				[]timezone.Date{day}, "Familienfeier", activeModels.StudentStatusDayExcused)
@@ -99,9 +101,10 @@ func TestSubmitExcusedRequest_MapsServiceErrors(t *testing.T) {
 // TestSubmitExcused_NoServiceConfigured verifies the guard when the excused
 // service was not wired (gate on but ExcusedRequests nil).
 func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
+	t.Parallel()
+
 	svc, db := buildParentServiceWithExcused(t, nil)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", activeModels.StudentStatusDayExcused)
@@ -112,10 +115,11 @@ func TestSubmitExcused_NoServiceConfigured(t *testing.T) {
 // TestListExcusedRequests_Errors covers the ownership guard, the nil-service
 // short-circuit and the service-error wrap.
 func TestListExcusedRequests_Errors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign child rejected", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		_, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID+999999)
 		require.Error(t, err, "a student the account does not guard must be refused")
@@ -124,7 +128,6 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 	t.Run("nil service returns empty", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, nil)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		out, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
 		require.NoError(t, err)
@@ -134,7 +137,6 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 	t.Run("service error is wrapped", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{listErr: errors.New("db down")})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		_, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
 		require.Error(t, err)
@@ -145,10 +147,11 @@ func TestListExcusedRequests_Errors(t *testing.T) {
 // TestWithdrawExcusedRequest_Errors covers the ownership guard, the nil-service
 // path and the not-found / not-pending / wrapped mappings.
 func TestWithdrawExcusedRequest_Errors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("foreign child rejected", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, stubExcused{})
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID+999999, 1)
 		require.Error(t, err)
@@ -157,7 +160,6 @@ func TestWithdrawExcusedRequest_Errors(t *testing.T) {
 	t.Run("nil service returns not found", func(t *testing.T) {
 		svc, db := buildParentServiceWithExcused(t, nil)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
-		defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 		_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, 1)
 		assert.ErrorIs(t, err, parentService.ErrExcusedRequestNotFound)
@@ -176,7 +178,6 @@ func TestWithdrawExcusedRequest_Errors(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, db := buildParentServiceWithExcused(t, stubExcused{withdrawErr: tc.in})
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
-			defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 			_, err := svc.WithdrawExcusedRequest(context.Background(), chain.AccountID, chain.StudentID, 1)
 			require.Error(t, err)

@@ -12,9 +12,13 @@ import { de } from "date-fns/locale";
 import { X } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { DatePicker, ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import {
   SegmentedControl,
   type SegmentedControlItem,
@@ -28,6 +32,8 @@ import type {
   StudentStatusDay,
   StudentStatusKind,
 } from "~/lib/student-status-days-api";
+import type { CarePlanDay } from "~/lib/student-care-plan-api";
+import type { StudentPartialAbsence } from "~/lib/student-partial-absences-api";
 
 interface PlannedStatusDaysModalProps {
   readonly isOpen: boolean;
@@ -36,22 +42,47 @@ interface PlannedStatusDaysModalProps {
   readonly isSubmitting: boolean;
   readonly existingDays?: StudentStatusDay[];
   readonly deletingStatusDayId?: string | null;
+  readonly existingPartialAbsences?: StudentPartialAbsence[];
+  /** Whether the caller may plan a partial excusal ("Ab Uhrzeit"). Those rows
+   *  are pickup exceptions: they need users:update plus full care access to
+   *  the child, which the absence permission of a school ohne feste Gruppen
+   *  deliberately does not grant (#2232). False hides the scope switch, so an
+   *  absence-only staffer is not offered a save that would 403. */
+  readonly canPlanPartialExcusal?: boolean;
   readonly onClose: () => void;
   readonly loadExistingDays: (
     from: string,
     to: string,
   ) => Promise<StudentStatusDay[]>;
+  readonly loadPartialAbsences?: (
+    from: string,
+    to: string,
+  ) => Promise<StudentPartialAbsence[]>;
   readonly onSubmit: (dates: string[], reason?: string) => Promise<void>;
   readonly onDeleteStatusDay?: (statusDayId: string) => Promise<void>;
+  readonly loadCarePlanDay?: (date: string) => Promise<CarePlanDay>;
+  readonly onSubmitPartialAbsence?: (
+    partialAbsenceId: string | null,
+    date: string,
+    fromTime: string,
+    reason?: string,
+  ) => Promise<void>;
+  readonly onDeletePartialAbsence?: (partialAbsenceId: string) => Promise<void>;
 }
 
 const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"];
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
+const EMPTY_PARTIAL_ABSENCES: StudentPartialAbsence[] = [];
 const MAX_SELECTION_SPAN_DAYS = 366;
 type SelectionMode = "individual" | "range";
 const SELECTION_MODE_ITEMS: readonly SegmentedControlItem<SelectionMode>[] = [
   { value: "individual", label: "Einzelne Tage" },
   { value: "range", label: "Zeitraum" },
+];
+type ExcusalScope = "full_day" | "from_time";
+const EXCUSAL_SCOPE_ITEMS: readonly SegmentedControlItem<ExcusalScope>[] = [
+  { value: "full_day", label: "Ganzer Tag" },
+  { value: "from_time", label: "Ab Uhrzeit" },
 ];
 
 export function PlannedStatusDaysModal({
@@ -61,10 +92,16 @@ export function PlannedStatusDaysModal({
   isSubmitting,
   existingDays = EMPTY_STATUS_DAYS,
   deletingStatusDayId = null,
+  existingPartialAbsences = EMPTY_PARTIAL_ABSENCES,
+  canPlanPartialExcusal = true,
   onClose,
   loadExistingDays,
+  loadPartialAbsences,
   onSubmit,
   onDeleteStatusDay,
+  loadCarePlanDay,
+  onSubmitPartialAbsence,
+  onDeletePartialAbsence,
 }: PlannedStatusDaysModalProps) {
   const [selectionMode, setSelectionMode] =
     useState<SelectionMode>("individual");
@@ -82,19 +119,39 @@ export function PlannedStatusDaysModal({
     null,
   );
   const [reason, setReason] = useState("");
+  const [excusalScope, setExcusalScope] = useState<ExcusalScope>("full_day");
+  const [fromTime, setFromTime] = useState("");
+  const [editingPartialAbsenceId, setEditingPartialAbsenceId] = useState<
+    string | null
+  >(null);
+  const [partialAbsencePendingDeletion, setPartialAbsencePendingDeletion] =
+    useState<StudentPartialAbsence | null>(null);
+  const [partialAbsenceDeleteError, setPartialAbsenceDeleteError] =
+    useState("");
+  const [carePlanDay, setCarePlanDay] = useState<CarePlanDay | null>(null);
+  const [isLoadingCarePlan, setIsLoadingCarePlan] = useState(false);
   const isSick = status === "sick";
   const isClassTrip = status === "class_trip";
-  const usesRangeSelection = isClassTrip || selectionMode === "range";
+  const isPartialExcusal =
+    canPlanPartialExcusal &&
+    status === "excused" &&
+    excusalScope === "from_time";
+  const usesRangeSelection =
+    !isPartialExcusal && (isClassTrip || selectionMode === "range");
   const title = isSick
     ? "Krankmeldung planen"
     : isClassTrip
       ? "Klassenfahrt planen"
       : "Entschuldigung planen";
-  const submitLabel = isSick
-    ? "Krankmelden"
-    : isClassTrip
-      ? "Klassenfahrt speichern"
-      : "Entschuldigen";
+  const submitLabel = isPartialExcusal
+    ? editingPartialAbsenceId
+      ? "Entschuldigung aktualisieren"
+      : "Entschuldigen"
+    : isSick
+      ? "Krankmelden"
+      : isClassTrip
+        ? "Klassenfahrt speichern"
+        : "Entschuldigen";
   const currentWeekDates = useMemo(() => {
     const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
     return Array.from({ length: 5 }, (_, index) => addDays(monday, index));
@@ -115,6 +172,30 @@ export function PlannedStatusDaysModal({
     }
     return days;
   }, [existingDays]);
+  const partialAbsenceByDate = useMemo(
+    () =>
+      new Map(
+        existingPartialAbsences.map((absence) => [absence.date, absence]),
+      ),
+    [existingPartialAbsences],
+  );
+
+  // The detail page expands its SWR range when a distant date is selected.
+  // Hydrate edit mode when that asynchronous partial-absence response arrives.
+  useEffect(() => {
+    if (!isOpen || !isPartialExcusal || selectedDates.length !== 1) return;
+    const existing = partialAbsenceByDate.get(toISODate(selectedDates[0]!));
+    if (!existing || existing.id === editingPartialAbsenceId) return;
+    setEditingPartialAbsenceId(existing.id);
+    setFromTime(existing.fromTime);
+    setReason(existing.reason ?? "");
+  }, [
+    editingPartialAbsenceId,
+    isOpen,
+    isPartialExcusal,
+    partialAbsenceByDate,
+    selectedDates,
+  ]);
   // Fingerprint active rows so a delete (or external refresh) re-runs the
   // selection conflict check instead of leaving checkedExistingDays stale.
   const existingDaysFingerprint = useMemo(
@@ -241,6 +322,13 @@ export function PlannedStatusDaysModal({
   );
   const hasInvalidRangeOrder =
     rangeStart !== "" && rangeEnd !== "" && rangeEnd < rangeStart;
+  const overlappingInstances = useMemo(() => {
+    if (!carePlanDay || !fromTime) return [];
+    return carePlanDay.instances.filter(
+      (instance) =>
+        instance.startTime < fromTime && instance.endTime > fromTime,
+    );
+  }, [carePlanDay, fromTime]);
 
   const resetForm = useCallback(
     (prefillClassTrip: boolean) => {
@@ -255,6 +343,12 @@ export function PlannedStatusDaysModal({
       setCheckedSelectionKey("");
       setConflictCheckError(null);
       setReason("");
+      setExcusalScope("full_day");
+      setFromTime("");
+      setEditingPartialAbsenceId(null);
+      setPartialAbsencePendingDeletion(null);
+      setPartialAbsenceDeleteError("");
+      setCarePlanDay(null);
     },
     [isClassTrip],
   );
@@ -264,6 +358,34 @@ export function PlannedStatusDaysModal({
       resetForm(true);
     }
   }, [isOpen, resetForm]);
+
+  useEffect(() => {
+    const date = isPartialExcusal ? candidateDateKeys[0] : undefined;
+    if (!date || candidateDateKeys.length !== 1 || !loadCarePlanDay) {
+      setCarePlanDay(null);
+      setIsLoadingCarePlan(false);
+      return;
+    }
+    let current = true;
+    setIsLoadingCarePlan(true);
+    void loadCarePlanDay(date)
+      .then((day) => {
+        if (current) setCarePlanDay(day);
+      })
+      .catch(() => {
+        // Best-effort only: the timetable care-plan endpoint needs
+        // schedules:read. Staff who may edit the student but lack that
+        // permission must still save a partial excusal; overlapping-block
+        // warnings are skipped when the plan cannot be loaded.
+        if (current) setCarePlanDay(null);
+      })
+      .finally(() => {
+        if (current) setIsLoadingCarePlan(false);
+      });
+    return () => {
+      current = false;
+    };
+  }, [candidateDateKeys, isPartialExcusal, loadCarePlanDay]);
 
   useEffect(() => {
     const firstCandidate = candidateDateKeys[0];
@@ -287,10 +409,27 @@ export function PlannedStatusDaysModal({
     setConflictCheckError(null);
     setIsCheckingConflicts(true);
 
-    void loadExistingDays(firstCandidate, lastCandidate)
-      .then((days) => {
+    const partialLookup =
+      isPartialExcusal && loadPartialAbsences
+        ? loadPartialAbsences(firstCandidate, lastCandidate)
+        : Promise.resolve(EMPTY_PARTIAL_ABSENCES);
+    void Promise.all([
+      loadExistingDays(firstCandidate, lastCandidate),
+      partialLookup,
+    ])
+      .then(([days, partials]) => {
         if (!isCurrent) return;
         setCheckedExistingDays(days);
+        if (isPartialExcusal && candidateDateKeys.length === 1) {
+          const existing = partials.find(
+            (absence) => absence.date === firstCandidate,
+          );
+          if (existing) {
+            setEditingPartialAbsenceId(existing.id);
+            setFromTime(existing.fromTime);
+            setReason(existing.reason ?? "");
+          }
+        }
         setCheckedSelectionKey(selectionKey);
       })
       .catch(() => {
@@ -314,13 +453,16 @@ export function PlannedStatusDaysModal({
     hasInvalidRangeOrder,
     hasSelectionTooWide,
     isOpen,
+    isPartialExcusal,
     loadExistingDays,
+    loadPartialAbsences,
     selectionKey,
   ]);
 
   const setSortedDates = (dates: Date[]) => {
+    const sourceDates = isPartialExcusal ? dates.slice(-1) : dates;
     const unique = new Map<string, Date>();
-    for (const date of dates) {
+    for (const date of sourceDates) {
       const key = toISODate(date);
       const existingDay = activeExistingDayByDate.get(key);
       if (existingDay) {
@@ -333,12 +475,61 @@ export function PlannedStatusDaysModal({
         unique.set(key, date);
       }
     }
-    if (unique.size === dates.length) {
+    if (unique.size === sourceDates.length) {
       setSelectionHint(null);
+    }
+    if (isPartialExcusal) {
+      // While editing an existing partial excusal the date is fixed: clearing
+      // editingPartialAbsenceId on another day would create a new record and
+      // leave the original unchanged.
+      if (editingPartialAbsenceId) {
+        const editing =
+          existingPartialAbsences.find(
+            (absence) => absence.id === editingPartialAbsenceId,
+          ) ?? null;
+        if (editing) {
+          const editDate = parseISODate(editing.date);
+          setSelectedDates([editDate]);
+          setSelectionHint(
+            "Beim Bearbeiten bleibt das Datum fest. Abbrechen, um einen anderen Tag zu wählen.",
+          );
+          return;
+        }
+      }
+      const selectedDate = Array.from(unique.keys())[0];
+      const existing = selectedDate
+        ? partialAbsenceByDate.get(selectedDate)
+        : undefined;
+      setEditingPartialAbsenceId(existing?.id ?? null);
+      setFromTime(existing?.fromTime ?? "");
+      setReason(existing?.reason ?? "");
     }
     setSelectedDates(
       Array.from(unique.values()).sort((a, b) => a.getTime() - b.getTime()),
     );
+  };
+
+  const handleExcusalScopeChange = (next: ExcusalScope) => {
+    setExcusalScope(next);
+    setSelectionMode("individual");
+    setSelectedDates([]);
+    setRangeStart("");
+    setRangeEnd("");
+    setFromTime("");
+    setReason("");
+    setEditingPartialAbsenceId(null);
+    setPartialAbsencePendingDeletion(null);
+    setPartialAbsenceDeleteError("");
+    setCarePlanDay(null);
+  };
+
+  const handleEditPartialAbsence = (absence: StudentPartialAbsence) => {
+    setExcusalScope("from_time");
+    setSelectionMode("individual");
+    setSelectedDates([parseISODate(absence.date)]);
+    setEditingPartialAbsenceId(absence.id);
+    setFromTime(absence.fromTime);
+    setReason(absence.reason ?? "");
   };
 
   const toggleDate = (date: Date) => {
@@ -387,6 +578,27 @@ export function PlannedStatusDaysModal({
     );
   };
 
+  const handleDeletePartialAbsence = async () => {
+    if (!onDeletePartialAbsence || !partialAbsencePendingDeletion) return;
+    const partialAbsenceId = partialAbsencePendingDeletion.id;
+    setPartialAbsenceDeleteError("");
+    try {
+      await onDeletePartialAbsence(partialAbsenceId);
+    } catch {
+      setPartialAbsenceDeleteError(
+        "Die Teilentschuldigung konnte nicht entfernt werden. Bitte erneut versuchen.",
+      );
+      return;
+    }
+    setPartialAbsencePendingDeletion(null);
+    if (editingPartialAbsenceId === partialAbsenceId) {
+      setSelectedDates([]);
+      setEditingPartialAbsenceId(null);
+      setFromTime("");
+      setReason("");
+    }
+  };
+
   const handleSubmit = async () => {
     if (!checkedCurrentSelection || conflictCheckError) return;
     const dateKeys = selectableDateKeys;
@@ -399,6 +611,29 @@ export function PlannedStatusDaysModal({
       return;
     }
     const trimmedReason = reason.trim();
+    if (isPartialExcusal) {
+      if (
+        dateKeys.length !== 1 ||
+        !fromTime ||
+        isLoadingCarePlan ||
+        !onSubmitPartialAbsence
+      ) {
+        return;
+      }
+      try {
+        await onSubmitPartialAbsence(
+          editingPartialAbsenceId,
+          dateKeys[0]!,
+          fromTime,
+          trimmedReason || undefined,
+        );
+      } catch {
+        setConflictCheckRevision((current) => current + 1);
+        return;
+      }
+      resetForm(false);
+      return;
+    }
     // Pass the reason as a second arg only when present, so callers/tests
     // that expect the single-arg shape keep matching.
     try {
@@ -444,7 +679,12 @@ export function PlannedStatusDaysModal({
               conflictCheckError !== null ||
               selectableDateKeys.length === 0 ||
               hasInvalidRangeOrder ||
-              hasSelectionTooWide
+              hasSelectionTooWide ||
+              (isPartialExcusal &&
+                (selectableDateKeys.length !== 1 ||
+                  !fromTime ||
+                  isLoadingCarePlan ||
+                  !onSubmitPartialAbsence))
             }
             size="md"
             className="w-full disabled:cursor-not-allowed sm:w-auto"
@@ -465,16 +705,28 @@ export function PlannedStatusDaysModal({
           <div>
             <p className="text-sm font-medium text-gray-900">{studentName}</p>
             <p className="mt-1 text-sm text-gray-500">
-              {isClassTrip
-                ? "Wähle den Zeitraum der Klassenfahrt aus."
-                : selectionMode === "range"
-                  ? "Wähle den ersten und letzten Tag des Zeitraums aus."
-                  : "Wähle einen oder mehrere konkrete Tage aus."}
+              {isPartialExcusal
+                ? "Wähle genau einen Tag und die Uhrzeit, ab der die Entschuldigung gilt."
+                : isClassTrip
+                  ? "Wähle den Zeitraum der Klassenfahrt aus."
+                  : selectionMode === "range"
+                    ? "Wähle den ersten und letzten Tag des Zeitraums aus."
+                    : "Wähle einen oder mehrere konkrete Tage aus."}
             </p>
           </div>
         </div>
 
-        {!isClassTrip ? (
+        {status === "excused" && canPlanPartialExcusal ? (
+          <SegmentedControl
+            items={EXCUSAL_SCOPE_ITEMS}
+            value={excusalScope}
+            onChange={handleExcusalScopeChange}
+            fullWidth
+            ariaLabel="Umfang der Entschuldigung"
+          />
+        ) : null}
+
+        {!isClassTrip && !isPartialExcusal ? (
           <SegmentedControl
             items={SELECTION_MODE_ITEMS}
             value={selectionMode}
@@ -546,15 +798,33 @@ export function PlannedStatusDaysModal({
               <p className="mb-2 text-sm font-medium text-gray-900">
                 Kalenderauswahl
               </p>
-              <DatePicker
-                mode="multiple"
-                values={selectedDates}
-                onChangeDates={setSortedDates}
-                disabledDates={disabledDates}
-                placeholder="Tage auswählen"
-                dropdownPlacement="down"
-                calendarLayout="inline"
-              />
+              {isPartialExcusal ? (
+                <DatePicker
+                  value={selectedDates[0] ?? null}
+                  onChange={(date) => {
+                    if (editingPartialAbsenceId) return;
+                    setSortedDates(date ? [date] : []);
+                  }}
+                  disabledDay={(date) =>
+                    Boolean(editingPartialAbsenceId) ||
+                    activeExistingDayByDate.has(toISODate(date))
+                  }
+                  placeholder="Tag auswählen"
+                  calendarLayout="inline"
+                  required
+                  hideClearButton
+                />
+              ) : (
+                <DatePicker
+                  mode="multiple"
+                  values={selectedDates}
+                  onChangeDates={setSortedDates}
+                  disabledDates={disabledDates}
+                  placeholder="Tage auswählen"
+                  dropdownPlacement="down"
+                  calendarLayout="inline"
+                />
+              )}
               {selectionHint ? (
                 <p className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-2 rounded-lg border px-3 py-2 text-sm">
                   {selectionHint}
@@ -613,6 +883,39 @@ export function PlannedStatusDaysModal({
             </div>
           </>
         )}
+
+        {isPartialExcusal ? (
+          <div className="space-y-3">
+            <Input
+              id="planned-excusal-from-time"
+              type="time"
+              label="Entschuldigt ab"
+              value={fromTime}
+              onChange={(event) => setFromTime(event.target.value)}
+              required
+              controlSize="compact"
+            />
+            <Textarea
+              id="planned-partial-excusal-reason"
+              label="Grund (optional)"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              rows={2}
+              maxLength={255}
+              placeholder="z. B. Arzttermin"
+            />
+            {isLoadingCarePlan ? (
+              <Alert type="info" message="Betreuungsplan wird geprüft…" />
+            ) : null}
+            {overlappingInstances.map((instance) => (
+              <Alert
+                key={instance.id}
+                type="warning"
+                message={`Der Block ${instance.title} (${instance.startTime}–${instance.endTime}) überschneidet die gewählte Uhrzeit. Er bleibt erwartet und muss bei Bedarf separat entschieden werden.`}
+              />
+            ))}
+          </div>
+        ) : null}
 
         {isCheckingConflicts && candidateDateKeys.length > 0 ? (
           <Alert type="info" message="Vorhandene Status-Tage werden geprüft…" />
@@ -713,6 +1016,76 @@ export function PlannedStatusDaysModal({
           </div>
         ) : null}
 
+        {isPartialExcusal && existingPartialAbsences.length > 0 ? (
+          <div>
+            <p className="mb-2 text-sm font-medium text-gray-900">
+              Bereits ab Uhrzeit entschuldigt
+            </p>
+            <div className="space-y-2">
+              {existingPartialAbsences.map((absence) => (
+                <div
+                  key={absence.id}
+                  className="moto-content-surface flex flex-col gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700 shadow-sm sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="min-w-0 flex-1 break-words">
+                    <span className="block">
+                      {formatDateLabel(absence.date)}
+                      {absence.auto ? (
+                        <span className="ml-2 inline-flex align-middle">
+                          <StatusBadge
+                            label="Automatisch (Abholzeit)"
+                            tone="orange"
+                            title="Automatisch aus der vorverlegten Abholzeit abgeleitet. Zum Aufheben die Abholzeit des Tages ändern oder entfernen."
+                          />
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="block text-xs text-gray-500">
+                      Ab {absence.fromTime} Uhr
+                      {absence.pickupTime &&
+                      absence.pickupTime !== absence.fromTime
+                        ? ` · Abholung ${absence.pickupTime} Uhr`
+                        : ""}
+                    </span>
+                    {absence.reason ? (
+                      <span className="mt-0.5 block text-xs text-gray-600 italic">
+                        {absence.reason}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="flex flex-wrap gap-2 sm:shrink-0">
+                    <Button
+                      type="button"
+                      size="compact"
+                      variant="outline"
+                      onClick={() => handleEditPartialAbsence(absence)}
+                      disabled={isSubmitting}
+                      aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} bearbeiten`}
+                    >
+                      Bearbeiten
+                    </Button>
+                    {onDeletePartialAbsence && !absence.auto ? (
+                      <Button
+                        type="button"
+                        size="compact"
+                        variant="outline_danger"
+                        onClick={() => {
+                          setPartialAbsenceDeleteError("");
+                          setPartialAbsencePendingDeletion(absence);
+                        }}
+                        disabled={isSubmitting}
+                        aria-label={`Teilentschuldigung vom ${formatDateLabel(absence.date)} entfernen`}
+                      >
+                        Entfernen
+                      </Button>
+                    ) : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {(isSick || isClassTrip) && (
           <div>
             <label
@@ -737,6 +1110,33 @@ export function PlannedStatusDaysModal({
           </div>
         )}
       </div>
+      <ConfirmDeleteModal
+        isOpen={partialAbsencePendingDeletion !== null}
+        title="Teilentschuldigung entfernen?"
+        description={
+          partialAbsencePendingDeletion ? (
+            <p>
+              Die Teilentschuldigung vom{" "}
+              {formatDateLabel(partialAbsencePendingDeletion.date)} wird
+              entfernt. Nur die von ihr geänderten Betreuungsblöcke und die
+              zugehörige Abholzeit werden wiederhergestellt.
+            </p>
+          ) : null
+        }
+        gate={{
+          mode: "twoStep",
+          firstStepLabel: "Entfernen bestätigen",
+        }}
+        onConfirm={handleDeletePartialAbsence}
+        onClose={() => {
+          setPartialAbsencePendingDeletion(null);
+          setPartialAbsenceDeleteError("");
+        }}
+        loading={isSubmitting}
+        error={partialAbsenceDeleteError}
+        confirmLabel="Teilentschuldigung entfernen"
+        loadingLabel="Wird entfernt…"
+      />
     </FormModal>
   );
 }

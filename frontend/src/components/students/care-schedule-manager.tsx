@@ -45,6 +45,7 @@ import {
   deleteStudentPickupException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
+  resetStudentPickupToOffering,
   updateStudentPickupException,
   updateStudentPickupNote,
   updateStudentPickupSchedules,
@@ -56,6 +57,7 @@ import {
   formatWeekRange,
   getDayData as getPickupDayData,
   mergeSchedulesWithTemplate as mergePickupSchedulesWithTemplate,
+  pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
 import { createLogger } from "~/lib/logger";
 import type {
@@ -260,6 +262,7 @@ export function CareScheduleManager({
           pickupData.notes,
           isExcused,
           statusForDate,
+          pickupData.effectiveSchedules,
         );
         return {
           date,
@@ -281,6 +284,7 @@ export function CareScheduleManager({
       pickupData.schedules,
       pickupData.exceptions,
       pickupData.notes,
+      pickupData.effectiveSchedules,
       isSick,
       isExcused,
     ],
@@ -333,9 +337,15 @@ export function CareScheduleManager({
 
   const fetchCareDataInto = useCallback(
     async (requestId: number) => {
+      const firstDay = weekDays[0];
+      const lastDay = weekDays[weekDays.length - 1];
+      if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
       const [arrival, pickup] = await Promise.all([
         fetchArrivalData(studentId),
-        fetchStudentPickupData(studentId),
+        fetchStudentPickupData(studentId, {
+          from: formatDateISO(firstDay),
+          to: formatDateISO(lastDay),
+        }),
       ]);
       // Older than what is on screen — drop it rather than clobber newer state.
       // A result is never dropped merely because a newer fetch is still running:
@@ -352,7 +362,7 @@ export function CareScheduleManager({
       setError(null);
       setIsLoading(false);
     },
-    [studentId, isFresherThanRendered],
+    [studentId, isFresherThanRendered, weekDays],
   );
 
   const loadCareData = useCallback(async () => {
@@ -472,6 +482,7 @@ export function CareScheduleManager({
         ),
         updateStudentPickupSchedules(studentId, {
           schedules: data.pickupSchedules,
+          effectiveDate: formatDateISO(weekDays[0]!),
         }),
       ]);
 
@@ -498,7 +509,7 @@ export function CareScheduleManager({
 
       if (failure) throw failure.reason;
     },
-    [studentId, refreshCareData],
+    [studentId, refreshCareData, weekDays],
   );
 
   const editingDayDate = editorTarget?.date ?? null;
@@ -528,6 +539,7 @@ export function CareScheduleManager({
       pickupData.notes,
       isExcused,
       statusByDate.get(dateKey) ?? null,
+      pickupData.effectiveSchedules,
     );
   }, [editingDayDate, pickupData, isSick, isExcused, statusByDate]);
 
@@ -675,6 +687,16 @@ export function CareScheduleManager({
       invalidatePickupCaches();
     },
     [studentId, refreshCareData],
+  );
+
+  const handleResetPickupToOffering = useCallback(
+    async (weekday: number, date: string) => {
+      await resetStudentPickupToOffering(studentId, weekday, date);
+      await refreshCareData();
+      invalidatePickupCaches();
+      onUpdate?.();
+    },
+    [studentId, refreshCareData, onUpdate],
   );
 
   const handleDeleteStatusDay = useCallback(
@@ -842,6 +864,9 @@ export function CareScheduleManager({
         onCreatePickupNote={handleCreatePickupNote}
         onUpdatePickupNote={handleUpdatePickupNote}
         onDeletePickupNote={handleDeletePickupNote}
+        onResetPickupToOffering={
+          readOnly ? undefined : handleResetPickupToOffering
+        }
       />
       <ConfirmationModal
         isOpen={statusDayToDelete !== null}
@@ -1362,7 +1387,7 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
-  return null;
+  return pickupScheduleSourceLabel(day.baseSchedule);
 }
 
 function getArrivalDescription(day: ArrivalDayData): string | undefined {

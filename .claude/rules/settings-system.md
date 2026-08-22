@@ -40,7 +40,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 |------|-------|--------|
 | `operations.go` | attendance, checkout, presence mode, session lifecycle | operations, system |
 | `enrollment.go` | public enrollment (phases, care offerings, captcha, legal texts, outbox) | enrollment, system |
-| `gdpr.go` | retention windows, attendance log, student data scope, cleanup jobs | gdpr, system |
+| `gdpr.go` | retention windows, attendance log, cleanup jobs | gdpr, system |
 | `timetable.go` | timetable feature toggles + retention | operations, gdpr |
 | `security.go` | device PIN, MFA (`security.mfa_*`), account lockout | security, devices |
 | `devices.go` | NFC/device behavior, device online window | devices |

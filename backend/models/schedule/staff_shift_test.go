@@ -24,6 +24,8 @@ func testShift(startHour, endHour int) *StaffShift {
 }
 
 func TestStaffShiftValidate(t *testing.T) {
+	t.Parallel()
+
 	require.NoError(t, testShift(8, 16).Validate())
 
 	missingStaff := testShift(8, 16)
@@ -62,6 +64,8 @@ func TestStaffShiftValidate(t *testing.T) {
 }
 
 func TestStaffShiftValidate_IgnoresDriverYearAnchor(t *testing.T) {
+	t.Parallel()
+
 	// TIME columns scan back with a driver-arbitrary year anchor; only the
 	// wall clock may matter. Year 2000 start vs year 0001 end must still
 	// validate on wall-clock order.
@@ -72,6 +76,8 @@ func TestStaffShiftValidate_IgnoresDriverYearAnchor(t *testing.T) {
 }
 
 func TestStaffShiftOverlaps(t *testing.T) {
+	t.Parallel()
+
 	base := testShift(8, 16)
 
 	assert.True(t, base.Overlaps(testShift(15, 18)), "15-18 overlaps 8-16")
@@ -82,6 +88,8 @@ func TestStaffShiftOverlaps(t *testing.T) {
 }
 
 func TestStaffShiftEndInstant(t *testing.T) {
+	t.Parallel()
+
 	shift := testShift(8, 16)
 	end := shift.EndInstant()
 
@@ -94,6 +102,8 @@ func TestStaffShiftEndInstant(t *testing.T) {
 }
 
 func TestStaffShiftEntityAccessors(t *testing.T) {
+	t.Parallel()
+
 	shift := testShift(8, 16)
 	shift.ID = 123
 	shift.CreatedAt = time.Date(2026, time.July, 1, 9, 0, 0, 0, time.UTC)

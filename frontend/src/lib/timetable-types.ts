@@ -111,6 +111,13 @@ export interface InstanceStudentSummary {
    * nothing.
    */
   careDayStatus?: CareDayStatus;
+  /**
+   * HH:MM, gesetzt wenn die Tages-Abholzeit des Kindes IN diesen Block fällt
+   * (Block 14:00-15:00, Abholung 14:45): das Kind bleibt erwartet, geht aber
+   * früher — der Block zeigt den Hinweis statt still falsch einzustufen
+   * (#2360).
+   */
+  earlyPickupTime?: string;
 }
 
 /**
@@ -185,6 +192,9 @@ export interface EnrichedInstance {
    */
   requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
+  canReopen?: boolean;
+  canComplete?: boolean;
+  completeAvailableAt?: string;
 }
 
 interface EmptyRosterReason {
@@ -219,6 +229,7 @@ interface BackendInstanceStudentSummary {
   note?: string | null;
   checked_in_at?: string | null;
   care_day_status?: CareDayStatus;
+  early_pickup_time?: string | null;
 }
 
 export interface BackendEnrichedInstance {
@@ -272,6 +283,9 @@ export interface BackendEnrichedInstance {
     overlap_start?: string;
     overlap_end?: string;
   }>;
+  can_reopen?: boolean;
+  can_complete?: boolean;
+  complete_available_at?: string;
 }
 
 export interface BackendWeeklyInstancesResponse {
@@ -439,7 +453,7 @@ export interface TimetableTemplate {
   educationGroupId?: string;
   educationGroupName?: string;
   isOpen: boolean;
-  maxParticipants: number;
+  maxParticipants: number | null;
   /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
   notes?: string;
   /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
@@ -456,6 +470,8 @@ export interface TimetableTemplate {
    * empty grade list = alle Kinder. */
   sourceCareOfferingIds?: string[];
   sourceGradeLevels?: number[];
+  /** Klassenfilter (#2482) — schließt sourceGradeLevels aus. */
+  sourceSchoolClasses?: string[];
   enrollmentCount: number;
   supervisorCount: number;
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
@@ -528,7 +544,7 @@ export interface BackendTimetableTemplate {
   education_group_id?: number;
   education_group_name?: string;
   is_open: boolean;
-  max_participants: number;
+  max_participants: number | null;
   notes?: string;
   shift_type_name?: string;
   shift_type_color?: string;
@@ -545,6 +561,7 @@ export interface BackendTimetableTemplate {
   }>;
   source_care_offering_ids?: number[];
   source_grade_levels?: number[];
+  source_school_classes?: string[];
   enrollment_count: number;
   supervisor_count: number;
   required_staff_count: number;
@@ -647,6 +664,7 @@ export type EditedChange =
   | "time"
   | "staff"
   | "students"
+  | "attendance"
   | "list_kind"
   | "deleted";
 
@@ -693,6 +711,7 @@ export interface InstanceStatusResult {
   instanceId: string;
   status: InstanceStatus;
   completedAt?: string;
+  reopenUntil?: string;
 }
 
 export interface BackendStartInstanceResult {
@@ -712,6 +731,7 @@ export interface BackendInstanceStatusResult {
   instance_id: number;
   status: InstanceStatus;
   completed_at?: string;
+  reopen_until?: string;
 }
 
 export interface AttendancePatchBody {
@@ -815,6 +835,42 @@ export interface BackendApplyDeviationsResponse {
   understaffed_ack: boolean;
   affected_instances: BackendSubstituteAffectedInstance[];
   warnings: BackendSubstituteTimeConflict[];
+}
+
+/**
+ * #2284 Sammel-Vertretung: one person's day-wide absence — optionally covered
+ * by one substitute — applied to several selected days in ONE atomic save via
+ * POST /substitutions/bulk. `substituteStaffId` undefined marks the person
+ * absent without assigning cover. `dates` are "YYYY-MM-DD" strings.
+ */
+export interface BulkSubstitutionInput {
+  absentStaffId: string;
+  substituteStaffId?: string;
+  dates: string[];
+  reason?: string;
+}
+
+interface BulkSubstitutionDayResult {
+  date: string;
+  affectedInstances: SubstituteAffectedInstance[];
+  warningCount: number;
+}
+
+export interface BulkSubstitutionResponse {
+  days: BulkSubstitutionDayResult[];
+  totalAffected: number;
+  warningCount: number;
+}
+
+interface BackendBulkSubstitutionDay {
+  date: string;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: unknown[];
+}
+
+export interface BackendBulkSubstitutionResponse {
+  days: BackendBulkSubstitutionDay[];
+  total_affected: number;
 }
 
 /**
@@ -959,7 +1015,7 @@ export interface CreateTemplateBody {
   /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
   notes?: string;
   education_group_id?: number;
-  max_participants?: number;
+  max_participants?: number | null;
   /** Manual Personalbedarf override (#1839); null/omitted = derive. */
   required_staff?: number | null;
   week_pattern?: number;
@@ -976,6 +1032,9 @@ export interface CreateTemplateBody {
    * enrollment phase. */
   source_care_offering_ids?: number[] | null;
   source_grade_levels?: number[] | null;
+  /** Klassenfilter (#2482), gleiche Presence-Semantik. Schließt
+   * source_grade_levels aus: beide gesetzt ist ein 400. */
+  source_school_classes?: string[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
    * materialize before it and the roster becomes valid from it. Must lie
@@ -1013,6 +1072,14 @@ export type UpdateTemplateBody = Omit<
   CreateTemplateBody,
   "materialize_from" | "materialize_to" | "list_kind" | "start_date"
 > & {
+  /**
+   * Pulls a not-yet-started series forward (#2226): schedule envelope and
+   * series-managed roster move to this earlier date. The backend accepts only
+   * dates before the stored series start, not in the past, within the pinned
+   * period and clear of a predecessor segment's window. Omitted = the stored
+   * series start stays untouched (the pre-#2226 behavior).
+   */
+  start_date?: string;
   /**
    * Listenart classification. A value sets it; explicit `null` clears it. On the
    * split ("Diesen und folgende") endpoint, omitting the field keeps the existing
@@ -1073,6 +1140,7 @@ interface OfferingSourcedTemplate {
   id: string;
   name: string;
   gradeLevels: number[];
+  schoolClasses: string[];
 }
 
 interface BackendOfferingSourceOption {
@@ -1087,6 +1155,7 @@ interface BackendOfferingSourceOption {
     id: number;
     name: string;
     grade_levels?: number[];
+    school_classes?: string[];
   }[];
   legacy_linked_template_id?: number;
 }
@@ -1103,11 +1172,26 @@ export interface CombinedOfferingCounts {
   totalCount: number;
   /** Jahrgang → Anzahl unterschiedlicher Kinder; key 0 = ohne Jahrgang. */
   gradeCounts: Record<number, number>;
+  /**
+   * Die Kinder hinter den Zahlen (#2482), jeweils mit ihrer Schulklasse.
+   * Daraus leitet der Editor die Klassenauswahl, die Klassen-Zahlen und den
+   * namentlichen Abgleich mit einer bisher manuell gepflegten Kinderliste ab.
+   */
+  students: OfferingSourceStudent[];
+}
+
+interface OfferingSourceStudent {
+  studentId: string;
+  schoolClass: string;
 }
 
 export interface BackendCombinedOfferingCountsResponse {
   total_count: number;
   grade_counts: Record<string, number>;
+  students?: {
+    student_id: number;
+    school_class?: string;
+  }[];
 }
 
 export interface CreateTemplateResult {

@@ -50,6 +50,9 @@ type AuthService interface {
 	// endpoint. Re-validates the school-portal role at the tenant.
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
+	// RegisterSchoolAccount is Register plus the school identity (person →
+	// staff → caregiver profile) the role requires, in one transaction (#2222).
+	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *SchoolAccountIdentity) (*auth.Account, *SchoolIdentity, error)
 	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
 	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
@@ -114,6 +117,7 @@ type AuthService interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
 	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
 	RevokeAllTokens(ctx context.Context, accountID int) error
+	RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error
 	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
 	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
 
@@ -128,6 +132,9 @@ type AuthService interface {
 
 	// Multi-Tenant Account Linking
 	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
+	// LinkSchoolAccount is LinkAccountToTenant plus the school identity the
+	// role requires, in one transaction (#2222).
+	LinkSchoolAccount(ctx context.Context, email string, roleID *int64, tenantID int64, identity *SchoolAccountIdentity) (*auth.Account, *SchoolIdentity, error)
 
 	// Parent Account Management
 	CreateParentAccount(ctx context.Context, email, username, password string) (*auth.AccountParent, error)

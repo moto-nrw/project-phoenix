@@ -179,8 +179,17 @@ async function handleDeleteResponse(
  */
 export async function fetchStudentPickupData(
   studentId: string,
+  range?: { from: string; to: string },
 ): Promise<PickupData> {
-  const response = await fetch(`/api/students/${studentId}/pickup-schedules`);
+  const query = new URLSearchParams();
+  if (range) {
+    query.set("from", range.from);
+    query.set("to", range.to);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules${suffix}`,
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to fetch pickup schedules");
@@ -221,6 +230,34 @@ export async function updateStudentPickupSchedules(
   return parseApiResult<BackendPickupData>(
     response,
     "Failed to update pickup schedules",
+  ).then(mapPickupDataResponse);
+}
+
+/**
+ * Setzt die Gehzeit eines Wochentags auf die Angebots-Gehzeit zurück (#2290).
+ * Der Server lehnt den Reset ab, wenn an diesem Datum keine Angebots-Gehzeit gilt.
+ */
+export async function resetStudentPickupToOffering(
+  studentId: string,
+  weekday: number,
+  date: string,
+): Promise<PickupData> {
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules/reset-offering`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ weekday, date }),
+    },
+  );
+
+  if (!response.ok) {
+    await throwResponseError(response, "Failed to reset pickup schedule");
+  }
+
+  return parseApiResult<BackendPickupData>(
+    response,
+    "Failed to reset pickup schedule",
   ).then(mapPickupDataResponse);
 }
 

@@ -199,7 +199,13 @@ describe("PickupScheduleManager", () => {
 
       await waitFor(() => {
         expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
-        expect(mockFetchStudentPickupData).toHaveBeenCalledWith("student-123");
+        expect(mockFetchStudentPickupData).toHaveBeenCalledWith(
+          "student-123",
+          expect.objectContaining({
+            from: expect.any(String),
+            to: expect.any(String),
+          }),
+        );
       });
     });
 
@@ -398,6 +404,7 @@ describe("PickupScheduleManager", () => {
                 notes: "Test schedule",
               },
             ],
+            effectiveDate: "2025-01-27",
           },
         );
       });
@@ -508,14 +515,26 @@ describe("PickupScheduleManager", () => {
 
       await waitFor(() => {
         expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(1);
-        expect(mockFetchStudentPickupData).toHaveBeenCalledWith("student-123");
+        expect(mockFetchStudentPickupData).toHaveBeenCalledWith(
+          "student-123",
+          expect.objectContaining({
+            from: expect.any(String),
+            to: expect.any(String),
+          }),
+        );
       });
 
       rerender(<PickupScheduleManager studentId="student-456" />);
 
       await waitFor(() => {
         expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
-        expect(mockFetchStudentPickupData).toHaveBeenCalledWith("student-456");
+        expect(mockFetchStudentPickupData).toHaveBeenCalledWith(
+          "student-456",
+          expect.objectContaining({
+            from: expect.any(String),
+            to: expect.any(String),
+          }),
+        );
       });
     });
   });

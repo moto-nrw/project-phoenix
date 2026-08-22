@@ -12,8 +12,8 @@ import type { PageTypeInfo } from "./breadcrumb-utils";
 describe("breadcrumb-utils", () => {
   describe("getPageTitle", () => {
     describe("student pages", () => {
-      it("should return 'Kindersuche' for /students/search", () => {
-        expect(getPageTitle("/students/search")).toBe("Kindersuche");
+      it("should return 'Alle Kinder' for /students/search", () => {
+        expect(getPageTitle("/students/search")).toBe("Alle Kinder");
       });
 
       it("should return 'Kinder Details' for student detail page", () => {
@@ -176,9 +176,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/admin/guardian-approvals")).toBe(
           "Konto-Anfragen",
         );
-        expect(getPageTitle("/admin/change-requests")).toBe(
-          "Änderungsanfragen",
-        );
+        // Alt-Route der Freigabeansicht: nur noch ein Redirect-Frame auf
+        // /anfragen (#2429); der Titel verhindert den "Home"-Blitzer.
+        expect(getPageTitle("/admin/change-requests")).toBe("Anfragen");
+        expect(getPageTitle("/anfragen")).toBe("Anfragen");
       });
 
       it("should return titles for recent staff navigation entries", () => {
@@ -287,16 +288,16 @@ describe("breadcrumb-utils", () => {
       expect(getBreadcrumbLabel("/rooms?room=42")).toBe("Räume");
     });
 
-    it("should return 'Kindersuche' for unknown referrer", () => {
-      expect(getBreadcrumbLabel("/students")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for unknown referrer", () => {
+      expect(getBreadcrumbLabel("/students")).toBe("Alle Kinder");
     });
 
-    it("should return 'Kindersuche' for empty referrer", () => {
-      expect(getBreadcrumbLabel("")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for empty referrer", () => {
+      expect(getBreadcrumbLabel("")).toBe("Alle Kinder");
     });
 
-    it("should return 'Kindersuche' for dashboard referrer", () => {
-      expect(getBreadcrumbLabel("/dashboard")).toBe("Kindersuche");
+    it("should return 'Alle Kinder' for dashboard referrer", () => {
+      expect(getBreadcrumbLabel("/dashboard")).toBe("Alle Kinder");
     });
   });
 
@@ -449,9 +450,9 @@ describe("breadcrumb-utils", () => {
           sectionHref: "/eltern",
           pageLabel: "Konto-Anfragen",
         });
-        expect(getSectionBreadcrumb("/admin/change-requests")?.pageLabel).toBe(
-          "Änderungsanfragen",
-        );
+        // /admin/change-requests ist kein Eltern-Katalogeintrag mehr — nur
+        // noch ein Redirect auf das Top-Level-Modul /anfragen (#2429).
+        expect(getSectionBreadcrumb("/admin/change-requests")).toBeNull();
         expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
           "Mitteilungen und Umfragen",
         );

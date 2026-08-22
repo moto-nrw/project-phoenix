@@ -9,6 +9,7 @@ import {
   syncExistingPushSubscription,
   type PushPortal,
 } from "~/lib/push-api";
+import { reportStandaloneUsage } from "~/lib/pwa-usage-api";
 
 const logger = createLogger({ component: "ServiceWorkerRegistrar" });
 
@@ -41,7 +42,7 @@ export function PushSubscriptionSync({
 }: {
   readonly portal: PushPortal;
 }) {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
 
   useEffect(() => {
     if (status !== "authenticated" || !isPushSupported()) return;
@@ -53,6 +54,11 @@ export function PushSubscriptionSync({
       });
     });
   }, [portal, status]);
+
+  useEffect(() => {
+    if (status !== "authenticated" || !session?.user.id) return;
+    void reportStandaloneUsage(portal, session.user.id, session.user.tenantId);
+  }, [portal, session?.user.id, session?.user.tenantId, status]);
 
   return null;
 }

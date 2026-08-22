@@ -19,6 +19,8 @@ func strPtr(s string) *string {
 // =============================================================================
 
 func TestStudentPickupSchedule_Validate(t *testing.T) {
+	t.Parallel()
+
 	validTime := time.Date(2024, 1, 1, 14, 30, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -132,6 +134,20 @@ func TestStudentPickupSchedule_Validate(t *testing.T) {
 			errMsg:  "created_by is required",
 		},
 		{
+			name: "offering-derived schedule without creator",
+			setup: func() *StudentPickupSchedule {
+				offeringID := int64(2)
+				return &StudentPickupSchedule{
+					StudentID:      1,
+					Weekday:        WeekdayMonday,
+					PickupTime:     validTime,
+					Source:         PickupScheduleSourceCareOffering,
+					CareOfferingID: &offeringID,
+				}
+			},
+			wantErr: false,
+		},
+		{
 			name: "notes too long",
 			setup: func() *StudentPickupSchedule {
 				longNotes := string(make([]byte, 501))
@@ -164,6 +180,8 @@ func TestStudentPickupSchedule_Validate(t *testing.T) {
 }
 
 func TestStudentPickupSchedule_GetWeekdayName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		weekday      int
@@ -189,12 +207,16 @@ func TestStudentPickupSchedule_GetWeekdayName(t *testing.T) {
 }
 
 func TestStudentPickupSchedule_GetID(t *testing.T) {
+	t.Parallel()
+
 	schedule := &StudentPickupSchedule{}
 	schedule.ID = 42
 	assert.Equal(t, int64(42), schedule.GetID())
 }
 
 func TestStudentPickupSchedule_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	schedule := &StudentPickupSchedule{}
 	schedule.CreatedAt = now
@@ -202,6 +224,8 @@ func TestStudentPickupSchedule_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	schedule := &StudentPickupSchedule{}
 	schedule.UpdatedAt = now
@@ -213,6 +237,8 @@ func TestStudentPickupSchedule_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupException_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
@@ -342,6 +368,8 @@ func TestStudentPickupException_Validate(t *testing.T) {
 }
 
 func TestStudentPickupException_IsAbsent(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
 
@@ -388,12 +416,16 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 }
 
 func TestStudentPickupException_GetID(t *testing.T) {
+	t.Parallel()
+
 	exception := &StudentPickupException{}
 	exception.ID = 42
 	assert.Equal(t, int64(42), exception.GetID())
 }
 
 func TestStudentPickupException_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentPickupException{}
 	exception.CreatedAt = now
@@ -401,6 +433,8 @@ func TestStudentPickupException_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentPickupException_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentPickupException{}
 	exception.UpdatedAt = now
@@ -412,6 +446,8 @@ func TestStudentPickupException_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestWeekdayConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, 1, WeekdayMonday)
 	assert.Equal(t, 2, WeekdayTuesday)
 	assert.Equal(t, 3, WeekdayWednesday)
@@ -422,6 +458,8 @@ func TestWeekdayConstants(t *testing.T) {
 }
 
 func TestWeekdayNames(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "Montag", WeekdayNames[WeekdayMonday])
 	assert.Equal(t, "Dienstag", WeekdayNames[WeekdayTuesday])
 	assert.Equal(t, "Mittwoch", WeekdayNames[WeekdayWednesday])
@@ -436,6 +474,8 @@ func TestWeekdayNames(t *testing.T) {
 // =============================================================================
 
 func TestStudentPickupNote_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 
 	tests := []struct {
@@ -576,12 +616,16 @@ func TestStudentPickupNote_Validate(t *testing.T) {
 }
 
 func TestStudentPickupNote_GetID(t *testing.T) {
+	t.Parallel()
+
 	note := &StudentPickupNote{}
 	note.ID = 42
 	assert.Equal(t, int64(42), note.GetID())
 }
 
 func TestStudentPickupNote_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentPickupNote{}
 	note.CreatedAt = now
@@ -589,6 +633,8 @@ func TestStudentPickupNote_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentPickupNote_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentPickupNote{}
 	note.UpdatedAt = now

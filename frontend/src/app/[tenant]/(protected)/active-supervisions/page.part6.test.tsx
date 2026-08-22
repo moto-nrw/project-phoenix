@@ -2,7 +2,7 @@
  * Tests for Active Supervisions Page
  * Tests the rendering states and user interactions of the active supervisions dashboard
  *
- * NOTE: split into 11 files (page.test.tsx + page.part2..11.test.tsx). The full-dashboard
+ * NOTE: split into 12 files (page.test.tsx + page.part2..12.test.tsx). The full-dashboard
  * render tests in the "MeinRaumPage (Active Supervisions)" describe are memory-heavy under
  * happy-dom + v8 coverage (~1.5 GB heap each), so a single combined file OOMs the Vitest
  * worker. Those heavy tests are pre-split into (N/M) chunks of 3 renders each, one chunk per
@@ -273,13 +273,35 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
+
+beforeEach(() => {
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
   const mockMutate = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useNFCEnabled).mockReturnValue(true);
     navigationMockState.roomParam = null;
     global.fetch = vi.fn();
     // Default mock: loading state
@@ -578,10 +600,10 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
 
   it("does not flash first-room students while a direct room URL is syncing", async () => {
     navigationMockState.roomParam = "11";
-    const { activeService } = await import("~/lib/active-api");
-    vi.mocked(activeService.getActiveGroupVisitsWithDisplay).mockReturnValue(
-      new Promise(() => undefined) as never,
-    );
+    // The aggregate re-run for the URL-targeted session never resolves in
+    // this test — the point is that the first room's visits from the stale
+    // payload must not be shown meanwhile (#2096).
+    mockMutate.mockReturnValue(new Promise(() => undefined) as never);
     const dashboardData = {
       supervisedGroups: [
         {
@@ -637,9 +659,9 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("2");
+      // The URL target resolves to session "2" and triggers the aggregate
+      // re-run; the first room's students never appear meanwhile.
+      expect(mockMutate).toHaveBeenCalled();
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
       expect(screen.queryByText("Max Mustermann")).not.toBeInTheDocument();
     });
@@ -660,6 +682,33 @@ describe("MeinRaumPage (Active Supervisions) (5/5)", () => {
       expect(
         screen.getByText("Keine aktive Raum-Aufsicht"),
       ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Starte eine Aktivität an einem Terminal, um Live-Raumdaten einzusehen.",
+        ),
+      ).toBeInTheDocument();
     });
+  });
+
+  it("points NFC-free tenants to the web app when no supervision is active", async () => {
+    vi.mocked(useNFCEnabled).mockReturnValue(false);
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: null,
+      isLoading: false,
+      error: new Error("BFF request failed: 403"),
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Starte eine Aktivität in der Web-App, um Live-Raumdaten einzusehen.",
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(screen.queryByText(/Terminal/i)).not.toBeInTheDocument();
   });
 });

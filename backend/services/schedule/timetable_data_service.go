@@ -40,6 +40,7 @@ type TimetableDataDependencies struct {
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
 	ArrivalExceptionRepo   scheduleModel.StudentArrivalExceptionRepository
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	PickupBaselines        PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
 	VisitRepo              activeModel.VisitRepository
 	RoomRepo               facilitiesModel.RoomRepository
@@ -74,6 +75,9 @@ type TimetableDataDependencies struct {
 	DeviationEventRepo auditModel.DeviationEventRepository
 	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
 	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
+	// RecoveryRepo serializes attendance writes with instance completion.
+	// Production always wires it; unit-test facades may leave it nil.
+	RecoveryRepo scheduleModel.ActivityRecoveryRepository
 	// Broadcaster invalidates planner and "Heute geplant" caches after
 	// template-side changes that bypass the instance CRUD flows.
 	Broadcaster realtime.Broadcaster
@@ -109,6 +113,32 @@ func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instance
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
 }
 
+// GetPartialAbsenceCutoffsForDate returns, per student, the wall-clock time
+// from which the child is auto-excused on the date. Only auto-derived rows
+// qualify: their excused_from IS the day's actual pickup time, so the planner
+// may render it as "Abholung 14:45" on the block the time falls INTO (which
+// stays expected but ends early, #2360). A manual partial absence's
+// excused_from can differ from the day's pickup time — showing it as a pickup
+// time would be false, so manual rows never feed this marker.
+func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) (map[int64]time.Time, error) {
+	if len(studentIDs) == 0 {
+		return map[int64]time.Time{}, nil
+	}
+	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	cutoffs := make(map[int64]time.Time, len(rows))
+	for _, row := range rows {
+		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil {
+			cutoffs[row.StudentID] = timezone.WallClock(*row.ExcusedFrom)
+		}
+	}
+	return cutoffs, nil
+}
+
 // GetCareDayCandidateStudentsByInstanceIDs returns the rows whose care-day
 // verdict can still change something: rows still 'expected', plus rows a broad
 // day status (sick / excused / class trip) flipped to 'absent' and still owns.
@@ -134,7 +164,20 @@ func (s *TimetableDataService) UpdateInstanceStudentAttendance(ctx context.Conte
 }
 
 func (s *TimetableDataService) GetActivityInstance(ctx context.Context, id int64) (*scheduleModel.ActivityInstance, error) {
+	if s.deps.ActivityInstanceRepo == nil {
+		return nil, nil
+	}
 	return s.deps.ActivityInstanceRepo.FindByID(ctx, id)
+}
+
+// LockInstanceAttendance takes FOR UPDATE on every instance_students row so a
+// concurrent Complete cannot flip the instance to completed between the
+// status check and the attendance UPDATE. No-op when RecoveryRepo is unset.
+func (s *TimetableDataService) LockInstanceAttendance(ctx context.Context, instanceID int64) error {
+	if s.deps.RecoveryRepo == nil {
+		return nil
+	}
+	return s.deps.RecoveryRepo.LockAttendance(ctx, instanceID)
 }
 
 func (s *TimetableDataService) GetActivityInstancesByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {

@@ -124,6 +124,7 @@ type OperatorProvisioningService interface {
 	ListSchoolPersons(ctx context.Context, schoolID int64) ([]OperatorPersonInfo, error)
 	SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error
 	GetProvisioningStats(ctx context.Context) (*ProvisioningStats, error)
+	GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*SchoolPWAUsage, error)
 	ListOrganizationSummaries(ctx context.Context) ([]*OrganizationSummary, error)
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
@@ -188,6 +189,7 @@ type OperatorProvisioningServiceConfig struct {
 	StaffRepo             userModels.StaffRepository
 	AccountRepo           authModels.AccountRepository
 	TeacherRepo           userModels.TeacherRepository
+	StudentRepo           userModels.StudentRepository
 	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
 	ActiveGroupRepo       ActiveDeviceSessionFinder
 	Settings              TenantSettingsResolver
@@ -543,47 +545,10 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		}
 		account = created
 
-		// Step 2: Create Person
-		person := &userModels.Person{
-			FirstName: req.FirstName,
-			LastName:  req.LastName,
-		}
-		person.SetTenantID(school.ID)
-		if err := s.PersonRepo.Create(tenantCtx, person); err != nil {
-			return fmt.Errorf("create person: %w", err)
-		}
-
-		// Link person to account
-		if err := s.PersonRepo.LinkToAccount(tenantCtx, person.ID, account.ID); err != nil {
-			return fmt.Errorf("link person to account: %w", err)
-		}
-
-		// Step 3: Create Staff (only for system roles)
-		if selectedRole != nil && selectedRole.IsSystem {
-			staff := &userModels.Staff{PersonID: person.ID}
-			staff.SetTenantID(school.ID)
-			if err := s.StaffRepo.Create(tenantCtx, staff); err != nil {
-				return fmt.Errorf("create staff: %w", err)
-			}
-
-			roleAlreadyCarriesCaregiverCapability := shouldCreateTeacher(selectedRole.Name)
-			enableCaregiverCapability := roleAlreadyCarriesCaregiverCapability || req.CaregiverEnabled
-			if enableCaregiverCapability {
-				if !roleAlreadyCarriesCaregiverCapability {
-					if err := s.ensureUserRole(tenantCtx, account.ID); err != nil {
-						return fmt.Errorf("assign caregiver role: %w", err)
-					}
-				}
-
-				teacher := &userModels.Teacher{StaffID: staff.ID}
-				teacher.SetTenantID(school.ID)
-				if req.Position != "" {
-					teacher.Role = req.Position
-				}
-				if err := s.TeacherRepo.Create(tenantCtx, teacher); err != nil {
-					return fmt.Errorf("create teacher: %w", err)
-				}
-			}
+		// Step 2: person, staff and (for caregiver roles) the teacher profile.
+		// Same walk every other school-access path uses (#2222).
+		if err := s.ensureSchoolIdentityWithCaregiver(tenantCtx, account.ID, school.ID, selectedRole, req); err != nil {
+			return err
 		}
 
 		s.logAction(adminCtx, operatorID, platform.ActionCreate, platform.ResourceAccount, &account.ID, clientIP, map[string]any{
@@ -596,6 +561,56 @@ func (s *operatorProvisioningService) CreateSchoolAccount(ctx context.Context, s
 		return nil, err
 	}
 	return account, nil
+}
+
+// ensureSchoolIdentityWithCaregiver provisions the account's identity at the
+// school and, when the caregiver capability was requested for a role that does
+// not already carry it, hands out the platform user role for its permissions.
+// base_role classifies a role, it does not grant anything — a school's own role
+// of caregiver tier gets the profile, not the platform role's permissions.
+func (s *operatorProvisioningService) ensureSchoolIdentityWithCaregiver(
+	ctx context.Context,
+	accountID, schoolID int64,
+	role *authModels.Role,
+	req CreateSchoolAccountRequest,
+) error {
+	if err := s.ensureSchoolIdentityForCaregiverRequest(ctx, accountID, schoolID, role, req); err != nil {
+		return err
+	}
+	if req.CaregiverEnabled && !authSvc.IsPlatformCaregiverRole(role) {
+		if err := s.ensureUserRole(ctx, accountID); err != nil {
+			return fmt.Errorf("assign caregiver role: %w", err)
+		}
+	}
+	return nil
+}
+
+func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
+	ctx context.Context,
+	accountID, schoolID int64,
+	role *authModels.Role,
+	req CreateSchoolAccountRequest,
+) error {
+	_, err := authSvc.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityRepos{
+		Persons:  s.PersonRepo,
+		Staff:    s.StaffRepo,
+		Teachers: s.TeacherRepo,
+		Students: s.StudentRepo,
+	}, authSvc.SchoolIdentityInput{
+		AccountID:        accountID,
+		TenantID:         schoolID,
+		Role:             role,
+		FirstName:        req.FirstName,
+		LastName:         req.LastName,
+		Position:         req.Position,
+		CaregiverUpgrade: req.CaregiverEnabled,
+		CreatePerson:     true,
+	})
+	if errors.Is(err, authSvc.ErrSchoolIdentityNamesRequired) ||
+		errors.Is(err, authSvc.ErrSchoolIdentityPersonIsStudent) {
+		return &InvalidDataError{Err: err}
+	}
+	return err
 }
 
 func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accountID int64) error {
@@ -770,16 +785,6 @@ func (s *operatorProvisioningService) resolveAPIKey(apiKey *string) (string, err
 func generateRandomSuffix(length int) string {
 	s, _ := randstr.String(length, randstr.LowerAlphanumeric)
 	return s
-}
-
-// shouldCreateTeacher returns true for roles that should have a Teacher record.
-func shouldCreateTeacher(roleName string) bool {
-	switch strings.ToLower(strings.TrimSpace(roleName)) {
-	case "user":
-		return true
-	default:
-		return false
-	}
 }
 
 // isAPIKeyConstraintViolation checks whether a unique violation is on the api_key column.

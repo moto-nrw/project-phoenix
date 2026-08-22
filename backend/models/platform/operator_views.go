@@ -92,6 +92,20 @@ type OperatorPersonInfo struct {
 	CreatedAt        time.Time `bun:"created_at" json:"created_at"`
 }
 
+// SchoolPWAUsageRow is one (school, portal) bucket of PWA standalone-usage
+// counts (#2189). EligibleUsers is the number of accounts with an active
+// mapping in that school matching the portal's role predicate (staff = any
+// non-guardian role, parent = guardian role); StandaloneUsers is how many of
+// those used the app in standalone display mode within the query window.
+// StandaloneUsers <= EligibleUsers always holds because both sides use the
+// same predicate.
+type SchoolPWAUsageRow struct {
+	TenantID        int64  `bun:"tenant_id" json:"tenant_id"`
+	Portal          string `bun:"portal" json:"portal"`
+	StandaloneUsers int    `bun:"standalone_users" json:"standalone_users"`
+	EligibleUsers   int    `bun:"eligible_users" json:"eligible_users"`
+}
+
 // OperatorSummariesRepository defines read-only aggregate queries that power
 // the operator dashboard's drill-in views. Each method runs a single CTE-based
 // query that participates in any transaction stored on the context via
@@ -127,6 +141,11 @@ type OperatorSummariesRepository interface {
 	// PersonsByOrganization returns non-deleted persons across every school
 	// belonging to the given organization with school/org context on each row.
 	PersonsByOrganization(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
+
+	// PWAUsage returns per-school, per-portal PWA standalone-usage counts
+	// within the given window. tenantID > 0 limits to one school; 0 returns
+	// every school. Callers must run inside an admin transaction.
+	PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]SchoolPWAUsageRow, error)
 }
 
 // OperatorDeviceRow is one device in the operator device listings, joined

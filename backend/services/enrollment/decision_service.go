@@ -131,6 +131,10 @@ type UpdateChildOfferingsInput struct {
 	// Nil keeps the correction semantics (replace the whole phase window),
 	// which is what an admin fixing a typo in the original submission wants.
 	EffectiveFrom *timezone.Date
+	// ExcludedAutoAddTargetIDs switches off the Mitbuchungs-Regel for these
+	// target offerings in this one adjustment (#2370). The shared applier
+	// validates them against the same materialization it persists.
+	ExcludedAutoAddTargetIDs map[int64]bool
 }
 
 type SyncApprovedChildDataInput struct {
@@ -364,6 +368,10 @@ type StudentRolloverAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error
 }
 
+type PickupGuardianNotifier interface {
+	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -382,8 +390,9 @@ type DecisionServiceConfig struct {
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo        users.GuardianPhoneNumberRepository             // target: guardian.phone_numbers / contact.phone_numbers
-	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
+	GuardianPhoneRepo        users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
+	PickupBaselines          OfferingPickupBaselineReader
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
 	ActivityGroupRepo        activities.GroupRepository
@@ -402,20 +411,38 @@ type DecisionServiceConfig struct {
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
 	// works, open student and companion views just stay stale until their next
 	// manual refresh.
-	Broadcaster realtime.Broadcaster
-	FrontendURL string                   // not used by parent-facing emails today; kept for future admin links
-	ParentsURL  string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
-	Settings    DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
-	// LockTemplateRecurrence serializes sourced roster writes with template
-	// split/end/materialization. Production wires the schedule service's
-	// transaction-scoped tenant recurrence gate; tests may leave it nil.
+	Broadcaster            realtime.Broadcaster
+	PickupGuardianNotifier PickupGuardianNotifier
+	FrontendURL            string                   // not used by parent-facing emails today; kept for future admin links
+	ParentsURL             string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
+	Settings               DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
+	// LockTemplateRecurrence serializes offering-derived writes: sourced roster
+	// changes, booking links, care-offering configuration, and manual-pickup
+	// reset preflights. Production wires the schedule service's transaction-
+	// scoped tenant recurrence gate; tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	// InstanceRosters propagates sourced-roster resync results onto already-
 	// materialized future occurrences (#2147 review). Production wires the
 	// schedule RosterReconciler; a nil value skips the pass with a warning
 	// (mock-only wirings).
 	InstanceRosters SourcedInstanceRosterReconciler
-	Logger          *slog.Logger
+	// ResyncPickupAutoExcusals re-derives the auto partial absences coupled to
+	// the students' future day pickup exceptions after offering-sourced weekly
+	// Gehzeit rows changed (#2360): a moved or removed weekday baseline
+	// re-qualifies or releases them exactly like a staff weekly edit does.
+	// Runs in the caller's transaction. Production wires the schedule
+	// PickupAutoExcusalSyncer; tests may leave it nil.
+	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	// LockPickupStudents takes the students' care locks (users.students row
+	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
+	// Gehzeit rows. Staff weekly editors lock the student first and schedule
+	// rows second; the offering reconciler must acquire in the same order or
+	// a concurrent staff edit can deadlock against it (#2360 review). Runs in
+	// the caller's transaction; missing students (concurrent offboarding) are
+	// skipped. Production wires the schedule care-student lock; tests may
+	// leave it nil.
+	LockPickupStudents func(ctx context.Context, studentIDs []int64) error
+	Logger             *slog.Logger
 }
 
 type decisionService struct {
@@ -1191,6 +1218,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	if input.Status == DecisionApproved {
+		if err := s.validateApprovalOfferingSelection(ctx, target, phase); err != nil {
+			return nil, err
+		}
+	}
 
 	reason := strings.TrimSpace(input.Reason)
 	var reasonPtr *string
@@ -1245,6 +1277,17 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, ErrDecisionChildNotFound
 	}
 
+	// Refresh projected-pickup consumers AFTER the re-read has the student id
+	// stamped by this approval.
+	if input.Status == DecisionApproved {
+		today := timezone.TodayDate()
+		if !phase.ServiceStartDate.After(today) {
+			if err := s.syncOfferingPickupAfterApproval(ctx, target); err != nil {
+				return nil, fmt.Errorf("decision: refresh offering pickup projection: %w", err)
+			}
+		}
+	}
+
 	s.Logger.Info("enrollment decision applied",
 		slog.Int64("request_id", input.RequestID),
 		slog.Int64("child_id", input.ChildID),
@@ -1269,6 +1312,54 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = target
 	return outcome, nil
+}
+
+func (s *decisionService) validateApprovalOfferingSelection(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx,
+		child.ID,
+		phase.ServiceStartDate,
+	)
+	if err != nil {
+		return fmt.Errorf("decision: validate child offerings: %w", err)
+	}
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	choosableCount := 0
+	for _, offering := range offerings {
+		if offering != nil && offering.PhaseID == phase.ID && !offering.IsRequired {
+			choosableCount++
+		}
+	}
+	switch phase.CareOfferingSelectionMode {
+	case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		if choosableCount == 0 {
+			return ErrCareOfferingMissing
+		}
+	case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		if choosableCount != 1 {
+			return ErrCareOfferingExactlyOneRequired
+		}
+	}
+	return nil
 }
 
 func isParentVisibleDecision(status DecisionStatus) bool {
@@ -2879,6 +2970,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
+			SchoolClasses:        tmpl.SourceSchoolClasses,
 			CalendarPeriodID:     tmpl.CalendarPeriodID,
 			EffectiveFrom:        effectiveFrom,
 			ScopeRequestChildIDs: scopeRequestChildIDs,
@@ -3619,6 +3711,8 @@ func (s *decisionService) applyTargetedFields(
 
 	pickupScheduleDeleted := false
 	arrivalScheduleDeleted := false
+	pickupScheduleLockTaken := false
+	pickupScheduleChanged := false
 
 	for i := range schema.Fields {
 		field := schema.Fields[i]
@@ -3709,18 +3803,31 @@ func (s *decisionService) applyTargetedFields(
 				studentDirty = true
 			}
 		case enrollmentModels.TargetSchedulePickup:
+			// Student lock BEFORE the weekly rewrite — the shared first lock of
+			// every care-day writer — so the auto-excusal resync after the loop
+			// keeps the student → care-day lock order (#2360 review).
+			if !pickupScheduleLockTaken {
+				if err := s.lockPickupStudents(ctx, []int64{student.ID}); err != nil {
+					errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+					continue
+				}
+				pickupScheduleLockTaken = true
+			}
 			if replaceSchedules && s.PickupScheduleRepo != nil && !pickupScheduleDeleted {
 				pickupScheduleDeleted = true
 				if err := s.PickupScheduleRepo.DeleteByStudentID(ctx, student.ID); err != nil {
 					errs = append(errs, fmt.Sprintf("%s: delete existing: %v", field.Target, err))
 					continue
 				}
+				pickupScheduleChanged = true
 			}
 			if raw == nil {
 				continue
 			}
 			if err := s.dispatchWeekdaySchedule(ctx, raw, student.ID, reviewedBy, true); err != nil {
 				errs = append(errs, fmt.Sprintf("%s: %v", field.Target, err))
+			} else {
+				pickupScheduleChanged = true
 			}
 		case enrollmentModels.TargetScheduleArrival:
 			if replaceSchedules && s.ArrivalScheduleRepo != nil && !arrivalScheduleDeleted {
@@ -3760,6 +3867,17 @@ func (s *decisionService) applyTargetedFields(
 					errs = append(errs, fmt.Sprintf("%s: remove stale links: %v", field.Target, err))
 				}
 			}
+		}
+	}
+
+	// A replaced or re-dispatched weekly pickup plan moves the same baseline a
+	// staff weekly edit does, so the auto excusals of the student's future day
+	// exceptions must re-derive in the same transaction (#2360 review) — a
+	// pulled-forward day exception would otherwise keep an obsolete excusal
+	// state after re-enrollment until someone edits it.
+	if pickupScheduleChanged {
+		if err := s.resyncPickupAutoExcusals(ctx, []int64{student.ID}); err != nil {
+			errs = append(errs, err.Error())
 		}
 	}
 

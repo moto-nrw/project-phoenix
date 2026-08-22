@@ -119,6 +119,8 @@ func invitationReqWithClaimsAndID(method, path string, body []byte, operatorID i
 // =====================================================================
 
 func TestCreateInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	var capturedEmail string
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, email string, _ *string, createdByID int64, _ net.IP) error {
@@ -140,6 +142,8 @@ func TestCreateInvitation_Success(t *testing.T) {
 }
 
 func TestCreateInvitation_WithDisplayName(t *testing.T) {
+	t.Parallel()
+
 	var capturedDisplayName *string
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, displayName *string, _ int64, _ net.IP) error {
@@ -161,6 +165,8 @@ func TestCreateInvitation_WithDisplayName(t *testing.T) {
 }
 
 func TestCreateInvitation_EmptyEmail(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -175,6 +181,8 @@ func TestCreateInvitation_EmptyEmail(t *testing.T) {
 }
 
 func TestCreateInvitation_WhitespaceOnlyEmail(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -188,6 +196,8 @@ func TestCreateInvitation_WhitespaceOnlyEmail(t *testing.T) {
 }
 
 func TestCreateInvitation_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -200,6 +210,8 @@ func TestCreateInvitation_InvalidJSON(t *testing.T) {
 }
 
 func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
 			return &platformSvc.OperatorInvitationEmailExistsError{}
@@ -217,6 +229,8 @@ func TestCreateInvitation_EmailAlreadyExists(t *testing.T) {
 }
 
 func TestCreateInvitation_RateLimit(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
 			return &platformSvc.OperatorInvitationRateLimitError{}
@@ -235,6 +249,8 @@ func TestCreateInvitation_RateLimit(t *testing.T) {
 }
 
 func TestCreateInvitation_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
 			return errors.New("database connection error")
@@ -252,6 +268,8 @@ func TestCreateInvitation_ServiceError(t *testing.T) {
 }
 
 func TestCreateInvitation_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		inviteOperatorFn: func(_ context.Context, _ string, _ *string, _ int64, _ net.IP) error {
 			return &platformSvc.InvalidDataError{Err: errors.New("invalid email format")}
@@ -273,6 +291,8 @@ func TestCreateInvitation_InvalidData(t *testing.T) {
 // =====================================================================
 
 func TestListInvitations_Success(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	mockService := &invitationMockService{
 		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
@@ -322,6 +342,8 @@ func TestListInvitations_Success(t *testing.T) {
 }
 
 func TestListInvitations_EmptyLists(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
 			return []*platform.OperatorInvitationToken{}, nil
@@ -341,6 +363,8 @@ func TestListInvitations_EmptyLists(t *testing.T) {
 }
 
 func TestListInvitations_PendingListError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
 			return nil, errors.New("db error")
@@ -357,6 +381,8 @@ func TestListInvitations_PendingListError(t *testing.T) {
 }
 
 func TestListInvitations_OperatorsListError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		listPendingInvitationsFn: func(_ context.Context) ([]*platform.OperatorInvitationToken, error) {
 			return []*platform.OperatorInvitationToken{}, nil
@@ -380,6 +406,8 @@ func TestListInvitations_OperatorsListError(t *testing.T) {
 // =====================================================================
 
 func TestResendInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	var capturedInvitationID int64
 	mockService := &invitationMockService{
 		resendOperatorInvitationFn: func(_ context.Context, invitationID int64, actorID int64, _ net.IP) error {
@@ -400,6 +428,8 @@ func TestResendInvitation_Success(t *testing.T) {
 }
 
 func TestResendInvitation_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -413,6 +443,8 @@ func TestResendInvitation_InvalidID(t *testing.T) {
 }
 
 func TestResendInvitation_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		resendOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return &platformSvc.OperatorInvitationNotFoundError{}
@@ -429,6 +461,8 @@ func TestResendInvitation_NotFound(t *testing.T) {
 }
 
 func TestResendInvitation_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		resendOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return errors.New("unexpected error")
@@ -449,6 +483,8 @@ func TestResendInvitation_ServiceError(t *testing.T) {
 // =====================================================================
 
 func TestRevokeInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	var capturedInvitationID int64
 	mockService := &invitationMockService{
 		revokeOperatorInvitationFn: func(_ context.Context, invitationID int64, actorID int64, _ net.IP) error {
@@ -469,6 +505,8 @@ func TestRevokeInvitation_Success(t *testing.T) {
 }
 
 func TestRevokeInvitation_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -481,6 +519,8 @@ func TestRevokeInvitation_InvalidID(t *testing.T) {
 }
 
 func TestRevokeInvitation_NotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		revokeOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return &platformSvc.OperatorInvitationNotFoundError{}
@@ -497,6 +537,8 @@ func TestRevokeInvitation_NotFound(t *testing.T) {
 }
 
 func TestRevokeInvitation_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		revokeOperatorInvitationFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return errors.New("db error")
@@ -517,6 +559,8 @@ func TestRevokeInvitation_ServiceError(t *testing.T) {
 // =====================================================================
 
 func TestValidateInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	displayName := "New Op"
 	mockService := &invitationMockService{
 		validateOperatorInvitationFn: func(_ context.Context, token string) (*platform.OperatorInvitationToken, error) {
@@ -549,6 +593,8 @@ func TestValidateInvitation_Success(t *testing.T) {
 }
 
 func TestValidateInvitation_EmptyToken(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -563,6 +609,8 @@ func TestValidateInvitation_EmptyToken(t *testing.T) {
 }
 
 func TestValidateInvitation_InvalidTokenFormat(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -578,6 +626,8 @@ func TestValidateInvitation_InvalidTokenFormat(t *testing.T) {
 }
 
 func TestValidateInvitation_TokenNotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		validateOperatorInvitationFn: func(_ context.Context, _ string) (*platform.OperatorInvitationToken, error) {
 			return nil, &platformSvc.OperatorInvitationNotFoundError{}
@@ -598,6 +648,8 @@ func TestValidateInvitation_TokenNotFound(t *testing.T) {
 }
 
 func TestValidateInvitation_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -615,6 +667,8 @@ func TestValidateInvitation_InvalidJSON(t *testing.T) {
 // =====================================================================
 
 func TestAcceptInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, token, displayName, password string, _ net.IP) (*platform.Operator, error) {
 			assert.Equal(t, "550e8400-e29b-41d4-a716-446655440000", token)
@@ -654,6 +708,8 @@ func TestAcceptInvitation_Success(t *testing.T) {
 }
 
 func TestAcceptInvitation_EmptyToken(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -673,6 +729,8 @@ func TestAcceptInvitation_EmptyToken(t *testing.T) {
 }
 
 func TestAcceptInvitation_InvalidTokenFormat(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -692,6 +750,8 @@ func TestAcceptInvitation_InvalidTokenFormat(t *testing.T) {
 }
 
 func TestAcceptInvitation_EmptyDisplayName(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -712,6 +772,8 @@ func TestAcceptInvitation_EmptyDisplayName(t *testing.T) {
 }
 
 func TestAcceptInvitation_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -732,6 +794,8 @@ func TestAcceptInvitation_EmptyPassword(t *testing.T) {
 }
 
 func TestAcceptInvitation_PasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -752,6 +816,8 @@ func TestAcceptInvitation_PasswordMismatch(t *testing.T) {
 }
 
 func TestAcceptInvitation_TokenNotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
 			return nil, &platformSvc.OperatorInvitationNotFoundError{}
@@ -777,6 +843,8 @@ func TestAcceptInvitation_TokenNotFound(t *testing.T) {
 }
 
 func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
 			return nil, &platformSvc.OperatorInvitationEmailExistsError{}
@@ -802,6 +870,8 @@ func TestAcceptInvitation_EmailAlreadyExists(t *testing.T) {
 }
 
 func TestAcceptInvitation_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
 			return nil, &platformSvc.InvalidDataError{Err: errors.New("password too weak")}
@@ -825,6 +895,8 @@ func TestAcceptInvitation_InvalidData(t *testing.T) {
 }
 
 func TestAcceptInvitation_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{
 		acceptOperatorInvitationFn: func(_ context.Context, _, _, _ string, _ net.IP) (*platform.Operator, error) {
 			return nil, errors.New("unexpected error")
@@ -848,6 +920,8 @@ func TestAcceptInvitation_ServiceError(t *testing.T) {
 }
 
 func TestAcceptInvitation_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &invitationMockService{}
 	resource := operator.NewInvitationsResource(mockService)
 
@@ -865,6 +939,8 @@ func TestAcceptInvitation_InvalidJSON(t *testing.T) {
 // =====================================================================
 
 func TestCreateInvitationRequest_Bind_TrimsWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &operator.CreateInvitationRequest{Email: "  test@example.com  "}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
@@ -873,6 +949,8 @@ func TestCreateInvitationRequest_Bind_TrimsWhitespace(t *testing.T) {
 }
 
 func TestValidateInvitationRequest_Bind_ValidUUID(t *testing.T) {
+	t.Parallel()
+
 	req := &operator.ValidateInvitationRequest{Token: "550e8400-e29b-41d4-a716-446655440000"}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
@@ -880,6 +958,8 @@ func TestValidateInvitationRequest_Bind_ValidUUID(t *testing.T) {
 }
 
 func TestValidateInvitationRequest_Bind_WhitespaceToken(t *testing.T) {
+	t.Parallel()
+
 	req := &operator.ValidateInvitationRequest{Token: "  550e8400-e29b-41d4-a716-446655440000  "}
 	err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 
@@ -888,6 +968,8 @@ func TestValidateInvitationRequest_Bind_WhitespaceToken(t *testing.T) {
 }
 
 func TestAcceptInvitationRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &operator.AcceptInvitationRequest{
 		Token:           "550e8400-e29b-41d4-a716-446655440000",
 		DisplayName:     "  New Op  ",
@@ -901,6 +983,8 @@ func TestAcceptInvitationRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestAcceptInvitationRequest_Bind_WhitespaceDisplayName(t *testing.T) {
+	t.Parallel()
+
 	req := &operator.AcceptInvitationRequest{
 		Token:           "550e8400-e29b-41d4-a716-446655440000",
 		DisplayName:     "   ",

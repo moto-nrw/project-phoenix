@@ -32,6 +32,18 @@ func NewAttendanceRepository(db *bun.DB) active.AttendanceRepository {
 	}
 }
 
+func (r *AttendanceRepository) LockStudentAttendance(ctx context.Context, studentID int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 || studentID <= 0 {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: errors.New("tenant and student are required")}
+	}
+	key := fmt.Sprintf("attendance:%d:%d", tenantID, studentID)
+	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`, key); err != nil {
+		return &modelBase.DatabaseError{Op: "lock student attendance", Err: err}
+	}
+	return nil
+}
+
 // FindByStudentAndDate finds all attendance records for a student on a specific date
 func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*active.Attendance, error) {
 	var attendance []*active.Attendance
@@ -165,9 +177,12 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 }
 
 // CloseOpenForToday closes the open attendance row for the given student
-// today via a state-checked UPDATE — the WHERE check_out_time IS NULL guard
-// turns concurrent "out" calls (and "in/out" races where the in lost) into
-// no-ops at the database layer instead of corrupting the row.
+// on the caller-supplied calendar day via a state-checked UPDATE — the
+// WHERE check_out_time IS NULL guard turns concurrent "out" calls (and
+// "in/out" races where the in lost) into no-ops at the database layer
+// instead of corrupting the row. The day is a parameter, not re-derived
+// here, so a batch checkout crossing Berlin midnight stays on its snapshot
+// day (review #2372) — see the interface doc.
 //
 // Why this exists: the school-checkin handler used to route writes through
 // ToggleStudentAttendance, which read-then-flipped the state. Two concurrent
@@ -175,9 +190,7 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 // the second request's internal re-read saw the first request's commit and
 // flipped the action. Action-explicit handlers now call this method directly
 // and skip the toggle entirely.
-func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, staffID int64) (*active.Attendance, error) {
-	today := timezone.TodayDate()
-
+func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*active.Attendance, error) {
 	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
 	// sql.ErrNoRows when zero rows match, so we treat that as the
 	// idempotent "no open row" path rather than a database error.
@@ -209,6 +222,77 @@ func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID 
 		return nil, &modelBase.DatabaseError{Op: "close_open_for_today", Err: err}
 	}
 	return row, nil
+}
+
+// CreateIfNoOpenForTodayBatch is the multi-row form of CreateIfNoOpenForToday:
+// one INSERT … ON CONFLICT DO NOTHING for the whole batch, deferring to the
+// same partial unique index. Returns the student ids whose row was actually
+// inserted; conflicting students (already open attendance on that date) are
+// silently absorbed exactly like the single-row method. Rows must arrive in
+// ascending student-id order — the caller already holds the students' row
+// locks in that order, which is what makes the multi-row write deadlock-safe.
+func (r *AttendanceRepository) CreateIfNoOpenForTodayBatch(ctx context.Context, rows []*active.Attendance) ([]int64, error) {
+	if len(rows) == 0 {
+		return []int64{}, nil
+	}
+	tid := tenant.FromContext(ctx)
+	for _, row := range rows {
+		if row == nil {
+			return nil, fmt.Errorf("attendance cannot be nil")
+		}
+		if row.GetTenantID() == 0 && tid != 0 {
+			row.SetTenantID(tid)
+		}
+	}
+
+	var insertedStudentIDs []int64
+	err := base.GetDB(ctx, r.db).NewInsert().
+		Model(&rows).
+		ModelTableExpr("active.attendance").
+		On("CONFLICT (student_id, date) WHERE check_out_time IS NULL DO NOTHING").
+		Returning("student_id").
+		Scan(ctx, &insertedStudentIDs)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Every row conflicted — the whole batch was absorbed.
+			return []int64{}, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "create_if_no_open_for_today_batch", Err: err}
+	}
+	return insertedStudentIDs, nil
+}
+
+// CloseOpenForDateByStudentIDs is the multi-student form of CloseOpenForToday:
+// one state-checked UPDATE … WHERE check_out_time IS NULL over the whole
+// batch, returning only the rows that were actually closed. Students without
+// an open row on the date are idempotent no-ops and simply missing from the
+// result. The caller holds the students' row locks (ascending), which
+// serializes overlapping batches before this UPDATE runs.
+func (r *AttendanceRepository) CloseOpenForDateByStudentIDs(ctx context.Context, studentIDs []int64, now time.Time, day timezone.Date, staffID int64) ([]*active.Attendance, error) {
+	if len(studentIDs) == 0 {
+		return []*active.Attendance{}, nil
+	}
+	var closed []*active.Attendance
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*active.Attendance)(nil)).
+		ModelTableExpr("active.attendance").
+		Set("check_out_time = ?", now).
+		Set("yard_since = NULL").
+		Where("student_id IN (?)", bun.List(studentIDs)).
+		Where("date = ?", day).
+		Where("check_out_time IS NULL").
+		Returning("*")
+	if staffID > 0 {
+		q = q.Set("checked_out_by = ?", staffID)
+	}
+
+	if err := q.Scan(ctx, &closed); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return []*active.Attendance{}, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "close_open_for_date_by_student_ids", Err: err}
+	}
+	return closed, nil
 }
 
 // FindByID overrides base FindByID to match the interface signature
@@ -419,6 +503,28 @@ func (r *AttendanceRepository) HasOpenAttendanceOn(ctx context.Context, date tim
 			  AND check_out_time IS NULL
 		)
 	`, date).Scan(ctx, &exists)
+	if err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// HasAnyInRange reports whether ANY attendance row of the current tenant
+// exists between the two dates (inclusive), regardless of student. Signal for
+// "does this school record attendance at all" — a per-student lookback would
+// misreport newly enrolled or long-absent children.
+//
+// Requires a tenant tx in ctx; RLS is the only tenant scope — there is no
+// tenant_id WHERE clause, so calling without a tenant tx falls back to the
+// bare *bun.DB and would read attendance across all tenants.
+func (r *AttendanceRepository) HasAnyInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
+	var exists bool
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS(
+			SELECT 1 FROM active.attendance
+			WHERE date >= ? AND date <= ?
+		)
+	`, startDate, endDate).Scan(ctx, &exists)
 	if err != nil {
 		return false, err
 	}

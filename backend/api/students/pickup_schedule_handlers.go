@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -14,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -27,9 +30,14 @@ type PickupScheduleResponse struct {
 	WeekdayName string  `json:"weekday_name"`
 	PickupTime  string  `json:"pickup_time"` // HH:MM format
 	Notes       *string `json:"notes,omitempty"`
-	CreatedBy   int64   `json:"created_by"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	// Source marks the row's provenance: "staff" (manually maintained) or
+	// "care_offering" (booking-derived Angebots-Gehzeit).
+	Source           string  `json:"source"`
+	CareOfferingID   *string `json:"care_offering_id,omitempty"`
+	CareOfferingName string  `json:"care_offering_name,omitempty"`
+	CreatedBy        int64   `json:"created_by"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
 // PickupExceptionResponse represents a pickup exception in API responses
@@ -40,9 +48,14 @@ type PickupExceptionResponse struct {
 	PickupTime    *string `json:"pickup_time,omitempty"`
 	Reason        *string `json:"reason,omitempty"`
 	Source        string  `json:"source"` // "staff" or "guardian" (parent-set)
-	CreatedBy     int64   `json:"created_by"`
-	CreatedAt     string  `json:"created_at"`
-	UpdatedAt     string  `json:"updated_at"`
+	// ExcusedFrom (HH:MM) is the partial-absence cutoff carried by this
+	// exception; ExcusedAuto marks it as derived from a pulled-forward pickup
+	// time (#2360) rather than a manual staff decision.
+	ExcusedFrom *string `json:"excused_from,omitempty"`
+	ExcusedAuto bool    `json:"excused_auto"`
+	CreatedBy   int64   `json:"created_by"`
+	CreatedAt   string  `json:"created_at"`
+	UpdatedAt   string  `json:"updated_at"`
 }
 
 // PickupNoteResponse represents a pickup note in API responses
@@ -58,9 +71,16 @@ type PickupNoteResponse struct {
 
 // PickupDataResponse represents combined pickup data
 type PickupDataResponse struct {
-	Schedules  []PickupScheduleResponse  `json:"schedules"`
-	Exceptions []PickupExceptionResponse `json:"exceptions"`
-	Notes      []PickupNoteResponse      `json:"notes"`
+	Schedules          []PickupScheduleResponse      `json:"schedules"`
+	EffectiveSchedules []DatedPickupScheduleResponse `json:"effective_schedules,omitempty"`
+	Exceptions         []PickupExceptionResponse     `json:"exceptions"`
+	Notes              []PickupNoteResponse          `json:"notes"`
+}
+
+type DatedPickupScheduleResponse struct {
+	Date             string                  `json:"date"`
+	Schedule         *PickupScheduleResponse `json:"schedule"`
+	OfferingSchedule *PickupScheduleResponse `json:"offering_schedule"`
 }
 
 // PickupScheduleRequest represents a request to create/update a pickup schedule
@@ -72,7 +92,8 @@ type PickupScheduleRequest struct {
 
 // BulkPickupScheduleRequest represents a request to update all weekly schedules
 type BulkPickupScheduleRequest struct {
-	Schedules []PickupScheduleRequest `json:"schedules"`
+	Schedules     []PickupScheduleRequest `json:"schedules"`
+	EffectiveDate *timezone.Date          `json:"effective_date,omitempty"`
 }
 
 type BulkPickupSchedulePatchRequest struct {
@@ -180,17 +201,27 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 
 // mapScheduleToResponse converts a schedule model to API response
 func mapScheduleToResponse(s *schedule.StudentPickupSchedule) PickupScheduleResponse {
-	return PickupScheduleResponse{
-		ID:          s.ID,
-		StudentID:   s.StudentID,
-		Weekday:     s.Weekday,
-		WeekdayName: s.GetWeekdayName(),
-		PickupTime:  s.PickupTime.Format("15:04"),
-		Notes:       s.Notes,
-		CreatedBy:   s.CreatedBy,
-		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
+	resp := PickupScheduleResponse{
+		ID:               s.ID,
+		StudentID:        s.StudentID,
+		Weekday:          s.Weekday,
+		WeekdayName:      s.GetWeekdayName(),
+		PickupTime:       s.PickupTime.Format("15:04"),
+		Notes:            s.Notes,
+		Source:           s.Source,
+		CareOfferingName: s.CareOfferingName,
+		CreatedBy:        s.CreatedBy,
+		CreatedAt:        s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        s.UpdatedAt.Format(time.RFC3339),
 	}
+	if resp.Source == "" {
+		resp.Source = schedule.PickupScheduleSourceStaff
+	}
+	if s.CareOfferingID != nil {
+		id := strconv.FormatInt(*s.CareOfferingID, 10)
+		resp.CareOfferingID = &id
+	}
+	return resp
 }
 
 // mapExceptionToResponse converts an exception model to API response
@@ -201,6 +232,7 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 		ExceptionDate: e.ExceptionDate.Format(dateFormatISO),
 		Reason:        e.Reason,
 		Source:        e.Source,
+		ExcusedAuto:   e.ExcusedAuto,
 		CreatedBy:     e.CreatedBy,
 		CreatedAt:     e.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:     e.UpdatedAt.Format(time.RFC3339),
@@ -208,6 +240,10 @@ func mapExceptionToResponse(e *schedule.StudentPickupException) PickupExceptionR
 	if e.PickupTime != nil {
 		formatted := e.PickupTime.Format("15:04")
 		resp.PickupTime = &formatted
+	}
+	if e.ExcusedFrom != nil {
+		formatted := timezone.WallClock(*e.ExcusedFrom).Format("15:04")
+		resp.ExcusedFrom = &formatted
 	}
 	return resp
 }
@@ -277,9 +313,9 @@ func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
 	return staff.ID, nil
 }
 
-// requirePickupReadAccess parses the student from URL params and checks read access.
-// Respects the gdpr.student_data_scope setting: with group_supervisors_only only
-// supervisors and admins can view pickup data; with all_staff any verified staff can.
+// requirePickupReadAccess parses the student from URL params and checks read
+// access: admins and verified staff pass, guest/guardian accounts do not
+// (#2329).
 // Returns the student on success or writes an error response and returns nil.
 func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Request) *users.Student {
 	return rs.requireCareReadAccess(w, r, "pickup")
@@ -303,15 +339,25 @@ func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label s
 	return id, true
 }
 
-// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules
-// Access is controlled by the gdpr.student_data_scope tenant setting.
+// getStudentPickupSchedules handles GET /students/{id}/pickup-schedules.
+// Readable by admins and verified staff (#2329).
 func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Request) {
 	student := rs.requirePickupReadAccess(w, r)
 	if student == nil {
 		return
 	}
 
-	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	from, to, hasRange, err := pickupScheduleDateRange(r)
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var data *scheduleService.StudentPickupData
+	if hasRange {
+		data, err = rs.PickupScheduleService.GetStudentPickupDataForRange(r.Context(), student.ID, from, to)
+	} else {
+		data, err = rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	}
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -322,12 +368,36 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules retrieved successfully")
 }
 
+func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, bool, error) {
+	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
+	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
+	if fromRaw == "" && toRaw == "" {
+		return timezone.Date{}, timezone.Date{}, false, nil
+	}
+	if fromRaw == "" || toRaw == "" {
+		return timezone.Date{}, timezone.Date{}, false, errors.New("from and to must be provided together")
+	}
+	from, err := timezone.ParseDate(fromRaw)
+	if err != nil {
+		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid from date: %w", err)
+	}
+	to, err := timezone.ParseDate(toRaw)
+	if err != nil {
+		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid to date: %w", err)
+	}
+	if to.Before(from) || to.After(from.AddDays(31)) {
+		return timezone.Date{}, timezone.Date{}, false, errors.New("pickup schedule date range must span at most 32 days")
+	}
+	return from, to, true, nil
+}
+
 // buildPickupDataResponse converts service pickup data to API response
 func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupDataResponse {
 	response := PickupDataResponse{
-		Schedules:  make([]PickupScheduleResponse, 0, len(data.Schedules)),
-		Exceptions: make([]PickupExceptionResponse, 0, len(data.Exceptions)),
-		Notes:      make([]PickupNoteResponse, 0, len(data.Notes)),
+		Schedules:          make([]PickupScheduleResponse, 0, len(data.Schedules)),
+		EffectiveSchedules: make([]DatedPickupScheduleResponse, 0, len(data.EffectiveSchedules)),
+		Exceptions:         make([]PickupExceptionResponse, 0, len(data.Exceptions)),
+		Notes:              make([]PickupNoteResponse, 0, len(data.Notes)),
 	}
 
 	for _, s := range data.Schedules {
@@ -335,6 +405,21 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 	}
 	for _, e := range data.Exceptions {
 		response.Exceptions = append(response.Exceptions, mapExceptionToResponse(e))
+	}
+	for _, dated := range data.EffectiveSchedules {
+		var scheduleResponse *PickupScheduleResponse
+		if dated.Schedule != nil {
+			mapped := mapScheduleToResponse(dated.Schedule)
+			scheduleResponse = &mapped
+		}
+		var offeringResponse *PickupScheduleResponse
+		if dated.OfferingSchedule != nil {
+			mapped := mapScheduleToResponse(dated.OfferingSchedule)
+			offeringResponse = &mapped
+		}
+		response.EffectiveSchedules = append(response.EffectiveSchedules, DatedPickupScheduleResponse{
+			Date: dated.Date.String(), Schedule: scheduleResponse, OfferingSchedule: offeringResponse,
+		})
 	}
 	for _, n := range data.Notes {
 		response.Notes = append(response.Notes, mapNoteToResponse(n))
@@ -379,10 +464,10 @@ func (rs *Resource) broadcastPickupScheduleChanged(tenantID, studentID int64) {
 	}
 
 	// No student_id on the payload — deliberately, for GDPR. This is a
-	// TENANT-WIDE broadcast: every staff client in the school receives it,
-	// including those who under gdpr.student_data_scope=group_supervisors_only
-	// may NOT read this child. A student_id in that raw SSE stream would leak
-	// which children have pickup-plan activity to staff outside their scope.
+	// TENANT-WIDE broadcast: every staff client in the school receives it. A
+	// student_id in that raw SSE stream would leak which children have
+	// pickup-plan activity to clients without student read access
+	// (guest/guardian, #2329).
 	// The rule this follows: only GROUP-topic events (student_checkin/checkout
 	// via BroadcastToGroup, whose audience is already the child's room) may
 	// carry the id; tenant-wide staff events must not — the arrival sibling is
@@ -432,7 +517,11 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
+		date := timezone.TodayDate()
+		if req.EffectiveDate != nil {
+			date = *req.EffectiveDate
+		}
+		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedulesForDate(ctx, student.ID, date, schedules)
 	}); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -550,10 +639,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 	// commit: the service write runs in a nested tx that only REUSES the tx opened
 	// by TenantTxMiddleware and has NOT committed on return, so a woken client
 	// would otherwise refetch the pre-commit snapshot — or be woken for a write a
-	// later 5xx rolls back (#1725 review).
+	// later 5xx rolls back (#1725 review). broadcastStudentUpdated mirrors the
+	// manual partial-absence handlers: a pulled-forward pickup time may have
+	// auto-excused the child's later blocks (#2360), so student views refetch.
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
@@ -604,10 +696,12 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	// Wake the child's guardians so the "Heute" pickup tile reflects the edited
 	// override live; defer to the outer request tx's commit (see the create path
 	// above — the service write runs in a nested tx, not committed on return)
-	// (#1725 review).
+	// (#1725 review). broadcastStudentUpdated: the edit may have applied or
+	// released an auto excusal on the child's blocks (#2360).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
@@ -654,9 +748,12 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	// Wake the child's guardians so the "Heute" pickup tile drops the removed
 	// override live; defer to the outer request tx's commit (nested handler
 	// WithTenantTx is not committed on return) (#1725 review).
+	// broadcastStudentUpdated: the delete may have released auto-excused
+	// blocks back to expected (#2360).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		rs.broadcastStudentUpdated(tenantID, student.ID)
 	})
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
@@ -850,47 +947,71 @@ func mapBulkPickupTimeResponse(
 }
 
 // filterAuthorizedStudentIDs filters the requested student IDs to only those
-// the current user has read access to. Respects the gdpr.student_data_scope
-// setting: admins see all, all_staff scope lets any verified staff see all,
-// otherwise only students in the user's supervised groups are returned.
+// the current user has read access to: admins and verified staff see all
+// requested students, every other caller none (#2329).
 func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []int64) ([]int64, error) {
-	accessCtx := rs.determineStudentAccess(r)
-
-	// Admins and all_staff scope see all requested students
-	if accessCtx.IsAdmin || accessCtx.AllStaffScope {
+	if rs.determineStudentAccess(r).HasFullAccess() {
 		return requestedIDs, nil
 	}
+	return []int64{}, nil
+}
 
-	// No supervised groups → no access
-	if len(accessCtx.MyGroupIDs) == 0 {
-		return []int64{}, nil
+// ResetOfferingPickupRequest selects the weekday to reset onto the
+// Angebots-Gehzeit (#2290).
+type ResetOfferingPickupRequest struct {
+	Weekday int    `json:"weekday"`
+	Date    string `json:"date"`
+	date    timezone.Date
+}
+
+func (r *ResetOfferingPickupRequest) Bind(_ *http.Request) error {
+	if r.Weekday < schedule.WeekdayMonday || r.Weekday > schedule.WeekdayFriday {
+		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
-
-	// Extract group IDs from access context
-	groupIDs := make([]int64, 0, len(accessCtx.MyGroupIDs))
-	for gid := range accessCtx.MyGroupIDs {
-		groupIDs = append(groupIDs, gid)
-	}
-
-	// Get all students in these groups
-	students, err := rs.PersonService.GetStudentsByGroupIDs(r.Context(), groupIDs)
+	date, err := timezone.ParseDate(strings.TrimSpace(r.Date))
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("date must be YYYY-MM-DD: %w", err)
 	}
-
-	// Build set of authorized student IDs for O(1) lookup
-	authorizedSet := make(map[int64]struct{}, len(students))
-	for _, student := range students {
-		authorizedSet[student.ID] = struct{}{}
+	if int(date.Weekday()) != r.Weekday {
+		return errors.New("date does not match weekday")
 	}
+	r.date = date
+	return nil
+}
 
-	// Filter requested IDs to only authorized ones
-	filtered := make([]int64, 0, len(requestedIDs))
-	for _, id := range requestedIDs {
-		if _, ok := authorizedSet[id]; ok {
-			filtered = append(filtered, id)
-		}
+// resetStudentPickupToOffering handles
+// POST /students/{id}/pickup-schedules/reset-offering: the weekday's Gehzeit
+// goes back to the Angebots-Gehzeit that applies on the requested date.
+func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.Request) {
+	student := rs.requirePickupWriteAccess(w, r, "reset pickup schedule to offering")
+	if student == nil {
+		return
 	}
-
-	return filtered, nil
+	svc, ok := rs.EnrollmentDecision.(enrollmentService.OfferingPickupTimeService)
+	if rs.EnrollmentDecision == nil || !ok {
+		renderError(w, r, common.ErrorInternalServer(errors.New("offering pickup service not configured")))
+		return
+	}
+	req := &ResetOfferingPickupRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	tenantID := tenant.FromContext(r.Context())
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return svc.ResetStudentPickupDayToOffering(ctx, student.ID, req.date)
+	}); err != nil {
+		renderError(w, r, pickupResetErrorRenderer(err))
+		return
+	}
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+	})
+	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, buildPickupDataResponse(data), "Pickup schedule reset to offering")
 }

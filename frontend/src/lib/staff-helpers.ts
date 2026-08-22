@@ -49,6 +49,11 @@ const ABSENCE_LOCATIONS = new Set([
   "Fortbildung",
   "Freizeitausgleich",
 ]);
+// Every label the badge can show BECAUSE of an absence — the gray set above
+// plus "Abwesend", which is what an absence of type "other" resolves to (and
+// also what "not clocked in at all" resolves to, hence the second condition
+// below).
+const ABSENCE_BADGE_LABELS = new Set([...ABSENCE_LOCATIONS, "Abwesend"]);
 const ABSENCE_COLOR: LocationColorConfig = [
   "from-gray-50/80 to-slate-100/80",
   MOTO_COLOR_PALETTE.neutral.base,
@@ -71,16 +76,28 @@ function buildLocationStatus(
 // Get location status for a staff member based on their clock-in status
 export function getStaffLocationStatus(staff: Staff): LocationStatus {
   const location = staff.currentLocation ?? "Abwesend";
+  // #2403: an absence filed under a school-defined Abwesenheitsart shows that
+  // name on the badge. Only the LABEL changes — the color and `currentLocation`
+  // itself stay the standard type's, so the "Abwesend" location filter and the
+  // absence styling keep working unchanged.
+  // Both conditions are needed: the badge must currently be showing an absence
+  // (not "Anwesend"/"Homeoffice", which outrank it), and there must be a
+  // school-defined wording to show — an empty one means a plain "not clocked
+  // in", which keeps reading "Abwesend".
+  const label =
+    staff.absenceTypeLabel && ABSENCE_BADGE_LABELS.has(location)
+      ? staff.absenceTypeLabel
+      : location;
 
   // Check direct matches first (Abwesend, Anwesend, Homeoffice)
   const directMatch = LOCATION_COLORS[location];
   if (directMatch) {
-    return buildLocationStatus(location, directMatch);
+    return buildLocationStatus(label, directMatch);
   }
 
   // Absence types get gray styling.
   if (ABSENCE_LOCATIONS.has(location)) {
-    return buildLocationStatus(location, ABSENCE_COLOR);
+    return buildLocationStatus(label, ABSENCE_COLOR);
   }
 
   // Any other location (in a room, supervising) means they're present → green
@@ -93,10 +110,13 @@ const ROLE_DISPLAY_NAMES: Record<string, string> = {
   user: "Betreuer",
   guest: "Gast",
   guardian: "Erziehungsberechtigte/r",
+  lehrkraft: "Lehrkraft",
 };
 
+// Role names are stored lowercase in auth.roles; lowercase before the lookup so
+// a raw system role name never reaches the UI in its stored spelling.
 function formatAccountRole(role: string): string {
-  return ROLE_DISPLAY_NAMES[role] ?? role;
+  return ROLE_DISPLAY_NAMES[role.toLowerCase()] ?? role;
 }
 
 // Get a display-friendly role/type for staff

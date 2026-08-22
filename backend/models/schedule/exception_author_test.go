@@ -16,6 +16,8 @@ import (
 // TestStudentPickupException_Validate cases; these add the guardian + invalid
 // branches.
 func TestStudentPickupException_Validate_Author(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 6, 15)
 	pickup := time.Date(2026, 6, 15, 14, 30, 0, 0, time.UTC)
 	guardian := int64(42)
@@ -100,6 +102,8 @@ func TestStudentPickupException_Validate_Author(t *testing.T) {
 // the arrival leg — both models share validateExceptionAuthor, but each model's
 // Validate is a separate call site.
 func TestStudentArrivalException_Validate_Author(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, 6, 15)
 	arrival := time.Date(2026, 6, 15, 8, 15, 0, 0, time.UTC)
 	guardian := int64(42)

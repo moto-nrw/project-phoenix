@@ -5,7 +5,10 @@ import { useSession } from "next-auth/react";
 
 import { EntryPointCard } from "~/components/help/guide-components";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { Loading } from "~/components/ui/loading";
+import {
+  SkeletonRegion,
+  CardGridSkeleton,
+} from "~/components/ui/page-skeletons";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -48,9 +51,10 @@ function ElternContent() {
   // every /api/parent-announcements route). Same rule as the sidebar entry.
   const canAnnounce = hasPermission(session, "admin:*");
 
-  if (status === "loading") {
-    return <Loading fullPage={false} />;
-  }
+  // Auth-loading joins the showSkeleton flag instead of an early return
+  // before the header, so the real PageHeaderWithSearch and intro copy
+  // render immediately and only the card grid skeletonizes.
+  const showSkeleton = status === "loading";
 
   const cards: readonly ElternCard[] = [
     {
@@ -69,14 +73,8 @@ function ElternContent() {
       points: ["Neue Anfragen prüfen", "Konten bestätigen"],
       show: userIsAdmin,
     },
-    {
-      href: "/admin/change-requests",
-      title: "Änderungsanfragen",
-      body: "Wünsche der Eltern zu Betreuungszeiten und Stammdaten bearbeiten.",
-      concept: "changeHistory",
-      points: ["Betreuungszeiten anpassen", "Stammdaten aktualisieren"],
-      show: userIsAdmin || hasPermission(session, "users:update"),
-    },
+    // Die Elternanfragen-Kachel ist entfallen: die Freigabeansicht lebt seit
+    // #2429 im Top-Level-Modul "Anfragen" (eigener Sidebar-Eintrag).
     {
       href: "/parent-announcements",
       title: "Elternmitteilungen",
@@ -112,31 +110,49 @@ function ElternContent() {
           </p>
           <p className="mt-3 text-base leading-7 text-gray-600">
             Alles rund um die Kommunikation mit den Eltern an einem Ort.
-            Nachrichten, Anfragen, Mitteilungen und der Essensplan.
+            Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleCards.map((card) => (
-            <EntryPointCard
-              key={card.href}
-              href={tenantPath(card.href)}
-              title={card.title}
-              body={card.body}
-              concept={card.concept}
-              iconTone="blue"
-              points={card.points}
-            />
-          ))}
-        </div>
+        {showSkeleton ? (
+          <ElternCardsSkeleton />
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {visibleCards.map((card) => (
+              <EntryPointCard
+                key={card.href}
+                href={tenantPath(card.href)}
+                title={card.title}
+                body={card.body}
+                concept={card.concept}
+                iconTone="blue"
+                points={card.points}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+/**
+ * Data-region skeleton: just the entry-point card grid. The real header
+ * (PageHeaderWithSearch on mobile, intro copy on desktop) renders
+ * immediately regardless of loading state — only this data-bound region
+ * skeletonizes while the session/settings load.
+ */
+function ElternCardsSkeleton() {
+  return (
+    <SkeletonRegion label="Elternbereich wird geladen…">
+      <CardGridSkeleton cards={4} rowsPerCard={2} />
+    </SkeletonRegion>
+  );
+}
+
 export default function ElternPage() {
   return (
-    <Suspense fallback={<Loading fullPage={false} />}>
+    <Suspense fallback={<ElternCardsSkeleton />}>
       <ElternContent />
     </Suspense>
   );

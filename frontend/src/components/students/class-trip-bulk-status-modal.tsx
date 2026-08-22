@@ -16,6 +16,7 @@ import {
   type StudentStatusDay,
   type StudentStatusKind,
   StudentStatusDayConflictError,
+  StudentStatusDayPartialAbsenceConflictError,
 } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
@@ -81,6 +82,10 @@ export function ClassTripBulkStatusModal({
       onSuccess?.();
       onClose();
     } catch (err) {
+      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
+        toastError(err.message);
+        return;
+      }
       if (err instanceof StudentStatusDayConflictError) {
         setConflicts(err.conflicts);
         setConflictTotal(err.totalCount);

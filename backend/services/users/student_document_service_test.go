@@ -7,9 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,50 +31,30 @@ type studentDocumentScenario struct {
 	groupID   int64
 }
 
-// stubDocumentUserContext answers the supervision question the document
-// service asks. It reports exactly the groups it was built with, so a test can
-// put the caller inside or outside the child's group.
+// stubDocumentUserContext answers the only identity question the document
+// service asks since #2329: does the caller hold a staff record in this tenant.
+// A nil staff models a guest or guardian account — which children a staff
+// member may reach is no longer a group question.
 type stubDocumentUserContext struct {
-	supervisedGroupIDs []int64
+	staff *userModels.Staff
 }
 
 func (s stubDocumentUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (s stubDocumentUserContext) GetMyGroups(context.Context) ([]*educationModels.Group, error) {
-	groups := make([]*educationModels.Group, 0, len(s.supervisedGroupIDs))
-	for _, id := range s.supervisedGroupIDs {
-		group := &educationModels.Group{}
-		group.ID = id
-		groups = append(groups, group)
-	}
-	return groups, nil
-}
-
-func (s stubDocumentUserContext) GetMyActiveGroups(context.Context) ([]*activeModels.Group, error) {
-	return nil, nil
+	return s.staff, nil
 }
 
 func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	suffix := time.Now().UnixNano()
 	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("Dokumente-Gruppe-%d", suffix))
 	student := testpkg.CreateTestStudent(t, db, "Dokumente", fmt.Sprintf("Kind-%d", suffix), "1a")
-	// A child without a group is reachable only by admins, so the fixture has
-	// to sit in one for the supervisor cases to mean anything.
+	// The child sits in a group so the fixture keeps modelling the ordinary
+	// case; since #2329 the group no longer takes part in the access decision.
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
-	t.Cleanup(func() {
-		cleanupStudentDocumentRows(t, db, student.ID)
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
-		testpkg.CleanupTableRecords(t, db, "education.groups", group.ID)
-	})
 
 	repos := repositories.NewFactory(db)
 	svc := usersSvc.NewStudentDocumentService(
@@ -85,7 +63,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{group.ID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 
@@ -97,17 +75,6 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 		account:   account.ID,
 		groupID:   group.ID,
 	}
-}
-
-func cleanupStudentDocumentRows(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-	ctx := context.Background()
-	_, err := db.ExecContext(ctx, `DELETE FROM users.student_documents WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM users.student_document_file_cleanup WHERE owner_id = ?`, studentID)
-	require.NoError(t, err)
-	_, err = db.ExecContext(ctx, `DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID)
-	require.NoError(t, err)
 }
 
 func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumentActor {
@@ -181,6 +148,8 @@ func studentDocumentCategoriesOf(docs []*userModels.StudentDocument) []string {
 }
 
 func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	office := s.actor("users:update")
@@ -245,6 +214,8 @@ func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
 }
 
 func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	office := s.actor("users:update")
@@ -290,6 +261,8 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 }
 
 func TestStudentDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -329,6 +302,8 @@ func TestStudentDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 // object is written and is settled by the metadata transaction, so a
 // successful upload leaves nothing for the cleanup scheduler to delete.
 func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -352,6 +327,8 @@ func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
 // deletion path. Documents cascade away with the child, so the intents queued
 // here are the only thing left that can get the bytes off disk.
 func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -370,15 +347,17 @@ func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
 	assert.Contains(t, names, second.FilenameStored)
 }
 
-// TestStudentDocumentService_ForeignChildIsUnreachable covers the per-child
+// TestStudentDocumentService_NonStaffCallerIsUnreachable covers the per-child
 // gate. The route permissions only say the caller may open documents at all;
-// which children they may open is a separate question, and without this every
-// group supervisor holding users:update could read and delete the paperwork of
-// every child in the school.
-func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
+// whether the caller is staff of this tenant is a separate question, and
+// without this a guest or guardian account holding users:update could read and
+// delete the paperwork of every child in the school.
+func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
-	// Same permissions, but supervising a different group.
+	// Same permissions, but no staff record in the tenant.
 	repos := repositories.NewFactory(s.db)
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
@@ -386,7 +365,7 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID + 100_000}},
+		stubDocumentUserContext{},
 		nil,
 	)
 
@@ -410,7 +389,7 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
 
-	// An admin reaches every child regardless of supervision — that is the
+	// An admin reaches every child without a staff record at all — that is the
 	// office role the tab exists for.
 	adminDocs, _, err := outsider.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
 	require.NoError(t, err)
@@ -425,6 +404,8 @@ func TestStudentDocumentService_ForeignChildIsUnreachable(t *testing.T) {
 // Attest_Epilepsie.pdf" in the Historie tab while the Dokumente tab hides that
 // very document.
 func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	s.create(t, userModels.StudentDocumentCategoryAttest, s.actor("student_documents:health"))
@@ -459,6 +440,8 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 // unlogged upload or deletion of a child's paperwork is worse than a failed
 // request.
 func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	repos := repositories.NewFactory(s.db)
 	unaudited := usersSvc.NewStudentDocumentService(
@@ -467,7 +450,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 		repos.Student,
 		nil,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 	office := s.actor("users:update")
@@ -494,7 +477,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 		repos.Student,
 		repos.StudentFieldEdit,
 		nil,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID}},
+		stubDocumentUserContext{staff: &userModels.Staff{}},
 		nil,
 	)
 	health := s.actor("student_documents:health")
@@ -513,6 +496,8 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 // the audit contract: every write and every logged download has to name the
 // person who performed it, so an anonymous actor is refused up front.
 func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 	anonymous := usersSvc.StudentDocumentActor{Permissions: []string{"admin:*"}}
@@ -542,6 +527,8 @@ func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
 // blank cannot be identified in the UI, and a category outside the enum would
 // map to the weakest of the three permissions.
 func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -577,10 +564,13 @@ func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
 	assert.Empty(t, docs)
 }
 
-// TestStudentDocumentService_UnknownChildAndGrouplessChild covers the two ways
-// the per-child gate closes for a non-admin: the child does not exist, or the
-// child sits in no group and therefore has no supervisor to be.
+// TestStudentDocumentService_UnknownChildAndGrouplessChild covers the two ends
+// of the per-child gate for a non-admin staff caller: an unknown child is
+// refused, while a child without an education group is ordinary paperwork
+// (#2329 — group-less children used to be admin-only territory).
 func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
@@ -588,13 +578,10 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 	require.Error(t, err, "an unknown child must not read as an empty document list")
 
 	groupless := testpkg.CreateTestStudent(t, s.db, "Ohne", fmt.Sprintf("Gruppe-%d", time.Now().UnixNano()), "1c")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, groupless.ID) })
 
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.NoError(t, err, "a staff member reaches a child that has no group yet")
 
-	// An admin still reaches them — the office role is exactly who handles a
-	// child that is not assigned to a group yet.
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, groupless.ID, "", s.actor("admin:*"))
 	require.NoError(t, err)
 }
@@ -604,6 +591,8 @@ func TestStudentDocumentService_UnknownChildAndGrouplessChild(t *testing.T) {
 // and it has to apply the same category authority the tab does — otherwise
 // "retry the cleanup" becomes a way to confirm that a document exists.
 func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 	health := s.actor("student_documents:health")
@@ -642,6 +631,8 @@ func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
 // coordinator retires an intent: by ID after the scheduler unlinked the object,
 // and by stored name when the upload that owns it committed.
 func TestStudentDocumentService_SettlesIntentsByIDAndName(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 
 	byName := fmt.Sprintf("settle-name-%d.pdf", time.Now().UnixNano())
@@ -677,6 +668,8 @@ func TestStudentDocumentService_SettlesIntentsByIDAndName(t *testing.T) {
 // actor whose display name never reached the service. The trail must still say
 // who acted, and "" in a history column reads as a bug rather than as a person.
 func TestStudentDocumentService_AuditNamesAnUnknownActor(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	nameless := usersSvc.StudentDocumentActor{
 		AccountID:   s.account,
@@ -710,11 +703,13 @@ func cleanupNamesOf(cleanups []*userModels.StudentDocumentFileCleanup) []string 
 // upload handler relies on: it must answer before any byte or cleanup row
 // exists, and it must answer the same way the transaction later does.
 func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
+	t.Parallel()
+
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
 
-	// Wrong category for these permissions, unknown category, and a child the
-	// caller supervises nothing of — all refused up front.
+	// Wrong category for these permissions, unknown category, and a caller
+	// without a staff record — all refused up front.
 	require.ErrorIs(t,
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, office),
 		usersSvc.ErrStudentDocumentForbidden)
@@ -729,7 +724,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 		repos.Student,
 		repos.StudentFieldEdit,
 		repos.DataAccessLog,
-		stubDocumentUserContext{supervisedGroupIDs: []int64{s.groupID + 100_000}},
+		stubDocumentUserContext{},
 		nil,
 	)
 	require.ErrorIs(t,

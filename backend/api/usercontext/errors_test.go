@@ -11,6 +11,8 @@ import (
 )
 
 func TestErrorRenderer_Unauthorized(t *testing.T) {
+	t.Parallel()
+
 	ucErr := &usercontextSvc.UserContextError{Err: usercontextSvc.ErrUserNotAuthenticated}
 	renderer := usercontext.ErrorRenderer(ucErr)
 	// ErrorUnauthorized returns common.ErrResponse from api/common
@@ -22,6 +24,8 @@ func TestErrorRenderer_Unauthorized(t *testing.T) {
 }
 
 func TestErrorRenderer_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	ucErr := &usercontextSvc.UserContextError{Err: usercontextSvc.ErrUserNotAuthorized}
 	renderer := usercontext.ErrorRenderer(ucErr)
 	resp, ok := renderer.(interface {
@@ -32,6 +36,8 @@ func TestErrorRenderer_Forbidden(t *testing.T) {
 }
 
 func TestErrorRenderer_NotFoundErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		baseErr error
@@ -58,6 +64,8 @@ func TestErrorRenderer_NotFoundErrors(t *testing.T) {
 }
 
 func TestErrorRenderer_BadRequest(t *testing.T) {
+	t.Parallel()
+
 	ucErr := &usercontextSvc.UserContextError{Err: usercontextSvc.ErrInvalidOperation}
 	renderer := usercontext.ErrorRenderer(ucErr)
 	resp, ok := renderer.(interface {
@@ -68,6 +76,8 @@ func TestErrorRenderer_BadRequest(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownUserContextError(t *testing.T) {
+	t.Parallel()
+
 	ucErr := &usercontextSvc.UserContextError{Err: errors.New("unknown error")}
 	renderer := usercontext.ErrorRenderer(ucErr)
 	resp, ok := renderer.(interface {
@@ -78,6 +88,8 @@ func TestErrorRenderer_UnknownUserContextError(t *testing.T) {
 }
 
 func TestErrorRenderer_NonUserContextError(t *testing.T) {
+	t.Parallel()
+
 	plainErr := errors.New("generic error")
 	renderer := usercontext.ErrorRenderer(plainErr)
 	resp, ok := renderer.(interface {

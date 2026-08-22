@@ -8,6 +8,8 @@ import (
 )
 
 func TestRegisterAfterRollback_QueuesAndRunsOnRollback(t *testing.T) {
+	t.Parallel()
+
 	ctx, hooks := withAfterRollbackHooks(context.Background())
 	called := false
 
@@ -20,6 +22,8 @@ func TestRegisterAfterRollback_QueuesAndRunsOnRollback(t *testing.T) {
 }
 
 func TestRegisterAfterRollback_NoTransactionIsNoop(t *testing.T) {
+	t.Parallel()
+
 	called := false
 
 	RegisterAfterRollback(context.Background(), func() { called = true })
@@ -28,6 +32,8 @@ func TestRegisterAfterRollback_NoTransactionIsNoop(t *testing.T) {
 }
 
 func TestRegisterAfterRollback_NilCallbackIsIgnored(t *testing.T) {
+	t.Parallel()
+
 	ctx, hooks := withAfterRollbackHooks(context.Background())
 
 	RegisterAfterRollback(ctx, nil)
@@ -37,6 +43,8 @@ func TestRegisterAfterRollback_NilCallbackIsIgnored(t *testing.T) {
 }
 
 func TestWithAfterRollbackHooks_NestedCallsShareOneQueue(t *testing.T) {
+	t.Parallel()
+
 	outer, outerHooks := withAfterRollbackHooks(context.Background())
 	inner, innerHooks := withAfterRollbackHooks(outer)
 
@@ -52,5 +60,7 @@ func TestWithAfterRollbackHooks_NestedCallsShareOneQueue(t *testing.T) {
 }
 
 func TestRunAfterRollbackHooks_NilQueueIsNoop(t *testing.T) {
+	t.Parallel()
+
 	assert.NotPanics(t, func() { runAfterRollbackHooks(nil) })
 }

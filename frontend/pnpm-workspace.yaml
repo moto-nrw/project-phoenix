@@ -12,6 +12,12 @@ trustPolicy: no-downgrade
 # every next-auth bump.
 trustPolicyExclude:
   - next-auth@5.0.0-beta.32
+  # semver 6.3.1 (2023-07-10) is the official npm-team ReDoS backport for the 6.x
+  # line (CVE-2022-25883) and predates provenance on that branch. The check
+  # compares publish dates across ALL majors, and the parallel 7.5.x releases
+  # (May/June 2023) already had SLSA provenance, so the backport is flagged as a
+  # downgrade. Known pnpm false positive (pnpm/pnpm#10202, discussion #11084).
+  - semver@6.3.1
 
 onlyBuiltDependencies:
   - esbuild
@@ -22,15 +28,13 @@ overrides:
   "@radix-ui/react-focus-scope": ^1.1.12
   "picomatch@<2.3.2": 2.3.2
   "picomatch@>=4 <4.0.4": 4.0.4
-  "postcss@<8.5.18": 8.5.18
+  "postcss@<8.5.23": 8.5.23
   "smol-toml@<1.6.1": 1.6.1
-  "dompurify@<=3.4.11": 3.4.12
-  "undici@>=7.0.0 <7.28.0": 7.28.0
-  "fast-uri@>=3.0.0 <3.1.4": 3.1.4
-  "brace-expansion@>=4.0.0 <5.0.8": 5.0.8
-  # next 16.2.x still declares sharp ^0.34.5; next 16.3.0 moved to ^0.35.3.
-  # Drop this once we are on 16.3.x.
-  "sharp@<0.35.0": ^0.35.3
+  "nanoid@<3.3.18": 3.3.18
+  "dompurify@<=3.4.12": 3.4.13
+  "undici@>=7.0.0 <7.29.0": 7.29.0
+  "fast-uri@>=3.0.0 <3.1.5": 3.1.5
+  "brace-expansion@>=4.0.0 <5.0.9": 5.0.9
 
 peerDependencyRules:
   allowedVersions:

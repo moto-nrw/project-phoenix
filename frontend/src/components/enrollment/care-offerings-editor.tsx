@@ -8,6 +8,7 @@ import {
   type CareOffering,
   type CareOfferingInput,
   type CareOfferingAvailabilityCondition,
+  type CareOfferingAvailabilityRule,
   type CareSelectionRule,
   type DaysOfWeekMode,
   SELECTION_RULE_LABELS,
@@ -17,7 +18,22 @@ import {
   listCareOfferings,
   updateCareOffering,
 } from "~/lib/care-offering-api";
-import { careOfferingAvailabilityRuleError } from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingGradeCounts,
+  careOfferingAvailabilityRuleError,
+  careOfferingRuleExcludesNobody,
+  careOfferingRuleGradeLevels,
+  careOfferingIsAvailable,
+  countCareOfferingRuleConflicts,
+  describeCareOfferingAvailabilityRule,
+  formatGradeLevelList,
+  gradeNoun,
+} from "~/lib/care-offering-availability";
+import {
+  type CareOfferingBookingStats,
+  fetchCareOfferingBookingStats,
+} from "~/lib/care-offering-booking-stats";
+import { SectionCard } from "~/components/ui/section-card";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -40,6 +56,7 @@ import {
 import { CustomSelect } from "~/components/ui/custom-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { FeaturePill } from "~/components/enrollment/feature-pill";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { formatOfferingPrice } from "~/lib/care-offering-format";
 
 const logger = createLogger({ component: "CareOfferingsEditor" });
@@ -92,6 +109,23 @@ const INACTIVE_TEMPLATE_PERIOD_MESSAGE =
 const CARE_OFFERING_DAYS_REQUIRED_MESSAGE =
   "Bitte wähle mindestens einen Wochentag für das Angebot aus.";
 
+function missingRequiredPickupDays(offering: {
+  is_active: boolean;
+  counts_as_care?: boolean;
+  available_days: string[];
+  pickup_times?: Record<string, string> | null;
+}): string[] {
+  if (!offering.is_active || offering.counts_as_care === false) return [];
+  return offering.available_days.filter(
+    (day) => WEEKDAY_KEYS.includes(day) && !offering.pickup_times?.[day],
+  );
+}
+
+function missingPickupTimesMessage(days: string[]): string {
+  const labels = days.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return `Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein: ${labels}.`;
+}
+
 type PlannerMetadataStatus = "loading" | "ready" | "unavailable";
 type TemplateCompatibility = "compatible" | "incompatible" | "unknown";
 
@@ -119,6 +153,7 @@ function blankInput(phaseId: number): CareOfferingInput {
     sort_order: 0,
     selection_group: "",
     selection_rule: "optional",
+    pickup_times: {},
   };
 }
 
@@ -147,6 +182,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     sort_order: offering.sort_order,
     selection_group: offering.selection_group ?? "",
     selection_rule: offering.selection_rule ?? "optional",
+    pickup_times: { ...(offering.pickup_times ?? {}) },
   };
 }
 
@@ -380,6 +416,13 @@ export function CareOfferingsEditor() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  // Booking stats are display-only (#2186): the availability-rule editor uses
+  // them to say how many existing bookings a rule would contradict. A failure
+  // to load them must never block catalog editing, so it is logged and the
+  // hint simply stays absent.
+  const [bookingStats, setBookingStats] = useState<
+    Record<string, CareOfferingBookingStats>
+  >({});
   const toast = useToast();
 
   const hasNoPhases = phases.length === 0;
@@ -393,6 +436,51 @@ export function CareOfferingsEditor() {
     if (offering.capacity == null) return sum;
     return sum + offering.capacity;
   }, 0);
+  const autoAddRules = useMemo(() => {
+    const offeringsById = new Map(
+      offerings.map((offering) => [offering.id, offering]),
+    );
+    return offerings
+      .filter((offering) => offering.is_active)
+      .flatMap((target) =>
+        [...new Set(target.auto_add_trigger_offering_ids ?? [])].flatMap(
+          (triggerId) => {
+            const trigger = offeringsById.get(triggerId);
+            // Eltern sehen nur aktive Angebote; Regeln an oder von inaktiven
+            // Angeboten können nicht greifen und bleiben hier draußen.
+            if (!trigger?.is_active) return [];
+            const autoAddGrades = target.auto_add_grade_levels ?? [];
+            const unrestricted =
+              autoAddGrades.length === 0 &&
+              careOfferingRuleExcludesNobody(
+                target.availability_rule,
+                gradeLevelMax ?? undefined,
+              );
+            const applicableGrades = autoAddGrades.length
+              ? autoAddGrades.filter((grade) =>
+                  careOfferingIsAvailable(target, grade),
+                )
+              : unrestricted
+                ? []
+                : careOfferingRuleGradeLevels(
+                    target.availability_rule,
+                    gradeLevelMax ?? undefined,
+                  );
+            if (!unrestricted && applicableGrades.length === 0) return [];
+            const grades = formatGradeLevelList(applicableGrades);
+            const gradeSuffix = grades
+              ? ` (${gradeNoun(applicableGrades)} ${grades})`
+              : "";
+            return [
+              {
+                key: `${target.id}-${trigger.id}`,
+                sentence: `„${target.name}“ wird automatisch mitgebucht, wenn „${trigger.name}“ gewählt wird${gradeSuffix}.`,
+              },
+            ];
+          },
+        ),
+      );
+  }, [offerings, gradeLevelMax]);
 
   const loadPlannerMetadata = useCallback(async () => {
     const requestSeq = ++metadataLoadSeq.current;
@@ -462,6 +550,28 @@ export function CareOfferingsEditor() {
     return invalidateLoads;
   }, [invalidateLoads, loadAll]);
 
+  useEffect(() => {
+    if (!selectedPhaseId) {
+      setBookingStats({});
+      return;
+    }
+    let cancelled = false;
+    void fetchCareOfferingBookingStats(selectedPhaseId)
+      .then((stats) => {
+        if (!cancelled) setBookingStats(stats);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setBookingStats({});
+        logger.warn("care_offering_booking_stats_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPhaseId, offerings]);
+
   const beginCreate = () => {
     if (!selectedPhaseId) return;
     setDraft(blankInput(Number(selectedPhaseId)));
@@ -489,6 +599,13 @@ export function CareOfferingsEditor() {
     if (draft.available_days.length === 0) {
       setError(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
       toast.error(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
+      return;
+    }
+    const missingPickupDays = missingRequiredPickupDays(draft);
+    if (missingPickupDays.length > 0) {
+      const message = missingPickupTimesMessage(missingPickupDays);
+      setError(message);
+      toast.error(message);
       return;
     }
     const originalActivityGroupID =
@@ -542,11 +659,11 @@ export function CareOfferingsEditor() {
     setError(null);
     try {
       if (editingId === "new") {
-        const created = await createCareOffering(draft);
-        toast.success(`Betreuungsangebot „${created.name}" erstellt.`);
+        const savedOffering = await createCareOffering(draft);
+        toast.success(`Betreuungsangebot „${savedOffering.name}" erstellt.`);
       } else if (editingId) {
-        const updated = await updateCareOffering(editingId, draft);
-        toast.success(`Betreuungsangebot „${updated.name}" gespeichert.`);
+        const savedOffering = await updateCareOffering(editingId, draft);
+        toast.success(`Betreuungsangebot „${savedOffering.name}" gespeichert.`);
       }
       cancelFocusMode();
       await loadAll();
@@ -662,6 +779,13 @@ export function CareOfferingsEditor() {
             {(offering.auto_add_trigger_offering_ids?.length ?? 0) > 0 ? (
               <FeaturePill label="Wird mitgebucht" />
             ) : null}
+            {missingRequiredPickupDays(offering).length > 0 ? (
+              <StatusBadge label="Gehzeiten fehlen" tone="orange" />
+            ) : null}
+            <AvailabilityRulePill
+              rule={offering.availability_rule}
+              gradeLevelMax={gradeLevelMax}
+            />
           </div>
         ),
       },
@@ -716,16 +840,8 @@ export function CareOfferingsEditor() {
         ),
       },
     ],
-    [deletingId, handleDelete, saving],
+    [deletingId, gradeLevelMax, handleDelete, saving],
   );
-
-  if (loading) {
-    return (
-      <div className="moto-content-surface rounded-2xl border px-5 py-10 text-center text-sm text-gray-500 shadow-sm">
-        Betreuungsangebote werden geladen...
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-4">
@@ -743,7 +859,15 @@ export function CareOfferingsEditor() {
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
 
-      {catalogError ? (
+      {loading ? (
+        <DataTable
+          columns={columns}
+          rows={[]}
+          isLoading
+          loadingRowCount={6}
+          getRowKey={(offering) => offering.id}
+        />
+      ) : catalogError ? (
         <CareOfferingCatalogError
           message={catalogError}
           onRetry={() => void loadAll(selectedPhaseIdRef.current)}
@@ -795,6 +919,7 @@ export function CareOfferingsEditor() {
                   : null
               }
               gradeLevelMax={gradeLevelMax}
+              bookingStats={bookingStats}
               saving={saving}
               onChange={setDraft}
               onSubmit={handleSave}
@@ -803,6 +928,20 @@ export function CareOfferingsEditor() {
                 toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
               }
             />
+          ) : null}
+
+          {!draft && !cloneSource && autoAddRules.length > 0 ? (
+            <SectionCard
+              title="Mitbuchungs-Regeln"
+              description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+              bodyClassName="mt-2"
+            >
+              <ul className="mt-2 space-y-1 text-sm text-gray-700">
+                {autoAddRules.map((rule) => (
+                  <li key={rule.key}>{rule.sentence}</li>
+                ))}
+              </ul>
+            </SectionCard>
           ) : null}
 
           {selectedPhaseId &&
@@ -1028,6 +1167,27 @@ function EmptyCareOfferingState({
   );
 }
 
+// Without this pill an availability rule is only visible after opening the
+// offering and scrolling to "Bedingungen für die Verfügbarkeit" — which is how
+// a school ends up filing a support ticket for a restriction it configured
+// itself (#2186).
+function AvailabilityRulePill({
+  rule,
+  gradeLevelMax,
+}: Readonly<{
+  rule: CareOfferingAvailabilityRule | null | undefined;
+  // Passed so a rule covering every grade this school HAS reads as
+  // unrestricted rather than as a restriction (#2186 review).
+  gradeLevelMax: number | null;
+}>) {
+  const label = describeCareOfferingAvailabilityRule(
+    rule,
+    gradeLevelMax ?? undefined,
+  );
+  if (!label) return null;
+  return <FeaturePill label={label} />;
+}
+
 function DaysCell({ offering }: Readonly<{ offering: CareOffering }>) {
   return (
     <div className="min-w-0">
@@ -1102,6 +1262,12 @@ interface CareOfferingFormProps {
   readonly metadataStatus: PlannerMetadataStatus;
   readonly originalActivityGroupID: string | null;
   readonly gradeLevelMax: number | null;
+  /**
+   * Current bookings of the offering being edited, keyed by offering id.
+   * Only used to warn about bookings a tightened availability rule would
+   * contradict; absent for a new offering, which has none.
+   */
+  readonly bookingStats: Record<string, CareOfferingBookingStats>;
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
@@ -1362,11 +1528,28 @@ function CareOfferingWeekdayFields({
 }>) {
   const toggleDay = (day: string) => {
     const nextDays = toggleSetValue(draft.available_days, day);
-    onChange({
+    const patch: Partial<CareOfferingInput> = {
       available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
-    });
+    };
+    // Ein abgewählter Tag nimmt seine Gehzeit mit.
+    if (!nextDays.has(day) && draft.pickup_times?.[day]) {
+      const nextTimes = { ...draft.pickup_times };
+      delete nextTimes[day];
+      patch.pickup_times = nextTimes;
+    }
+    onChange(patch);
+  };
+  const setPickupTime = (day: string, value: string) => {
+    const nextTimes = { ...(draft.pickup_times ?? {}) };
+    if (value) {
+      nextTimes[day] = value;
+    } else {
+      delete nextTimes[day];
+    }
+    onChange({ pickup_times: nextTimes });
   };
   const nameMismatch = nameWeekdayMismatchWarning(draft);
+  const pickupTimesRequired = draft.is_active && draft.counts_as_care;
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1397,6 +1580,34 @@ function CareOfferingWeekdayFields({
         <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-3 rounded-lg border px-3 py-2 text-xs">
           {nameMismatch}
         </p>
+      ) : null}
+      {draft.available_days.length > 0 ? (
+        <div className="mt-4">
+          <p className="text-xs font-medium text-gray-700">
+            {pickupTimesRequired
+              ? "Gehzeit je Betreuungstag"
+              : "Gehzeit je Wochentag (optional)"}
+          </p>
+          <p className="mt-1 text-xs text-gray-500">
+            Diese Zeiten gelten automatisch für gebuchte Kinder. Von Hand
+            gepflegte Gehzeiten bleiben erhalten.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-3">
+            {draft.available_days.map((day) => (
+              <label key={day} className="flex items-center gap-2 text-xs">
+                <span className="w-6 text-gray-700">{DAY_LABELS[day]}</span>
+                <input
+                  type="time"
+                  required={pickupTimesRequired}
+                  aria-label={`${DAY_LABELS[day]} Gehzeit`}
+                  value={draft.pickup_times?.[day] ?? ""}
+                  onChange={(event) => setPickupTime(day, event.target.value)}
+                  className="rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:border-gray-400 focus:outline-none"
+                />
+              </label>
+            ))}
+          </div>
+        </div>
       ) : null}
       <div className="mt-3">
         <CareOfferingCheckbox
@@ -1456,6 +1667,15 @@ function CareOfferingAutomationFields({
         .sort((a, b) => a - b),
     });
   };
+  const offeringName = draft.name.trim();
+  // Sentence-start vs. mid-sentence variant of the same label.
+  const offeringLabel = offeringName ? `„${offeringName}“` : "Dieses Angebot";
+  const offeringLabelMidSentence = offeringName
+    ? `„${offeringName}“`
+    : "dieses Angebot";
+  const selectedTriggers = triggerOptions.filter((offering) =>
+    (draft.auto_add_trigger_offering_ids ?? []).includes(offering.id),
+  );
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1472,7 +1692,8 @@ function CareOfferingAutomationFields({
 
         <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
           <p className="text-xs font-medium text-gray-700">
-            Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote wählen:
+            {offeringLabel} wird automatisch mitgebucht, wenn Eltern eines
+            dieser Angebote wählen:
           </p>
           {triggerOptions.length > 0 ? (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -1493,6 +1714,20 @@ function CareOfferingAutomationFields({
               In dieser Phase gibt es noch kein anderes Angebot als Auslöser.
             </p>
           )}
+          {selectedTriggers.length > 0 ? (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700">
+              {selectedTriggers.map((trigger) => (
+                <p key={trigger.id}>
+                  Wenn Eltern „{trigger.name}“ wählen, wird{" "}
+                  {offeringLabelMidSentence} automatisch mitgebucht.
+                </p>
+              ))}
+              <p className="mt-1 text-gray-500">
+                Andersherum gilt das nicht: Wer nur {offeringLabelMidSentence}{" "}
+                wählt, bekommt die anderen Angebote nicht automatisch dazu.
+              </p>
+            </div>
+          ) : null}
           {draft.auto_add_trigger_offering_ids.length > 0 &&
           draft.days_of_week_mode !== "parent_choice" ? (
             <p className="border-moto-amber/50 bg-moto-amber/10 text-moto-amber-strong mt-2 rounded-lg border px-3 py-2 text-xs">
@@ -1540,10 +1775,12 @@ function CareOfferingAutomationFields({
 function CareOfferingAvailabilityFields({
   draft,
   gradeLevelMax,
+  bookingGradeCounts,
   onChange,
 }: Readonly<{
   draft: CareOfferingInput;
   gradeLevelMax: number | null;
+  bookingGradeCounts: CareOfferingBookingGradeCounts | null;
   onChange: (patch: Partial<CareOfferingInput>) => void;
 }>) {
   const rule = draft.availability_rule;
@@ -1577,6 +1814,10 @@ function CareOfferingAvailabilityFields({
     onChange({ availability_rule: { ...rule, conditions } });
   };
   const error = careOfferingAvailabilityRuleError(rule, gradeLevelMax);
+  // Bestandsschutz is intentional — an existing booking is never revoked by a
+  // rule change. Saying so out loud is what keeps the data from looking
+  // inconsistent later (#2186).
+  const conflicts = countCareOfferingRuleConflicts(rule, bookingGradeCounts);
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1785,6 +2026,18 @@ function CareOfferingAvailabilityFields({
               {error}
             </p>
           ) : null}
+          {!error && conflicts > 0 ? (
+            <p
+              role="status"
+              className="border-moto-amber/40 bg-moto-amber/10 text-moto-amber-strong rounded-lg border px-3 py-2 text-xs leading-5"
+            >
+              {conflicts === 1
+                ? "1 bestehende Buchung erfüllt diese Bedingung nicht."
+                : `${conflicts} bestehende Buchungen erfüllen diese Bedingung nicht.`}{" "}
+              Sie {conflicts === 1 ? "bleibt" : "bleiben"} bestehen, die Regel
+              gilt nur für neue Auswahlen.
+            </p>
+          ) : null}
         </div>
       ) : null}
     </fieldset>
@@ -1955,6 +2208,7 @@ function CareOfferingForm({
   metadataStatus,
   originalActivityGroupID,
   gradeLevelMax,
+  bookingStats,
   saving,
   onChange,
   onSubmit,
@@ -2138,6 +2392,11 @@ function CareOfferingForm({
       <CareOfferingAvailabilityFields
         draft={draft}
         gradeLevelMax={gradeLevelMax}
+        bookingGradeCounts={
+          editingId && editingId !== "new"
+            ? (bookingStats[editingId] ?? null)
+            : null
+        }
         onChange={update}
       />
 

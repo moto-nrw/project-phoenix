@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,6 @@ func newActivityInstanceFixtures(t *testing.T, db *bun.DB, prefix string) *activ
 		roomID:     room.ID,
 		activityID: activity.ID,
 		cleanup: func() {
-			testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID)
 		},
 	}
 }
@@ -53,10 +53,11 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date timezone.Date
 }
 
 func TestActivityInstanceRepository_Create(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	t.Run("creates template-backed instance", func(t *testing.T) {
@@ -64,7 +65,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		inst := buildInstance(
-			1, fx.roomID, &fx.activityID,
+			testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 9, 15),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -83,7 +84,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		defer fx.cleanup()
 
 		inst := buildInstance(
-			1, fx.roomID, nil,
+			testpkg.Tenant(t), fx.roomID, nil,
 			timezone.NewDate(2026, 9, 16),
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
@@ -110,7 +111,7 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "create-bad")
 		defer fx.cleanup()
 
-		inst := buildInstance(1, fx.roomID, &fx.activityID,
+		inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 9, 17),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
@@ -130,9 +131,9 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		start := time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC)
 
-		a := buildInstance(1, fx.roomID, nil, date, start, end, "Spontan A")
+		a := buildInstance(testpkg.Tenant(t), fx.roomID, nil, date, start, end, "Spontan A")
 		a.IsSpontaneous = true
-		b := buildInstance(1, fx.roomID, nil, date, start, end, "Spontan B")
+		b := buildInstance(testpkg.Tenant(t), fx.roomID, nil, date, start, end, "Spontan B")
 		b.IsSpontaneous = true
 
 		require.NoError(t, repo.Create(ctx, a))
@@ -149,21 +150,22 @@ func TestActivityInstanceRepository_Create(t *testing.T) {
 		start := time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 
-		a := buildInstance(1, fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
+		a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
 		require.NoError(t, repo.Create(ctx, a))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
 
-		b := buildInstance(1, fx.roomID, &fx.activityID, date, start, end, "Lernzeit B")
+		b := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date, start, end, "Lernzeit B")
 		err := repo.Create(ctx, b)
 		require.Error(t, err, "partial UNIQUE must block same (tenant,date,group,start)")
 	})
 }
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNotAbortTransaction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent")
 	defer fx.cleanup()
@@ -173,7 +175,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 	end := time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC)
 	var createdIDs []int64
 
-	err := tenant.WithTenantTx(ctx, db, 1, func(ctx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		first := buildInstance(0, fx.roomID, &fx.activityID, date, start, end, "Lernzeit A")
 		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, first)
 		require.NoError(t, err)
@@ -192,14 +194,14 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_DuplicateDoesNo
 		return nil
 	})
 	require.NoError(t, err)
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", createdIDs...)
 }
 
 func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranches(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 	fx := newActivityInstanceFixtures(t, db, "create-if-absent-invalid")
 	defer fx.cleanup()
@@ -216,7 +218,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 	})
 
 	t.Run("rejects spontaneous row", func(t *testing.T) {
-		inst := buildInstance(1, fx.roomID, nil, date, start, end, "Spontan")
+		inst := buildInstance(testpkg.Tenant(t), fx.roomID, nil, date, start, end, "Spontan")
 
 		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, inst)
 		require.Error(t, err)
@@ -226,7 +228,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 
 	t.Run("rejects model validation failure", func(t *testing.T) {
 		inst := buildInstance(
-			1, fx.roomID, &fx.activityID, date,
+			testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 			start, time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
 			"Broken",
 		)
@@ -239,7 +241,7 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 
 	t.Run("wraps database insert failure", func(t *testing.T) {
 		missingRoomID := int64(987654321)
-		inst := buildInstance(1, missingRoomID, &fx.activityID, date, start, end, "Missing Room")
+		inst := buildInstance(testpkg.Tenant(t), missingRoomID, &fx.activityID, date, start, end, "Missing Room")
 
 		inserted, err := repo.CreateTemplateBackedIfAbsent(ctx, inst)
 		require.Error(t, err)
@@ -249,24 +251,24 @@ func TestActivityInstanceRepository_CreateTemplateBackedIfAbsent_ValidationBranc
 }
 
 func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "crud")
 	defer fx.cleanup()
 
 	inst := buildInstance(
-		1, fx.roomID, &fx.activityID,
+		testpkg.Tenant(t), fx.roomID, &fx.activityID,
 		timezone.NewDate(2026, 9, 15),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
 		"Lernzeit",
 	)
 	require.NoError(t, repo.Create(ctx, inst))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 	t.Run("FindByID returns the row", func(t *testing.T) {
 		found, err := repo.FindByID(ctx, inst.ID)
@@ -296,17 +298,18 @@ func TestActivityInstanceRepository_FindByID_and_Update(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "mark-completed")
 	defer fx.cleanup()
 
 	inst := buildInstance(
-		1, fx.roomID, &fx.activityID,
+		testpkg.Tenant(t), fx.roomID, &fx.activityID,
 		timezone.NewDate(2026, 9, 16),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
@@ -314,7 +317,6 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 	)
 	inst.Status = scheduleModels.InstanceStatusActive
 	require.NoError(t, repo.Create(ctx, inst))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 	completedAt := time.Date(2026, 9, 16, 15, 31, 0, 0, time.UTC)
 	require.NoError(t, repo.MarkCompleted(ctx, inst.ID, completedAt))
@@ -330,11 +332,51 @@ func TestActivityInstanceRepository_MarkCompletedUpdatesOnlyLifecycleColumns(t *
 	assert.Equal(t, 30, found.EndTime.Minute())
 }
 
-func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryState(t *testing.T) {
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "session-end")
+	defer fx.cleanup()
+
+	group := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
+
+	inst := buildInstance(
+		testpkg.Tenant(t), fx.roomID, &fx.activityID,
+		timezone.NewDate(2026, 9, 17),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 30, 0, 0, time.UTC),
+		"Session-End",
+	)
+	inst.Status = scheduleModels.InstanceStatusActive
+	inst.ActiveGroupID = &group.ID
+	require.NoError(t, repo.Create(ctx, inst))
+
+	completedAt := time.Date(2026, 9, 17, 16, 0, 0, 0, time.UTC)
+	rows, err := repo.CompleteActiveByActiveGroupIDs(ctx, []int64{group.ID}, completedAt)
+	require.NoError(t, err)
+	assert.Equal(t, 1, int(rows))
+
+	found, err := repo.FindByID(ctx, inst.ID)
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, found.Status)
+	require.NotNil(t, found.CompletedAt)
+	assert.Nil(t, found.CompletedBy)
+	assert.Nil(t, found.ReopenUntil)
+	assert.False(t, scheduleSvc.CanReopenInstance(found, 42, true, completedAt.Add(time.Minute)))
+}
+
+func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "by-date")
@@ -343,22 +385,19 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 	date := timezone.NewDate(2026, 9, 20)
 	other := timezone.NewDate(2026, 9, 21)
 
-	a := buildInstance(1, fx.roomID, &fx.activityID, date,
+	a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "A")
-	b := buildInstance(1, fx.roomID, &fx.activityID, date,
+	b := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC), "B")
-	c := buildInstance(1, fx.roomID, &fx.activityID, other,
+	c := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, other,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "C")
 
 	require.NoError(t, repo.Create(ctx, a))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
 	require.NoError(t, repo.Create(ctx, b))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", b.ID)
 	require.NoError(t, repo.Create(ctx, c))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", c.ID)
 
 	got, err := repo.FindByTenantAndDate(ctx, date)
 	require.NoError(t, err)
@@ -380,10 +419,11 @@ func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "range")
@@ -394,16 +434,16 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 	end := timezone.NewDate(2026, 9, 26)
 	outside := timezone.NewDate(2026, 10, 5)
 
-	s1 := buildInstance(1, fx.roomID, &fx.activityID, start,
+	s1 := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, start,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "start")
-	s2 := buildInstance(1, fx.roomID, &fx.activityID, mid,
+	s2 := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, mid,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "mid")
-	s3 := buildInstance(1, fx.roomID, &fx.activityID, end,
+	s3 := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, end,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "end")
-	s4 := buildInstance(1, fx.roomID, &fx.activityID, outside,
+	s4 := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, outside,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC), "outside")
 
@@ -426,10 +466,11 @@ func TestActivityInstanceRepository_FindByTenantAndDateRange(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "grp-date")
@@ -437,17 +478,15 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 
 	date := timezone.NewDate(2026, 10, 1)
 
-	a := buildInstance(1, fx.roomID, &fx.activityID, date,
+	a := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC), "morning")
-	b := buildInstance(1, fx.roomID, &fx.activityID, date,
+	b := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "afternoon")
 
 	require.NoError(t, repo.Create(ctx, a))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", a.ID)
 	require.NoError(t, repo.Create(ctx, b))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", b.ID)
 
 	got, err := repo.FindByActivityGroupAndDate(ctx, fx.activityID, date)
 	require.NoError(t, err)
@@ -455,10 +494,11 @@ func TestActivityInstanceRepository_FindByActivityGroupAndDate(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	t.Run("returns nil when no link exists", func(t *testing.T) {
@@ -473,7 +513,7 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 
 		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
 
-		inst := buildInstance(1, fx.roomID, &fx.activityID,
+		inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 10, 14),
 			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -493,10 +533,11 @@ func TestActivityInstanceRepository_FindByActiveGroupID(t *testing.T) {
 // bridge invariant between schedule.activity_instances and active.groups:
 // two instances must not be able to claim the same active.group.
 func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "bridge-uniq")
@@ -506,15 +547,14 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 
 	date := timezone.NewDate(2026, 10, 13)
 
-	first := buildInstance(1, fx.roomID, &fx.activityID, date,
+	first := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
 		"first")
 	first.ActiveGroupID = &ag.ID
 	require.NoError(t, repo.Create(ctx, first))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", first.ID)
 
-	second := buildInstance(1, fx.roomID, &fx.activityID, date,
+	second := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 11, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC),
 		"second")
@@ -529,10 +569,11 @@ func TestActivityInstanceRepository_ActiveGroupBridgeUnique(t *testing.T) {
 // predicate. Mirrors the FK OnDelete pattern — guards against a future
 // migration silently downgrading the invariant.
 func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	var isUnique bool
 	var predicate string
@@ -552,22 +593,22 @@ func TestActivityInstanceActiveGroupUniqueIndex(t *testing.T) {
 }
 
 func TestActivityInstanceRepository_List(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "list")
 	defer fx.cleanup()
 
-	inst := buildInstance(1, fx.roomID, &fx.activityID,
+	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 		timezone.NewDate(2026, 10, 7),
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		"List-entry")
 	require.NoError(t, repo.Create(ctx, inst))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 
 	got, err := repo.List(ctx, nil)
 	require.NoError(t, err)
@@ -583,10 +624,11 @@ func TestActivityInstanceRepository_List(t *testing.T) {
 //
 // Catalog code: 'n' = SET NULL, 'c' = CASCADE, 'r' = RESTRICT, 'a' = NO ACTION.
 func TestActivityInstanceFKOnDelete(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	cases := []struct {
 		refTable string
@@ -631,10 +673,11 @@ func TestActivityInstanceFKOnDelete(t *testing.T) {
 // override of the base plan and must be PRESERVED; only clean planned instances
 // are deleted and re-materialized.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_PreservesDeviations(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "dev-preserve")
@@ -643,29 +686,32 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	date := timezone.NewDate(2026, 9, 21)
 
 	// plain: no deviation → deleted.
-	plain := buildInstance(1, fx.roomID, &fx.activityID, date,
+	plain := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "Plain")
 	require.NoError(t, repo.Create(ctx, plain))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", plain.ID)
+
+	// legacyManual: migration 1.15.303 reclassified legacy planned spontaneous
+	// rows as non-spontaneous, but they remain unlinked to a template and must
+	// not be removed by a whole-grid re-plan.
+	legacyManual := buildInstance(testpkg.Tenant(t), fx.roomID, nil, date,
+		time.Date(2024, 1, 1, 13, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC), "LegacyManual")
+	require.NoError(t, repo.Create(ctx, legacyManual))
 
 	// absentDev: carries an absent instance_staff row → preserved.
-	absentDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+	absentDev := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "AbsentDev")
 	require.NoError(t, repo.Create(ctx, absentDev))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", absentDev.ID)
 	staff := testpkg.CreateTestStaff(t, db, "DevP", fmt.Sprintf("%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
-	staffRow := testpkg.CreateTestInstanceStaff(t, db, absentDev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+	testpkg.CreateTestInstanceStaff(t, db, absentDev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	// ackDev: understaffed_ack=true → preserved.
-	ackDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+	ackDev := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "AckDev")
 	require.NoError(t, repo.Create(ctx, ackDev))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", ackDev.ID)
 	_, err := db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances`).
@@ -678,10 +724,14 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	// preserveDeviations=true (re-plan semantics): deviated instances survive.
 	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, true)
 	require.NoError(t, err)
-	assert.EqualValues(t, 1, deleted, "only the non-deviated instance is deleted")
+	assert.EqualValues(t, 1, deleted, "only the template-backed non-deviated instance is deleted")
 
 	_, err = repo.FindByID(ctx, plain.ID)
 	assert.True(t, modelBase.IsNoRows(err), "plain instance must be deleted")
+
+	gotLegacyManual, err := repo.FindByID(ctx, legacyManual.ID)
+	require.NoError(t, err, "legacy manual instance must be preserved")
+	assert.Equal(t, legacyManual.ID, gotLegacyManual.ID)
 
 	gotAbsent, err := repo.FindByID(ctx, absentDev.ID)
 	require.NoError(t, err, "instance with an absent staff row must be preserved")
@@ -697,10 +747,11 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 // following" leaves the series partly alive, and a split leaves a duplicate old
 // block next to the materialized successor.
 func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDeleteIgnoresDeviations(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "dev-harddelete")
@@ -709,15 +760,12 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 	date := timezone.NewDate(2026, 9, 28)
 
 	// A deviated instance: acknowledged shortfall AND an absent staff row.
-	dev := buildInstance(1, fx.roomID, &fx.activityID, date,
+	dev := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "DevHard")
 	require.NoError(t, repo.Create(ctx, dev))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", dev.ID)
 	staff := testpkg.CreateTestStaff(t, db, "DevH", fmt.Sprintf("%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
-	staffRow := testpkg.CreateTestInstanceStaff(t, db, dev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+	testpkg.CreateTestInstanceStaff(t, db, dev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	_, err := db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances`).
@@ -738,10 +786,11 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 }
 
 func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 	legacyWeekendRepo, ok := repo.(interface {
 		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
@@ -755,22 +804,20 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 		saturday = saturday.AddDays(1)
 	}
 	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Legacy weekend %d", time.Now().UnixNano()), saturday, saturday.AddDays(1))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", period.ID) })
 
-	materialized := buildInstance(1, fx.roomID, &fx.activityID, saturday,
+	materialized := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "legacy saturday")
 	materialized.CalendarPeriodID = &period.ID
 	require.NoError(t, repo.Create(ctx, materialized))
 
-	manual := buildInstance(1, fx.roomID, &fx.activityID, saturday,
+	manual := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday,
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "manual saturday")
 	require.NoError(t, repo.Create(ctx, manual))
 
-	sunday := buildInstance(1, fx.roomID, &fx.activityID, saturday.AddDays(1),
+	sunday := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday.AddDays(1),
 		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "legacy sunday")
 	sunday.CalendarPeriodID = &period.ID
 	require.NoError(t, repo.Create(ctx, sunday))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", materialized.ID, manual.ID, sunday.ID)
 
 	deleted, err := legacyWeekendRepo.DeletePlannedMaterializedWeekendInstances(ctx, fx.activityID, []int{6})
 	require.NoError(t, err)
@@ -793,10 +840,11 @@ func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t 
 // today/past rows, non-planned/spontaneous rows, and per-occurrence overrides
 // untouched — otherwise the classified daily lists stay empty until a re-plan.
 func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	fx := newActivityInstanceFixtures(t, db, "listkind-prop")
@@ -804,7 +852,6 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 	// A second template proves the rewrite is scoped to one series.
 	other := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Other-listkind-%d", time.Now().UnixNano()))
 	otherID := other.ID
-	defer testpkg.CleanupActivityFixtures(t, db, other.ID, 0)
 
 	today := timezone.TodayDate()
 
@@ -816,13 +863,12 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 		start := time.Date(2024, 1, 1, startHour, 0, 0, 0, time.UTC)
 		end := time.Date(2024, 1, 1, startHour+1, 0, 0, 0, time.UTC)
 		startHour++
-		inst := buildInstance(1, fx.roomID, activityID, date, start, end, name)
+		inst := buildInstance(testpkg.Tenant(t), fx.roomID, activityID, date, start, end, name)
 		inst.ListKind = listKind
 		if mutate != nil {
 			mutate(inst)
 		}
 		require.NoError(t, repo.Create(ctx, inst))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID) })
 		return inst
 	}
 
@@ -876,10 +922,11 @@ func TestActivityInstanceRepository_PropagateListKindToFutureInstances(t *testin
 }
 
 func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
 
 	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
@@ -892,7 +939,7 @@ func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 		fx := newActivityInstanceFixtures(t, db, "findbyids")
 		defer fx.cleanup()
 
-		later := buildInstance(1, fx.roomID, &fx.activityID,
+		later := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 9, 20),
 			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -900,7 +947,7 @@ func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, later))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", later.ID)
 
-		earlier := buildInstance(1, fx.roomID, &fx.activityID,
+		earlier := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID,
 			timezone.NewDate(2026, 9, 18),
 			time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
 			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),

@@ -14,7 +14,6 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -55,15 +54,6 @@ func (f fakeSettings) ResolveString(_ context.Context, key string) (string, erro
 		return "", f.strErr
 	}
 	return f.strings[key], nil
-}
-
-type fakeGroups struct {
-	groups []*educationModel.Group
-	err    error
-}
-
-func (f fakeGroups) GetMyGroups(_ context.Context) ([]*educationModel.Group, error) {
-	return f.groups, f.err
 }
 
 type fakeAttendance struct {
@@ -164,14 +154,6 @@ func pickupAt(minuteOfDay int) *scheduleService.EffectivePickupTime {
 	return &scheduleService.EffectivePickupTime{PickupTime: &t}
 }
 
-// eduGroup builds an education group with the given ID (embedded in base.Model),
-// used to stand in for a caregiver's supervised groups in read-access tests.
-func eduGroup(id int64) *educationModel.Group {
-	g := &educationModel.Group{}
-	g.ID = id
-	return g
-}
-
 func plannedInstance(title string, roomID int64, startMin, endMin int) *scheduleModel.ActivityInstance {
 	return &scheduleModel.ActivityInstance{
 		Title:     title,
@@ -185,6 +167,8 @@ func plannedInstance(title string, roomID int64, startMin, endMin int) *schedule
 // --- pickupReminders ---------------------------------------------------------
 
 func TestPickupReminders(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 
@@ -287,11 +271,10 @@ func TestPickupReminders(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	// --- read-access gate (gdpr.student_data_scope) --------------------------
-	// Room presence alone must not expose a child's pickup time: under the
-	// default group_supervisors_only scope a caregiver only sees children in an
-	// education group they supervise, even when a non-supervised child sits in
-	// the same supervised room.
+	// --- read access (#2329) -------------------------------------------------
+	// Every reminder recipient is staff, and staff read every child of their
+	// tenant. A caregiver therefore sees the pickup of each present child in
+	// their rooms, whatever education group the child belongs to (or none).
 
 	g100 := int64(100)
 	g200 := int64(200)
@@ -306,10 +289,19 @@ func TestPickupReminders(t *testing.T) {
 	twoDueTimes := map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605), 2: pickupAt(605)}
 	caregiver := Scope{IsAdmin: false, StaffID: 7}
 
-	t.Run("caregiver sees only students in supervised education groups", func(t *testing.T) {
-		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}, Groups: // no override → group_supervisors_only
-		fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}},
-		}
+	t.Run("caregiver sees every present student regardless of group", func(t *testing.T) {
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}}}
+		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
+		require.NoError(t, err)
+		require.Len(t, out, 2)
+	})
+
+	t.Run("a student the read-scope query does not return stays out", func(t *testing.T) {
+		// FindReadScopeByIDs is the read boundary: a child it omits (deleted,
+		// outside the tenant, filtered by RLS) must not surface a reminder.
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: map[int64]*userModel.Student{
+			1: twoDueStudents[1],
+		}}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}}}
 		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
@@ -318,34 +310,19 @@ func TestPickupReminders(t *testing.T) {
 		assert.Equal(t, "Anna A", out[0].Title)
 	})
 
-	t.Run("all_staff scope lets a caregiver see every present student", func(t *testing.T) {
-		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{strings: map[string]string{
-			configModel.KeyStudentDataScope: configModel.StudentDataScopeAllStaff,
-		}}, Groups: fakeGroups{}}, // supervised groups irrelevant under all_staff
-		}
-		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
-		require.NoError(t, err)
-		require.Len(t, out, 2)
-	})
-
-	t.Run("caregiver supervising no groups sees nothing under group_supervisors_only", func(t *testing.T) {
-		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}, Groups: fakeGroups{groups: nil}}}
-		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
-		require.NoError(t, err)
-		assert.Empty(t, out)
-	})
-
-	t.Run("a scope resolution error is surfaced, not treated as no-access", func(t *testing.T) {
-		resolveErr := errors.New("scope read failed")
-		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{strErr: resolveErr}, Groups: fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}}}
+	t.Run("a student read error is surfaced, not treated as no-access", func(t *testing.T) {
+		loadErr := errors.New("student read failed")
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{err: loadErr}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}}}
 		_, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
-		require.ErrorIs(t, err, resolveErr)
+		require.ErrorIs(t, err, loadErr)
 	})
 }
 
 // --- activityReminders -------------------------------------------------------
 
 func TestActivityReminders(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	const overdueThreshold = 5
@@ -473,6 +450,8 @@ func TestActivityReminders(t *testing.T) {
 // --- pickup / activity scope resolution --------------------------------------
 
 func TestPickupScopeStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("admin sees all present students", func(t *testing.T) {
 		svc := &service{Dependencies: Dependencies{Attendance: fakeAttendance{ids: []int64{1, 2, 3}}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: true}, timezone.TodayDate())
@@ -547,6 +526,8 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 }
 
 func TestSupervisedRoomIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns the deduplicated supervised rooms", func(t *testing.T) {
 		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{
 			supervisions: []*activeModel.GroupSupervisor{{GroupID: 100}, {GroupID: 200}},
@@ -577,6 +558,8 @@ func TestSupervisedRoomIDs(t *testing.T) {
 // --- threshold helpers -------------------------------------------------------
 
 func TestLeadAndThresholdFallbacks(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("configured value wins", func(t *testing.T) {
@@ -618,6 +601,8 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 // --- Compute (gating, enabled flag, sorting) ---------------------------------
 
 func TestComputeGating(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("nil settings returns an empty, disabled result", func(t *testing.T) {
@@ -657,6 +642,8 @@ func TestComputeGating(t *testing.T) {
 }
 
 func TestComputeSortsMostUrgentFirst(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	// Guard the wall-clock arithmetic against day wrap near midnight.
@@ -696,6 +683,8 @@ func TestComputeSortsMostUrgentFirst(t *testing.T) {
 // pin the boundary math the timer depends on.
 
 func TestNextChangeMinFutureHelper(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, -1, futureBoundary(600, 600), "a boundary at now is not in the future")
 	assert.Equal(t, -1, futureBoundary(590, 600), "a past boundary yields the absent sentinel")
 	assert.Equal(t, 610, futureBoundary(610, 600))
@@ -708,6 +697,8 @@ func TestNextChangeMinFutureHelper(t *testing.T) {
 }
 
 func TestPickupNextChange(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 
@@ -756,24 +747,23 @@ func TestPickupNextChange(t *testing.T) {
 }
 
 // TestPickupNextChangeExcludesUnreadableStudents guards the GDPR gate on the
-// next-change timer: a child the caregiver may not read must not leak its future
-// pickup minute through next_change_at, even though its reminder is never
-// emitted. Student 2 (a non-supervised group) has the SOONER boundary; only
-// student 1's must survive.
+// next-change timer: a child outside the caller's read scope must not leak its
+// future pickup minute through next_change_at, even though its reminder is
+// never emitted. Student 2 — omitted by FindReadScopeByIDs, the read boundary —
+// has the SOONER boundary; only student 1's must survive.
 func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	g100 := int64(100)
-	g200 := int64(200)
 
 	svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
-		1: pickupAt(660), // supervised: enters its window at 650
-		2: pickupAt(620), // NOT supervised: would enter at 610 (sooner) — must not leak
+		1: pickupAt(660), // readable: enters its window at 650
+		2: pickupAt(620), // outside the read scope: would enter at 610 (sooner) — must not leak
 	}}, Student: fakeStudent{students: map[int64]*userModel.Student{
 		1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
-		2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
-	}}, Person: fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}}, Settings: fakeSettings{}, Groups: // no override → group_supervisors_only
-	fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}},
+	}}, Person: fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}}, Settings: fakeSettings{}},
 	}
 	caregiver := Scope{IsAdmin: false, StaffID: 7}
 
@@ -784,6 +774,8 @@ func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
 }
 
 func TestActivityNextChange(t *testing.T) {
+	t.Parallel()
+
 	const nowMin = 600 // 10:00
 	const lead = 10
 	const overdueThreshold = 5
@@ -825,6 +817,8 @@ func TestActivityNextChange(t *testing.T) {
 }
 
 func TestComputeExposesNextChangeAt(t *testing.T) {
+	t.Parallel()
+
 	now := timezone.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	// Guard the wall-clock arithmetic against day wrap near midnight.
@@ -850,6 +844,8 @@ func TestComputeExposesNextChangeAt(t *testing.T) {
 // --- pure helpers ------------------------------------------------------------
 
 func TestPureHelpers(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "10:05", formatMinutes(605))
 	assert.Equal(t, "00:00", formatMinutes(0))
 	assert.Equal(t, "09:55", formatMinutes(595))

@@ -1,55 +1,30 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import AdminChangeRequestsPage from "./page";
-import { useRequirePermission } from "~/lib/hooks/use-require-permission";
-
-vi.mock("~/lib/hooks/use-require-permission", () => ({
-  useRequirePermission: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  redirect: vi.fn(),
 }));
 
-vi.mock("~/components/students/master-data-review-list", () => ({
-  MasterDataReviewList: () => <div>master-data-review-list</div>,
+vi.mock("next/navigation", () => ({
+  redirect: mocks.redirect,
 }));
 
-vi.mock("~/components/students/care-request-review-list", () => ({
-  CareRequestReviewList: () => <div>care-request-review-list</div>,
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (href: string) => `/test-tenant${href}`,
 }));
 
-vi.mock("~/components/ui/loading", () => ({
-  Loading: () => <div>loading</div>,
-}));
+import AdminChangeRequestsRedirect from "./page";
 
-const mockUseRequirePermission = vi.mocked(useRequirePermission);
-
-describe("AdminChangeRequestsPage", () => {
+// Die Freigabeansicht ist in das Anfragen-Modul umgezogen (#2429); die
+// Alt-Route muss gespeicherte Links tenant-korrekt dorthin weiterleiten.
+describe("AdminChangeRequestsRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("shows a loading state until the permission check is ready", () => {
-    mockUseRequirePermission.mockReturnValue({
-      isReady: false,
-      isLoading: true,
-    });
+  it("redirects the legacy route to /anfragen with the tenant prefix", () => {
+    render(<AdminChangeRequestsRedirect />);
 
-    render(<AdminChangeRequestsPage />);
-
-    expect(screen.getByText("loading")).toBeInTheDocument();
-  });
-
-  it("renders both review queues once access is ready", () => {
-    mockUseRequirePermission.mockReturnValue({
-      isReady: true,
-      isLoading: false,
-    });
-
-    render(<AdminChangeRequestsPage />);
-
-    expect(
-      screen.getByRole("heading", { name: "Änderungsanfragen" }),
-    ).toBeInTheDocument();
-    expect(screen.getByText("master-data-review-list")).toBeInTheDocument();
-    expect(screen.getByText("care-request-review-list")).toBeInTheDocument();
+    expect(mocks.redirect).toHaveBeenCalledWith("/test-tenant/anfragen");
   });
 });
