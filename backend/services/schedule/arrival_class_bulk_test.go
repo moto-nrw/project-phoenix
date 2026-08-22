@@ -97,6 +97,26 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	})
 }
 
+func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := arrivalServiceWithClassTimes(t, repos)
+
+	student := testpkg.CreateTestStudent(t, db, "Export", "Datum", "8d")
+	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Export")
+	setClassArrivalTimes(t, repos, "8d", map[string]string{"mon": "11:45"})
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	rows, err := svc.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{student.ID}, monday)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "11:45", rows[0].ExpectedArrival.Format("15:04"))
+}
+
 type failingClassArrivalTimeRepository struct {
 	educationModel.ClassArrivalTimeRepository
 	err error

@@ -25,6 +25,9 @@ import (
 type ArrivalScheduleService interface {
 	GetStudentArrivalSchedules(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalSchedule, error)
 	GetWeeklySchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*schedule.StudentArrivalSchedule, error)
+	// GetWeeklySchedulesByStudentIDsForDate returns the full recurring arrival
+	// plan applicable on date in one batch projection.
+	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*schedule.StudentArrivalSchedule, error)
 	GetStudentArrivalScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentArrivalSchedule, error)
 	UpsertStudentArrivalSchedule(ctx context.Context, scheduleData *schedule.StudentArrivalSchedule) error
 	UpsertBulkStudentArrivalSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentArrivalSchedule) error
@@ -274,6 +277,14 @@ func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 		}
 	}
 	return filtered, nil
+}
+
+func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsForDate(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	return s.projectedWeeklySchedules(ctx, studentIDs, date)
 }
 
 func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(

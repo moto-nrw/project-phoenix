@@ -538,18 +538,16 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 		weekly.PickupByWeekday[pickup.Weekday] = formatWallClock(pickup.PickupTime)
 		result[pickup.StudentID] = weekly
 	}
-	for weekday := schedule.WeekdayMonday; weekday <= schedule.WeekdayFriday; weekday++ {
-		arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
-		if err != nil {
-			return nil, err
+	arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsForDate(r.Context(), studentIDs, planningDate)
+	if err != nil {
+		return nil, err
+	}
+	for _, arrival := range arrivals {
+		weekly := result[arrival.StudentID]
+		if !arrival.ExpectedArrival.IsZero() {
+			weekly.ArrivalByWeekday[arrival.Weekday] = formatWallClock(arrival.ExpectedArrival)
 		}
-		for _, arrival := range arrivals {
-			weekly := result[arrival.StudentID]
-			if !arrival.ExpectedArrival.IsZero() {
-				weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
-			}
-			result[arrival.StudentID] = weekly
-		}
+		result[arrival.StudentID] = weekly
 	}
 	return result, nil
 }
