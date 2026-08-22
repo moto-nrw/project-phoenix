@@ -248,30 +248,41 @@ WITH params AS (
 				AND required_offering.phase_id = phase.id
 				AND required_offering.is_active = TRUE
 				AND required_offering.is_required = TRUE
-				AND NOT EXISTS (
-					SELECT 1
+				AND NOT COALESCE((
+					SELECT range_agg(daterange(
+						GREATEST(COALESCE(required_link.valid_from, phase.service_start_date), phase.service_start_date),
+						LEAST(COALESCE(required_link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						'[)'
+					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
 					FROM enrollment.request_child_offerings AS required_link
 					WHERE required_link.tenant_id = request_child.tenant_id
-					AND required_link.request_child_id = request_child.id
-					AND required_link.care_offering_id = required_offering.id
-					AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_start_date)
-					AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_end_date)
-				)
+						AND required_link.request_child_id = request_child.id
+						AND required_link.care_offering_id = required_offering.id
+						AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_end_date)
+						AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_start_date)
+				), FALSE)
 		) AS missing_required_offering,
 		EXISTS (
 			SELECT 1
-			FROM enrollment.request_child_offerings AS link
-			INNER JOIN enrollment.care_offerings AS care_offering
-				ON care_offering.tenant_id = link.tenant_id
-				AND care_offering.id = link.care_offering_id
+			FROM enrollment.care_offerings AS care_offering
+			WHERE care_offering.tenant_id = phase.tenant_id
 				AND care_offering.phase_id = phase.id
 				AND care_offering.is_active = TRUE
 				AND care_offering.is_required = FALSE
 				AND care_offering.counts_as_care = TRUE
-			WHERE link.tenant_id = request_child.tenant_id
-				AND link.request_child_id = request_child.id
-				AND (link.valid_from IS NULL OR link.valid_from <= phase.service_start_date)
-				AND (link.valid_until IS NULL OR link.valid_until > phase.service_end_date)
+				AND COALESCE((
+					SELECT range_agg(daterange(
+						GREATEST(COALESCE(link.valid_from, phase.service_start_date), phase.service_start_date),
+						LEAST(COALESCE(link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						'[)'
+					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
+					FROM enrollment.request_child_offerings AS link
+					WHERE link.tenant_id = request_child.tenant_id
+						AND link.request_child_id = request_child.id
+						AND link.care_offering_id = care_offering.id
+						AND (link.valid_from IS NULL OR link.valid_from <= phase.service_end_date)
+						AND (link.valid_until IS NULL OR link.valid_until > phase.service_start_date)
+				), FALSE)
 		) AS has_choosable_offering
 	FROM enrollment.request_children AS request_child
 	INNER JOIN enrollment.requests AS request
@@ -286,6 +297,8 @@ WITH params AS (
 	INNER JOIN params ON params.tenant_id = request_child.tenant_id
 	WHERE request_child.status = 'approved'
 		AND (student.id IS NULL OR student.status <> 'alumnus')
+		AND phase.service_start_date <= params.audit_date + 6
+		AND phase.service_end_date >= params.audit_date
 )
 SELECT
 	params.tenant_id,

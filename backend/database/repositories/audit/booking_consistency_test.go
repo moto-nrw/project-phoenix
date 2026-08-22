@@ -147,6 +147,42 @@ func TestBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T) {
 	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
 }
 
+func TestBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repos := repositories.NewFactory(db)
+	auditDate := nextMonday(timezone.TodayDate())
+	staff := testpkg.CreateTestStaff(t, db, "Audit", "Split")
+	student := testpkg.CreateTestStudent(t, db, "Geteilt", "Audit", "1a")
+	child := createApprovedChildForStudent(t, ctx, repos, auditDate, student.ID,
+		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+	offering := testpkg.CreateTestCareOffering(t, db, child.phase.ID, "Geteilte Betreuung")
+	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.PickupTimes = map[string]string{"mon": "14:30"}
+	require.NoError(t, repos.CareOffering.Update(ctx, offering))
+
+	splitDate := auditDate.AddDays(15)
+	phaseEndExclusive := child.phase.ServiceEndDate.AddDays(1)
+	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModel.RequestChildOffering{
+		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
+		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
+	}))
+	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModel.RequestChildOffering{
+		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
+		SelectedDays: []string{"mon"}, ValidFrom: &splitDate, ValidUntil: &phaseEndExclusive,
+	}))
+	require.NoError(t, repos.StudentArrivalSchedule.Create(ctx, &scheduleModel.StudentArrivalSchedule{
+		StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday, ExpectedArrival: wallClock(11, 45), CreatedBy: staff.ID,
+	}))
+
+	report, err := auditRepo.NewBookingConsistencyRepository(db).Audit(ctx, auditDate)
+	require.NoError(t, err)
+	assert.Equal(t, 0, report.ApprovedWithoutRequiredOffering)
+	assert.Equal(t, 0, report.BookingWithoutArrivalDays)
+}
+
 type approvedAuditChild struct {
 	phase *enrollmentModel.Phase
 	child *enrollmentModel.RequestChild
