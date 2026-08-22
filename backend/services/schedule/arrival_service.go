@@ -727,7 +727,14 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
 	if err != nil {
 		return nil, &ScheduleError{Op: "get effective arrival time", Err: err}
 	}
-	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, projection.ForDate(studentID, date))
+	scheduleRow := projection.ForDate(studentID, date)
+	if projection.BookingsAuthoritative && scheduleRow == nil {
+		return &EffectiveArrivalTime{
+			Date:        date,
+			WeekdayName: schedule.WeekdayNames[effectiveISOWeekday(date)],
+		}, nil
+	}
+	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, scheduleRow)
 	if err != nil {
 		return nil, err
 	}
@@ -754,7 +761,19 @@ func (s *arrivalScheduleService) bulkEffectiveResults(
 			schedules[studentID] = row
 		}
 	}
-	return s.core.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, schedules)
+	results, err := s.core.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, schedules)
+	if err != nil {
+		return nil, err
+	}
+	for _, studentID := range studentIDs {
+		if projection.BookingsAuthoritative && schedules[studentID] == nil {
+			results[studentID] = &effectiveTimeResult{
+				Date:        date,
+				WeekdayName: schedule.WeekdayNames[effectiveISOWeekday(date)],
+			}
+		}
+	}
+	return results, nil
 }
 
 func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(

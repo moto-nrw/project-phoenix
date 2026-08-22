@@ -218,6 +218,47 @@ func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
+func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Ohne", "Buchung", "8k")
+	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Ausnahme")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+	arrivalTime := time.Date(2000, time.January, 1, 11, 45, 0, 0, time.UTC)
+	// The booking-authoritative baseline only returns Tuesday. Monday must stay
+	// unplanned even when the stored exception has an arrival time.
+	require.NoError(t, svc.CreateStudentArrivalException(ctx, &scheduleModel.StudentArrivalException{
+		StudentID:       student.ID,
+		ExceptionDate:   monday,
+		ExpectedArrival: &arrivalTime,
+		CreatedBy:       staff.ID,
+	}))
+
+	single, err := svc.GetEffectiveArrivalTimeForDate(ctx, student.ID, monday)
+	require.NoError(t, err)
+	assert.Nil(t, single.ArrivalTime)
+	assert.False(t, single.IsException)
+
+	bulk, err := svc.GetBulkEffectiveArrivalTimesForDate(ctx, []int64{student.ID}, monday)
+	require.NoError(t, err)
+	assert.Nil(t, bulk[student.ID].ArrivalTime)
+	assert.False(t, bulk[student.ID].IsException)
+}
+
 func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	t.Parallel()
 
