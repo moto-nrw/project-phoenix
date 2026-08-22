@@ -413,7 +413,7 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	// releases the bracelet, so a tag still bound here predates that pass and
 	// physically went back into the box.
 	if student.CareEndedOn(timezone.TodayDate()) {
-		slog.Default().InfoContext(ctx, "rfid tag still bound to a departed student, reporting as unassigned",
+		rs.getLogger().InfoContext(ctx, "rfid tag still bound to a departed student, reporting as unassigned",
 			slog.Int64("student_id", student.ID),
 		)
 		return nil

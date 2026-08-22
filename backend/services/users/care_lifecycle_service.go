@@ -338,6 +338,10 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 		if err != nil {
 			return err
 		}
+		exits, err := s.careExitRepo.FindByStudentIDs(txCtx, ids)
+		if err != nil {
+			return err
+		}
 		before := make(map[int64]*userModels.Student, len(ids))
 		for _, id := range ids {
 			student := locked[id]
@@ -345,6 +349,9 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 				return ErrCareExitNotPlanned
 			}
 			if student.EnrolledUntil == nil {
+				return ErrCareExitNotPlanned
+			}
+			if exits[id] == nil {
 				return ErrCareExitNotPlanned
 			}
 			if student.CareEndedOn(today) {

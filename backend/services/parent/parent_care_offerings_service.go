@@ -206,6 +206,9 @@ func (s *service) GetChildOfferingCatalogAt(
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
@@ -267,8 +270,8 @@ func (s *service) CreateOfferingChangeRequest(
 }
 
 // WithdrawOfferingChangeRequest flips the caller's own pending request to
-// withdrawn. Stays available even after the school switches the feature off, so
-// an outstanding request can always be wound down.
+// withdrawn. It stays available after the school switches the feature off, but
+// not after the child's care has ended.
 func (s *service) WithdrawOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,

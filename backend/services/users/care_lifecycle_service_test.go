@@ -348,6 +348,30 @@ func TestCareLifecycle_CancelOnlyBeforeItTakesEffect(t *testing.T) {
 	require.ErrorIs(t, err, userService.ErrCareExitNotPlanned)
 }
 
+func TestCareLifecycle_CancelRefusesOrdinaryEnrollmentEnd(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+
+	student := testpkg.CreateTestStudent(t, db, "Nora", "Hesse", "3c")
+	ordinaryEnd := timezone.TodayDate().AddDays(14)
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", ordinaryEnd).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
+	require.ErrorIs(t, err, userService.ErrCareExitNotPlanned)
+	stored := loadStudent(t, db, ctx, student.ID)
+	require.NotNil(t, stored.EnrolledUntil)
+	assert.Equal(t, ordinaryEnd, *stored.EnrolledUntil)
+}
+
 func TestCareLifecycle_CancelRefusedAfterItTookEffect(t *testing.T) {
 	t.Parallel()
 

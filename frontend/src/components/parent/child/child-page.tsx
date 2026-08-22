@@ -308,6 +308,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         canRemove={care.features.related_accounts_remove_enabled}
         canAddContact={care.features.guardian_contact_manage_allowed}
         canManagePickup={care.features.pickup_manage_allowed === true}
+        careEnded={careEnded}
       />
 
       {modal === "sick" && (
@@ -343,6 +344,7 @@ function ChildAreaTabs({
   canRemove,
   canAddContact,
   canManagePickup,
+  careEnded,
 }: Readonly<{
   child: Child;
   childName: string;
@@ -350,6 +352,7 @@ function ChildAreaTabs({
   canRemove: boolean;
   canAddContact: boolean;
   canManagePickup: boolean;
+  careEnded: boolean;
 }>) {
   const t = useTranslations("parentChild");
   const [activeArea, setActiveArea] = useState<ChildArea>("betreuung");
@@ -394,6 +397,7 @@ function ChildAreaTabs({
         <BookedCareSection
           studentId={child.student_id}
           childFirstName={child.first_name}
+          careEnded={careEnded}
         />
       </TabsContent>
 

@@ -123,7 +123,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
-		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
+		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)
 		r.Mount("/teachers", dataResource.TeachersRouter())
 
 		// School name endpoint (device API key → school name)
@@ -176,7 +176,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
-		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
+		dataResourceAuth := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.getLogger().With(slog.String("sub", "data")), rs.UnregisteredTagScans)
 		dataHandler := delegateHandler(dataResourceAuth.Router())
 		r.Get("/students", dataHandler)
 		r.Get("/activities", dataHandler)

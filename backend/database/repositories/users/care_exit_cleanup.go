@@ -294,6 +294,7 @@ func (r *CareExitCleanupRepository) DeletePlannedByStudentIDsAfter(
 			DELETE FROM schedule.instance_students AS s
 			USING schedule.activity_instances AS ai
 			WHERE s.instance_id = ai.id
+			  AND s.tenant_id = ai.tenant_id
 			  AND s.student_id IN (?)` + carePlannedRosterPredicate + `
 			RETURNING s.tenant_id, s.student_id, s.instance_id, s.room_id, s.status,
 			          s.substatus, s.note, s.is_unplanned, s.not_scheduled,

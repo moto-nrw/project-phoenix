@@ -1,6 +1,8 @@
 package data
 
 import (
+	"log/slog"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
@@ -17,10 +19,11 @@ type Resource struct {
 	ActivitiesService    activitiesSvc.ActivityService
 	FacilityService      facilitiesSvc.Service
 	UnregisteredTagScans auditSvc.UnregisteredTagScanService
+	Logger               *slog.Logger
 }
 
 // NewResource creates a new Data resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *Resource {
+func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, activitiesService activitiesSvc.ActivityService, facilityService facilitiesSvc.Service, logger *slog.Logger, unregisteredTagScans ...auditSvc.UnregisteredTagScanService) *Resource {
 	var scanService auditSvc.UnregisteredTagScanService
 	if len(unregisteredTagScans) > 0 {
 		scanService = unregisteredTagScans[0]
@@ -31,7 +34,15 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 		ActivitiesService:    activitiesService,
 		FacilityService:      facilityService,
 		UnregisteredTagScans: scanService,
+		Logger:               logger,
 	}
+}
+
+func (rs *Resource) getLogger() *slog.Logger {
+	if rs.Logger != nil {
+		return rs.Logger
+	}
+	return slog.Default()
 }
 
 // Router returns a configured router for device data query endpoints
