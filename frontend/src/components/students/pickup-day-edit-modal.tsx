@@ -9,6 +9,7 @@ import {
   formatPickupTime,
   getWeekdayLabel,
   formatShortDate,
+  pickupScheduleSourceLabel,
 } from "@/lib/pickup-schedule-helpers";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -29,6 +30,9 @@ interface PickupDayEditModalProps {
   /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
    * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
   readonly onResetToOffering?: () => Promise<void>;
+  /** Herkunft der regulären Zeit nur benennen, wenn in der Woche überhaupt
+   * eine Angebots-Gehzeit vorkommt. */
+  readonly showSource?: boolean;
   readonly onCreateNote: (content: string) => Promise<void>;
   readonly onUpdateNote: (noteId: string, content: string) => Promise<void>;
   readonly onDeleteNote: (noteId: string) => Promise<void>;
@@ -41,6 +45,7 @@ export function PickupDayEditModal({
   onSaveException,
   onDeleteException,
   onResetToOffering,
+  showSource = false,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -262,13 +267,19 @@ export function PickupDayEditModal({
           {baseTime && (
             <p className="mb-2 text-xs text-gray-500">
               Reguläre Zeit: {baseTime} Uhr
-              {day.baseSchedule?.source === "care_offering"
-                ? " (aus Betreuungsangebot)"
+              {showSource && day.baseSchedule
+                ? ` (${pickupScheduleSourceLabel(day.baseSchedule)})`
                 : null}
+            </p>
+          )}
+          {!baseTime && !day.exception && (
+            <p className="mb-2 text-xs text-gray-500">
+              Für diesen Tag ist keine Gehzeit hinterlegt.
             </p>
           )}
           {onResetToOffering &&
           day.baseSchedule &&
+          day.offeringSchedule &&
           day.baseSchedule.source !== "care_offering" ? (
             <Button
               type="button"

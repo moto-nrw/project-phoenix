@@ -373,7 +373,8 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, reportOfferingDate(phase))
+	offeringDate := reportOfferingDate(phase)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, offeringDate)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
@@ -470,14 +471,14 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
 	report.FilterOptions.PickupTimes = sortedPickupTimes(pickupTimeSeen)
 	if enrichCompact {
-		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID); err != nil {
+		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID, offeringDate); err != nil {
 			return nil, err
 		}
 	}
 	return report, nil
 }
 
-func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering) error {
+func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering, offeringDate timezone.Date) error {
 	requestIDs := make([]int64, 0, len(report.Rows))
 	childByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
 	for _, child := range children {
@@ -499,7 +500,7 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 		}
 		guardiansByRequest = classRosterRequestGuardiansByRequestID(guardians)
 	}
-	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs, offeringDate)
 	if err != nil {
 		return fmt.Errorf("care usage report: %w", err)
 	}
@@ -761,7 +762,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	classRosterAttachOfferingLinks(enrollmentsByStudent, links)
 	classRosterAttachRequestGuardians(enrollmentsByStudent, requestGuardiansByID)
 
-	schedulePickup, err := s.classRosterSchedulePickupByStudent(ctx, students)
+	schedulePickup, err := s.classRosterSchedulePickupByStudent(ctx, students, offeringDate)
 	if err != nil {
 		return nil, err
 	}
@@ -2144,17 +2145,17 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 // the report day codes used across the roster maps.
 var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
 
-// classRosterSchedulePickupByStudent loads the maintained weekly Kind-Gehzeit
-// rows (schedule.student_pickup_schedules) for the roster students (#2290).
+// classRosterSchedulePickupByStudent loads the effective weekly Kind-Gehzeit
+// plan on the same date used for the report's offering selection.
 // Nil-safe: wirings without the schedule service render without the column.
-func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student) (map[int64]map[string]string, error) {
+func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student, date timezone.Date) (map[int64]map[string]string, error) {
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		if student != nil {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
-	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs, date)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: %w", err)
 	}
@@ -2177,14 +2178,14 @@ func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
 	return 0
 }
 
-// schedulePickupByStudentIDs maps student ID -> day code -> maintained
-// pickup time (HH:MM), shared by the class-roster and care-usage reports.
-func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]map[string]string, error) {
+// schedulePickupByStudentIDs maps student ID -> day code -> effective pickup
+// time (HH:MM) on date, shared by the class-roster and care-usage reports.
+func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]map[string]string, error) {
 	out := map[int64]map[string]string{}
 	if s.PickupScheduleSvc == nil || len(studentIDs) == 0 {
 		return out, nil
 	}
-	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDs(ctx, studentIDs)
+	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDsForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, fmt.Errorf("list pickup schedules: %w", err)
 	}

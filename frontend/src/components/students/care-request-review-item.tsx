@@ -39,6 +39,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
     case "pickup_change_impact_changed":
       return "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.";
+    case "care_day_managed_by_booking":
+      return "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }

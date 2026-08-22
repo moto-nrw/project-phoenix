@@ -8,8 +8,9 @@ import (
 )
 
 // Pure tests for the pickup_times (Angebots-Gehzeit) validation on
-// CareOffering.Validate (#2290). A Gehzeit is optional per weekday; keys
-// must be canonical day codes within available_days and values HH:MM.
+// CareOffering.Validate (#2290). Keys must be canonical day codes within
+// available_days and values HH:MM. The active-care requirement belongs to
+// the admin write service because legacy rows remain readable.
 
 func TestCareOffering_Validate_PickupTimes_HappyPath(t *testing.T) {
 	t.Parallel()
@@ -102,7 +103,7 @@ func TestCareOffering_Validate_PickupTimes_ZeroPadsHours(t *testing.T) {
 	t.Parallel()
 
 	// time.Parse accepts "9:30"; the stored value must still be canonical
-	// zero-padded HH:MM, because the reconciler's latest-wins rule compares
+	// zero-padded HH:MM, because the projection's latest-wins rule compares
 	// the strings lexicographically ("15:00" must beat "9:00").
 	c := validCareOffering()
 	c.PickupTimes = map[string]string{"mon": "9:30"}

@@ -28,9 +28,9 @@ tatsächliche Abholung kann davon abweichen.
 ## Angebots-Gehzeit
 
 Die **Angebots-Gehzeit** ist eine je Wochentag am Betreuungsangebot hinterlegte
-Gehzeit. Sie ist optional und dient als Vorgabe für die Gehzeiten der Kinder,
-die das Angebot an diesem Wochentag gebucht haben. Eine für ein einzelnes Kind
-gepflegte Gehzeit geht der Angebots-Gehzeit vor.
+Gehzeit. Ein aktives Angebot, das als Betreuungstage zählt, braucht sie für
+jeden angebotenen Wochentag. Für ein Kind gilt sie nur innerhalb des wirksamen
+Buchungsfensters. Eine für ein einzelnes Kind gepflegte Gehzeit geht vor.
 
 ## Abholart
 
@@ -47,12 +47,11 @@ Abholart wählen dürfen. Welche Abholart es ist, entscheiden die Eltern.
 Jahrgänge ohne Beschränkung behalten die Mehrfachauswahl; bereits übernommene
 Angaben bleiben unangetastet, bis sie erneut eingereicht werden.
 
-## Ausrollen
+## Gehzeit-Projektion
 
-Das **Ausrollen** überträgt die Angebots-Gehzeit eines Betreuungsangebots auf
-die Gehzeiten aller Kinder, die das Angebot am jeweiligen Wochentag gebucht
-haben. Es geschieht nach ausdrücklicher Bestätigung; danach steht die Gehzeit
-am Kind selbst und trägt ihre Herkunft aus dem Angebot.
+Die **Gehzeit-Projektion** leitet die Angebots-Gehzeit beim Lesen aus der am
+angefragten Datum wirksamen Buchung ab. Sie speichert keine Angebots-Gehzeit am
+Kind. Eine gespeicherte, von Hand gepflegte Gehzeit überschreibt die Projektion.
 
 ## Anfrage
 

@@ -58,6 +58,7 @@ func createSourceCareOffering(
 		Name:               fmt.Sprintf("Frühbetreuung %d", suffix),
 		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon"},
+		PickupTimes:        map[string]string{"mon": "14:30"},
 		IsActive:           true,
 		CountsAsCare:       true,
 		CountsAsCareSet:    true,

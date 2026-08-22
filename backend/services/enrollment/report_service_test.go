@@ -1238,10 +1238,39 @@ func (r *fakeClassRosterStudentGuardianRepo) ListEmergencyContactRows(_ context.
 
 type fakeClassRosterPhaseRepo struct {
 	enrollmentModels.PhaseRepository
+	phase *enrollmentModels.Phase
 }
 
 func (r *fakeClassRosterPhaseRepo) FindByID(_ context.Context, id int64) (*enrollmentModels.Phase, error) {
+	if r.phase != nil {
+		phase := *r.phase
+		phase.ID = id
+		return &phase, nil
+	}
 	return &enrollmentModels.Phase{Model: baseModels.Model{ID: id}, Name: "Schuljahr 2026"}, nil
+}
+
+func TestClassRosterUsesOfferingDateForPickupProjection(t *testing.T) {
+	t.Parallel()
+
+	studentID := int64(100)
+	pickupSvc := &fakeCareUsagePickupScheduleSvc{}
+	svc := classRosterTestService(
+		[]*userModels.Student{{Model: baseModels.Model{ID: studentID}, PersonID: 200, SchoolClass: "1a"}},
+		map[int64]*userModels.Person{200: {FirstName: "Lina", LastName: "Muster"}},
+		&fakeClassRosterRequestRepo{},
+		&fakeClassRosterChildRepo{},
+	)
+	svc.PickupScheduleSvc = pickupSvc
+	reportDate := timezone.TodayDate().AddDays(30)
+
+	_, err := svc.ClassRoster(context.Background(), ClassRosterFilters{
+		PhaseID: 55, SchoolClass: "1a", OfferingDate: &reportDate,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, reportDate, pickupSvc.date)
+	assert.Equal(t, []int64{studentID}, pickupSvc.studentIDs)
 }
 
 func TestSortClassRosterRowsGermanNameOrder(t *testing.T) {
@@ -1393,16 +1422,19 @@ type fakeCareUsagePickupScheduleSvc struct {
 	rows       []*scheduleModels.StudentPickupSchedule
 	err        error
 	studentIDs []int64
+	date       timezone.Date
 }
 
-func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDs(_ context.Context, studentIDs []int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+func (s *fakeCareUsagePickupScheduleSvc) GetWeeklySchedulesByStudentIDsForDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModels.StudentPickupSchedule, error) {
 	s.studentIDs = append([]int64(nil), studentIDs...)
+	s.date = date
 	return s.rows, s.err
 }
 
 func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	t.Parallel()
 
+	reportDate := timezone.TodayDate().AddDays(30)
 	studentID := int64(700)
 	excludedStudentID := int64(701)
 	guardianEmail := "max@example.org"
@@ -1441,8 +1473,11 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 		RequestGuardianRepo:      guardianRepo,
 		RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
 		CareOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
-		PhaseRepo:                &fakeClassRosterPhaseRepo{},
-		PickupScheduleSvc:        pickupSvc,
+		PhaseRepo: &fakeClassRosterPhaseRepo{phase: &enrollmentModels.Phase{
+			ServiceStartDate: reportDate,
+			ServiceEndDate:   reportDate.AddDays(365),
+		}},
+		PickupScheduleSvc: pickupSvc,
 	}}
 
 	report, err := svc.careUsage(context.Background(), CareUsageFilters{PhaseID: 55, Status: "all", Search: "Lina"}, true)
@@ -1462,6 +1497,7 @@ func TestCareUsageEnrichesGuardiansAndSchedulePickup(t *testing.T) {
 	assert.Equal(t, guardianEmail, row.Guardians[1].Email)
 	assert.Equal(t, []int64{11}, guardianRepo.requestIDs)
 	assert.Equal(t, []int64{studentID}, pickupSvc.studentIDs)
+	assert.Equal(t, reportDate, pickupSvc.date)
 }
 
 func TestCareUsageDoesNotEnrichSchedulePickupBeforeApproval(t *testing.T) {

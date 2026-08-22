@@ -19,6 +19,7 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -220,15 +221,23 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
 			ArrivalSchedules:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
 			ArrivalExceptions: scheduleRepo.NewStudentArrivalExceptionRepository(db),
-			PickupSchedules:   scheduleRepo.NewStudentPickupScheduleRepository(db),
-			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
+			PickupBaselines: scheduleSvc.NewPickupBaselineService(
+				scheduleRepo.NewStudentPickupScheduleRepository(db),
+				enrollmentRepo.NewRequestChildOfferingRepository(db),
+				enrollmentRepo.NewCareOfferingRepository(db),
+			),
+			PickupExceptions: scheduleRepo.NewStudentPickupExceptionRepository(db),
 		}),
 		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
-		PickupScheduleRepo:  scheduleRepo.NewStudentPickupScheduleRepository(db),
-		StudentRepo:         usersRepo.NewStudentRepository(db),
-		PersonRepo:          usersRepo.NewPersonRepository(db),
-		EducationGroupRepo:  educationRepo.NewGroupRepository(db),
-		RoomRepo:            roomRepo,
+		PickupBaselines: scheduleSvc.NewPickupBaselineService(
+			scheduleRepo.NewStudentPickupScheduleRepository(db),
+			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			enrollmentRepo.NewCareOfferingRepository(db),
+		),
+		StudentRepo:        usersRepo.NewStudentRepository(db),
+		PersonRepo:         usersRepo.NewPersonRepository(db),
+		EducationGroupRepo: educationRepo.NewGroupRepository(db),
+		RoomRepo:           roomRepo,
 		PickupService: scheduleSvc.NewPickupScheduleServiceWithBulk(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			scheduleRepo.NewStudentPickupExceptionRepository(db),
@@ -236,6 +245,11 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
+			scheduleSvc.NewPickupBaselineService(
+				scheduleRepo.NewStudentPickupScheduleRepository(db),
+				enrollmentRepo.NewRequestChildOfferingRepository(db),
+				enrollmentRepo.NewCareOfferingRepository(db),
+			),
 			db,
 			slog.Default(),
 		),

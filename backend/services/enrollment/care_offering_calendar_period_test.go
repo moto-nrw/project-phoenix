@@ -138,6 +138,7 @@ func (f *calendarPeriodValidationFixture) createLinkedTemplate(
 		Name:            "Linked Template",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:   []string{"mon"},
+		PickupTimes:     carePickupTimes("mon"),
 		IsActive:        true,
 	}
 	offering.SetTenantID(f.tenantID)

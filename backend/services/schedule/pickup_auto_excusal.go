@@ -30,7 +30,7 @@ import (
 // serialization contract the manual partial-absence writers follow.
 type PickupAutoExcusalSyncer struct {
 	pickups scheduleModel.StudentPickupExceptionRepository
-	weekly  scheduleModel.StudentPickupScheduleRepository
+	weekly  PickupBaselineReader
 	slots   scheduleModel.InstanceStudentRepository
 	preview partialAbsenceBlockFinder
 	db      *bun.DB
@@ -46,7 +46,7 @@ type partialAbsenceBlockFinder interface {
 // care locks).
 func NewPickupAutoExcusalSyncer(
 	pickups scheduleModel.StudentPickupExceptionRepository,
-	weekly scheduleModel.StudentPickupScheduleRepository,
+	weekly PickupBaselineReader,
 	slots scheduleModel.InstanceStudentRepository,
 	db *bun.DB,
 ) *PickupAutoExcusalSyncer {
@@ -251,10 +251,11 @@ func (s *PickupAutoExcusalSyncer) desiredCutoff(
 	if weekday > scheduleModel.WeekdayFriday {
 		return false, zero, nil
 	}
-	baseline, err := s.weekly.FindByStudentIDAndWeekday(ctx, row.StudentID, weekday)
+	projection, err := s.weekly.Project(ctx, []int64{row.StudentID}, row.ExceptionDate, row.ExceptionDate)
 	if err != nil {
 		return false, zero, fmt.Errorf("auto excusal: load weekly pickup baseline: %w", err)
 	}
+	baseline := projection.ForDate(row.StudentID, row.ExceptionDate)
 	if baseline == nil {
 		return false, zero, nil
 	}
