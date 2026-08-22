@@ -177,6 +177,9 @@ describe("Beendete Betreuungen", () => {
   it("opens the resume dialog and demands the explicit review", async () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
+    expect(
+      screen.getAllByRole("button", { name: "Wieder aufnehmen" }),
+    ).toHaveLength(1);
 
     fireEvent.click(
       screen.getAllByRole("button", { name: "Wieder aufnehmen" })[0]!,

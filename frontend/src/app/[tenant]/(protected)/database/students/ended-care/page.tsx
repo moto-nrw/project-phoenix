@@ -142,14 +142,16 @@ export default function EndedCarePage() {
       align: "right",
       render: (entry) => (
         <div className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => setResumeTarget(entry)}
-          >
-            Wieder aufnehmen
-          </Button>
+          {entry.reason && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setResumeTarget(entry)}
+            >
+              Wieder aufnehmen
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"

@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -65,6 +66,39 @@ func endCare(
 	result, err := svc.Confirm(ctx, preview.Token, input, actorID)
 	require.NoError(t, err)
 	return result
+}
+
+func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	repos := repositories.NewFactory(db)
+	actorID := careActor(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Audit", "CareEnd", "2a")
+
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", string(userModels.StudentStatusActive)).
+		Set("supervisor_notes = ?", "Nicht ändern").
+		Set("extra_info = ?", "Nicht ändern").
+		Set("health_info = ?", "Nicht ändern").
+		Set("pickup_status = ?", "pickup").
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+		StudentIDs:  []int64{student.ID},
+		LastCareDay: timezone.TodayDate(),
+		Reason:      userModels.CareExitReasonMovedAway,
+	})
+
+	edits, err := repos.StudentFieldEdit.GetByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, edits, 1)
+	assert.Equal(t, auditModels.StudentFieldCareEnd, edits[0].FieldName)
 }
 
 func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {

@@ -254,6 +254,9 @@ func (s *careLifecycleService) Confirm(
 		if err != nil {
 			return err
 		}
+		for id, student := range before {
+			before[id] = cloneCareFields(student)
+		}
 		exits, err := s.careExitRepo.FindByStudentIDs(txCtx, ids)
 		if err != nil {
 			return err
