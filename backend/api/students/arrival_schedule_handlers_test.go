@@ -235,8 +235,13 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 		testutil.AssertBadRequest(t, rr)
 	})
 
-	t.Run("bad_request_missing_time", func(t *testing.T) {
+	// Business rule changed with #2414 / ADR 0005: an entry without a time is
+	// not an incomplete request, it is a care day whose time comes from the
+	// child's class timetable. What must not exist is a time on a day without
+	// care, and that is expressed by the absence of an entry.
+	t.Run("accepts_a_care_day_without_its_own_time", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrivalNoTime", "Test", "ANT1")
+		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "NoTime", "ArrTeacher")
 
 		body := map[string]any{
 			"schedules": []map[string]any{
@@ -244,9 +249,15 @@ func TestUpdateStudentArrivalSchedules(t *testing.T) {
 			},
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/arrival-schedules", student.ID), body)
-		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
-		testutil.AssertBadRequest(t, rr)
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		stored, err := tc.services.ArrivalSchedule.GetStudentArrivalSchedules(testpkg.Ctx(t), student.ID)
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		assert.True(t, stored[0].InheritsClassTime(),
+			"no class time is maintained, so the care day carries none either")
 	})
 
 	// #2329: every verified staff member may write the care plan; what

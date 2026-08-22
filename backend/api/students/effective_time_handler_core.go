@@ -70,18 +70,11 @@ func validateCareScheduleItems[T any](
 			return fmt.Errorf("schedule %d: duplicate weekday %d", index, item.Weekday)
 		}
 		seenWeekdays[item.Weekday] = true
-		if item.Time == "" {
-			return fmt.Errorf("schedule %d: %s is required", index, timeField)
-		}
-		if _, err := time.Parse("15:04", item.Time); err != nil {
-			return fmt.Errorf(
-				"schedule %d: invalid %s format, expected HH:MM",
-				index,
-				timeField,
-			)
-		}
-		if item.Notes != nil && len(*item.Notes) > 500 {
-			return fmt.Errorf("schedule %d: notes cannot exceed 500 characters", index)
+		// Delegate the per-item rules instead of keeping a second copy of
+		// them: the copy silently ignored TimeOptional and rejected every
+		// care day without an own time (#2414).
+		if err := validateCareScheduleItem(item, timeField); err != nil {
+			return fmt.Errorf("schedule %d: %w", index, err)
 		}
 	}
 	return nil
