@@ -2285,6 +2285,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveGroupRepo:            repos.ActiveGroup,
 		SupervisorRepo:             repos.GroupSupervisor,
 		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+		ArrivalBaselines:           arrivalBaselines,
 		ArrivalExceptionRepo:       repos.StudentArrivalException,
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
 		PickupBaselines:            pickupBaselines,
