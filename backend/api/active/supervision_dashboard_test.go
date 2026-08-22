@@ -184,8 +184,17 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	// Today's pickup exception surfaces in the folded-in pickup times.
 	require.Len(t, data.PickupTimes, 1)
 	assert.Equal(t, strconv.FormatInt(student.ID, 10), data.PickupTimes[0].StudentID)
-	require.NotNil(t, data.PickupTimes[0].PickupTime)
-	assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
+	// The effective-time resolver answers Mon-Fri only: on a weekend it
+	// returns the row without a time and never reads the exception
+	// (effectiveTimeCore.BulkEffectiveTimesForDate). The exception itself is
+	// pinned on a fixed Thursday in
+	// TestPickupScheduleService_GetBulkEffectivePickupTimesForDate; here the
+	// value is only asserted on the days the dashboard can carry one, so a
+	// Saturday CI run does not fail on a rule the projection does not own.
+	if weekday := today.Weekday(); weekday != time.Saturday && weekday != time.Sunday {
+		require.NotNil(t, data.PickupTimes[0].PickupTime)
+		assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
+	}
 
 	// Full permission set resolves capabilities from settings defaults.
 	assert.True(t, data.Capabilities.WebSpontaneousActivitiesEnabled)
