@@ -41,7 +41,7 @@ func (r *ClassArrivalTimeRepository) FindByClasses(ctx context.Context, classes 
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
 		ModelTableExpr(classArrivalTimeTableExpr).
-		Where(`LOWER(BTRIM("class_arrival_time".school_class)) IN (?)`, bun.In(normalized)).
+		Where(`LOWER(BTRIM("class_arrival_time".school_class)) IN (?)`, bun.List(normalized)).
 		OrderExpr(`LOWER(BTRIM("class_arrival_time".school_class)) ASC`)
 	query = base.WithTenantFilter(ctx, query, "class_arrival_time")
 
