@@ -2945,6 +2945,9 @@ func parseTimeHHMM(tb testing.TB, hhmm string) time.Time {
 
 // CreateTestArrivalSchedule inserts a weekly arrival schedule for a student.
 // staffID must reference users.staff(id) — the schema's created_by FK.
+// CreateTestArrivalSchedule inserts one care day for a child. Pass
+// arrivalHHMM="" for a care day without its own time — the child's class
+// timetable supplies it then (#2414).
 func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *schedule.StudentArrivalSchedule {
 	tb.Helper()
 
@@ -2952,10 +2955,12 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 	defer cancel()
 
 	row := &schedule.StudentArrivalSchedule{
-		StudentID:       studentID,
-		Weekday:         weekday,
-		ExpectedArrival: parseTimeHHMM(tb, arrivalHHMM),
-		CreatedBy:       staffID,
+		StudentID: studentID,
+		Weekday:   weekday,
+		CreatedBy: staffID,
+	}
+	if arrivalHHMM != "" {
+		row.ExpectedArrival = parseTimeHHMM(tb, arrivalHHMM)
 	}
 	row.SetTenantID(fixtureTenantID(tb))
 

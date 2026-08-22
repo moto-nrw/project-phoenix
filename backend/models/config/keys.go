@@ -239,6 +239,7 @@ const (
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
+	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"

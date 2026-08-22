@@ -24,16 +24,34 @@ const (
 	scheduleReasonMaxLength = 255
 )
 
+// Arrival-schedule provenance (#2414, ADR 0005). It is never persisted: a
+// stored row is a manual override by definition, and the projection sets these
+// fields on the rows it builds at read time.
+const (
+	ArrivalScheduleSourceStaff         = "staff"
+	ArrivalScheduleSourceClassSchedule = "class_schedule"
+)
+
 // StudentArrivalSchedule represents a recurring weekly arrival schedule for a student
 type StudentArrivalSchedule struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_schedules"`
 	base.TenantModel
 
-	StudentID       int64     `bun:"student_id,notnull" json:"student_id"`
-	Weekday         int       `bun:"weekday,notnull" json:"weekday"`
-	ExpectedArrival time.Time `bun:"expected_arrival,notnull" json:"expected_arrival"`
+	StudentID int64 `bun:"student_id,notnull" json:"student_id"`
+	Weekday   int   `bun:"weekday,notnull" json:"weekday"`
+	// ExpectedArrival is optional (#2414, ADR 0005): the zero value means
+	// "take the time from this child's class timetable for that weekday". A
+	// set value is a deliberate per-child deviation and wins over the class.
+	ExpectedArrival time.Time `bun:"expected_arrival,nullzero" json:"expected_arrival,omitzero"`
 	Notes           *string   `bun:"notes" json:"notes,omitempty"`
 	CreatedBy       int64     `bun:"created_by,notnull" json:"created_by"`
+
+	// Source and SourceClass are hydrated on read-time projections only and
+	// have no column: "staff" marks a stored manual override, "class_schedule"
+	// a time projected from the class timetable, with SourceClass naming the
+	// class it came from. Mirrors StudentPickupSchedule.CareOfferingName.
+	Source      string `bun:"-" json:"source,omitempty"`
+	SourceClass string `bun:"-" json:"source_class,omitempty"`
 }
 
 // Validate ensures arrival schedule data is valid
@@ -44,9 +62,6 @@ func (s *StudentArrivalSchedule) Validate() error {
 	if s.Weekday < WeekdayMonday || s.Weekday > WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
-	if s.ExpectedArrival.IsZero() {
-		return errors.New("expected_arrival is required")
-	}
 	if s.CreatedBy <= 0 {
 		return errors.New(errMsgArrivalCreatedByRequired)
 	}
@@ -54,6 +69,13 @@ func (s *StudentArrivalSchedule) Validate() error {
 		return errors.New("notes cannot exceed 500 characters")
 	}
 	return nil
+}
+
+// InheritsClassTime reports whether this row takes its time from the class
+// timetable instead of carrying its own (#2414). The row still marks the
+// weekday as a care day either way.
+func (s *StudentArrivalSchedule) InheritsClassTime() bool {
+	return s.ExpectedArrival.IsZero()
 }
 
 // GetWeekdayName returns the German name for this schedule's weekday

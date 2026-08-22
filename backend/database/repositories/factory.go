@@ -99,6 +99,7 @@ type Factory struct {
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
 	ClassTeacher      educationModels.ClassTeacherRepository
+	ClassArrivalTime  educationModels.ClassArrivalTimeRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
 	GradeTransition   educationModels.GradeTransitionRepository
 
@@ -320,6 +321,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
 		ClassTeacher:      education.NewClassTeacherRepository(db),
+		ClassArrivalTime:  education.NewClassArrivalTimeRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 
