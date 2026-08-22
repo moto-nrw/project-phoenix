@@ -103,6 +103,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	params.careStatusOn = planningDate
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Fetch students based on parameters
@@ -446,6 +447,11 @@ func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []s
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
+		return
+	}
+	if student.CareEndedOn(timezone.TodayDate()) &&
+		!authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
 	}
 

@@ -82,7 +82,8 @@ type studentListParams struct {
 	// shows (#2487). Empty or "running" — the default every operational
 	// screen uses — hides children whose care has ended; "ended" shows only
 	// those; "all" turns the boundary off for callers that manage both.
-	careStatus string
+	careStatus   string
+	careStatusOn timezone.Date
 }
 
 // Values accepted by the care_status query parameter (#2487).
@@ -238,6 +239,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		location:      r.URL.Query().Get("location"),
 		locationState: r.URL.Query().Get("location_state"),
 		search:        r.URL.Query().Get("search"),
+		careStatusOn:  timezone.TodayDate(),
 	}
 
 	// Parse group IDs if provided. Unparseable entries are skipped rather than
@@ -381,7 +383,7 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// enrollment interval is the boundary — the lifecycle status only follows
 	// it once the scheduler ticks, and a list must not show a departed child
 	// for up to an hour because of that.
-	applyCareStatusFilter(filter, p.careStatus, timezone.TodayDate())
+	applyCareStatusFilter(filter, p.careStatus, p.careStatusOn)
 	// Several classes may be selected at once (#2218); TrimIn collapses to the
 	// single-value TrimEqual when exactly one is requested.
 	if len(p.schoolClasses) > 0 {

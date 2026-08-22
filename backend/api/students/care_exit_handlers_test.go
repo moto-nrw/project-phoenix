@@ -182,10 +182,12 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	running := testpkg.CreateTestStudent(t, tc.db, "Listed", "Running", "3a")
 	planned := testpkg.CreateTestStudent(t, tc.db, "Listed", "Planned", "3a")
 	ended := testpkg.CreateTestStudent(t, tc.db, "Listed", "Ended", "3a")
+	endsToday := testpkg.CreateTestStudent(t, tc.db, "Listed", "EndsToday", "3a")
 
 	today := timezone.TodayDate()
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
+	setEnrolledUntil(t, tc, endsToday.ID, today)
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "CareStatusGroup")
 	testpkg.AssignStudentToGroup(t, tc.db, running.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, planned.ID, group.ID)
@@ -234,6 +236,11 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		assert.Contains(t, rows, running.ID)
 		assert.Contains(t, rows, planned.ID)
 		assert.Contains(t, rows, ended.ID)
+	})
+
+	t.Run("a future planning day hides a child after its last care day", func(t *testing.T) {
+		rows := listed(fmt.Sprintf("?page_size=500&date=%s", today.AddDays(1)))
+		assert.NotContains(t, rows, endsToday.ID)
 	})
 
 	t.Run("group list applies the care status before paging", func(t *testing.T) {

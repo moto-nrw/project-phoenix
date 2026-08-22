@@ -528,6 +528,21 @@ func TestGetStudent(t *testing.T) {
 
 		testutil.AssertNotFound(t, rr)
 	})
+
+	t.Run("not_found_for_ended_care_without_delete_permission", func(t *testing.T) {
+		ended := testpkg.CreateTestStudent(t, tc.db, "Care", "Ended", "GS-Ended")
+		_, err := tc.db.NewUpdate().
+			TableExpr(`users.students`).
+			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+			Where("id = ?", ended.ID).
+			Exec(t.Context())
+		require.NoError(t, err)
+
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", ended.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"users:read"})
+
+		testutil.AssertNotFound(t, rr)
+	})
 }
 
 // =============================================================================
