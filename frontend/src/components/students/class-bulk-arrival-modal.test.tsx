@@ -191,7 +191,7 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
-    const submit = screen.getByRole("button", { name: /Für 1 Kind setzen/ });
+    const submit = screen.getByRole("button", { name: /Für Klasse 3a setzen/ });
     expect(submit).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Montag"), {
@@ -238,7 +238,9 @@ describe("FilteredBulkArrivalModal", () => {
     fireEvent.change(screen.getByLabelText("Mittwoch"), {
       target: { value: "09:30" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Für 1 Kind setzen/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Für Klasse 3a setzen/ }),
+    );
 
     await waitFor(() => expect(mockBulkUpsert).toHaveBeenCalled());
     expect(mockBulkUpsert).toHaveBeenCalledWith(
@@ -303,7 +305,9 @@ describe("FilteredBulkArrivalModal", () => {
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "08:00" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /Für 1 Kind setzen/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Für Klasse 3a setzen/ }),
+    );
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(

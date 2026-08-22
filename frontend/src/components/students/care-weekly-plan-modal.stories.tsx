@@ -32,8 +32,13 @@ export const WithSchedules: Story = {
     isOpen: true,
     onClose: () => {},
     initialArrivalSchedules: [
-      { weekday: 1, expected_arrival: "08:00", notes: "Kommt mit dem Bus" },
-      { weekday: 3, expected_arrival: "08:15", notes: null },
+      {
+        weekday: 1,
+        inCare: true,
+        expected_arrival: "08:00",
+        notes: "Kommt mit dem Bus",
+      },
+      { weekday: 3, inCare: true, expected_arrival: "08:15", notes: null },
     ],
     initialPickupSchedules: [
       { weekday: 1, pickupTime: "16:00", notes: "Oma holt ab" },

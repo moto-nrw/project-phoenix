@@ -1211,6 +1211,7 @@ function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
       .filter((row) => row.arrivalTime.trim() !== "")
       .map((row) => ({
         weekday: row.weekday,
+        inCare: true,
         expected_arrival: row.arrivalTime,
         notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
       })),

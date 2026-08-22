@@ -1,11 +1,21 @@
 import { getCachedSession } from "./session-cache";
 
+/**
+ * One care day of a child. The row says the child is in care that weekday;
+ * the time on it is optional and comes from the class timetable unless the
+ * child deviates (#2414).
+ */
 export interface ArrivalSchedule {
   id: number;
   student_id: number;
   weekday: number;
   weekday_name: string;
+  /** HH:MM, empty when neither the child nor its class carries a time. */
   expected_arrival: string;
+  /** "class_schedule" = taken from the class, "staff" = per-child deviation. */
+  source?: "class_schedule" | "staff";
+  /** The class the time came from, set when source is "class_schedule". */
+  source_class?: string;
   notes?: string | null;
   created_by: number;
   created_at: string;
@@ -44,6 +54,7 @@ export interface ArrivalData {
 
 export interface ArrivalScheduleInput {
   weekday: number;
+  /** Empty string = care day whose time comes from the class timetable. */
   expected_arrival: string;
   notes?: string | null;
 }

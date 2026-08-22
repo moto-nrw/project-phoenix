@@ -34,8 +34,8 @@ vi.mock("~/components/ui/form-modal", () => ({
 }));
 
 const initialArrivalSchedules = [
-  { weekday: 1, expected_arrival: "08:00", notes: "kommt frueh" },
-  { weekday: 2, expected_arrival: "09:00", notes: null },
+  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: "kommt frueh" },
+  { weekday: 2, inCare: true, expected_arrival: "09:00", notes: null },
 ];
 
 const initialPickupSchedules = [
@@ -84,10 +84,11 @@ describe("CareWeeklyPlanModal", () => {
         arrivalSchedules: expect.arrayContaining([
           {
             weekday: 1,
+            inCare: true,
             expected_arrival: "08:00",
             notes: "Bitte vorne warten",
           },
-          { weekday: 4, expected_arrival: "10:15", notes: null },
+          { weekday: 4, inCare: true, expected_arrival: "10:15", notes: null },
         ]),
         pickupData: {
           schedules: expect.arrayContaining([
@@ -135,7 +136,9 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
-        initialArrivalSchedules={[{ weekday: 1, expected_arrival: "99:99" }]}
+        initialArrivalSchedules={[
+          { weekday: 1, inCare: true, expected_arrival: "99:99" },
+        ]}
         initialPickupSchedules={[]}
         onSubmit={vi.fn()}
       />,

@@ -153,11 +153,16 @@ const basePickupDay: PickupDayData = {
 };
 
 const weeklyArrival = [
-  { weekday: 1, expected_arrival: "08:00", notes: "Haupteingang" },
-  { weekday: 2, expected_arrival: "08:15", notes: null },
-  { weekday: 3, expected_arrival: "", notes: null },
-  { weekday: 4, expected_arrival: "", notes: null },
-  { weekday: 5, expected_arrival: "", notes: null },
+  {
+    weekday: 1,
+    inCare: true,
+    expected_arrival: "08:00",
+    notes: "Haupteingang",
+  },
+  { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
+  { weekday: 3, inCare: true, expected_arrival: "", notes: null },
+  { weekday: 4, inCare: true, expected_arrival: "", notes: null },
+  { weekday: 5, inCare: true, expected_arrival: "", notes: null },
 ];
 
 const weeklyPickup = [
@@ -638,8 +643,13 @@ describe("CarePlanEditorModal", () => {
     await waitFor(() => {
       expect(onSubmitWeekly).toHaveBeenCalledWith({
         arrivalSchedules: [
-          { weekday: 1, expected_arrival: "08:45", notes: "Haupteingang" },
-          { weekday: 2, expected_arrival: "08:15", notes: null },
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:45",
+            notes: "Haupteingang",
+          },
+          { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
         ],
         pickupSchedules: [
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },

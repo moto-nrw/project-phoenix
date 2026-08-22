@@ -147,6 +147,7 @@ export function CareWeeklyPlanModal({
       .filter((row) => row.arrivalTime.trim() !== "")
       .map((row) => ({
         weekday: row.weekday,
+        inCare: true,
         expected_arrival: row.arrivalTime,
         notes: row.arrivalNotes ?? null,
       }));

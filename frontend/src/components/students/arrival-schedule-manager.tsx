@@ -492,9 +492,21 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           kommt nicht
         </div>
       ) : (
-        <div className="mt-1 text-sm font-semibold text-gray-900">
-          {day.effectiveTime ?? "-"}
-        </div>
+        <>
+          <div className="mt-1 text-sm font-semibold text-gray-900">
+            {day.effectiveTime ?? "-"}
+          </div>
+          {!day.isException &&
+          day.baseSchedule?.source === "class_schedule" &&
+          day.baseSchedule.source_class ? (
+            <div className="mt-0.5 text-xs text-gray-400">
+              aus Klasse {day.baseSchedule.source_class}
+            </div>
+          ) : null}
+          {!day.isException && day.baseSchedule?.source === "staff" ? (
+            <div className="mt-0.5 text-xs text-gray-400">eigene Zeit</div>
+          ) : null}
+        </>
       )}
 
       {day.baseSchedule?.notes ? (

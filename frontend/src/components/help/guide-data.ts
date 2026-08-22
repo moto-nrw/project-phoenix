@@ -460,8 +460,10 @@ export const setupChapters: readonly GuideChapter[] = [
           "`Alle Kinder` öffnen und auf die Karte des Kindes klicken.",
           "Den Tab `Betreuungszeiten` öffnen.",
           "Oben rechts auf `Wochenplan` klicken.",
-          "Je Wochentag die regelmäßigen Zeiten für `Ankunft` und `Abholung` im Format `HH:MM` eintragen, zum Beispiel Montag bis Donnerstag `13:45`. Optional je Tag eine Ankunfts- oder Abholnotiz ergänzen.",
+          "Bei `Ankunft` die Tage anhaken, an denen das Kind in die OGS kommt. Die Uhrzeit kommt aus der Klasse. Eine eigene Uhrzeit tragen Sie nur ein, wenn das Kind früher oder später kommt als seine Klasse.",
+          "Bei `Abholung` je Wochentag die Zeit im Format `HH:MM` eintragen, zum Beispiel Montag bis Donnerstag `13:45`. Optional je Tag eine Ankunfts- oder Abholnotiz ergänzen.",
           "Speichern. Würde eine geleerte Zeit einen bestehenden Eintrag entfernen, fragt die App vorher nach.",
+          "Unter der Ankunftszeit steht, woher sie kommt: `aus Klasse 3b` heißt, sie gilt für die ganze Klasse. `eigene Zeit` heißt, dieses Kind weicht ab. Löschen Sie die eigene Zeit, gilt wieder die Zeit der Klasse.",
           "Für eine Abweichung an einem einzelnen Tag auf der jeweiligen Tageskarte `Ausnahme` wählen: Neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein Feld `Grund`. Ausnahmen bleiben bestehen, wenn der Wochenplan später geändert wird.",
         ],
         callout: {
@@ -477,11 +479,13 @@ export const setupChapters: readonly GuideChapter[] = [
         id: "betreuungszeiten-mehrere-kinder",
         title: "Zeiten für mehrere Kinder gleichzeitig setzen",
         summary:
-          "Wenn viele Kinder dieselben Ankunftszeiten haben, zum Beispiel eine ganze Klasse, setzen Sie sie gesammelt in der Datenverwaltung. Für Gehzeiten wählen Sie die Kinder zuerst selbst aus.",
+          "Die Ankunftszeit einer Klasse tragen Sie einmal für die ganze Klasse ein. Für Gehzeiten und für frei gewählte Kinder wählen Sie die Kinder zuerst selbst aus.",
         searchTerms: ["Sammelaktion", "Auswahlleiste", "Gruppieren"],
         steps: [
           "`Datenverwaltung` öffnen und `Kinder` wählen.",
-          "Für alle Kinder einer Klasse oder OGS-Gruppe: oben bei `Gruppieren` `Klasse` oder `Gruppe` wählen. Im Drei-Punkte-Menü der gewünschten Klasse oder Gruppe `Ankunftszeit bearbeiten` öffnen und die gemeinsamen Zeiten eintragen. Ausgefüllte Wochentage werden für alle Kinder des Filters gesetzt; leere Felder bleiben unverändert.",
+          "Für eine ganze Klasse: oben bei `Gruppieren` `Klasse` wählen. Im Drei-Punkte-Menü der Klasse `Ankunftszeit bearbeiten` öffnen und je Wochentag den Unterrichtsschluss eintragen. Die Zeit gilt dann für alle Kinder der Klasse. Leere Felder bleiben unverändert.",
+          "Wichtig: Die Klasse setzt nur die Uhrzeit. Kinder bekommen dadurch keine neuen Betreuungstage. Welche Tage ein Kind kommt, steht im Wochenplan des Kindes.",
+          "Für eine OGS-Gruppe: oben `Gruppe` wählen und dort `Ankunftszeit bearbeiten` öffnen. Hier wird die Zeit je Kind gesetzt, nicht über die Klasse.",
           "Für frei zusammengestellte Kinder auf `Auswählen` klicken und die gewünschten Kinder einzeln anhaken. Suche und Gruppenfilter dürfen zwischendurch geändert werden; die Auswahl bleibt erhalten.",
           "Oben in der Auswahlleiste `Ankunftszeiten`, `Gehzeiten` oder `Klassenfahrt` wählen. Bei den Wochenzeiten werden nur ausgefüllte Tage geändert; leere Tage und vorhandene Notizen bleiben unverändert.",
           "Nach dem Speichern bleibt die Auswahl aktiv, damit bei Bedarf direkt eine weitere Aktion für dieselben Kinder folgen kann. Mit `Fertig` wird sie beendet.",

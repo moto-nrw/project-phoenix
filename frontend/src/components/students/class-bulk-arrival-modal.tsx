@@ -58,6 +58,9 @@ export function FilteredBulkArrivalModal({
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
   const [collisionCount, setCollisionCount] = useState<number | null>(null);
+  // A school class sets the class timetable once for everyone (#2414); a group
+  // is not a class, so there it still sets a time per child.
+  const isClassTimetable = filter.type === "school_class";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -125,7 +128,9 @@ export function FilteredBulkArrivalModal({
     try {
       await bulkUpsertArrivalSchedules(filter, schedules);
       toastSuccess(
-        `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
+        isClassTimetable
+          ? `Unterrichtsschluss für ${targetTitle} gespeichert`
+          : `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
       );
       onSuccess?.();
       onClose();
@@ -145,7 +150,11 @@ export function FilteredBulkArrivalModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Ankunftszeiten für ${targetTitle}`}
+      title={
+        isClassTimetable
+          ? `Unterrichtsschluss für ${targetTitle}`
+          : `Ankunftszeiten für ${targetTitle}`
+      }
       size="md"
       mobilePosition="bottom"
       footer={
@@ -160,16 +169,33 @@ export function FilteredBulkArrivalModal({
           >
             {saving
               ? "Speichern..."
-              : `Für ${childCountLabel(studentsInFilter.length)} setzen`}
+              : isClassTimetable
+                ? `Für ${targetTitle} setzen`
+                : `Für ${childCountLabel(studentsInFilter.length)} setzen`}
           </Button>
         </div>
       }
     >
       <div className="space-y-4 p-4">
-        <p className="text-sm text-gray-600">
-          Setzt die Ankunftszeit für {childCountLabel(studentsInFilter.length)}{" "}
-          aus {targetTitle}. Leere Felder bleiben unverändert.
-        </p>
+        {isClassTimetable ? (
+          <div className="space-y-2 text-sm text-gray-600">
+            <p>
+              Wann hat {targetTitle} an welchem Tag Unterrichtsschluss? Die Zeit
+              gilt dann für alle Kinder der Klasse.
+            </p>
+            <p>
+              Kinder bekommen dadurch keine neuen Betreuungstage. Wer noch nicht
+              angemeldet ist, bleibt ohne Ankunftszeit.
+            </p>
+            <p>Leere Felder bleiben unverändert.</p>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Setzt die Ankunftszeit für{" "}
+            {childCountLabel(studentsInFilter.length)} aus {targetTitle}. Leere
+            Felder bleiben unverändert.
+          </p>
+        )}
         {collisionCount !== null && collisionCount > 0 ? (
           <div className="border-moto-orange bg-moto-orange/5 flex items-start gap-2 rounded-lg border p-3 text-sm">
             <AlertTriangle
@@ -182,7 +208,9 @@ export function FilteredBulkArrivalModal({
                 {collisionCount === 1 ? "hat" : "haben"} bereits Ankunftszeiten
               </div>
               <div className="text-moto-orange-strong">
-                Existierende Zeiten werden an den gesetzten Tagen überschrieben.
+                {isClassTimetable
+                  ? "An den gesetzten Tagen gilt danach die Zeit der Klasse."
+                  : "Existierende Zeiten werden an den gesetzten Tagen überschrieben."}
               </div>
             </div>
           </div>
