@@ -134,5 +134,8 @@ func applyAttendanceRows(facts *todayStatusFacts, rows []*activeModels.Attendanc
 
 // hhmm gibt die Berliner Wandzeit eines Zeitpunkts als HH:MM zurueck.
 func hhmm(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
 	return timezone.WallClock(t).Format("15:04")
 }

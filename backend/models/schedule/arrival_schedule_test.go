@@ -117,7 +117,11 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 			errMsg:  "weekday must be between 1 (Monday) and 5 (Friday)",
 		},
 		{
-			name: "missing expected_arrival",
+			// Business rule changed with #2414 / ADR 0005: a row without a
+			// time is not incomplete, it is a care day whose time comes from
+			// the child's class timetable. A time without a care day is what
+			// must not exist, and that is expressed by the absence of a row.
+			name: "missing expected_arrival means the class timetable supplies it",
 			setup: func() *StudentArrivalSchedule {
 				return &StudentArrivalSchedule{
 					StudentID: 1,
@@ -125,8 +129,7 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 					CreatedBy: 1,
 				}
 			},
-			wantErr: true,
-			errMsg:  "expected_arrival is required",
+			wantErr: false,
 		},
 		{
 			name: "missing created_by",
@@ -605,4 +608,23 @@ func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
 	note := &StudentArrivalNote{}
 	note.UpdatedAt = now
 	assert.Equal(t, now, note.GetUpdatedAt())
+}
+
+// TestStudentArrivalScheduleInheritsClassTime pins the meaning the #2414 split
+// gave the row: it is the care-day marker, the time on it is optional.
+func TestStudentArrivalScheduleInheritsClassTime(t *testing.T) {
+	t.Parallel()
+
+	careDayOnly := &StudentArrivalSchedule{StudentID: 1, Weekday: WeekdayMonday, CreatedBy: 1}
+	require.NoError(t, careDayOnly.Validate())
+	assert.True(t, careDayOnly.InheritsClassTime())
+
+	deviating := &StudentArrivalSchedule{
+		StudentID:       1,
+		Weekday:         WeekdayMonday,
+		ExpectedArrival: time.Date(2000, 1, 1, 12, 15, 0, 0, time.UTC),
+		CreatedBy:       1,
+	}
+	require.NoError(t, deviating.Validate())
+	assert.False(t, deviating.InheritsClassTime())
 }

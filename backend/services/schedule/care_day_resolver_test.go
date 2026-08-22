@@ -31,6 +31,7 @@ func careDayClock(hhmm string) time.Time {
 func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 	plans := &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
+		arrivalByStudentDate:    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule{},
 		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
 		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
@@ -189,6 +190,48 @@ func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
 
 	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
 	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayThursday))
+}
+
+// In booking mode a pickup time describes a booked day; it must never create
+// the care day itself. Otherwise a stale/manual pickup row can bypass the
+// tenant's authoritative booking boundary and put an unbooked child back into
+// expected counts.
+func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
+	t.Parallel()
+
+	const studentID int64 = 46
+	plans := plansForStudent(studentID)
+	plans.bookingsAuthoritative = true
+	plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
+	}
+	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+
+	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday),
+		"a pickup row must not add a care day when bookings are authoritative")
+
+	// The arrival projection carries a placeholder row even when neither the
+	// child nor the class has an arrival time. That row is the positive booking
+	// signal; pickup details may enrich the day once it exists.
+	plans.arrivalByStudentDate[studentID] = map[timezone.Date]*schedule.StudentArrivalSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
+	}
+	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
+}
+
+func TestCareDayStatusFor_ArrivalPlanWithoutTime(t *testing.T) {
+	t.Parallel()
+
+	const studentID int64 = 45
+	plans := plansForStudent(studentID)
+	plans.arrivalByStudentWeekday[studentID] = map[int]*schedule.StudentArrivalSchedule{
+		schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
+	}
+	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+
+	status := plans.statusFor(studentID, careDayMonday)
+	assert.Equal(t, CareDayScheduled, status)
+	assert.True(t, status.Expected(), "a booked care day stays expected when its class time is unknown")
 }
 
 // Children never resolved (walk-ins, unwired service) must fall through as

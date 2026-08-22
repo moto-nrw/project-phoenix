@@ -18,6 +18,7 @@ import {
   WEEKDAYS,
   formatDateISO,
   formatShortDate,
+  arrivalScheduleSourceLabel,
   getDayData,
   getWeekDays,
   mergeSchedulesWithTemplate,
@@ -29,9 +30,11 @@ import {
   deleteArrivalException,
   deleteArrivalNote,
   fetchArrivalData,
+  fetchArrivalSettings,
   updateArrivalException,
   updateArrivalNote,
   updateArrivalSchedules,
+  type CareDaysSource,
 } from "~/lib/student-arrival-api";
 import { createLogger } from "~/lib/logger";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
@@ -58,6 +61,9 @@ export function ArrivalScheduleManager({
     notes: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -65,6 +71,8 @@ export function ArrivalScheduleManager({
   const [editingDay, setEditingDay] = useState<ArrivalDayData | null>(null);
 
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
+  const displayedWeekDate = formatDateISO(weekDays[0]!);
+  const displayedWeekEndDate = formatDateISO(weekDays[weekDays.length - 1]!);
   const statusByDate = useMemo(() => {
     const entries = new Map<string, StudentStatusDay["status"]>();
     for (const day of statusDays) {
@@ -101,8 +109,12 @@ export function ArrivalScheduleManager({
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchArrivalData(studentId);
+      const [data, settings] = await Promise.all([
+        fetchArrivalData(studentId, displayedWeekDate, displayedWeekEndDate),
+        fetchArrivalSettings(),
+      ]);
       setArrivalData(data);
+      setCareDaysSource(settings.care_days_source);
     } catch (err) {
       logger.error("arrival_data_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -116,17 +128,21 @@ export function ArrivalScheduleManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId]);
+  }, [studentId, displayedWeekDate, displayedWeekEndDate]);
 
   useEffect(() => {
     loadArrivalData().catch(() => undefined);
   }, [loadArrivalData]);
 
   const refreshKeepModal = useCallback(async () => {
-    const data = await fetchArrivalData(studentId);
+    const data = await fetchArrivalData(
+      studentId,
+      displayedWeekDate,
+      displayedWeekEndDate,
+    );
     setArrivalData(data);
     onUpdate?.();
-  }, [studentId, onUpdate]);
+  }, [studentId, displayedWeekDate, displayedWeekEndDate, onUpdate]);
 
   const handleUpdateSchedules = async (
     schedules: ArrivalScheduleFormEntry[],
@@ -333,12 +349,15 @@ export function ArrivalScheduleManager({
         </div>
       </div>
 
-      <ArrivalScheduleFormModal
-        isOpen={isScheduleModalOpen}
-        onClose={() => setIsScheduleModalOpen(false)}
-        onSubmit={handleUpdateSchedules}
-        initialSchedules={mergeSchedulesWithTemplate(arrivalData.schedules)}
-      />
+      {careDaysSource ? (
+        <ArrivalScheduleFormModal
+          isOpen={isScheduleModalOpen}
+          careDaysSource={careDaysSource}
+          onClose={() => setIsScheduleModalOpen(false)}
+          onSubmit={handleUpdateSchedules}
+          initialSchedules={mergeSchedulesWithTemplate(arrivalData.schedules)}
+        />
+      ) : null}
 
       <ArrivalDayEditModal
         isOpen={editingDay !== null}
@@ -363,6 +382,9 @@ interface DayComponentProps {
 function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasNotes = !!day.baseSchedule?.notes || day.notes.length > 0;
+  const sourceLabel = day.isException
+    ? null
+    : arrivalScheduleSourceLabel(day.baseSchedule);
 
   return (
     <div
@@ -410,6 +432,8 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
                 aria-hidden="true"
               />
             </span>
+          ) : sourceLabel ? (
+            <span className="text-xs text-gray-400">{sourceLabel}</span>
           ) : null}
         </div>
         {!readOnly ? (
@@ -448,6 +472,9 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
 
 function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
+  const sourceLabel = day.isException
+    ? null
+    : arrivalScheduleSourceLabel(day.baseSchedule);
   return (
     <div
       className={
@@ -492,9 +519,14 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           kommt nicht
         </div>
       ) : (
-        <div className="mt-1 text-sm font-semibold text-gray-900">
-          {day.effectiveTime ?? "-"}
-        </div>
+        <>
+          <div className="mt-1 text-sm font-semibold text-gray-900">
+            {day.effectiveTime ?? "-"}
+          </div>
+          {sourceLabel ? (
+            <div className="mt-0.5 text-xs text-gray-400">{sourceLabel}</div>
+          ) : null}
+        </>
       )}
 
       {day.baseSchedule?.notes ? (

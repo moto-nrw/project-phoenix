@@ -664,10 +664,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
-	pickupBaselines := schedule.NewPickupBaselineService(
+	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule,
 		repos.RequestChildOffering,
 		repos.CareOffering,
+		settingsService,
+	)
+	// The arrival mirror: the class timetable supplies the regular time and,
+	// with enrollment.bookings_authoritative on, the approved bookings supply
+	// the care days (#2414, ADR 0005). The care-day resolver reads through it
+	// so a stale row on an unbooked weekday stops marking a child expected.
+	arrivalBaselines := schedule.NewArrivalBaselineService(
+		repos.StudentArrivalSchedule,
+		repos.Student,
+		repos.ClassArrivalTime,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+		settingsService,
 	)
 
 	// Care-day derivation (#1747): intersects timetable assignments with the
@@ -676,6 +689,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Built here, ahead of the active service, because the timetable bridge
 	// below needs it and the active service needs the bridge.
 	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalBaselines:  arrivalBaselines,
 		ArrivalSchedules:  repos.StudentArrivalSchedule,
 		ArrivalExceptions: repos.StudentArrivalException,
 		PickupBaselines:   pickupBaselines,
@@ -1092,13 +1106,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 
-	// Initialize arrival schedule service
-	arrivalScheduleService := schedule.NewArrivalScheduleService(
+	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
 		repos.StudentArrivalException,
 		repos.StudentArrivalNote,
 		repos.Student,
 		repos.Person,
+		arrivalBaselines,
+		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
 	)
@@ -2242,6 +2257,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveGroupRepo:            repos.ActiveGroup,
 		SupervisorRepo:             repos.GroupSupervisor,
 		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+		ArrivalBaselines:           arrivalBaselines,
 		ArrivalExceptionRepo:       repos.StudentArrivalException,
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
 		PickupBaselines:            pickupBaselines,

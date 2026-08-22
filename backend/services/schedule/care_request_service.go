@@ -1743,6 +1743,7 @@ type careDiffSource struct {
 	studentDone bool
 
 	arrivalMap  map[int]string
+	arrivalDays map[int]bool
 	arrivalErr  error
 	arrivalDone bool
 
@@ -1768,12 +1769,18 @@ func (d *careDiffSource) getArrival(ctx context.Context) (map[int]string, error)
 	if !d.arrivalDone {
 		d.arrivalDone = true
 		d.arrivalMap = map[int]string{}
+		d.arrivalDays = map[int]bool{}
 		cur, err := d.s.arrival.GetStudentArrivalSchedules(ctx, d.studentID)
 		if err != nil {
 			d.arrivalErr = fmt.Errorf("schedule: load arrival schedules for diff: %w", err)
 			return nil, d.arrivalErr
 		}
 		for _, a := range cur {
+			d.arrivalDays[a.Weekday] = true
+			if a.ExpectedArrival.IsZero() {
+				// Care day without a time: the class carries none yet (#2414).
+				continue
+			}
 			d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
 		}
 	}
@@ -1814,7 +1821,7 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 	if err != nil {
 		return nil, err
 	}
-	hasCarePlan := len(arrivalMap) > 0 || len(pickupMap) > 0
+	hasCarePlan := len(src.arrivalDays) > 0 || len(pickupMap) > 0
 
 	weekdays := append([]careWeekdayPayload(nil), p.Weekdays...)
 	sort.Slice(weekdays, func(i, j int) bool { return weekdays[i].Weekday < weekdays[j].Weekday })
@@ -1828,7 +1835,7 @@ func (s *careScheduleRequestService) careScheduleDiffFrom(ctx context.Context, s
 		abbrev := usersModels.PickupDayOrder[wd.Weekday-1]
 		if wd.Scheduled != nil {
 			oldStatus := CareDayUnknown
-			if arrivalMap[wd.Weekday] != "" || pickupMap[wd.Weekday] != "" {
+			if src.arrivalDays[wd.Weekday] || pickupMap[wd.Weekday] != "" {
 				oldStatus = CareDayScheduled
 			} else if hasCarePlan {
 				oldStatus = CareDayNotScheduled

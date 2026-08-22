@@ -1,11 +1,21 @@
 import { getCachedSession } from "./session-cache";
 
+/**
+ * One care day of a child. The row says the child is in care that weekday;
+ * the time on it is optional and comes from the class timetable unless the
+ * child deviates (#2414).
+ */
 export interface ArrivalSchedule {
   id: number;
   student_id: number;
   weekday: number;
   weekday_name: string;
+  /** HH:MM, empty when neither the child nor its class carries a time. */
   expected_arrival: string;
+  /** "class_schedule" = taken from the class, "staff" = per-child deviation. */
+  source?: "class_schedule" | "staff";
+  /** The class the time came from, set when source is "class_schedule". */
+  source_class?: string;
   notes?: string | null;
   created_by: number;
   created_at: string;
@@ -42,8 +52,15 @@ export interface ArrivalData {
   notes: ArrivalNote[];
 }
 
+export type CareDaysSource = "weekly_plan" | "bookings";
+
+export interface ArrivalSettings {
+  care_days_source: CareDaysSource;
+}
+
 export interface ArrivalScheduleInput {
   weekday: number;
+  /** Empty string = care day whose time comes from the class timetable. */
   expected_arrival: string;
   notes?: string | null;
 }
@@ -116,13 +133,46 @@ async function parseResponse<T>(response: Response): Promise<T> {
 
 export async function fetchArrivalData(
   studentId: string,
+  date?: string,
+  toDate?: string,
 ): Promise<ArrivalData> {
-  const response = await fetch(`/api/students/${studentId}/arrival-schedules`, {
+  const query = new URLSearchParams();
+  if (date) query.set("date", date);
+  if (toDate) query.set("to", toDate);
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(
+    `/api/students/${studentId}/arrival-schedules${suffix}`,
+    {
+      method: "GET",
+      headers: await authHeaders(),
+      credentials: "include",
+    },
+  );
+  return parseResponse<ArrivalData>(response);
+}
+
+export async function fetchBulkArrivalScheduleStatus(
+  studentIds: string[],
+): Promise<number> {
+  const response = await fetch("/api/students/arrival-schedules/status", {
+    method: "POST",
+    headers: await authHeaders(),
+    credentials: "include",
+    body: JSON.stringify({
+      student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+    }),
+  });
+  const status = await parseResponse<{ student_ids: number[] }>(response);
+  return status.student_ids.length;
+}
+
+export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
+  const response = await fetch("/api/students/arrival-settings", {
     method: "GET",
     headers: await authHeaders(),
     credentials: "include",
   });
-  return parseResponse<ArrivalData>(response);
+  return parseResponse<ArrivalSettings>(response);
 }
 
 export async function updateArrivalSchedules(
@@ -371,4 +421,22 @@ export async function fetchBulkArrivalTimes(
   }
 
   return arrivalTimesMap;
+}
+
+/** The Unterrichtsschluss a school class carries (#2414). */
+export interface ClassArrivalTimes {
+  school_class: string;
+  /** Day code ("mon" … "fri") to HH:MM. Absent days have no time. */
+  times: Record<string, string>;
+  updated_at?: string;
+}
+
+export async function fetchClassArrivalTimes(
+  schoolClass: string,
+): Promise<ClassArrivalTimes> {
+  const response = await fetch(
+    `/api/students/class-arrival-times/${encodeURIComponent(schoolClass)}`,
+    { headers: await authHeaders() },
+  );
+  return parseResponse<ClassArrivalTimes>(response);
 }

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ArrivalSchedule } from "./student-arrival-api";
-import { getDayData } from "./arrival-schedule-helpers";
+import {
+  arrivalScheduleSourceLabel,
+  getDayData,
+  stripClassPrefix,
+} from "./arrival-schedule-helpers";
 
 describe("arrival schedule getDayData", () => {
   const schedules: ArrivalSchedule[] = [
@@ -34,5 +38,17 @@ describe("arrival schedule getDayData", () => {
     expect(result.isAbsent).toBe(true);
     expect(result.effectiveTime).toBeUndefined();
     expect(result.effectiveReason).toBe("Klassenfahrt");
+  });
+
+  it("labels class and own arrival times without a duplicate class prefix", () => {
+    expect(stripClassPrefix("Klasse 3b")).toBe("3b");
+    expect(
+      arrivalScheduleSourceLabel({
+        source: "class_schedule",
+        source_class: "Klasse 3b",
+      }),
+    ).toBe("aus Klasse 3b");
+    expect(arrivalScheduleSourceLabel({ source: "staff" })).toBe("eigene Zeit");
+    expect(arrivalScheduleSourceLabel(undefined)).toBeNull();
   });
 });

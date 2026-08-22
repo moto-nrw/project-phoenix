@@ -337,8 +337,10 @@ GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
+GET /api/students/arrival-settings
 GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
+GET /api/students/class-arrival-times/{schoolClass}
 GET /api/students/day-log
 GET /api/students/day-log/export
 GET /api/students/ogs-group-live
@@ -664,6 +666,7 @@ POST /api/staff/{id}/time-tracking/sessions
 POST /api/staff/{id}/vacation/opening
 POST /api/students/
 POST /api/students/arrival-schedules/bulk
+POST /api/students/arrival-schedules/status
 POST /api/students/arrival-times/bulk
 POST /api/students/care-schedule-change-requests/{requestId}/decide
 POST /api/students/excused-absence-requests/{requestId}/decide

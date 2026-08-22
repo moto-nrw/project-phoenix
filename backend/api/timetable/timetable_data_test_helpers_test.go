@@ -47,8 +47,16 @@ func testTimetableDataWithOfferingCallbacks(
 		ActiveGroupRepo:       activeRepo.NewGroupRepository(db),
 		SupervisorRepo:        activeRepo.NewGroupSupervisorRepository(db),
 		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo:  scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		PickupScheduleRepo:    scheduleRepo.NewStudentPickupScheduleRepository(db),
+		ArrivalBaselines: scheduleSvc.NewArrivalBaselineService(
+			scheduleRepo.NewStudentArrivalScheduleRepository(db),
+			usersRepo.NewStudentRepository(db),
+			educationRepo.NewClassArrivalTimeRepository(db),
+			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			enrollmentRepo.NewCareOfferingRepository(db),
+			nil,
+		),
+		ArrivalExceptionRepo: scheduleRepo.NewStudentArrivalExceptionRepository(db),
+		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
 		PickupBaselines: scheduleSvc.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			enrollmentRepo.NewRequestChildOfferingRepository(db),

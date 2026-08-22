@@ -691,7 +691,7 @@ function DesktopSearchSection({
     <div className={`mb-6 ${showClass}`}>
       {showSearchRow && (
         <div
-          className={`mb-3 flex items-center gap-3 ${compactWrapper}`}
+          className={`mb-3 flex flex-wrap items-center gap-3 ${compactWrapper}`}
           style={{ transformOrigin: "top right" }}
         >
           {showFilterPopover ? (

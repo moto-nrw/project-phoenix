@@ -31,11 +31,32 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-import { ArrivalScheduleFormModal } from "./arrival-schedule-form-modal";
+import { ArrivalScheduleFormModal as ArrivalScheduleFormModalBase } from "./arrival-schedule-form-modal";
 
+function ArrivalScheduleFormModal(
+  props: Omit<
+    React.ComponentProps<typeof ArrivalScheduleFormModalBase>,
+    "careDaysSource"
+  > & {
+    careDaysSource?: React.ComponentProps<
+      typeof ArrivalScheduleFormModalBase
+    >["careDaysSource"];
+  },
+) {
+  const { careDaysSource = "weekly_plan", ...modalProps } = props;
+  return (
+    <ArrivalScheduleFormModalBase
+      careDaysSource={careDaysSource}
+      {...modalProps}
+    />
+  );
+}
+
+/** Every weekday is a care day, none carries an own time. */
 function emptyWeek(): ArrivalScheduleFormEntry[] {
   return [1, 2, 3, 4, 5].map((w) => ({
     weekday: w,
+    inCare: true,
     expected_arrival: "",
     notes: null,
   }));
@@ -69,7 +90,9 @@ describe("ArrivalScheduleFormModal", () => {
       />,
     );
 
-    expect(screen.getAllByLabelText("Ankunftszeit")).toHaveLength(5);
+    expect(screen.getAllByLabelText("Andere Uhrzeit (optional)")).toHaveLength(
+      5,
+    );
     expect(screen.getAllByLabelText("Notiz (optional)")).toHaveLength(5);
   });
 
@@ -80,14 +103,19 @@ describe("ArrivalScheduleFormModal", () => {
         onClose={vi.fn()}
         onSubmit={vi.fn()}
         initialSchedules={[
-          { weekday: 1, expected_arrival: "08:00", notes: "early" },
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:00",
+            notes: "early",
+          },
           ...emptyWeek().slice(1),
         ]}
       />,
     );
 
     const timeInputs = screen.getAllByLabelText(
-      "Ankunftszeit",
+      "Andere Uhrzeit (optional)",
     ) as HTMLInputElement[];
     const notesInputs = screen.getAllByLabelText(
       "Notiz (optional)",
@@ -107,7 +135,7 @@ describe("ArrivalScheduleFormModal", () => {
     );
 
     const timeInputs = screen.getAllByLabelText(
-      "Ankunftszeit",
+      "Andere Uhrzeit (optional)",
     ) as HTMLInputElement[];
     const notesInputs = screen.getAllByLabelText(
       "Notiz (optional)",
@@ -120,7 +148,9 @@ describe("ArrivalScheduleFormModal", () => {
     expect(notesInputs[0]!.value).toBe("Neue Notiz");
   });
 
-  it("submits only filled days", async () => {
+  // Business rule changed with #2414: the tick marks the care day, the time
+  // is optional and comes from the class when it is left empty.
+  it("submits the ticked days, with or without an own time", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <ArrivalScheduleFormModal
@@ -131,16 +161,42 @@ describe("ArrivalScheduleFormModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getAllByLabelText("Ankunftszeit")[0]!, {
-      target: { value: "08:00" },
-    });
+    // Only Monday and Tuesday stay care days.
+    for (const day of ["Mittwoch", "Donnerstag", "Freitag"]) {
+      fireEvent.click(screen.getByLabelText(day));
+    }
+    fireEvent.change(
+      screen.getAllByLabelText("Andere Uhrzeit (optional)")[0]!,
+      { target: { value: "08:00" } },
+    );
 
     fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalled());
     const args = onSubmit.mock.calls[0]![0] as ArrivalScheduleFormEntry[];
-    expect(args).toHaveLength(1);
+    expect(args).toHaveLength(2);
     expect(args[0]!.expected_arrival).toBe("08:00");
+    expect(args[1]!.expected_arrival).toBe("");
+  });
+
+  it("does not submit a day that is not ticked", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ArrivalScheduleFormModal
+        isOpen={true}
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        initialSchedules={emptyWeek().map((entry) => ({
+          ...entry,
+          inCare: false,
+        }))}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalled());
+    expect(onSubmit.mock.calls[0]![0]).toHaveLength(0);
   });
 
   it("shows error when submit throws", async () => {
@@ -155,9 +211,12 @@ describe("ArrivalScheduleFormModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getAllByLabelText("Ankunftszeit")[0]!, {
-      target: { value: "08:00" },
-    });
+    fireEvent.change(
+      screen.getAllByLabelText("Andere Uhrzeit (optional)")[0]!,
+      {
+        target: { value: "08:00" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
 
     await waitFor(() =>
@@ -173,7 +232,12 @@ describe("ArrivalScheduleFormModal", () => {
         onClose={vi.fn()}
         onSubmit={onSubmit}
         initialSchedules={[
-          { weekday: 1, expected_arrival: "08:00", notes: "prev" },
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:00",
+            notes: "prev",
+          },
           ...emptyWeek().slice(1),
         ]}
       />,
@@ -220,14 +284,14 @@ describe("ArrivalScheduleFormModal", () => {
         onClose={vi.fn()}
         onSubmit={vi.fn()}
         initialSchedules={[
-          { weekday: 1, expected_arrival: "10:00", notes: null },
+          { weekday: 1, inCare: true, expected_arrival: "10:00", notes: null },
           ...emptyWeek().slice(1),
         ]}
       />,
     );
 
     const timeInputs = screen.getAllByLabelText(
-      "Ankunftszeit",
+      "Andere Uhrzeit (optional)",
     ) as HTMLInputElement[];
     expect(timeInputs[0]!.value).toBe("10:00");
   });
@@ -244,15 +308,91 @@ describe("ArrivalScheduleFormModal", () => {
       />,
     );
 
-    fireEvent.change(screen.getAllByLabelText("Ankunftszeit")[0]!, {
-      target: { value: "08:00" },
-    });
+    fireEvent.change(
+      screen.getAllByLabelText("Andere Uhrzeit (optional)")[0]!,
+      {
+        target: { value: "08:00" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
 
     await waitFor(() =>
       expect(
         screen.getByText("Fehler beim Speichern des Ankunftsplans"),
       ).toBeInTheDocument(),
+    );
+  });
+
+  it("keeps booking care days read-only", () => {
+    render(
+      <ArrivalScheduleFormModal
+        isOpen={true}
+        careDaysSource="bookings"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        initialSchedules={emptyWeek().map((entry, index) => ({
+          ...entry,
+          inCare: index === 0,
+        }))}
+      />,
+    );
+
+    expect(
+      screen.getByText("Die Betreuungstage kommen aus den Buchungen."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(
+      screen.getAllByLabelText("Andere Uhrzeit (optional)")[1],
+    ).toBeDisabled();
+  });
+
+  it("keeps booked care days when clearing their own arrival time", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ArrivalScheduleFormModal
+        isOpen={true}
+        careDaysSource="bookings"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        initialSchedules={[
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "",
+            classTime: "11:45",
+            notes: null,
+          },
+          {
+            weekday: 2,
+            inCare: true,
+            expected_arrival: "12:15",
+            classTime: "11:45",
+            notes: null,
+          },
+          ...emptyWeek()
+            .slice(2)
+            .map((entry) => ({
+              ...entry,
+              inCare: false,
+            })),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith([
+        expect.objectContaining({
+          weekday: 1,
+          expected_arrival: "",
+          notes: null,
+        }),
+        expect.objectContaining({
+          weekday: 2,
+          expected_arrival: "12:15",
+        }),
+      ]),
     );
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -12,8 +12,11 @@ import {
   type BulkArrivalFilter,
   WEEKDAYS,
   bulkUpsertArrivalSchedules,
-  fetchArrivalData,
+  fetchBulkArrivalScheduleStatus,
+  fetchClassArrivalTimes,
 } from "~/lib/student-arrival-api";
+import { formatDate } from "~/lib/date-helpers";
+import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
 import { cn } from "~/lib/utils";
 
 const logger = createLogger({ component: "FilteredBulkArrivalModal" });
@@ -28,6 +31,15 @@ interface FilteredBulkArrivalModalProps {
 }
 
 type DraftState = Record<number, string>;
+
+/** ISO weekday to the day code the class timetable is keyed by. */
+const DAY_CODES: Record<number, string> = {
+  1: "mon",
+  2: "tue",
+  3: "wed",
+  4: "thu",
+  5: "fri",
+};
 
 function childCountLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
@@ -57,32 +69,74 @@ export function FilteredBulkArrivalModal({
   const { success: toastSuccess, error: toastError } = useToast();
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
-  const [collisionCount, setCollisionCount] = useState<number | null>(null);
+  const [lastChanged, setLastChanged] = useState<string | null>(null);
+  const [classTimesLoading, setClassTimesLoading] = useState(false);
+  const [classTimesError, setClassTimesError] = useState(false);
+  const [classTimesLoadAttempt, setClassTimesLoadAttempt] = useState(0);
+  const [collisionCount, setCollisionCount] = useState(0);
+  // A school class sets the class timetable once for everyone (#2414); a group
+  // is not a class, so there it still sets a time per child.
+  const isClassTimetable = filter.type === "school_class";
+
+  // Open with what the class already carries, so nobody has to retype it blind
+  // or guess whether anything is set at all (#2414).
+  const schoolClass =
+    filter.type === "school_class" ? filter.schoolClass : null;
 
   useEffect(() => {
     if (!isOpen) return;
     setDraft(initialDraft());
-    setCollisionCount(null);
+    setLastChanged(null);
+    setClassTimesError(false);
+    if (!schoolClass) {
+      setClassTimesLoading(false);
+      return;
+    }
 
+    setDraft(initialDraft());
+    setClassTimesLoading(true);
     let cancelled = false;
-    const ids = studentsInFilter.map((student) => String(student.id));
-    Promise.all(
-      ids.map((id) =>
-        fetchArrivalData(id)
-          .then((data) => data.schedules.length > 0)
-          .catch((err) => {
-            logger.warn("arrival_status_fetch_failed", {
-              student_id: id,
-              error: err instanceof Error ? err.message : String(err),
-            });
-            return false;
-          }),
-      ),
-    ).then((results) => {
-      if (cancelled) return;
-      setCollisionCount(results.filter(Boolean).length);
-    });
 
+    const load = async () => {
+      try {
+        const current = await fetchClassArrivalTimes(schoolClass);
+        if (cancelled) return;
+        const next = initialDraft();
+        for (const day of WEEKDAYS) {
+          next[day.value] = current.times[DAY_CODES[day.value] ?? ""] ?? "";
+        }
+        setDraft(next);
+        setLastChanged(current.updated_at ?? null);
+      } catch (err) {
+        if (cancelled) return;
+        logger.warn("class_arrival_times_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setClassTimesError(true);
+      } finally {
+        if (!cancelled) setClassTimesLoading(false);
+      }
+    };
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, schoolClass, classTimesLoadAttempt]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void fetchBulkArrivalScheduleStatus(studentsInFilter.map(({ id }) => id))
+      .then((count) => {
+        if (!cancelled) setCollisionCount(count);
+      })
+      .catch((err) => {
+        logger.warn("bulk_arrival_schedule_status_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) setCollisionCount(0);
+      });
     return () => {
       cancelled = true;
     };
@@ -90,7 +144,9 @@ export function FilteredBulkArrivalModal({
 
   const targetTitle =
     filter.type === "school_class"
-      ? `Klasse ${filterLabel}`
+      ? // Schools name their classes either "3b" or "Klasse 3b"; without the
+        // strip the title reads "für Klasse Klasse 3b".
+        `Klasse ${stripClassPrefix(filterLabel)}`
       : filter.type === "group"
         ? `Gruppe ${filterLabel}`
         : filterLabel;
@@ -103,8 +159,14 @@ export function FilteredBulkArrivalModal({
     () => Object.values(draft).some((value) => !isValidTime(value)),
     [draft],
   );
+  const collisionMessage = `${childCountLabel(collisionCount)} ${collisionCount === 1 ? "hat" : "haben"} eigene Ankunftszeiten. ${
+    isClassTimetable
+      ? "Diese Zeiten bleiben bestehen."
+      : "Die gewählten Zeiten können sie ersetzen."
+  }`;
 
   const handleSubmit = async () => {
+    if (isClassTimetable && (classTimesLoading || classTimesError)) return;
     if (!hasAnyTime) {
       toastError("Mindestens eine Zeit angeben");
       return;
@@ -125,7 +187,9 @@ export function FilteredBulkArrivalModal({
     try {
       await bulkUpsertArrivalSchedules(filter, schedules);
       toastSuccess(
-        `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
+        isClassTimetable
+          ? `Unterrichtsschluss für ${targetTitle} gespeichert`
+          : `Ankunftszeiten für ${targetTitle} gesetzt (${childCountLabel(studentsInFilter.length)})`,
       );
       onSuccess?.();
       onClose();
@@ -145,7 +209,11 @@ export function FilteredBulkArrivalModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={`Ankunftszeiten für ${targetTitle}`}
+      title={
+        isClassTimetable
+          ? `Unterrichtsschluss für ${targetTitle}`
+          : `Ankunftszeiten für ${targetTitle}`
+      }
       size="md"
       mobilePosition="bottom"
       footer={
@@ -156,36 +224,63 @@ export function FilteredBulkArrivalModal({
           <Button
             variant="success"
             onClick={handleSubmit}
-            disabled={saving || !hasAnyTime || hasInvalidEntry}
+            disabled={
+              saving ||
+              classTimesLoading ||
+              classTimesError ||
+              !hasAnyTime ||
+              hasInvalidEntry
+            }
           >
-            {saving
-              ? "Speichern..."
-              : `Für ${childCountLabel(studentsInFilter.length)} setzen`}
+            {saving ? "Speichern..." : "Speichern"}
           </Button>
         </div>
       }
     >
       <div className="space-y-4 p-4">
-        <p className="text-sm text-gray-600">
-          Setzt die Ankunftszeit für {childCountLabel(studentsInFilter.length)}{" "}
-          aus {targetTitle}. Leere Felder bleiben unverändert.
-        </p>
-        {collisionCount !== null && collisionCount > 0 ? (
-          <div className="border-moto-orange bg-moto-orange/5 flex items-start gap-2 rounded-lg border p-3 text-sm">
-            <AlertTriangle
-              className="text-moto-orange mt-0.5 h-4 w-4 shrink-0"
-              aria-hidden
-            />
-            <div>
-              <div className="text-moto-orange font-semibold">
-                {childCountLabel(collisionCount)}{" "}
-                {collisionCount === 1 ? "hat" : "haben"} bereits Ankunftszeiten
-              </div>
-              <div className="text-moto-orange-strong">
-                Existierende Zeiten werden an den gesetzten Tagen überschrieben.
-              </div>
-            </div>
+        {isClassTimetable ? (
+          <div className="space-y-2 text-sm text-gray-600">
+            <p>Tragen Sie den Unterrichtsschluss für jeden Wochentag ein.</p>
+            <p>
+              Die Klassenzeit gilt, wenn ein Kind keine eigene Ankunftszeit hat.
+            </p>
+            <p>Die Betreuungstage der Kinder ändern sich nicht.</p>
+            <p>Leere Felder bleiben unverändert.</p>
+            {lastChanged ? (
+              <p className="text-gray-500">
+                Zuletzt geändert am {formatDate(lastChanged)}.
+              </p>
+            ) : null}
           </div>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Die Zeiten gelten für {childCountLabel(studentsInFilter.length)} aus{" "}
+            {targetTitle}. Leere Felder bleiben unverändert.
+          </p>
+        )}
+        {classTimesLoading ? (
+          <Alert type="info" message="Klassenzeiten werden geladen." />
+        ) : null}
+        {classTimesError ? (
+          <Alert
+            type="error"
+            message="Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setClassTimesLoadAttempt((attempt) => attempt + 1)
+                }
+              >
+                Erneut laden
+              </Button>
+            }
+          />
+        ) : null}
+        {collisionCount > 0 ? (
+          <Alert type="info" message={collisionMessage} />
         ) : null}
         <div className="space-y-2">
           {WEEKDAYS.map((day) => {
@@ -195,13 +290,13 @@ export function FilteredBulkArrivalModal({
               <div
                 key={day.value}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
+                  "grid grid-cols-[minmax(0,1fr)_8rem] items-center gap-x-3 gap-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-2.5",
                   invalid && "border-red-300 bg-red-50",
                 )}
               >
                 <label
                   htmlFor={`bulk-arrival-${day.value}`}
-                  className="w-28 text-sm font-medium text-gray-700"
+                  className="min-w-0 text-sm font-medium text-gray-700"
                 >
                   {day.label}
                 </label>
@@ -209,18 +304,23 @@ export function FilteredBulkArrivalModal({
                   id={`bulk-arrival-${day.value}`}
                   type="time"
                   value={value}
+                  disabled={
+                    isClassTimetable && (classTimesLoading || classTimesError)
+                  }
                   onChange={(event) =>
                     setDraft((prev) => ({
                       ...prev,
                       [day.value]: event.target.value.slice(0, 5),
                     }))
                   }
-                  className="focus:border-moto-green focus:ring-moto-green/30 w-32 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none"
+                  className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
                 />
                 {invalid ? (
-                  <span className="text-xs text-red-600">Format HH:MM</span>
+                  <span className="col-start-2 text-xs text-red-600">
+                    Format HH:MM
+                  </span>
                 ) : value === "" ? (
-                  <span className="text-xs text-gray-400 italic">
+                  <span className="col-start-2 text-xs text-gray-400 italic">
                     nicht ändern
                   </span>
                 ) : null}

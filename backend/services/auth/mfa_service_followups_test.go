@@ -278,8 +278,9 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 	acc, tenantA := tenantMappedAccount(t, db, "mfa-svc-override-global-a")
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
+	op := testpkg.CreateTestOperator(t, db)
 
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
 
 	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
 	require.NoError(t, err)
@@ -291,11 +292,12 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 
 	// Clearing the global row returns the account to tenant-scoped
 	// resolution.
-	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, 99, acc.ID, auth.MFAAdminOverrideNone, "mailbox restored"))
+	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID, auth.MFAAdminOverrideNone, "mailbox restored"))
 	override, err := svc.GetGlobalMFAOverride(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override,
 		"clearing the global override must remove the platform-wide row")
+	waitForOperatorAuditLogs(t, db, op.ID, acc.ID, platformModels.ActionMFAAdminOverride, 2, 3*time.Second)
 }
 
 // TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite is a regression
@@ -624,6 +626,28 @@ func waitForOperatorAuditLog(t *testing.T, db *bun.DB, operatorID, resourceID in
 		}
 		if time.Now().After(deadline) {
 			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func waitForOperatorAuditLogs(t *testing.T, db *bun.DB, operatorID, resourceID int64, action string, wanted int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		count, err := db.NewSelect().Model((*platformModels.OperatorAuditLog)(nil)).
+			ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
+			Where("operator_id = ?", operatorID).
+			Where("resource_id = ?", resourceID).
+			Where("action = ?", action).
+			Count(context.Background())
+		require.NoError(t, err)
+		if count >= wanted {
+			return
+		}
+		if time.Now().After(deadline) {
+			require.Failf(t, "operator audit logs did not arrive", "got %d, want at least %d", count, wanted)
+			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
