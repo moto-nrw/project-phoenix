@@ -155,7 +155,12 @@ func (r *CareExitCleanupRepository) FindOpenPresence(
 		UNION
 		SELECT student_id FROM active.visits
 		WHERE tenant_id = ? AND student_id IN (?) AND exit_time IS NULL
+		UNION
+		SELECT student_id FROM schedule.instance_students
+		WHERE tenant_id = ? AND student_id IN (?)
+		  AND checked_in_at IS NOT NULL AND checked_out_at IS NULL
 	`, tenant.FromContext(ctx), bun.List(studentIDs),
+		tenant.FromContext(ctx), bun.List(studentIDs),
 		tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find open presence", Err: err}
 	}
@@ -480,6 +485,14 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 	tenantID := tenant.FromContext(ctx)
 	db := base.GetDB(ctx, r.db)
 	restored := 0
+
+	// Restoring a deleted booking writes its original id back. This table lock
+	// serializes that restore and the following sequence update with ordinary
+	// booking INSERTs, which otherwise could consume a sequence value between
+	// reading last_value and setval and then receive a duplicate id.
+	if _, err := db.ExecContext(ctx, `LOCK TABLE activities.student_enrollments IN SHARE ROW EXCLUSIVE MODE`); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "lock bookings before care exit restore", Err: err}
+	}
 
 	// Rosters. room_id / student_status_day_id / pickup_exception_id are
 	// re-validated instead of trusted: all three are ON DELETE SET NULL on the

@@ -137,21 +137,13 @@ func studentCareExitRemovalsUp(ctx context.Context, db *bun.DB) error {
 		CREATE INDEX IF NOT EXISTS idx_care_exit_removals_tenant_instance
 			ON users.student_care_exit_removals (tenant_id, instance_id);
 
-		ALTER TABLE users.student_care_exit_removals ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.student_care_exit_removals FORCE ROW LEVEL SECURITY;
-
-		DROP POLICY IF EXISTS tenant_isolation_users_student_care_exit_removals
-			ON users.student_care_exit_removals;
-		CREATE POLICY tenant_isolation_users_student_care_exit_removals
-			ON users.student_care_exit_removals
-			FOR ALL
-			USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-			WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.student_care_exit_removals TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.student_care_exit_removals_id_seq TO phoenix_tenant;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating users.student_care_exit_removals: %w", err)
+	}
+	if err := provisionTenantRLS(ctx, db, "users.student_care_exit_removals"); err != nil {
+		return err
 	}
 
 	return nil

@@ -201,9 +201,14 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	// Two materialized blocks: one BEFORE the exit (history) and one after it.
 	pastInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(-7), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
+	openInstance := testpkg.CreateTestActivityInstance(t, db, today, room.ID,
+		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 	futureInstance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(7), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &activityGroup.ID})
 	testpkg.CreateTestInstanceStudent(t, db, pastInstance.ID, studentID, scheduleModels.AttendanceStatusPresent)
+	checkedInAt := time.Now().Add(-time.Hour)
+	testpkg.CreateTestInstanceStudent(t, db, openInstance.ID, studentID,
+		scheduleModels.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
 	testpkg.CreateTestInstanceStudent(t, db, futureInstance.ID, studentID, scheduleModels.AttendanceStatusExpected)
 
 	// A care offering that runs open-ended.
@@ -246,6 +251,8 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 			"only the block AFTER the last care day counts")
 		assert.Equal(t, 1, impact.ActivityBookings)
 		assert.Equal(t, 1, impact.OpenParentRequests)
+		assert.True(t, impact.CurrentlyPresent,
+			"an open roster check-in is closed when the exit takes effect")
 	})
 
 	_, err = svc.Confirm(ctx, preview.Token, userService.CareExitInput{
@@ -292,6 +299,17 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		assert.Equal(t, activeModels.ExcusedRequestStatusCareEnded,
 			reloadRequestStatus(t, db, request.ID),
 			"neither approved nor rejected — the care simply ended")
+	})
+
+	t.Run("the open roster check-in is closed", func(t *testing.T) {
+		var checkedOutAt *time.Time
+		err := db.NewSelect().
+			TableExpr("schedule.instance_students").
+			ColumnExpr("checked_out_at").
+			Where("instance_id = ? AND student_id = ?", openInstance.ID, studentID).
+			Scan(ctx, &checkedOutAt)
+		require.NoError(t, err)
+		assert.NotNil(t, checkedOutAt)
 	})
 
 	t.Run("the family keeps the request in their history", func(t *testing.T) {

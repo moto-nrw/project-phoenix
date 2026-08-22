@@ -971,6 +971,9 @@ func (s *service) WithdrawPickupChangeRequest(ctx context.Context, accountID, st
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}

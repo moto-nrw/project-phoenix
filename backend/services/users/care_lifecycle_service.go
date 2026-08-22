@@ -514,34 +514,63 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	}
 	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 
-	now := time.Now()
-	closedPresence, err := s.cleanupRepo.CloseOpenPresence(ctx, ids, now)
+	applied := 0
+	closedPresence := 0
+	closedRequests := 0
+	var releasedTags map[int64]string
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		// The first query above is deliberately only a candidate lookup. An
+		// operator can change or resume an exit before this transaction starts,
+		// so lock and revalidate every row before any irreversible effect runs.
+		locked, err := s.studentRepo.FindByIDsForUpdate(txCtx, ids)
+		if err != nil {
+			return err
+		}
+		current := ids[:0]
+		for _, id := range ids {
+			student := locked[id]
+			if student != nil && student.Status == userModels.StudentStatusActive && student.CareEndedOn(asOf) {
+				current = append(current, id)
+			}
+		}
+		if len(current) == 0 {
+			return nil
+		}
+
+		now := time.Now()
+		closedPresence, err = s.cleanupRepo.CloseOpenPresence(txCtx, current, now)
+		if err != nil {
+			return err
+		}
+		closedRequests, err = s.cleanupRepo.CloseOpenRequests(txCtx, current, nil, now)
+		if err != nil {
+			return err
+		}
+		releasedTags, err = s.tagReleaser.ReleaseStudentTagsByIDs(txCtx, current)
+		if err != nil {
+			return err
+		}
+		// The exit is final now. What it removed from the plan stays removed, so
+		// the ledger that would have put it back is dropped (#2487).
+		if err := s.cleanupRepo.DiscardRemovals(txCtx, current); err != nil {
+			return err
+		}
+		applied = len(current)
+		return nil
+	})
 	if err != nil {
-		return 0, err
-	}
-	closedRequests, err := s.cleanupRepo.CloseOpenRequests(ctx, ids, nil, now)
-	if err != nil {
-		return 0, err
-	}
-	releasedTags, err := s.tagReleaser.ReleaseStudentTagsByIDs(ctx, ids)
-	if err != nil {
-		return 0, err
-	}
-	// The exit is final now. What it removed from the plan stays removed, so
-	// the ledger that would have put it back is dropped (#2487).
-	if err := s.cleanupRepo.DiscardRemovals(ctx, ids); err != nil {
 		return 0, err
 	}
 
 	if closedPresence > 0 || closedRequests > 0 || len(releasedTags) > 0 {
 		s.getLogger().Info("care exit effects applied",
-			slog.Int("students", len(ids)),
+			slog.Int("students", applied),
 			slog.Int("presence_records_closed", closedPresence),
 			slog.Int("parent_requests_closed", closedRequests),
 			slog.Int("tags_released", len(releasedTags)),
 		)
 	}
-	return len(ids), nil
+	return applied, nil
 }
 
 // ---------------------------------------------------------------------------

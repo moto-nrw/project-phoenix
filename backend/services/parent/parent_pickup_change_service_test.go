@@ -109,7 +109,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	svc, db, repos := buildPickupChangeServiceWithRequests(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 	date := timezone.TodayDate().AddDays(3)
 	pickup := timezone.WallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
 
@@ -137,6 +137,29 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
+}
+
+func TestWithdrawPickupChangeRequestRejectsEndedCare(t *testing.T) {
+	t.Parallel()
+
+	svc, db, _ := buildPickupChangeServiceWithRequests(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.Ctx(t)
+	date := timezone.TodayDate().AddDays(3)
+	pickup := timezone.WallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+
+	request, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "Arzttermin")
+	require.NoError(t, err)
+
+	_, err = db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Where("id = ?", chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.WithdrawPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, request.ID)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
 }
 
 // A second open request for the same day would leave staff with two answers to

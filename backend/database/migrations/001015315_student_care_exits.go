@@ -74,29 +74,13 @@ func studentCareExitsUp(ctx context.Context, db *bun.DB) error {
 		CREATE UNIQUE INDEX IF NOT EXISTS uq_student_care_exits_student
 			ON users.student_care_exits (tenant_id, student_id);
 
-		ALTER TABLE users.student_care_exits ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.student_care_exits FORCE ROW LEVEL SECURITY;
-
-		DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_policies
-				WHERE schemaname = 'users'
-					AND tablename = 'student_care_exits'
-					AND policyname = 'tenant_isolation_users_student_care_exits'
-			) THEN
-				CREATE POLICY tenant_isolation_users_student_care_exits
-					ON users.student_care_exits
-					FOR ALL
-					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-			END IF;
-		END $$;
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.student_care_exits TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.student_care_exits_id_seq TO phoenix_tenant;
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating users.student_care_exits: %w", err)
+	}
+	if err := provisionTenantRLS(ctx, db, "users.student_care_exits"); err != nil {
+		return err
 	}
 
 	// The enrolled_until index that already exists is partial on status =
