@@ -158,7 +158,7 @@ func registerEnrollmentCareOfferings() {
 	config.Register(config.Definition{
 		Key:             config.KeyEnrollmentBookingsAuthoritative,
 		Label:           "Buchungen bestimmen die Betreuungstage",
-		Description:     "Die gebuchten Betreuungsangebote legen fest, an welchen Wochentagen ein Kind da ist. Ankunftszeiten enden dann automatisch, wenn die Buchung endet. Nur für Schulen mit Anmeldung über moto.",
+		Description:     "Die gebuchten Betreuungsangebote legen fest, an welchen Wochentagen ein Kind da ist. Ankunfts- und Abholzeiten gelten dann nur an gebuchten Tagen. Nur für Schulen mit Anmeldung über moto.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

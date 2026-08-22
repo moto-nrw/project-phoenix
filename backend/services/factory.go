@@ -667,10 +667,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
-	pickupBaselines := schedule.NewPickupBaselineService(
+	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule,
 		repos.RequestChildOffering,
 		repos.CareOffering,
+		settingsService,
 	)
 	// The arrival mirror: the class timetable supplies the regular time and,
 	// with enrollment.bookings_authoritative on, the approved bookings supply

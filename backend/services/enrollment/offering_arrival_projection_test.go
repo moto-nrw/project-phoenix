@@ -13,6 +13,7 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,7 +24,18 @@ import (
 // approved booking links decide which weekdays a child is in care (#2414).
 func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritative bool) scheduleService.ArrivalBaselineReader {
 	t.Helper()
-	settings := &configtest.Mock{
+	return scheduleService.NewArrivalBaselineService(
+		env.repos.StudentArrivalSchedule,
+		env.repos.Student,
+		env.repos.ClassArrivalTime,
+		env.repos.RequestChildOffering,
+		env.repos.CareOffering,
+		bookingModeSettings(authoritative),
+	)
+}
+
+func bookingModeSettings(authoritative bool) configService.SettingsService {
+	return &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			if key == configModel.KeyEnrollmentBookingsAuthoritative {
 				return authoritative, nil
@@ -31,14 +43,54 @@ func bookingModeArrivalBaseline(t *testing.T, env *decisionTestEnv, authoritativ
 			return false, nil
 		},
 	}
-	return scheduleService.NewArrivalBaselineService(
-		env.repos.StudentArrivalSchedule,
-		env.repos.Student,
-		env.repos.ClassArrivalTime,
+}
+
+func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) scheduleService.CareDayService {
+	t.Helper()
+	return scheduleService.NewCareDayService(scheduleService.CareDayDependencies{
+		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, authoritative),
+		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
+		ArrivalExceptions: env.repos.StudentArrivalException,
+		PickupBaselines: scheduleService.NewPickupBaselineService(
+			env.repos.StudentPickupSchedule,
+			env.repos.RequestChildOffering,
+			env.repos.CareOffering,
+		),
+		PickupExceptions: env.repos.StudentPickupException,
+	})
+}
+
+func bookingModePickupBaseline(env *decisionTestEnv, authoritative bool) scheduleService.PickupBaselineReader {
+	return scheduleService.NewPickupBaselineServiceWithSettings(
+		env.repos.StudentPickupSchedule,
 		env.repos.RequestChildOffering,
 		env.repos.CareOffering,
-		settings,
+		bookingModeSettings(authoritative),
 	)
+}
+
+func bookingModePickupService(env *decisionTestEnv, authoritative bool) scheduleService.PickupScheduleService {
+	return scheduleService.NewPickupScheduleServiceWithBulk(
+		env.repos.StudentPickupSchedule,
+		env.repos.StudentPickupException,
+		env.repos.StudentPickupNote,
+		env.repos.Student,
+		env.repos.Person,
+		nil,
+		bookingModePickupBaseline(env, authoritative),
+		env.db,
+		nil,
+	)
+}
+
+func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID int64, date timezone.Date) {
+	t.Helper()
+	restored, err := bookingModePickupService(env, false).GetEffectivePickupTimeForDate(testpkg.Ctx(t), studentID, date)
+	require.NoError(t, err)
+	require.NotNil(t, restored)
+	require.NotNil(t, restored.PickupTime)
+	assert.Equal(t, "16:00", restored.PickupTime.Format("15:04"),
+		"turning booking authority off must restore the preserved weekly plan")
 }
 
 func createArrivalOffering(t *testing.T, env *decisionTestEnv, name string, days []string) *enrollmentModels.CareOffering {
@@ -221,17 +273,7 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Erwartet")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	careDays := scheduleService.NewCareDayService(scheduleService.CareDayDependencies{
-		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, true),
-		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
-		ArrivalExceptions: env.repos.StudentArrivalException,
-		PickupBaselines: scheduleService.NewPickupBaselineService(
-			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
-			env.repos.CareOffering,
-		),
-		PickupExceptions: env.repos.StudentPickupException,
-	})
+	careDays := bookingModeCareDays(t, env, true)
 
 	monday := nextWeekday(timezone.TodayDate(), time.Monday)
 	thursday := monday.AddDays(3)
@@ -244,4 +286,40 @@ func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, stale[studentID].Expected(),
 		"a stale arrival row on an unbooked weekday must not keep a deregistered child expected")
+}
+
+func TestPickupProjection_StaleRowCannotAddAuthoritativeCareDay(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	ctx := testpkg.Ctx(t)
+
+	offering := createArrivalOffering(t, env, "pickup-boundary", []string{"mon"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "pickup-boundary@example.com", "Paula", 2,
+	)
+	staff := testpkg.CreateTestStaff(t, env.db, "Abholung", "Grenze")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayMonday, staff.ID, "15:30")
+	testpkg.CreateTestPickupSchedule(t, env.db, studentID, scheduleModels.WeekdayTuesday, staff.ID, "16:00")
+
+	pickups := bookingModePickupService(env, true)
+
+	tuesday := nextWeekday(timezone.TodayDate(), time.Tuesday)
+	effective, err := pickups.GetEffectivePickupTimeForDate(ctx, studentID, tuesday)
+	require.NoError(t, err)
+	assert.Nil(t, effective, "an unbooked pickup row must not escape as an effective time")
+
+	week, err := pickups.GetStudentPickupSchedules(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, week, 1, "the weekly views must keep the booked day and hide the stale row")
+	assert.Equal(t, scheduleModels.WeekdayMonday, week[0].Weekday)
+
+	require.NoError(t, pickups.UpsertBulkStudentPickupSchedules(ctx, studentID, week))
+	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, stored, 2, "saving the visible booked week must preserve ignored legacy rows")
+
+	assertLegacyPickupRestored(t, env, studentID, tuesday)
 }

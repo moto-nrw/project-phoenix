@@ -79,8 +79,10 @@ dort verworfene materialisierte Kopie liegt bei am Berg noch als 408 ignorierte
   nicht persistiertes Feld mit der projizierten Zeile, wie `CareOfferingName`.
 - Ankunfts- und Abholzeiten sowie Tagesausnahmen beschreiben einen vorhandenen
   Betreuungstag. Im Buchungsmodus dürfen sie keinen nicht gebuchten Tag
-  hinzufügen. Die zentrale Tagesplanung prüft daher zuerst die genehmigte
-  Buchung und wertet erst danach Zeiten und Ausnahmen aus.
+  hinzufügen. Ankunfts- und Abholprojektion verwenden dafür dieselbe
+  Buchungsprojektion als erste Grenze und werten erst danach Zeiten und
+  Ausnahmen aus. Ausgeblendete Altzeilen bleiben gespeichert, damit ein
+  späterer Rückwechsel zum Wochenplan-Modus keine Daten verliert.
 - Ein Wert, der der Projektion entspricht, wird nicht als Zeile gespeichert.
   Beim vollständigen Speichern eines Wochenplans entfällt ein bestehender
   deckungsgleicher Override.

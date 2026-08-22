@@ -371,8 +371,15 @@ func (s *arrivalBaselineService) loadCareDays(
 	if err != nil {
 		return nil, err
 	}
+	return projectCareDayIndex(links, offeringByID, from, to), nil
+}
 
-	index := make(careDayIndex, len(studentIDs))
+func projectCareDayIndex(
+	links []*enrollmentModel.ApprovedOfferingChild,
+	offeringByID map[int64]*enrollmentModel.CareOffering,
+	from, to timezone.Date,
+) careDayIndex {
+	index := make(careDayIndex, len(links))
 	for _, entry := range links {
 		if entry == nil || entry.Link == nil {
 			continue
@@ -400,7 +407,7 @@ func (s *arrivalBaselineService) loadCareDays(
 			}
 		}
 	}
-	return index, nil
+	return index
 }
 
 func (s *arrivalBaselineService) bookingsAuthoritative(ctx context.Context) (bool, error) {
