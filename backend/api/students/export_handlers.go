@@ -66,8 +66,9 @@ type studentExportFilters struct {
 }
 
 type weeklySchedule struct {
-	ArrivalByWeekday map[int]string
-	PickupByWeekday  map[int]string
+	ArrivalByWeekday  map[int]string
+	CareDaysByWeekday map[int]bool
+	PickupByWeekday   map[int]string
 }
 
 func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
@@ -525,8 +526,9 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 	}
 	for _, studentID := range studentIDs {
 		result[studentID] = weeklySchedule{
-			ArrivalByWeekday: make(map[int]string),
-			PickupByWeekday:  make(map[int]string),
+			ArrivalByWeekday:  make(map[int]string),
+			CareDaysByWeekday: make(map[int]bool),
+			PickupByWeekday:   make(map[int]string),
 		}
 	}
 	pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate(r.Context(), studentIDs, planningDate)
@@ -544,6 +546,7 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 	}
 	for _, arrival := range arrivals {
 		weekly := result[arrival.StudentID]
+		weekly.CareDaysByWeekday[arrival.Weekday] = true
 		if !arrival.ExpectedArrival.IsZero() {
 			weekly.ArrivalByWeekday[arrival.Weekday] = formatWallClock(arrival.ExpectedArrival)
 		}
@@ -819,7 +822,7 @@ func departureSummary(allowed users.AllowedDepartureModes, fallback users.Depart
 func weeklyCell(plan weeklySchedule, weekday int) string {
 	arrival := plan.ArrivalByWeekday[weekday]
 	pickup := plan.PickupByWeekday[weekday]
-	if arrival == "" && pickup == "" {
+	if arrival == "" && pickup == "" && !plan.CareDaysByWeekday[weekday] {
 		return "nein"
 	}
 	if arrival != "" && pickup != "" {
@@ -827,6 +830,9 @@ func weeklyCell(plan weeklySchedule, weekday int) string {
 	}
 	if arrival != "" {
 		return "Ankunft: " + arrival
+	}
+	if pickup == "" {
+		return "Ankunft: keine Zeit"
 	}
 	return "Abholung: " + pickup
 }
@@ -843,7 +849,7 @@ func careDays(plan weeklySchedule) string {
 		{schedule.WeekdayThursday, "Do"},
 		{schedule.WeekdayFriday, "Fr"},
 	} {
-		if plan.ArrivalByWeekday[day.weekday] != "" || plan.PickupByWeekday[day.weekday] != "" {
+		if plan.CareDaysByWeekday[day.weekday] || plan.ArrivalByWeekday[day.weekday] != "" || plan.PickupByWeekday[day.weekday] != "" {
 			labels = append(labels, day.label)
 		}
 	}

@@ -820,6 +820,7 @@ export function StudentCreateModal({
         <CareWeeklyPlanModal
           isOpen={carePlanModalOpen}
           careDaysSource={careDaysSource}
+          isCreating
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}

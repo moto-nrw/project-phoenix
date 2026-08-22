@@ -19,6 +19,7 @@ interface CareWeeklyPlanModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
   readonly careDaysSource: CareDaysSource;
+  readonly isCreating?: boolean;
   readonly initialArrivalSchedules: ArrivalScheduleFormEntry[];
   readonly initialPickupSchedules: PickupScheduleFormData[];
   readonly onSubmit: (data: {
@@ -46,6 +47,7 @@ export function CareWeeklyPlanModal({
   isOpen,
   onClose,
   careDaysSource,
+  isCreating = false,
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
@@ -238,12 +240,8 @@ export function CareWeeklyPlanModal({
         ) : null}
 
         <p className="mb-4 text-sm leading-6 text-gray-600">
-          {careDaysSource === "bookings" ? (
-            <>
-              Die Betreuungstage kommen aus den Buchungen. Für ein neues Kind
-              gibt es noch keine Buchungen. Ankunftszeiten tragen Sie später im
-              Wochenplan ein.
-            </>
+          {careDaysSource === "bookings" && !isCreating ? (
+            <>Die Betreuungstage kommen aus den Buchungen.</>
           ) : (
             <>
               Wählen Sie die Betreuungstage. Ohne eigene Zeit gilt die
@@ -271,7 +269,7 @@ export function CareWeeklyPlanModal({
                       <Checkbox
                         id={`weekly-care-${day.value}`}
                         checked={row?.arrivalInCare ?? false}
-                        disabled={careDaysSource === "bookings"}
+                        disabled={careDaysSource === "bookings" && !isCreating}
                         onChange={(event) =>
                           updateCareDay(day.value, event.target.checked)
                         }

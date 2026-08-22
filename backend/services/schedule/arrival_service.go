@@ -650,9 +650,9 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
 	}, nil
 }
 
-// GetStudentsWithStoredArrivalSchedules identifies children with manual weekly
-// rows. Class-derived rows are intentionally excluded because they are never
-// stored on the child.
+// GetStudentsWithStoredArrivalSchedules identifies children with stored weekly
+// rows, including care-day markers that inherit their class time. A bulk write
+// replaces either kind of row.
 func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(
 	ctx context.Context,
 	studentIDs []int64,
@@ -663,9 +663,7 @@ func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(
 	}
 	hasSchedules := make(map[int64]bool, len(rows))
 	for _, row := range rows {
-		if !row.ExpectedArrival.IsZero() {
-			hasSchedules[row.StudentID] = true
-		}
+		hasSchedules[row.StudentID] = true
 	}
 	return hasSchedules, nil
 }
