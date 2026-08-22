@@ -177,6 +177,24 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 	})
 }
 
+func TestBulkArrivalScheduleRequest_BindRejectsLongNotesWithoutTime(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	longNotes := string(make([]byte, 501))
+	arrival := &BulkArrivalScheduleRequest{
+		Schedules: []ArrivalScheduleRequestItem{{
+			Weekday:         1,
+			ExpectedArrival: "",
+			Notes:           &longNotes,
+		}},
+	}
+
+	err := arrival.Bind(req)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "notes cannot exceed 500 characters")
+}
+
 // =============================================================================
 // PickupExceptionRequest Bind Tests
 // =============================================================================

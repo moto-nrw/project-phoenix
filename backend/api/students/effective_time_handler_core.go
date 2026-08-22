@@ -34,6 +34,9 @@ func validateCareScheduleItem(item careScheduleItem, timeField string) error {
 	if item.Weekday < schedule.WeekdayMonday || item.Weekday > schedule.WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
+	if item.Notes != nil && len(*item.Notes) > 500 {
+		return errors.New("notes cannot exceed 500 characters")
+	}
 	if item.Time == "" {
 		// An arrival row may omit the time: it then marks the care day and
 		// takes the time from the child's class timetable (#2414). Pickup
@@ -45,9 +48,6 @@ func validateCareScheduleItem(item careScheduleItem, timeField string) error {
 	}
 	if _, err := time.Parse("15:04", item.Time); err != nil {
 		return fmt.Errorf("invalid %s format, expected HH:MM", timeField)
-	}
-	if item.Notes != nil && len(*item.Notes) > 500 {
-		return errors.New("notes cannot exceed 500 characters")
 	}
 	return nil
 }
