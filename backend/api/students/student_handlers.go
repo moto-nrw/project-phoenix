@@ -177,7 +177,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	// After pagination: only the page that is actually returned needs to know
 	// which of its children carry a recorded exit (#2487).
-	rs.enrichWithCareExitFlag(r.Context(), responses)
+	if err := rs.enrichWithCareExitFlag(r.Context(), responses); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must
@@ -502,7 +505,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	rs.enrichWithCareExitFlag(r.Context(), single)
+	if err := rs.enrichWithCareExitFlag(r.Context(), single); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	response.StudentResponse = single[0]
 
 	// Add supervisor contacts for users without full access

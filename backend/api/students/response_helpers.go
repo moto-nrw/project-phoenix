@@ -495,13 +495,9 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 // the school (#2487). Batched over the page that is actually being returned:
 // the flag decides whether the child management offers "Ende ändern" and
 // "Ende stornieren", which must not depend on how far the date lies ahead.
-//
-// A failure is logged and left non-fatal — the list is still correct without
-// the flag, it just offers no correction for a planned exit, and losing the
-// whole page over it would be the worse answer.
-func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []StudentResponse) {
+func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []StudentResponse) error {
 	if rs.CareLifecycleService == nil {
-		return
+		return nil
 	}
 	ids := make([]int64, 0, len(responses))
 	for i := range responses {
@@ -513,7 +509,7 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 		ids = append(ids, responses[i].ID)
 	}
 	if len(ids) == 0 {
-		return
+		return nil
 	}
 	recorded, err := rs.CareLifecycleService.RecordedExitStudentIDs(ctx, ids)
 	if err != nil {
@@ -522,13 +518,14 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 				slog.String("error", err.Error()),
 			)
 		}
-		return
+		return fmt.Errorf("load recorded care exits: %w", err)
 	}
 	for i := range responses {
 		if recorded[responses[i].ID] {
 			responses[i].CareExitRecorded = true
 		}
 	}
+	return nil
 }
 
 // enrichWithPickupTimes adds today's effective pickup time to each student response.
