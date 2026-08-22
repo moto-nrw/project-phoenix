@@ -46,7 +46,7 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 		WITH ranked AS (
 			SELECT
 				arrival.tenant_id,
-				BTRIM(student.school_class) AS school_class,
+				MIN(BTRIM(student.school_class)) AS school_class,
 				arrival.weekday,
 				TO_CHAR(arrival.expected_arrival, 'HH24:MI') AS hhmm,
 				COUNT(*) AS children,
@@ -62,7 +62,7 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 				AND arrival.expected_arrival <> TIME '00:00'
 				AND student.status <> 'alumnus'
 				AND BTRIM(student.school_class) <> ''
-			GROUP BY arrival.tenant_id, student.school_class, arrival.weekday, arrival.expected_arrival
+			GROUP BY arrival.tenant_id, LOWER(BTRIM(student.school_class)), arrival.weekday, arrival.expected_arrival
 		), per_class AS (
 			SELECT
 				tenant_id,

@@ -193,6 +193,31 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
 }
 
+func TestArrivalDataUsesWholeCurrentWeek(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Ganz", "Woche", "8j")
+
+	data, err := svc.GetStudentArrivalData(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, data.Schedules, 1)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+}
+
 func TestWeeklyArrivalReadersUseEachWeekdayDate(t *testing.T) {
 	t.Parallel()
 

@@ -2592,6 +2592,8 @@ func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T)
 		"arrival schedule created_by must reference users.staff, not the reviewer account")
 	assert.NotEqual(t, reviewerAccountID, rows[0].CreatedBy,
 		"the regression requires account id and staff id to stay distinct")
+	assert.True(t, rows[0].ExpectedArrival.IsZero(),
+		"enrollment rows mark the care day and inherit later class-time changes")
 }
 
 func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffDoesNotAbortApproval(t *testing.T) {

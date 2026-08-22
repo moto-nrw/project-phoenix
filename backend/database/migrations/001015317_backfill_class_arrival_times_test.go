@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +13,11 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// The backfill intentionally scans every tenant in the package's shared test
+// database clone. Serialize only its invocations while the tests themselves
+// retain their independent tenants and parallel execution.
+var backfillClassArrivalTimesMu sync.Mutex
 
 func classArrivalTimesOf(t *testing.T, db *bun.DB, tenantID int64, class string) map[string]string {
 	t.Helper()
@@ -42,6 +48,8 @@ func storedArrivalTime(t *testing.T, db *bun.DB, rowID int64) *string {
 // exactly that time start inheriting it, and a deviating child keeps its own.
 func TestBackfillClassArrivalTimes(t *testing.T) {
 	t.Parallel()
+	backfillClassArrivalTimesMu.Lock()
+	defer backfillClassArrivalTimesMu.Unlock()
 
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
@@ -95,4 +103,34 @@ func TestBackfillClassArrivalTimes(t *testing.T) {
 		`, majorityA.ID, majorityB.ID, deviating.ID).Scan(context.Background(), &careDays))
 		assert.Equal(t, 4, careDays)
 	})
+}
+
+func TestBackfillClassArrivalTimesCombinesNormalizedClassLabels(t *testing.T) {
+	t.Parallel()
+	backfillClassArrivalTimesMu.Lock()
+	defer backfillClassArrivalTimesMu.Unlock()
+
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	staff := testpkg.CreateTestStaff(t, db, "Backfill", "Klassenname")
+	first := testpkg.CreateTestStudent(t, db, "Erste", "Form", "6x")
+	second := testpkg.CreateTestStudent(t, db, "Zweite", "Form", "6x")
+	third := testpkg.CreateTestStudent(t, db, "Dritte", "Form", "6x")
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students
+		SET school_class = CASE id
+			WHEN ? THEN ' 6X '
+			WHEN ? THEN '6x '
+			ELSE school_class
+		END
+		WHERE id IN (?, ?)
+	`, second.ID, third.ID, second.ID, third.ID)
+	require.NoError(t, err)
+	testpkg.CreateTestArrivalSchedule(t, db, first.ID, scheduleModels.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, second.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
+	testpkg.CreateTestArrivalSchedule(t, db, third.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
+
+	require.NoError(t, backfillClassArrivalTimesUp(context.Background(), db))
+	times := classArrivalTimesOf(t, db, tenantID, "6x")
+	assert.Equal(t, "11:45", times["mon"])
 }

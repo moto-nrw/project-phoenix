@@ -333,9 +333,10 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	rawDate := r.URL.Query().Get("date")
 	date := timezone.TodayDate()
-	if raw := r.URL.Query().Get("date"); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+	if rawDate != "" {
+		parsed, err := timezone.ParseDate(rawDate)
 		if err != nil {
 			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid date: %w", err)))
 			return
@@ -347,7 +348,9 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		err  error
 	)
 	toRaw := r.URL.Query().Get("to")
-	if toRaw == "" {
+	if toRaw == "" && rawDate == "" {
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	} else if toRaw == "" {
 		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
 	} else {
 		to, parseErr := timezone.ParseDate(toRaw)

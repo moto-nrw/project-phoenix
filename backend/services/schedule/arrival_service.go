@@ -625,7 +625,8 @@ func (s *arrivalScheduleService) GetStudentArrivalData(
 	ctx context.Context,
 	studentID int64,
 ) (*StudentArrivalData, error) {
-	return s.GetStudentArrivalDataForDate(ctx, studentID, timezone.TodayDate())
+	from := weekStart(timezone.TodayDate())
+	return s.GetStudentArrivalDataForDateRange(ctx, studentID, from, from.AddDays(4))
 }
 
 func (s *arrivalScheduleService) GetStudentArrivalDataForDate(

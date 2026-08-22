@@ -4266,31 +4266,30 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if hhmm == "" {
 			continue
 		}
+		if !isPickup {
+			row := &scheduleModels.StudentArrivalSchedule{
+				StudentID: studentID,
+				Weekday:   weekdayInt[day],
+				CreatedBy: createdBy,
+			}
+			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
+				return fmt.Errorf("create arrival %s: %w", day, err)
+			}
+			continue
+		}
 		t, err := time.Parse("15:04", hhmm)
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
 		t = timezone.WallClock(t)
-		if isPickup {
-			row := &scheduleModels.StudentPickupSchedule{
-				StudentID:  studentID,
-				Weekday:    weekdayInt[day],
-				PickupTime: t,
-				CreatedBy:  createdBy,
-			}
-			if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
-				return fmt.Errorf("upsert pickup %s: %w", day, err)
-			}
-		} else {
-			row := &scheduleModels.StudentArrivalSchedule{
-				StudentID:       studentID,
-				Weekday:         weekdayInt[day],
-				ExpectedArrival: t,
-				CreatedBy:       createdBy,
-			}
-			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
-				return fmt.Errorf("create arrival %s: %w", day, err)
-			}
+		row := &scheduleModels.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    weekdayInt[day],
+			PickupTime: t,
+			CreatedBy:  createdBy,
+		}
+		if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+			return fmt.Errorf("upsert pickup %s: %w", day, err)
 		}
 	}
 	return nil
