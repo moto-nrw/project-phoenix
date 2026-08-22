@@ -294,6 +294,13 @@ func (s *service) WithdrawOfferingChangeRequest(
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		return s.OfferingChanges.Withdraw(txCtx, requestID, accountID, studentID)
 	})
 	if txErr != nil {

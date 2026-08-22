@@ -547,6 +547,13 @@ func (s *service) WithdrawExcusedRequest(ctx context.Context, accountID, student
 	}
 	var out *activeModels.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		req, err := s.ExcusedRequests.WithdrawRequest(txCtx, requestID, studentID, accountID)
 		if err != nil {
 			return err
@@ -1001,6 +1008,13 @@ func (s *service) WithdrawPickupChangeRequest(ctx context.Context, accountID, st
 	}
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		withdrawn, withdrawErr := s.CareRequests.WithdrawPickupChangeRequest(txCtx, requestID, studentID, accountID)
 		if withdrawErr != nil {
 			return withdrawErr
@@ -1345,6 +1359,13 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 
 	pickupDeleted := false
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}

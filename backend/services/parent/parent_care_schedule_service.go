@@ -206,6 +206,13 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	}
 	view := &ChildCareSchedule{CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if _, err := s.CareRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
 			return err
 		}

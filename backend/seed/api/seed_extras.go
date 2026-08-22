@@ -251,17 +251,19 @@ func (seedCareExitsStep) Run(_ context.Context, rt *Runtime) error {
 			continue
 		}
 		var preview struct {
-			Token   string `json:"token"`
-			Blocked bool   `json:"blocked"`
+			Data struct {
+				Token   string `json:"token"`
+				Blocked bool   `json:"blocked"`
+			} `json:"data"`
 		}
-		if err := json.Unmarshal(raw, &preview); err != nil || preview.Blocked || preview.Token == "" {
+		if err := json.Unmarshal(raw, &preview); err != nil || preview.Data.Blocked || preview.Data.Token == "" {
 			if rt.Verbose {
 				fmt.Printf("  WARNING: care-exit preview unusable for student %d\n", studentID)
 			}
 			continue
 		}
 
-		body["token"] = preview.Token
+		body["token"] = preview.Data.Token
 		if _, err := rt.Client.Post("/api/students/care-end", body); err != nil {
 			if rt.Verbose {
 				fmt.Printf("  WARNING: care-exit failed for student %d: %v\n", studentID, err)
