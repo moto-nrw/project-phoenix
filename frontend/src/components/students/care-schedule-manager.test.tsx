@@ -12,6 +12,7 @@ import type { PickupData } from "~/lib/pickup-schedule-helpers";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const mockFetchArrivalData = vi.fn();
+const mockFetchArrivalSettings = vi.fn();
 const mockFetchStudentPickupData = vi.fn();
 const mockUpdateArrivalSchedules = vi.fn();
 const mockUpdateStudentPickupSchedules = vi.fn();
@@ -31,6 +32,8 @@ const FROZEN_NOW = new Date("2026-05-27T12:00:00");
 
 vi.mock("~/lib/student-arrival-api", () => ({
   fetchArrivalData: (...args: unknown[]) => mockFetchArrivalData(...args),
+  fetchArrivalSettings: (...args: unknown[]) =>
+    mockFetchArrivalSettings(...args),
   updateArrivalSchedules: (...args: unknown[]) =>
     mockUpdateArrivalSchedules(...args),
   createArrivalException: (...args: unknown[]) =>
@@ -73,12 +76,14 @@ vi.mock("./care-plan-editor-modal", () => ({
   CarePlanEditorModal: ({
     isOpen,
     date,
+    careDaysSource,
     onClose,
     onSubmitWeekly,
     onSubmitException,
   }: {
     isOpen: boolean;
     date: Date | null;
+    careDaysSource: string;
     onClose: () => void;
     onSubmitWeekly: (data: {
       arrivalSchedules: Array<{
@@ -110,6 +115,7 @@ vi.mock("./care-plan-editor-modal", () => ({
       <div
         data-testid={date ? "care-plan-editor-day" : "care-plan-editor-week"}
       >
+        <span data-testid="care-days-source">{careDaysSource}</span>
         <button
           type="button"
           onClick={() =>
@@ -330,6 +336,9 @@ describe("CareScheduleManager", () => {
     vi.setSystemTime(FROZEN_NOW);
     vi.clearAllMocks();
     mockFetchArrivalData.mockResolvedValue(arrivalData);
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "weekly_plan",
+    });
     mockFetchStudentPickupData.mockResolvedValue(pickupData);
     mockUpdateArrivalSchedules.mockResolvedValue([]);
     mockUpdateStudentPickupSchedules.mockResolvedValue([]);
@@ -641,6 +650,39 @@ describe("CareScheduleManager", () => {
       });
       expect(onUpdate).toHaveBeenCalled();
     });
+  });
+
+  it("passes booking care days to the weekly editor", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "bookings",
+    });
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "bookings",
+    );
+  });
+
+  it("shows the class source on each rendered care card", async () => {
+    mockFetchArrivalData.mockResolvedValue({
+      ...arrivalData,
+      exceptions: [],
+      schedules: [
+        {
+          ...arrivalData.schedules[0]!,
+          source: "class_schedule",
+          source_class: "Klasse 1b",
+        },
+      ],
+    });
+    render(
+      <CareScheduleManager studentId="42" statusDays={statusDays} readOnly />,
+    );
+
+    await screen.findByText("Betreuungszeiten");
+    expect(screen.getAllByText("aus Klasse 1b").length).toBeGreaterThan(0);
   });
 
   it("opens the exception editor and persists the day change", async () => {

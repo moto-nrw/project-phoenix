@@ -24,6 +24,22 @@ export function formatArrivalTime(time: string): string {
   return time;
 }
 
+export function stripClassPrefix(schoolClass: string): string {
+  return schoolClass.replace(/^klasse\s+/i, "");
+}
+
+export function arrivalScheduleSourceLabel(
+  schedule: Pick<ArrivalSchedule, "source" | "source_class"> | null | undefined,
+): string | null {
+  if (schedule?.source === "class_schedule") {
+    return schedule.source_class
+      ? `aus Klasse ${stripClassPrefix(schedule.source_class)}`
+      : "Klassenzeit";
+  }
+  if (schedule?.source === "staff") return "eigene Zeit";
+  return null;
+}
+
 function getWeekStart(weekOffset = 0): Date {
   const today = new Date();
   const dayOfWeek = today.getDay();

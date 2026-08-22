@@ -345,6 +345,7 @@ GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
+GET /api/students/arrival-settings
 GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
 GET /api/students/class-arrival-times/{schoolClass}

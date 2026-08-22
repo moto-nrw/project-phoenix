@@ -35,17 +35,14 @@ type ClassArrivalTime struct {
 	UpdatedBy    *int64            `bun:"updated_by,nullzero" json:"updated_by,omitempty"`
 }
 
-// Validate normalizes ArrivalTimes in place and rejects an empty class.
+// Validate rejects an empty class and invalid arrival times without mutating
+// the model. Services normalize values explicitly before persistence.
 func (c *ClassArrivalTime) Validate() error {
 	if strings.TrimSpace(c.SchoolClass) == "" {
 		return errors.New("school class is required")
 	}
-	normalized, err := NormalizeClassArrivalTimes(c.ArrivalTimes)
-	if err != nil {
-		return err
-	}
-	c.ArrivalTimes = normalized
-	return nil
+	_, err := NormalizeClassArrivalTimes(c.ArrivalTimes)
+	return err
 }
 
 // TimeForWeekday returns the wall-clock arrival time planned for an ISO

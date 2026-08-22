@@ -14,6 +14,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
 import { handleStudentFormSubmit } from "~/lib/student-form-validation";
 
+const { mockFetchArrivalSettings } = vi.hoisted(() => ({
+  mockFetchArrivalSettings: vi.fn(),
+}));
+
+vi.mock("~/lib/student-arrival-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/student-arrival-api")
+  >("~/lib/student-arrival-api");
+  return {
+    ...actual,
+    fetchArrivalSettings: mockFetchArrivalSettings,
+  };
+});
+
 // Mock Modal component
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -163,12 +177,15 @@ vi.mock("./care-weekly-plan-modal", () => ({
     isOpen,
     onClose,
     onSubmit,
+    careDaysSource,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    careDaysSource: "weekly_plan" | "bookings";
     onSubmit: (data: {
       arrivalSchedules: Array<{
         weekday: number;
+        inCare: boolean;
         expected_arrival: string;
         notes: string | null;
       }>;
@@ -183,14 +200,25 @@ vi.mock("./care-weekly-plan-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="care-weekly-plan-modal">
+        <span data-testid="care-days-source">{careDaysSource}</span>
         <button
           type="button"
           onClick={() =>
             // Mirror the real modal: after onSubmit resolves it closes itself.
             void onSubmit({
               arrivalSchedules: [
-                { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
-                { weekday: 3, expected_arrival: "08:00", notes: null },
+                {
+                  weekday: 1,
+                  inCare: true,
+                  expected_arrival: "07:30",
+                  notes: "Bus",
+                },
+                {
+                  weekday: 3,
+                  inCare: true,
+                  expected_arrival: "08:00",
+                  notes: null,
+                },
               ],
               pickupData: {
                 schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Oma" }],
@@ -276,6 +304,9 @@ describe("StudentCreateModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "weekly_plan",
+    });
   });
 
   it("renders the modal when open", async () => {
@@ -748,6 +779,56 @@ describe("StudentCreateModal", () => {
     });
 
     expect(screen.getByTestId("care-weekly-plan-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "weekly_plan",
+    );
+  });
+
+  it("opens the care plan with booking care days", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "bookings",
+    });
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "bookings",
+    );
+  });
+
+  it("shows a retryable message when care days cannot be loaded", async () => {
+    mockFetchArrivalSettings.mockRejectedValueOnce(new Error("offline"));
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
+    });
+
+    expect(
+      screen.getByText(
+        "Die Betreuungstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("stages a submitted care plan and shows the weekday summary", async () => {
@@ -849,8 +930,18 @@ describe("StudentCreateModal", () => {
       .calls[0]?.[1] as Record<string, unknown>;
     expect(submitted).toMatchObject({
       arrival_schedules: [
-        { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
-        { weekday: 3, expected_arrival: "08:00", notes: null },
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "07:30",
+          notes: "Bus",
+        },
+        {
+          weekday: 3,
+          inCare: true,
+          expected_arrival: "08:00",
+          notes: null,
+        },
       ],
       pickup_schedules: [{ weekday: 1, pickup_time: "15:00", notes: "Oma" }],
     });

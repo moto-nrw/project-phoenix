@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   WEEKDAYS,
+  fetchArrivalSettings,
   fetchArrivalData,
   updateArrivalSchedules,
   bulkUpsertArrivalSchedules,
@@ -154,6 +155,25 @@ describe("student-arrival-api", () => {
       await expect(fetchArrivalData("42")).rejects.toThrow(
         "Request failed (404)",
       );
+    });
+  });
+
+  describe("fetchArrivalSettings", () => {
+    it("returns the source of the tenant's care days", async () => {
+      fetchSpy.mockResolvedValueOnce(
+        mockFetchResponse({ data: { care_days_source: "bookings" } }),
+      );
+
+      const result = await fetchArrivalSettings();
+
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/students/arrival-settings",
+        expect.objectContaining({
+          method: "GET",
+          credentials: "include",
+        }),
+      );
+      expect(result).toEqual({ care_days_source: "bookings" });
     });
   });
 

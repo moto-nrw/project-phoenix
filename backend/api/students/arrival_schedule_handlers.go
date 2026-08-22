@@ -858,5 +858,5 @@ func (rs *Resource) getClassArrivalTimes(w http.ResponseWriter, r *http.Request)
 		formatted := times.UpdatedAt.Format(time.RFC3339)
 		resp.UpdatedAt = &formatted
 	}
-	render.JSON(w, r, resp)
+	common.Respond(w, r, http.StatusOK, resp, "Class arrival times retrieved successfully")
 }

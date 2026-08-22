@@ -346,7 +346,7 @@ export function StudentDetailHeader({
   return (
     <div className="mb-6">
       <div className="flex items-end justify-between gap-4">
-        <div className="ml-6 flex flex-1 items-center gap-4">
+        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
           {photosEnabled ? (
             // Header avatar — image when consent + photo are present, brand
             // gradient initials otherwise. xl size mirrors the detail page's
@@ -426,7 +426,7 @@ export function StudentDetailHeader({
             })()}
           </div>
         </div>
-        <div className="mr-4 flex-shrink-0 pb-3">
+        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
           <LocationBadge
             student={badgeStudent}
             displayMode="contextAware"

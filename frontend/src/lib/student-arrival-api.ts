@@ -52,6 +52,12 @@ export interface ArrivalData {
   notes: ArrivalNote[];
 }
 
+export type CareDaysSource = "weekly_plan" | "bookings";
+
+export interface ArrivalSettings {
+  care_days_source: CareDaysSource;
+}
+
 export interface ArrivalScheduleInput {
   weekday: number;
   /** Empty string = care day whose time comes from the class timetable. */
@@ -134,6 +140,15 @@ export async function fetchArrivalData(
     credentials: "include",
   });
   return parseResponse<ArrivalData>(response);
+}
+
+export async function fetchArrivalSettings(): Promise<ArrivalSettings> {
+  const response = await fetch("/api/students/arrival-settings", {
+    method: "GET",
+    headers: await authHeaders(),
+    credentials: "include",
+  });
+  return parseResponse<ArrivalSettings>(response);
 }
 
 export async function updateArrivalSchedules(

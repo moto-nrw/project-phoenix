@@ -127,6 +127,31 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 
 	assert.Nil(t, pre.ArrivalSchedByDate[monday.String()],
 		"no stored row and no class time means there is no arrival time to show")
+
+	room := testpkg.CreateTestRoom(t, env.db, "Ohne-Zeit-Raum")
+	activity := testpkg.CreateTestActivityGroup(t, env.db, "Ohne-Zeit-AG")
+	instance := testpkg.CreateTestActivityInstance(t, env.db, monday, room.ID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &activity.ID,
+	})
+	testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, scheduleModels.AttendanceStatusExpected)
+	reason := "Fällt aus"
+	exception := &scheduleModels.ActivityException{
+		ActivityGroupID: activity.ID,
+		ExceptionDate:   monday,
+		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+		Reason:          &reason,
+	}
+	exception.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, exception.Validate())
+	require.NoError(t, scheduleRepo.NewActivityExceptionRepository(env.db).Create(ctx, exception))
+
+	conflicts, err := data.DetectExceptionConflicts(ctx, monday, monday, slog.Default())
+	require.NoError(t, err)
+	require.Len(t, conflicts, 1)
+	assert.Equal(t, scheduleService.SlotSourceNone, conflicts[0].ArrivalSource,
+		"a timeless care day must not pretend to have a scheduled arrival")
+	assert.Empty(t, conflicts[0].ExpectedArrival,
+		"a timeless care day must not render as 00:00 in a cancellation warning")
 }
 
 // TestTimetableRead_ExceptionConflictsApplyTheBookingMode covers the second

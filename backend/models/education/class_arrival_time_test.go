@@ -18,22 +18,12 @@ func TestClassArrivalTimeValidate(t *testing.T) {
 		assert.Error(t, row.Validate())
 	})
 
-	t.Run("canonicalizes keys and zero-pads values", func(t *testing.T) {
-		row := &education.ClassArrivalTime{
-			SchoolClass:  "3b",
-			ArrivalTimes: map[string]string{" MON ": " 9:30 ", "tue": "11:45"},
-		}
-		require.NoError(t, row.Validate())
-		assert.Equal(t, map[string]string{"mon": "09:30", "tue": "11:45"}, row.ArrivalTimes)
-	})
+	t.Run("does not mutate valid input", func(t *testing.T) {
+		times := map[string]string{" MON ": " 9:30 ", "tue": "11:45"}
+		row := &education.ClassArrivalTime{SchoolClass: "3b", ArrivalTimes: times}
 
-	t.Run("drops empty values and normalizes an all-empty map to nil", func(t *testing.T) {
-		row := &education.ClassArrivalTime{
-			SchoolClass:  "3b",
-			ArrivalTimes: map[string]string{"mon": "", "tue": "  "},
-		}
 		require.NoError(t, row.Validate())
-		assert.Nil(t, row.ArrivalTimes)
+		assert.Equal(t, times, row.ArrivalTimes)
 	})
 
 	t.Run("rejects unknown days, weekend days and malformed times", func(t *testing.T) {
@@ -50,6 +40,21 @@ func TestClassArrivalTimeValidate(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestNormalizeClassArrivalTimes(t *testing.T) {
+	t.Parallel()
+
+	normalized, err := education.NormalizeClassArrivalTimes(map[string]string{
+		" MON ": " 9:30 ",
+		"tue":   "11:45",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"mon": "09:30", "tue": "11:45"}, normalized)
+
+	empty, err := education.NormalizeClassArrivalTimes(map[string]string{"mon": "", "tue": "  "})
+	require.NoError(t, err)
+	assert.Nil(t, empty)
 }
 
 func TestClassArrivalTimeForWeekday(t *testing.T) {

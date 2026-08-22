@@ -20,6 +20,7 @@ type Story = StoryObj<typeof CareWeeklyPlanModal>;
 export const Empty: Story = {
   args: {
     isOpen: true,
+    careDaysSource: "weekly_plan",
     onClose: () => {},
     initialArrivalSchedules: [],
     initialPickupSchedules: [],
@@ -30,6 +31,7 @@ export const Empty: Story = {
 export const WithSchedules: Story = {
   args: {
     isOpen: true,
+    careDaysSource: "weekly_plan",
     onClose: () => {},
     initialArrivalSchedules: [
       {

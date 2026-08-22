@@ -23,6 +23,7 @@ import {
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
+import type { CareDaysSource } from "~/lib/student-arrival-api";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -59,6 +60,7 @@ export interface CarePlanWeeklySubmit {
 
 interface CarePlanEditorModalProps {
   readonly isOpen: boolean;
+  readonly careDaysSource: CareDaysSource;
   readonly onClose: () => void;
   /** The day the editor was opened from. null = the weekly plan. */
   readonly date: Date | null;
@@ -114,6 +116,7 @@ interface WeeklyRow {
 
 export function CarePlanEditorModal({
   isOpen,
+  careDaysSource,
   onClose,
   date,
   arrivalDay,
@@ -316,7 +319,7 @@ export function CarePlanEditorModal({
     setIsSubmitting(true);
     try {
       if (!isException) {
-        await onSubmitWeekly(toWeeklySubmit(weeklyRows));
+        await onSubmitWeekly(toWeeklySubmit(weeklyRows, careDaysSource));
         toast.success("Wochenplan wurde gespeichert");
       } else {
         await onSubmitException({
@@ -517,6 +520,7 @@ export function CarePlanEditorModal({
           ) : (
             <WeeklySection
               rows={weeklyRows}
+              careDaysSource={careDaysSource}
               expandedWeekdays={expandedWeekdays}
               removals={weeklyRemovals}
               onToggleNotes={(weekday) =>
@@ -892,6 +896,7 @@ function NoteEditor({
 
 function WeeklySection({
   rows,
+  careDaysSource,
   expandedWeekdays,
   removals,
   onToggleNotes,
@@ -899,6 +904,7 @@ function WeeklySection({
   onToggleCare,
 }: {
   readonly rows: WeeklyRow[];
+  readonly careDaysSource: CareDaysSource;
   readonly expandedWeekdays: Set<number>;
   readonly removals: string[];
   readonly onToggleNotes: (weekday: number) => void;
@@ -915,6 +921,12 @@ function WeeklySection({
         Gilt ab sofort für alle kommenden Wochen. Bereits eingetragene Ausnahmen
         bleiben bestehen.
       </p>
+      {careDaysSource === "bookings" ? (
+        <p className="text-sm font-medium text-gray-700">
+          Die Betreuungstage kommen aus den Buchungen. Ändern Sie die Tage bei
+          den Buchungen.
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
         <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
@@ -935,6 +947,7 @@ function WeeklySection({
                     <Checkbox
                       id={`weekly-care-${day.value}`}
                       checked={row?.arrivalInCare ?? false}
+                      disabled={careDaysSource === "bookings"}
                       onChange={(event) =>
                         onToggleCare(day.value, event.target.checked)
                       }
@@ -966,21 +979,35 @@ function WeeklySection({
                     id={`weekly-arrival-${day.value}`}
                     label="Ankunft"
                     value={row?.arrivalTime ?? ""}
+                    disabled={!row?.arrivalInCare}
                     onChange={(value) =>
                       onChange(day.value, "arrivalTime", value)
                     }
                   />
                   {row?.arrivalInCare && row.arrivalClassTime ? (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Ohne Eintrag gilt {row.arrivalClassTime} Uhr aus der
-                      Klasse.
-                    </p>
+                    <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
+                      <p className="text-xs text-gray-500">
+                        Ohne Eintrag gilt {row.arrivalClassTime} Uhr aus der
+                        Klasse.
+                      </p>
+                      {row.arrivalTime ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="compact"
+                          onClick={() => onChange(day.value, "arrivalTime", "")}
+                        >
+                          Klassenzeit nutzen
+                        </Button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 <WeeklyTimeField
                   id={`weekly-pickup-${day.value}`}
                   label="Abholung"
                   value={row?.pickupTime ?? ""}
+                  disabled={false}
                   onChange={(value) => onChange(day.value, "pickupTime", value)}
                 />
                 {expandedWeekdays.has(day.value) ? (
@@ -990,6 +1017,7 @@ function WeeklySection({
                       id={`weekly-arrival-notes-${day.value}`}
                       label="Ankunftsnotiz (jede Woche)"
                       value={row?.arrivalNotes ?? ""}
+                      disabled={!row?.arrivalInCare}
                       onChange={(value) =>
                         onChange(day.value, "arrivalNotes", value)
                       }
@@ -998,6 +1026,7 @@ function WeeklySection({
                       id={`weekly-pickup-notes-${day.value}`}
                       label="Abholnotiz (jede Woche)"
                       value={row?.pickupNotes ?? ""}
+                      disabled={false}
                       onChange={(value) =>
                         onChange(day.value, "pickupNotes", value)
                       }
@@ -1023,11 +1052,13 @@ function WeeklyNoteField({
   id,
   label,
   value,
+  disabled,
   onChange,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
   return (
@@ -1039,9 +1070,10 @@ function WeeklyNoteField({
         id={id}
         type="text"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         maxLength={500}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
         placeholder="Optional"
       />
     </label>
@@ -1052,11 +1084,13 @@ function WeeklyTimeField({
   id,
   label,
   value,
+  disabled,
   onChange,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
   return (
@@ -1068,8 +1102,9 @@ function WeeklyTimeField({
         id={id}
         type="time"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
       />
     </label>
   );
@@ -1253,10 +1288,19 @@ function collectWeeklyRemovals(
   return removals;
 }
 
-function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
+function toWeeklySubmit(
+  rows: readonly WeeklyRow[],
+  careDaysSource: CareDaysSource,
+): CarePlanWeeklySubmit {
   return {
     arrivalSchedules: rows
-      .filter((row) => row.arrivalInCare)
+      .filter(
+        (row) =>
+          row.arrivalInCare &&
+          (careDaysSource === "weekly_plan" ||
+            row.arrivalTime.trim() !== "" ||
+            row.arrivalNotes.trim() !== ""),
+      )
       .map((row) => ({
         weekday: row.weekday,
         inCare: true,

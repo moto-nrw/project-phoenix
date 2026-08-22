@@ -186,6 +186,7 @@ function renderEditor(
   ) => (
     <CarePlanEditorModal
       isOpen
+      careDaysSource="weekly_plan"
       onClose={onClose}
       date={MONDAY}
       arrivalDay={baseArrivalDay}
@@ -227,6 +228,108 @@ describe("CarePlanEditorModal", () => {
     expect(
       screen.getByText(/Gilt ab sofort für alle kommenden Wochen/),
     ).toBeInTheDocument();
+  });
+
+  it("disables care-day changes when bookings define them", () => {
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+    });
+
+    expect(
+      screen.getByText(/Die Betreuungstage kommen aus den Buchungen/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("does not save booking-derived care days as weekly-plan rows", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "",
+          classTime: "11:45",
+          notes: null,
+        },
+        {
+          weekday: 2,
+          inCare: true,
+          expected_arrival: "12:15",
+          classTime: "11:45",
+          notes: null,
+        },
+        ...weeklyArrival.slice(2),
+      ],
+    });
+
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: [
+            expect.objectContaining({
+              weekday: 2,
+              expected_arrival: "12:15",
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("disables arrival fields when a day is not in care", () => {
+    renderEditor({ date: null, arrivalDay: null, pickupDay: null });
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("resets an own arrival time to the class time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "08:00",
+          classTime: "08:30",
+          notes: null,
+        },
+        ...weeklyArrival.slice(1),
+      ],
+    });
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Klassenzeit nutzen" })[0]!,
+    );
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("");
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: expect.arrayContaining([
+            expect.objectContaining({ weekday: 1, expected_arrival: "" }),
+          ]),
+        }),
+      ),
+    );
   });
 
   it("saves a day exception with a Grund", async () => {

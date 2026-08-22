@@ -306,8 +306,57 @@ func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
 	studentID int64,
 	rows []*schedule.StudentArrivalSchedule,
 ) error {
-	s.collapseIntoClassTime(ctx, studentID, rows)
+	if err := s.collapseIntoClassTime(ctx, studentID, rows); err != nil {
+		return err
+	}
+	rows, err := s.preserveInactiveBookingRows(ctx, studentID, rows)
+	if err != nil {
+		return err
+	}
 	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+}
+
+// preserveInactiveBookingRows keeps manual rows that are currently ignored by
+// the booking-derived care plan. A weekly write may replace active booking
+// days, but it must not delete a row merely because its weekday is unbooked.
+func (s *arrivalScheduleService) preserveInactiveBookingRows(
+	ctx context.Context,
+	studentID int64,
+	rows []*schedule.StudentArrivalSchedule,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	if s.baselines == nil {
+		return rows, nil
+	}
+	today := timezone.TodayDate()
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, today, today)
+	if err != nil {
+		return nil, &ScheduleError{Op: "preserve inactive booking arrival rows", Err: err}
+	}
+	if projection == nil || !projection.BookingsAuthoritative {
+		return rows, nil
+	}
+	stored, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "preserve inactive booking arrival rows", Err: err}
+	}
+	active := projection.WeeklyForDate(studentID, today)
+	incoming := make(map[int]bool, len(rows))
+	merged := append(make([]*schedule.StudentArrivalSchedule, 0, len(rows)+len(stored)), rows...)
+	for _, row := range rows {
+		if row != nil {
+			incoming[row.Weekday] = true
+		}
+	}
+	for _, row := range stored {
+		if row != nil && active[row.Weekday] == nil && !incoming[row.Weekday] {
+			preserved := *row
+			if !preserved.ExpectedArrival.IsZero() {
+				preserved.ExpectedArrival = timezone.WallClock(preserved.ExpectedArrival)
+			}
+			merged = append(merged, &preserved)
+		}
+	}
+	return merged, nil
 }
 
 // collapseIntoClassTime drops an own time that is identical to what the class
@@ -317,30 +366,27 @@ func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
 // It reads the class timetable directly rather than through the projection:
 // the projection only yields a class row where a care day already exists, and
 // the very first write of a week has none yet.
-//
-// Failure here is not fatal — the rows are then stored as written.
 func (s *arrivalScheduleService) collapseIntoClassTime(
 	ctx context.Context,
 	studentID int64,
 	rows []*schedule.StudentArrivalSchedule,
-) {
+) error {
 	if s.classTimes == nil || len(rows) == 0 {
-		return
+		return nil
 	}
 	student, err := s.studentRepo.FindByID(ctx, studentID)
-	if err != nil || student == nil || strings.TrimSpace(student.SchoolClass) == "" {
-		return
+	if err != nil {
+		return fmt.Errorf("load student before checking class arrival time: %w", err)
+	}
+	if student == nil || strings.TrimSpace(student.SchoolClass) == "" {
+		return nil
 	}
 	classRows, err := s.classTimes.FindByClasses(ctx, []string{student.SchoolClass})
 	if err != nil {
-		s.getLogger().Warn("arrival: class-time collapse skipped",
-			"student_id", studentID,
-			"error", err.Error(),
-		)
-		return
+		return fmt.Errorf("load class arrival time before saving weekly plan: %w", err)
 	}
 	if len(classRows) == 0 || classRows[0] == nil {
-		return
+		return nil
 	}
 	for _, row := range rows {
 		if row == nil || row.ExpectedArrival.IsZero() {
@@ -354,6 +400,7 @@ func (s *arrivalScheduleService) collapseIntoClassTime(
 			row.ExpectedArrival = time.Time{}
 		}
 	}
+	return nil
 }
 
 func (s *arrivalScheduleService) DeleteStudentArrivalSchedule(
@@ -852,15 +899,11 @@ func (s *arrivalScheduleService) getStudentName(
 	return person.FirstName + " " + person.LastName
 }
 
-// upsertClassArrivalTimes writes the Unterrichtsschluss of one class and lets
-// every child of that class inherit it on the weekdays it touches. Weekdays
+// upsertClassArrivalTimes writes the Unterrichtsschluss of one class. Weekdays
 // the request does not mention keep whatever the class had, mirroring the
 // "empty fields stay unchanged" contract the bulk screen has always had.
-//
-// A child that carried its own deviating time on a touched weekday loses it —
-// that is the same thing the per-child bulk write did before, and it is what
-// "set the time for this class" means to a school. The overwrite warnings name
-// exactly those children.
+// Existing child rows are deliberately untouched: an own time remains the
+// higher-priority deviation until a person resets it explicitly (ADR 0005).
 func (s *arrivalScheduleService) upsertClassArrivalTimes(
 	ctx context.Context,
 	schoolClass string,
@@ -896,7 +939,7 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 		if upsertErr := s.classTimes.Upsert(txCtx, row); upsertErr != nil {
 			return fmt.Errorf("upsert class arrival times for %s: %w", schoolClass, upsertErr)
 		}
-		return s.letClassInherit(txCtx, students, touched, row, result)
+		return nil
 	})
 	if err != nil {
 		return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: err}
@@ -942,67 +985,15 @@ func (s *arrivalScheduleService) mergedClassRow(
 	if updatedBy > 0 {
 		row.UpdatedBy = &updatedBy
 	}
+	normalized, err := educationModel.NormalizeClassArrivalTimes(row.ArrivalTimes)
+	if err != nil {
+		return nil, err
+	}
+	row.ArrivalTimes = normalized
 	if err := row.Validate(); err != nil {
 		return nil, err
 	}
 	return row, nil
-}
-
-// letClassInherit drops the own time of every child row on a touched weekday
-// so the class value applies, and records who was overwritten.
-func (s *arrivalScheduleService) letClassInherit(
-	ctx context.Context,
-	students []*users.Student,
-	touched map[int]string,
-	classRow *educationModel.ClassArrivalTime,
-	result *BulkUpsertResult,
-) error {
-	studentIDs := make([]int64, 0, len(students))
-	byStudent := make(map[int64]*users.Student, len(students))
-	for _, student := range students {
-		studentIDs = append(studentIDs, student.ID)
-		byStudent[student.ID] = student
-	}
-	// One query for the whole class, not one per child.
-	allRows, err := s.scheduleRepo.FindByStudentIDs(ctx, studentIDs)
-	if err != nil {
-		return fmt.Errorf("failed to fetch existing schedules for the class: %w", err)
-	}
-	rowsByStudent := make(map[int64][]*schedule.StudentArrivalSchedule, len(students))
-	for _, row := range allRows {
-		if row != nil {
-			rowsByStudent[row.StudentID] = append(rowsByStudent[row.StudentID], row)
-		}
-	}
-
-	for _, studentID := range studentIDs {
-		student := byStudent[studentID]
-		for _, row := range rowsByStudent[studentID] {
-			if _, ok := touched[row.Weekday]; !ok || row.InheritsClassTime() {
-				continue
-			}
-			previous := row.ExpectedArrival.Format("15:04")
-			newTime := ""
-			if arrival, ok := classRow.TimeForWeekday(row.Weekday); ok {
-				newTime = arrival.Format("15:04")
-			}
-			if previous != newTime {
-				result.OverwrittenStudents = append(result.OverwrittenStudents, OverwriteWarning{
-					StudentID:    student.ID,
-					StudentName:  s.getStudentName(ctx, student),
-					Weekday:      row.Weekday,
-					WeekdayName:  schedule.WeekdayNames[row.Weekday],
-					PreviousTime: previous,
-					NewTime:      newTime,
-				})
-			}
-			row.ExpectedArrival = time.Time{}
-			if err := s.scheduleRepo.UpsertSchedule(ctx, row); err != nil {
-				return fmt.Errorf("let student %d inherit weekday %d: %w", student.ID, row.Weekday, err)
-			}
-		}
-	}
-	return nil
 }
 
 // GetClassArrivalTimes returns what a class currently carries, so the

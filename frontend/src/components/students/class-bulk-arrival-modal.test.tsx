@@ -128,7 +128,7 @@ describe("FilteredBulkArrivalModal", () => {
   it("shows collision warning when some students already have schedules", async () => {
     mockFetchArrivalData
       .mockResolvedValueOnce({
-        schedules: [{ id: 1 }],
+        schedules: [{ id: 1, source: "staff" }],
         exceptions: [],
         notes: [],
       })
@@ -150,9 +150,32 @@ describe("FilteredBulkArrivalModal", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByText(/1 Kind hat bereits Ankunftszeiten/),
+        screen.getByText(
+          "1 Kind hat eigene Ankunftszeiten. Diese Zeiten bleiben bestehen.",
+        ),
       ).toBeInTheDocument(),
     );
+  });
+
+  it("does not call an inherited class time an own time", async () => {
+    mockFetchArrivalData.mockResolvedValueOnce({
+      schedules: [{ id: 1, source: "class_schedule" }],
+      exceptions: [],
+      notes: [],
+    });
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    await waitFor(() => expect(mockFetchArrivalData).toHaveBeenCalled());
+    expect(screen.queryByText(/eigene Ankunftszeiten/)).not.toBeInTheDocument();
   });
 
   it("hides collision warning when no students have schedules", async () => {
@@ -187,7 +210,7 @@ describe("FilteredBulkArrivalModal", () => {
     expect(screen.queryByText(/Kinder haben bereits/)).not.toBeInTheDocument();
   });
 
-  it("disables submit until a valid time is entered", () => {
+  it("disables submit until a valid time is entered", async () => {
     render(
       <FilteredBulkArrivalModal
         isOpen={true}
@@ -198,8 +221,10 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
-    const submit = screen.getByRole("button", { name: /Für Klasse 3a setzen/ });
+    const submit = screen.getByRole("button", { name: "Speichern" });
     expect(submit).toBeDisabled();
+
+    await waitFor(() => expect(screen.getByLabelText("Montag")).toBeEnabled());
 
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "08:00" },
@@ -239,15 +264,15 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    await waitFor(() => expect(screen.getByLabelText("Montag")).toBeEnabled());
+
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "08:00" },
     });
     fireEvent.change(screen.getByLabelText("Mittwoch"), {
       target: { value: "09:30" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Für Klasse 3a setzen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => expect(mockBulkUpsert).toHaveBeenCalled());
     expect(mockBulkUpsert).toHaveBeenCalledWith(
@@ -284,9 +309,7 @@ describe("FilteredBulkArrivalModal", () => {
     fireEvent.change(screen.getByLabelText("Dienstag"), {
       target: { value: "09:15" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Für 2 Kinder setzen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() =>
       expect(mockBulkUpsert).toHaveBeenCalledWith(
@@ -309,12 +332,12 @@ describe("FilteredBulkArrivalModal", () => {
       />,
     );
 
+    await waitFor(() => expect(screen.getByLabelText("Montag")).toBeEnabled());
+
     fireEvent.change(screen.getByLabelText("Montag"), {
       target: { value: "08:00" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: /Für Klasse 3a setzen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
@@ -380,5 +403,106 @@ describe("FilteredBulkArrivalModal", () => {
     await waitFor(() => expect(mockFetchClassArrivalTimes).toHaveBeenCalled());
     expect(screen.getByLabelText("Montag")).toHaveValue("");
     expect(screen.queryByText(/Zuletzt geändert am/)).not.toBeInTheDocument();
+  });
+
+  it("keeps class inputs disabled until their current times arrive", async () => {
+    let resolveTimes:
+      | ((value: {
+          school_class: string;
+          times: Record<string, string>;
+        }) => void)
+      | undefined;
+    mockFetchClassArrivalTimes.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveTimes = resolve;
+        }),
+    );
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(
+      screen.getByText("Klassenzeiten werden geladen."),
+    ).toBeInTheDocument();
+
+    resolveTimes?.({ school_class: "3a", times: { mon: "11:45" } });
+    await waitFor(() => expect(screen.getByLabelText("Montag")).toBeEnabled());
+    expect(screen.getByLabelText("Montag")).toHaveValue("11:45");
+  });
+
+  it("keeps loaded class times when the collision list refreshes", async () => {
+    mockFetchClassArrivalTimes.mockResolvedValue({
+      school_class: "3a",
+      times: { mon: "11:45" },
+    });
+
+    const { rerender } = render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Montag")).toHaveValue("11:45"),
+    );
+
+    rerender(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1"), makeStudent("2")]}
+      />,
+    );
+
+    expect(screen.getByLabelText("Montag")).toHaveValue("11:45");
+    expect(mockFetchClassArrivalTimes).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a retry action when class times cannot be loaded", async () => {
+    mockFetchClassArrivalTimes
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce({
+        school_class: "3a",
+        times: { mon: "11:45" },
+      });
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "school_class", schoolClass: "3a" }}
+        filterLabel="3a"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Klassenzeiten konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Montag")).toHaveValue("11:45"),
+    );
+    expect(mockFetchClassArrivalTimes).toHaveBeenCalledTimes(2);
   });
 });

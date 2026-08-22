@@ -18,6 +18,7 @@ import {
   WEEKDAYS,
   formatDateISO,
   formatShortDate,
+  arrivalScheduleSourceLabel,
   getDayData,
   getWeekDays,
   mergeSchedulesWithTemplate,
@@ -29,23 +30,17 @@ import {
   deleteArrivalException,
   deleteArrivalNote,
   fetchArrivalData,
+  fetchArrivalSettings,
   updateArrivalException,
   updateArrivalNote,
   updateArrivalSchedules,
+  type CareDaysSource,
 } from "~/lib/student-arrival-api";
 import { createLogger } from "~/lib/logger";
 import type { StudentStatusDay } from "~/lib/student-status-days-api";
 
 const logger = createLogger({ component: "ArrivalScheduleManager" });
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
-
-/**
- * Schools name their classes either "3b" or "Klasse 3b". The label already
- * says "aus Klasse", so a stored prefix would read "aus Klasse Klasse 3b".
- */
-function stripClassPrefix(schoolClass: string): string {
-  return schoolClass.replace(/^klasse\s+/i, "");
-}
 
 interface ArrivalScheduleManagerProps {
   readonly studentId: string;
@@ -66,6 +61,9 @@ export function ArrivalScheduleManager({
     notes: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
 
@@ -109,8 +107,12 @@ export function ArrivalScheduleManager({
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchArrivalData(studentId);
+      const [data, settings] = await Promise.all([
+        fetchArrivalData(studentId),
+        fetchArrivalSettings(),
+      ]);
       setArrivalData(data);
+      setCareDaysSource(settings.care_days_source);
     } catch (err) {
       logger.error("arrival_data_load_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -341,12 +343,15 @@ export function ArrivalScheduleManager({
         </div>
       </div>
 
-      <ArrivalScheduleFormModal
-        isOpen={isScheduleModalOpen}
-        onClose={() => setIsScheduleModalOpen(false)}
-        onSubmit={handleUpdateSchedules}
-        initialSchedules={mergeSchedulesWithTemplate(arrivalData.schedules)}
-      />
+      {careDaysSource ? (
+        <ArrivalScheduleFormModal
+          isOpen={isScheduleModalOpen}
+          careDaysSource={careDaysSource}
+          onClose={() => setIsScheduleModalOpen(false)}
+          onSubmit={handleUpdateSchedules}
+          initialSchedules={mergeSchedulesWithTemplate(arrivalData.schedules)}
+        />
+      ) : null}
 
       <ArrivalDayEditModal
         isOpen={editingDay !== null}
@@ -371,6 +376,9 @@ interface DayComponentProps {
 function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
   const hasNotes = !!day.baseSchedule?.notes || day.notes.length > 0;
+  const sourceLabel = day.isException
+    ? null
+    : arrivalScheduleSourceLabel(day.baseSchedule);
 
   return (
     <div
@@ -418,6 +426,8 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
                 aria-hidden="true"
               />
             </span>
+          ) : sourceLabel ? (
+            <span className="text-xs text-gray-400">{sourceLabel}</span>
           ) : null}
         </div>
         {!readOnly ? (
@@ -456,6 +466,9 @@ function DayRow({ day, readOnly, onEditDay }: DayComponentProps) {
 
 function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
   const weekdayInfo = WEEKDAYS[day.weekday - 1];
+  const sourceLabel = day.isException
+    ? null
+    : arrivalScheduleSourceLabel(day.baseSchedule);
   return (
     <div
       className={
@@ -504,15 +517,8 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           <div className="mt-1 text-sm font-semibold text-gray-900">
             {day.effectiveTime ?? "-"}
           </div>
-          {!day.isException &&
-          day.baseSchedule?.source === "class_schedule" &&
-          day.baseSchedule.source_class ? (
-            <div className="mt-0.5 text-xs text-gray-400">
-              aus Klasse {stripClassPrefix(day.baseSchedule.source_class)}
-            </div>
-          ) : null}
-          {!day.isException && day.baseSchedule?.source === "staff" ? (
-            <div className="mt-0.5 text-xs text-gray-400">eigene Zeit</div>
+          {sourceLabel ? (
+            <div className="mt-0.5 text-xs text-gray-400">{sourceLabel}</div>
           ) : null}
         </>
       )}

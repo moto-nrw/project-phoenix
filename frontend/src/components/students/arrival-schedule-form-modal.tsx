@@ -10,11 +10,13 @@ import {
   type ArrivalScheduleFormEntry,
   WEEKDAYS,
 } from "~/lib/arrival-schedule-helpers";
+import type { CareDaysSource } from "~/lib/student-arrival-api";
 
 const logger = createLogger({ component: "ArrivalScheduleForm" });
 
 interface ArrivalScheduleFormModalProps {
   readonly isOpen: boolean;
+  readonly careDaysSource: CareDaysSource;
   readonly onClose: () => void;
   readonly onSubmit: (schedules: ArrivalScheduleFormEntry[]) => Promise<void>;
   readonly initialSchedules: ArrivalScheduleFormEntry[];
@@ -22,6 +24,7 @@ interface ArrivalScheduleFormModalProps {
 
 export function ArrivalScheduleFormModal({
   isOpen,
+  careDaysSource,
   onClose,
   onSubmit,
   initialSchedules,
@@ -68,9 +71,9 @@ export function ArrivalScheduleFormModal({
     event.preventDefault();
     setError(null);
 
-    const valid = schedules.filter((s) => s.inCare);
+    const careDays = schedules.filter((s) => s.inCare);
     const timeRegex = /^([01]?\d|2[0-3]):[0-5]\d$/;
-    for (const entry of valid) {
+    for (const entry of careDays) {
       if (entry.expected_arrival.trim() === "") continue;
       if (!timeRegex.test(entry.expected_arrival)) {
         setError(
@@ -82,7 +85,13 @@ export function ArrivalScheduleFormModal({
 
     setIsSubmitting(true);
     try {
-      await onSubmit(valid);
+      const schedulesToSave = careDays.filter(
+        (entry) =>
+          careDaysSource === "weekly_plan" ||
+          entry.expected_arrival.trim() !== "" ||
+          Boolean(entry.notes?.trim()),
+      );
+      await onSubmit(schedulesToSave);
     } catch (err) {
       logger.error("arrival_schedule_save_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -129,14 +138,19 @@ export function ArrivalScheduleFormModal({
       mobilePosition="center"
     >
       <form id="arrival-schedule-form" onSubmit={handleSubmit}>
-        <p className="mb-4 text-sm text-gray-500">
-          Haken Sie die Tage an, an denen das Kind in die OGS kommt. Das gilt
-          jede Woche.
-        </p>
+        {careDaysSource === "bookings" ? (
+          <p className="mb-4 text-sm text-gray-500">
+            Die Betreuungstage kommen aus den Buchungen.
+          </p>
+        ) : (
+          <p className="mb-4 text-sm text-gray-500">
+            Wählen Sie die Betreuungstage. Das gilt für jede Woche.
+          </p>
+        )}
         <div className="mb-4">
           <Alert
             type="info"
-            message="Die Uhrzeit kommt aus der Klasse. Tragen Sie hier nur eine Zeit ein, wenn das Kind früher oder später kommt als seine Klasse."
+            message="Die Uhrzeit kommt aus der Klasse. Geben Sie hier nur eine andere Uhrzeit ein. Das gilt, wenn das Kind früher oder später kommt."
           />
         </div>
         {error ? (
@@ -157,6 +171,7 @@ export function ArrivalScheduleFormModal({
                   <Checkbox
                     id={`arrival-care-${day.value}`}
                     checked={schedule?.inCare ?? false}
+                    disabled={careDaysSource === "bookings"}
                     onChange={(e) =>
                       handleCareChange(day.value, e.target.checked)
                     }
@@ -221,7 +236,9 @@ export function ArrivalScheduleFormModal({
         </div>
 
         <p className="mt-4 text-xs text-gray-500">
-          Tage ohne Haken heißen: Das Kind kommt an diesem Tag nicht.
+          {careDaysSource === "bookings"
+            ? "Ändern Sie Betreuungstage bei den Buchungen."
+            : "Ohne Haken kommt das Kind an diesem Tag nicht."}
         </p>
       </form>
     </FormModal>

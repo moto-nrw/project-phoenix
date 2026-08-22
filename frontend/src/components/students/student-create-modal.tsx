@@ -5,6 +5,7 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Modal } from "~/components/ui/modal";
 import { Input } from "~/components/ui/input";
+import { Alert } from "~/components/ui/alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
@@ -39,6 +40,10 @@ import {
   WEEKDAYS,
   type ArrivalScheduleFormEntry,
 } from "~/lib/arrival-schedule-helpers";
+import {
+  fetchArrivalSettings,
+  type CareDaysSource,
+} from "~/lib/student-arrival-api";
 import {
   mapBulkPickupScheduleFormToBackend,
   type BackendPickupScheduleRequest,
@@ -206,6 +211,11 @@ export function StudentCreateModal({
     PickupScheduleFormData[]
   >([]);
   const [carePlanModalOpen, setCarePlanModalOpen] = useState(false);
+  const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
+    null,
+  );
+  const [carePlanLoading, setCarePlanLoading] = useState(false);
+  const [carePlanLoadError, setCarePlanLoadError] = useState(false);
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
@@ -244,6 +254,9 @@ export function StudentCreateModal({
       setArrivalSchedules([]);
       setPickupSchedules([]);
       setCarePlanModalOpen(false);
+      setCareDaysSource(null);
+      setCarePlanLoading(false);
+      setCarePlanLoadError(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
     }
@@ -294,6 +307,21 @@ export function StudentCreateModal({
 
   const removeGuardian = (index: number) => {
     setGuardians((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleOpenCarePlan = async () => {
+    setCarePlanLoading(true);
+    setCarePlanLoadError(false);
+    try {
+      const settings = await fetchArrivalSettings();
+      setCareDaysSource(settings.care_days_source);
+      setCarePlanModalOpen(true);
+    } catch {
+      setCareDaysSource(null);
+      setCarePlanLoadError(true);
+    } finally {
+      setCarePlanLoading(false);
+    }
   };
 
   // Profile ids already added — passed to the picker so it greys out
@@ -667,15 +695,25 @@ export function StudentCreateModal({
 
                 <button
                   type="button"
-                  onClick={() => setCarePlanModalOpen(true)}
-                  disabled={saveLoading}
+                  onClick={() => void handleOpenCarePlan()}
+                  disabled={saveLoading || carePlanLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                 >
                   <Plus className="h-4 w-4" />
-                  {hasCarePlan
-                    ? "Wochenplan bearbeiten"
-                    : "Wochenplan hinzufügen"}
+                  {carePlanLoading
+                    ? "Wird geladen…"
+                    : hasCarePlan
+                      ? "Wochenplan bearbeiten"
+                      : "Wochenplan hinzufügen"}
                 </button>
+                {carePlanLoadError ? (
+                  <div className="mt-3">
+                    <Alert
+                      type="error"
+                      message="Die Betreuungstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+                    />
+                  </div>
+                ) : null}
               </section>
 
               {/* Common Form Sections */}
@@ -778,9 +816,10 @@ export function StudentCreateModal({
           plan locally (no API calls) — it is persisted atomically with the
           student on create. successMessage overrides the default "saved"
           wording since nothing is persisted yet here. */}
-      {carePlanModalOpen && (
+      {carePlanModalOpen && careDaysSource && (
         <CareWeeklyPlanModal
           isOpen={carePlanModalOpen}
+          careDaysSource={careDaysSource}
           onClose={() => setCarePlanModalOpen(false)}
           initialArrivalSchedules={arrivalSchedules}
           initialPickupSchedules={pickupSchedules}

@@ -52,8 +52,9 @@ type ArrivalPlansByStudent map[int64]ArrivalPlanByDate
 // ArrivalBaselineProjection is the recurring arrival plan applicable on every
 // date of a requested range.
 type ArrivalBaselineProjection struct {
-	WeeklyByStudentDate  ArrivalPlansByStudent
-	DerivedByStudentDate ArrivalPlansByStudent
+	WeeklyByStudentDate   ArrivalPlansByStudent
+	DerivedByStudentDate  ArrivalPlansByStudent
+	BookingsAuthoritative bool
 }
 
 // ForDate returns the effective recurring row for the date's weekday. Day
@@ -155,6 +156,7 @@ func (s *arrivalBaselineService) Project(
 	if err != nil {
 		return nil, err
 	}
+	projection.BookingsAuthoritative = careDays != nil
 
 	for _, studentID := range studentIDs {
 		classTimes := timesByClass[schoolclass.Normalize(classByStudent[studentID])]
@@ -176,7 +178,7 @@ func (s *arrivalBaselineService) Project(
 				if classRow != nil {
 					derivedOfDate[weekday] = classRow
 				}
-				if effective := effectiveArrivalRow(row, classRow); effective != nil {
+				if effective := effectiveArrivalRow(studentID, weekday, row, classRow); effective != nil {
 					weekOfDate[weekday] = effective
 				}
 			}
@@ -229,6 +231,8 @@ func classArrivalRow(
 // deviation wins, a row without its own time takes the class time, and a care
 // day whose class carries no time keeps the day without an arrival time.
 func effectiveArrivalRow(
+	studentID int64,
+	weekday int,
 	row *scheduleModel.StudentArrivalSchedule,
 	classRow *scheduleModel.StudentArrivalSchedule,
 ) *scheduleModel.StudentArrivalSchedule {
@@ -236,7 +240,13 @@ func effectiveArrivalRow(
 		// Booking mode only: the booking put the child in care that day and
 		// no row was ever entered. The projected row has no ID because there
 		// is nothing stored behind it.
-		return classRow
+		if classRow != nil {
+			return classRow
+		}
+		return &scheduleModel.StudentArrivalSchedule{
+			StudentID: studentID,
+			Weekday:   weekday,
+		}
 	}
 	effective := *row
 	if !row.InheritsClassTime() {
@@ -246,11 +256,12 @@ func effectiveArrivalRow(
 	// Inheriting: keep the stored row's identity and notes, take the time and
 	// the provenance label from the class. Callers that delete or edit the row
 	// still address the real one.
-	effective.Source = scheduleModel.ArrivalScheduleSourceClassSchedule
-	if classRow != nil {
-		effective.ExpectedArrival = classRow.ExpectedArrival
-		effective.SourceClass = classRow.SourceClass
+	if classRow == nil {
+		return &effective
 	}
+	effective.Source = scheduleModel.ArrivalScheduleSourceClassSchedule
+	effective.ExpectedArrival = classRow.ExpectedArrival
+	effective.SourceClass = classRow.SourceClass
 	return &effective
 }
 

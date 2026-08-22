@@ -1502,7 +1502,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		assert.Empty(t, otherRows)
 	})
 
-	t.Run("returns overwrite warnings when schedules differ", func(t *testing.T) {
+	t.Run("preserves an own time when the class time changes", func(t *testing.T) {
 		className := fmt.Sprintf("BOW1-%d", time.Now().UnixNano())
 		student := testpkg.CreateTestStudent(t, db, "BulkOverwrite", "Student", className)
 
@@ -1524,7 +1524,12 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.StudentsAffected)
-		assert.GreaterOrEqual(t, len(result.OverwrittenStudents), 1)
+		assert.Empty(t, result.OverwrittenStudents)
+
+		stored, findErr := service.GetStudentArrivalSchedules(ctx, student.ID)
+		require.NoError(t, findErr)
+		require.Len(t, stored, 1)
+		assert.Equal(t, "07:30", stored[0].ExpectedArrival.Format("15:04"))
 	})
 
 	t.Run("returns error for invalid arrival time format", func(t *testing.T) {

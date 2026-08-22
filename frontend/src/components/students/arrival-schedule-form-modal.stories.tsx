@@ -26,6 +26,7 @@ const meta = {
   },
   args: {
     isOpen: true,
+    careDaysSource: "weekly_plan",
     onClose: fn(),
     onSubmit: fn(async () => {}),
     initialSchedules: emptySchedules,

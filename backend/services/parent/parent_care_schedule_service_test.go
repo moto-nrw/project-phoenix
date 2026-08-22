@@ -104,6 +104,21 @@ func TestCreateCareScheduleRequest_Happy(t *testing.T) {
 	require.NotEmpty(t, view.PendingRequest.Diff, "the pending card carries a current→requested diff")
 }
 
+func TestGetChildCareScheduleKeepsCareDayWithoutArrivalTime(t *testing.T) {
+	t.Parallel()
+
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Plan", "OhneZeit")
+	testpkg.CreateTestArrivalSchedule(t, db, chain.StudentID, 1, staff.ID, "")
+
+	view, err := svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, view.Weekdays, 5)
+	assert.Equal(t, "scheduled", string(view.Weekdays[0].Status))
+	assert.Empty(t, view.Weekdays[0].Arrival)
+}
+
 // TestCreateCareScheduleRequest_RequiresRequestSubmit is the core security
 // separation: a change request overwrites the child's care schedule once staff
 // approve, so it requires parent_portal.request.submit — NOT the

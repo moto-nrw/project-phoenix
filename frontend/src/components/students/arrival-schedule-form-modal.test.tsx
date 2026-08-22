@@ -31,7 +31,26 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
-import { ArrivalScheduleFormModal } from "./arrival-schedule-form-modal";
+import { ArrivalScheduleFormModal as ArrivalScheduleFormModalBase } from "./arrival-schedule-form-modal";
+
+function ArrivalScheduleFormModal(
+  props: Omit<
+    React.ComponentProps<typeof ArrivalScheduleFormModalBase>,
+    "careDaysSource"
+  > & {
+    careDaysSource?: React.ComponentProps<
+      typeof ArrivalScheduleFormModalBase
+    >["careDaysSource"];
+  },
+) {
+  const { careDaysSource = "weekly_plan", ...modalProps } = props;
+  return (
+    <ArrivalScheduleFormModalBase
+      careDaysSource={careDaysSource}
+      {...modalProps}
+    />
+  );
+}
 
 /** Every weekday is a care day, none carries an own time. */
 function emptyWeek(): ArrivalScheduleFormEntry[] {
@@ -301,6 +320,74 @@ describe("ArrivalScheduleFormModal", () => {
       expect(
         screen.getByText("Fehler beim Speichern des Ankunftsplans"),
       ).toBeInTheDocument(),
+    );
+  });
+
+  it("keeps booking care days read-only", () => {
+    render(
+      <ArrivalScheduleFormModal
+        isOpen={true}
+        careDaysSource="bookings"
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        initialSchedules={emptyWeek().map((entry, index) => ({
+          ...entry,
+          inCare: index === 0,
+        }))}
+      />,
+    );
+
+    expect(
+      screen.getByText("Die Betreuungstage kommen aus den Buchungen."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(
+      screen.getAllByLabelText("Andere Uhrzeit (optional)")[1],
+    ).toBeDisabled();
+  });
+
+  it("does not save booking-derived care days as weekly-plan rows", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ArrivalScheduleFormModal
+        isOpen={true}
+        careDaysSource="bookings"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        initialSchedules={[
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "",
+            classTime: "11:45",
+            notes: null,
+          },
+          {
+            weekday: 2,
+            inCare: true,
+            expected_arrival: "12:15",
+            classTime: "11:45",
+            notes: null,
+          },
+          ...emptyWeek()
+            .slice(2)
+            .map((entry) => ({
+              ...entry,
+              inCare: false,
+            })),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Speichern/ }));
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith([
+        expect.objectContaining({
+          weekday: 2,
+          expected_arrival: "12:15",
+        }),
+      ]),
     );
   });
 });
