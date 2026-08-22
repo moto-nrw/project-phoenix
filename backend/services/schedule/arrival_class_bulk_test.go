@@ -2,11 +2,13 @@ package schedule_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -84,4 +86,47 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 		assert.Equal(t, scheduleModel.ArrivalScheduleSourceClassSchedule, rows[0].Source)
 		assert.Equal(t, "7c", rows[0].SourceClass)
 	})
+}
+
+// TestWeeklyWriteCollapsesIntoTheClassTime pins the ADR 0005 promise: a value
+// identical to the class time is not stored as a deviation, so the child keeps
+// following the class when the Unterrichtsschluss moves.
+func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := arrivalServiceWithClassTimes(t, repos)
+
+	staff := testpkg.CreateTestStaff(t, db, "Deckungs", "Gleich")
+	student := testpkg.CreateTestStudent(t, db, "Deckungs", "Kind", "8d")
+	setClassArrivalTimes(t, repos, "8d", map[string]string{"mon": "11:45", "tue": "11:45"})
+
+	sameAsClass := timezone.WallClock(mustParseHHMM(t, "11:45"))
+	deviating := timezone.WallClock(mustParseHHMM(t, "12:15"))
+	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID,
+		[]*scheduleModel.StudentArrivalSchedule{
+			{StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday, ExpectedArrival: sameAsClass, CreatedBy: staff.ID},
+			{StudentID: student.ID, Weekday: scheduleModel.WeekdayTuesday, ExpectedArrival: deviating, CreatedBy: staff.ID},
+		}))
+
+	stored, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	require.Len(t, stored, 2)
+	byWeekday := map[int]*scheduleModel.StudentArrivalSchedule{}
+	for _, row := range stored {
+		byWeekday[row.Weekday] = row
+	}
+	assert.True(t, byWeekday[scheduleModel.WeekdayMonday].InheritsClassTime(),
+		"a value identical to the class time is no deviation")
+	assert.False(t, byWeekday[scheduleModel.WeekdayTuesday].InheritsClassTime())
+	assert.Equal(t, "12:15", byWeekday[scheduleModel.WeekdayTuesday].ExpectedArrival.Format("15:04"))
+}
+
+func mustParseHHMM(t *testing.T, hhmm string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", hhmm)
+	require.NoError(t, err)
+	return parsed
 }

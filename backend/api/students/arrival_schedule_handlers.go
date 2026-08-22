@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -833,4 +834,29 @@ func mapBulkArrivalTimeResponse(
 		}
 	}
 	return response
+}
+
+// ClassArrivalTimesResponse is the current Unterrichtsschluss of one class.
+type ClassArrivalTimesResponse struct {
+	SchoolClass string            `json:"school_class"`
+	Times       map[string]string `json:"times"`
+	UpdatedAt   *string           `json:"updated_at,omitempty"`
+}
+
+// getClassArrivalTimes handles GET /students/class-arrival-times/{schoolClass}.
+// The bulk screen reads it so it opens with what the class already carries
+// instead of empty fields (#2414).
+func (rs *Resource) getClassArrivalTimes(w http.ResponseWriter, r *http.Request) {
+	schoolClass := chi.URLParam(r, "schoolClass")
+	times, err := rs.ArrivalScheduleService.GetClassArrivalTimes(r.Context(), schoolClass)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp := ClassArrivalTimesResponse{SchoolClass: times.SchoolClass, Times: times.Times}
+	if times.UpdatedAt != nil {
+		formatted := times.UpdatedAt.Format(time.RFC3339)
+		resp.UpdatedAt = &formatted
+	}
+	render.JSON(w, r, resp)
 }

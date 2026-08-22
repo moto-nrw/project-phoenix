@@ -13,7 +13,9 @@ import {
   WEEKDAYS,
   bulkUpsertArrivalSchedules,
   fetchArrivalData,
+  fetchClassArrivalTimes,
 } from "~/lib/student-arrival-api";
+import { formatDate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
 const logger = createLogger({ component: "FilteredBulkArrivalModal" });
@@ -28,6 +30,15 @@ interface FilteredBulkArrivalModalProps {
 }
 
 type DraftState = Record<number, string>;
+
+/** ISO weekday to the day code the class timetable is keyed by. */
+const DAY_CODES: Record<number, string> = {
+  1: "mon",
+  2: "tue",
+  3: "wed",
+  4: "thu",
+  5: "fri",
+};
 
 function childCountLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
@@ -58,6 +69,7 @@ export function FilteredBulkArrivalModal({
   const [draft, setDraft] = useState<DraftState>(initialDraft);
   const [saving, setSaving] = useState(false);
   const [collisionCount, setCollisionCount] = useState<number | null>(null);
+  const [lastChanged, setLastChanged] = useState<string | null>(null);
   // A school class sets the class timetable once for everyone (#2414); a group
   // is not a class, so there it still sets a time per child.
   const isClassTimetable = filter.type === "school_class";
@@ -90,6 +102,36 @@ export function FilteredBulkArrivalModal({
       cancelled = true;
     };
   }, [isOpen, studentsInFilter]);
+
+  // Open with what the class already carries, so nobody has to retype it blind
+  // or guess whether anything is set at all (#2414).
+  useEffect(() => {
+    if (!isOpen || filter.type !== "school_class") return;
+    const schoolClass = filter.schoolClass;
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const current = await fetchClassArrivalTimes(schoolClass);
+        if (cancelled) return;
+        const next = initialDraft();
+        for (const day of WEEKDAYS) {
+          next[day.value] = current.times[DAY_CODES[day.value] ?? ""] ?? "";
+        }
+        setDraft(next);
+        setLastChanged(current.updated_at ?? null);
+      } catch (err) {
+        logger.warn("class_arrival_times_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    };
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, filter]);
 
   const targetTitle =
     filter.type === "school_class"
@@ -188,6 +230,11 @@ export function FilteredBulkArrivalModal({
               angemeldet ist, bleibt ohne Ankunftszeit.
             </p>
             <p>Leere Felder bleiben unverändert.</p>
+            {lastChanged ? (
+              <p className="text-gray-500">
+                Zuletzt geändert am {formatDate(lastChanged)}.
+              </p>
+            ) : null}
           </div>
         ) : (
           <p className="text-sm text-gray-600">

@@ -54,6 +54,7 @@ type ArrivalScheduleService interface {
 	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
 	BulkUpsertArrivalSchedules(ctx context.Context, filter ArrivalScheduleBulkFilter, schedules []ArrivalScheduleInput, createdBy int64) (*BulkUpsertResult, error)
+	GetClassArrivalTimes(ctx context.Context, schoolClass string) (*ClassArrivalTimes, error)
 }
 
 type StudentArrivalData struct {
@@ -109,6 +110,14 @@ type OverwriteWarning struct {
 	WeekdayName  string `json:"weekday_name"`
 	PreviousTime string `json:"previous_time"`
 	NewTime      string `json:"new_time"`
+}
+
+// ClassArrivalTimes is the Unterrichtsschluss a class carries, for the screen
+// that maintains it (#2414).
+type ClassArrivalTimes struct {
+	SchoolClass string            `json:"school_class"`
+	Times       map[string]string `json:"times"`
+	UpdatedAt   *time.Time        `json:"updated_at,omitempty"`
 }
 
 const opBulkUpsertArrivalSchedules = "bulk upsert arrival schedules"
@@ -297,7 +306,54 @@ func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
 	studentID int64,
 	rows []*schedule.StudentArrivalSchedule,
 ) error {
+	s.collapseIntoClassTime(ctx, studentID, rows)
 	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+}
+
+// collapseIntoClassTime drops an own time that is identical to what the class
+// already supplies (ADR 0005): storing it would create a deviation that is not
+// one, and the child would then stop following the class when it changes.
+//
+// It reads the class timetable directly rather than through the projection:
+// the projection only yields a class row where a care day already exists, and
+// the very first write of a week has none yet.
+//
+// Failure here is not fatal — the rows are then stored as written.
+func (s *arrivalScheduleService) collapseIntoClassTime(
+	ctx context.Context,
+	studentID int64,
+	rows []*schedule.StudentArrivalSchedule,
+) {
+	if s.classTimes == nil || len(rows) == 0 {
+		return
+	}
+	student, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil || student == nil || strings.TrimSpace(student.SchoolClass) == "" {
+		return
+	}
+	classRows, err := s.classTimes.FindByClasses(ctx, []string{student.SchoolClass})
+	if err != nil {
+		s.getLogger().Warn("arrival: class-time collapse skipped",
+			"student_id", studentID,
+			"error", err.Error(),
+		)
+		return
+	}
+	if len(classRows) == 0 || classRows[0] == nil {
+		return
+	}
+	for _, row := range rows {
+		if row == nil || row.ExpectedArrival.IsZero() {
+			continue
+		}
+		classTime, ok := classRows[0].TimeForWeekday(row.Weekday)
+		if !ok {
+			continue
+		}
+		if row.ExpectedArrival.Format("15:04") == classTime.Format("15:04") {
+			row.ExpectedArrival = time.Time{}
+		}
+	}
 }
 
 func (s *arrivalScheduleService) DeleteStudentArrivalSchedule(
@@ -947,4 +1003,34 @@ func (s *arrivalScheduleService) letClassInherit(
 		}
 	}
 	return nil
+}
+
+// GetClassArrivalTimes returns what a class currently carries, so the
+// maintenance screen shows the present state instead of empty fields, and can
+// name when it was last touched (ADR 0005, "Bekannte Grenze").
+func (s *arrivalScheduleService) GetClassArrivalTimes(
+	ctx context.Context,
+	schoolClass string,
+) (*ClassArrivalTimes, error) {
+	class := strings.TrimSpace(schoolClass)
+	result := &ClassArrivalTimes{SchoolClass: class, Times: map[string]string{}}
+	if class == "" || s.classTimes == nil {
+		return result, nil
+	}
+	rows, err := s.classTimes.FindByClasses(ctx, []string{class})
+	if err != nil {
+		return nil, &ScheduleError{Op: "get class arrival times", Err: err}
+	}
+	if len(rows) == 0 || rows[0] == nil {
+		return result, nil
+	}
+	result.SchoolClass = rows[0].SchoolClass
+	for day, hhmm := range rows[0].ArrivalTimes {
+		result.Times[day] = hhmm
+	}
+	if !rows[0].UpdatedAt.IsZero() {
+		updated := rows[0].UpdatedAt
+		result.UpdatedAt = &updated
+	}
+	return result, nil
 }

@@ -347,6 +347,7 @@ GET /api/staff/{id}/vacation/quota
 GET /api/students/
 GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
+GET /api/students/class-arrival-times/{schoolClass}
 GET /api/students/day-log
 GET /api/students/day-log/export
 GET /api/students/ogs-group-live

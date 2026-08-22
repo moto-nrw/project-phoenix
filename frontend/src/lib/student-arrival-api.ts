@@ -383,3 +383,21 @@ export async function fetchBulkArrivalTimes(
 
   return arrivalTimesMap;
 }
+
+/** The Unterrichtsschluss a school class carries (#2414). */
+export interface ClassArrivalTimes {
+  school_class: string;
+  /** Day code ("mon" … "fri") to HH:MM. Absent days have no time. */
+  times: Record<string, string>;
+  updated_at?: string;
+}
+
+export async function fetchClassArrivalTimes(
+  schoolClass: string,
+): Promise<ClassArrivalTimes> {
+  const response = await fetch(
+    `/api/students/class-arrival-times/${encodeURIComponent(schoolClass)}`,
+    { headers: await authHeaders() },
+  );
+  return parseResponse<ClassArrivalTimes>(response);
+}
