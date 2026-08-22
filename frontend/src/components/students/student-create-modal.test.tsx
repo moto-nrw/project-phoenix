@@ -453,6 +453,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     expect(form).toBeTruthy();
 
@@ -476,6 +477,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -548,6 +550,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     expect(form).toBeTruthy();
 
@@ -589,6 +592,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -605,6 +609,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -632,6 +637,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -668,6 +674,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -725,6 +732,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -747,6 +755,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -774,6 +783,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -784,7 +794,7 @@ describe("StudentCreateModal", () => {
     );
   });
 
-  it("opens the care plan with booking care days", async () => {
+  it("routes OGS creation through manual enrollment when bookings are authoritative", async () => {
     mockFetchArrivalSettings.mockResolvedValueOnce({
       care_days_source: "bookings",
     });
@@ -797,16 +807,49 @@ describe("StudentCreateModal", () => {
       />,
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
-    });
-
-    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
-      "bookings",
-    );
+    expect(
+      await screen.findByText(
+        /Die Betreuungstage dieser Schule kommen aus Buchungen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
+    ).toHaveAttribute("href", "/enrollment-phases");
+    expect(
+      screen.queryByTestId("personal-info-section"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Erstellen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
   });
 
-  it("shows a retryable message when care days cannot be loaded", async () => {
+  it("keeps class-list-only creation available in booking mode", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "bookings",
+    });
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+        onCreateListEntry={vi.fn()}
+      />,
+    );
+
+    await screen.findByText(
+      /Die Betreuungstage dieser Schule kommen aus Buchungen\./,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nur Klassenliste" }));
+
+    expect(
+      screen.getByRole("textbox", { name: /Vorname/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Erstellen")).toBeInTheDocument();
+  });
+
+  it("blocks direct creation when care days cannot be loaded", async () => {
     mockFetchArrivalSettings.mockRejectedValueOnce(new Error("offline"));
 
     render(
@@ -817,13 +860,9 @@ describe("StudentCreateModal", () => {
       />,
     );
 
-    await act(async () => {
-      fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
-    });
-
     expect(
-      screen.getByText(
-        "Die Betreuungstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      await screen.findByText(
+        "Die Betreuungstage konnten nicht geladen werden. Schließen Sie das Fenster und öffnen Sie es erneut.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -840,6 +879,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -870,6 +910,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -905,6 +946,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -956,6 +998,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -979,6 +1022,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });
@@ -995,6 +1039,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });
@@ -1023,6 +1068,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });

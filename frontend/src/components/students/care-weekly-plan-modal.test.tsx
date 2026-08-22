@@ -263,7 +263,7 @@ describe("CareWeeklyPlanModal", () => {
     );
   });
 
-  it("shows booking care days without editable checkboxes", () => {
+  it("only allows pickup times on booked care days", () => {
     render(
       <CareWeeklyPlanModal
         isOpen
@@ -277,11 +277,13 @@ describe("CareWeeklyPlanModal", () => {
 
     expect(
       screen.getByText(
-        /Die Betreuungstage kommen aus den Buchungen\. Für ein neues Kind gibt es noch keine Buchungen\./,
+        /Die Betreuungstage kommen aus den Buchungen\. Abholzeiten können Sie nur an gebuchten Tagen eintragen\./,
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: "Montag" })).toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "Mittwoch" })).toBeDisabled();
     expect(document.getElementById("weekly-arrival-3")).toBeDisabled();
+    expect(document.getElementById("weekly-pickup-1")).toBeEnabled();
+    expect(document.getElementById("weekly-pickup-3")).toBeDisabled();
   });
 });

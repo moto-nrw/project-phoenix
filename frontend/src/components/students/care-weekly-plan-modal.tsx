@@ -240,8 +240,8 @@ export function CareWeeklyPlanModal({
         <p className="mb-4 text-sm leading-6 text-gray-600">
           {careDaysSource === "bookings" ? (
             <>
-              Die Betreuungstage kommen aus den Buchungen. Für ein neues Kind
-              gibt es noch keine Buchungen.
+              Die Betreuungstage kommen aus den Buchungen. Abholzeiten können
+              Sie nur an gebuchten Tagen eintragen.
             </>
           ) : (
             <>
@@ -310,7 +310,9 @@ export function CareWeeklyPlanModal({
                     id={`weekly-pickup-${day.value}`}
                     label="Abholung"
                     value={row?.pickupTime ?? ""}
-                    disabled={false}
+                    disabled={
+                      careDaysSource === "bookings" && !row?.arrivalInCare
+                    }
                     onChange={(value) =>
                       updateRow(day.value, "pickupTime", value)
                     }
@@ -331,7 +333,9 @@ export function CareWeeklyPlanModal({
                         id={`weekly-pickup-notes-${day.value}`}
                         label="Abholnotiz"
                         value={row?.pickupNotes ?? ""}
-                        disabled={false}
+                        disabled={
+                          careDaysSource === "bookings" && !row?.arrivalInCare
+                        }
                         onChange={(value) =>
                           updateNote(day.value, "pickupNotes", value)
                         }

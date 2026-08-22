@@ -6,6 +6,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Modal } from "~/components/ui/modal";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
+import { ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
 import type { Student } from "@/lib/api";
@@ -214,8 +215,9 @@ export function StudentCreateModal({
   const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
     null,
   );
-  const [carePlanLoading, setCarePlanLoading] = useState(false);
-  const [carePlanLoadError, setCarePlanLoadError] = useState(false);
+  const [arrivalSettingsLoading, setArrivalSettingsLoading] = useState(false);
+  const [arrivalSettingsLoadError, setArrivalSettingsLoadError] =
+    useState(false);
   const [guardianPickerOpen, setGuardianPickerOpen] = useState(false);
   // The inline picker panel is tall; collapsing it (on add or cancel) shrinks
   // the modal so the kept scroll position lands further down the form. Re-anchor
@@ -255,11 +257,37 @@ export function StudentCreateModal({
       setPickupSchedules([]);
       setCarePlanModalOpen(false);
       setCareDaysSource(null);
-      setCarePlanLoading(false);
-      setCarePlanLoadError(false);
+      setArrivalSettingsLoading(false);
+      setArrivalSettingsLoadError(false);
       setGuardianPickerOpen(false);
       pendingGuardianScrollRef.current = false;
     }
+  }, [isOpen]);
+
+  // The tenant decides where care days come from. Resolve that boundary as
+  // soon as the dialog opens: in booking mode this direct form must not create
+  // an OGS child without the approved offering links that define its days.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setArrivalSettingsLoading(true);
+    setArrivalSettingsLoadError(false);
+    void fetchArrivalSettings()
+      .then((settings) => {
+        if (!cancelled) setCareDaysSource(settings.care_days_source);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCareDaysSource(null);
+          setArrivalSettingsLoadError(true);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setArrivalSettingsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [isOpen]);
 
   // After the inline picker collapses (add or cancel), re-anchor to the guardian
@@ -309,18 +337,9 @@ export function StudentCreateModal({
     setGuardians((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleOpenCarePlan = async () => {
-    setCarePlanLoading(true);
-    setCarePlanLoadError(false);
-    try {
-      const settings = await fetchArrivalSettings();
-      setCareDaysSource(settings.care_days_source);
+  const handleOpenCarePlan = () => {
+    if (careDaysSource === "weekly_plan") {
       setCarePlanModalOpen(true);
-    } catch {
-      setCareDaysSource(null);
-      setCarePlanLoadError(true);
-    } finally {
-      setCarePlanLoading(false);
     }
   };
 
@@ -366,6 +385,10 @@ export function StudentCreateModal({
           });
         })
         .finally(() => setSaveLoading(false));
+    }
+    if (careDaysSource !== "weekly_plan") {
+      e.preventDefault();
+      return;
     }
     const payload: Partial<Student> & {
       guardians?: StudentGuardianPayload[];
@@ -415,6 +438,8 @@ export function StudentCreateModal({
     ]),
   ).sort((a, b) => a - b);
   const hasCarePlan = scheduledWeekdays.length > 0;
+  const studentFormAvailable =
+    mode === "student" && careDaysSource === "weekly_plan";
   const weekdayShort = (value: number) =>
     WEEKDAYS.find((d) => d.value === value)?.shortLabel ?? String(value);
 
@@ -453,6 +478,36 @@ export function StudentCreateModal({
                 setMode(next);
                 setErrors({});
               }}
+            />
+          ) : null}
+
+          {mode === "student" && arrivalSettingsLoading ? (
+            <Alert
+              type="info"
+              message="Die Einstellungen für Betreuungstage werden geladen."
+            />
+          ) : null}
+
+          {mode === "student" && arrivalSettingsLoadError ? (
+            <Alert
+              type="error"
+              message="Die Betreuungstage konnten nicht geladen werden. Schließen Sie das Fenster und öffnen Sie es erneut."
+            />
+          ) : null}
+
+          {mode === "student" && careDaysSource === "bookings" ? (
+            <Alert
+              type="info"
+              message="Die Betreuungstage dieser Schule kommen aus Buchungen. Legen Sie ein Kind mit OGS-Betreuung deshalb unter Anmeldephasen mit „Manuelle Anmeldung“ an."
+              action={
+                <ButtonLink
+                  href="/enrollment-phases"
+                  variant="surface"
+                  size="compact"
+                >
+                  Anmeldephasen öffnen
+                </ButtonLink>
+              }
             />
           ) : null}
 
@@ -542,7 +597,7 @@ export function StudentCreateModal({
           ) : null}
 
           {/* Personal Information */}
-          {mode === "student" ? (
+          {studentFormAvailable ? (
             <PersonalInfoSection
               formData={formData}
               onChange={handleChange}
@@ -551,7 +606,7 @@ export function StudentCreateModal({
             />
           ) : null}
 
-          {mode === "student" ? (
+          {studentFormAvailable ? (
             <>
               {/* Guardian Information: add directly during creation. Styling
               matches the other modal sections (border-gray-100 + neutral
@@ -695,25 +750,15 @@ export function StudentCreateModal({
 
                 <button
                   type="button"
-                  onClick={() => void handleOpenCarePlan()}
-                  disabled={saveLoading || carePlanLoading}
+                  onClick={handleOpenCarePlan}
+                  disabled={saveLoading}
                   className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 py-2 text-xs font-medium text-gray-600 transition-all duration-200 hover:border-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                 >
                   <Plus className="h-4 w-4" />
-                  {carePlanLoading
-                    ? "Wird geladen…"
-                    : hasCarePlan
-                      ? "Wochenplan bearbeiten"
-                      : "Wochenplan hinzufügen"}
+                  {hasCarePlan
+                    ? "Wochenplan bearbeiten"
+                    : "Wochenplan hinzufügen"}
                 </button>
-                {carePlanLoadError ? (
-                  <div className="mt-3">
-                    <Alert
-                      type="error"
-                      message="Die Betreuungstage konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-                    />
-                  </div>
-                ) : null}
               </section>
 
               {/* Common Form Sections */}
@@ -765,38 +810,40 @@ export function StudentCreateModal({
             >
               Abbrechen
             </button>
-            <button
-              type="submit"
-              disabled={saveLoading}
-              className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
-            >
-              {saveLoading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg
-                    className="h-4 w-4 animate-spin text-white"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                  >
-                    <circle
-                      className="opacity-25"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                    ></circle>
-                    <path
-                      className="opacity-75"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                    ></path>
-                  </svg>
-                  Wird erstellt...
-                </span>
-              ) : (
-                "Erstellen"
-              )}
-            </button>
+            {mode === "list-entry" || studentFormAvailable ? (
+              <button
+                type="submit"
+                disabled={saveLoading}
+                className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+              >
+                {saveLoading ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg
+                      className="h-4 w-4 animate-spin text-white"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      ></circle>
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    Wird erstellt...
+                  </span>
+                ) : (
+                  "Erstellen"
+                )}
+              </button>
+            ) : null}
           </div>
         </form>
       </Modal>

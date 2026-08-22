@@ -219,6 +219,7 @@ type carePlans struct {
 	arrivalByStudentDate    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule
 	pickupByStudentDate     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule
 	hasPlan                 map[int64]map[timezone.Date]bool
+	bookingsAuthoritative   bool
 
 	arrivalExceptions map[int64]map[timezone.Date]*schedule.StudentArrivalException
 	pickupExceptions  map[int64]map[timezone.Date]*schedule.StudentPickupException
@@ -264,6 +265,7 @@ func (s *careDayService) loadArrivalPlans(
 	if err != nil {
 		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
+	plans.bookingsAuthoritative = arrivals.BookingsAuthoritative
 	for _, studentID := range studentIDs {
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			if arrivals.HasPlan(studentID, date) {
@@ -404,6 +406,13 @@ func (p *carePlans) markHasPlan(studentID int64, date timezone.Date) {
 // it makes the student search report "kommt heute" for a child the timetable
 // roster and the expected counts leave out.
 func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus {
+	// With authoritative bookings, the arrival projection's dated row is the
+	// positive care-day signal. Pickup schedules and one-day exceptions may add
+	// details to that day, but cannot create a day the child did not book.
+	if p.bookingsAuthoritative && p.arrivalByStudentDate[studentID][date] == nil {
+		return CareDayNotScheduled
+	}
+
 	// The whole-day cancellation rule (a timeless "Kommt heute nicht"
 	// exception on either leg cancels the day, whatever the other leg says)
 	// lives INSIDE ResolveDayPlanning, so the student search, the parent
