@@ -49,8 +49,16 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 
 	endCareFor(t, db, chain.StudentID)
 
-	t.Run("no new absence can be reported", func(t *testing.T) {
+	t.Run("no new direct absence can be reported", func(t *testing.T) {
 		_, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
+			[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Fieber",
+			activeModels.StudentStatusDaySick)
+		require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+	})
+
+	t.Run("no pending absence can be reported", func(t *testing.T) {
+		pendingSvc, _, _, _ := buildAbsenceApprovalServices(t, true, false)
+		_, err := pendingSvc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
 			[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Fieber",
 			activeModels.StudentStatusDaySick)
 		require.ErrorIs(t, err, parentService.ErrChildCareEnded)

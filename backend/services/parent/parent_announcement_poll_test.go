@@ -121,6 +121,21 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	assert.Empty(t, pending, "an answered child must not be reminded")
 }
 
+func TestAnnouncementPoll_CareEndedChildCannotRespond(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
+	svc, db, repos := buildAnnouncementService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+
+	endCareFor(t, db, chain.StudentID)
+	err := svc.RespondToAnnouncement(context.Background(), chain.AccountID, poll.ID, chain.StudentID,
+		[]int64{poll.Options[0].ID}, *poll.PublishedAt)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+}
+
 // A portal-visible child without a guardian who may answer remains visible to
 // staff, but cannot make completion or reminders look permanently outstanding.
 func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {

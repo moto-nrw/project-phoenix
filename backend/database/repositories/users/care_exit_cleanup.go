@@ -274,6 +274,7 @@ func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
 			        SELECT 1 FROM schedule.instance_students AS live
 			         WHERE live.instance_id = rm.instance_id
 			           AND live.student_id = rm.student_id
+			           AND live.tenant_id = rm.tenant_id
 			      )
 		) AS baseline
 		GROUP BY student_id`
@@ -419,6 +420,7 @@ func (r *CareExitCleanupRepository) CountRunningByStudentIDsAfter(
 			  AND NOT EXISTS (
 			        SELECT 1 FROM activities.student_enrollments AS live
 			         WHERE live.id = rm.enrollment_id
+			           AND live.tenant_id = rm.tenant_id
 			      )
 		) AS baseline
 		GROUP BY student_id
@@ -610,8 +612,10 @@ func (r *CareExitCleanupRepository) RestoreRemovals(
 		)
 		SELECT rm.enrollment_id, rm.tenant_id, rm.student_id, rm.activity_group_id,
 		       rm.valid_from, rm.previous_valid_until,
-		       (SELECT cp.id FROM schedule.calendar_periods AS cp WHERE cp.id = rm.calendar_period_id),
-		       (SELECT rc.id FROM enrollment.request_children AS rc WHERE rc.id = rm.enrollment_request_child_id),
+		       (SELECT cp.id FROM schedule.calendar_periods AS cp
+		         WHERE cp.tenant_id = rm.tenant_id AND cp.id = rm.calendar_period_id),
+		       (SELECT rc.id FROM enrollment.request_children AS rc
+		         WHERE rc.tenant_id = rm.tenant_id AND rc.id = rm.enrollment_request_child_id),
 		       rm.selected_weekdays, rm.attendance_status, rm.weekday
 		FROM users.student_care_exit_removals AS rm
 		JOIN activities.groups AS g

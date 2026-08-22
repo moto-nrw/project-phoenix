@@ -277,6 +277,12 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		if err != nil {
 			return err
 		}
+		// resolvePermittedChild ran before this transaction. Re-check the
+		// interval after acquiring the same row lock as care exits so a care exit
+		// cannot commit between authorization and this write.
+		if fresh.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if err := s.ensureNoPartialAbsenceForStatusWrite(txCtx, studentID, dates); err != nil {
 			return err
 		}
@@ -435,8 +441,17 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 	}
 	var req *activeModels.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// The initial authorization snapshot may predate a concurrent care exit.
+		// Lock and re-read the child before creating a pending request so both
+		// absence paths obey the same read-only boundary.
+		fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if fresh.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		var created *activeModels.ExcusedAbsenceRequest
-		var err error
 		if status == activeModels.StudentStatusDayExcused {
 			// Keep the original interface entry point for existing callers and fakes.
 			created, err = s.ExcusedRequests.CreateRequest(txCtx, studentID, accountID, dates, note)

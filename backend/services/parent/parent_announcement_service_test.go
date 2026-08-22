@@ -35,6 +35,7 @@ func buildAnnouncementService(t *testing.T, newsEnabled bool) (parentService.Ser
 		ChildRepo:             repos.ParentChild,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
 		AnnouncementRepo:      repos.ParentAnnouncement,
+		StudentRepo:           repos.Student,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{configModels.KeyParentNewsEnabled: newsEnabled},
 		},
