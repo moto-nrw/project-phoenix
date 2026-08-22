@@ -303,3 +303,19 @@ export function hasPlannedCareExit(student: {
     student.care_exit_recorded && student.care_ends_on && !student.care_ended,
   );
 }
+
+/**
+ * Darf die Betreuung dieses Kindes wieder aufgenommen werden?
+ *
+ * Zurücknehmen lässt sich nur ein hinterlegter Austritt. Kinder, deren
+ * Betreuung schlicht mit der Anmeldephase auslief, haben keinen Austritt und
+ * werden vom Server mit „Für dieses Kind ist keine beendete Betreuung
+ * hinterlegt.“ abgewiesen. Ein Knopf, der immer scheitert, gehört nicht auf
+ * den Bildschirm (#2487).
+ */
+export function canResumeCare(student: {
+  care_ended?: boolean;
+  care_exit_recorded?: boolean;
+}): boolean {
+  return Boolean(student.care_ended && student.care_exit_recorded);
+}

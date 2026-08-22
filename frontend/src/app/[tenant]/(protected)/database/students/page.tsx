@@ -38,7 +38,11 @@ import {
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
-import { cancelCareExit, hasPlannedCareExit } from "~/lib/care-exit-api";
+import {
+  canResumeCare,
+  cancelCareExit,
+  hasPlannedCareExit,
+} from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -496,15 +500,21 @@ function StudentsPageContent() {
     selectedStudent && canDeleteStudents ? (
       <div className="flex flex-wrap items-center gap-1.5">
         {selectedStudent.care_ended ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            onClick={() => setResumeTarget(selectedStudent)}
-          >
-            <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-            Wieder aufnehmen
-          </Button>
+          // Wieder aufnehmen kann nur, wer einen hinterlegten Austritt
+          // zurücknimmt. Lief die Betreuung mit der Anmeldephase aus, weist
+          // der Server die Wiederaufnahme ab; dann steht der Knopf gar nicht
+          // erst da, wie in der Ansicht "Beendete Betreuungen" auch (#2487).
+          canResumeCare(selectedStudent) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => setResumeTarget(selectedStudent)}
+            >
+              <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Wieder aufnehmen
+            </Button>
+          )
         ) : (
           <>
             <Button

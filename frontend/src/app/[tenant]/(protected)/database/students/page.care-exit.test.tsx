@@ -146,7 +146,21 @@ const PHASE_END_ONLY = {
   care_ends_on: isoInDays(200),
   care_ended: false,
 };
-const ENDED = { ...RUNNING, care_ends_on: isoInDays(-3), care_ended: true };
+// Ein wirksam gewordener Austritt, den die Schule selbst eingetragen hat.
+const ENDED = {
+  ...RUNNING,
+  care_ends_on: isoInDays(-3),
+  care_ended: true,
+  care_exit_recorded: true,
+};
+// Beendet, aber ohne eingetragenen Austritt: die Anmeldephase lief aus. Der
+// Server nimmt so ein Kind nicht wieder auf, also darf der Knopf auch nicht
+// angeboten werden (#2487).
+const ENDED_WITHOUT_EXIT = {
+  ...RUNNING,
+  care_ends_on: isoInDays(-3),
+  care_ended: true,
+};
 
 function isoInDays(days: number): string {
   const d = new Date();
@@ -252,6 +266,16 @@ describe("Datenverwaltung Kinder — Betreuung beenden", () => {
     expect(
       screen.getByRole("button", { name: /Wieder aufnehmen/ }),
     ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: /Betreuung beenden/ }),
+    ).toBeNull();
+  });
+
+  it("offers no resumption when no exit is recorded", () => {
+    renderWith(ENDED_WITHOUT_EXIT);
+    expect(
+      screen.queryByRole("button", { name: /Wieder aufnehmen/ }),
+    ).toBeNull();
     expect(
       screen.queryByRole("button", { name: /Betreuung beenden/ }),
     ).toBeNull();
