@@ -396,10 +396,8 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Dieser Betreuungstag gehört zu einem gebuchten Angebot\. Ändern Sie zuerst die Buchung des Kindes\./,
+    );
   });
 });
