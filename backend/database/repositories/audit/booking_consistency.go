@@ -58,6 +58,8 @@ WITH params AS (
 		request_child.id AS request_child_id,
 		COALESCE(request_child.created_student_id, request_child.matched_student_id) AS student_id,
 		phase.id AS phase_id,
+		phase.service_start_date,
+		phase.service_end_date,
 		request_child.tenant_id
 	FROM enrollment.request_children AS request_child
 	INNER JOIN enrollment.requests AS request
@@ -87,6 +89,8 @@ WITH params AS (
 		AND activity_group.type = 'care'
 	INNER JOIN approved_students
 		ON approved_students.student_id = instance_student.student_id
+		AND instance.date >= approved_students.service_start_date
+		AND instance.date <= approved_students.service_end_date
 	INNER JOIN params ON params.tenant_id = instance_student.tenant_id
 	WHERE instance.status = 'planned'
 		AND instance.date >= params.audit_date
@@ -118,6 +122,8 @@ WITH params AS (
 	) AS day_code(value)
 	WHERE care_offering.is_active = TRUE
 		AND care_offering.counts_as_care = TRUE
+		AND audit_dates.date >= approved_students.service_start_date
+		AND audit_dates.date <= approved_students.service_end_date
 		AND EXTRACT(ISODOW FROM audit_dates.date)::int <= 5
 		AND (link.valid_from IS NULL OR link.valid_from <= audit_dates.date)
 		AND (link.valid_until IS NULL OR link.valid_until > audit_dates.date)
@@ -153,6 +159,8 @@ WITH params AS (
 	INNER JOIN params ON params.tenant_id = arrival.tenant_id
 	INNER JOIN audit_dates
 		ON EXTRACT(ISODOW FROM audit_dates.date)::int = arrival.weekday
+		AND audit_dates.date >= approved_students.service_start_date
+		AND audit_dates.date <= approved_students.service_end_date
 	LEFT JOIN schedule.student_arrival_exceptions AS arrival_exception
 		ON arrival_exception.tenant_id = arrival.tenant_id
 		AND arrival_exception.student_id = arrival.student_id
@@ -165,7 +173,10 @@ WITH params AS (
 	FROM schedule.student_arrival_exceptions AS arrival_exception
 	INNER JOIN approved_students ON approved_students.student_id = arrival_exception.student_id
 	INNER JOIN params ON params.tenant_id = arrival_exception.tenant_id
-	INNER JOIN audit_dates ON audit_dates.date = arrival_exception.exception_date
+	INNER JOIN audit_dates
+		ON audit_dates.date = arrival_exception.exception_date
+		AND audit_dates.date >= approved_students.service_start_date
+		AND audit_dates.date <= approved_students.service_end_date
 	WHERE arrival_exception.expected_arrival IS NOT NULL
 ), arrival_without_booking AS (
 	SELECT arrival_days.student_id, arrival_days.date
@@ -202,6 +213,8 @@ WITH params AS (
 			AND care_offering.id = link.care_offering_id
 			AND care_offering.phase_id = booking_child.phase_id
 		WHERE booking_child.student_id = planned_rows.student_id
+			AND planned_rows.date >= booking_child.service_start_date
+			AND planned_rows.date <= booking_child.service_end_date
 			AND care_offering.is_active = TRUE
 			AND care_offering.counts_as_care = TRUE
 			AND (link.valid_from IS NULL OR link.valid_from <= planned_rows.date)
@@ -239,10 +252,10 @@ WITH params AS (
 					SELECT 1
 					FROM enrollment.request_child_offerings AS required_link
 					WHERE required_link.tenant_id = request_child.tenant_id
-						AND required_link.request_child_id = request_child.id
-						AND required_link.care_offering_id = required_offering.id
-						AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_start_date)
-						AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_start_date)
+					AND required_link.request_child_id = request_child.id
+					AND required_link.care_offering_id = required_offering.id
+					AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_start_date)
+					AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_end_date)
 				)
 		) AS missing_required_offering,
 		EXISTS (
@@ -252,11 +265,13 @@ WITH params AS (
 				ON care_offering.tenant_id = link.tenant_id
 				AND care_offering.id = link.care_offering_id
 				AND care_offering.phase_id = phase.id
+				AND care_offering.is_active = TRUE
 				AND care_offering.is_required = FALSE
+				AND care_offering.counts_as_care = TRUE
 			WHERE link.tenant_id = request_child.tenant_id
 				AND link.request_child_id = request_child.id
 				AND (link.valid_from IS NULL OR link.valid_from <= phase.service_start_date)
-				AND (link.valid_until IS NULL OR link.valid_until > phase.service_start_date)
+				AND (link.valid_until IS NULL OR link.valid_until > phase.service_end_date)
 		) AS has_choosable_offering
 	FROM enrollment.request_children AS request_child
 	INNER JOIN enrollment.requests AS request
@@ -265,12 +280,12 @@ WITH params AS (
 	INNER JOIN enrollment.phases AS phase
 		ON phase.tenant_id = request.tenant_id
 		AND phase.id = request.phase_id
-	INNER JOIN users.students AS student
+	LEFT JOIN users.students AS student
 		ON student.tenant_id = request_child.tenant_id
 		AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
-		AND student.status <> 'alumnus'
 	INNER JOIN params ON params.tenant_id = request_child.tenant_id
 	WHERE request_child.status = 'approved'
+		AND (student.id IS NULL OR student.status <> 'alumnus')
 )
 SELECT
 	params.tenant_id,
