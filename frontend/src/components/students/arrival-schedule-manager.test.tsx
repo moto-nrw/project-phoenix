@@ -8,6 +8,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { toISODate } from "~/lib/date-helpers";
+import { formatDateISO, getWeekDays } from "~/lib/arrival-schedule-helpers";
 
 const {
   mockFetch,
@@ -261,7 +262,7 @@ describe("ArrivalScheduleManager", () => {
     expect(onUpdate).toHaveBeenCalled();
   });
 
-  it("week navigation advances week offset", async () => {
+  it("loads the selected week after week navigation", async () => {
     render(<ArrivalScheduleManager studentId="1" />);
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
@@ -270,6 +271,13 @@ describe("ArrivalScheduleManager", () => {
     const nextButtons = screen.getAllByTitle("Nächste Woche");
 
     fireEvent.click(prevButtons[0]!);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        "1",
+        formatDateISO(getWeekDays(-1)[0]!),
+      ),
+    );
     fireEvent.click(nextButtons[0]!);
 
     expect(prevButtons).toHaveLength(2);

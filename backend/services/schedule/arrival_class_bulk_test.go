@@ -97,6 +97,26 @@ func TestBulkUpsertBySchoolClassWritesTheClassTimetable(t *testing.T) {
 	})
 }
 
+func TestStoredArrivalScheduleStatusCountsOnlyOwnTimes(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := arrivalServiceWithClassTimes(t, repos)
+
+	staff := testpkg.CreateTestStaff(t, db, "Status", "Betreuung")
+	withOwnTime := testpkg.CreateTestStudent(t, db, "Eigene", "Zeit", "7d")
+	withInheritedMarker := testpkg.CreateTestStudent(t, db, "Klassen", "Zeit", "7d")
+	testpkg.CreateTestArrivalSchedule(t, db, withOwnTime.ID, scheduleModel.WeekdayMonday, staff.ID, "12:15")
+	testpkg.CreateTestArrivalSchedule(t, db, withInheritedMarker.ID, scheduleModel.WeekdayMonday, staff.ID, "")
+
+	hasOwnTime, err := svc.GetStudentsWithStoredArrivalSchedules(ctx, []int64{withOwnTime.ID, withInheritedMarker.ID})
+	require.NoError(t, err)
+	assert.True(t, hasOwnTime[withOwnTime.ID])
+	assert.False(t, hasOwnTime[withInheritedMarker.ID])
+}
+
 func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	t.Parallel()
 

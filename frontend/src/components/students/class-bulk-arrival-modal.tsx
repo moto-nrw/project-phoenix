@@ -159,6 +159,11 @@ export function FilteredBulkArrivalModal({
     () => Object.values(draft).some((value) => !isValidTime(value)),
     [draft],
   );
+  const collisionMessage = `${childCountLabel(collisionCount)} ${collisionCount === 1 ? "hat" : "haben"} eigene Ankunftszeiten. ${
+    isClassTimetable
+      ? "Diese Zeiten bleiben bestehen."
+      : "Die gewählten Zeiten können sie ersetzen."
+  }`;
 
   const handleSubmit = async () => {
     if (isClassTimetable && (classTimesLoading || classTimesError)) return;
@@ -275,10 +280,7 @@ export function FilteredBulkArrivalModal({
           />
         ) : null}
         {collisionCount > 0 ? (
-          <Alert
-            type="info"
-            message={`${childCountLabel(collisionCount)} ${collisionCount === 1 ? "hat" : "haben"} eigene Ankunftszeiten. Diese Zeiten bleiben bestehen.`}
-          />
+          <Alert type="info" message={collisionMessage} />
         ) : null}
         <div className="space-y-2">
           {WEEKDAYS.map((day) => {

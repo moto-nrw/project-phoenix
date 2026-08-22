@@ -621,7 +621,9 @@ func (s *arrivalScheduleService) GetStudentsWithStoredArrivalSchedules(
 	}
 	hasSchedules := make(map[int64]bool, len(rows))
 	for _, row := range rows {
-		hasSchedules[row.StudentID] = true
+		if !row.ExpectedArrival.IsZero() {
+			hasSchedules[row.StudentID] = true
+		}
 	}
 	return hasSchedules, nil
 }

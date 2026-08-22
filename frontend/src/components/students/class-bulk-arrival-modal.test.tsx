@@ -143,6 +143,28 @@ describe("FilteredBulkArrivalModal", () => {
     );
   });
 
+  it("warns that group updates can replace own arrival times", async () => {
+    mockFetchBulkArrivalScheduleStatus.mockResolvedValueOnce(1);
+
+    render(
+      <FilteredBulkArrivalModal
+        isOpen={true}
+        onClose={vi.fn()}
+        filter={{ type: "group", groupId: "7" }}
+        filterLabel="Sonnen"
+        studentsInFilter={[makeStudent("1")]}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(
+          "1 Kind hat eigene Ankunftszeiten. Die gewählten Zeiten können sie ersetzen.",
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it("uses one bulk lookup for every selected child", async () => {
     render(
       <FilteredBulkArrivalModal

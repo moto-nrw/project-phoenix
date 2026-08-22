@@ -319,7 +319,7 @@ export function CarePlanEditorModal({
     setIsSubmitting(true);
     try {
       if (!isException) {
-        await onSubmitWeekly(toWeeklySubmit(weeklyRows, careDaysSource));
+        await onSubmitWeekly(toWeeklySubmit(weeklyRows));
         toast.success("Wochenplan wurde gespeichert");
       } else {
         await onSubmitException({
@@ -1288,19 +1288,10 @@ function collectWeeklyRemovals(
   return removals;
 }
 
-function toWeeklySubmit(
-  rows: readonly WeeklyRow[],
-  careDaysSource: CareDaysSource,
-): CarePlanWeeklySubmit {
+function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
   return {
     arrivalSchedules: rows
-      .filter(
-        (row) =>
-          row.arrivalInCare &&
-          (careDaysSource === "weekly_plan" ||
-            row.arrivalTime.trim() !== "" ||
-            row.arrivalNotes.trim() !== ""),
-      )
+      .filter((row) => row.arrivalInCare)
       .map((row) => ({
         weekday: row.weekday,
         inCare: true,
