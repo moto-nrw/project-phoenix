@@ -412,7 +412,7 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 	})
 	require.NoError(t, err)
 
-	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID})
+	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID}, nil)
 	require.NoError(t, err)
 	byID := make(map[int64][]string, len(preview))
 	for _, selection := range preview {

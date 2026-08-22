@@ -1898,15 +1898,20 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		}, nil
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	from := timezone.DateFromTime(checkIn)
+	historyResp, err := svc.GetHistory(context.Background(), staffID, from, timezone.TodayDate())
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 
 	// 240 gross − 30 ended − 20 running = 190.
 	assert.InDelta(t, 190, historyResp.Sessions[0].NetMinutes, 1,
 		"the running break must be deducted, exactly as the Monatskarte does")
-	assert.InDelta(t, 190, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
-		"the weekly summary aggregates the corrected value")
+	weeklyNetMinutes := 0
+	for _, summary := range historyResp.WeeklySummaries {
+		weeklyNetMinutes += summary.TotalNetMinutes
+	}
+	assert.InDelta(t, 190, weeklyNetMinutes, 1,
+		"the weekly summaries aggregate the corrected value")
 	// The reader must be able to add the row up: the Ist above already stopped
 	// growing, so reporting the raw ENDED-breaks cache (30) as the pause would
 	// print "Pause 0:30" against 20 minutes of deducted time and break

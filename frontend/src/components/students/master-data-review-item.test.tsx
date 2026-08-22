@@ -1,6 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => mockToast,
+}));
+
+// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+async function expectErrorToast(pattern: RegExp) {
+  await waitFor(() =>
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringMatching(pattern),
+      expect.anything(),
+    ),
+  );
+}
+
 import { MasterDataReviewItem } from "./master-data-review-item";
 import {
   decideMasterDataChangeRequest,
@@ -225,11 +246,9 @@ describe("MasterDataReviewItem", () => {
     expandAll();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Die Entscheidung konnte nicht gespeichert werden.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Entscheidung konnte nicht gespeichert werden\./,
+    );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
   });
