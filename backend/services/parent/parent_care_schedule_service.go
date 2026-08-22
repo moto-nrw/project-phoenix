@@ -160,6 +160,13 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
 			return err
 		}
