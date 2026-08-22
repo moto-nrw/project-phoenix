@@ -71,9 +71,15 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 
 	var created []*usersModels.StudentDataChangeRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		student, loadErr := s.StudentRepo.FindByID(txCtx, studentID)
+		// The permission check above used a snapshot. Acquire the same student
+		// row lock as a care exit and re-check its interval before inserting any
+		// pending request, so an exit cannot commit in the gap before this write.
+		student, loadErr := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if loadErr != nil {
 			return loadErr
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
 		}
 		person, loadErr := s.PersonRepo.FindByID(txCtx, student.PersonID)
 		if loadErr != nil {

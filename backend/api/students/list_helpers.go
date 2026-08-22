@@ -302,17 +302,18 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 }
 
 // canUseGroupOnlyShortcut reports whether the request is nothing but a group
-// selection, so the materialized group members already are the answer. Every
-// other filter must be listed here: the shortcut never runs the SQL query, so a
-// filter it does not name would simply not be applied. Grade level is named
-// explicitly because it is answered in SQL now and therefore no longer covered
-// by hasInMemoryFilters.
+// selection without a care-status boundary, so the materialized group members
+// already are the answer. Every other filter must be listed here: the shortcut
+// never runs the SQL query, so a filter it does not name would simply not be
+// applied. Grade level is named explicitly because it is answered in SQL now
+// and therefore no longer covered by hasInMemoryFilters.
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 	return len(p.schoolClasses) == 0 &&
 		len(p.gradeLevels) == 0 &&
 		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
+		p.careStatus == CareStatusAll &&
 		!p.hasInMemoryFilters()
 }
 

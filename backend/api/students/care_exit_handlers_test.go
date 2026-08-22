@@ -186,6 +186,10 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	today := timezone.TodayDate()
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "CareStatusGroup")
+	testpkg.AssignStudentToGroup(t, tc.db, running.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, planned.ID, group.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, ended.ID, group.ID)
 
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-list@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
@@ -230,6 +234,18 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		assert.Contains(t, rows, running.ID)
 		assert.Contains(t, rows, planned.ID)
 		assert.Contains(t, rows, ended.ID)
+	})
+
+	t.Run("group list applies the care status before paging", func(t *testing.T) {
+		endedRows := listed(fmt.Sprintf("?group_id=%d&page_size=500&care_status=ended", group.ID))
+		assert.Contains(t, endedRows, ended.ID)
+		assert.NotContains(t, endedRows, running.ID)
+		assert.NotContains(t, endedRows, planned.ID)
+
+		runningRows := listed(fmt.Sprintf("?group_id=%d&page_size=500", group.ID))
+		assert.Contains(t, runningRows, running.ID)
+		assert.Contains(t, runningRows, planned.ID)
+		assert.NotContains(t, runningRows, ended.ID)
 	})
 
 	t.Run("an unknown care_status is rejected, not silently ignored", func(t *testing.T) {
