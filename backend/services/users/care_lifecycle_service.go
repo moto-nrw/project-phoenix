@@ -596,6 +596,14 @@ func (s *careLifecycleService) buildPreview(
 	if err != nil {
 		return nil, err
 	}
+	if lock {
+		// Lock every live plan row before counting it for the bindende preview.
+		// Confirmation then deletes or caps only a state that cannot change after
+		// its token was derived.
+		if err := s.cleanupRepo.LockPlanningForCareExit(ctx, ids, input.LastCareDay); err != nil {
+			return nil, err
+		}
+	}
 
 	personIDs := make([]int64, 0, len(students))
 	for _, student := range students {

@@ -324,6 +324,36 @@ func (r *CareExitCleanupRepository) DeletePlannedByStudentIDsAfter(
 	return int(affected), nil
 }
 
+// LockPlanningForCareExit locks the live roster rows and bookings that a care
+// exit can remove. The confirmation takes these locks before rebuilding its
+// token, so a plan row cannot change between the shown preview and mutation.
+func (r *CareExitCleanupRepository) LockPlanningForCareExit(
+	ctx context.Context, studentIDs []int64, after timezone.Date,
+) error {
+	if len(studentIDs) == 0 {
+		return nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	db := base.GetDB(ctx, r.db)
+	if _, err := db.ExecContext(ctx, `
+		SELECT s.instance_id
+		FROM schedule.instance_students AS s
+		JOIN schedule.activity_instances AS ai ON ai.id = s.instance_id AND ai.tenant_id = s.tenant_id
+		WHERE s.student_id IN (?)`+carePlannedRosterPredicate+`
+		FOR UPDATE OF s`, bun.List(studentIDs), after, tenantID); err != nil {
+		return &modelBase.DatabaseError{Op: "lock planned roster rows for care exit", Err: err}
+	}
+	if _, err := db.ExecContext(ctx, `
+		SELECT e.id
+		FROM activities.student_enrollments AS e
+		WHERE e.tenant_id = ? AND e.student_id IN (?)
+		  AND (e.valid_until IS NULL OR e.valid_until > ?)
+		FOR UPDATE OF e`, tenantID, bun.List(studentIDs), after.AddDays(1)); err != nil {
+		return &modelBase.DatabaseError{Op: "lock bookings for care exit", Err: err}
+	}
+	return nil
+}
+
 // CountRunningByStudentIDsAfter counts the bookings CapByStudentIDs would
 // touch, per student, for the preview. valid_until is an EXCLUSIVE upper
 // bound, so the caller passes the day AFTER the last care day.

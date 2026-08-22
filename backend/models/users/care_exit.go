@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -36,6 +35,8 @@ var (
 	ErrCareExitNoteRequired = errors.New("users: care exit reason note is required for the other reason")
 	// ErrCareExitNoteNotAllowed means a categorised reason carried free text.
 	ErrCareExitNoteNotAllowed = errors.New("users: care exit reason note is only allowed for the other reason")
+	// ErrCareExitNoteTooLong means the optional explanation exceeds the limit.
+	ErrCareExitNoteTooLong = errors.New("Die Begründung ist zu lang. Bitte kürzen Sie sie.") //nolint:staticcheck // user-facing German message
 )
 
 // CareExit records WHY a child's care ended and who wrote that down.
@@ -70,7 +71,7 @@ func (e *CareExit) Validate() error {
 			e.ReasonNote = nil
 		} else {
 			if utf8.RuneCountInString(trimmed) > MaxCareExitNoteLen {
-				return fmt.Errorf("users: care exit note must be at most %d characters", MaxCareExitNoteLen)
+				return ErrCareExitNoteTooLong
 			}
 			e.ReasonNote = &trimmed
 		}
@@ -163,6 +164,9 @@ type CareExitCleanupRepository interface {
 	CountPlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (map[int64]int, error)
 	// DeletePlannedByStudentIDsAfter removes those same rows.
 	DeletePlannedByStudentIDsAfter(ctx context.Context, studentIDs []int64, after timezone.Date) (int, error)
+	// LockPlanningForCareExit serializes the bindende preview with plan changes
+	// that could otherwise alter rows after their impacts were counted.
+	LockPlanningForCareExit(ctx context.Context, studentIDs []int64, after timezone.Date) error
 
 	// CountRunningByStudentIDsAfter counts, per student, the offering and
 	// activity bookings still running at validUntil (exclusive bound).

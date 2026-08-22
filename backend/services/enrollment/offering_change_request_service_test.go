@@ -398,6 +398,28 @@ func TestOfferingChangeRequestService_Decide_ApprovalAppliesTheDatedSwitch(t *te
 	assert.Empty(t, pending)
 }
 
+func TestOfferingChangeRequestService_Decide_RefusesApprovalAfterPlannedCareEnd(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "CareEnd")
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().TableExpr("users.students").
+		Set("enrolled_until = ?", fx.switchDate.AddDays(-1)).Where("id = ?", fx.studentID).Exec(ctx)
+	require.NoError(t, err)
+
+	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+}
+
 // A pending request outlives edits to its care period. When the period's
 // service start moves past the requested date, an approval applies at the new
 // period start — the queue has to name that date instead of today, or the

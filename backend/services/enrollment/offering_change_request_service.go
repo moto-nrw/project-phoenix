@@ -1717,6 +1717,13 @@ func (s *offeringChangeRequestService) applyApproved(
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: load student for effective date: %w", err)
+	}
+	if student.EnrolledUntil != nil && effectiveFrom.After(*student.EnrolledUntil) {
+		return nil, fmt.Errorf("%w: care ends before the approved effective date", ErrOfferingChangeInvalid)
+	}
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {
 		return nil, err

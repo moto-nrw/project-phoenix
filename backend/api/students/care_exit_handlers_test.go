@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -146,6 +147,31 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, after.EnrolledUntil)
 	})
+}
+
+func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
+	t.Parallel()
+
+	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Validation", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-validation@example.com")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	missingDate := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
+		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "reason": userModels.CareExitReasonMovedAway,
+	})
+	missingDateResponse := authExec(t, tc, missingDate, claims, []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, missingDateResponse.Code)
+	assert.Contains(t, missingDateResponse.Body.String(), "Bitte geben Sie den letzten Betreuungstag an.")
+
+	longNote := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
+		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "last_care_day": timezone.TodayDate().String(),
+		"reason": userModels.CareExitReasonOther, "reason_note": strings.Repeat("x", userModels.MaxCareExitNoteLen+1),
+	})
+	longNoteResponse := authExec(t, tc, longNote, claims, []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, longNoteResponse.Code)
+	assert.Contains(t, longNoteResponse.Body.String(), "Die Begründung ist zu lang.")
 }
 
 func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {

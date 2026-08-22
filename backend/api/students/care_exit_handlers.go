@@ -34,7 +34,7 @@ func (b *careExitRequest) Bind(_ *http.Request) error {
 		return userService.ErrCareExitNoStudents
 	}
 	if strings.TrimSpace(b.LastCareDay) == "" {
-		return errors.New("last_care_day ist erforderlich") //nolint:staticcheck // ST1005: user-facing German message
+		return errors.New("Bitte geben Sie den letzten Betreuungstag an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func (b *careExitRequest) toInput() (userService.CareExitInput, error) {
 	}
 	day, err := timezone.ParseDate(strings.TrimSpace(b.LastCareDay))
 	if err != nil {
-		return userService.CareExitInput{}, errors.New("last_care_day muss im Format JJJJ-MM-TT vorliegen") //nolint:staticcheck // ST1005: user-facing German message
+		return userService.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	return userService.CareExitInput{
 		StudentIDs:  ids,
@@ -219,7 +219,7 @@ type careResumeRequest struct {
 
 func (b *careResumeRequest) Bind(_ *http.Request) error {
 	if strings.TrimSpace(b.NewStart) == "" {
-		return errors.New("new_start ist erforderlich") //nolint:staticcheck // ST1005: user-facing German message
+		return errors.New("Bitte geben Sie den neuen Beginn an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	if !b.Checked {
 		return userService.ErrCareResumeNotChecked
@@ -244,7 +244,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 	}
 	start, parseErr := timezone.ParseDate(strings.TrimSpace(body.NewStart))
 	if parseErr != nil {
-		renderError(w, r, common.ErrorInvalidRequest(errors.New("new_start muss im Format JJJJ-MM-TT vorliegen"))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("Bitte geben Sie den neuen Beginn im Format JJJJ-MM-TT an."))) //nolint:staticcheck // ST1005: user-facing German message
 		return
 	}
 	err := rs.CareLifecycleService.Resume(r.Context(), userService.CareResumeInput{
@@ -345,6 +345,7 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: userModels.ErrCareExitInvalidReason, Render: common.ErrorInvalidRequest},
 	{Target: userModels.ErrCareExitNoteRequired, Render: common.ErrorInvalidRequest},
 	{Target: userModels.ErrCareExitNoteNotAllowed, Render: common.ErrorInvalidRequest},
+	{Target: userModels.ErrCareExitNoteTooLong, Render: common.ErrorInvalidRequest},
 }, func(cause error) render.Renderer {
 	// Alles Unerwartete (DB-Fehler, Sperren, Timeouts) bekommt EINEN ruhigen
 	// Satz. Der Dialog zeigt diese Meldung wörtlich an, und interne Details
