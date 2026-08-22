@@ -472,7 +472,7 @@ export const setupChapters: readonly GuideChapter[] = [
           tone: "orange",
         },
         screenshot:
-          "Tab Betreuungszeiten auf der Kinddetailseite mit den Tageskarten und der Schaltfläche Wochenplan oben rechts.",
+          "Tab Betreuungszeiten auf der Kinddetailseite mit den Tageskarten je Wochentag und der Schaltfläche Wochenplan oben rechts. Tage ohne Betreuung stehen auf `Nicht geplant`.",
         image: "/help/screens/betreuungszeiten-pflegen.webp",
       },
       {
