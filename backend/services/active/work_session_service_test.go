@@ -1868,9 +1868,10 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 	t.Parallel()
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
+	today := timezone.TodayDate()
+	// Open session, checked in today: 30 min of ended breaks (in the cache)
 	// plus a break that started 20 min ago and is still running.
-	checkIn := time.Now().Add(-4 * time.Hour)
+	checkIn := today.BerlinMidnight().Add(time.Minute)
 	breakStart := time.Now().Add(-20 * time.Minute)
 	endedBreakEnd := time.Now().Add(-2 * time.Hour)
 
@@ -1879,7 +1880,7 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 			{
 				Model:        base.Model{ID: 1},
 				StaffID:      staffID,
-				Date:         timezone.TodayDate(),
+				Date:         today,
 				CheckInTime:  checkIn,
 				BreakMinutes: 30,
 			},
@@ -1898,14 +1899,15 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		}, nil
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	historyResp, err := svc.GetHistory(context.Background(), staffID, today, today)
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 
-	// 240 gross − 30 ended − 20 running = 190.
-	assert.InDelta(t, 190, historyResp.Sessions[0].NetMinutes, 1,
+	// Gross time today − 30 ended − 20 running.
+	expectedNetMinutes := int(time.Since(checkIn).Minutes()) - 50
+	assert.InDelta(t, expectedNetMinutes, historyResp.Sessions[0].NetMinutes, 1,
 		"the running break must be deducted, exactly as the Monatskarte does")
-	assert.InDelta(t, 190, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
+	assert.InDelta(t, expectedNetMinutes, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
 		"the weekly summary aggregates the corrected value")
 	// The reader must be able to add the row up: the Ist above already stopped
 	// growing, so reporting the raw ENDED-breaks cache (30) as the pause would
