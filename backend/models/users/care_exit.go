@@ -51,10 +51,11 @@ var (
 type CareExit struct {
 	base.Model `bun:"schema:users,table:student_care_exits"`
 	base.TenantModel
-	StudentID  int64   `bun:"student_id,notnull" json:"student_id"`
-	Reason     string  `bun:"reason,notnull" json:"reason"`
-	ReasonNote *string `bun:"reason_note" json:"reason_note,omitempty"`
-	RecordedBy *int64  `bun:"recorded_by" json:"recorded_by,omitempty"`
+	StudentID             int64          `bun:"student_id,notnull" json:"student_id"`
+	PreviousEnrolledUntil *timezone.Date `bun:"previous_enrolled_until,type:date" json:"-"`
+	Reason                string         `bun:"reason,notnull" json:"reason"`
+	ReasonNote            *string        `bun:"reason_note" json:"reason_note,omitempty"`
+	RecordedBy            *int64         `bun:"recorded_by" json:"recorded_by,omitempty"`
 }
 
 // Validate normalizes and checks the reason pair.

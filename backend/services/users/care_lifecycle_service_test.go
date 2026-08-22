@@ -372,6 +372,24 @@ func TestCareLifecycle_CancelRefusesOrdinaryEnrollmentEnd(t *testing.T) {
 	assert.Equal(t, ordinaryEnd, *stored.EnrolledUntil)
 }
 
+func TestCareLifecycle_CancelRestoresPreviousEnrollmentEnd(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Mara", "Hesse", "3c")
+	previousEnd := timezone.TodayDate().AddDays(40)
+	_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", previousEnd).Where("id = ?", student.ID).Exec(ctx)
+	require.NoError(t, err)
+	endCare(t, ctx, svc, actorID, userService.CareExitInput{StudentIDs: []int64{student.ID}, LastCareDay: timezone.TodayDate().AddDays(10), Reason: userModels.CareExitReasonMovedAway})
+	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
+	require.NoError(t, err)
+	stored := loadStudent(t, db, ctx, student.ID)
+	require.NotNil(t, stored.EnrolledUntil)
+	assert.Equal(t, previousEnd, *stored.EnrolledUntil)
+}
+
 func TestCareLifecycle_CancelRefusedAfterItTookEffect(t *testing.T) {
 	t.Parallel()
 

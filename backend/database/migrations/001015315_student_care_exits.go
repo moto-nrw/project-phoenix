@@ -52,7 +52,8 @@ func studentCareExitsUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.student_care_exits (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			student_id BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
+			student_id BIGINT NOT NULL,
+			previous_enrolled_until DATE,
 			reason TEXT NOT NULL
 				CHECK (reason IN ('moved_away', 'no_care_needed', 'other')),
 			reason_note TEXT,
@@ -65,7 +66,10 @@ func studentCareExitsUp(ctx context.Context, db *bun.DB) error {
 			-- note attached to a categorised reason, which the archive view
 			-- would then show under a heading that contradicts it.
 			CONSTRAINT chk_student_care_exits_note
-				CHECK ((reason = 'other') OR reason_note IS NULL)
+				CHECK ((reason = 'other') OR reason_note IS NULL),
+			CONSTRAINT fk_student_care_exits_student
+				FOREIGN KEY (tenant_id, student_id)
+				REFERENCES users.students(tenant_id, id) ON DELETE CASCADE
 		);
 
 		-- One exit per child: the current one. Changing a planned exit rewrites

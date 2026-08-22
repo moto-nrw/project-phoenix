@@ -252,6 +252,10 @@ func (s *careLifecycleService) Confirm(
 		if err != nil {
 			return err
 		}
+		exits, err := s.careExitRepo.FindByStudentIDs(txCtx, ids)
+		if err != nil {
+			return err
+		}
 
 		// A second run over the same child is a CHANGE, and a change applies to
 		// the untouched plan, not to the remains of the previous attempt: an
@@ -271,6 +275,9 @@ func (s *careLifecycleService) Confirm(
 				StudentID:  id,
 				Reason:     normalized.Reason,
 				RecordedBy: &actorAccountID,
+			}
+			if existing := exits[id]; existing == nil {
+				exit.PreviousEnrolledUntil = before[id].EnrolledUntil
 			}
 			if normalized.ReasonNote != "" {
 				note := normalized.ReasonNote
@@ -366,14 +373,18 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 		if _, err := s.cleanupRepo.RestoreRemovals(txCtx, ids); err != nil {
 			return err
 		}
-		if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, ids, nil); err != nil {
-			return err
+		for _, id := range ids {
+			if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, []int64{id}, exits[id].PreviousEnrolledUntil); err != nil {
+				return err
+			}
 		}
 		if err := s.careExitRepo.DeleteByStudentIDs(txCtx, ids); err != nil {
 			return err
 		}
-		if err := s.recordCareEndAudit(txCtx, before, ids, nil, actorAccountID); err != nil {
-			return err
+		for _, id := range ids {
+			if err := s.recordCareEndAudit(txCtx, before, []int64{id}, exits[id].PreviousEnrolledUntil, actorAccountID); err != nil {
+				return err
+			}
 		}
 		cancelled = len(ids)
 		return nil
