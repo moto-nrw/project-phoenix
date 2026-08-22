@@ -168,7 +168,10 @@ export default function PickupScheduleManager({
 
   // Handle schedule update
   const handleUpdateSchedules = async (data: BulkPickupScheduleFormData) => {
-    await updateStudentPickupSchedules(studentId, data);
+    await updateStudentPickupSchedules(studentId, {
+      ...data,
+      effectiveDate: formatDateISO(weekDays[0]!),
+    });
     await loadPickupData();
     onUpdate?.();
     setIsScheduleModalOpen(false);

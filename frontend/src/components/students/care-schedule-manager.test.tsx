@@ -637,6 +637,7 @@ describe("CareScheduleManager", () => {
       ]);
       expect(mockUpdateStudentPickupSchedules).toHaveBeenCalledWith("42", {
         schedules: [{ weekday: 1, pickupTime: "15:30", notes: "Bus" }],
+        effectiveDate: "2026-05-25",
       });
       expect(onUpdate).toHaveBeenCalled();
     });

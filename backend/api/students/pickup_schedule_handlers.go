@@ -92,7 +92,8 @@ type PickupScheduleRequest struct {
 
 // BulkPickupScheduleRequest represents a request to update all weekly schedules
 type BulkPickupScheduleRequest struct {
-	Schedules []PickupScheduleRequest `json:"schedules"`
+	Schedules     []PickupScheduleRequest `json:"schedules"`
+	EffectiveDate *timezone.Date          `json:"effective_date,omitempty"`
 }
 
 type BulkPickupSchedulePatchRequest struct {
@@ -516,7 +517,11 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
+		date := timezone.TodayDate()
+		if req.EffectiveDate != nil {
+			date = *req.EffectiveDate
+		}
+		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedulesForDate(ctx, student.ID, date, schedules)
 	}); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return

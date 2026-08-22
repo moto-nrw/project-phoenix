@@ -33,6 +33,7 @@ type PickupScheduleService interface {
 	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
+	UpsertBulkStudentPickupSchedulesForDate(ctx context.Context, studentID int64, date timezone.Date, schedules []*schedule.StudentPickupSchedule) error
 	DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error
 	DeleteAllStudentPickupSchedules(ctx context.Context, studentID int64) error
 
@@ -414,11 +415,20 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedules(
 	studentID int64,
 	rows []*schedule.StudentPickupSchedule,
 ) error {
+	return s.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, timezone.TodayDate(), rows)
+}
+
+func (s *pickupScheduleService) UpsertBulkStudentPickupSchedulesForDate(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	rows []*schedule.StudentPickupSchedule,
+) error {
 	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 		if err := LockCareStudent(txCtx, s.db, studentID); err != nil {
 			return err
 		}
-		manualRows, err := s.manualRowsForReplacement(txCtx, studentID, rows)
+		manualRows, err := s.manualRowsForReplacement(txCtx, studentID, date, rows)
 		if err != nil {
 			return err
 		}
@@ -461,6 +471,7 @@ func (s *pickupScheduleService) withWeeklyResync(
 func (s *pickupScheduleService) manualRowsForReplacement(
 	ctx context.Context,
 	studentID int64,
+	date timezone.Date,
 	rows []*schedule.StudentPickupSchedule,
 ) ([]*schedule.StudentPickupSchedule, error) {
 	if len(rows) == 0 {
@@ -470,7 +481,7 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
-	offeringByWeekday, err := s.baselines.BookedOfferingPickupsByWeekday(ctx, studentID)
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, date, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
@@ -482,7 +493,7 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		}
 		row.Source = schedule.PickupScheduleSourceStaff
 		row.CareOfferingID = nil
-		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], offeringByWeekday[row.Weekday]) {
+		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], projection.OfferingWeeklyForDate(studentID, date)[row.Weekday]) {
 			manual = append(manual, row)
 		}
 	}
@@ -500,21 +511,12 @@ func staffPickupRowsByWeekday(rows []*schedule.StudentPickupSchedule) map[int]*s
 }
 
 func shouldStoreManualPickup(
-	row, previous *schedule.StudentPickupSchedule, projected []*schedule.StudentPickupSchedule,
+	row, previous, projected *schedule.StudentPickupSchedule,
 ) bool {
 	if previous != nil && samePickupMinute(previous, row) && equalOptionalPickupNotes(previous.Notes, row.Notes) {
 		return true
 	}
-	return !matchesProjectedPickup(row, projected) || !emptyOptionalPickupNotes(row.Notes)
-}
-
-func matchesProjectedPickup(row *schedule.StudentPickupSchedule, projected []*schedule.StudentPickupSchedule) bool {
-	for _, candidate := range projected {
-		if candidate != nil && samePickupMinute(candidate, row) {
-			return true
-		}
-	}
-	return false
+	return projected == nil || !samePickupMinute(projected, row) || !emptyOptionalPickupNotes(row.Notes)
 }
 
 func samePickupMinute(left, right *schedule.StudentPickupSchedule) bool {

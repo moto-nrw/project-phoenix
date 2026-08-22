@@ -134,11 +134,13 @@ export interface BackendPickupScheduleRequest {
 // Bulk schedule update request
 export interface BulkPickupScheduleFormData {
   schedules: PickupScheduleFormData[];
+  effectiveDate?: string;
 }
 
 // Backend bulk schedule request
 export interface BackendBulkPickupScheduleRequest {
   schedules: BackendPickupScheduleRequest[];
+  effective_date?: string;
 }
 
 // Request types for creating/updating exceptions
@@ -276,6 +278,7 @@ export function mapBulkPickupScheduleFormToBackend(
 ): BackendBulkPickupScheduleRequest {
   return {
     schedules: data.schedules.map(mapPickupScheduleFormToBackend),
+    ...(data.effectiveDate ? { effective_date: data.effectiveDate } : {}),
   };
 }
 

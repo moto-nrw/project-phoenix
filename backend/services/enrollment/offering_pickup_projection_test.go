@@ -185,7 +185,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		"the weekly editor must receive the offering value for its requested week")
 
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
-	require.NoError(t, reader.UpsertBulkStudentPickupSchedules(ctx, studentID, []*scheduleModels.StudentPickupSchedule{{
+	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*scheduleModels.StudentPickupSchedule{{
 		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
 		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))

@@ -91,10 +91,10 @@ func (s *decisionService) ResetStudentPickupDayToOffering(
 	if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 		return fmt.Errorf("pickup reset date must be Monday through Friday")
 	}
-	if err := s.lockTemplateRecurrence(ctx); err != nil {
+	if err := s.lockPickupStudents(ctx, []int64{studentID}); err != nil {
 		return err
 	}
-	if err := s.lockPickupStudents(ctx, []int64{studentID}); err != nil {
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return err
 	}
 	offering, err := s.PickupBaselines.OfferingPickupForDate(ctx, studentID, date)

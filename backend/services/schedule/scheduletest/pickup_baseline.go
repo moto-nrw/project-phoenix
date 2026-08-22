@@ -59,16 +59,3 @@ func (f FixedPickupBaseline) OfferingPickupForDate(
 func (f FixedPickupBaseline) HasBookedOfferingPickupForWeekday(_ context.Context, studentID int64, weekday int) (bool, error) {
 	return studentID == f.StudentID && weekday == f.Weekday, nil
 }
-
-func (f FixedPickupBaseline) BookedOfferingPickupsByWeekday(_ context.Context, studentID int64) (map[int][]*scheduleModel.StudentPickupSchedule, error) {
-	if studentID != f.StudentID {
-		return map[int][]*scheduleModel.StudentPickupSchedule{}, nil
-	}
-	parsed, err := time.Parse("15:04", f.HHMM)
-	if err != nil {
-		return nil, err
-	}
-	return map[int][]*scheduleModel.StudentPickupSchedule{f.Weekday: {{
-		StudentID: studentID, Weekday: f.Weekday, PickupTime: timezone.WallClock(parsed),
-	}}}, nil
-}

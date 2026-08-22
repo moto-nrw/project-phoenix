@@ -482,6 +482,7 @@ export function CareScheduleManager({
         ),
         updateStudentPickupSchedules(studentId, {
           schedules: data.pickupSchedules,
+          effectiveDate: formatDateISO(weekDays[0]!),
         }),
       ]);
 
@@ -508,7 +509,7 @@ export function CareScheduleManager({
 
       if (failure) throw failure.reason;
     },
-    [studentId, refreshCareData],
+    [studentId, refreshCareData, weekDays],
   );
 
   const editingDayDate = editorTarget?.date ?? null;

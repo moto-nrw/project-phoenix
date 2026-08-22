@@ -404,6 +404,7 @@ describe("PickupScheduleManager", () => {
                 notes: "Test schedule",
               },
             ],
+            effectiveDate: "2025-01-27",
           },
         );
       });
