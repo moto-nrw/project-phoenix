@@ -176,12 +176,9 @@ func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID 
 	if student != nil && student.Status == users.StudentStatusAlumnus {
 		return nil, nil
 	}
-	// A child whose care has ended is off every kiosk roster from the day
-	// after their last care day (#2487). Reported as an unknown tag, exactly
-	// like a graduate, so PyrePortal needs no new error mapping.
-	if student.CareEndedOn(timezone.TodayDate()) {
-		return nil, nil
-	}
+	// Care-ended children remain resolvable here so an already-open attendance
+	// or visit can be checked out. The active service rejects only a new
+	// check-in under its locked state transition (#2487).
 	return student, nil
 }
 
