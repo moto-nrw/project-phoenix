@@ -129,6 +129,7 @@ var seedCoverageAllowlist = map[string]string{
 	"schedule.student_arrival_exceptions":       "GAP: prod has 327 rows",
 	"schedule.student_arrival_notes":            "GAP: prod has 20 rows",
 	"schedule.student_arrival_schedules":        "GAP: prod has 4002 rows",
+	"education.class_arrival_times":             "GAP: same gap as schedule.student_arrival_schedules — the seeder sets no arrival plan at all (#2414)",
 	"schedule.student_pickup_exceptions":        "GAP: prod has 205 rows",
 	"schedule.student_pickup_notes":             "GAP: prod has 53 rows",
 	"schedule.timeframes":                       "GAP: prod has 16 rows",

@@ -87,19 +87,9 @@ func (p *ArrivalBaselineProjection) WeeklyForDate(studentID int64, date timezone
 	return p.WeeklyByStudentDate[studentID][date]
 }
 
-// DerivedWeeklyForDate returns only the projected part of the plan. Write
-// paths use it to avoid persisting a value the projection already produces.
-func (p *ArrivalBaselineProjection) DerivedWeeklyForDate(studentID int64, date timezone.Date) ArrivalWeek {
-	if p == nil {
-		return nil
-	}
-	return p.DerivedByStudentDate[studentID][date]
-}
-
 // ArrivalBaselineReader is the single read boundary for regular arrival times.
 type ArrivalBaselineReader interface {
 	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*ArrivalBaselineProjection, error)
-	DerivedArrivalForDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModel.StudentArrivalSchedule, error)
 }
 
 type arrivalBaselineService struct {
@@ -200,18 +190,6 @@ func (s *arrivalBaselineService) Project(
 	return projection, nil
 }
 
-func (s *arrivalBaselineService) DerivedArrivalForDate(
-	ctx context.Context,
-	studentID int64,
-	date timezone.Date,
-) (*scheduleModel.StudentArrivalSchedule, error) {
-	projection, err := s.Project(ctx, []int64{studentID}, date, date)
-	if err != nil {
-		return nil, err
-	}
-	return projection.DerivedForDate(studentID, date), nil
-}
-
 // isCareDay decides whether the child is in care that day. With the booking
 // mode on the booking links are the truth and a stored row cannot add a day;
 // with it off the stored row IS the day, exactly as before #2414.
@@ -276,8 +254,8 @@ func effectiveArrivalRow(
 	return &effective
 }
 
-// loadCareDayRows resolves, per student and date, the rows that are actually
-// in force. Two independent facts meet here:
+// loadStoredRows returns the care-day markers a person entered. Two
+// independent facts meet in the projection above:
 //
 //	care day  — with the booking mode on, the approved booking links decide,
 //	            so a stale row on an unbooked weekday is IGNORED rather than

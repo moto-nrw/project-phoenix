@@ -197,3 +197,51 @@ func TestArrivalProjection_BookingEndStopsTheArrival(t *testing.T) {
 		assert.Nil(t, projection.ForDate(studentID, secondMonday))
 	})
 }
+
+// TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected closes the loop
+// on the 19.08. incident through the surface that actually caused it: the
+// care-day derivation behind the Erwartet-Status, not just the projection.
+func TestArrivalProjection_StaleRowNoLongerMarksTheChildExpected(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	ctx := testpkg.Ctx(t)
+
+	offering := createArrivalOffering(t, env, "erwartet-status", []string{"mon"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "erwartet-status@example.com", "Erwin", 2,
+	)
+	setStudentClass(t, env, studentID, "3b")
+	setArrivalClassTimes(t, env, "3b", map[string]string{"mon": "11:45", "thu": "11:45"})
+
+	// The child is booked for Monday only, but a row from before the
+	// Abmeldung still sits on Thursday.
+	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Erwartet")
+	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
+
+	careDays := scheduleService.NewCareDayService(scheduleService.CareDayDependencies{
+		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, true),
+		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
+		ArrivalExceptions: env.repos.StudentArrivalException,
+		PickupBaselines: scheduleService.NewPickupBaselineService(
+			env.repos.StudentPickupSchedule,
+			env.repos.RequestChildOffering,
+			env.repos.CareOffering,
+		),
+		PickupExceptions: env.repos.StudentPickupException,
+	})
+
+	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	thursday := monday.AddDays(3)
+
+	booked, err := careDays.ResolveForDate(ctx, []int64{studentID}, monday)
+	require.NoError(t, err)
+	assert.True(t, booked[studentID].Expected(), "the booked day still expects the child")
+
+	stale, err := careDays.ResolveForDate(ctx, []int64{studentID}, thursday)
+	require.NoError(t, err)
+	assert.False(t, stale[studentID].Expected(),
+		"a stale arrival row on an unbooked weekday must not keep a deregistered child expected")
+}

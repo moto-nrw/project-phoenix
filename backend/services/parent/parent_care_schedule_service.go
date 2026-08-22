@@ -247,6 +247,10 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 
 	arrivalByDay := map[int]string{}
 	for _, a := range arrivals {
+		if a.ExpectedArrival.IsZero() {
+			// Care day without a time: the class carries none yet (#2414).
+			continue
+		}
 		arrivalByDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
 	}
 	pickupByDay := map[int]string{}

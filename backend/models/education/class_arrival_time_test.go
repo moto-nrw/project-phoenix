@@ -72,14 +72,9 @@ func TestClassArrivalTimeForWeekday(t *testing.T) {
 		assert.False(t, ok)
 	})
 
-	t.Run("lists exactly the planned ISO weekdays", func(t *testing.T) {
-		assert.Equal(t, []int{scheduleModel.WeekdayMonday, scheduleModel.WeekdayWednesday}, row.PlannedWeekdays())
-	})
-
 	t.Run("a nil row plans nothing", func(t *testing.T) {
 		var empty *education.ClassArrivalTime
 		_, ok := empty.TimeForWeekday(scheduleModel.WeekdayMonday)
 		assert.False(t, ok)
-		assert.Empty(t, empty.PlannedWeekdays())
 	})
 }

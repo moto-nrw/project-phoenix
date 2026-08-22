@@ -1774,6 +1774,10 @@ func (d *careDiffSource) getArrival(ctx context.Context) (map[int]string, error)
 			return nil, d.arrivalErr
 		}
 		for _, a := range cur {
+			if a.ExpectedArrival.IsZero() {
+				// Care day without a time: the class carries none yet (#2414).
+				continue
+			}
 			d.arrivalMap[a.Weekday] = a.ExpectedArrival.Format("15:04")
 		}
 	}

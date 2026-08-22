@@ -135,8 +135,9 @@ func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
 //
 // Callers MUST run validateArrivalScheduleItems first (both current callers do,
 // via their Bind): the parse error below is intentionally discarded because the
-// time format is already guaranteed valid at that point. Mapping unvalidated
-// items here would silently persist a zero time.
+// time format is already guaranteed valid at that point. An empty time parses
+// to the zero value on purpose — that is the care day whose time comes from the
+// class timetable (#2414).
 func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staffID int64) []*schedule.StudentArrivalSchedule {
 	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(items))
 	for _, s := range items {

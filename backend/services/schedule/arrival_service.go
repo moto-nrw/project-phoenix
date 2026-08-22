@@ -901,12 +901,27 @@ func (s *arrivalScheduleService) letClassInherit(
 	classRow *educationModel.ClassArrivalTime,
 	result *BulkUpsertResult,
 ) error {
+	studentIDs := make([]int64, 0, len(students))
+	byStudent := make(map[int64]*users.Student, len(students))
 	for _, student := range students {
-		rows, err := s.scheduleRepo.FindByStudentID(ctx, student.ID)
-		if err != nil {
-			return fmt.Errorf("failed to fetch existing schedules for student %d: %w", student.ID, err)
+		studentIDs = append(studentIDs, student.ID)
+		byStudent[student.ID] = student
+	}
+	// One query for the whole class, not one per child.
+	allRows, err := s.scheduleRepo.FindByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return fmt.Errorf("failed to fetch existing schedules for the class: %w", err)
+	}
+	rowsByStudent := make(map[int64][]*schedule.StudentArrivalSchedule, len(students))
+	for _, row := range allRows {
+		if row != nil {
+			rowsByStudent[row.StudentID] = append(rowsByStudent[row.StudentID], row)
 		}
-		for _, row := range rows {
+	}
+
+	for _, studentID := range studentIDs {
+		student := byStudent[studentID]
+		for _, row := range rowsByStudent[studentID] {
 			if _, ok := touched[row.Weekday]; !ok || row.InheritsClassTime() {
 				continue
 			}

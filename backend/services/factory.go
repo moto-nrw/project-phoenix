@@ -672,6 +672,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.RequestChildOffering,
 		repos.CareOffering,
 	)
+	// The arrival mirror: the class timetable supplies the regular time and,
+	// with enrollment.bookings_authoritative on, the approved bookings supply
+	// the care days (#2414, ADR 0005). The care-day resolver reads through it
+	// so a stale row on an unbooked weekday stops marking a child expected.
+	arrivalBaselines := schedule.NewArrivalBaselineService(
+		repos.StudentArrivalSchedule,
+		repos.Student,
+		repos.ClassArrivalTime,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+		settingsService,
+	)
 
 	// Care-day derivation (#1747): intersects timetable assignments with the
 	// children's care plans. Read-only, so it can be shared by every consumer
@@ -679,6 +691,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Built here, ahead of the active service, because the timetable bridge
 	// below needs it and the active service needs the bridge.
 	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalBaselines:  arrivalBaselines,
 		ArrivalSchedules:  repos.StudentArrivalSchedule,
 		ArrivalExceptions: repos.StudentArrivalException,
 		PickupBaselines:   pickupBaselines,
@@ -1110,18 +1123,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 
-	// Initialize arrival schedule service. The baseline reader resolves the
-	// regular arrival time from the class timetable and, with
-	// enrollment.bookings_authoritative on, the care days from the approved
-	// bookings (#2414, ADR 0005).
-	arrivalBaselines := schedule.NewArrivalBaselineService(
-		repos.StudentArrivalSchedule,
-		repos.Student,
-		repos.ClassArrivalTime,
-		repos.RequestChildOffering,
-		repos.CareOffering,
-		settingsService,
-	)
 	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
 		repos.StudentArrivalException,

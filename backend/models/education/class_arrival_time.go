@@ -3,7 +3,6 @@ package education
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -67,23 +66,6 @@ func (c *ClassArrivalTime) TimeForWeekday(weekday int) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-// PlannedWeekdays lists the ISO weekdays the class carries a time for, sorted.
-// Without a booking mode this is also the set of days a child of the class is
-// expected (ADR 0005).
-func (c *ClassArrivalTime) PlannedWeekdays() []int {
-	if c == nil {
-		return nil
-	}
-	out := make([]int, 0, len(c.ArrivalTimes))
-	for day := range c.ArrivalTimes {
-		if iso, ok := enrollmentModel.CanonicalDayToISOWeekday(day); ok {
-			out = append(out, iso)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
 // NormalizeClassArrivalTimes canonicalizes the weekday map: lowercased day
 // codes, trimmed zero-padded HH:MM values, empty values dropped. An empty
 // result becomes nil so the jsonb column stores an empty object rather than
@@ -122,10 +104,8 @@ func NormalizeClassArrivalTimes(times map[string]string) (map[string]string, err
 // ISOWeekdayToCanonicalDay maps Monday..Friday onto the day codes the weekday
 // maps are keyed by.
 func ISOWeekdayToCanonicalDay(weekday int) (string, bool) {
-	for _, day := range []string{"mon", "tue", "wed", "thu", "fri"} {
-		if iso, ok := enrollmentModel.CanonicalDayToISOWeekday(day); ok && iso == weekday {
-			return day, true
-		}
-	}
-	return "", false
+	day, ok := isoWeekdayToCanonicalDay[weekday]
+	return day, ok
 }
+
+var isoWeekdayToCanonicalDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}

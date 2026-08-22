@@ -152,6 +152,11 @@ type CareDayService interface {
 
 // CareDayDependencies carries the read boundaries the derivation uses.
 type CareDayDependencies struct {
+	// ArrivalBaselines resolves the arrival plan the same way every other
+	// reader sees it (#2414): with the booking mode on, a stale row on an
+	// unbooked weekday plans nothing. Without it the resolver would keep
+	// marking a deregistered child as expected — the 19.08. incident.
+	ArrivalBaselines  ArrivalBaselineReader
 	ArrivalSchedules  schedule.StudentArrivalScheduleRepository
 	ArrivalExceptions schedule.StudentArrivalExceptionRepository
 	PickupBaselines   PickupBaselineReader
@@ -211,6 +216,7 @@ type carePlans struct {
 	// The arrival plan is undated. Pickup baselines can change within the
 	// range when booking validity changes, so they are keyed by date.
 	arrivalByStudentWeekday map[int64]map[int]*schedule.StudentArrivalSchedule
+	arrivalByStudentDate    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule
 	pickupByStudentDate     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule
 	hasPlan                 map[int64]map[timezone.Date]bool
 
@@ -237,6 +243,7 @@ func (s *careDayService) loadCarePlans(
 func newCarePlans() *carePlans {
 	return &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
+		arrivalByStudentDate:    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule{},
 		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
 		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
@@ -245,6 +252,39 @@ func newCarePlans() *carePlans {
 }
 
 func (s *careDayService) loadArrivalPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
+	if s.deps.ArrivalBaselines == nil {
+		return s.loadStoredArrivalPlans(ctx, plans, studentIDs, from, to)
+	}
+	arrivals, err := s.deps.ArrivalBaselines.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
+	}
+	for _, studentID := range studentIDs {
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if arrivals.HasPlan(studentID, date) {
+				plans.markHasPlan(studentID, date)
+			}
+			row := arrivals.ForDate(studentID, date)
+			if row == nil {
+				continue
+			}
+			if plans.arrivalByStudentDate[studentID] == nil {
+				plans.arrivalByStudentDate[studentID] = make(map[timezone.Date]*schedule.StudentArrivalSchedule)
+			}
+			plans.arrivalByStudentDate[studentID][date] = row
+		}
+	}
+	return nil
+}
+
+// loadStoredArrivalPlans is the pre-#2414 path, kept for callers wired without
+// a baseline reader (CLI, older tests).
+func (s *careDayService) loadStoredArrivalPlans(
 	ctx context.Context,
 	plans *carePlans,
 	studentIDs []int64,
@@ -407,7 +447,13 @@ func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *Effec
 	if weekday > schedule.WeekdayFriday {
 		return result
 	}
-	if sched, ok := p.arrivalByStudentWeekday[studentID][weekday]; ok && sched != nil {
+	sched := p.arrivalByStudentDate[studentID][date]
+	if sched == nil {
+		sched = p.arrivalByStudentWeekday[studentID][weekday]
+	}
+	// A care day whose class carries no time has no arrival time. Copying the
+	// zero value here would render as 00:00 everywhere (#2414).
+	if sched != nil && !sched.ExpectedArrival.IsZero() {
 		arrival := sched.ExpectedArrival
 		result.ArrivalTime = &arrival
 	}
