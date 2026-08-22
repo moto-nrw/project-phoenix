@@ -297,6 +297,7 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, auth.MFAAdminOverrideNone, override,
 		"clearing the global override must remove the platform-wide row")
+	waitForOperatorAuditLogs(t, db, op.ID, acc.ID, platformModels.ActionMFAAdminOverride, 2, 3*time.Second)
 }
 
 // TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite is a regression
@@ -625,6 +626,28 @@ func waitForOperatorAuditLog(t *testing.T, db *bun.DB, operatorID, resourceID in
 		}
 		if time.Now().After(deadline) {
 			return nil
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func waitForOperatorAuditLogs(t *testing.T, db *bun.DB, operatorID, resourceID int64, action string, wanted int, timeout time.Duration) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for {
+		count, err := db.NewSelect().Model((*platformModels.OperatorAuditLog)(nil)).
+			ModelTableExpr(`platform.operator_audit_log AS "operator_audit_log"`).
+			Where("operator_id = ?", operatorID).
+			Where("resource_id = ?", resourceID).
+			Where("action = ?", action).
+			Count(context.Background())
+		require.NoError(t, err)
+		if count >= wanted {
+			return
+		}
+		if time.Now().After(deadline) {
+			require.Failf(t, "operator audit logs did not arrive", "got %d, want at least %d", count, wanted)
+			return
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
