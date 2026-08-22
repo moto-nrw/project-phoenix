@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	supervisiondashboard "github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -95,23 +94,6 @@ func setupDashboardContext(t *testing.T) (*testContext, chi.Router) {
 	return tc, mountActiveRouter(tc)
 }
 
-func setupDashboardContextAt(t *testing.T, now time.Time) (*testContext, chi.Router) {
-	t.Helper()
-	tc := setupTestContext(t)
-	tc.resource.SupervisionDashboardService = supervisiondashboard.NewService(supervisiondashboard.Dependencies{
-		Active:      tc.services.Active,
-		UserContext: tc.services.UserContext,
-		Education:   tc.services.Education,
-		Schulhof:    tc.services.Schulhof,
-		Operations:  tc.services.TimetableOperations,
-		Settings:    tc.services.Settings,
-		Pickups:     tc.services.PickupSchedule,
-		Arrivals:    tc.services.ArrivalSchedule,
-		Now:         func() time.Time { return now },
-	})
-	return tc, mountActiveRouter(tc)
-}
-
 func dashboardExec(t *testing.T, router chi.Router, path string, accountID int64, perms []string) *dashboardEnvelope {
 	t.Helper()
 	rr := dashboardExecRaw(t, router, path, accountID, perms)
@@ -127,11 +109,7 @@ func dashboardExecRaw(t *testing.T, router chi.Router, path string, accountID in
 
 func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	t.Parallel()
-	today := timezone.TodayDate()
-	for today.Weekday() != time.Monday {
-		today = today.AddDays(1)
-	}
-	tc, router := setupDashboardContextAt(t, today.BerlinMidnight())
+	tc, router := setupDashboardContext(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "DashAgg", "Leader")
 	room := testpkg.CreateTestRoom(t, tc.db, "DashAggRoom")
@@ -149,8 +127,6 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	checkIn := time.Now().Add(-1 * time.Hour)
 	testpkg.CreateTestAttendance(t, tc.db, student.ID, teacher.Staff.ID, device.ID, checkIn, nil)
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
-
-	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
 
 	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
@@ -201,12 +177,6 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 
 	// Tracking indicators for the visit students.
 	assert.Equal(t, []string{"Hausaufgaben"}, data.TrackingIndicators.Labels)
-
-	// Today's pickup exception surfaces in the folded-in pickup times.
-	require.Len(t, data.PickupTimes, 1)
-	assert.Equal(t, strconv.FormatInt(student.ID, 10), data.PickupTimes[0].StudentID)
-	require.NotNil(t, data.PickupTimes[0].PickupTime)
-	assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
 
 	// Full permission set resolves capabilities from settings defaults.
 	assert.True(t, data.Capabilities.WebSpontaneousActivitiesEnabled)

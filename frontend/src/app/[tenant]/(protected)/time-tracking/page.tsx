@@ -1718,20 +1718,21 @@ function OwnZeiterfassungSection({
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
-  // Date-valid Soll for the visible range (#1842). Fetched in BOTH view modes:
-  // the table's `schedule` prop only ever describes the CURRENT plan, so after
-  // a contract change it would print today's hours onto historical rows and
-  // contradict the Monatskarte above it.
+  // Servergerechnete Tagesprojektion für den sichtbaren Zeitraum (#1842,
+  // #2443): Soll, Gutschrift, Ist und Saldo je Tag, aus derselben Rechnung wie
+  // die Monatskarte. In BEIDEN Ansichtsmodi geladen — die `schedule`-Prop
+  // beschreibt nur den AKTUELLEN Plan, und ein Saldo aus „Ist minus Soll"
+  // kennt weder Gutschriften noch Abwesenheitstage ohne Session.
   // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
   // SWR serves the PREVIOUS range's map while the new one is in flight, and the
   // table must not fall back to today's plan for the days it doesn't cover.
   const {
-    data: dailyTargets,
-    error: dailyTargetsError,
-    isLoading: dailyTargetsLoading,
+    data: dailyProjection,
+    error: dailyProjectionError,
+    isLoading: dailyProjectionLoading,
   } = useSWRAuth(
     `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
-    () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
+    () => timeTrackingService.getDailyProjection(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
@@ -2029,9 +2030,9 @@ function OwnZeiterfassungSection({
               tableAbsenceData === undefined
             }
             schedule={schedule}
-            dailyTargets={dailyTargets}
-            dailyTargetsError={dailyTargetsError != null}
-            dailyTargetsPending={dailyTargetsLoading}
+            dailyProjection={dailyProjection}
+            dailyProjectionError={dailyProjectionError != null}
+            dailyProjectionPending={dailyProjectionLoading}
             holidays={tableHolidays}
             closingDays={tableClosingDays}
             accountStartDate={timeTrackingConfig?.accountStartDate ?? null}
@@ -3372,13 +3373,21 @@ function TimeTrackingContent() {
     );
 
   // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
-  // table fetches and its Monatskarte after a check-in/out, edit or absence
-  // change, so both update without a manual refresh. The Monatskarte belongs
-  // in here: its Ist, Gutschriften, Saldo and Übertrag are server-derived from
-  // exactly the sessions and absences these handlers just changed.
+  // table fetches, its Tagesprojektion and its Monatskarte after a
+  // check-in/out, edit or absence change, so all three update without a manual
+  // refresh. The Monatskarte belongs in here: its Ist, Gutschriften, Saldo and
+  // Übertrag are server-derived from exactly the sessions and absences these
+  // handlers just changed. So is the Tagesprojektion since #2443 — the
+  // schedule-targets key stopped being a pure Soll map and now carries the
+  // server-computed Ist, Gutschrift and Saldo per day, which means every one
+  // of these mutations invalidates it. Leaving it out left the table's own
+  // numbers stale while the session list and the Monatskarte above them had
+  // already moved on. The weekly KPI card (usePeriodMetrics) shares the key
+  // and is refreshed with it.
   const refreshTableData = useTenantMutateMatching([
     "time-tracking-table",
     "time-tracking-month-summary",
+    "time-tracking-schedule-targets-",
   ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)

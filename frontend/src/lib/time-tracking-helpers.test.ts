@@ -8,6 +8,8 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapDailyProjectionResponse,
+  targetsFromProjection,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
   mapWorkSessionHistoryResponse,
@@ -1035,5 +1037,58 @@ describe("indexWorkSessionMinutesByBerlinDate", () => {
 
     expect([...indexed.keys()]).toEqual(["2026-07-18"]);
     expect(indexed.get("2026-07-18")?.netMinutes).toBe(959);
+  });
+});
+
+describe("mapDailyProjectionResponse", () => {
+  it("bildet Soll, Gutschrift, Ist und Saldo je Tag ab", () => {
+    const projection = mapDailyProjectionResponse([
+      {
+        date: "2026-08-19",
+        target_minutes: 480,
+        credit_minutes: 480,
+        actual_minutes: 0,
+        balance_minutes: 0,
+      },
+      {
+        date: "2026-08-20T00:00:00Z",
+        target_minutes: 480,
+        credit_minutes: 0,
+        actual_minutes: 120,
+        balance_minutes: -360,
+      },
+    ]);
+
+    expect(projection.get("2026-08-19")).toEqual({
+      targetMinutes: 480,
+      creditMinutes: 480,
+      actualMinutes: 0,
+      balanceMinutes: 0,
+    });
+    // Ein Zeitstempel wird auf den Kalendertag gekürzt.
+    expect(projection.get("2026-08-20")?.balanceMinutes).toBe(-360);
+  });
+
+  it("liefert für eine leere Antwort eine leere Map", () => {
+    expect(mapDailyProjectionResponse(null).size).toBe(0);
+    expect(mapDailyProjectionResponse(undefined).size).toBe(0);
+  });
+});
+
+describe("targetsFromProjection", () => {
+  it("schneidet nur das Soll heraus", () => {
+    const projection = mapDailyProjectionResponse([
+      {
+        date: "2026-08-19",
+        target_minutes: 480,
+        credit_minutes: 480,
+        actual_minutes: 0,
+        balance_minutes: 0,
+      },
+    ]);
+
+    expect([...targetsFromProjection(projection)]).toEqual([
+      ["2026-08-19", 480],
+    ]);
   });
 });

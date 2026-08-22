@@ -273,7 +273,7 @@ export function OgsConversation({
             messages.map((message, index) => {
               const eventI18n =
                 message.kind === "event"
-                  ? parentEventI18nDescriptor(message)
+                  ? parentEventI18nDescriptor(message, locale)
                   : null;
               const previous = messages[index - 1];
               const sameSenderAsPrevious =

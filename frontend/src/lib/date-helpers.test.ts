@@ -10,6 +10,7 @@ import {
   toISODate,
   parseISODate,
   isValidISODate,
+  isoWeekNumber,
   todayISO,
   berlinTodayISO,
   berlinDayStart,
@@ -76,6 +77,21 @@ describe("isValidISODate", () => {
     for (const s of ["2026-02-31", "2026-13-01", "2025-02-29", "2026-00-10"]) {
       expect(isValidISODate(s)).toBe(false);
     }
+  });
+});
+
+describe("isoWeekNumber", () => {
+  it("counts the ISO week, Monday-based", () => {
+    // 01.02.2027 ist ein Montag in KW 5, 09.11.2026 ein Montag in KW 46.
+    expect(isoWeekNumber("2027-02-01")).toBe(5);
+    expect(isoWeekNumber("2026-11-09")).toBe(46);
+  });
+
+  it("puts the days around New Year in the week that holds their Thursday", () => {
+    // 01.01.2027 ist ein Freitag und gehört noch zur KW 53 des Vorjahres.
+    expect(isoWeekNumber("2027-01-01")).toBe(53);
+    // 04.01.2027 ist der Montag der ersten Kalenderwoche.
+    expect(isoWeekNumber("2027-01-04")).toBe(1);
   });
 });
 

@@ -731,6 +731,61 @@ export function mapDailyTargetsResponse(
   return targets;
 }
 
+export interface BackendDailyProjection extends BackendDailyTarget {
+  credit_minutes: number;
+  actual_minutes: number;
+  balance_minutes: number;
+}
+
+/**
+ * Der servergerechnete Tageswert einer Zeile: Soll, Gutschrift, Ist und der
+ * daraus folgende Saldo (#2443). Alle vier kommen aus derselben Rechnung, die
+ * die Monatskarte summiert (`GetDailyProjection`).
+ *
+ * Die Tabelle rechnet bewusst NICHTS davon selbst nach. Solange sie den Saldo
+ * als „Ist minus Soll" ableitete, hatte ein Abwesenheitstag ohne Session gar
+ * keinen — ein Freizeitausgleich sah damit kostenlos aus, obwohl die
+ * Monatskarte darunter längst das volle Tagessoll abgezogen hatte.
+ */
+export interface DayProjection {
+  readonly targetMinutes: number;
+  readonly creditMinutes: number;
+  readonly actualMinutes: number;
+  readonly balanceMinutes: number;
+}
+
+/**
+ * Tagesprojektion je Kalendertag, keyed nach ISO-Tag (YYYY-MM-DD).
+ */
+export function mapDailyProjectionResponse(
+  data: BackendDailyProjection[] | null | undefined,
+): ReadonlyMap<string, DayProjection> {
+  const projection = new Map<string, DayProjection>();
+  for (const entry of data ?? []) {
+    projection.set(entry.date.slice(0, 10), {
+      targetMinutes: entry.target_minutes,
+      creditMinutes: entry.credit_minutes,
+      actualMinutes: entry.actual_minutes,
+      balanceMinutes: entry.balance_minutes,
+    });
+  }
+  return projection;
+}
+
+/**
+ * Nur die Soll-Minuten aus einer Tagesprojektion — für Verbraucher, die
+ * ausschließlich das Soll brauchen (Wochen-/Monats-KPIs). Sie lesen denselben
+ * SWR-Key wie die Tagestabelle: ein Key trägt EINE Nutzlast, also holen beide
+ * die Projektion und schneiden sich hier heraus, was sie brauchen.
+ */
+export function targetsFromProjection(
+  projection: ReadonlyMap<string, DayProjection>,
+): ReadonlyMap<string, number> {
+  return new Map(
+    [...projection].map(([date, day]) => [date, day.targetMinutes]),
+  );
+}
+
 export interface BackendHoliday {
   date: string;
   name: string;

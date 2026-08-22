@@ -53,12 +53,13 @@ type ThreadSummaryResponse struct {
 	// of the German LastMessageBody (which the full conversation already
 	// localizes the same way). Empty for plain messages, where LastMessageBody is
 	// the human-written, language-neutral text.
-	LastMessageKind        string `json:"last_message_kind,omitempty"`
-	LastEventType          string `json:"last_event_type,omitempty"`
-	LastRequestType        string `json:"last_request_type,omitempty"`
-	LastRequestStatus      string `json:"last_request_status,omitempty"`
-	LastMessageReadByStaff bool   `json:"last_message_read_by_staff"`
-	Unread                 int    `json:"unread"`
+	LastMessageKind        string         `json:"last_message_kind,omitempty"`
+	LastEventType          string         `json:"last_event_type,omitempty"`
+	LastRequestType        string         `json:"last_request_type,omitempty"`
+	LastRequestStatus      string         `json:"last_request_status,omitempty"`
+	LastMessagePayload     map[string]any `json:"last_message_payload,omitempty"`
+	LastMessageReadByStaff bool           `json:"last_message_read_by_staff"`
+	Unread                 int            `json:"unread"`
 }
 
 // toThreadSummary maps a projected inbox thread to the parent-facing summary,
@@ -79,6 +80,7 @@ func toThreadSummary(t *usersModels.InboxThread) ThreadSummaryResponse {
 		LastEventType:          t.LastEventType,
 		LastRequestType:        t.LastRequestType,
 		LastRequestStatus:      t.LastRequestStatus,
+		LastMessagePayload:     t.LastMessagePayload,
 		LastMessageReadByStaff: t.LastMessageReadByStaff,
 		Unread:                 t.UnreadCount,
 	}

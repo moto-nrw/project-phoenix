@@ -46,6 +46,10 @@ type ChildEvent struct {
 	// row) so a future client can deep-link. Optional.
 	RefTable string
 	RefID    *int64
+	// Payload carries the structured detail a localized client needs to render
+	// the pill itself instead of the German Body — today the confirmed
+	// effective date of a decided offering-change request (#2484). Optional.
+	Payload map[string]any
 }
 
 // isTerminalRequestEvent reports whether ev CLOSES a change request that already
@@ -246,6 +250,7 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 			DecisionReason:  ev.DecisionReason,
 			RefTable:        ev.RefTable,
 			RefID:           ev.RefID,
+			Payload:         ev.Payload,
 		}
 		msg.SetTenantID(thread.TenantID)
 		if err := e.threadRepo.LockForMessageAppend(txCtx, thread.ID); err != nil {

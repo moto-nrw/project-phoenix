@@ -1868,10 +1868,9 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 	t.Parallel()
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	today := timezone.TodayDate()
-	// Open session, checked in today: 30 min of ended breaks (in the cache)
+	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
 	// plus a break that started 20 min ago and is still running.
-	checkIn := today.BerlinMidnight().Add(time.Minute)
+	checkIn := time.Now().Add(-4 * time.Hour)
 	breakStart := time.Now().Add(-20 * time.Minute)
 	endedBreakEnd := time.Now().Add(-2 * time.Hour)
 
@@ -1880,7 +1879,7 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 			{
 				Model:        base.Model{ID: 1},
 				StaffID:      staffID,
-				Date:         today,
+				Date:         timezone.TodayDate(),
 				CheckInTime:  checkIn,
 				BreakMinutes: 30,
 			},
@@ -1899,16 +1898,20 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		}, nil
 	}
 
-	historyResp, err := svc.GetHistory(context.Background(), staffID, today, today)
+	from := timezone.DateFromTime(checkIn)
+	historyResp, err := svc.GetHistory(context.Background(), staffID, from, timezone.TodayDate())
 	require.NoError(t, err)
 	require.Len(t, historyResp.Sessions, 1)
 
-	// Gross time today − 30 ended − 20 running.
-	expectedNetMinutes := int(time.Since(checkIn).Minutes()) - 50
-	assert.InDelta(t, expectedNetMinutes, historyResp.Sessions[0].NetMinutes, 1,
+	// 240 gross − 30 ended − 20 running = 190.
+	assert.InDelta(t, 190, historyResp.Sessions[0].NetMinutes, 1,
 		"the running break must be deducted, exactly as the Monatskarte does")
-	assert.InDelta(t, expectedNetMinutes, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
-		"the weekly summary aggregates the corrected value")
+	weeklyNetMinutes := 0
+	for _, summary := range historyResp.WeeklySummaries {
+		weeklyNetMinutes += summary.TotalNetMinutes
+	}
+	assert.InDelta(t, 190, weeklyNetMinutes, 1,
+		"the weekly summaries aggregate the corrected value")
 	// The reader must be able to add the row up: the Ist above already stopped
 	// growing, so reporting the raw ENDED-breaks cache (30) as the pause would
 	// print "Pause 0:30" against 20 minutes of deducted time and break

@@ -249,6 +249,39 @@ describe("parentEventI18nDescriptor", () => {
     ).toEqual({ key: "eventRequestConfirmedCareOffering" });
   });
 
+  it("names the confirmed date of a care-offering approval (#2484)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "care_offering",
+        payload: { effective_from: "2026-09-01" },
+      }),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "01.09.2026" },
+    });
+  });
+
+  it("formats the confirmed date in the guardian's locale (#2484)", () => {
+    expect(
+      parentEventI18nDescriptor(
+        {
+          kind: "event",
+          event_type: "request_status",
+          request_status: "erledigt",
+          request_type: "care_offering",
+          payload: { effective_from: "2026-09-01" },
+        },
+        "en-US",
+      ),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "09/01/2026" },
+    });
+  });
+
   it("returns null for sick_note / care_exception pills so the raw German body renders (#1803)", () => {
     for (const eventType of [
       "sick_note",
@@ -300,6 +333,24 @@ describe("parentThreadPreviewI18nDescriptor", () => {
         last_request_type: "care_schedule",
       }),
     ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
+  });
+
+  it("keeps the confirmed offering date in a thread preview (#2484)", () => {
+    expect(
+      parentThreadPreviewI18nDescriptor(
+        {
+          last_message_kind: "event",
+          last_event_type: "request_status",
+          last_request_status: "erledigt",
+          last_request_type: "care_offering",
+          last_message_payload: { effective_from: "2026-09-01" },
+        },
+        "en-US",
+      ),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "09/01/2026" },
+    });
   });
 
   it("omits the reject reason in previews (localized status only)", () => {

@@ -29,10 +29,12 @@ func ParseDateRangeQuery(r *http.Request) (timezone.Date, timezone.Date, error) 
 }
 
 // getOwnScheduleTargets handles
-// GET /api/time-tracking/schedule-targets?from=&to= — the date-valid Soll per
-// day for the staff member's own daily table (#1842). The table used to apply
-// the CURRENT schedule to every rendered date, which contradicted the
-// Monatskarte above it as soon as someone's contracted hours changed.
+// GET /api/time-tracking/schedule-targets?from=&to= — the per-day projection
+// (Soll, Gutschrift, Ist, Saldo) for the staff member's own daily table (#1842,
+// #2443). The table used to apply the CURRENT schedule to every rendered date
+// and to derive its Saldo as "Ist minus Soll", which contradicted the
+// Monatskarte above it as soon as someone's contracted hours changed or a day
+// carried an absence instead of a work session.
 func (rs *Resource) getOwnScheduleTargets(w http.ResponseWriter, r *http.Request) {
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
@@ -47,7 +49,7 @@ func (rs *Resource) getOwnScheduleTargets(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	targets, err := rs.WorkTimeMonthService.GetDailyTargets(r.Context(), staffID, from, to)
+	projection, err := rs.WorkTimeMonthService.GetDailyProjection(r.Context(), staffID, from, to)
 	if err != nil {
 		if errors.Is(err, activeSvc.ErrInvalidTargetRange) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -57,5 +59,5 @@ func (rs *Resource) getOwnScheduleTargets(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, targets, "Schedule targets retrieved successfully")
+	common.Respond(w, r, http.StatusOK, projection, "Daily projection retrieved successfully")
 }
