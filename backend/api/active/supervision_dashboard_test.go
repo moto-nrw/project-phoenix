@@ -128,9 +128,6 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 	testpkg.CreateTestAttendance(t, tc.db, student.ID, teacher.Staff.ID, device.ID, checkIn, nil)
 	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, checkIn, nil)
 
-	today := timezone.TodayDate()
-	_ = testpkg.CreateTestPickupException(t, tc.db, student.ID, today, teacher.Staff.ID, "15:30", "Test")
-
 	settingsCtx := testpkg.Ctx(t)
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicatorsEnabled, true, nil, nil))
 	require.NoError(t, tc.services.Settings.SetValue(settingsCtx, configModel.KeyTrackingIndicator1, "Hausaufgaben", nil, nil))
@@ -180,21 +177,6 @@ func TestSupervisionDashboard_Aggregates(t *testing.T) {
 
 	// Tracking indicators for the visit students.
 	assert.Equal(t, []string{"Hausaufgaben"}, data.TrackingIndicators.Labels)
-
-	// Today's pickup exception surfaces in the folded-in pickup times.
-	require.Len(t, data.PickupTimes, 1)
-	assert.Equal(t, strconv.FormatInt(student.ID, 10), data.PickupTimes[0].StudentID)
-	// The effective-time resolver answers Mon-Fri only: on a weekend it
-	// returns the row without a time and never reads the exception
-	// (effectiveTimeCore.BulkEffectiveTimesForDate). The exception itself is
-	// pinned on a fixed Thursday in
-	// TestPickupScheduleService_GetBulkEffectivePickupTimesForDate; here the
-	// value is only asserted on the days the dashboard can carry one, so a
-	// Saturday CI run does not fail on a rule the projection does not own.
-	if weekday := today.Weekday(); weekday != time.Saturday && weekday != time.Sunday {
-		require.NotNil(t, data.PickupTimes[0].PickupTime)
-		assert.Equal(t, "15:30", *data.PickupTimes[0].PickupTime)
-	}
 
 	// Full permission set resolves capabilities from settings defaults.
 	assert.True(t, data.Capabilities.WebSpontaneousActivitiesEnabled)

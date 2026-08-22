@@ -390,8 +390,9 @@ type DecisionServiceConfig struct {
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo        users.GuardianPhoneNumberRepository             // target: guardian.phone_numbers / contact.phone_numbers
-	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
+	GuardianPhoneRepo        users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
+	PickupBaselines          OfferingPickupBaselineReader
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
 	ActivityGroupRepo        activities.GroupRepository
@@ -415,9 +416,10 @@ type DecisionServiceConfig struct {
 	FrontendURL            string                   // not used by parent-facing emails today; kept for future admin links
 	ParentsURL             string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
 	Settings               DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
-	// LockTemplateRecurrence serializes sourced roster writes with template
-	// split/end/materialization. Production wires the schedule service's
-	// transaction-scoped tenant recurrence gate; tests may leave it nil.
+	// LockTemplateRecurrence serializes offering-derived writes: sourced roster
+	// changes, booking links, care-offering configuration, and manual-pickup
+	// reset preflights. Production wires the schedule service's transaction-
+	// scoped tenant recurrence gate; tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	// InstanceRosters propagates sourced-roster resync results onto already-
 	// materialized future occurrences (#2147 review). Production wires the
@@ -1275,13 +1277,13 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, ErrDecisionChildNotFound
 	}
 
-	// Materialize the Angebots-Gehzeiten AFTER the refresh: the re-read
-	// child carries the created_student_id the approval just stamped (#2290).
+	// Refresh projected-pickup consumers AFTER the re-read has the student id
+	// stamped by this approval.
 	if input.Status == DecisionApproved {
 		today := timezone.TodayDate()
 		if !phase.ServiceStartDate.After(today) {
-			if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy, today); err != nil {
-				return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+			if err := s.syncOfferingPickupAfterApproval(ctx, target); err != nil {
+				return nil, fmt.Errorf("decision: refresh offering pickup projection: %w", err)
 			}
 		}
 	}

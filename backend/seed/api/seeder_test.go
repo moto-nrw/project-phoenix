@@ -64,6 +64,47 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 	assert.Equal(t, false, seen[configModels.KeyEnrollmentRequireCaptcha])
 }
 
+func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
+	t.Parallel()
+
+	type offeringPayload struct {
+		Name          string            `json:"name"`
+		AvailableDays []string          `json:"available_days"`
+		CountsAsCare  bool              `json:"counts_as_care"`
+		PickupTimes   map[string]string `json:"pickup_times"`
+	}
+	var received []offeringPayload
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "/api/enrollment/care-offerings", r.URL.Path)
+		var body offeringPayload
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		received = append(received, body)
+		_, _ = fmt.Fprintf(w, `{"status":"success","data":{"id":"%d"}}`, len(received))
+	}))
+	defer srv.Close()
+
+	step := parentEnrollmentSeedStep{}
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, phoenixapi.AuthRef{}, 1)
+	require.NoError(t, err)
+	require.Len(t, received, 4)
+
+	expectedTimes := map[string]string{"OGS Ganztag": "16:00", "Kurzbetreuung": "14:00", "Mittagessen": "", "Ferienbetreuung Herbst": "16:00"}
+	for _, offering := range received {
+		expectedTime, ok := expectedTimes[offering.Name]
+		require.True(t, ok, offering.Name)
+		countsAsCare := expectedTime != ""
+		assert.Equal(t, countsAsCare, offering.CountsAsCare, offering.Name)
+		if !countsAsCare {
+			assert.Empty(t, offering.PickupTimes, offering.Name)
+			continue
+		}
+		assert.Len(t, offering.PickupTimes, len(offering.AvailableDays), offering.Name)
+		for _, day := range offering.AvailableDays {
+			assert.Equal(t, expectedTime, offering.PickupTimes[day], "%s %s", offering.Name, day)
+		}
+	}
+}
+
 func TestParentEnrollmentParentPassword(t *testing.T) {
 	t.Parallel()
 

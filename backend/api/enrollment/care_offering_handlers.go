@@ -58,19 +58,37 @@ const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
 // the admin editor can show a localized message (#1885).
 const ErrCodeCareOfferingDaysRequired = "enrollment.care_offering_days_required"
 
-func careOfferingWriteErrorRenderer(err error) render.Renderer {
-	switch {
-	case errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch):
-		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
-	case errors.Is(err, enrollmentModels.ErrCareOfferingDaysRequired):
-		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
-	case errors.Is(err, enrollmentService.ErrCareOfferingInvalid),
-		errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict):
-		return common.ErrorInvalidRequest(err)
-	default:
+// ErrCodeCareOfferingPickupTimesRequired identifies an active care offering
+// whose selected weekdays do not all have a pickup time.
+const ErrCodeCareOfferingPickupTimesRequired = "enrollment.care_offering_pickup_times_required"
+
+var careOfferingWriteErrorRenderer = common.RulesRenderer(
+	[]common.ErrorRule{
+		{
+			Target: enrollmentService.ErrCareOfferingTemplatePeriodMismatch,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+			},
+		},
+		{
+			Target: enrollmentModels.ErrCareOfferingDaysRequired,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
+			},
+		},
+		{
+			Target: enrollmentModels.ErrCareOfferingPickupTimesRequired,
+			Render: func(err error) render.Renderer {
+				return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingPickupTimesRequired)
+			},
+		},
+		{Target: enrollmentService.ErrCareOfferingInvalid, Render: common.ErrorInvalidRequest},
+		{Target: enrollmentService.ErrCareOfferingGroupRuleConflict, Render: common.ErrorInvalidRequest},
+	},
+	func(err error) render.Renderer {
 		return common.ErrorInternalServerWrap("care offering operation failed", err)
-	}
-}
+	},
+)
 
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := CareOfferingResponse{
@@ -128,8 +146,8 @@ type CareOfferingRequest struct {
 	SortOrder           int                                            `json:"sort_order"`
 	SelectionGroup      string                                         `json:"selection_group,omitempty"`
 	SelectionRule       string                                         `json:"selection_rule,omitempty"`
-	// PickupTimes is the optional Angebots-Gehzeit per weekday
-	// ({"mon":"14:30"}), see #2290.
+	// PickupTimes is the booking-derived pickup baseline per weekday. Active
+	// offerings that count as care require a value for every selected weekday.
 	PickupTimes map[string]string `json:"pickup_times,omitempty"`
 }
 

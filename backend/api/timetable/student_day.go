@@ -325,7 +325,7 @@ func resolvePickupSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date time
 	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	sched, hasSched := pre.PickupSchedByWeekly[wd]
+	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
 	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {

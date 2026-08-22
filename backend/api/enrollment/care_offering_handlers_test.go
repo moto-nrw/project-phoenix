@@ -327,6 +327,19 @@ func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingDaysRequired)
 }
 
+func TestCreateCareOfferingHandler_MissingPickupTimesReturnsStableCode(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
+		enrollmentService.ErrCareOfferingInvalid, enrollmentModels.ErrCareOfferingPickupTimesRequired)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingPickupTimesRequired)
+}
+
 // --- updateCareOffering ---------------------------------------------
 
 func TestUpdateCareOfferingHandler_NilServiceReturns500(t *testing.T) {

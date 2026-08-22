@@ -179,8 +179,17 @@ async function handleDeleteResponse(
  */
 export async function fetchStudentPickupData(
   studentId: string,
+  range?: { from: string; to: string },
 ): Promise<PickupData> {
-  const response = await fetch(`/api/students/${studentId}/pickup-schedules`);
+  const query = new URLSearchParams();
+  if (range) {
+    query.set("from", range.from);
+    query.set("to", range.to);
+  }
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules${suffix}`,
+  );
 
   if (!response.ok) {
     await throwResponseError(response, "Failed to fetch pickup schedules");
@@ -226,18 +235,19 @@ export async function updateStudentPickupSchedules(
 
 /**
  * Setzt die Gehzeit eines Wochentags auf die Angebots-Gehzeit zurück (#2290).
- * Ohne Angebots-Gehzeit für den Tag wird der Eintrag entfernt.
+ * Der Server lehnt den Reset ab, wenn an diesem Datum keine Angebots-Gehzeit gilt.
  */
 export async function resetStudentPickupToOffering(
   studentId: string,
   weekday: number,
+  date: string,
 ): Promise<PickupData> {
   const response = await fetch(
     `/api/students/${studentId}/pickup-schedules/reset-offering`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekday }),
+      body: JSON.stringify({ weekday, date }),
     },
   );
 

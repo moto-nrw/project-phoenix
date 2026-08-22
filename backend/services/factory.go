@@ -664,6 +664,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
+	pickupBaselines := schedule.NewPickupBaselineService(
+		repos.StudentPickupSchedule,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+	)
 
 	// Care-day derivation (#1747): intersects timetable assignments with the
 	// children's care plans. Read-only, so it can be shared by every consumer
@@ -673,7 +678,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
 		ArrivalSchedules:  repos.StudentArrivalSchedule,
 		ArrivalExceptions: repos.StudentArrivalException,
-		PickupSchedules:   repos.StudentPickupSchedule,
+		PickupBaselines:   pickupBaselines,
 		PickupExceptions:  repos.StudentPickupException,
 	})
 
@@ -895,7 +900,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// parent care-exception writers so both derive the same state.
 	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		repos.StudentPickupSchedule,
+		pickupBaselines,
 		repos.InstanceStudent,
 		db,
 	)
@@ -908,6 +913,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Student,
 		repos.Person,
 		pickupAutoExcusal,
+		pickupBaselines,
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
@@ -1626,6 +1632,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		PickupScheduleRepo:       repos.StudentPickupSchedule,
+		PickupBaselines:          pickupBaselines,
 		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repos.StudentEnrollment,
 		ActivityGroupRepo:        repos.ActivityGroup,
@@ -1714,6 +1721,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
 	}
 	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	pickupResyncBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPickupResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not accept the pickup resyncer")
+	}
+	pickupResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingPickupResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement pickup resync")
+	}
+	pickupResyncBinder.SetPickupResyncer(pickupResyncer)
 	// A phase service-window change re-bounds every roster row derived from
 	// the phase's offerings, so the templates sourcing them must resync too
 	// (#2147 review). Same late binding as above.
@@ -2099,7 +2115,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
 		PickupExceptionRepo: repos.StudentPickupException,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
+		PickupBaselines:     pickupBaselines,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
 		EducationGroupRepo:  repos.Group,
@@ -2228,6 +2244,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
 		ArrivalExceptionRepo:       repos.StudentArrivalException,
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
+		PickupBaselines:            pickupBaselines,
 		PickupExceptionRepo:        repos.StudentPickupException,
 		VisitRepo:                  repos.ActiveVisit,
 		RoomRepo:                   repos.Room,

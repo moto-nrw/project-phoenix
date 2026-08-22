@@ -18,7 +18,10 @@ import type {
   DayData as PickupDayData,
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
-import { formatPickupTime } from "~/lib/pickup-schedule-helpers";
+import {
+  formatPickupTime,
+  pickupScheduleSourceLabel,
+} from "~/lib/pickup-schedule-helpers";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -66,7 +69,10 @@ interface CarePlanEditorModalProps {
   readonly onSubmitWeekly: (payload: CarePlanWeeklySubmit) => Promise<void>;
   /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
    * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
-  readonly onResetPickupToOffering?: (weekday: number) => Promise<void>;
+  readonly onResetPickupToOffering?: (
+    weekday: number,
+    date: string,
+  ) => Promise<void>;
   readonly onCreateArrivalNote?: (
     date: string,
     content: string,
@@ -283,12 +289,12 @@ export function CarePlanEditorModal({
     toast.error(message);
   };
 
-  const handleResetPickupToOffering = async (weekday: number) => {
+  const handleResetPickupToOffering = async (weekday: number, date: string) => {
     if (!onResetPickupToOffering) return;
     setError(null);
     setIsResettingPickup(true);
     try {
-      await onResetPickupToOffering(weekday);
+      await onResetPickupToOffering(weekday, date);
     } catch {
       const message =
         "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
@@ -467,6 +473,7 @@ export function CarePlanEditorModal({
               ) : null}
               {onResetPickupToOffering &&
               pickupDay?.baseSchedule &&
+              pickupDay.offeringSchedule &&
               pickupDay.baseSchedule.source !== "care_offering" ? (
                 <div className="flex justify-end">
                   <Button
@@ -475,7 +482,10 @@ export function CarePlanEditorModal({
                     size="compact"
                     disabled={isResettingPickup}
                     onClick={() =>
-                      void handleResetPickupToOffering(pickupDay.weekday)
+                      void handleResetPickupToOffering(
+                        pickupDay.weekday,
+                        toDayISO(pickupDay.date),
+                      )
                     }
                   >
                     {isResettingPickup
@@ -1121,9 +1131,7 @@ function pickupPulledForward(
 function formatRegularPickup(day: PickupDayData | null): string {
   if (!day?.baseSchedule?.pickupTime) return "nicht geplant";
   const time = formatPickupTime(day.baseSchedule.pickupTime);
-  return day.baseSchedule.source === "care_offering"
-    ? `${time} (aus Betreuungsangebot)`
-    : time;
+  return `${time} (${pickupScheduleSourceLabel(day.baseSchedule)})`;
 }
 
 function buildWeeklyRows(

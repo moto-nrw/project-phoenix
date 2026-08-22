@@ -261,6 +261,7 @@ func createLinkedCareOffering(
 		Name:               fmt.Sprintf("Linked care offering %d", time.Now().UnixNano()),
 		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon"},
+		PickupTimes:        map[string]string{"mon": "14:30"},
 		IsActive:           true,
 		CountsAsCare:       true,
 		CountsAsCareSet:    true,

@@ -28,9 +28,9 @@ tatsächliche Abholung kann davon abweichen.
 ## Angebots-Gehzeit
 
 Die **Angebots-Gehzeit** ist eine je Wochentag am Betreuungsangebot hinterlegte
-Gehzeit. Sie ist optional und dient als Vorgabe für die Gehzeiten der Kinder,
-die das Angebot an diesem Wochentag gebucht haben. Eine für ein einzelnes Kind
-gepflegte Gehzeit geht der Angebots-Gehzeit vor.
+Gehzeit. Ein aktives Angebot, das als Betreuungstage zählt, braucht sie für
+jeden angebotenen Wochentag. Für ein Kind gilt sie nur innerhalb des wirksamen
+Buchungsfensters. Eine für ein einzelnes Kind gepflegte Gehzeit geht vor.
 
 ## Abholart
 
@@ -47,12 +47,11 @@ Abholart wählen dürfen. Welche Abholart es ist, entscheiden die Eltern.
 Jahrgänge ohne Beschränkung behalten die Mehrfachauswahl; bereits übernommene
 Angaben bleiben unangetastet, bis sie erneut eingereicht werden.
 
-## Ausrollen
+## Gehzeit-Projektion
 
-Das **Ausrollen** überträgt die Angebots-Gehzeit eines Betreuungsangebots auf
-die Gehzeiten aller Kinder, die das Angebot am jeweiligen Wochentag gebucht
-haben. Es geschieht nach ausdrücklicher Bestätigung; danach steht die Gehzeit
-am Kind selbst und trägt ihre Herkunft aus dem Angebot.
+Die **Gehzeit-Projektion** leitet die Angebots-Gehzeit beim Lesen aus der am
+angefragten Datum wirksamen Buchung ab. Sie speichert keine Angebots-Gehzeit am
+Kind. Eine gespeicherte, von Hand gepflegte Gehzeit überschreibt die Projektion.
 
 ## Anfrage
 
@@ -245,3 +244,41 @@ Eine **Übersteuerung** setzt eine Mitbuchungs-Regel für genau eine
 Änderungsanfrage außer Kraft: Die Schule wählt bei der Freigabe einzelne
 automatisch ergänzte Angebote ab. Die Regel selbst bleibt aktiv; die
 Übersteuerung ist an der entschiedenen Anfrage dauerhaft nachvollziehbar.
+
+## Fehlermeldung
+
+Eine **Fehlermeldung** ist der Text, den eine Nutzerin sieht, wenn eine von ihr
+ausgelöste Aktion nicht zum Ziel geführt hat. Sie nennt das betroffene Objekt
+und den nächsten Schritt. Was ohne Zutun der Nutzerin im Hintergrund scheitert,
+erzeugt keine Fehlermeldung, sondern höchstens einen Zustand im betroffenen
+Bereich. Ein leerer Bereich ist keine Fehlermeldung.
+
+## Fehlercode
+
+Der **Fehlercode** ist die Identität eines Fehlers, ein kurzer Text der Form
+`bereich.fehlername`. Er ist zugleich der Schlüssel, unter dem die Fehlermeldung
+im Fehlerkatalog steht. Der Fehlercode ist das Einzige, worauf sich ein
+Programm verlassen darf; der begleitende Text ist Anzeige und kann sich
+jederzeit ändern. Ein Fehlercode wird nie umbenannt und nie entfernt.
+
+## Fehlerklasse
+
+Die **Fehlerklasse** sagt, was die Nutzerin als Nächstes tun kann. Es gibt fünf:
+Eingabe (etwas ändern), Berechtigung (an die Leitung wenden), Fachliche
+Ablehnung (der Vorgang ist gerade nicht möglich), Nicht erreichbar (später
+erneut versuchen) und Serverfehler (bei uns ist etwas kaputt). Jeder Fehlercode
+gehört zu genau einer Klasse. Kennt der Fehlerkatalog einen Code nicht, wird der
+Text seiner Klasse angezeigt.
+
+## Fehlerkatalog
+
+Der **Fehlerkatalog** ordnet jedem Fehlercode seine Fehlermeldung zu, je Sprache.
+Er ist die einzige Stelle, an der Fehlertexte für Nutzerinnen entstehen.
+
+## Vorgangskennung
+
+Die **Vorgangskennung** benennt einen einzelnen fehlgeschlagenen Aufruf. Sie
+wird nur bei Serverfehlern und Netzabbrüchen angezeigt, damit eine Schule am
+Telefon auf denselben Vorgang zeigen kann, den der Support in der Auswertung
+sieht. Sie ist keine Fehleridentität: derselbe Fehlercode hat bei jedem
+Auftreten eine andere Vorgangskennung.

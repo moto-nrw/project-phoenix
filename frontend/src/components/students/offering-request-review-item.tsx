@@ -7,8 +7,10 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
-import { formatDate } from "~/lib/date-helpers";
+import { ISODatePicker } from "~/components/ui/date-picker";
+import { formatDate, isoWeekNumber } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useToast } from "~/contexts/ToastContext";
 import { Checkbox } from "~/components/ui/checkbox";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -22,10 +24,26 @@ import {
 
 const logger = createLogger({ component: "OfferingRequestReviewItem" });
 
+// Gründe, aus denen die Anfrage so nicht umsetzbar ist. Sie ändern sich nicht
+// von selbst: erneut klicken hilft nicht, es braucht ein anderes Datum, eine
+// andere Auswahl oder eine Ablehnung. Alles andere (Netz, Serverfehler) ist ein
+// vorübergehender Fehler und bleibt wiederholbar.
+const CONFLICT_CODES = new Set([
+  "offering_change_capacity_full",
+  "change_request_not_pending",
+  "offering_changes_no_enrollment",
+  "offering_change_date_out_of_range",
+]);
+
 // An approval genuinely applies the switch, so it can fail for reasons the
 // office has to act on rather than retry. Name each one and say what to do; the
-// row deliberately stays pending in all of these cases.
-function decideErrorMessage(code: string | undefined): string {
+// row deliberately stays pending in all of these cases. `fallback` names what
+// failed for everything else — die Vorschau speichert nichts, die Freigabe
+// schon.
+function decideErrorMessage(
+  code: string | undefined,
+  fallback = "Die Entscheidung konnte nicht gespeichert werden.",
+): string {
   switch (code) {
     case "offering_change_capacity_full":
       return "Für ein gewünschtes Angebot ist kein Platz mehr frei. Die Anfrage bleibt offen: Bitte mit der Familie eine Alternative klären oder die Anfrage mit Begründung ablehnen.";
@@ -33,10 +51,36 @@ function decideErrorMessage(code: string | undefined): string {
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
     case "offering_changes_no_enrollment":
       return "Für dieses Kind liegt keine gültige Anmeldung mehr vor, auf die die Änderung angewendet werden könnte. Bitte die Anfrage ablehnen.";
+    case "offering_change_date_out_of_range":
+      return "Zu diesem Datum kann die Änderung nicht gelten. Bitte ein Datum innerhalb der Betreuungszeit wählen, frühestens heute.";
     default:
-      return "Die Entscheidung konnte nicht gespeichert werden.";
+      return fallback;
   }
 }
+
+// Kurzform des Grundes. Sie bleibt an der Karte stehen, solange „Freigeben"
+// gesperrt ist — ein ausgegrauter Knopf ohne Grund ist eine Sackgasse. Der
+// vollständige Text mit dem nächsten Schritt läuft als Toast.
+function blockedReason(code: string | undefined): string {
+  switch (code) {
+    case "offering_change_capacity_full":
+      return "Zu diesem Datum ist ein Angebot voll.";
+    case "offering_change_date_out_of_range":
+      return "Zu diesem Datum kann die Änderung nicht gelten.";
+    case "offering_changes_no_enrollment":
+      return "Für dieses Kind liegt keine gültige Anmeldung mehr vor.";
+    case "change_request_not_pending":
+      return "Diese Anfrage wurde bereits entschieden.";
+    default:
+      return "Mit diesem Datum ist keine Freigabe möglich.";
+  }
+}
+
+// Die Freigabe passt drei Dinge NICHT mit an. Der Hinweis gehört an die
+// Erfolgsmeldung, nicht als Dauer-Kasten in jede offene Anfrage: vor der
+// Entscheidung ist er nichts, was jemand tun kann (#2484).
+const AFTER_APPROVAL_HINT =
+  "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.";
 
 // joinNames renders trigger names as „A“ und „B“ for the explanation line.
 function joinNames(names: readonly string[]): string {
@@ -86,15 +130,25 @@ export function OfferingRequestReviewItem({
   row: StaffOfferingRequest;
   onDecided: (notice: string) => void;
 }>) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   // Rule-added offerings the reviewer unticked for this request (#2370).
   const [excluded, setExcluded] = useState<readonly string[]>([]);
   const [preview, setPreview] = useState<
     readonly OfferingRequestPreviewSelection[] | undefined
   >(undefined);
+  // Das Datum, ab dem die Umstellung gilt (#2484). Vorbelegt mit dem Wunsch der
+  // Eltern; die OGS entscheidet, ob es dabei bleibt.
+  const [effectiveFrom, setEffectiveFrom] = useState(row.effective_from);
+  // Gesetzt, wenn die Vorschau zum gewählten Datum nicht aufgeht: der Grund in
+  // Kurzform. Freigeben ist dann gesperrt, Ablehnen bleibt möglich.
+  const [blocked, setBlocked] = useState<string | null>(null);
+  // Solange aus, steht das Datum der Anfrage nur da. Wer es verschieben will,
+  // sagt das erst — so verstellt niemand im Vorbeigehen, wann die Umstellung
+  // greift (#2484).
+  const [editingDate, setEditingDate] = useState(false);
 
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
@@ -103,26 +157,18 @@ export function OfferingRequestReviewItem({
       return;
     }
     setBusy(true);
-    setError(null);
     const excludedIds = approve ? excluded : [];
     try {
-      if (excludedIds.length > 0) {
-        await decideOfferingChangeRequest(
-          row.id,
-          approve,
-          trimmed || undefined,
-          excludedIds,
-        );
-      } else {
-        await decideOfferingChangeRequest(
-          row.id,
-          approve,
-          trimmed || undefined,
-        );
-      }
+      await decideOfferingChangeRequest(
+        row.id,
+        approve,
+        trimmed || undefined,
+        excludedIds,
+        approve ? effectiveFrom : undefined,
+      );
       onDecided(
         approve
-          ? `Änderung übernommen, gültig ab ${formatDate(row.effective_from)}`
+          ? `Änderung übernommen, gültig ab ${formatDate(effectiveFrom)}. ${AFTER_APPROVAL_HINT}`
           : "Angebots-Anfrage abgelehnt",
       );
     } catch (err) {
@@ -134,7 +180,50 @@ export function OfferingRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
-      setError(decideErrorMessage(code));
+      toast.error(decideErrorMessage(code), { duration: 8000 });
+      setBusy(false);
+    }
+  };
+
+  // Vorschau für die aktuelle Abwahl UND das aktuelle Datum: beides verändert,
+  // was die Freigabe tatsächlich bucht (#2370, #2484). Meldet, ob die Vorschau
+  // aufging — der Aufrufer entscheidet, was er dann übernimmt.
+  const loadPreview = async (
+    nextExcluded: readonly string[],
+    nextDate: string,
+  ): Promise<boolean> => {
+    setBusy(true);
+    try {
+      const nextPreview =
+        nextExcluded.length > 0 || nextDate !== row.effective_from
+          ? await previewOfferingChangeRequest(row.id, nextExcluded, nextDate)
+          : undefined;
+      setPreview(nextPreview?.selections);
+      setBlocked(null);
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const code =
+        err instanceof OfferingRequestApiError ? err.code : undefined;
+      logger.warn("offering_request_review_preview_failed", {
+        error: message,
+        request_id: row.id,
+        ...(code ? { code } : {}),
+      });
+      // Nur ein echter Konflikt sperrt die Freigabe: er besteht fort, bis Datum
+      // oder Auswahl geändert sind. Ein Netz- oder Serverfehler ist gleich
+      // wieder weg — die Karte muss dann bedienbar bleiben.
+      setPreview(undefined);
+      setBlocked(CONFLICT_CODES.has(code ?? "") ? blockedReason(code) : null);
+      toast.error(
+        decideErrorMessage(
+          code,
+          "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
+        ),
+        { duration: 8000 },
+      );
+      return false;
+    } finally {
       setBusy(false);
     }
   };
@@ -143,27 +232,32 @@ export function OfferingRequestReviewItem({
     const next = excluded.includes(offeringId)
       ? excluded.filter((id) => id !== offeringId)
       : [...excluded, offeringId];
-    setBusy(true);
-    setError(null);
-    try {
-      const nextPreview =
-        next.length > 0
-          ? await previewOfferingChangeRequest(row.id, next)
-          : undefined;
+    // Nur übernehmen, wenn die Vorschau aufging: sonst stünde in der Karte eine
+    // Abwahl, deren Folgen niemand berechnet hat (#2370).
+    if (await loadPreview(next, effectiveFrom)) {
       setExcluded(next);
-      setPreview(nextPreview?.selections);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.warn("offering_request_review_preview_failed", {
-        error: message,
-        request_id: row.id,
-      });
-      setError(
-        "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
-      );
-    } finally {
-      setBusy(false);
     }
+  };
+
+  const chooseDate = async (iso: string) => {
+    if (iso === "" || iso === effectiveFrom) return;
+    // Das gewählte Datum bleibt stehen, auch wenn es nicht aufgeht: sonst
+    // springt das Feld zurück und die Meldung hat keinen Bezug mehr. Freigeben
+    // ist so lange gesperrt.
+    setEffectiveFrom(iso);
+    await loadPreview(excluded, iso);
+  };
+
+  // Das Häkchen weg heisst: es bleibt beim Datum der Anfrage. Ein bereits
+  // gewähltes anderes Datum wird deshalb zurückgesetzt — sonst stünde ein Datum
+  // in der Freigabe, das die Karte gar nicht mehr anzeigt.
+  const toggleEditingDate = async () => {
+    if (!editingDate) {
+      setEditingDate(true);
+      return;
+    }
+    setEditingDate(false);
+    await chooseDate(row.effective_from);
   };
 
   const unchanged = row.unchanged ?? [];
@@ -181,11 +275,31 @@ export function OfferingRequestReviewItem({
 
   const fullWithdrawal = row.full_withdrawal === true;
 
+  // Der Kalender sperrt Tage ausserhalb der Betreuungszeit stumm. Diese Zeile
+  // sagt, warum — sonst sucht die OGS nach einem Weg, ein früheres Datum doch
+  // noch einzutragen.
+  // Woher das Datum kommt. Ohne diese Zeile ist nicht zu sehen, ob dort der
+  // Wunsch der Eltern steht oder eine Entscheidung der OGS.
+  const dateOrigin = (() => {
+    if (effectiveFrom !== row.effective_from) {
+      return `Die Eltern hatten den ${formatDate(row.effective_from)} eingetragen.`;
+    }
+    if (row.requested_effective_from) {
+      return `Die Eltern wünschten den ${formatDate(row.requested_effective_from)}. Das geht nicht, deshalb steht hier der früheste mögliche Tag.`;
+    }
+    return "So haben es die Eltern eingetragen.";
+  })();
+
+  const selectableRange =
+    row.earliest_effective_from && row.latest_effective_from
+      ? `Wählbar von ${formatDate(row.earliest_effective_from)} bis ${formatDate(row.latest_effective_from)}.`
+      : null;
+
   return (
     <RequestReviewCard
       type="offering"
       childName={row.student_name}
-      summary={`ab ${formatDate(row.effective_from)}`}
+      summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (
           <StatusBadge tone="red" label="Komplett-Abmeldung" />
@@ -204,14 +318,10 @@ export function OfferingRequestReviewItem({
           : undefined
       }
       busy={busy}
+      approveDisabled={blocked !== null}
       onApprove={() => void decide(true)}
       onReject={() => void decide(false)}
     >
-      {error && (
-        <div className="mb-2">
-          <Alert type="error" message={error} />
-        </div>
-      )}
       {fullWithdrawal && (
         <div className="mt-3">
           <Alert
@@ -220,111 +330,163 @@ export function OfferingRequestReviewItem({
           />
         </div>
       )}
-      <ReviewDiffPanel title="Änderungen">
-        {row.diff.length === 0 && (
-          <span className="text-sm text-gray-500">—</span>
-        )}
-        {row.diff.map((entry) => {
-          const previewSelection = previewByOffering.get(entry.offering_id);
-          const isExcluded = excluded.includes(entry.offering_id);
-          const isRemoved = removed.has(entry.offering_id);
-          const cascaded = isRemoved && !isExcluded;
-          const previewChanged =
-            previewSelection !== undefined &&
-            previewSelection.new !== entry.new;
-          const displayedNew = previewSelection?.new ?? entry.new;
-          return (
-            <div
-              key={entry.offering_id}
-              className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
-            >
-              <span className="text-xs text-gray-500">{entry.label}: </span>
-              {entry.automatic && (
-                <StatusBadge tone="blue" label="Automatisch mitgebucht" />
-              )}
-              <div className="flex flex-wrap items-baseline gap-2">
-                <span className="text-gray-400 line-through">{entry.old}</span>
-                <span className="text-gray-400" aria-hidden="true">
-                  →
-                </span>
-                <span
-                  className={
-                    isRemoved
-                      ? "font-medium text-gray-500 line-through"
-                      : "font-medium text-gray-900"
-                  }
-                >
-                  {displayedNew}
-                </span>
-              </div>
-              {entry.automatic &&
-                !previewChanged &&
-                !cascaded &&
-                !isExcluded && (
+      <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-x-3">
+        <ReviewDiffPanel title="Änderungen">
+          {row.diff.length === 0 && (
+            <span className="text-sm text-gray-500">—</span>
+          )}
+          {row.diff.map((entry) => {
+            const previewSelection = previewByOffering.get(entry.offering_id);
+            const isExcluded = excluded.includes(entry.offering_id);
+            const isRemoved = removed.has(entry.offering_id);
+            const cascaded = isRemoved && !isExcluded;
+            const previewChanged =
+              previewSelection !== undefined &&
+              previewSelection.new !== entry.new;
+            const displayedNew = previewSelection?.new ?? entry.new;
+            return (
+              <div
+                key={entry.offering_id}
+                className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
+              >
+                <span className="text-xs text-gray-500">{entry.label}: </span>
+                {entry.automatic && (
+                  <StatusBadge
+                    tone="blue"
+                    label="Automatisch mitgebucht"
+                    showDot={false}
+                  />
+                )}
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-gray-400 line-through">
+                    {entry.old}
+                  </span>
+                  <span className="text-gray-400" aria-hidden="true">
+                    →
+                  </span>
+                  <span
+                    className={
+                      isRemoved
+                        ? "font-medium text-gray-500 line-through"
+                        : "font-medium text-gray-900"
+                    }
+                  >
+                    {displayedNew}
+                  </span>
+                </div>
+                {entry.automatic &&
+                  !previewChanged &&
+                  !cascaded &&
+                  !isExcluded && (
+                    <p className="mt-0.5 text-xs text-gray-500">
+                      {automaticHint(entry)}
+                    </p>
+                  )}
+                {cascaded && (
                   <p className="mt-0.5 text-xs text-gray-500">
-                    {automaticHint(entry)}
+                    Entfällt, weil{" "}
+                    {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
+                    mitgebucht wird.
                   </p>
                 )}
-              {cascaded && (
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Entfällt, weil{" "}
-                  {`„${cascadeSourceName(entry, row.diff, removed)}“`} nicht
-                  mitgebucht wird.
-                </p>
-              )}
-              {entry.optoutable && !cascaded && (
-                <label
-                  htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
-                  className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
-                >
-                  <Checkbox
-                    id={`mitbuchen-${row.id}-${entry.offering_id}`}
-                    checked={!isExcluded}
-                    onChange={() => {
-                      void toggleExcluded(entry.offering_id);
-                    }}
-                    disabled={busy}
-                    aria-label={`${entry.label} automatisch mitbuchen`}
-                  />
-                  Automatisch mitbuchen
-                </label>
-              )}
-              {isExcluded && (
-                <p className="mt-0.5 text-xs text-gray-500">
-                  Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
-                </p>
-              )}
-            </div>
-          );
-        })}
-        {unchanged.length > 0 && (
-          <div className="mt-3 border-t border-gray-200 pt-2">
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              Bleibt gebucht
-            </p>
-            {unchanged.map((line) => (
-              <p key={line.offering_id} className="text-sm text-gray-700">
-                <span className="text-xs text-gray-500">{line.label}: </span>
-                {line.days}
+                {entry.optoutable && !cascaded && (
+                  <label
+                    htmlFor={`mitbuchen-${row.id}-${entry.offering_id}`}
+                    className="mt-1 flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+                  >
+                    <Checkbox
+                      id={`mitbuchen-${row.id}-${entry.offering_id}`}
+                      checked={!isExcluded}
+                      onChange={() => {
+                        void toggleExcluded(entry.offering_id);
+                      }}
+                      disabled={busy}
+                      aria-label={`${entry.label} automatisch mitbuchen`}
+                    />
+                    Automatisch mitbuchen
+                  </label>
+                )}
+                {isExcluded && (
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    Die Mitbuchungs-Regel gilt für diese Anfrage nicht.
+                  </p>
+                )}
+              </div>
+            );
+          })}
+          {unchanged.length > 0 && (
+            <div className="mt-3 border-t border-gray-200 pt-2">
+              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Bleibt gebucht
               </p>
-            ))}
-          </div>
-        )}
-        {row.note && (
-          <p className="mt-2 text-xs text-gray-500">
-            Nachricht der Eltern: {row.note}
+              {unchanged.map((line) => (
+                <p key={line.offering_id} className="text-sm text-gray-700">
+                  <span className="text-xs text-gray-500">{line.label}: </span>
+                  {line.days}
+                </p>
+              ))}
+            </div>
+          )}
+          {row.note && (
+            <p className="mt-2 text-xs text-gray-500">
+              Nachricht der Eltern: {row.note}
+            </p>
+          )}
+        </ReviewDiffPanel>
+        <div className="mt-3 space-y-2 rounded-lg bg-gray-50 p-3">
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            Gültig ab
           </p>
-        )}
-      </ReviewDiffPanel>
-      <div className="mt-3 rounded-lg bg-gray-50 p-3">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Nach dem Freigeben bitte prüfen
-        </p>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-600">
-          <li>Gehzeiten des Kindes</li>
-          <li>Zuordnung im Stundenplan</li>
-          <li>Listen und Ausdrucke</li>
-        </ul>
+          {editingDate ? (
+            <>
+              <ISODatePicker
+                id={`gueltig-ab-${row.id}`}
+                ariaLabel="Gültig ab"
+                value={effectiveFrom}
+                onChange={(iso) => void chooseDate(iso)}
+                min={row.earliest_effective_from}
+                max={row.latest_effective_from}
+                required
+                hideClearButton
+                controlSize="md"
+                disabled={busy}
+                invalid={blocked !== null}
+                className="w-full"
+              />
+              <p className="text-sm text-gray-700">
+                KW {isoWeekNumber(effectiveFrom)}
+              </p>
+              {selectableRange && (
+                <p className="text-xs text-gray-500">{selectableRange}</p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-900">
+              <span className="font-medium">{formatDate(effectiveFrom)}</span>
+              <span className="text-gray-500">
+                {" · "}KW {isoWeekNumber(effectiveFrom)}
+              </span>
+            </p>
+          )}
+          {blocked && (
+            <p className="text-moto-red-strong text-xs">
+              {blocked} Freigeben ist gesperrt.
+            </p>
+          )}
+          <p className="text-xs text-gray-500">{dateOrigin}</p>
+          <label
+            htmlFor={`datum-aendern-${row.id}`}
+            className="flex w-fit cursor-pointer items-center gap-2 text-xs text-gray-700"
+          >
+            <Checkbox
+              id={`datum-aendern-${row.id}`}
+              checked={editingDate}
+              onChange={() => void toggleEditingDate()}
+              disabled={busy}
+            />
+            Anderes Datum wählen
+          </label>
+        </div>
       </div>
     </RequestReviewCard>
   );

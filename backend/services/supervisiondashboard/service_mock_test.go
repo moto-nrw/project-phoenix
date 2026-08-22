@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -93,9 +94,20 @@ type mockOperationsService struct {
 }
 type mockPickupService struct {
 	scheduleService.PickupScheduleService
+	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error)
 }
+
+func (m *mockPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+	return m.getBulkEffectivePickupTimesForDateFn(studentIDs, date)
+}
+
 type mockArrivalService struct {
 	scheduleService.ArrivalScheduleService
+	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error)
+}
+
+func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
 func fullDependencies() Dependencies {

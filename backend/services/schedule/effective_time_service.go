@@ -813,6 +813,27 @@ func (c *effectiveTimeCore[S, E, N, D]) EffectiveTimeForDate(
 	date timezone.Date,
 ) (*effectiveTimeResult, error) {
 	weekday := effectiveISOWeekday(date)
+	var row S
+	if weekday <= scheduleModel.WeekdayFriday {
+		var err error
+		row, err = c.schedules.FindByStudentIDAndWeekday(ctx, studentID, weekday)
+		if err != nil {
+			return nil, &ScheduleError{Op: c.operation("get effective %s time"), Err: err}
+		}
+	}
+	return c.EffectiveTimeForDateWithSchedule(ctx, studentID, date, row)
+}
+
+// EffectiveTimeForDateWithSchedule applies the shared exception/note merge to
+// a caller-provided recurring row. Pickup planning uses it with the
+// date-aware booking projection; arrival planning keeps using the stored row.
+func (c *effectiveTimeCore[S, E, N, D]) EffectiveTimeForDateWithSchedule(
+	ctx context.Context,
+	studentID int64,
+	date timezone.Date,
+	scheduleRow S,
+) (*effectiveTimeResult, error) {
+	weekday := effectiveISOWeekday(date)
 	result := &effectiveTimeResult{
 		Date:        date,
 		WeekdayName: scheduleModel.WeekdayNames[weekday],
@@ -826,43 +847,44 @@ func (c *effectiveTimeCore[S, E, N, D]) EffectiveTimeForDate(
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
+	c.applyScheduleAndException(result, scheduleRow, exception)
+
+	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: op, Err: err}
+	}
+	c.appendDayNotes(result, notes)
+	return result, nil
+}
+
+func (c *effectiveTimeCore[S, E, N, D]) applyScheduleAndException(
+	result *effectiveTimeResult,
+	schedule S,
+	exception E,
+) {
 	if !isZeroEntity(exception) {
 		fields := c.domain.ExceptionFields(exception)
 		result.IsException = true
 		result.Time = fields.Time
 		result.Notes = trimmed(fields.Reason)
 		if result.Notes == "" {
-			schedule, err := c.schedules.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-			if err != nil {
-				return nil, &ScheduleError{Op: op, Err: err}
-			}
 			result.Notes = c.scheduleNotes(schedule)
 		}
-	} else {
-		schedule, err := c.schedules.FindByStudentIDAndWeekday(ctx, studentID, weekday)
-		if err != nil {
-			return nil, &ScheduleError{Op: op, Err: err}
-		}
-		if !isZeroEntity(schedule) {
-			fields := c.domain.ScheduleFields(schedule)
-			value := fields.Time
-			result.Time = &value
-			result.Notes = trimmed(fields.Notes)
-		}
+		return
 	}
+	if !isZeroEntity(schedule) {
+		fields := c.domain.ScheduleFields(schedule)
+		value := fields.Time
+		result.Time = &value
+		result.Notes = trimmed(fields.Notes)
+	}
+}
 
-	notes, err := c.notes.FindByStudentIDAndDate(ctx, studentID, date)
-	if err != nil {
-		return nil, &ScheduleError{Op: op, Err: err}
-	}
+func (c *effectiveTimeCore[S, E, N, D]) appendDayNotes(result *effectiveTimeResult, notes []N) {
 	for _, note := range notes {
 		fields := c.domain.NoteFields(note)
-		result.DayNotes = append(result.DayNotes, effectiveDayNote{
-			ID:      fields.ID,
-			Content: fields.Content,
-		})
+		result.DayNotes = append(result.DayNotes, effectiveDayNote{ID: fields.ID, Content: fields.Content})
 	}
-	return result, nil
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) BulkEffectiveTimesForDate(
@@ -870,18 +892,34 @@ func (c *effectiveTimeCore[S, E, N, D]) BulkEffectiveTimesForDate(
 	studentIDs []int64,
 	date timezone.Date,
 ) (map[int64]*effectiveTimeResult, error) {
+	weekday := effectiveISOWeekday(date)
+	scheduleMap := make(map[int64]S, len(studentIDs))
+	if len(studentIDs) > 0 && weekday <= scheduleModel.WeekdayFriday {
+		schedules, err := c.schedules.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+		if err != nil {
+			return nil, &ScheduleError{Op: c.operation("get bulk effective %s times"), Err: err}
+		}
+		for _, schedule := range schedules {
+			scheduleMap[c.domain.ScheduleFields(schedule).StudentID] = schedule
+		}
+	}
+	return c.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, scheduleMap)
+}
+
+// BulkEffectiveTimesForDateWithSchedules is the batched counterpart of
+// EffectiveTimeForDateWithSchedule.
+func (c *effectiveTimeCore[S, E, N, D]) BulkEffectiveTimesForDateWithSchedules(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+	scheduleMap map[int64]S,
+) (map[int64]*effectiveTimeResult, error) {
 	if len(studentIDs) == 0 {
 		return map[int64]*effectiveTimeResult{}, nil
 	}
 
 	weekday := effectiveISOWeekday(date)
-	result := make(map[int64]*effectiveTimeResult, len(studentIDs))
-	for _, studentID := range studentIDs {
-		result[studentID] = &effectiveTimeResult{
-			Date:        date,
-			WeekdayName: scheduleModel.WeekdayNames[weekday],
-		}
-	}
+	result := initialEffectiveResults(studentIDs, date, weekday)
 	if weekday > scheduleModel.WeekdayFriday {
 		return result, nil
 	}
@@ -891,57 +929,51 @@ func (c *effectiveTimeCore[S, E, N, D]) BulkEffectiveTimesForDate(
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
-	exceptionMap := make(map[int64]E, len(exceptions))
-	for _, exception := range exceptions {
-		exceptionMap[c.domain.ExceptionFields(exception).StudentID] = exception
-	}
-
-	schedules, err := c.schedules.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
-	if err != nil {
-		return nil, &ScheduleError{Op: op, Err: err}
-	}
-	scheduleMap := make(map[int64]S, len(schedules))
-	for _, schedule := range schedules {
-		scheduleMap[c.domain.ScheduleFields(schedule).StudentID] = schedule
-	}
+	exceptionMap := c.exceptionsByStudent(exceptions)
 
 	notes, err := c.notes.FindByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, &ScheduleError{Op: op, Err: err}
 	}
-	notesMap := make(map[int64][]N)
-	for _, note := range notes {
-		fields := c.domain.NoteFields(note)
-		notesMap[fields.StudentID] = append(notesMap[fields.StudentID], note)
-	}
+	notesMap := c.notesByStudent(notes)
 
 	for _, studentID := range studentIDs {
 		target := result[studentID]
-		schedule := scheduleMap[studentID]
-		if exception, ok := exceptionMap[studentID]; ok {
-			fields := c.domain.ExceptionFields(exception)
-			target.IsException = true
-			target.Time = fields.Time
-			target.Notes = trimmed(fields.Reason)
-			if target.Notes == "" {
-				target.Notes = c.scheduleNotes(schedule)
-			}
-		} else if !isZeroEntity(schedule) {
-			fields := c.domain.ScheduleFields(schedule)
-			value := fields.Time
-			target.Time = &value
-			target.Notes = trimmed(fields.Notes)
-		}
-
-		for _, note := range notesMap[studentID] {
-			fields := c.domain.NoteFields(note)
-			target.DayNotes = append(target.DayNotes, effectiveDayNote{
-				ID:      fields.ID,
-				Content: fields.Content,
-			})
-		}
+		c.applyScheduleAndException(target, scheduleMap[studentID], exceptionMap[studentID])
+		c.appendDayNotes(target, notesMap[studentID])
 	}
 	return result, nil
+}
+
+func initialEffectiveResults(
+	studentIDs []int64,
+	date timezone.Date,
+	weekday int,
+) map[int64]*effectiveTimeResult {
+	result := make(map[int64]*effectiveTimeResult, len(studentIDs))
+	for _, studentID := range studentIDs {
+		result[studentID] = &effectiveTimeResult{
+			Date: date, WeekdayName: scheduleModel.WeekdayNames[weekday],
+		}
+	}
+	return result
+}
+
+func (c *effectiveTimeCore[S, E, N, D]) exceptionsByStudent(rows []E) map[int64]E {
+	result := make(map[int64]E, len(rows))
+	for _, row := range rows {
+		result[c.domain.ExceptionFields(row).StudentID] = row
+	}
+	return result
+}
+
+func (c *effectiveTimeCore[S, E, N, D]) notesByStudent(rows []N) map[int64][]N {
+	result := make(map[int64][]N)
+	for _, row := range rows {
+		fields := c.domain.NoteFields(row)
+		result[fields.StudentID] = append(result[fields.StudentID], row)
+	}
+	return result
 }
 
 func (c *effectiveTimeCore[S, E, N, D]) WeeklySchedulesByStudentIDsAndWeekday(

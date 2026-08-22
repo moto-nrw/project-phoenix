@@ -66,6 +66,11 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *
 			repos.Person,
 			// Auto-excusal (#2360) is not what these cases assert.
 			nil,
+			scheduleSvc.NewPickupBaselineService(
+				repos.StudentPickupSchedule,
+				repos.RequestChildOffering,
+				repos.CareOffering,
+			),
 			db,
 			slog.Default(),
 		),

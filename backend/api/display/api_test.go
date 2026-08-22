@@ -72,9 +72,19 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 		ActivityGroupRepo: repos.ActivityGroup,
 		InstanceRepo:      repos.ActivityInstance,
 		AttendanceRepo:    repos.Attendance,
-		PickupSchedule:    schedule.NewPickupScheduleServiceWithBulk(repos.StudentPickupSchedule, repos.StudentPickupException, repos.StudentPickupNote, repos.Student, repos.Person, nil, db, slog.Default()),
-		SettingsService:   settingsService,
-		DB:                db,
+		PickupSchedule: schedule.NewPickupScheduleServiceWithBulk(
+			repos.StudentPickupSchedule,
+			repos.StudentPickupException,
+			repos.StudentPickupNote,
+			repos.Student,
+			repos.Person,
+			nil,
+			schedule.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			db,
+			slog.Default(),
+		),
+		SettingsService: settingsService,
+		DB:              db,
 	})
 	return displayAPI.NewResource(svc, settingsService, db).Router()
 }

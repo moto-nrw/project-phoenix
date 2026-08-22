@@ -1,6 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => mockToast,
+}));
+
+// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+async function expectErrorToast(pattern: RegExp) {
+  await waitFor(() =>
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringMatching(pattern),
+      expect.anything(),
+    ),
+  );
+}
+
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
   OfferingRequestApiError,
@@ -11,6 +32,13 @@ import {
 
 // Mock only the network functions; keep the real error class so the
 // component's `err instanceof OfferingRequestApiError` branch resolves.
+// Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
+// Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
+vi.mock("~/components/ui/date-picker", async (importOriginal) => {
+  const { isoDatePickerMock } = await import("~/test/mocks/date-picker");
+  return { ...(await importOriginal<object>()), ...isoDatePickerMock() };
+});
+
 vi.mock("~/lib/offering-request-review-api", async (importActual) => {
   const actual =
     await importActual<typeof import("~/lib/offering-request-review-api")>();
@@ -79,10 +107,16 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-02-01",
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith(
-      "Änderung übernommen, gültig ab 01.02.2027",
+      "Änderung übernommen, gültig ab 01.02.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
     );
   });
 
@@ -111,7 +145,13 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        false,
+        "Kein Bedarf",
+        [],
+        undefined,
+      ),
     );
     expect(onDecided).toHaveBeenCalledWith("Angebots-Anfrage abgelehnt");
   });
@@ -125,7 +165,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(await screen.findByText(/kein Platz mehr frei/)).toBeInTheDocument();
+    await expectErrorToast(/kein Platz mehr frei/);
     // The card survives a failed approval: the switch was not applied.
     expect(screen.getByText(/Lara Beispiel/)).toBeInTheDocument();
     expect(onDecided).not.toHaveBeenCalled();
@@ -139,9 +179,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(/bereits entschieden oder von den Eltern/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/bereits entschieden oder von den Eltern/);
   });
 
   it("explains a missing enrollment", async () => {
@@ -152,9 +190,7 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(/keine gültige Anmeldung mehr vor/),
-    ).toBeInTheDocument();
+    await expectErrorToast(/keine gültige Anmeldung mehr vor/);
   });
 
   it("falls back to a generic message for unknown decide errors", async () => {
@@ -163,11 +199,9 @@ describe("OfferingRequestReviewItem", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
-    expect(
-      await screen.findByText(
-        "Die Entscheidung konnte nicht gespeichert werden.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Entscheidung konnte nicht gespeichert werden\./,
+    );
   });
 
   it("shows the parent note when one was added", () => {
@@ -297,11 +331,19 @@ describe("OfferingRequestReviewItem", () => {
         name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
       }),
     );
-    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", ["9"], "2027-02-01"),
+    );
     fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", true, undefined, ["9"]),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        ["9"],
+        "2027-02-01",
+      ),
     );
   });
 
@@ -317,7 +359,9 @@ describe("OfferingRequestReviewItem", () => {
         name: /Ganztagsbetreuung bis 14.30 Uhr automatisch mitbuchen/,
       }),
     );
-    await waitFor(() => expect(mockPreview).toHaveBeenCalledWith("77", ["9"]));
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", ["9"], "2027-02-01"),
+    );
     fireEvent.change(
       screen.getByPlaceholderText("Begründung (Pflicht bei Ablehnung)"),
       { target: { value: "Kein Bedarf" } },
@@ -325,7 +369,13 @@ describe("OfferingRequestReviewItem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Ablehnen/ }));
 
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("77", false, "Kein Bedarf"),
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        false,
+        "Kein Bedarf",
+        [],
+        undefined,
+      ),
     );
   });
 
@@ -455,11 +505,9 @@ describe("OfferingRequestReviewItem", () => {
       }),
     );
 
-    expect(
-      await screen.findByText(
-        "Die Vorschau konnte nicht aktualisiert werden. Bitte versuchen Sie es noch einmal.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Vorschau konnte nicht aktualisiert werden\. Bitte versuchen Sie es noch einmal\./,
+    );
     // The opt-out did not take effect: the hint is still shown.
     expect(
       screen.getByText(/Die Tage Di kommen automatisch dazu/),
@@ -519,15 +567,261 @@ describe("OfferingRequestReviewItem", () => {
       expect(screen.getByText("Mittagessen:")).toBeInTheDocument();
     });
 
-    it("names what to check after the approval", () => {
+    // Was die Freigabe nicht mit anpasst, gehört an die Erfolgsmeldung: vor der
+    // Entscheidung ist es nichts, was jemand tun kann.
+    it("keeps the after-approval checks out of the open request", () => {
       renderItem();
 
       expect(
-        screen.getByText("Nach dem Freigeben bitte prüfen"),
-      ).toBeInTheDocument();
-      expect(screen.getByText("Gehzeiten des Kindes")).toBeInTheDocument();
-      expect(screen.getByText("Zuordnung im Stundenplan")).toBeInTheDocument();
-      expect(screen.getByText("Listen und Ausdrucke")).toBeInTheDocument();
+        screen.queryByText(/Nach dem Freigeben bitte prüfen/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(/Gehzeiten des Kindes/),
+      ).not.toBeInTheDocument();
     });
+
+    it("names what to check in the notice after an approval", async () => {
+      mockDecide.mockResolvedValue(undefined);
+      const onDecided = vi.fn();
+      renderItem(request(), onDecided);
+
+      fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+      await waitFor(() =>
+        expect(onDecided).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
+          ),
+        ),
+      );
+    });
+  });
+});
+
+// Gültigkeitsdatum bei der Freigabe (#2484): Die Schule bestätigt, ab wann die
+// Umstellung gilt — vorbelegt mit dem Wunsch der Eltern.
+describe("OfferingRequestReviewItem — Gültig ab", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockPreview.mockResolvedValue({ selections: [] });
+  });
+
+  // Das Häkchen „Anderes Datum wählen" schaltet das Feld frei. Ohne es steht
+  // dort nur, was die Eltern eingetragen haben.
+  function unlockDate() {
+    fireEvent.click(screen.getByLabelText("Anderes Datum wählen"));
+  }
+
+  it("shows the parents' date read-only with its calendar week", () => {
+    renderItem();
+
+    expect(screen.getByText("01.02.2027")).toBeInTheDocument();
+    expect(screen.getByText(/KW 5/)).toBeInTheDocument();
+    expect(
+      screen.getByText("So haben es die Eltern eingetragen."),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Gültig ab")).not.toBeInTheDocument();
+  });
+
+  it("names the date the parents wanted when it can no longer be used", () => {
+    renderItem(
+      request({
+        effective_from: "2026-08-22",
+        requested_effective_from: "2026-08-15",
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        "Die Eltern wünschten den 15.08.2026. Das geht nicht, deshalb steht hier der früheste mögliche Tag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("bounds the field to the range the backend reports", () => {
+    renderItem(
+      request({
+        earliest_effective_from: "2026-08-21",
+        latest_effective_from: "2027-07-31",
+      }),
+    );
+    unlockDate();
+
+    const field = screen.getByLabelText("Gültig ab");
+    expect(field).toHaveAttribute("min", "2026-08-21");
+    expect(field).toHaveAttribute("max", "2027-07-31");
+  });
+
+  it("returns to the parents' date when the tick is taken back", async () => {
+    renderItem();
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-03-01"),
+    );
+
+    fireEvent.click(screen.getByLabelText("Anderes Datum wählen"));
+
+    await waitFor(() =>
+      expect(screen.getByText("01.02.2027")).toBeInTheDocument(),
+    );
+    expect(screen.queryByLabelText("Gültig ab")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-02-01",
+      ),
+    );
+  });
+
+  it("approves with the date the office confirmed, not the parents' wish", async () => {
+    mockDecide.mockResolvedValue(undefined);
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-03-01"),
+    );
+    expect(screen.getByText("KW 9")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Freigeben/ }));
+
+    await waitFor(() =>
+      expect(mockDecide).toHaveBeenCalledWith(
+        "77",
+        true,
+        undefined,
+        [],
+        "2027-03-01",
+      ),
+    );
+    expect(onDecided).toHaveBeenCalledWith(
+      "Änderung übernommen, gültig ab 01.03.2027. Bitte noch prüfen: Gehzeiten des Kindes, Zuordnung im Stundenplan, Listen und Ausdrucke.",
+    );
+  });
+
+  it("keeps the approval usable when the preview fails transiently", async () => {
+    mockPreview.mockRejectedValue(new Error("network"));
+    renderItem();
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
+    // Ein Netzfehler ist gleich wieder weg: die Karte darf nicht verriegeln.
+    expect(screen.getByRole("button", { name: /Freigeben/ })).toBeEnabled();
+  });
+
+  it("clears an earlier preview when a later preview fails", async () => {
+    mockPreview
+      .mockResolvedValueOnce({
+        selections: [{ offering_id: "1", new: "Mo" }],
+      })
+      .mockRejectedValueOnce(new Error("network"));
+    renderItem(
+      request({
+        diff: [
+          {
+            offering_id: "1",
+            label: "Regelbetreuung",
+            old: "Mo, Di, Mi",
+            new: "Mo, Di",
+            automatic: true,
+            optoutable: true,
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByLabelText("Regelbetreuung automatisch mitbuchen"),
+    );
+    await waitFor(() => expect(screen.getByText("Mo")).toBeInTheDocument());
+
+    unlockDate();
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2027-03-01" },
+    });
+
+    await expectErrorToast(/Vorschau konnte nicht aktualisiert werden/);
+    expect(screen.queryByText("Mo")).not.toBeInTheDocument();
+    expect(screen.getByText("Mo, Di")).toBeInTheDocument();
+  });
+
+  it("explains the parents' date after staff selects a later date", async () => {
+    renderItem(
+      request({
+        effective_from: "2026-08-22",
+        requested_effective_from: "2026-08-15",
+      }),
+    );
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2026-09-01" },
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.getByText("Die Eltern hatten den 22.08.2026 eingetragen."),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/früheste mögliche Tag/)).not.toBeInTheDocument();
+  });
+
+  it("names the selectable range under the field", () => {
+    renderItem(
+      request({
+        earliest_effective_from: "2026-10-20",
+        latest_effective_from: "2027-07-31",
+      }),
+    );
+    unlockDate();
+
+    expect(
+      screen.getByText("Wählbar von 20.10.2026 bis 31.07.2027."),
+    ).toBeInTheDocument();
+  });
+
+  it("blocks the approval while the chosen date does not work out", async () => {
+    mockPreview.mockRejectedValue(
+      new OfferingRequestApiError("range", "offering_change_date_out_of_range"),
+    );
+    renderItem();
+    unlockDate();
+
+    fireEvent.change(screen.getByLabelText("Gültig ab"), {
+      target: { value: "2020-01-06" },
+    });
+
+    await expectErrorToast(/Zu diesem Datum kann die Änderung nicht gelten/);
+    expect(screen.getByRole("button", { name: /Freigeben/ })).toBeDisabled();
+    // Ein ausgegrauter Knopf ohne Grund ist eine Sackgasse: der Grund bleibt an
+    // der Karte stehen, auch wenn der Toast längst weg ist.
+    expect(
+      screen.getByText(
+        "Zu diesem Datum kann die Änderung nicht gelten. Freigeben ist gesperrt.",
+      ),
+    ).toBeInTheDocument();
+    // Ablehnen bleibt möglich: eine so nicht umsetzbare Anfrage muss aus der
+    // Liste kommen können.
+    expect(screen.getByRole("button", { name: /Ablehnen/ })).toBeEnabled();
+    expect(mockDecide).not.toHaveBeenCalled();
   });
 });

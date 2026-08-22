@@ -124,6 +124,18 @@ const basePickupDay: PickupDayData = {
     createdAt: "2026-05-01T00:00:00Z",
     updatedAt: "2026-05-01T00:00:00Z",
   },
+  offeringSchedule: {
+    id: "0",
+    studentId: "42",
+    weekday: 1,
+    weekdayName: "Montag",
+    pickupTime: "15:30",
+    source: "care_offering",
+    careOfferingName: "Ganztagsbetreuung",
+    createdBy: "0",
+    createdAt: "0001-01-01T00:00:00Z",
+    updatedAt: "0001-01-01T00:00:00Z",
+  },
   effectiveTime: "15:00",
   effectiveNotes: "Bus",
   isException: false,
@@ -512,6 +524,8 @@ describe("CarePlanEditorModal", () => {
         name: "Abholung auf Angebots-Gehzeit zurücksetzen",
       }),
     );
+
+    expect(onResetPickupToOffering).toHaveBeenCalledWith(1, "2026-05-25");
 
     const message =
       "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";

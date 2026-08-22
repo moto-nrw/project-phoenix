@@ -176,7 +176,6 @@ GET /api/enrollment/care-offerings/
 GET /api/enrollment/care-offerings/booking-stats
 GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/care-offerings/{id}/
-GET /api/enrollment/care-offerings/{id}/pickup-rollout
 GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
 GET /api/enrollment/legal/{tenantSlug}
 GET /api/enrollment/legal/{tenantSlug}/{phaseId}
@@ -570,7 +569,6 @@ POST /api/enrollment/admin/requests/{id}/restore
 POST /api/enrollment/admin/students/{studentId}/requests/export
 POST /api/enrollment/care-offerings/
 POST /api/enrollment/care-offerings/{id}/clone
-POST /api/enrollment/care-offerings/{id}/pickup-rollout
 POST /api/enrollment/legal-documents
 POST /api/enrollment/phases/
 POST /api/enrollment/phases/{id}/export

@@ -1,6 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => mockToast,
+}));
+
+// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+async function expectErrorToast(pattern: RegExp) {
+  await waitFor(() =>
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringMatching(pattern),
+      expect.anything(),
+    ),
+  );
+}
+
 import { ExcusedRequestReviewItem } from "./excused-request-review-item";
 import {
   ExcusedRequestApiError,
@@ -148,11 +169,9 @@ describe("ExcusedRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Für einen dieser Tage wurde inzwischen ein neuerer Status gesetzt (z. B. krank oder Ausflug). Die Freigabe würde ihn überschreiben. Bitte die Anfrage ablehnen oder den neueren Status zuerst entfernen.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Für einen dieser Tage wurde inzwischen ein neuerer Status gesetzt/,
+    );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
   });

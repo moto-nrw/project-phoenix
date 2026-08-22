@@ -258,6 +258,7 @@ func inboxSelect(q *bun.SelectQuery, accountID int64, staffReader bool) *bun.Sel
 		ColumnExpr("COALESCE(lm.event_type,'') AS last_event_type").
 		ColumnExpr("COALESCE(lm.request_type,'') AS last_request_type").
 		ColumnExpr("COALESCE(lm.request_status,'') AS last_request_status").
+		ColumnExpr("lm.payload AS last_message_payload").
 		ColumnExpr(lastMessageReadByStaff).
 		// accountID binds the notReaderAuthored `?` in unreadSub (cm.sender_account_id
 		// <> ?). bun renders args in SQL-fragment order, so this select-list arg

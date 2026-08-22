@@ -48,10 +48,17 @@ const offeringChangeMaxNoteLen = 2000
 // portal localizes from the structured event fields.
 const (
 	offeringChangeCreatedBody   = "Anfrage: Betreuungsangebote ändern"
-	offeringChangeApprovedBody  = "Anfrage bestätigt, Betreuungsangebote werden umgestellt"
 	offeringChangeRejectedBody  = "Anfrage abgelehnt"
 	offeringChangeWithdrawnBody = "Anfrage zurückgezogen"
 )
+
+// offeringChangeApprovedBody names the date the office confirmed, so the pill
+// answers the question a family asks next: from when (#2484). The parents
+// portal renders its own localized text from the payload date beside it.
+func offeringChangeApprovedBody(effectiveFrom timezone.Date) string {
+	return "Anfrage bestätigt, Betreuungsangebote werden ab " +
+		effectiveFrom.Format("02.01.2006") + " umgestellt"
+}
 
 var (
 	// ErrOfferingChangeDisabled means the school has post-enrollment changes
@@ -68,6 +75,10 @@ var (
 	// ErrOfferingChangeCapacityFull means an offering in the request has no free
 	// slot left. Raised at approval time, when it actually matters.
 	ErrOfferingChangeCapacityFull = errors.New("enrollment: care offering is at capacity")
+	// ErrOfferingChangeDateOutOfRange means the reviewer confirmed a date the
+	// switch cannot take effect on: before today, or outside the care period the
+	// request belongs to.
+	ErrOfferingChangeDateOutOfRange = errors.New("enrollment: confirmed effective date is out of range")
 )
 
 // OfferingChangeSelection is one desired offering with its chosen days.
@@ -178,6 +189,19 @@ type OfferingChangeView struct {
 	// offering at all — the case that looked like an ordinary request in the
 	// OGS-am-Berg incident (#2434). Staff queue only.
 	FullWithdrawal bool
+	// EarliestEffectiveFrom / LatestEffectiveFrom bound the date the reviewer
+	// may confirm the switch for (#2484), so the card cannot offer a date the
+	// approval would refuse. Zero when the care period could not be resolved;
+	// the decision then validates alone. Staff queue only.
+	EarliestEffectiveFrom timezone.Date
+	LatestEffectiveFrom   timezone.Date
+	// RequestedEffectiveFrom is the date the family actually asked for. It
+	// differs from EffectiveFrom once that date has passed (or falls before the
+	// care period starts) while the request waited, and the queue then shows the
+	// earliest date an approval can still use. The card names both, so the
+	// reviewer is not left wondering where the date came from (#2484). Staff
+	// queue only.
+	RequestedEffectiveFrom timezone.Date
 	// LastDecision is the most recent decided request inside the recency window,
 	// so a guardian learns the outcome (and a rejection's reason) on the page
 	// they submitted from instead of only in the chat.
@@ -256,6 +280,10 @@ type DecideOfferingChangeInput struct {
 	// applied, the rule itself stays active. Only valid with Approve, and only
 	// for offerings the diff marks as rule-triggered.
 	ExcludedAutoOfferingIDs []int64
+	// EffectiveFrom is the date the reviewer confirmed the switch takes effect
+	// on (#2484). Nil keeps the guardian's requested date, moved forward to the
+	// first date it can still apply on. Only valid together with Approve.
+	EffectiveFrom *timezone.Date
 }
 
 // OfferingChangeRequestService is the lifecycle contract. Every method runs
@@ -293,8 +321,14 @@ type OfferingChangeRequestService interface {
 	// PendingCount backs the staff sidebar badge without constructing queue diffs.
 	PendingCount(ctx context.Context) (int, error)
 	// PreviewDecision materializes a pending approval with the supplied
-	// Mitbuchungs-Regel overrides without writing it.
-	PreviewDecision(ctx context.Context, requestID int64, excludedIDs []int64) ([]OfferingChangePreviewSelection, error)
+	// Mitbuchungs-Regel overrides and confirmed effective date without writing
+	// it. A nil date previews the guardian's requested date.
+	PreviewDecision(
+		ctx context.Context,
+		requestID int64,
+		excludedIDs []int64,
+		effectiveFrom *timezone.Date,
+	) ([]OfferingChangePreviewSelection, error)
 
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
@@ -990,7 +1024,11 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 		if review != nil {
 			reviewRow.EffectiveFrom = review.AppliedDate
 		}
-		view := &OfferingChangeView{Request: &reviewRow}
+		view := &OfferingChangeView{Request: &reviewRow, RequestedEffectiveFrom: row.EffectiveFrom}
+		if review != nil {
+			view.EarliestEffectiveFrom = review.EarliestDate
+			view.LatestEffectiveFrom = review.LatestDate
+		}
 		if person := persons[student.PersonID]; person != nil {
 			view.StudentName = strings.TrimSpace(person.GetFullName())
 		}
@@ -1130,6 +1168,10 @@ type pendingReview struct {
 	Unchanged      []OfferingChangeDiffEntry
 	FullWithdrawal bool
 	AppliedDate    timezone.Date
+	// EarliestDate / LatestDate bound the date a reviewer may confirm the
+	// switch for (#2484). Zero when the care period could not be resolved.
+	EarliestDate timezone.Date
+	LatestDate   timezone.Date
 }
 
 // pendingReviews preloads the queue's aggregate data in bounded queries. The
@@ -1199,7 +1241,12 @@ func (s *offeringChangeRequestService) pendingReviews(
 		}
 		date := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 		dates[row.RequestChildID] = date
-		reviews[row.ID] = &pendingReview{AppliedDate: date}
+		review := &pendingReview{AppliedDate: date}
+		if phase != nil {
+			review.EarliestDate = appliedOfferingChangeDateForPhase(timezone.TodayDate(), phase)
+			review.LatestDate = phase.ServiceEndDate
+		}
+		reviews[row.ID] = review
 	}
 	active, err := s.CareOfferingRepo.ListActiveByPhaseIDs(ctx, phaseIDs)
 	if err != nil {
@@ -1396,6 +1443,9 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 		if len(input.ExcludedAutoOfferingIDs) > 0 {
 			return fmt.Errorf("%w: co-booking overrides only apply to an approval", ErrOfferingChangeInvalid)
 		}
+		if input.EffectiveFrom != nil {
+			return fmt.Errorf("%w: a confirmed date only applies to an approval", ErrOfferingChangeInvalid)
+		}
 		diff, err := s.rejectionDecisionDiff(ctx, row)
 		if err != nil {
 			return err
@@ -1409,7 +1459,7 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 			return err
 		}
 		s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeRejectedBody,
-			usersModels.ParentMessageRequestStatusRejected, reason)
+			usersModels.ParentMessageRequestStatusRejected, reason, nil)
 		return nil
 	}
 	applied, err := s.applyApproved(ctx, row, input)
@@ -1427,8 +1477,9 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if err := s.storeDecisionSnapshot(ctx, row.ID, diff); err != nil {
 		return err
 	}
-	s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody,
-		usersModels.ParentMessageRequestStatusDone, reason)
+	s.emitDecisionPill(ctx, row, input.ReviewedBy, offeringChangeApprovedBody(row.EffectiveFrom),
+		usersModels.ParentMessageRequestStatusDone, reason,
+		map[string]any{"effective_from": row.EffectiveFrom.String()})
 	s.Logger.Info("offering change request approved",
 		slog.Int64("request_id", row.ID),
 		slog.Int64("student_id", row.StudentID),
@@ -1441,6 +1492,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	ctx context.Context,
 	requestID int64,
 	excludedIDs []int64,
+	effectiveFrom *timezone.Date,
 ) ([]OfferingChangePreviewSelection, error) {
 	if requestID <= 0 {
 		return nil, fmt.Errorf("%w: request is required", ErrOfferingChangeInvalid)
@@ -1462,8 +1514,15 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
 		return nil, ErrOfferingChangeForbidden
 	}
-	diff, err := s.decisionDiff(ctx, row, excludedIDs)
+	diff, err := s.decisionDiff(ctx, row, excludedIDs, effectiveFrom)
 	if err != nil {
+		return nil, err
+	}
+	// The preview is what the office decides from, so it has to fail on
+	// everything the approval would fail on — at the same date (#2484).
+	if err := s.assertApplicableAt(
+		ctx, diff.phase, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs),
+	); err != nil {
 		return nil, err
 	}
 	ids, _, _ := offeringChangeSides(diff.current, offeringChangeSelections(diff.base))
@@ -1491,7 +1550,7 @@ func (s *offeringChangeRequestService) rejectionDecisionDiff(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 ) (*offeringDecisionDiff, error) {
-	diff, err := s.decisionDiff(ctx, row, nil)
+	diff, err := s.decisionDiff(ctx, row, nil, nil)
 	if err == nil {
 		return diff, nil
 	}
@@ -1636,28 +1695,27 @@ func (s *offeringChangeRequestService) applyApproved(
 	if err != nil {
 		return nil, err
 	}
-	effectiveFrom := appliedOfferingChangeDateForPhase(row.EffectiveFrom, phase)
 	// A request whose date has passed while it waited applies as soon as
 	// possible instead of being refused: the family asked for a change, the
 	// office agreed, and a date in the past would be rejected by the adjustment
-	// validator.
+	// validator. A date the office confirmed itself is never moved — see
+	// confirmedEffectiveFrom.
+	effectiveFrom, err := confirmedEffectiveFrom(input.EffectiveFrom, row.EffectiveFrom, phase)
+	if err != nil {
+		return nil, err
+	}
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
 	}
-	if _, err := s.validateSelections(ctx, phase, row.RequestChildID, effectiveFrom, selections); err != nil {
-		return nil, err
-	}
-	excluded := make(map[int64]bool, len(input.ExcludedAutoOfferingIDs))
-	for _, id := range input.ExcludedAutoOfferingIDs {
-		excluded[id] = true
-	}
-	if err := s.assertCapacityAvailable(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {
+	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
+	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {
 		return nil, err
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
 	// after the switch succeeds, so a client error leaves the pending row intact.
+	requestedFrom := row.EffectiveFrom
 	row.EffectiveFrom = effectiveFrom
-	reason := offeringChangeAdjustmentReason(row, input.Reason)
+	reason := offeringChangeAdjustmentReason(row, requestedFrom, input.Reason)
 	adjustment := UpdateChildOfferingsInput{
 		RequestID:                request.ID,
 		ChildID:                  row.RequestChildID,
@@ -1676,6 +1734,49 @@ func (s *offeringChangeRequestService) applyApproved(
 		return nil, fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
 	return applied, nil
+}
+
+// confirmedEffectiveFrom resolves the date an approval applies on. Without a
+// date from the reviewer the guardian's date is moved forward as before. A date
+// the reviewer confirmed is never moved: one outside the selectable range is
+// refused, so the office never applies a switch on a different day than the one
+// it just confirmed (#2484).
+func confirmedEffectiveFrom(
+	confirmed *timezone.Date,
+	requested timezone.Date,
+	phase *enrollmentModels.Phase,
+) (timezone.Date, error) {
+	if confirmed == nil {
+		return appliedOfferingChangeDateForPhase(requested, phase), nil
+	}
+	earliest := appliedOfferingChangeDateForPhase(timezone.TodayDate(), phase)
+	if confirmed.Before(earliest) {
+		return timezone.Date{}, fmt.Errorf("%w: %s is before %s",
+			ErrOfferingChangeDateOutOfRange, confirmed, earliest)
+	}
+	if phase != nil && confirmed.After(phase.ServiceEndDate) {
+		return timezone.Date{}, fmt.Errorf("%w: %s is after the care period ends on %s",
+			ErrOfferingChangeDateOutOfRange, confirmed, phase.ServiceEndDate)
+	}
+	return *confirmed, nil
+}
+
+// assertApplicableAt re-runs the checks an approval performs, without writing
+// anything: the selection has to be valid in the phase catalog on that date and
+// every offering has to have a free slot. Preview and approval share it, so a
+// preview that shows a switch is a switch the approval can actually make.
+func (s *offeringChangeRequestService) assertApplicableAt(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	requestChildID int64,
+	effectiveFrom timezone.Date,
+	selections []OfferingChangeSelection,
+	excluded map[int64]bool,
+) error {
+	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections); err != nil {
+		return err
+	}
+	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded)
 }
 
 func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
@@ -2035,7 +2136,7 @@ func (s *offeringChangeRequestService) diffForRequest(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 ) ([]OfferingChangeDiffEntry, error) {
-	diff, err := s.decisionDiff(ctx, row, nil)
+	diff, err := s.decisionDiff(ctx, row, nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -2050,12 +2151,20 @@ type offeringDecisionDiff struct {
 	current    []*enrollmentModels.RequestChildOffering
 	base       []materializedOfferingSelection
 	selected   []materializedOfferingSelection
+	// phase, requested and effectiveFrom are the context the materialization
+	// ran against, so a caller can re-check applicability without resolving the
+	// same aggregate twice.
+	phase         *enrollmentModels.Phase
+	requested     []OfferingChangeSelection
+	effectiveFrom timezone.Date
 }
 
 type offeringDecisionMaterialization struct {
-	row      *enrollmentModels.OfferingChangeRequest
-	base     []materializedOfferingSelection
-	selected []materializedOfferingSelection
+	row       *enrollmentModels.OfferingChangeRequest
+	base      []materializedOfferingSelection
+	selected  []materializedOfferingSelection
+	phase     *enrollmentModels.Phase
+	requested []OfferingChangeSelection
 }
 
 // decisionDiff builds the "current → requested" diff. With exclusions it first
@@ -2067,8 +2176,9 @@ func (s *offeringChangeRequestService) decisionDiff(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 	excludedIDs []int64,
+	effectiveFrom *timezone.Date,
 ) (*offeringDecisionDiff, error) {
-	materialization, err := s.materializeDecisionSelections(ctx, row, excludedIDs)
+	materialization, err := s.materializeDecisionSelections(ctx, row, excludedIDs, effectiveFrom)
 	if err != nil {
 		return nil, err
 	}
@@ -2079,27 +2189,40 @@ func (s *offeringChangeRequestService) decisionDiff(
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(materialization.selected))
-	return s.buildDecisionDiff(
+	diff, err := s.buildDecisionDiff(
 		ctx, excludedIDs, current, materialization.base, materialization.selected, ids, currentByID, requestedByID,
 	)
+	if err != nil {
+		return nil, err
+	}
+	diff.phase = materialization.phase
+	diff.requested = materialization.requested
+	diff.effectiveFrom = materialization.row.EffectiveFrom
+	return diff, nil
 }
 
 func (s *offeringChangeRequestService) materializeDecisionSelections(
 	ctx context.Context,
 	row *enrollmentModels.OfferingChangeRequest,
 	excludedIDs []int64,
+	effectiveFrom *timezone.Date,
 ) (*offeringDecisionMaterialization, error) {
 	rowCopy := *row
 	requested, phase, err := s.decisionRequestContext(ctx, &rowCopy)
 	if err != nil {
 		return nil, err
 	}
-	rowCopy.EffectiveFrom = appliedOfferingChangeDateForPhase(rowCopy.EffectiveFrom, phase)
+	rowCopy.EffectiveFrom, err = confirmedEffectiveFrom(effectiveFrom, rowCopy.EffectiveFrom, phase)
+	if err != nil {
+		return nil, err
+	}
 	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested)
 	if err != nil {
 		return nil, err
 	}
-	result := &offeringDecisionMaterialization{row: &rowCopy, base: base, selected: base}
+	result := &offeringDecisionMaterialization{
+		row: &rowCopy, base: base, selected: base, phase: phase, requested: requested,
+	}
 	excluded := offeringIDSet(excludedIDs)
 	if len(excluded) == 0 {
 		return result, nil
@@ -2446,6 +2569,7 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 	row *enrollmentModels.OfferingChangeRequest,
 	reviewedBy int64,
 	body, status, reason string,
+	payload map[string]any,
 ) {
 	s.emitPillAfterCommit(ctx, row, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
@@ -2455,6 +2579,7 @@ func (s *offeringChangeRequestService) emitDecisionPill(
 		RequestType:    OfferingChangeRequestType,
 		RequestStatus:  status,
 		DecisionReason: reason,
+		Payload:        payload,
 	})
 }
 
@@ -2484,11 +2609,24 @@ func (s *offeringChangeRequestService) emitPillAfterCommit(
 	})
 }
 
-func offeringChangeAdjustmentReason(row *enrollmentModels.OfferingChangeRequest, staffReason string) string {
+// offeringChangeAdjustmentReason writes the line the Änderungsprotokoll shows
+// for an approved request. A date the office confirmed instead of the one the
+// family asked for is named at the end: the request row only keeps the
+// confirmed date, so without this the shift would leave no trace anywhere
+// (#2484). The generated prefix keeps its exact shape — migration 1.15.309
+// identifies request-applied rows by it.
+func offeringChangeAdjustmentReason(
+	row *enrollmentModels.OfferingChangeRequest,
+	requested timezone.Date,
+	staffReason string,
+) string {
 	reason := fmt.Sprintf("Elternanfrage #%d freigegeben (gültig ab %s)",
 		row.ID, row.EffectiveFrom.Format("02.01.2006"))
 	if trimmed := strings.TrimSpace(staffReason); trimmed != "" {
 		reason += ": " + trimmed
+	}
+	if requested != row.EffectiveFrom {
+		reason += " · Wunschdatum der Eltern war " + requested.Format("02.01.2006")
 	}
 	return reason
 }

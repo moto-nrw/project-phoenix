@@ -3,6 +3,8 @@ import { createPostHandler } from "~/lib/route-wrapper.server";
 
 interface PreviewBody {
   excluded_offering_ids: string[];
+  /** Date currently chosen in the review card (#2484). */
+  effective_from?: string;
 }
 
 interface BackendEnvelope<T> {

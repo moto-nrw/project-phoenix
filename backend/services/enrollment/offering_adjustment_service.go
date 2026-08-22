@@ -129,6 +129,13 @@ func (s *decisionService) updateChildOfferings(
 	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
 		return nil, fmt.Errorf("%w: only approved children with a linked student can be adjusted", ErrOfferingAdjustmentInvalid)
 	}
+	// Acquire the shared offering-derived-state gate before changing booking
+	// links. Pickup reset and care-offering updates take the same transaction
+	// lock, so neither can project a source state that another transaction is
+	// in the middle of replacing.
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return nil, err
+	}
 	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("decision: load adjustment phase: %w", err)
@@ -314,9 +321,9 @@ func (s *decisionService) updateChildOfferings(
 	if err := s.OfferingAdjustmentRepo.Create(ctx, entry); err != nil {
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
-	// The booking changed: realign the student's Angebots-Gehzeit rows
-	// (#2290). Staff-maintained rows stay untouched.
-	if err := s.ReconcileOfferingPickupForStudentsByAccount(ctx, []int64{*child.CreatedStudentID}, input.ActorAccountID); err != nil {
+	// The booking changed: refresh consumers of the date-aware pickup
+	// projection. Staff-maintained overrides stay untouched.
+	if err := s.ReconcileOfferingPickupForStudents(ctx, []int64{*child.CreatedStudentID}); err != nil {
 		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
 	}
 	updated, err := s.RequestChildRepo.FindByID(ctx, child.ID)
@@ -516,10 +523,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	// cyclically until PostgreSQL aborted one (#2147 review round 15). The
 	// gates are taken unconditionally because whether the confirmed edit
 	// actually changes the class is only known once the row is locked.
-	if err := s.StudentRepo.LockStudentClassWritesShared(ctx); err != nil {
-		return nil, fmt.Errorf("decision: lock class writes for approved child sync: %w", err)
-	}
-	if err := s.lockTemplateRecurrence(ctx); err != nil {
+	if err := s.LockOfferingDerivedWrites(ctx); err != nil {
 		return nil, err
 	}
 

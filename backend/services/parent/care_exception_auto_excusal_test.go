@@ -36,7 +36,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		ArrivalExceptionRepo: repos.StudentArrivalException,
 		PickupAutoExcusal: scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			repos.StudentPickupSchedule,
+			scheduleSvc.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),

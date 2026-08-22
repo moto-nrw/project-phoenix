@@ -186,6 +186,7 @@ type Factory struct {
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
 	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
+	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -399,6 +400,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
 		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
+		BookingConsistency:           audit.NewBookingConsistencyRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
