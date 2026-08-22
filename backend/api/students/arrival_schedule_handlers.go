@@ -340,7 +340,25 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		}
 		date = parsed
 	}
-	data, err := rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
+	var (
+		data *scheduleService.StudentArrivalData
+		err  error
+	)
+	toRaw := r.URL.Query().Get("to")
+	if toRaw == "" {
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
+	} else {
+		to, parseErr := timezone.ParseDate(toRaw)
+		if parseErr != nil {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid to date: %w", parseErr)))
+			return
+		}
+		if to.Before(date) {
+			renderError(w, r, common.ErrorInvalidRequest(errors.New("to date must not be before date")))
+			return
+		}
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDateRange(r.Context(), student.ID, date, to)
+	}
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return

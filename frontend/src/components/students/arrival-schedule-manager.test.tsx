@@ -276,6 +276,7 @@ describe("ArrivalScheduleManager", () => {
       expect(mockFetch).toHaveBeenLastCalledWith(
         "1",
         formatDateISO(getWeekDays(-1)[0]!),
+        formatDateISO(getWeekDays(-1)[4]!),
       ),
     );
     fireEvent.click(nextButtons[0]!);

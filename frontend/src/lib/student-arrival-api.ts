@@ -134,10 +134,14 @@ async function parseResponse<T>(response: Response): Promise<T> {
 export async function fetchArrivalData(
   studentId: string,
   date?: string,
+  toDate?: string,
 ): Promise<ArrivalData> {
-  const query = date ? `?date=${encodeURIComponent(date)}` : "";
+  const query = new URLSearchParams();
+  if (date) query.set("date", date);
+  if (toDate) query.set("to", toDate);
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const response = await fetch(
-    `/api/students/${studentId}/arrival-schedules${query}`,
+    `/api/students/${studentId}/arrival-schedules${suffix}`,
     {
       method: "GET",
       headers: await authHeaders(),

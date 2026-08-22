@@ -370,7 +370,11 @@ describe("CareScheduleManager", () => {
       expect(screen.getByText("Betreuungszeiten")).toBeInTheDocument();
     });
 
-    expect(mockFetchArrivalData).toHaveBeenCalledWith("42", "2026-05-25");
+    expect(mockFetchArrivalData).toHaveBeenCalledWith(
+      "42",
+      "2026-05-25",
+      "2026-05-29",
+    );
     expect(mockFetchStudentPickupData).toHaveBeenCalledWith(
       "42",
       expect.objectContaining({

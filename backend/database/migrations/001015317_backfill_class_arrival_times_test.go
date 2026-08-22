@@ -50,11 +50,15 @@ func TestBackfillClassArrivalTimes(t *testing.T) {
 	majorityA := testpkg.CreateTestStudent(t, db, "Mehr", "Heit", "5x")
 	majorityB := testpkg.CreateTestStudent(t, db, "Mehr", "HeitZwei", "5x")
 	deviating := testpkg.CreateTestStudent(t, db, "Ab", "Weichler", "5x")
+	alumnus := testpkg.CreateTestStudent(t, db, "Alt", "Kind", "5x")
+	_, err := db.ExecContext(context.Background(), `UPDATE users.students SET status = 'alumnus' WHERE id = ?`, alumnus.ID)
+	require.NoError(t, err)
 
 	rowA := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
 	rowB := testpkg.CreateTestArrivalSchedule(t, db, majorityB.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
 	rowDeviating := testpkg.CreateTestArrivalSchedule(t, db, deviating.ID, scheduleModels.WeekdayMonday, staff.ID, "12:15")
 	rowTuesday := testpkg.CreateTestArrivalSchedule(t, db, majorityA.ID, scheduleModels.WeekdayTuesday, staff.ID, "13:30")
+	rowAlumnus := testpkg.CreateTestArrivalSchedule(t, db, alumnus.ID, scheduleModels.WeekdayMonday, staff.ID, "11:45")
 
 	require.NoError(t, backfillClassArrivalTimesUp(context.Background(), db))
 
@@ -75,6 +79,12 @@ func TestBackfillClassArrivalTimes(t *testing.T) {
 		kept := storedArrivalTime(t, db, rowDeviating.ID)
 		require.NotNil(t, kept)
 		assert.Equal(t, "12:15", *kept)
+	})
+
+	t.Run("an alumnus keeps historical arrival times", func(t *testing.T) {
+		kept := storedArrivalTime(t, db, rowAlumnus.ID)
+		require.NotNil(t, kept)
+		assert.Equal(t, "11:45", *kept)
 	})
 
 	t.Run("the care days themselves are untouched", func(t *testing.T) {

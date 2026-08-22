@@ -123,15 +123,15 @@ describe("student-arrival-api", () => {
       expect(result.schedules[0]!.id).toBe(1);
     });
 
-    it("passes the displayed date to the weekly arrival endpoint", async () => {
+    it("passes the full displayed week to the arrival endpoint", async () => {
       fetchSpy.mockResolvedValueOnce(
         mockFetchResponse({ schedules: [], exceptions: [], notes: [] }),
       );
 
-      await fetchArrivalData("42", "2026-08-17");
+      await fetchArrivalData("42", "2026-08-17", "2026-08-21");
 
       expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/students/42/arrival-schedules?date=2026-08-17",
+        "/api/students/42/arrival-schedules?date=2026-08-17&to=2026-08-21",
         expect.objectContaining({ method: "GET" }),
       );
     });

@@ -99,6 +99,7 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 		WHERE arrival.student_id = student.id
 			AND arrival.tenant_id = student.tenant_id
 			AND arrival.expected_arrival IS NOT NULL
+			AND student.status <> 'alumnus'
 			AND TO_CHAR(arrival.expected_arrival, 'HH24:MI') = class_time.arrival_times ->> (
 				CASE arrival.weekday
 					WHEN 1 THEN 'mon' WHEN 2 THEN 'tue' WHEN 3 THEN 'wed'

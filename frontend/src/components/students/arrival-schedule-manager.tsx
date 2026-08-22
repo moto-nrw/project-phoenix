@@ -72,6 +72,7 @@ export function ArrivalScheduleManager({
 
   const weekDays = useMemo(() => getWeekDays(weekOffset), [weekOffset]);
   const displayedWeekDate = formatDateISO(weekDays[0]!);
+  const displayedWeekEndDate = formatDateISO(weekDays[weekDays.length - 1]!);
   const statusByDate = useMemo(() => {
     const entries = new Map<string, StudentStatusDay["status"]>();
     for (const day of statusDays) {
@@ -109,7 +110,7 @@ export function ArrivalScheduleManager({
       setIsLoading(true);
       setError(null);
       const [data, settings] = await Promise.all([
-        fetchArrivalData(studentId, displayedWeekDate),
+        fetchArrivalData(studentId, displayedWeekDate, displayedWeekEndDate),
         fetchArrivalSettings(),
       ]);
       setArrivalData(data);
@@ -127,17 +128,21 @@ export function ArrivalScheduleManager({
     } finally {
       setIsLoading(false);
     }
-  }, [studentId, displayedWeekDate]);
+  }, [studentId, displayedWeekDate, displayedWeekEndDate]);
 
   useEffect(() => {
     loadArrivalData().catch(() => undefined);
   }, [loadArrivalData]);
 
   const refreshKeepModal = useCallback(async () => {
-    const data = await fetchArrivalData(studentId, displayedWeekDate);
+    const data = await fetchArrivalData(
+      studentId,
+      displayedWeekDate,
+      displayedWeekEndDate,
+    );
     setArrivalData(data);
     onUpdate?.();
-  }, [studentId, displayedWeekDate, onUpdate]);
+  }, [studentId, displayedWeekDate, displayedWeekEndDate, onUpdate]);
 
   const handleUpdateSchedules = async (
     schedules: ArrivalScheduleFormEntry[],

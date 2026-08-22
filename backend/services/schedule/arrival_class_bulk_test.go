@@ -137,6 +137,62 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	assert.Equal(t, "11:45", rows[0].ExpectedArrival.Format("15:04"))
 }
 
+type tuesdayOnlyArrivalBaseline struct{}
+
+func (tuesdayOnlyArrivalBaseline) Project(
+	_ context.Context,
+	studentIDs []int64,
+	from, to timezone.Date,
+) (*scheduleService.ArrivalBaselineProjection, error) {
+	projection := &scheduleService.ArrivalBaselineProjection{
+		WeeklyByStudentDate:   make(scheduleService.ArrivalPlansByStudent, len(studentIDs)),
+		DerivedByStudentDate:  make(scheduleService.ArrivalPlansByStudent, len(studentIDs)),
+		BookingsAuthoritative: true,
+	}
+	for _, studentID := range studentIDs {
+		weekly := scheduleService.ArrivalPlanByDate{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			week := scheduleService.ArrivalWeek{}
+			if date.Weekday() == time.Tuesday {
+				week[scheduleModel.WeekdayTuesday] = &scheduleModel.StudentArrivalSchedule{
+					StudentID: studentID,
+					Weekday:   scheduleModel.WeekdayTuesday,
+				}
+			}
+			weekly[date] = week
+		}
+		projection.WeeklyByStudentDate[studentID] = weekly
+		projection.DerivedByStudentDate[studentID] = scheduleService.ArrivalPlanByDate{}
+	}
+	return projection, nil
+}
+
+func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.Ctx(t)
+	svc := scheduleService.NewArrivalScheduleServiceWithBaselines(
+		repos.StudentArrivalSchedule,
+		repos.StudentArrivalException,
+		repos.StudentArrivalNote,
+		repos.Student,
+		repos.Person,
+		tuesdayOnlyArrivalBaseline{},
+		repos.ClassArrivalTime,
+		db,
+		nil,
+	)
+	student := testpkg.CreateTestStudent(t, db, "Mitte", "Woche", "8f")
+	monday := mondayOnOrAfter(timezone.TodayDate())
+
+	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(4))
+	require.NoError(t, err)
+	require.Len(t, data.Schedules, 1)
+	assert.Equal(t, scheduleModel.WeekdayTuesday, data.Schedules[0].Weekday)
+}
+
 type failingClassArrivalTimeRepository struct {
 	educationModel.ClassArrivalTimeRepository
 	err error

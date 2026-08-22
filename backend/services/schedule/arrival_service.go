@@ -55,6 +55,7 @@ type ArrivalScheduleService interface {
 
 	GetStudentArrivalData(ctx context.Context, studentID int64) (*StudentArrivalData, error)
 	GetStudentArrivalDataForDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentArrivalData, error)
+	GetStudentArrivalDataForDateRange(ctx context.Context, studentID int64, from, to timezone.Date) (*StudentArrivalData, error)
 	GetStudentsWithStoredArrivalSchedules(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	GetEffectiveArrivalTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*EffectiveArrivalTime, error)
 	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*EffectiveArrivalTime, error)
@@ -603,6 +604,41 @@ func (s *arrivalScheduleService) GetStudentArrivalDataForDate(
 	data.Schedules = projected
 	return &StudentArrivalData{
 		Schedules:  data.Schedules,
+		Exceptions: data.Exceptions,
+		Notes:      data.Notes,
+	}, nil
+}
+
+// GetStudentArrivalDataForDateRange returns one row for each care day in the
+// requested range. Booking coverage is date-dependent, so a weekly editor
+// must not reuse Monday's care plan for Tuesday through Friday.
+func (s *arrivalScheduleService) GetStudentArrivalDataForDateRange(
+	ctx context.Context,
+	studentID int64,
+	from, to timezone.Date,
+) (*StudentArrivalData, error) {
+	data, err := s.core.Data(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+	if to.Before(from) {
+		return nil, &ScheduleError{Op: "project arrival schedule range", Err: errors.New("arrival schedule range ends before it starts")}
+	}
+	if s.baselines == nil {
+		return s.GetStudentArrivalDataForDate(ctx, studentID, from)
+	}
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
+	if err != nil {
+		return nil, &ScheduleError{Op: "project arrival schedule range", Err: err}
+	}
+	schedules := make([]*schedule.StudentArrivalSchedule, 0, schedule.WeekdayFriday)
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		if row := projection.ForDate(studentID, date); row != nil {
+			schedules = append(schedules, row)
+		}
+	}
+	return &StudentArrivalData{
+		Schedules:  schedules,
 		Exceptions: data.Exceptions,
 		Notes:      data.Notes,
 	}, nil
