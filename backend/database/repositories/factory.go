@@ -17,7 +17,6 @@ import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -36,7 +35,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -168,13 +166,6 @@ type Factory struct {
 	SettingAudit      configModels.SettingAuditRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
-
-	// Suggestions domain
-	SuggestionPost        suggestionsModels.PostRepository
-	SuggestionVote        suggestionsModels.VoteRepository
-	SuggestionComment     suggestionsModels.CommentRepository
-	SuggestionCommentRead suggestionsModels.CommentReadRepository
-	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
@@ -389,13 +380,6 @@ func NewFactory(db *bun.DB) *Factory {
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
 		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
-
-		// Suggestions repositories
-		SuggestionPost:        suggestionsRepo.NewPostRepository(db),
-		SuggestionVote:        suggestionsRepo.NewVoteRepository(db),
-		SuggestionComment:     suggestionsRepo.NewCommentRepository(db),
-		SuggestionCommentRead: suggestionsRepo.NewCommentReadRepository(db),
-		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),

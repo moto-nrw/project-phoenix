@@ -27,10 +27,10 @@ describe("trackEvent", () => {
   it("forwards event name and props to posthog.capture when the key is set", () => {
     mockEnv.NEXT_PUBLIC_POSTHOG_KEY = "phc_test_key_123";
 
-    trackEvent("suggestion_created", { direction: "up" });
+    trackEvent("data_exported", { format: "xlsx" });
 
-    expect(mockCapture).toHaveBeenCalledWith("suggestion_created", {
-      direction: "up",
+    expect(mockCapture).toHaveBeenCalledWith("data_exported", {
+      format: "xlsx",
     });
   });
 

@@ -61,7 +61,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
-	"github.com/moto-nrw/project-phoenix/services/suggestions"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -97,7 +96,6 @@ type Factory struct {
 	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
 	MealPlan                 mealplan.Service
-	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
@@ -180,7 +178,6 @@ type Factory struct {
 	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
-	OperatorSuggestions     platform.OperatorSuggestionsService
 	OperatorMFA             platform.OperatorMFAService
 	OperatorPasskey         platform.OperatorPasskeyService
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
@@ -734,21 +731,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize meal plan service
 	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
-
-	// Initialize suggestions service
-	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
-	suggestionsService := suggestions.NewService(suggestions.ServiceConfig{
-		PostRepo:        repos.SuggestionPost,
-		VoteRepo:        repos.SuggestionVote,
-		CommentRepo:     repos.SuggestionComment,
-		CommentReadRepo: repos.SuggestionCommentRead,
-		DB:              db,
-		Dispatcher:      dispatcher,
-		DefaultFrom:     defaultFrom,
-		NotifyEmail:     suggestionsNotifyEmail,
-		FrontendURL:     frontendURL,
-		Logger:          logger.With("service", "suggestions"),
-	})
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -1557,16 +1539,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:               platformLogger,
 	})
 
-	operatorSuggestionsService := platform.NewOperatorSuggestionsService(platform.OperatorSuggestionsServiceConfig{
-		PostRepo:        repos.SuggestionPost,
-		CommentRepo:     repos.SuggestionComment,
-		CommentReadRepo: repos.SuggestionCommentRead,
-		PostReadRepo:    repos.SuggestionPostRead,
-		AuditLogRepo:    repos.OperatorAuditLog,
-		DB:              db,
-		Logger:          platformLogger,
-	})
-
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
 		Repo:        repos.FormSchema,
 		PhaseRepo:   repos.Phase,
@@ -2076,7 +2048,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ExcusedRequests:          excusedRequestService,
 		Emitter:                  pillEmitter,
 		AnnouncementRepo:         repos.ParentAnnouncement,
-		Suggestions:              suggestionsService,
 		GuardianInvites:          guardianInvitationService,
 		GuardianInviteRepo:       repos.GuardianInvitation,
 		StudentGuardianRepo:      repos.StudentGuardian,
@@ -2327,7 +2298,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		WC:                       wcService,
 		Feedback:                 feedbackService,
 		MealPlan:                 mealPlanService,
-		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Checkin:                  checkinService,
 		StaffClock:               staffClockService,
@@ -2415,7 +2385,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorSuggestions:     operatorSuggestionsService,
 		OperatorMFA:             operatorMFAService,
 		OperatorPasskey:         operatorPasskeyService,
 		UnregisteredTagScans:    unregisteredTagScanService,

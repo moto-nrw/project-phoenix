@@ -53,7 +53,6 @@ import (
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
@@ -116,7 +115,6 @@ type API struct {
 	AbsenceTypes     *absencetypesAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
-	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -594,7 +592,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
-	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
@@ -669,7 +666,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
-		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
 		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
 		SettingsService:            api.Services.Settings,
@@ -890,9 +886,6 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount info-point display resources (issue #1325)
 		r.Mount("/display", a.Display.Router())
-
-		// Mount suggestions resources
-		r.Mount("/suggestions", a.Suggestions.Router())
 
 		// Mount schedule resources
 		r.Mount("/schedules", a.Schedules.Router())

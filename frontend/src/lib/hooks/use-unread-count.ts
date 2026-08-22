@@ -12,7 +12,7 @@ import {
  * Shared unread-badge hook: a single localStorage-cache + concurrent-fetch +
  * refresh-event implementation parameterized by a fetcher, so every sidebar
  * badge stops forking the same ~90 lines. Used by the staff-messages, parent-
- * messages, and suggestions badges. (The operator badge keeps its own hook: it
+ * messages badges. (The operator badge keeps its own hook: it
  * caches a two-field breakdown and listens to two events, a contract this
  * single-count hook deliberately does not model.)
  */

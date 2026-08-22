@@ -70,7 +70,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/students/:id/room-history",
   "/students/search",
   "/substitutions",
-  "/suggestions",
   "/time-tracking",
   "/timetables",
   "/vertretung",

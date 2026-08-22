@@ -25,7 +25,6 @@ describe("permission-labels", () => {
       expect(resourceLabels.iot).toBe("Geräte");
       expect(resourceLabels.system).toBe("System");
       expect(resourceLabels.admin).toBe("Administration");
-      expect(resourceLabels.suggestions).toBe("Vorschläge");
       expect(resourceLabels.time_tracking).toBe("Zeiterfassung");
       expect(resourceLabels.grade_transitions).toBe("Klassenwechsel");
     });
@@ -232,9 +231,6 @@ describe("permission-labels", () => {
       );
       expect(localizeDescription("auth", "manage")).toBe(
         "Authentifizierungsverwaltung (Vollzugriff)",
-      );
-      expect(localizeDescription("suggestions", "create")).toBe(
-        "Neue Vorschläge erstellen",
       );
       expect(localizeDescription("system", "manage")).toBe(
         "Systemeinstellungen verwalten",

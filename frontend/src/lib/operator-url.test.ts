@@ -66,7 +66,7 @@ describe("operator-url", () => {
       });
 
       const { operatorPath } = await importFresh();
-      expect(operatorPath("/operator/suggestions")).toBe("/suggestions");
+      expect(operatorPath("/operator/organizations")).toBe("/organizations");
     });
 
     it("returns / when stripping /operator leaves empty string", async () => {
@@ -89,7 +89,7 @@ describe("operator-url", () => {
       });
 
       const { operatorPath } = await importFresh();
-      expect(operatorPath("/suggestions")).toBe("/operator/suggestions");
+      expect(operatorPath("/organizations")).toBe("/operator/organizations");
     });
 
     it("does not double-prefix paths already starting with /operator on tenant", async () => {
@@ -99,8 +99,8 @@ describe("operator-url", () => {
       });
 
       const { operatorPath } = await importFresh();
-      expect(operatorPath("/operator/suggestions")).toBe(
-        "/operator/suggestions",
+      expect(operatorPath("/operator/organizations")).toBe(
+        "/operator/organizations",
       );
     });
   });
@@ -158,8 +158,8 @@ describe("operator-url", () => {
       });
 
       const { operatorAbsoluteUrl } = await importFresh();
-      expect(operatorAbsoluteUrl("/operator/suggestions")).toBe(
-        `http://${OPERATOR_HOSTNAME}/suggestions`,
+      expect(operatorAbsoluteUrl("/operator/organizations")).toBe(
+        `http://${OPERATOR_HOSTNAME}/organizations`,
       );
     });
 
@@ -170,8 +170,8 @@ describe("operator-url", () => {
       });
 
       const { operatorAbsoluteUrl } = await importFresh();
-      expect(operatorAbsoluteUrl("/suggestions")).toBe(
-        "http://localhost:3000/operator/suggestions",
+      expect(operatorAbsoluteUrl("/organizations")).toBe(
+        "http://localhost:3000/operator/organizations",
       );
     });
   });

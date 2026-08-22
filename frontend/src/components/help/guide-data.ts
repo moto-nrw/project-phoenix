@@ -116,7 +116,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     points: [
       "Alle Kinder, Aufsicht, Räume, Mitarbeiter",
       "Planung: Betreuungsplan, Dienstplan und Vertretung",
-      "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
+      "Datenverwaltung, Anmeldungen, Einstellungen",
     ],
   },
   {
@@ -510,7 +510,7 @@ export const setupChapters: readonly GuideChapter[] = [
           "Eine Gruppe öffnen und die Kinderzuordnung prüfen.",
           "Eine spontane Aktivität starten und wieder beenden.",
           "Ein Kind als `Entschuldigt` markieren und mit `Zurück auf erwartet` korrigieren.",
-          "Das Team kurz einweisen: Suche, Aufsicht, Räume, Zeiterfassung, Feedback.",
+          "Das Team kurz einweisen: Suche, Aufsicht, Räume und Zeiterfassung.",
         ],
         screenshot:
           "Go-live-Übersicht mit den Bereichen Alle Kinder, Aktuelle Aufsicht und Räume.",
@@ -1788,22 +1788,6 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Essensplan als Wochen-Board (Mo–Fr nebeneinander), oben Wochennavigation mit Pfeilen und „Heute“, je Tag eine Liste von Gerichten mit Hinweis.",
         image: "/help/screens/essensplan.webp",
-      },
-      {
-        id: "feedback",
-        title: "Feedback",
-        icon: MessageSquare,
-        summary:
-          "Probleme, Wünsche und Ideen melden und über bestehende Beiträge abstimmen.",
-        steps: [
-          "`Feedback` öffnen.",
-          "`Feedback durchsuchen...` nutzen, um Dubletten zu vermeiden.",
-          "Über `Neuer Beitrag` einen klaren Titel und eine Beschreibung erfassen.",
-          "Bei einem bestehenden Beitrag kommentieren oder abstimmen.",
-        ],
-        screenshot:
-          "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
-        image: "/help/screens/feedback.webp",
       },
     ],
   },

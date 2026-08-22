@@ -305,7 +305,7 @@ prescribed by the `responsive-screenshots` skill. One branch per PR, named
 
 ## Database Schemas
 
-`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `suggestions` · `meta` · `audit`
+`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `meta` · `audit`
 
 ## Tenant-Scoped Settings System
 

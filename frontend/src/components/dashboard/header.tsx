@@ -104,8 +104,6 @@ export function Header() {
       return tParentNav("mealPlan");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
-    if (pathname === "/parents/feedback" || pathname === "/feedback")
-      return tParentNav("feedback");
     if (
       matchesPathPrefix(pathname, "/parents/enroll") ||
       matchesPathPrefix(pathname, "/enroll")

@@ -158,17 +158,6 @@ const (
 	SubstitutionsDelete = ResourceSubstitutions + ":" + ActionDelete
 )
 
-// Suggestions permissions
-const (
-	ResourceSuggestions = "suggestions"
-
-	SuggestionsCreate = ResourceSuggestions + ":" + ActionCreate
-	SuggestionsRead   = ResourceSuggestions + ":" + ActionRead
-	SuggestionsUpdate = ResourceSuggestions + ":" + ActionUpdate
-	SuggestionsDelete = ResourceSuggestions + ":" + ActionDelete
-	SuggestionsList   = ResourceSuggestions + ":" + ActionList
-)
-
 // Visit permissions
 const (
 	VisitsCreate = "visits:create"

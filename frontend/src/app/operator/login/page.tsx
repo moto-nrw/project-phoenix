@@ -99,7 +99,7 @@ export default function OperatorLoginPage() {
     session.user.token &&
     session.error === undefined
   ) {
-    redirect(operatorPath("/operator/suggestions"));
+    redirect(operatorPath("/operator/organizations"));
   }
 
   // Show loading while checking auth or cleaning stale session
@@ -131,7 +131,7 @@ export default function OperatorLoginPage() {
       logger.error("operator_session_seed_failed", { error: result.error });
       return;
     }
-    router.push(operatorPath("/operator/suggestions"));
+    router.push(operatorPath("/operator/organizations"));
   };
 
   const handleMFASuccess = async (tokens: MFATokenResponse) => {

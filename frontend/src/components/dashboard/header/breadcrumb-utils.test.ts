@@ -189,7 +189,6 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen und Umfragen",
         );
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
-        expect(getPageTitle("/suggestions")).toBe("Feedback");
       });
 
       it("should return titles for operator navigation entries", () => {

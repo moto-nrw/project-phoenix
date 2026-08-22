@@ -62,24 +62,6 @@ func (e *ConflictError) Error() string {
 	return fmt.Sprintf("conflict: %v", e.Err)
 }
 
-// PostNotFoundError is returned when a suggestion post is not found
-type PostNotFoundError struct {
-	PostID int64
-}
-
-func (e *PostNotFoundError) Error() string {
-	return fmt.Sprintf("suggestion post with ID %d not found", e.PostID)
-}
-
-// CommentNotFoundError is returned when an operator comment is not found
-type CommentNotFoundError struct {
-	CommentID int64
-}
-
-func (e *CommentNotFoundError) Error() string {
-	return fmt.Sprintf("operator comment with ID %d not found", e.CommentID)
-}
-
 // PasswordMismatchError is returned when the current password does not match
 type PasswordMismatchError struct{}
 
