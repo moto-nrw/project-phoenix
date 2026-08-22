@@ -30,6 +30,7 @@ type PickupScheduleService interface {
 	// plan applicable on date in one batch projection.
 	GetWeeklySchedulesByStudentIDsForDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*schedule.StudentPickupSchedule, error)
 	GetStudentPickupScheduleForWeekday(ctx context.Context, studentID int64, weekday int) (*schedule.StudentPickupSchedule, error)
+	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 	UpsertStudentPickupSchedule(ctx context.Context, scheduleData *schedule.StudentPickupSchedule) error
 	UpsertBulkStudentPickupSchedules(ctx context.Context, studentID int64, schedules []*schedule.StudentPickupSchedule) error
 	DeleteStudentPickupSchedule(ctx context.Context, scheduleID int64) error
@@ -310,6 +311,10 @@ func (s *pickupScheduleService) GetStudentPickupSchedules(
 		return nil, err
 	}
 	return rows, nil
+}
+
+func (s *pickupScheduleService) HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error) {
+	return s.baselines.HasBookedOfferingPickupForWeekday(ctx, studentID, weekday)
 }
 
 func (s *pickupScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
@@ -861,10 +866,11 @@ func (s *pickupScheduleService) GetStudentPickupData(
 	ctx context.Context,
 	studentID int64,
 ) (*StudentPickupData, error) {
-	data, err := s.core.Data(ctx, studentID)
+	coreData, err := s.core.Data(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
+	data := &StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
 	schedules, err := s.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -881,22 +887,36 @@ func (s *pickupScheduleService) GetStudentPickupDataForRange(
 	studentID int64,
 	from, to timezone.Date,
 ) (*StudentPickupData, error) {
-	data, err := s.GetStudentPickupData(ctx, studentID)
+	coreData, err := s.core.Data(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
+	data := &StudentPickupData{Exceptions: coreData.Exceptions, Notes: coreData.Notes}
 	projection, err := s.baselines.Project(ctx, []int64{studentID}, from, to)
 	if err != nil {
 		return nil, &ScheduleError{Op: "get dated student pickup data", Err: err}
 	}
 	for date := from; !date.After(to); date = date.AddDays(1) {
+		schedule := projection.ForDate(studentID, date)
+		if schedule != nil && !containsPickupWeekday(data.Schedules, schedule.Weekday) {
+			data.Schedules = append(data.Schedules, schedule)
+		}
 		data.EffectiveSchedules = append(data.EffectiveSchedules, DatedPickupSchedule{
 			Date:             date,
-			Schedule:         projection.ForDate(studentID, date),
+			Schedule:         schedule,
 			OfferingSchedule: projection.OfferingForDate(studentID, date),
 		})
 	}
 	return data, nil
+}
+
+func containsPickupWeekday(schedules []*schedule.StudentPickupSchedule, weekday int) bool {
+	for _, row := range schedules {
+		if row != nil && row.Weekday == weekday {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *pickupScheduleService) GetEffectivePickupTimeForDate(

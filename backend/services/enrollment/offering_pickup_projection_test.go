@@ -177,6 +177,12 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	require.Len(t, rangeData.EffectiveSchedules, 8)
 	assert.Equal(t, oldOffering.Name, rangeData.EffectiveSchedules[0].Schedule.CareOfferingName)
 	assert.Equal(t, newOffering.Name, rangeData.EffectiveSchedules[7].Schedule.CareOfferingName)
+
+	futureWeek, err := reader.GetStudentPickupDataForRange(ctx, studentID, effectiveFrom, effectiveFrom.AddDays(4))
+	require.NoError(t, err)
+	require.Len(t, futureWeek.Schedules, 1)
+	assert.Equal(t, newOffering.Name, futureWeek.Schedules[0].CareOfferingName,
+		"the weekly editor must receive the offering value for its requested week")
 }
 
 func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T) {

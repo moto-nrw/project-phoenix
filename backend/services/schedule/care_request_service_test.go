@@ -166,6 +166,10 @@ func (s offeringProjectedPickupService) GetStudentPickupSchedules(context.Contex
 	}}, nil
 }
 
+func (s offeringProjectedPickupService) HasBookedOfferingPickupForWeekday(_ context.Context, studentID int64, weekday int) (bool, error) {
+	return studentID == s.studentID && weekday == s.weekday, nil
+}
+
 func (s failingPickupDeleteService) DeleteStudentPickupSchedule(context.Context, int64) error {
 	return s.err
 }

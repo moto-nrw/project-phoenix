@@ -71,6 +71,7 @@ func (p *PickupBaselineProjection) OfferingWeeklyForDate(studentID int64, date t
 type PickupBaselineReader interface {
 	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*PickupBaselineProjection, error)
 	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModel.StudentPickupSchedule, error)
+	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 }
 
 type pickupBaselineService struct {
@@ -142,6 +143,39 @@ func (s *pickupBaselineService) OfferingPickupForDate(
 		return nil, err
 	}
 	return projection.OfferingForDate(studentID, date), nil
+}
+
+func (s *pickupBaselineService) HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error) {
+	if weekday < scheduleModel.WeekdayMonday || weekday > scheduleModel.WeekdayFriday {
+		return false, nil
+	}
+	links, err := s.links.ListApprovedByStudentIDsInRange(ctx, []int64{studentID}, timezone.TodayDate(), timezone.NewDate(9999, time.December, 31))
+	if err != nil {
+		return false, fmt.Errorf("find booked offering pickup: %w", err)
+	}
+	offeringByID, err := s.loadOfferingsByID(ctx, links)
+	if err != nil {
+		return false, err
+	}
+	for _, entry := range links {
+		if entry == nil || entry.Link == nil {
+			continue
+		}
+		offering := offeringByID[entry.Link.CareOfferingID]
+		if offering == nil || !offering.IsActive || !offering.CountsAsCare {
+			continue
+		}
+		for _, day := range offeringPickupDays(entry.Link, offering) {
+			projectedWeekday, _, ok, projectErr := projectedOfferingPickup(studentID, day, offering)
+			if projectErr != nil {
+				return false, projectErr
+			}
+			if ok && projectedWeekday == weekday {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 func (s *pickupBaselineService) loadManualRows(

@@ -55,3 +55,7 @@ func (f FixedPickupBaseline) OfferingPickupForDate(
 	}
 	return projection.OfferingForDate(studentID, date), nil
 }
+
+func (f FixedPickupBaseline) HasBookedOfferingPickupForWeekday(_ context.Context, studentID int64, weekday int) (bool, error) {
+	return studentID == f.StudentID && weekday == f.Weekday, nil
+}

@@ -820,19 +820,12 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 		}
 	}
 	if old == "" && s.pickup != nil {
-		rows, findErr := s.pickup.GetStudentPickupSchedules(ctx, req.StudentID)
+		effective, findErr := s.pickup.GetEffectivePickupTimeForDate(ctx, req.StudentID, date)
 		if findErr != nil {
 			return nil, findErr
 		}
-		weekday := int(date.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		for _, row := range rows {
-			if row.Weekday == weekday {
-				old = row.PickupTime.Format("15:04")
-				break
-			}
+		if effective.PickupTime != nil {
+			old = effective.PickupTime.Format("15:04")
 		}
 	}
 	return []RequestDiffEntry{{
@@ -1361,13 +1354,15 @@ func (s *careScheduleRequestService) applyCareDayChanges(ctx context.Context, st
 	if err != nil {
 		return fmt.Errorf("apply care days: load pickups: %w", err)
 	}
-	for _, row := range pickups {
-		if row == nil {
-			continue
-		}
-		active, changed := changes[row.Weekday]
-		if changed && !active && row.Source == scheduleModels.PickupScheduleSourceCareOffering {
-			return ErrCareDayManagedByBooking
+	for weekday, active := range changes {
+		if !active {
+			managed, managedErr := s.pickup.HasBookedOfferingPickupForWeekday(ctx, studentID, weekday)
+			if managedErr != nil {
+				return fmt.Errorf("apply care days: check booked offering: %w", managedErr)
+			}
+			if managed {
+				return ErrCareDayManagedByBooking
+			}
 		}
 	}
 	for weekday, active := range changes {
