@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, Clock, Loader2, StickyNote } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { FormModal } from "~/components/ui/form-modal";
+import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
@@ -100,7 +101,12 @@ const noopNoteAction = async () => undefined;
 
 interface WeeklyRow {
   readonly weekday: number;
+  /** The child is in care that weekday (#2414). */
+  readonly arrivalInCare: boolean;
+  /** The child's OWN arrival time. Empty means the class time applies. */
   readonly arrivalTime: string;
+  /** The class time that applies when the child has none. Read-only. */
+  readonly arrivalClassTime: string;
   readonly arrivalNotes: string;
   readonly pickupTime: string;
   readonly pickupNotes: string;
@@ -531,6 +537,20 @@ export function CarePlanEditorModal({
                   ),
                 )
               }
+              onToggleCare={(weekday, inCare) =>
+                setWeeklyRows((rows) =>
+                  rows.map((row) =>
+                    row.weekday === weekday
+                      ? {
+                          ...row,
+                          arrivalInCare: inCare,
+                          arrivalTime: inCare ? row.arrivalTime : "",
+                          arrivalNotes: inCare ? row.arrivalNotes : "",
+                        }
+                      : row,
+                  ),
+                )
+              }
             />
           )}
         </form>
@@ -876,6 +896,7 @@ function WeeklySection({
   removals,
   onToggleNotes,
   onChange,
+  onToggleCare,
 }: {
   readonly rows: WeeklyRow[];
   readonly expandedWeekdays: Set<number>;
@@ -886,6 +907,7 @@ function WeeklySection({
     field: "arrivalTime" | "pickupTime" | "arrivalNotes" | "pickupNotes",
     value: string,
   ) => void;
+  readonly onToggleCare: (weekday: number, inCare: boolean) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -909,8 +931,20 @@ function WeeklySection({
                 className="grid gap-3 px-3 py-4 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] sm:items-center sm:px-4"
               >
                 <div>
-                  <div className="text-sm font-semibold text-gray-900">
-                    {day.label}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`weekly-care-${day.value}`}
+                      checked={row?.arrivalInCare ?? false}
+                      onChange={(event) =>
+                        onToggleCare(day.value, event.target.checked)
+                      }
+                    />
+                    <label
+                      htmlFor={`weekly-care-${day.value}`}
+                      className="text-sm font-semibold text-gray-900"
+                    >
+                      {day.label}
+                    </label>
                   </div>
                   <button
                     type="button"
@@ -927,14 +961,22 @@ function WeeklySection({
                     />
                   </button>
                 </div>
-                <WeeklyTimeField
-                  id={`weekly-arrival-${day.value}`}
-                  label="Ankunft"
-                  value={row?.arrivalTime ?? ""}
-                  onChange={(value) =>
-                    onChange(day.value, "arrivalTime", value)
-                  }
-                />
+                <div>
+                  <WeeklyTimeField
+                    id={`weekly-arrival-${day.value}`}
+                    label="Ankunft"
+                    value={row?.arrivalTime ?? ""}
+                    onChange={(value) =>
+                      onChange(day.value, "arrivalTime", value)
+                    }
+                  />
+                  {row?.arrivalInCare && row.arrivalClassTime ? (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Ohne Eintrag gilt {row.arrivalClassTime} Uhr aus der
+                      Klasse.
+                    </p>
+                  ) : null}
+                </div>
                 <WeeklyTimeField
                   id={`weekly-pickup-${day.value}`}
                   label="Abholung"
@@ -1147,7 +1189,11 @@ function buildWeeklyRows(
     );
     return {
       weekday: day.value,
+      // A row exists = care day. Its time is the child's own only when it did
+      // not come from the class timetable (#2414).
+      arrivalInCare: arrivalEntry?.inCare ?? false,
       arrivalTime: arrivalEntry?.expected_arrival ?? "",
+      arrivalClassTime: arrivalEntry?.classTime ?? "",
       arrivalNotes: arrivalEntry?.notes ?? "",
       pickupTime: pickupEntry?.pickupTime ?? "",
       pickupNotes: pickupEntry?.notes ?? "",
@@ -1161,8 +1207,8 @@ function validateWeeklyRows(rows: readonly WeeklyRow[]): string | null {
     if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
       return `Ungültige Ankunftszeit für ${day?.label ?? "diesen Tag"}.`;
     }
-    if (row.arrivalNotes.trim() && !row.arrivalTime.trim()) {
-      return `Eine Ankunftsnotiz für ${day?.label ?? "diesen Tag"} benötigt eine Ankunftszeit.`;
+    if (row.arrivalNotes.trim() && !row.arrivalInCare) {
+      return `Eine Ankunftsnotiz für ${day?.label ?? "diesen Tag"} braucht einen Betreuungstag.`;
     }
     if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
       return `Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`;
@@ -1189,13 +1235,15 @@ function collectWeeklyRemovals(
   for (const row of rows) {
     const label =
       WEEKDAYS.find((day) => day.value === row.weekday)?.label ?? "Tag";
+    // "Had" means it was a care day — the template carries an entry for every
+    // weekday, care day or not (#2414).
     const hadArrival = arrival.some(
-      (entry) => entry.weekday === row.weekday && entry.expected_arrival,
+      (entry) => entry.weekday === row.weekday && entry.inCare,
     );
     const hadPickup = pickup.some(
       (entry) => entry.weekday === row.weekday && entry.pickupTime,
     );
-    if (hadArrival && !row.arrivalTime.trim()) {
+    if (hadArrival && !row.arrivalInCare) {
       removals.push(`${label} Ankunft`);
     }
     if (hadPickup && !row.pickupTime.trim()) {
@@ -1208,11 +1256,13 @@ function collectWeeklyRemovals(
 function toWeeklySubmit(rows: readonly WeeklyRow[]): CarePlanWeeklySubmit {
   return {
     arrivalSchedules: rows
-      .filter((row) => row.arrivalTime.trim() !== "")
+      .filter((row) => row.arrivalInCare)
       .map((row) => ({
         weekday: row.weekday,
         inCare: true,
-        expected_arrival: row.arrivalTime,
+        // Empty = the class timetable supplies the time (#2414). Sending the
+        // inherited value back would freeze it as a per-child deviation.
+        expected_arrival: row.arrivalTime.trim(),
         notes: row.arrivalNotes.trim() ? row.arrivalNotes : null,
       })),
     pickupSchedules: rows

@@ -160,9 +160,11 @@ const weeklyArrival = [
     notes: "Haupteingang",
   },
   { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
-  { weekday: 3, inCare: true, expected_arrival: "", notes: null },
-  { weekday: 4, inCare: true, expected_arrival: "", notes: null },
-  { weekday: 5, inCare: true, expected_arrival: "", notes: null },
+  // Not care days: since #2414 that is what an absent tick means, and it is
+  // what an empty time meant before the split.
+  { weekday: 3, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 4, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 5, inCare: false, expected_arrival: "", notes: null },
 ];
 
 const weeklyPickup = [
@@ -659,7 +661,9 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("rejects a weekly note without its matching time", async () => {
+  // Business rule changed with #2414: an arrival note hangs on the care day,
+  // not on a time — the time may legitimately come from the class.
+  it("rejects a weekly arrival note without a care day", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
       arrivalDay: null,
@@ -677,7 +681,7 @@ describe("CarePlanEditorModal", () => {
 
     expect(
       await screen.findByText(
-        "Eine Ankunftsnotiz für Mittwoch benötigt eine Ankunftszeit.",
+        "Eine Ankunftsnotiz für Mittwoch braucht einen Betreuungstag.",
       ),
     ).toBeInTheDocument();
     expect(onSubmitWeekly).not.toHaveBeenCalled();
