@@ -39,6 +39,14 @@ import type { StudentStatusDay } from "~/lib/student-status-days-api";
 const logger = createLogger({ component: "ArrivalScheduleManager" });
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
 
+/**
+ * Schools name their classes either "3b" or "Klasse 3b". The label already
+ * says "aus Klasse", so a stored prefix would read "aus Klasse Klasse 3b".
+ */
+function stripClassPrefix(schoolClass: string): string {
+  return schoolClass.replace(/^klasse\s+/i, "");
+}
+
 interface ArrivalScheduleManagerProps {
   readonly studentId: string;
   readonly readOnly?: boolean;
@@ -500,7 +508,7 @@ function DayCell({ day, readOnly, onEditDay }: DayComponentProps) {
           day.baseSchedule?.source === "class_schedule" &&
           day.baseSchedule.source_class ? (
             <div className="mt-0.5 text-xs text-gray-400">
-              aus Klasse {day.baseSchedule.source_class}
+              aus Klasse {stripClassPrefix(day.baseSchedule.source_class)}
             </div>
           ) : null}
           {!day.isException && day.baseSchedule?.source === "staff" ? (

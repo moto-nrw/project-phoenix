@@ -135,7 +135,9 @@ export function FilteredBulkArrivalModal({
 
   const targetTitle =
     filter.type === "school_class"
-      ? `Klasse ${filterLabel}`
+      ? // Schools name their classes either "3b" or "Klasse 3b"; without the
+        // strip the title reads "für Klasse Klasse 3b".
+        `Klasse ${filterLabel.replace(/^klasse\s+/i, "")}`
       : filter.type === "group"
         ? `Gruppe ${filterLabel}`
         : filterLabel;
