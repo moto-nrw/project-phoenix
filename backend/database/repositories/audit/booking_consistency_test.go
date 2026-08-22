@@ -104,6 +104,49 @@ func TestBookingConsistencyAuditRequiresDateAndTenant(t *testing.T) {
 	require.ErrorContains(t, err, "date is required")
 }
 
+func TestBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repos := repositories.NewFactory(db)
+	auditDate := nextMonday(timezone.TodayDate())
+	staff := testpkg.CreateTestStaff(t, db, "Audit", "Ausnahme")
+
+	withArrivalException := testpkg.CreateTestStudent(t, db, "Ankunft", "Ausnahme", "1a")
+	child := createApprovedChildForStudent(t, ctx, repos, auditDate, withArrivalException.ID,
+		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+	offering := testpkg.CreateTestCareOffering(t, db, child.phase.ID, "Montagsbetreuung")
+	offering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	offering.PickupTimes = map[string]string{"mon": "14:30"}
+	require.NoError(t, repos.CareOffering.Update(ctx, offering))
+	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModel.RequestChildOffering{
+		RequestChildID: child.child.ID, CareOfferingID: offering.ID, SelectedDays: []string{"mon"}, ValidFrom: &auditDate,
+	}))
+	require.NoError(t, repos.StudentArrivalException.Create(ctx, &scheduleModel.StudentArrivalException{
+		StudentID: withArrivalException.ID, ExceptionDate: auditDate, CreatedBy: staff.ID,
+	}))
+
+	futureStudent := testpkg.CreateTestStudent(t, db, "Zukunft", "Ausnahme", "1c")
+	futureChild := createApprovedChildForStudent(t, ctx, repos, auditDate, futureStudent.ID,
+		enrollmentModel.PhaseCareOfferingSelectionAtLeastOne)
+	futureOffering := testpkg.CreateTestCareOffering(t, db, futureChild.phase.ID, "Spätere Betreuung")
+	futureOffering.DaysOfWeekMode = enrollmentModel.DaysOfWeekModeParentChoice
+	futureOffering.PickupTimes = map[string]string{"mon": "14:30"}
+	require.NoError(t, repos.CareOffering.Update(ctx, futureOffering))
+	futureDate := auditDate.AddDays(1)
+	require.NoError(t, repos.RequestChildOffering.Create(ctx, &enrollmentModel.RequestChildOffering{
+		RequestChildID: futureChild.child.ID, CareOfferingID: futureOffering.ID,
+		SelectedDays: []string{"mon"}, ValidFrom: &futureDate,
+	}))
+
+	report, err := auditRepo.NewBookingConsistencyRepository(db).Audit(ctx, auditDate)
+	require.NoError(t, err)
+	assert.Equal(t, 0, report.PickupProjectionMissingDays)
+	assert.Equal(t, 0, report.BookingWithoutArrivalDays)
+	assert.Equal(t, 1, report.ApprovedWithoutRequiredOffering)
+}
+
 type approvedAuditChild struct {
 	phase *enrollmentModel.Phase
 	child *enrollmentModel.RequestChild
