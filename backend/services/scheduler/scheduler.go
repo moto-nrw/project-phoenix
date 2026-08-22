@@ -15,6 +15,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -121,6 +122,7 @@ type Scheduler struct {
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
+	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
 	settings                   SettingsResolver
@@ -326,6 +328,12 @@ func (s *Scheduler) SetPWAUsageCleanup(svc pwaSvc.UsageService) {
 	s.pwaUsageCleanup = svc
 }
 
+// SetBookingConsistencyAudit wires the tenant-scoped booking consistency
+// audit. Nil disables the daily check.
+func (s *Scheduler) SetBookingConsistencyAudit(repo auditModel.BookingConsistencyRepository) {
+	s.bookingConsistency = repo
+}
+
 func (s *Scheduler) SetEnrollmentRejectedCleanup(svc enrollmentSvc.RejectedEnrollmentCleaner) {
 	s.enrollmentRejectedCleanup = svc
 }
@@ -515,6 +523,9 @@ func (s *Scheduler) Start() {
 	// Schedule daily PWA standalone-usage GDPR cleanup (issue #2189).
 	// Same toggle + cleanup-time as the other retention jobs.
 	s.schedulePWAUsageCleanupTask()
+
+	// Compare authoritative booking windows with their planning projections.
+	s.scheduleBookingConsistencyAuditTask()
 
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
