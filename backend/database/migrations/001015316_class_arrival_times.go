@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	classArrivalTimesVersion     = "1.15.315"
+	classArrivalTimesVersion     = "1.15.316"
 	classArrivalTimesDescription = "education.class_arrival_times: Unterrichtsschluss per Klasse und Wochentag as the arrival-time baseline (#2414)"
 )
 
@@ -41,7 +41,7 @@ func init() {
 // pickup side needed that column only to keep its legacy materialized rows
 // distinguishable.
 func classArrivalTimesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.315: Class arrival times...")
+	fmt.Println("Migration 1.15.316: Class arrival times...")
 
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS education.class_arrival_times (
@@ -78,7 +78,7 @@ func classArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classArrivalTimesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.315: Dropping education.class_arrival_times...")
+	fmt.Println("Rolling back migration 1.15.316: Dropping education.class_arrival_times...")
 
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS education.class_arrival_times;`)
 	if err != nil {

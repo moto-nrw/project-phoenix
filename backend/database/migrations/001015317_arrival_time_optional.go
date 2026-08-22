@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	arrivalTimeOptionalVersion     = "1.15.316"
+	arrivalTimeOptionalVersion     = "1.15.317"
 	arrivalTimeOptionalDescription = "schedule.student_arrival_schedules.expected_arrival becomes optional: the row marks the care day, the class timetable supplies the time (#2414)"
 )
 
@@ -37,7 +37,7 @@ func init() {
 // class. There is never a time on a day without care — that combination is
 // what left two deregistered children "expected" at OGS am Berg on 19.08.
 func arrivalTimeOptionalUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.316: Optional arrival time (class timetable becomes the source)...")
+	fmt.Println("Migration 1.15.317: Optional arrival time (class timetable becomes the source)...")
 
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.student_arrival_schedules
@@ -56,7 +56,7 @@ func arrivalTimeOptionalUp(ctx context.Context, db *bun.DB) error {
 }
 
 func arrivalTimeOptionalDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.316: expected_arrival becomes mandatory again...")
+	fmt.Println("Rolling back migration 1.15.317: expected_arrival becomes mandatory again...")
 
 	// A row that inherits its time from the class has no representation once
 	// the column is mandatory again, so the rollback drops those rows. The
