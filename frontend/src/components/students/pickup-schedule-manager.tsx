@@ -486,11 +486,10 @@ function DayRow({ day, readOnly, onEditDay, showSource }: DayComponentProps) {
             </div>
             {!day.isException && day.baseSchedule && showSource ? (
               <span
-                className="flex-shrink-0 text-[10px] text-gray-400"
+                className="min-w-0 truncate text-[10px] text-gray-400"
                 title={
-                  day.baseSchedule.source === "care_offering"
-                    ? "Gehzeit aus dem Betreuungsangebot"
-                    : "Gehzeit von Hand gepflegt"
+                  pickupScheduleSourceLabel(day.baseSchedule) ??
+                  "Gehzeit von Hand gepflegt"
                 }
               >
                 {pickupScheduleSourceLabel(day.baseSchedule)}
