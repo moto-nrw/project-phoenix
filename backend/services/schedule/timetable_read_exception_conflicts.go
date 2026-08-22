@@ -290,7 +290,7 @@ func (s *TimetableDataService) fillArrivalSchedules(
 	for dk, stuMap := range needed {
 		byStu := make(map[int64]*scheduleModel.StudentArrivalSchedule, len(stuMap))
 		for stuID := range stuMap {
-			if row := projection.ForDate(stuID, dateObjByKey[dk]); row != nil && !row.ExpectedArrival.IsZero() {
+			if row := projection.ForDate(stuID, dateObjByKey[dk]); row != nil {
 				byStu[stuID] = row
 			}
 		}

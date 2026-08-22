@@ -346,7 +346,7 @@ describe("ArrivalScheduleFormModal", () => {
     ).toBeDisabled();
   });
 
-  it("does not save booking-derived care days as weekly-plan rows", async () => {
+  it("keeps booked care days when clearing their own arrival time", async () => {
     const onSubmit = vi.fn().mockResolvedValue(undefined);
     render(
       <ArrivalScheduleFormModal
@@ -383,6 +383,11 @@ describe("ArrivalScheduleFormModal", () => {
 
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith([
+        expect.objectContaining({
+          weekday: 1,
+          expected_arrival: "",
+          notes: null,
+        }),
         expect.objectContaining({
           weekday: 2,
           expected_arrival: "12:15",

@@ -85,13 +85,7 @@ export function ArrivalScheduleFormModal({
 
     setIsSubmitting(true);
     try {
-      const schedulesToSave = careDays.filter(
-        (entry) =>
-          careDaysSource === "weekly_plan" ||
-          entry.expected_arrival.trim() !== "" ||
-          Boolean(entry.notes?.trim()),
-      );
-      await onSubmit(schedulesToSave);
+      await onSubmit(careDays);
     } catch (err) {
       logger.error("arrival_schedule_save_failed", {
         error: err instanceof Error ? err.message : String(err),

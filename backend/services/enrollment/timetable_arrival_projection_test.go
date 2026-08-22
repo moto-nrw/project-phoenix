@@ -149,8 +149,8 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	conflicts, err := data.DetectExceptionConflicts(ctx, monday, monday, slog.Default())
 	require.NoError(t, err)
 	require.Len(t, conflicts, 1)
-	assert.Equal(t, scheduleService.SlotSourceNone, conflicts[0].ArrivalSource,
-		"a timeless care day must not pretend to have a scheduled arrival")
+	assert.Equal(t, scheduleService.SlotSourceSchedule, conflicts[0].ArrivalSource,
+		"a timeless care day remains scheduled even without an arrival time")
 	assert.Empty(t, conflicts[0].ExpectedArrival,
 		"a timeless care day must not render as 00:00 in a cancellation warning")
 }
