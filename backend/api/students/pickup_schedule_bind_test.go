@@ -6,10 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/render"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -402,6 +404,20 @@ func TestMapScheduleToResponse(t *testing.T) {
 		assert.Equal(t, "14:00", resp.PickupTime)
 		assert.NotNil(t, resp.Notes)
 		assert.Equal(t, notes, *resp.Notes)
+	})
+
+	t.Run("maps projected offering provenance", func(t *testing.T) {
+		offeringID := int64(42)
+		row := createTestScheduleModel(1, 1, "14:30", nil)
+		row.Source = schedule.PickupScheduleSourceCareOffering
+		row.CareOfferingID = &offeringID
+		row.CareOfferingName = "Ganztag bis 14:30 Uhr"
+
+		resp := mapScheduleToResponse(row)
+
+		require.NotNil(t, resp.CareOfferingID)
+		assert.Equal(t, "42", *resp.CareOfferingID)
+		assert.Equal(t, "Ganztag bis 14:30 Uhr", resp.CareOfferingName)
 	})
 }
 
@@ -935,6 +951,72 @@ func TestPickupDataResponse_Structure(t *testing.T) {
 		assert.Greater(t, resp.Schedules[0].ID, int64(0), "Schedule ID should be positive")
 		assert.Greater(t, resp.Exceptions[0].ID, int64(0), "Exception ID should be positive")
 	})
+}
+
+func TestPickupScheduleDateRange(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts inclusive week", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-17&to=2026-08-21", nil)
+		from, to, ok, err := pickupScheduleDateRange(r)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, "2026-08-17", from.String())
+		assert.Equal(t, "2026-08-21", to.String())
+	})
+
+	t.Run("requires both bounds", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-17", nil)
+		_, _, _, err := pickupScheduleDateRange(r)
+		require.Error(t, err)
+	})
+
+	t.Run("rejects oversized range", func(t *testing.T) {
+		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-01&to=2026-09-02", nil)
+		_, _, _, err := pickupScheduleDateRange(r)
+		require.Error(t, err)
+	})
+}
+
+func TestBuildPickupDataResponse_PreservesExplicitEmptyDate(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 8, 18)
+	response := buildPickupDataResponse(&scheduleService.StudentPickupData{
+		EffectiveSchedules: []scheduleService.DatedPickupSchedule{{Date: date}},
+	})
+
+	require.Len(t, response.EffectiveSchedules, 1)
+	assert.Equal(t, "2026-08-18", response.EffectiveSchedules[0].Date)
+	assert.Nil(t, response.EffectiveSchedules[0].Schedule)
+}
+
+func TestResetOfferingPickupRequest_Bind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("accepts matching date and weekday", func(t *testing.T) {
+		req := &ResetOfferingPickupRequest{Weekday: 1, Date: "2026-08-17"}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
+		require.NoError(t, err)
+		assert.Equal(t, "2026-08-17", req.date.String())
+	})
+
+	t.Run("rejects a mismatched date", func(t *testing.T) {
+		req := &ResetOfferingPickupRequest{Weekday: 2, Date: "2026-08-17"}
+		err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
+		require.Error(t, err)
+	})
+}
+
+func TestPickupResetErrorRenderer_NoOfferingIsConflict(t *testing.T) {
+	t.Parallel()
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", nil)
+	require.NoError(t, render.Render(w, r, pickupResetErrorRenderer(ErrPickupResetNoOffering)))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"pickup_reset_requires_offering"`)
 }
 
 // =============================================================================

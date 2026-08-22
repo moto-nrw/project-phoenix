@@ -20,9 +20,10 @@ import (
 )
 
 type fakeOfferingChangeRequestService struct {
-	input           enrollmentService.DecideOfferingChangeInput
-	previewExcluded []int64
-	preview         []enrollmentService.OfferingChangePreviewSelection
+	input                enrollmentService.DecideOfferingChangeInput
+	previewExcluded      []int64
+	previewEffectiveFrom *timezone.Date
+	preview              []enrollmentService.OfferingChangePreviewSelection
 }
 
 func (f *fakeOfferingChangeRequestService) Catalog(context.Context, int64) (*enrollmentService.OfferingChangeCatalog, error) {
@@ -61,8 +62,14 @@ func (f *fakeOfferingChangeRequestService) PendingCount(context.Context) (int, e
 	return 0, nil
 }
 
-func (f *fakeOfferingChangeRequestService) PreviewDecision(_ context.Context, _ int64, excluded []int64) ([]enrollmentService.OfferingChangePreviewSelection, error) {
+func (f *fakeOfferingChangeRequestService) PreviewDecision(
+	_ context.Context,
+	_ int64,
+	excluded []int64,
+	effectiveFrom *timezone.Date,
+) ([]enrollmentService.OfferingChangePreviewSelection, error) {
 	f.previewExcluded = excluded
+	f.previewEffectiveFrom = effectiveFrom
 	return f.preview, nil
 }
 
@@ -80,7 +87,7 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 
 	svc := &fakeOfferingChangeRequestService{}
 	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
-	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true}`))
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
 	claims := jwt.AppClaims{ID: 55, Roles: []string{"group_supervisor", "staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
 	rctx := chi.NewRouteContext()
@@ -197,4 +204,89 @@ func TestToOfferingRequestResponse_OmitsFullWithdrawalForAnOrdinaryRequest(t *te
 
 	assert.False(t, resp.FullWithdrawal)
 	assert.Empty(t, resp.Unchanged)
+}
+
+// The office confirms the date the switch applies on, and the endpoint has to
+// hand exactly that date to the decision (#2484).
+func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeOfferingChangeRequestService{}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
+	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.decideOfferingChangeRequest(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, svc.input.EffectiveFrom)
+	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.input.EffectiveFrom)
+}
+
+// No date, no approval: the switch would otherwise apply on a day nobody chose.
+func TestDecideOfferingChangeRequest_RefusesApprovalWithoutADate(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeOfferingChangeRequestService{}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+		strings.NewReader(`{"approve":true}`))
+	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.decideOfferingChangeRequest(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Zero(t, svc.input.RequestID, "no decision may reach the service")
+}
+
+// A rejection needs no date, so the endpoint must not start demanding one.
+func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeOfferingChangeRequestService{}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
+		strings.NewReader(`{"approve":false,"reason":"Kein Platz"}`))
+	claims := jwt.AppClaims{ID: 55, Roles: []string{"staff"}}
+	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.decideOfferingChangeRequest(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, svc.input.EffectiveFrom)
+}
+
+// The card previews the decision for the date currently chosen in it.
+func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
+	t.Parallel()
+
+	svc := &fakeOfferingChangeRequestService{}
+	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
+		strings.NewReader(`{"excluded_offering_ids":[],"effective_from":"2026-09-01"}`))
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("requestId", "100")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	w := httptest.NewRecorder()
+
+	rs.previewOfferingChangeRequest(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, svc.previewEffectiveFrom)
+	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
 }

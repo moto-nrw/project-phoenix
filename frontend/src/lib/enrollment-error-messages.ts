@@ -53,6 +53,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Für dieses Angebot sind die Betreuungstage fest vorgegeben und können nicht ausgewählt werden.",
   "enrollment.care_offering_days_required":
     "Bitte wähle mindestens einen Wochentag für das Angebot aus.",
+  "enrollment.care_offering_pickup_times_required":
+    "Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein.",
   "enrollment.late_invite_invalid":
     "Dieser Nachzügler-Link ist ungültig, abgelaufen oder wurde bereits verwendet. Bitte wende dich an die Schule.",
   "enrollment.phase_not_eligible":

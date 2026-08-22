@@ -9,6 +9,7 @@ import (
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
+	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -35,19 +36,24 @@ func testTimetableDataWithOfferingCallbacks(
 	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
 ) *scheduleSvc.TimetableDataService {
 	deps := scheduleSvc.TimetableDataDependencies{
-		InstanceStudentRepo:        scheduleRepo.NewInstanceStudentRepository(db),
-		ActivityInstanceRepo:       scheduleRepo.NewActivityInstanceRepository(db),
-		ActivityExceptionRepo:      scheduleRepo.NewActivityExceptionRepository(db),
-		ActivityScheduleRepo:       activitiesRepo.NewScheduleRepository(db),
-		InstanceStaffRepo:          scheduleRepo.NewInstanceStaffRepository(db),
-		StaffShiftRepo:             scheduleRepo.NewStaffShiftRepository(db),
-		StaffRepo:                  usersRepo.NewStaffRepository(db),
-		CalendarPeriodRepo:         scheduleRepo.NewCalendarPeriodRepository(db),
-		ActiveGroupRepo:            activeRepo.NewGroupRepository(db),
-		SupervisorRepo:             activeRepo.NewGroupSupervisorRepository(db),
-		ArrivalScheduleRepo:        scheduleRepo.NewStudentArrivalScheduleRepository(db),
-		ArrivalExceptionRepo:       scheduleRepo.NewStudentArrivalExceptionRepository(db),
-		PickupScheduleRepo:         scheduleRepo.NewStudentPickupScheduleRepository(db),
+		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(db),
+		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(db),
+		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
+		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(db),
+		InstanceStaffRepo:     scheduleRepo.NewInstanceStaffRepository(db),
+		StaffShiftRepo:        scheduleRepo.NewStaffShiftRepository(db),
+		StaffRepo:             usersRepo.NewStaffRepository(db),
+		CalendarPeriodRepo:    scheduleRepo.NewCalendarPeriodRepository(db),
+		ActiveGroupRepo:       activeRepo.NewGroupRepository(db),
+		SupervisorRepo:        activeRepo.NewGroupSupervisorRepository(db),
+		ArrivalScheduleRepo:   scheduleRepo.NewStudentArrivalScheduleRepository(db),
+		ArrivalExceptionRepo:  scheduleRepo.NewStudentArrivalExceptionRepository(db),
+		PickupScheduleRepo:    scheduleRepo.NewStudentPickupScheduleRepository(db),
+		PickupBaselines: scheduleSvc.NewPickupBaselineService(
+			scheduleRepo.NewStudentPickupScheduleRepository(db),
+			enrollmentRepo.NewRequestChildOfferingRepository(db),
+			enrollmentRepo.NewCareOfferingRepository(db),
+		),
 		PickupExceptionRepo:        scheduleRepo.NewStudentPickupExceptionRepository(db),
 		VisitRepo:                  activeRepo.NewVisitRepository(db),
 		RoomRepo:                   facilitiesRepo.NewRoomRepository(db),

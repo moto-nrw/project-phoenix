@@ -10,6 +10,8 @@
  * compile until both are updated.
  */
 
+import { formatDate } from "~/lib/date-helpers";
+
 /** Who sent a message: the guardian, the OGS staff, or a system event. */
 type MessageSenderKind = "guardian" | "staff" | "system";
 
@@ -173,13 +175,17 @@ const PARENT_REQUEST_CONFIRMED_I18N_KEYS: Readonly<Record<string, string>> = {
  * localize from fields — the caller then falls back to the raw German body
  * (matching the previous behavior for unknown events).
  */
-export function parentEventI18nDescriptor(message: {
-  readonly kind?: MessageKind;
-  readonly event_type?: string;
-  readonly request_status?: string;
-  readonly request_type?: string;
-  readonly decision_reason?: string;
-}): { key: string; values?: { reason: string } } | null {
+export function parentEventI18nDescriptor(
+  message: {
+    readonly kind?: MessageKind;
+    readonly event_type?: string;
+    readonly request_status?: string;
+    readonly request_type?: string;
+    readonly decision_reason?: string;
+    readonly payload?: Record<string, unknown>;
+  },
+  locale = "de-DE",
+): { key: string; values?: Record<string, string> } | null {
   if (message.kind !== "event") {
     return null;
   }
@@ -201,6 +207,20 @@ export function parentEventI18nDescriptor(message: {
   }
   switch (message.request_status) {
     case "erledigt": {
+      // Eine bestätigte Angebots-Änderung gilt ab einem Tag, den die OGS
+      // festlegt (#2484). Steht er im Payload, nennt die Meldung ihn — die
+      // Frage „ab wann?" ist die, die als nächstes gestellt wird.
+      const effectiveFrom = message.payload?.effective_from;
+      if (
+        message.request_type === "care_offering" &&
+        typeof effectiveFrom === "string" &&
+        effectiveFrom !== ""
+      ) {
+        return {
+          key: "eventRequestConfirmedCareOfferingDated",
+          values: { date: formatDate(effectiveFrom, false, locale) },
+        };
+      }
       const key = message.request_type
         ? PARENT_REQUEST_CONFIRMED_I18N_KEYS[message.request_type]
         : undefined;
@@ -239,22 +259,30 @@ export function parentEventI18nDescriptor(message: {
  * abgelehnt") rather than appending a German sentence; the full conversation
  * still renders the reason.
  */
-export function parentThreadPreviewI18nDescriptor(thread: {
-  readonly last_message_kind?: string;
-  readonly last_event_type?: string;
-  readonly last_request_type?: string;
-  readonly last_request_status?: string;
-}): { key: string; values?: { reason: string } } | null {
+export function parentThreadPreviewI18nDescriptor(
+  thread: {
+    readonly last_message_kind?: string;
+    readonly last_event_type?: string;
+    readonly last_request_type?: string;
+    readonly last_request_status?: string;
+    readonly last_message_payload?: Record<string, unknown>;
+  },
+  locale = "de-DE",
+): { key: string; values?: Record<string, string> } | null {
   if (thread.last_message_kind === "request") {
     return { key: parentRequestTypeI18nKey(thread.last_request_type) };
   }
   if (thread.last_message_kind === "event") {
-    return parentEventI18nDescriptor({
-      kind: "event",
-      event_type: thread.last_event_type,
-      request_status: thread.last_request_status,
-      request_type: thread.last_request_type,
-    });
+    return parentEventI18nDescriptor(
+      {
+        kind: "event",
+        event_type: thread.last_event_type,
+        request_status: thread.last_request_status,
+        request_type: thread.last_request_type,
+        payload: thread.last_message_payload,
+      },
+      locale,
+    );
   }
   return null;
 }

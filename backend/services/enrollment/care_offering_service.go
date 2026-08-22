@@ -192,14 +192,31 @@ type CareOfferingSourceResyncBinder interface {
 	SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer)
 }
 
+// CareOfferingPickupResyncer refreshes the still-materialized consumers of
+// the date-aware pickup projection after an offering edit.
+type CareOfferingPickupResyncer interface {
+	ReconcileOfferingPickupForOffering(ctx context.Context, offeringID int64) error
+}
+
+// CareOfferingPickupResyncBinder late-binds the decision service, which is
+// constructed after the care-offering service in the production factory.
+type CareOfferingPickupResyncBinder interface {
+	SetPickupResyncer(resyncer CareOfferingPickupResyncer)
+}
+
 type careOfferingService struct {
 	CareOfferingServiceConfig
 	sourcedTemplateResyncer CareOfferingSourcedTemplateResyncer
+	pickupResyncer          CareOfferingPickupResyncer
 }
 
 // SetSourcedTemplateResyncer implements CareOfferingSourceResyncBinder.
 func (s *careOfferingService) SetSourcedTemplateResyncer(resyncer CareOfferingSourcedTemplateResyncer) {
 	s.sourcedTemplateResyncer = resyncer
+}
+
+func (s *careOfferingService) SetPickupResyncer(resyncer CareOfferingPickupResyncer) {
+	s.pickupResyncer = resyncer
 }
 
 // NewCareOfferingService builds the service.
@@ -1004,8 +1021,8 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if offering == nil {
 		return nil, careOfferingInvalidf("offering is required")
 	}
-	if err := offering.Validate(); err != nil {
-		return nil, wrapCareOfferingInvalid(err, "validate care offering")
+	if err := validateCareOfferingWrite(offering); err != nil {
+		return nil, err
 	}
 	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
 		return nil, err
@@ -1038,8 +1055,8 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if offering == nil || offering.ID <= 0 {
 		return careOfferingInvalidf("offering with valid id is required")
 	}
-	if err := offering.Validate(); err != nil {
-		return wrapCareOfferingInvalid(err, "validate care offering")
+	if err := validateCareOfferingWrite(offering); err != nil {
+		return err
 	}
 	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
 		return err
@@ -1065,7 +1082,44 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.resyncSourcedTemplates(ctx, offering.ID); err != nil {
 		return err
 	}
+	if err := s.resyncPickupProjection(ctx, offering.ID); err != nil {
+		return err
+	}
 	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	return nil
+}
+
+func validateCareOfferingWrite(offering *enrollmentModels.CareOffering) error {
+	if err := offering.Validate(); err != nil {
+		return wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if !offering.IsActive || !offering.CountsAsCare {
+		return nil
+	}
+	missing := make([]string, 0, len(offering.AvailableDays))
+	for _, day := range offering.AvailableDays {
+		key := strings.ToLower(strings.TrimSpace(day))
+		weekday, ok := enrollmentModels.CanonicalDayToISOWeekday(key)
+		if ok && weekday <= scheduleModels.WeekdayFriday && offering.PickupTimes[key] == "" {
+			missing = append(missing, key)
+		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return wrapCareOfferingInvalid(
+		fmt.Errorf("%w: %s", enrollmentModels.ErrCareOfferingPickupTimesRequired, strings.Join(missing, ", ")),
+		"validate care offering pickup times",
+	)
+}
+
+func (s *careOfferingService) resyncPickupProjection(ctx context.Context, offeringID int64) error {
+	if s.pickupResyncer == nil {
+		return errors.New("care offering update: pickup resyncer not configured")
+	}
+	if err := s.pickupResyncer.ReconcileOfferingPickupForOffering(ctx, offeringID); err != nil {
+		return fmt.Errorf("care offering update: resync pickup projection: %w", err)
+	}
 	return nil
 }
 

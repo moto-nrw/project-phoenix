@@ -164,6 +164,7 @@ var careRequestDecisionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: scheduleService.ErrPickupChangeAlreadyCompleted, Render: conflictWithCode("pickup_change_completed")},
 	{Target: scheduleService.ErrPickupChangeExpired, Render: conflictWithCode("pickup_change_expired")},
 	{Target: scheduleService.ErrPickupChangeImpactChanged, Render: conflictWithCode("pickup_change_impact_changed")},
+	{Target: scheduleService.ErrCareDayManagedByBooking, Render: conflictWithCode("care_day_managed_by_booking")},
 	{Match: isInvalidCareRequestDecision, Render: common.ErrorInvalidRequest},
 }, careRequestDecisionFallback)
 

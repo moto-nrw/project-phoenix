@@ -31,8 +31,8 @@ func careDayClock(hhmm string) time.Time {
 func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 	plans := &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
-		pickupByStudentWeekday:  map[int64]map[int]*schedule.StudentPickupSchedule{},
-		hasPlan:                 map[int64]bool{},
+		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
+		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
 		pickupExceptions:        map[int64]map[timezone.Date]*schedule.StudentPickupException{},
 	}
@@ -46,7 +46,9 @@ func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 			}
 		}
 		plans.arrivalByStudentWeekday[studentID] = byWeekday
-		plans.hasPlan[studentID] = true
+		plans.hasPlan[studentID] = map[timezone.Date]bool{
+			careDayMonday: true, careDayThursday: true, careDaySaturday: true,
+		}
 	}
 	return plans
 }
@@ -119,8 +121,8 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	// not resurrect the day (#1725 contract in mergeCareExceptions).
 	t.Run("timeless arrival exception cancels the day despite a pickup schedule", func(t *testing.T) {
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
-		plans.pickupByStudentWeekday[studentID] = map[int]*schedule.StudentPickupSchedule{
-			schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
+		plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+			careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
 		}
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
@@ -178,10 +180,12 @@ func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
 	pickup := careDayClock("16:00")
 
 	plans := plansForStudent(studentID)
-	plans.pickupByStudentWeekday[studentID] = map[int]*schedule.StudentPickupSchedule{
-		schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: pickup},
+	plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: pickup},
 	}
-	plans.hasPlan[studentID] = true
+	plans.hasPlan[studentID] = map[timezone.Date]bool{
+		careDayMonday: true, careDayThursday: true, careDaySaturday: true,
+	}
 
 	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
 	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayThursday))

@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 
-import { Alert } from "~/components/ui/alert";
 import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
+import { useToast } from "~/contexts/ToastContext";
 import {
   CareRequestApiError,
   type StaffCareRequest,
@@ -39,6 +39,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Der angefragte Tag liegt bereits in der Vergangenheit. Die Abholzeit kann nicht mehr übernommen werden. Bitte die Anfrage ablehnen.";
     case "pickup_change_impact_changed":
       return "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.";
+    case "care_day_managed_by_booking":
+      return "Dieser Betreuungstag gehört zu einem gebuchten Angebot. Ändern Sie zuerst die Buchung des Kindes. Lehnen Sie diese Anfrage danach ab.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }
@@ -128,7 +130,7 @@ export function CareRequestReviewItem({
       onApprove={() => void decision.decide(true)}
       onReject={() => void decision.decide(false)}
     >
-      <CareRequestDetails row={row} error={decision.error} />
+      <CareRequestDetails row={row} />
     </RequestReviewCard>
   );
 }
@@ -137,16 +139,19 @@ function useCareRequestDecision(
   row: StaffCareRequest,
   onDecided: (notice: string) => void,
 ) {
+  const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler laufen als Toast, nicht als Kasten in der Karte: sie sind die
+  // Ausnahme, und der Platz gehört dem, worüber entschieden wird.
+  const showError = (message: string) =>
+    toast.error(message, { duration: 8000 });
   const decide = async (approve: boolean) => {
     const trimmed = reason.trim();
-    if (!decisionInputReady(row, approve, trimmed, setError, setReasonError))
+    if (!decisionInputReady(row, approve, trimmed, showError, setReasonError))
       return;
     setBusy(true);
-    setError(null);
     try {
       await decideCareScheduleChangeRequest(
         row.id,
@@ -156,7 +161,7 @@ function useCareRequestDecision(
       );
       onDecided(decisionNotice(row, approve));
     } catch (err) {
-      handleDecisionError(err, row.id, setError, setBusy);
+      handleDecisionError(err, row.id, showError, setBusy);
     }
   };
   return {
@@ -169,7 +174,6 @@ function useCareRequestDecision(
       ? "Für eine Ablehnung ist eine Begründung erforderlich."
       : undefined,
     busy,
-    error,
     decide,
   };
 }
@@ -215,17 +219,9 @@ function handleDecisionError(
   setBusy(false);
 }
 
-function CareRequestDetails({
-  row,
-  error,
-}: Readonly<{ row: StaffCareRequest; error: string | null }>) {
+function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
   return (
     <>
-      {error && (
-        <div className="mb-2">
-          <Alert type="error" message={error} />
-        </div>
-      )}
       <ReviewDiffPanel title="Änderungen">
         {row.request_reason && (
           <p className="mb-3 text-sm text-gray-700">

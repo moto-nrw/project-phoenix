@@ -1601,6 +1601,7 @@ describe("staff-api", () => {
 
       const requested = mockFetch.mock.calls.map((c) => {
         const params = new URL(c[0] as string, "http://x").searchParams;
+        expect(params.get("target_only")).toBe("true");
         return `${params.get("from")}..${params.get("to")}`;
       });
       // 2.5 years -> three 366-day windows, contiguous and gapless, the last

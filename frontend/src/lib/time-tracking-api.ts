@@ -4,9 +4,11 @@ import { getCachedSession } from "./session-cache";
 import { buildApiError } from "./auth-api";
 import type {
   BackendClosingDayRange,
+  BackendDailyProjection,
   BackendDailyTarget,
   BackendHoliday,
   BackendMonthSummary,
+  DayProjection,
   MonthSummary,
   StaffAbsence,
   WeeklySummary,
@@ -17,6 +19,7 @@ import type {
 } from "./time-tracking-helpers";
 import {
   mapClosingDaysResponse,
+  mapDailyProjectionResponse,
   mapDailyTargetsResponse,
   mapHistoryResponse,
   mapHolidaysResponse,
@@ -238,6 +241,22 @@ class TimeTrackingService {
       "Failed to get schedule targets",
     );
     return mapDailyTargetsResponse(result.data);
+  }
+
+  // Vollständige Tagesprojektion desselben Endpunkts (#2443): Soll, Gutschrift,
+  // Ist und Saldo je Tag, gerechnet wie die Monatskarte. Die Tagestabelle liest
+  // diese Werte, statt den Saldo selbst abzuleiten.
+  async getDailyProjection(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, DayProjection>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendDailyProjection[] | null>(
+      `/schedule-targets?${params}`,
+      "GET",
+      "Failed to get daily projection",
+    );
+    return mapDailyProjectionResponse(result.data);
   }
 
   // Gesetzliche Feiertage des Tenants (#1418 3a), keyed YYYY-MM-DD → Name.

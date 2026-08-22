@@ -155,7 +155,10 @@ func TestAggregatedChangeRequests_RouterDirectCorrections(t *testing.T) {
 	// ARRANGE 2 — a parent asks for a change and the office approves it through
 	// the production decide route. That apply writes into the same log.
 	pending := insertPendingOfferingChangeRequest(t, tc, fixture, student.ID, account.ID)
-	body := strings.NewReader(`{"approve":true,"reason":"Passt"}`)
+	// Eine Freigabe trägt seit #2484 immer das Datum, das die OGS bestätigt —
+	// hier das der Anfrage.
+	body := strings.NewReader(fmt.Sprintf(
+		`{"approve":true,"reason":"Passt","effective_from":%q}`, pending.EffectiveFrom.String()))
 	rr := authExec(t, tc,
 		testutil.NewRequest("POST", fmt.Sprintf("/offering-change-requests/%d/decide", pending.ID), body),
 		claims, perms)

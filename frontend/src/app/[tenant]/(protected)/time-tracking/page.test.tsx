@@ -379,7 +379,7 @@ vi.mock("lucide-react", () => ({
 import TimeTrackingPage from "./page";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
@@ -4567,6 +4567,34 @@ describe("TimeTrackingPage", () => {
         screen.queryByText("Arbeitszeit manuell bearbeitet"),
       ).not.toBeInTheDocument();
     });
+  });
+});
+
+// Check-in, checkout, session edits and absence changes all run through
+// refreshTableData. Since #2443 the day rows read their Ist, Gutschrift and
+// Saldo from the server's daily projection, so that key has to be invalidated
+// with the session list and the Monatskarte — otherwise the numbers the fix
+// added are the only ones on the screen still showing the pre-mutation state.
+describe("daily-projection invalidation (#2443)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("invalidates the daily projection alongside the table and Monatskarte", () => {
+    setupDefaultMocks();
+    render(<TimeTrackingPage />);
+
+    const invalidated = vi
+      .mocked(useTenantMutateMatching)
+      .mock.calls.flatMap(([substrings]) => substrings);
+
+    expect(invalidated).toEqual(
+      expect.arrayContaining([
+        "time-tracking-table",
+        "time-tracking-month-summary",
+        "time-tracking-schedule-targets-",
+      ]),
+    );
   });
 });
 

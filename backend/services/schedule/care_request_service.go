@@ -98,8 +98,12 @@ var (
 	ErrCareRequestRejectReasonRequired = errors.New("schedule: reject reason is required")
 	// ErrCareRequestRejectReasonTooLong means the reason exceeded the bound.
 	ErrCareRequestRejectReasonTooLong = errors.New("schedule: reject reason too long")
-	ErrPickupChangeConflict           = errors.New("schedule: pickup change conflicts with a staff exception")
-	ErrPickupChangeAlreadyCompleted   = errors.New("schedule: pickup change cannot be approved after checkout")
+	// ErrCareDayManagedByBooking prevents a permanent care-day request from
+	// pretending to remove a day whose pickup baseline still comes from an
+	// active offering booking. The booking must be changed first (#2416).
+	ErrCareDayManagedByBooking      = errors.New("schedule: care day is managed by an offering booking")
+	ErrPickupChangeConflict         = errors.New("schedule: pickup change conflicts with a staff exception")
+	ErrPickupChangeAlreadyCompleted = errors.New("schedule: pickup change cannot be approved after checkout")
 	// ErrPickupChangeExpired means the requested day has passed while the
 	// request sat in the queue. Approving would write an exception for a day
 	// that is over; staff close such a request by rejecting it.
@@ -819,19 +823,12 @@ func (s *careScheduleRequestService) pickupChangeDiff(ctx context.Context, req *
 		}
 	}
 	if old == "" && s.pickup != nil {
-		rows, findErr := s.pickup.GetStudentPickupSchedules(ctx, req.StudentID)
+		effective, findErr := s.pickup.GetEffectivePickupTimeForDate(ctx, req.StudentID, date)
 		if findErr != nil {
 			return nil, findErr
 		}
-		weekday := int(date.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		for _, row := range rows {
-			if row.Weekday == weekday {
-				old = row.PickupTime.Format("15:04")
-				break
-			}
+		if effective.PickupTime != nil {
+			old = effective.PickupTime.Format("15:04")
 		}
 	}
 	return []RequestDiffEntry{{
@@ -1364,6 +1361,17 @@ func (s *careScheduleRequestService) applyCareDayChanges(ctx context.Context, st
 	pickups, err := s.pickup.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return fmt.Errorf("apply care days: load pickups: %w", err)
+	}
+	for weekday, active := range changes {
+		if !active {
+			managed, managedErr := s.pickup.HasBookedOfferingPickupForWeekday(ctx, studentID, weekday)
+			if managedErr != nil {
+				return fmt.Errorf("apply care days: check booked offering: %w", managedErr)
+			}
+			if managed {
+				return ErrCareDayManagedByBooking
+			}
+		}
 	}
 	for weekday, active := range changes {
 		if active {

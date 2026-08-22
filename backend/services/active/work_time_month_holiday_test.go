@@ -46,7 +46,7 @@ func TestWTMDailyTargets_HolidayZeroesSoll(t *testing.T) {
 	holiday := timezone.NewDate(2026, time.June, 8)
 	f.svc.SetHolidayReader(&wtmMockHolidayReader{dates: map[timezone.Date]bool{holiday: true}})
 
-	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.June, 1), timezone.NewDate(2026, time.June, 15))
 	require.NoError(t, err)
 

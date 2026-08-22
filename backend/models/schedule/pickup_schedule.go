@@ -50,9 +50,9 @@ func validateExceptionAuthor(source string, createdBy int64, createdByGuardian *
 }
 
 // Recurring pickup-schedule row sources (#2290). Unlike the exception
-// sources above, these describe WHERE the weekly Gehzeit came from: staff
-// keeps it manually, care_offering rows are materialized from an
-// Angebots-Gehzeit and belong to automatic reconciliation.
+// sources above, these describe WHERE the weekly Gehzeit came from. New
+// stored rows are staff-maintained. care_offering identifies legacy
+// materializations; current offering values are projected at read time.
 const (
 	PickupScheduleSourceStaff        = "staff"
 	PickupScheduleSourceCareOffering = "care_offering"
@@ -94,12 +94,14 @@ type StudentPickupSchedule struct {
 	PickupTime time.Time `bun:"pickup_time,notnull" json:"pickup_time"`
 	Notes      *string   `bun:"notes" json:"notes,omitempty"`
 	CreatedBy  int64     `bun:"created_by,nullzero" json:"created_by"`
-	// Source marks how the row came to be: staff-maintained (default) or
-	// materialized from a care offering's Angebots-Gehzeit (#2290). A manual
-	// edit of a care_offering row flips it back to staff, which shields it
-	// from automatic reconciliation.
+	// Source marks a stored staff override (default) or a legacy offering
+	// materialization. Read-time offering projections are synthetic and are
+	// never inserted into this table.
 	Source         string `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
 	CareOfferingID *int64 `bun:"care_offering_id,nullzero" json:"care_offering_id,omitempty"`
+	// CareOfferingName is hydrated only on read-time projections. It is not
+	// persisted because the offering catalog remains the source of the name.
+	CareOfferingName string `bun:"-" json:"care_offering_name,omitempty"`
 }
 
 // Validate ensures pickup schedule data is valid

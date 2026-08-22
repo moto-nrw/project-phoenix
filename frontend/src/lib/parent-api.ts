@@ -753,6 +753,7 @@ export interface ThreadSummary {
   readonly last_event_type?: string;
   readonly last_request_type?: string;
   readonly last_request_status?: string;
+  readonly last_message_payload?: Record<string, unknown>;
   readonly last_message_read_by_staff: boolean;
   readonly unread: number;
 }

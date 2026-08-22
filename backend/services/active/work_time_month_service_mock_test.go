@@ -597,7 +597,7 @@ func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
 	assert.Equal(t, 3*480, summary.TargetMinutes, "the version's own anchor must decide the parity")
 }
 
-// GetDailyTargets is what the daily table reads, and it must resolve each day
+// GetDailyProjection is what the daily table reads, and it must resolve each day
 // against the schedule version valid ON that day — the card and the rows
 // beneath it are otherwise free to disagree.
 func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
@@ -633,7 +633,7 @@ func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
 }
 
 // A mid-month account start makes the card skip every day of the anchor month
-// before the start date. The table reads GetDailyTargets, so it has to skip the
+// before the start date. The table reads GetDailyProjection, so it has to skip the
 // same days — otherwise its Soll column bills days the card never counted and
 // the two contradict each other on the very first month of the account.
 func TestWTMDailyTargets_ZeroesDaysBeforeMidMonthAccountStart(t *testing.T) {
@@ -642,7 +642,7 @@ func TestWTMDailyTargets_ZeroesDaysBeforeMidMonthAccountStart(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-08"
 
-	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.June, 29), timezone.NewDate(2026, time.July, 13))
 	require.NoError(t, err)
 
@@ -667,7 +667,7 @@ func TestWTMDailyTargets_SumMatchesCardForMidMonthStart(t *testing.T) {
 	f.settings.accountStart = "2026-07-08"
 	ctx := context.Background()
 
-	targets, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2026, time.July, 1), timezone.NewDate(2026, time.July, 31))
 	require.NoError(t, err)
 	sum := 0
@@ -802,7 +802,7 @@ func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = ""
 
-	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 31))
 	require.NoError(t, err)
 
@@ -819,11 +819,11 @@ func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
 	f := newWTMFixture()
 	ctx := context.Background()
 
-	_, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+	_, err := f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2026, time.July, 10), timezone.NewDate(2026, time.July, 1))
 	assert.Error(t, err, "to before from")
 
-	_, err = f.svc.GetDailyTargets(ctx, wtmStaffID,
+	_, err = f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1))
 	assert.Error(t, err, "range beyond the cap")
 }
@@ -845,7 +845,7 @@ func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := f.svc.GetDailyTargets(ctx, wtmStaffID, tc.from, tc.to)
+			_, err := f.svc.GetDailyProjection(ctx, wtmStaffID, tc.from, tc.to)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrInvalidTargetRange)
 		})

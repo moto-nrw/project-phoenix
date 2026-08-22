@@ -117,11 +117,11 @@ type partialAbsenceReader interface {
 	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentPickupException, error)
 }
 
-// regularPickupReader returns the recurring weekly pickup rows (no exceptions
-// applied). Used to place a cancelled child into a cohort by their normal
-// pickup bucket when a same-day exception cleared their effective time.
+// regularPickupReader returns the date-aware recurring pickup projection (no
+// exceptions applied). It places a cancelled child into the normal pickup
+// bucket even when a same-day exception cleared the effective time.
 type regularPickupReader interface {
-	FindByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*scheduleModel.StudentPickupSchedule, error)
+	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*scheduleSvc.PickupBaselineProjection, error)
 }
 
 type studentReader interface {
@@ -171,7 +171,7 @@ type Dependencies struct {
 	StatusDayRepo       statusDayReader
 	CareDayService      careDayReader
 	PickupExceptionRepo partialAbsenceReader
-	PickupScheduleRepo  regularPickupReader
+	PickupBaselines     regularPickupReader
 	StudentRepo         studentReader
 	PersonRepo          personReader
 	EducationGroupRepo  educationGroupReader
@@ -195,7 +195,7 @@ type service struct {
 	statusDayRepo       statusDayReader
 	careDayService      careDayReader
 	pickupExceptionRepo partialAbsenceReader
-	pickupScheduleRepo  regularPickupReader
+	pickupBaselines     regularPickupReader
 	studentRepo         studentReader
 	personRepo          personReader
 	educationGroupRepo  educationGroupReader
@@ -234,7 +234,7 @@ func NewService(deps Dependencies) Service {
 		statusDayRepo:       deps.StatusDayRepo,
 		careDayService:      deps.CareDayService,
 		pickupExceptionRepo: deps.PickupExceptionRepo,
-		pickupScheduleRepo:  deps.PickupScheduleRepo,
+		pickupBaselines:     deps.PickupBaselines,
 		studentRepo:         deps.StudentRepo,
 		personRepo:          deps.PersonRepo,
 		educationGroupRepo:  deps.EducationGroupRepo,
@@ -432,7 +432,7 @@ func (s *service) BuildList(ctx context.Context, params Params) (*Result, error)
 	}
 	if s.instanceRepo == nil || s.instanceStudentRepo == nil || s.visitRepo == nil ||
 		s.attendanceRepo == nil || s.statusDayRepo == nil || s.careDayService == nil ||
-		s.pickupScheduleRepo == nil || s.studentRepo == nil ||
+		s.pickupBaselines == nil || s.studentRepo == nil ||
 		s.personRepo == nil || s.educationGroupRepo == nil || s.roomRepo == nil ||
 		s.pickupService == nil || s.arrivalService == nil || s.listExport == nil {
 		return nil, fmt.Errorf("slot list service is not configured")
@@ -860,13 +860,9 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		// (resolved once above into careDays) keeps the child visible via the
 		// regular weekly bucket. Without this, the card reported zero while the
 		// preview showed the signed-off child.
-		regularRows, err := s.pickupScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, int(date.Weekday()))
+		regularBucket, err := s.regularPickupBucket(ctx, studentIDs, date)
 		if err != nil {
-			return nil, fmt.Errorf("load regular pickup schedules: %w", err)
-		}
-		regularBucket := make(map[int64]string, len(regularRows))
-		for _, row := range regularRows {
-			regularBucket[row.StudentID] = row.PickupTime.Format(timeLayout)
+			return nil, err
 		}
 		for _, student := range students {
 			if _, ok := readable[student.ID]; !ok {
@@ -1796,6 +1792,24 @@ func (s *service) listEligibleStudents(ctx context.Context, date timezone.Date) 
 // signed-off child still appears in their cohort. Preview, export, and the
 // options availability counts MUST all apply this identical fallback or they
 // disagree on cancelled care days (#1565 review).
+func (s *service) regularPickupBucket(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) (map[int64]string, error) {
+	projection, err := s.pickupBaselines.Project(ctx, studentIDs, date, date)
+	if err != nil {
+		return nil, fmt.Errorf("load regular pickup schedules: %w", err)
+	}
+	out := make(map[int64]string, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if row := projection.ForDate(studentID, date); row != nil {
+			out[studentID] = row.PickupTime.Format(timeLayout)
+		}
+	}
+	return out, nil
+}
+
 func cohortPickupTime(cancelled bool, effective *scheduleSvc.EffectivePickupTime, regular string) string {
 	if effective != nil && effective.PickupTime != nil {
 		return effective.PickupTime.Format(timeLayout)
@@ -1899,13 +1913,9 @@ func (s *service) collectPickupEntries(ctx context.Context, params Params, bucke
 	if err != nil {
 		return nil, fmt.Errorf("resolve care days: %w", err)
 	}
-	regularRows, err := s.pickupScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, int(params.Date.Weekday()))
+	regularBucket, err := s.regularPickupBucket(ctx, studentIDs, params.Date)
 	if err != nil {
-		return nil, fmt.Errorf("load regular pickup schedules: %w", err)
-	}
-	regularBucket := make(map[int64]string, len(regularRows))
-	for _, row := range regularRows {
-		regularBucket[row.StudentID] = row.PickupTime.Format(timeLayout)
+		return nil, err
 	}
 
 	slotLabel := result.ListLabel

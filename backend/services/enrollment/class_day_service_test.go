@@ -74,7 +74,7 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 
 	assert.True(t, report.Rows[0].StaysToday)
 	assert.Equal(t, []string{"Ganztag"}, report.Rows[0].Offerings)
-	// The effective (materialized-plan) pickup time beats the form answer.
+	// The effective projected pickup time beats the form answer.
 	assert.Equal(t, "16:00", report.Rows[0].Pickup)
 	assert.Equal(t, "07:30", report.Rows[0].Arrival)
 	// The day-specific departure is the ONLY source on a school day.

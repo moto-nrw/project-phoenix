@@ -1,6 +1,27 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fehler laufen als Toast; die Karte selbst zeigt keinen Fehlerkasten mehr.
+const mockToast = {
+  success: vi.fn(),
+  error: vi.fn(),
+  warning: vi.fn(),
+  info: vi.fn(),
+};
+vi.mock("~/contexts/ToastContext", () => ({
+  useToast: () => mockToast,
+}));
+
+// Fehlermeldungen laufen als Toast: geprüft wird der Toast-Aufruf, nicht die DOM.
+async function expectErrorToast(pattern: RegExp) {
+  await waitFor(() =>
+    expect(mockToast.error).toHaveBeenCalledWith(
+      expect.stringMatching(pattern),
+      expect.anything(),
+    ),
+  );
+}
+
 import { CareRequestReviewItem } from "./care-request-review-item";
 import {
   CareRequestApiError,
@@ -275,7 +296,7 @@ describe("CareRequestReviewItem", () => {
     ).toBeInTheDocument();
   });
 
-  it("blocks approval when the affected blocks could not be loaded", () => {
+  it("blocks approval when the affected blocks could not be loaded", async () => {
     render(
       <CareRequestReviewItem
         row={pickupRow({ impact_available: false, affected_blocks: [] })}
@@ -285,11 +306,9 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
     expect(mockDecide).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(
-        "Die Anfrage kann nicht freigegeben werden. Bitte laden Sie die Seite neu.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Anfrage kann nicht freigegeben werden\. Bitte laden Sie die Seite neu\./,
+    );
   });
 
   it("shows a generic decision error without calling onDecided", async () => {
@@ -301,11 +320,9 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Die Entscheidung konnte nicht gespeichert werden.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Die Entscheidung konnte nicht gespeichert werden\./,
+    );
     expect(onDecided).not.toHaveBeenCalled();
     expect(screen.getByText("Lara Beispiel")).toBeInTheDocument();
   });
@@ -319,11 +336,7 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu und prüfen Sie die Termine noch einmal.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(/Der Betreuungsplan hat sich geändert\./);
   });
 
   it("surfaces the recovery action when approval is blocked by messaging_disabled", async () => {
@@ -342,9 +355,7 @@ describe("CareRequestReviewItem", () => {
 
     // The blocking reason must tell the reviewer to reject instead — not a
     // generic failure that leaves the request silently pending.
-    expect(
-      await screen.findByText(/Bitte die Anfrage stattdessen ablehnen\./),
-    ).toBeInTheDocument();
+    await expectErrorToast(/Bitte die Anfrage stattdessen ablehnen\./);
     expect(onDecided).not.toHaveBeenCalled();
   });
 
@@ -367,11 +378,26 @@ describe("CareRequestReviewItem", () => {
     expand();
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
-    expect(
-      await screen.findByText(
-        "Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen. Bitte prüfen und die Anfrage gegebenenfalls ablehnen.",
-      ),
-    ).toBeInTheDocument();
+    await expectErrorToast(
+      /Für diesen Tag wurde inzwischen bereits eine Änderung durch die OGS eingetragen\./,
+    );
     expect(onDecided).not.toHaveBeenCalled();
+  });
+
+  it("directs booking-managed care days to the offering change flow", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new CareRequestApiError(
+        "schedule: care day is managed by an offering booking",
+        "care_day_managed_by_booking",
+      ),
+    );
+
+    render(<CareRequestReviewItem row={row()} onDecided={vi.fn()} />);
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    await expectErrorToast(
+      /Dieser Betreuungstag gehört zu einem gebuchten Angebot\. Ändern Sie zuerst die Buchung des Kindes\./,
+    );
   });
 });

@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -129,6 +131,31 @@ func TestEmptyAndPermissionRedactedProjection(t *testing.T) {
 	rooms, err := service.loadEducationRooms(ctx, nil)
 	require.NoError(t, err)
 	assert.Empty(t, rooms)
+}
+
+func TestLoadPlanningTimesProjectsPickupException(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, 8, 19)
+	pickup := time.Date(2026, time.August, 19, 15, 30, 0, 0, time.UTC)
+	service := &service{deps: Dependencies{
+		Now: func() time.Time { return date.BerlinMidnight().Add(12 * time.Hour) },
+		Pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+			assert.Equal(t, []int64{42}, studentIDs)
+			assert.Equal(t, date, gotDate)
+			return map[int64]*scheduleService.EffectivePickupTime{42: {Date: date, PickupTime: &pickup, IsException: true}}, nil
+		}},
+		Arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+			return map[int64]*scheduleService.EffectiveArrivalTime{}, nil
+		}},
+	}}
+	ctx := context.WithValue(context.Background(), jwt.CtxPermissions, []string{permissions.UsersRead})
+	projection := emptyProjection()
+
+	require.NoError(t, service.loadPlanningTimes(ctx, projection, []int64{42}, true))
+	require.Len(t, projection.PickupTimes, 1)
+	assert.Equal(t, "15:30", *projection.PickupTimes[0].PickupTime)
+	assert.True(t, projection.PickupTimes[0].IsException)
 }
 
 func TestServiceDefaults(t *testing.T) {

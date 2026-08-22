@@ -1,35 +1,56 @@
-# Angebots-Gehzeiten werden auf Kind-Gehzeiten ausgerollt, nicht zur Lesezeit aufgelöst
+# Angebots-Gehzeiten werden aus Buchungsfenstern projiziert
 
-Betreuungsangebote (`enrollment.care_offerings`) tragen optionale Gehzeiten pro
-Wochentag (#2290). Damit diese Zeiten "überall" erscheinen (Klassenliste,
-Kinderdetail, Kindersuche), haben wir uns entschieden, sie beim Speichern des
-Angebots und bei der Genehmigung von Anmeldungen als konkrete Zeilen in
-`schedule.student_pickup_schedules` zu **materialisieren** (mit Herkunftsfeld
-`source` + Angebots-Referenz), statt sie zur Lesezeit als Fallback aus dem
-Angebot aufzulösen.
+Status: accepted; ersetzt die ursprüngliche Materialisierungsentscheidung in
+dieser ADR für Angebots-Gehzeiten (#2412, #2415).
 
-## Considered Options
+## Kontext
 
-- **Lesezeit-Fallback**: kein Schreiben, jeder Leser der geplanten Abholzeit
-  fällt bei fehlendem `student_pickup_schedules`-Eintrag auf die Gehzeit des am
-  Wochentag gebuchten Angebots zurück. Verworfen: die Auflösungskette
-  Kind → genehmigte Anmeldung → `request_child_offerings` → Angebot liegt im
-  Enrollment-Domain, während die geplante Abholzeit im Schedule-Domain
-  aufgelöst wird (`care_day_resolver.go` liest bewusst keine Angebote). Der
-  Fallback hätte diesen Domain-Übertritt in jeden Lesepfad getragen — eine
-  "Referenz auf eine Referenz", die bei jedem neuen Konsumenten erneut
-  verdrahtet werden muss.
-- **Materialisierung** (gewählt): einmaliger Domain-Übertritt an zwei
-  Schreibstellen (Rollout, Genehmigung); alle bestehenden Lesepfade
-  funktionieren unverändert.
+Betreuungsangebote (`enrollment.care_offerings`) tragen Gehzeiten pro
+Wochentag. Die erste Umsetzung kopierte diese Werte als Zeilen mit
+`source = care_offering` nach `schedule.student_pickup_schedules`.
 
-## Consequences
+Diese Kopie hat kein Datumsfenster. Eine heute genehmigte, aber erst später
+wirksame Buchungsänderung kann deshalb am Stichtag nicht automatisch greifen.
+Der Produktionsvorfall aus #2412 hat genau diesen Fehler bestätigt. Ein
+täglicher Reparaturjob würde die Kopie nur nachträglich synchronisieren und
+bliebe ein zusätzlicher Korrektheitsmechanismus.
 
-- Die Materialisierung muss aktiv konsistent gehalten werden: Gehzeit-Änderung
-  am Angebot → erneuter Rollout (Bestätigungsdialog, manuell abweichende Kinder
-  gelistet und einzeln ausnehmbar); Genehmigung/Rollover → automatisches
-  Schreiben; Buchungsverlust → Entfernen der Angebot-stämmigen Einträge.
-  Manuell gepflegte Einträge (Herkunft `staff`) sind vor automatischen Pfaden
-  geschützt.
-- `schedule.student_pickup_schedules` braucht das Herkunftsfeld dauerhaft; ein
-  späterer Wechsel zur Lesezeit-Variante hieße Daten-Rückbau über alle Tenants.
+Ein Datumsfenster direkt auf `student_pickup_schedules` passt nicht zum
+bestehenden Modell: Die Tabelle erlaubt durch ihre Eindeutigkeit nur eine Zeile
+pro Kind und Wochentag. Mehrere aufeinanderfolgende Buchungsfenster würden diese
+Eindeutigkeit aufbrechen. Außerdem fehlen in Bestandsdaten Gehzeiten, die sich
+nicht ohne fachliche Entscheidung aus Namen oder Regelterminen ableiten lassen.
+
+## Entscheidung
+
+- `enrollment.request_child_offerings` bleibt mit seinem halb offenen Fenster
+  `[valid_from, valid_until)` die Quelle für die wirksame Buchung.
+- Ein zentraler Schedule-Dienst projiziert die Angebots-Gehzeit für das
+  angefragte Datum oder Datumsfenster. Alle Leser nutzen diese Grenze.
+- Gespeicherte `staff`-Zeilen in `student_pickup_schedules` sind manuelle
+  Overrides und haben Vorrang vor der Projektion.
+- Alte `care_offering`-Zeilen werden beim Lesen ignoriert. Ein vollständiges
+  Speichern des Gehplans entfernt solche Altzeilen; es gibt keine destruktive
+  Datenmigration.
+- Treffen mehrere wirksame Angebote auf denselben Wochentag, gilt wie bisher
+  die späteste Gehzeit.
+- Aktive Angebote, die als Betreuungstage zählen, brauchen für jeden gewählten
+  Wochentag eine Gehzeit. Unvollständige Bestandsangebote werden im Katalog
+  sichtbar und müssen beim nächsten Bearbeiten vervollständigt oder fachlich
+  anders eingeordnet werden.
+- Buchungs- und Angebotsänderungen stoßen weiterhin die abhängigen
+  Auto-Abmeldungen und Live-Aktualisierungen an. Sie schreiben keine
+  Angebotszeilen mehr.
+
+## Folgen
+
+- Zukunftswirksame Änderungen greifen am Stichtag ohne Scheduler-Lauf.
+- Klassenlisten, Exporte, Kinderdetail, Betreuungsstatus, Auto-Abmeldungen und
+  Slotlisten erhalten dieselbe datumsgenaue Gehzeit.
+- Die Projektion lädt Buchungen und Angebote je Anfrage gebündelt; sie erzeugt
+  keine Abfrage pro Kind oder Tag.
+- `source` und `care_offering_id` bleiben vorerst im Schema, damit Altzeilen
+  lesbar und kontrolliert abbaubar bleiben. Neue `care_offering`-Zeilen werden
+  nicht mehr erzeugt.
+- Eine spätere Konsistenzprüfung kann Abweichungen melden. Sie ist ein
+  Betriebsnetz, nicht Teil der fachlichen Korrektheit.

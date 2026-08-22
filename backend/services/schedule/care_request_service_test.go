@@ -60,7 +60,7 @@ func newCareFixture(t *testing.T) *careFixture {
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		repos.StudentPickupSchedule,
+		schedule.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)
@@ -150,6 +150,24 @@ func careWeekdays(entries ...map[string]any) map[string]any {
 type failingPickupDeleteService struct {
 	schedule.PickupScheduleService
 	err error
+}
+
+type offeringProjectedPickupService struct {
+	schedule.PickupScheduleService
+	studentID int64
+	weekday   int
+}
+
+func (s offeringProjectedPickupService) GetStudentPickupSchedules(context.Context, int64) ([]*scheduleModels.StudentPickupSchedule, error) {
+	return []*scheduleModels.StudentPickupSchedule{{
+		StudentID: s.studentID, Weekday: s.weekday,
+		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
+		Source:     scheduleModels.PickupScheduleSourceCareOffering,
+	}}, nil
+}
+
+func (s offeringProjectedPickupService) HasBookedOfferingPickupForWeekday(_ context.Context, studentID int64, weekday int) (bool, error) {
+	return studentID == s.studentID && weekday == s.weekday, nil
 }
 
 func (s failingPickupDeleteService) DeleteStudentPickupSchedule(context.Context, int64) error {
@@ -369,6 +387,47 @@ func TestDecide_InactiveCareDayRollsBackWhenPickupDeleteFails(t *testing.T) {
 	student, err := f.sf.Users.GetStudentByID(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []usersModels.DepartureMode{usersModels.DeparturePickup}, student.AllowedDepartureModes["tue"])
+	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.NotNil(t, pending)
+	assert.Equal(t, req.ID, pending.ID)
+}
+
+func TestDecide_InactiveCareDayRejectsOfferingManagedPickup(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	seedCareDay(t, f, ctx, 2)
+	req := f.createPending(t, careWeekdays(map[string]any{"weekday": 2, "scheduled": false}))
+	service := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		offeringProjectedPickupService{
+			PickupScheduleService: f.sf.PickupSchedule,
+			studentID:             f.chain.StudentID,
+			weekday:               2,
+		},
+		f.sf.UserContext,
+		nil,
+		nil,
+		slog.Default(),
+		f.sf.StudentAudit,
+	)
+
+	err := tenant.WithTenantTx(ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := service.Decide(txCtx, schedule.CareRequestDecideInput{
+			RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, schedule.ErrCareDayManagedByBooking)
+
+	arrivals, err := f.sf.ArrivalSchedule.GetStudentArrivalSchedules(ctx, f.chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, arrivals, 1, "the rejected decision must not partially delete the manual plan")
 	pending, _, err := f.svc.GetPendingForStudent(ctx, f.chain.StudentID)
 	require.NoError(t, err)
 	require.NotNil(t, pending)
