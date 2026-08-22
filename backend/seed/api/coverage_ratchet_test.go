@@ -57,7 +57,6 @@ var seedCoverageAllowlist = map[string]string{
 	"audit.room_color_migration_backup":     "GAP: prod has 38 rows",
 	"audit.staff_master_data_changes":       "GAP: prod has 18 rows",
 	"audit.student_deletions":               "GAP: prod has 110 rows",
-	"audit.student_field_edits":             "GAP: prod has 161 rows",
 	"audit.time_tracking_deletions":         "GAP: prod has 2 rows",
 	"audit.unregistered_tag_scans":          "GAP: prod has 307 rows",
 	"audit.wc_alias_migration_backup":       "empty in prod too",

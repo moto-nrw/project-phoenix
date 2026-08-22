@@ -14,9 +14,6 @@ export const CARE_EXIT_REASON_LABELS: Record<CareExitReason, string> = {
   other: "Anderer Grund",
 };
 
-/** Maximale Auswahl pro Vorgang — gleiche Grenze wie im Backend. */
-export const CARE_EXIT_MAX_SELECTION = 500;
-
 /** Maximale Länge des Freitexts bei "Anderer Grund". */
 export const CARE_EXIT_NOTE_MAX_LENGTH = 200;
 
