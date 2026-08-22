@@ -280,6 +280,9 @@ func (s *service) WithdrawOfferingChangeRequest(
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
