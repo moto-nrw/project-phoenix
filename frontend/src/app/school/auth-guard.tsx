@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { Loading } from "~/components/ui/loading";
 import { SchoolShellProvider } from "~/lib/shell-auth-context";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
-import { AppShell } from "~/components/dashboard/app-shell";
+import { SchoolShell } from "~/components/school/shell/school-shell";
 import { ShellNavIntlProvider } from "~/components/dashboard/shell-nav-intl-provider";
 import { schoolPath } from "~/lib/school-url";
 
@@ -19,8 +19,8 @@ function FullPageLoading() {
 
 /**
  * Client-side auth guard for school routes ("moto schule", #2207).
- * Mirrors ParentAuthGuard — same AppShell chrome as the tenant and parents
- * portals (sidebar, header with profile menu, mobile bottom nav), fed by
+ * Mirrors ParentAuthGuard — the portal brings its own chrome (SchoolShell:
+ * sidebar, shared header with profile menu, mobile nav), fed by
  * SchoolShellProvider.
  *
  * Reads the school session (via SchoolProviders SessionProvider) and
@@ -64,14 +64,14 @@ export function SchoolAuthGuard({
     return <FullPageLoading />;
   }
 
-  // ShellNavIntlProvider: Sidebar + MobileBottomNav call
-  // useTranslations("parentNav") for the parent-portal preview nav; the
-  // German-only school shell gets the same minimal catalog as staff/operator.
+  // ShellNavIntlProvider: die geteilte Kopfzeile ruft
+  // useTranslations("parentNav") für die Eltern-Titel auf; das deutschsprachige
+  // Schul-Portal bekommt denselben minimalen Katalog wie Personal und Operator.
   return (
     <SchoolShellProvider>
       <BreadcrumbProvider>
         <ShellNavIntlProvider>
-          <AppShell>{children}</AppShell>
+          <SchoolShell>{children}</SchoolShell>
         </ShellNavIntlProvider>
       </BreadcrumbProvider>
     </SchoolShellProvider>

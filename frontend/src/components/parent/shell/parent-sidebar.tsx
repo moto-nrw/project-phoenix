@@ -9,7 +9,7 @@ import { NotificationBadge } from "~/components/ui/notification-badge";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive } from "./parent-nav-active";
 import type { ParentNavCounts } from "./parent-bottom-nav";
-import { ParentNavIcon } from "./parent-nav-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PARENT_MORE_NAV,
   PARENT_PRIMARY_NAV,
@@ -61,7 +61,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
           aria-current={active ? "page" : undefined}
           className={`${ROW} ${active ? ROW_ACTIVE : ROW_IDLE}`}
         >
-          <ParentNavIcon
+          <MotoNavIcon
             concept={item.concept}
             iconConcept={
               item.key === "children" && childCount !== 1 ? "groups" : undefined
@@ -113,7 +113,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
                   aria-current={settingsActive ? "page" : undefined}
                   className={`${ROW} ${settingsActive ? ROW_ACTIVE : ROW_IDLE}`}
                 >
-                  <ParentNavIcon
+                  <MotoNavIcon
                     concept="settings"
                     active={settingsActive}
                     className={`${ICON} ${settingsActive ? "" : "text-gray-400"}`}
@@ -129,7 +129,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
                   aria-current={enrollActive ? "page" : undefined}
                   className={`${ROW} ${enrollActive ? ROW_ACTIVE : ROW_IDLE}`}
                 >
-                  <ParentNavIcon
+                  <MotoNavIcon
                     concept="enrollments"
                     active={enrollActive}
                     className={`${ICON} ${enrollActive ? "" : "text-gray-400"}`}
@@ -144,7 +144,7 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
                   onClick={() => setLogoutModalOpen(true)}
                   className={`${ROW} ${ROW_IDLE} w-full text-left`}
                 >
-                  <ParentNavIcon
+                  <MotoNavIcon
                     concept="logout"
                     active={false}
                     className={`${ICON} text-gray-400`}
