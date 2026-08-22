@@ -1,6 +1,7 @@
 package data
 
 import (
+	"cmp"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
@@ -39,10 +40,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 }
 
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.Logger != nil {
-		return rs.Logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for device data query endpoints

@@ -390,6 +390,11 @@ func TestCareLifecycle_CancelRefusedAfterItTookEffect(t *testing.T) {
 		Where("id = ?", student.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
+	require.NoError(t, repositories.NewFactory(db).CareExit.Upsert(ctx, &userModels.CareExit{
+		StudentID:  student.ID,
+		Reason:     userModels.CareExitReasonMovedAway,
+		RecordedBy: &actorID,
+	}))
 
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
 	require.ErrorIs(t, err, userService.ErrCareExitAlreadyEffective)
