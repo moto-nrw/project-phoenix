@@ -122,6 +122,7 @@ type arrivalScheduleService struct {
 	scheduleRepo schedule.StudentArrivalScheduleRepository
 	studentRepo  users.StudentRepository
 	personRepo   users.PersonRepository
+	baselines    ArrivalBaselineReader
 	db           *bun.DB
 	logger       *slog.Logger
 }
@@ -132,6 +133,26 @@ func NewArrivalScheduleService(
 	noteRepo schedule.StudentArrivalNoteRepository,
 	studentRepo users.StudentRepository,
 	personRepo users.PersonRepository,
+	db *bun.DB,
+	logger *slog.Logger,
+) ArrivalScheduleService {
+	return NewArrivalScheduleServiceWithBaselines(
+		scheduleRepo, exceptionRepo, noteRepo, studentRepo, personRepo, nil, db, logger,
+	)
+}
+
+// NewArrivalScheduleServiceWithBaselines is the wiring the HTTP server uses:
+// baselines resolves the regular arrival time from the class timetable and,
+// in booking mode, the care days from the approved bookings (#2414). Passing
+// nil keeps the pre-#2414 behaviour of reading stored rows only, which is what
+// the CLI and older tests want.
+func NewArrivalScheduleServiceWithBaselines(
+	scheduleRepo schedule.StudentArrivalScheduleRepository,
+	exceptionRepo schedule.StudentArrivalExceptionRepository,
+	noteRepo schedule.StudentArrivalNoteRepository,
+	studentRepo users.StudentRepository,
+	personRepo users.PersonRepository,
+	baselines ArrivalBaselineReader,
 	db *bun.DB,
 	logger *slog.Logger,
 ) ArrivalScheduleService {
@@ -146,9 +167,68 @@ func NewArrivalScheduleService(
 		scheduleRepo: scheduleRepo,
 		studentRepo:  studentRepo,
 		personRepo:   personRepo,
+		baselines:    baselines,
 		db:           db,
 		logger:       logger,
 	}
+}
+
+// projectedWeeklySchedules flattens the projected week into the sorted row
+// list the weekly readers expect.
+func (s *arrivalScheduleService) projectedWeeklySchedules(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) ([]*schedule.StudentArrivalSchedule, error) {
+	week, err := s.projectedWeek(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]*schedule.StudentArrivalSchedule, 0, len(studentIDs)*schedule.WeekdayFriday)
+	for _, studentID := range uniquePositiveStudentIDs(studentIDs) {
+		for _, row := range week[studentID] {
+			rows = append(rows, row)
+		}
+	}
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].StudentID != rows[j].StudentID {
+			return rows[i].StudentID < rows[j].StudentID
+		}
+		return rows[i].Weekday < rows[j].Weekday
+	})
+	return rows, nil
+}
+
+// projectedWeek returns the recurring rows in force on a date, class times
+// resolved. Without a baseline reader it falls back to the stored rows.
+func (s *arrivalScheduleService) projectedWeek(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) (map[int64]ArrivalWeek, error) {
+	out := make(map[int64]ArrivalWeek, len(studentIDs))
+	if s.baselines == nil {
+		for _, studentID := range studentIDs {
+			rows, err := s.core.Schedules(ctx, studentID)
+			if err != nil {
+				return nil, err
+			}
+			week := make(ArrivalWeek, len(rows))
+			for _, row := range rows {
+				week[row.Weekday] = row
+			}
+			out[studentID] = week
+		}
+		return out, nil
+	}
+	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "project arrival schedules", Err: err}
+	}
+	for _, studentID := range studentIDs {
+		out[studentID] = projection.WeeklyForDate(studentID, date)
+	}
+	return out, nil
 }
 
 func (s *arrivalScheduleService) getLogger() *slog.Logger {
@@ -159,7 +239,7 @@ func (s *arrivalScheduleService) GetStudentArrivalSchedules(
 	ctx context.Context,
 	studentID int64,
 ) ([]*schedule.StudentArrivalSchedule, error) {
-	return s.core.Schedules(ctx, studentID)
+	return s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
 }
 
 func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
@@ -167,7 +247,20 @@ func (s *arrivalScheduleService) GetWeeklySchedulesByStudentIDsAndWeekday(
 	studentIDs []int64,
 	weekday int,
 ) ([]*schedule.StudentArrivalSchedule, error) {
-	return s.core.WeeklySchedulesByStudentIDsAndWeekday(ctx, studentIDs, weekday)
+	if weekday < schedule.WeekdayMonday || weekday > schedule.WeekdayFriday {
+		return nil, nil
+	}
+	rows, err := s.projectedWeeklySchedules(ctx, studentIDs, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]*schedule.StudentArrivalSchedule, 0, len(rows))
+	for _, row := range rows {
+		if row.Weekday == weekday {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered, nil
 }
 
 func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(
@@ -175,7 +268,17 @@ func (s *arrivalScheduleService) GetStudentArrivalScheduleForWeekday(
 	studentID int64,
 	weekday int,
 ) (*schedule.StudentArrivalSchedule, error) {
-	return s.core.ScheduleForWeekday(ctx, studentID, weekday)
+	// The weekday validation stays with the core so an invalid weekday keeps
+	// erroring rather than reading as "no care that day".
+	stored, err := s.core.ScheduleForWeekday(ctx, studentID, weekday)
+	if err != nil || s.baselines == nil {
+		return stored, err
+	}
+	week, err := s.projectedWeek(ctx, []int64{studentID}, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	return week[studentID][weekday], nil
 }
 
 func (s *arrivalScheduleService) UpsertStudentArrivalSchedule(
@@ -364,6 +467,13 @@ func (s *arrivalScheduleService) GetStudentArrivalData(
 	if err != nil {
 		return nil, err
 	}
+	// The weekly plan the detail screen renders is the projected one, so the
+	// class time shows up where a child inherits it (#2414).
+	projected, err := s.projectedWeeklySchedules(ctx, []int64{studentID}, timezone.TodayDate())
+	if err != nil {
+		return nil, err
+	}
+	data.Schedules = projected
 	return &StudentArrivalData{
 		Schedules:  data.Schedules,
 		Exceptions: data.Exceptions,
@@ -376,11 +486,45 @@ func (s *arrivalScheduleService) GetEffectiveArrivalTimeForDate(
 	studentID int64,
 	date timezone.Date,
 ) (*EffectiveArrivalTime, error) {
-	result, err := s.core.EffectiveTimeForDate(ctx, studentID, date)
+	if s.baselines == nil {
+		result, err := s.core.EffectiveTimeForDate(ctx, studentID, date)
+		if err != nil {
+			return nil, err
+		}
+		return arrivalEffectiveTime(result), nil
+	}
+	projection, err := s.baselines.Project(ctx, []int64{studentID}, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get effective arrival time", Err: err}
+	}
+	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, projection.ForDate(studentID, date))
 	if err != nil {
 		return nil, err
 	}
 	return arrivalEffectiveTime(result), nil
+}
+
+// bulkEffectiveResults resolves the recurring rows through the projection
+// before the shared exception/note merge runs, mirroring the pickup path.
+func (s *arrivalScheduleService) bulkEffectiveResults(
+	ctx context.Context,
+	studentIDs []int64,
+	date timezone.Date,
+) (map[int64]*effectiveTimeResult, error) {
+	if s.baselines == nil {
+		return s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+	}
+	projection, err := s.baselines.Project(ctx, studentIDs, date, date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get bulk effective arrival times", Err: err}
+	}
+	schedules := make(map[int64]*schedule.StudentArrivalSchedule, len(studentIDs))
+	for _, studentID := range studentIDs {
+		if row := projection.ForDate(studentID, date); row != nil {
+			schedules[studentID] = row
+		}
+	}
+	return s.core.BulkEffectiveTimesForDateWithSchedules(ctx, studentIDs, date, schedules)
 }
 
 func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
@@ -388,7 +532,7 @@ func (s *arrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(
 	studentIDs []int64,
 	date timezone.Date,
 ) (map[int64]*EffectiveArrivalTime, error) {
-	results, err := s.core.BulkEffectiveTimesForDate(ctx, studentIDs, date)
+	results, err := s.bulkEffectiveResults(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}

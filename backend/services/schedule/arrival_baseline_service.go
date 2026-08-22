@@ -171,22 +171,27 @@ func (s *arrivalBaselineService) Project(
 		weekly := make(ArrivalPlanByDate)
 		derived := make(ArrivalPlanByDate)
 
+		// The whole week is resolved per date, not just that date's weekday:
+		// readers ask "what does the plan look like as of this date", and the
+		// care-day window can differ from one date to the next.
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			weekday := effectiveISOWeekday(date)
-			if weekday > scheduleModel.WeekdayFriday {
-				continue
+			weekOfDate := make(ArrivalWeek, scheduleModel.WeekdayFriday)
+			derivedOfDate := make(ArrivalWeek, scheduleModel.WeekdayFriday)
+			for weekday := scheduleModel.WeekdayMonday; weekday <= scheduleModel.WeekdayFriday; weekday++ {
+				row := stored[studentID][weekday]
+				if !isCareDay(careDays, studentID, date, weekday, row) {
+					continue
+				}
+				classRow := classArrivalRow(studentID, weekday, classTimes)
+				if classRow != nil {
+					derivedOfDate[weekday] = classRow
+				}
+				if effective := effectiveArrivalRow(row, classRow); effective != nil {
+					weekOfDate[weekday] = effective
+				}
 			}
-			row := stored[studentID][weekday]
-			if !isCareDay(careDays, studentID, date, weekday, row) {
-				continue
-			}
-			classRow := classArrivalRow(studentID, weekday, classTimes)
-			if classRow != nil {
-				derived[date] = ArrivalWeek{weekday: classRow}
-			}
-			if effective := effectiveArrivalRow(row, classRow); effective != nil {
-				weekly[date] = ArrivalWeek{weekday: effective}
-			}
+			weekly[date] = weekOfDate
+			derived[date] = derivedOfDate
 		}
 
 		projection.WeeklyByStudentDate[studentID] = weekly
@@ -249,20 +254,26 @@ func effectiveArrivalRow(
 	row *scheduleModel.StudentArrivalSchedule,
 	classRow *scheduleModel.StudentArrivalSchedule,
 ) *scheduleModel.StudentArrivalSchedule {
-	if row != nil && !row.InheritsClassTime() {
-		override := *row
-		override.Source = scheduleModel.ArrivalScheduleSourceStaff
-		return &override
-	}
-	if classRow != nil {
+	if row == nil {
+		// Booking mode only: the booking put the child in care that day and
+		// no row was ever entered. The projected row has no ID because there
+		// is nothing stored behind it.
 		return classRow
 	}
-	if row == nil {
-		return nil
+	effective := *row
+	if !row.InheritsClassTime() {
+		effective.Source = scheduleModel.ArrivalScheduleSourceStaff
+		return &effective
 	}
-	careDayOnly := *row
-	careDayOnly.Source = scheduleModel.ArrivalScheduleSourceClassSchedule
-	return &careDayOnly
+	// Inheriting: keep the stored row's identity and notes, take the time and
+	// the provenance label from the class. Callers that delete or edit the row
+	// still address the real one.
+	effective.Source = scheduleModel.ArrivalScheduleSourceClassSchedule
+	if classRow != nil {
+		effective.ExpectedArrival = classRow.ExpectedArrival
+		effective.SourceClass = classRow.SourceClass
+	}
+	return &effective
 }
 
 // loadCareDayRows resolves, per student and date, the rows that are actually

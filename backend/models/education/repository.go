@@ -104,7 +104,4 @@ type ClassArrivalTimeRepository interface {
 
 	// Upsert stores the weekday map for one class, replacing what was there.
 	Upsert(ctx context.Context, row *ClassArrivalTime) error
-
-	// DeleteByClass removes the row for one class, if any.
-	DeleteByClass(ctx context.Context, class string) error
 }

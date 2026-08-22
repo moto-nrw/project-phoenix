@@ -71,24 +71,6 @@ func (r *ClassArrivalTimeRepository) Upsert(ctx context.Context, row *education.
 	return nil
 }
 
-// DeleteByClass removes the row of one class.
-func (r *ClassArrivalTimeRepository) DeleteByClass(ctx context.Context, class string) error {
-	key := schoolclass.Normalize(class)
-	if key == "" {
-		return nil
-	}
-	query := base.GetDB(ctx, r.db).NewDelete().
-		Model((*education.ClassArrivalTime)(nil)).
-		ModelTableExpr(classArrivalTimeTableExpr).
-		Where(`LOWER(BTRIM("class_arrival_time".school_class)) = ?`, key)
-	query = base.WithTenantFilter(ctx, query, "class_arrival_time")
-
-	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete class arrival time", Err: err}
-	}
-	return nil
-}
-
 // normalizedClassKeys deduplicates the normalized form of the given classes.
 func normalizedClassKeys(classes []string) []string {
 	seen := make(map[string]bool, len(classes))

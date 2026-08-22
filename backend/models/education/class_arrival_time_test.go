@@ -11,6 +11,8 @@ import (
 )
 
 func TestClassArrivalTimeValidate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects an empty school class", func(t *testing.T) {
 		row := &education.ClassArrivalTime{ArrivalTimes: map[string]string{"mon": "11:45"}}
 		assert.Error(t, row.Validate())
@@ -51,6 +53,8 @@ func TestClassArrivalTimeValidate(t *testing.T) {
 }
 
 func TestClassArrivalTimeForWeekday(t *testing.T) {
+	t.Parallel()
+
 	row := &education.ClassArrivalTime{
 		SchoolClass:  "3b",
 		ArrivalTimes: map[string]string{"mon": "11:45", "wed": "12:45"},

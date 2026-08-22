@@ -613,6 +613,8 @@ func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
 // TestStudentArrivalScheduleInheritsClassTime pins the meaning the #2414 split
 // gave the row: it is the care-day marker, the time on it is optional.
 func TestStudentArrivalScheduleInheritsClassTime(t *testing.T) {
+	t.Parallel()
+
 	careDayOnly := &StudentArrivalSchedule{StudentID: 1, Weekday: WeekdayMonday, CreatedBy: 1}
 	require.NoError(t, careDayOnly.Validate())
 	assert.True(t, careDayOnly.InheritsClassTime())

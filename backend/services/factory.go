@@ -1110,13 +1110,25 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 
-	// Initialize arrival schedule service
-	arrivalScheduleService := schedule.NewArrivalScheduleService(
+	// Initialize arrival schedule service. The baseline reader resolves the
+	// regular arrival time from the class timetable and, with
+	// enrollment.bookings_authoritative on, the care days from the approved
+	// bookings (#2414, ADR 0005).
+	arrivalBaselines := schedule.NewArrivalBaselineService(
+		repos.StudentArrivalSchedule,
+		repos.Student,
+		repos.ClassArrivalTime,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+		settingsService,
+	)
+	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
 		repos.StudentArrivalException,
 		repos.StudentArrivalNote,
 		repos.Student,
 		repos.Person,
+		arrivalBaselines,
 		db,
 		logger.With("service", "arrival-schedule"),
 	)
