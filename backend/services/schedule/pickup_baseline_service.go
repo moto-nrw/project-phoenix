@@ -215,7 +215,7 @@ func projectOfferingLinks(
 			continue
 		}
 		offering := offeringByID[entry.Link.CareOfferingID]
-		if offering == nil || len(offering.PickupTimes) == 0 {
+		if offering == nil || !offering.IsActive || !offering.CountsAsCare || len(offering.PickupTimes) == 0 {
 			continue
 		}
 		for date := from; !date.After(to); date = date.AddDays(1) {

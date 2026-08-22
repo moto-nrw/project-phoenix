@@ -213,6 +213,53 @@ func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T
 	assert.Equal(t, "16:00", reset.PickupTime.Format("15:04"))
 }
 
+func TestOfferingPickupProjection_IgnoresInactiveOffering(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+	ctx := testpkg.Ctx(t)
+
+	offering := createPickupTimeOffering(t, env, "gehzeit-inaktiv",
+		[]string{"mon"}, map[string]string{"mon": "14:30"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "gehzeit-inaktiv@example.com", "Inaktiv", 2,
+	)
+	offering.IsActive = false
+	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+
+	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
+		ctx, studentID, nextWeekday(timezone.TodayDate(), time.Monday),
+	)
+	require.NoError(t, err)
+	assert.Nil(t, pickup.PickupTime)
+}
+
+func TestOfferingPickupProjection_IgnoresNonCareOffering(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-1))
+	ctx := testpkg.Ctx(t)
+
+	offering := createPickupTimeOffering(t, env, "gehzeit-keine-betreuung",
+		[]string{"mon"}, map[string]string{"mon": "14:30"})
+	studentID, _ := submitAndApproveOfferingChild(
+		t, env, offering.ID, "gehzeit-keine-betreuung@example.com", "Keine Betreuung", 2,
+	)
+	offering.CountsAsCare = false
+	offering.CountsAsCareSet = true
+	require.NoError(t, env.repos.CareOffering.Update(ctx, offering))
+
+	pickup, err := projectedPickupReader(env).GetEffectivePickupTimeForDate(
+		ctx, studentID, nextWeekday(timezone.TodayDate(), time.Monday),
+	)
+	require.NoError(t, err)
+	assert.Nil(t, pickup.PickupTime)
+}
+
 func TestOfferingPickupProjection_ResetWaitsForOfferingSourceGate(t *testing.T) {
 	t.Parallel()
 	env, cleanup := setupDecisionTest(t)
