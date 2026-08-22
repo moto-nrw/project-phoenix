@@ -183,6 +183,15 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	require.Len(t, futureWeek.Schedules, 1)
 	assert.Equal(t, newOffering.Name, futureWeek.Schedules[0].CareOfferingName,
 		"the weekly editor must receive the offering value for its requested week")
+
+	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
+	require.NoError(t, reader.UpsertBulkStudentPickupSchedules(ctx, studentID, []*scheduleModels.StudentPickupSchedule{{
+		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
+		PickupTime: timezone.WallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
+	}}))
+	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Empty(t, stored, "a future offering value must not be saved as a staff override")
 }
 
 func TestOfferingPickupProjection_StaffOverrideSurvivesOfferingEdit(t *testing.T) {

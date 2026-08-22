@@ -464,12 +464,10 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
-	today := timezone.TodayDate()
-	projection, err := s.baselines.Project(ctx, []int64{studentID}, today, today)
+	offeringByWeekday, err := s.baselines.BookedOfferingPickupsByWeekday(ctx, studentID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
 	}
-	offeringByWeekday := projection.OfferingWeeklyForDate(studentID, today)
 	staffByWeekday := staffPickupRowsByWeekday(existing)
 	manual := make([]*schedule.StudentPickupSchedule, 0, len(rows))
 	for _, row := range rows {
@@ -496,12 +494,21 @@ func staffPickupRowsByWeekday(rows []*schedule.StudentPickupSchedule) map[int]*s
 }
 
 func shouldStoreManualPickup(
-	row, previous, projected *schedule.StudentPickupSchedule,
+	row, previous *schedule.StudentPickupSchedule, projected []*schedule.StudentPickupSchedule,
 ) bool {
 	if previous != nil && samePickupMinute(previous, row) && equalOptionalPickupNotes(previous.Notes, row.Notes) {
 		return true
 	}
-	return projected == nil || !samePickupMinute(projected, row) || !emptyOptionalPickupNotes(row.Notes)
+	return !matchesProjectedPickup(row, projected) || !emptyOptionalPickupNotes(row.Notes)
+}
+
+func matchesProjectedPickup(row *schedule.StudentPickupSchedule, projected []*schedule.StudentPickupSchedule) bool {
+	for _, candidate := range projected {
+		if candidate != nil && samePickupMinute(candidate, row) {
+			return true
+		}
+	}
+	return false
 }
 
 func samePickupMinute(left, right *schedule.StudentPickupSchedule) bool {

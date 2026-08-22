@@ -72,6 +72,7 @@ type PickupBaselineReader interface {
 	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*PickupBaselineProjection, error)
 	OfferingPickupForDate(ctx context.Context, studentID int64, date timezone.Date) (*scheduleModel.StudentPickupSchedule, error)
 	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
+	BookedOfferingPickupsByWeekday(ctx context.Context, studentID int64) (map[int][]*scheduleModel.StudentPickupSchedule, error)
 }
 
 type pickupBaselineService struct {
@@ -146,16 +147,22 @@ func (s *pickupBaselineService) OfferingPickupForDate(
 }
 
 func (s *pickupBaselineService) HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error) {
-	if weekday < scheduleModel.WeekdayMonday || weekday > scheduleModel.WeekdayFriday {
-		return false, nil
-	}
+	pickups, err := s.BookedOfferingPickupsByWeekday(ctx, studentID)
+	return len(pickups[weekday]) > 0, err
+}
+
+// BookedOfferingPickupsByWeekday returns pickup times from every current or
+// future approved booking. Weekly writes use these values to avoid storing a
+// future projection as a staff override.
+func (s *pickupBaselineService) BookedOfferingPickupsByWeekday(ctx context.Context, studentID int64) (map[int][]*scheduleModel.StudentPickupSchedule, error) {
+	out := make(map[int][]*scheduleModel.StudentPickupSchedule)
 	links, err := s.links.ListApprovedByStudentIDsInRange(ctx, []int64{studentID}, timezone.TodayDate(), timezone.NewDate(9999, time.December, 31))
 	if err != nil {
-		return false, fmt.Errorf("find booked offering pickup: %w", err)
+		return nil, fmt.Errorf("find booked offering pickup: %w", err)
 	}
 	offeringByID, err := s.loadOfferingsByID(ctx, links)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	for _, entry := range links {
 		if entry == nil || entry.Link == nil {
@@ -166,16 +173,16 @@ func (s *pickupBaselineService) HasBookedOfferingPickupForWeekday(ctx context.Co
 			continue
 		}
 		for _, day := range offeringPickupDays(entry.Link, offering) {
-			projectedWeekday, _, ok, projectErr := projectedOfferingPickup(studentID, day, offering)
+			projectedWeekday, row, ok, projectErr := projectedOfferingPickup(studentID, day, offering)
 			if projectErr != nil {
-				return false, projectErr
+				return nil, projectErr
 			}
-			if ok && projectedWeekday == weekday {
-				return true, nil
+			if ok {
+				out[projectedWeekday] = append(out[projectedWeekday], row)
 			}
 		}
 	}
-	return false, nil
+	return out, nil
 }
 
 func (s *pickupBaselineService) loadManualRows(
