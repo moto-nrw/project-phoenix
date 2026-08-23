@@ -151,6 +151,8 @@ func newLetterService(repo *letterRepo, outbox *letterOutbox, deliveries *letter
 // The whole point of the Elternbrief: the parent can read the letter without
 // opening the app, and is told where the binding confirmation happens.
 func TestPublishLetterMailCarriesBodyAndAckHint(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
 		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
@@ -188,6 +190,8 @@ func TestPublishLetterMailCarriesBodyAndAckHint(t *testing.T) {
 // A plain Mitteilung must keep the pre-#2384 behaviour exactly: no body in the
 // mail, no delivery rows.
 func TestPublishStandardAnnouncementStaysUntracked(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly),
 		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
@@ -212,6 +216,8 @@ func TestPublishStandardAnnouncementStaysUntracked(t *testing.T) {
 // The matrix has to show the people who get nothing — that is the data the
 // school needs in order to fix it.
 func TestPublishLetterRecordsUnreachableRecipients(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
 		recipients: []*usersModels.AnnouncementDeliveryRecipient{
@@ -255,6 +261,8 @@ func TestPublishLetterRecordsUnreachableRecipients(t *testing.T) {
 // all_contacts is the school saying "this content may leave the portal". The
 // person still cannot acknowledge, and the row must keep saying so.
 func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
 		recipients: []*usersModels.AnnouncementDeliveryRecipient{
@@ -286,6 +294,8 @@ func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
 // both correctly reported as sent — sending twice to the same address would look
 // like spam and break "genau ein E-Mail-Versand pro adressierter Adresse".
 func TestPublishLetterSharedAddressSendsOnce(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
 		recipients: []*usersModels.AnnouncementDeliveryRecipient{
@@ -319,6 +329,8 @@ func TestPublishLetterSharedAddressSendsOnce(t *testing.T) {
 // Retracting must clear the matrix: a republish resolves the audience live, and
 // a stale row would describe a wording parents never saw.
 func TestUnpublishDropsDeliveryRows(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
 		recipients:   []*usersModels.AnnouncementDeliveryRecipient{contact(1, acct(11), "mama@example.test", true)},
@@ -346,6 +358,8 @@ func TestUnpublishDropsDeliveryRows(t *testing.T) {
 // The correction path (unpublish → edit → republish) must send again, while a
 // retry of the same publication must not.
 func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
+	t.Parallel()
+
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
 	first := time.Date(2026, 8, 19, 10, 0, 0, 0, time.UTC)
 	a.PublishedAt = &first
@@ -385,6 +399,8 @@ func ackedChild(id int64, name string, at *time.Time, by string) *usersModels.An
 // The summary is what a school reads first, so ChildrenOpen has to be the number
 // they can act on — not "recipients who did not click".
 func TestLetterStatusSummaryCountsChildrenNotRecipients(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC)
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly),
@@ -420,6 +436,8 @@ func TestLetterStatusSummaryCountsChildrenNotRecipients(t *testing.T) {
 // "no portal access" and still have a delivered mail — collapsing the two is the
 // failure this separation exists to prevent.
 func TestLetterStatusReportsBothChannelsSeparately(t *testing.T) {
+	t.Parallel()
+
 	sent := "sent"
 	repo := &letterRepo{
 		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
@@ -455,6 +473,8 @@ func TestLetterStatusReportsBothChannelsSeparately(t *testing.T) {
 }
 
 func TestLetterStatusNotFound(t *testing.T) {
+	t.Parallel()
+
 	repo := &letterRepo{announcement: nil}
 	svc := newLetterService(repo, &letterOutbox{}, &letterDeliveries{})
 	if _, err := svc.LetterStatus(context.Background(), 42); err != ErrNotFound {
@@ -471,6 +491,8 @@ func (r *letterRepo) UnacknowledgedReminderRecipients(_ context.Context, _, _ in
 // A reminder for a letter must go out, addressed to the people who still owe a
 // confirmation — and it must say what is missing, not repeat the letter.
 func TestRemindOutstandingLetterMailsUnconfirmedFamilies(t *testing.T) {
+	t.Parallel()
+
 	published := time.Now().Add(-time.Hour)
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
 	a.PublishedAt = &published
@@ -508,6 +530,8 @@ func TestRemindOutstandingLetterMailsUnconfirmedFamilies(t *testing.T) {
 
 // Reminding about a notice that never asked for anything would be pure noise.
 func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T) {
+	t.Parallel()
+
 	published := time.Now().Add(-time.Hour)
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly)
 	a.RequiresAcknowledgement = false
@@ -520,6 +544,8 @@ func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T
 }
 
 func TestRemindOutstandingRefusesUnpublished(t *testing.T) {
+	t.Parallel()
+
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
 	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
 
@@ -531,6 +557,8 @@ func TestRemindOutstandingRefusesUnpublished(t *testing.T) {
 // Resending must touch ONLY the failed mails. Re-sending to everyone would spam
 // families whose letter arrived perfectly well.
 func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
+	t.Parallel()
+
 	published := time.Now().Add(-time.Hour)
 	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
 	a.PublishedAt = &published
@@ -572,6 +600,8 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 // is the split that stopped a school-wide letter to 116 children from reporting
 // "6 offen" as if it were nearly done.
 func TestLetterStatusSeparatesUnconfirmableChildrenFromOpenOnes(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)
 	unreachable := func(id int64, name string) *usersModels.AnnouncementLetterChildStatus {
 		return &usersModels.AnnouncementLetterChildStatus{
@@ -619,6 +649,8 @@ func TestLetterStatusSeparatesUnconfirmableChildrenFromOpenOnes(t *testing.T) {
 // Outstanding is the predicate the reminder button and the "nur offene" filter
 // both hang on, so it gets its own pin.
 func TestLetterChildOutstanding(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	cases := []struct {
 		name     string

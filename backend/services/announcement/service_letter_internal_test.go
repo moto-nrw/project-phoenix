@@ -24,6 +24,8 @@ func letterInput() Input {
 // sent. This is the core promise of #2384: publishing cannot complete with only
 // one channel, and the API achieves that by forcing rather than rejecting.
 func TestNormalizeDeliveryLetterForcesBothChannels(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]Input{
 		"flags omitted": letterInput(),
 		"flags explicitly off": func() Input {
@@ -61,6 +63,8 @@ func TestNormalizeDeliveryLetterForcesBothChannels(t *testing.T) {
 // The safe default matters more than the happy path: an omitted audience must
 // never widen the mail beyond the portal audience.
 func TestNormalizeDeliveryDefaults(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title:   "Info",
 		Body:    "Text",
@@ -83,6 +87,8 @@ func TestNormalizeDeliveryDefaults(t *testing.T) {
 }
 
 func TestNormalizeDeliveryRejectsUnknownValues(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delivery_mode", func(t *testing.T) {
 		in := letterInput()
 		in.DeliveryMode = "brief"
@@ -103,6 +109,8 @@ func TestNormalizeDeliveryRejectsUnknownValues(t *testing.T) {
 // child. One row cannot carry both completion semantics, so the combination is
 // refused in v1 (mirrored by chk_parent_announcements_letter_not_poll).
 func TestNormalizeDeliveryRejectsLetterPoll(t *testing.T) {
+	t.Parallel()
+
 	for _, responseType := range []string{
 		usersModels.ParentAnnouncementResponseSingleChoice,
 		usersModels.ParentAnnouncementResponseMultiChoice,
@@ -127,6 +135,8 @@ func TestNormalizeDeliveryRejectsLetterPoll(t *testing.T) {
 // "the letter is fulfilled for this child" is undefined for them — they would
 // sit in the recipient matrix as permanently outstanding.
 func TestNormalizeDeliveryRejectsLetterToPendingEnrollment(t *testing.T) {
+	t.Parallel()
+
 	in := letterInput()
 	in.Targets = append(in.Targets, TargetInput{
 		TargetType: usersModels.AnnouncementTargetPendingEnrollment,
@@ -147,6 +157,8 @@ func TestNormalizeDeliveryRejectsLetterToPendingEnrollment(t *testing.T) {
 // almost certainly means a client lost a flag — persisting it would store a
 // setting that silently does nothing.
 func TestNormalizeDeliveryRejectsWideAudienceWithoutEmail(t *testing.T) {
+	t.Parallel()
+
 	in := Input{
 		Title:         "Info",
 		Body:          "Text",
@@ -170,6 +182,8 @@ func TestNormalizeDeliveryRejectsWideAudienceWithoutEmail(t *testing.T) {
 // normalizeInput is the real entry point; this pins that it runs the delivery
 // rules rather than leaving them to a caller that might forget.
 func TestNormalizeInputAppliesDeliveryRules(t *testing.T) {
+	t.Parallel()
+
 	in := letterInput()
 	if _, err := normalizeInput(&in); err != nil {
 		t.Fatalf("normalizeInput: unexpected error: %v", err)
@@ -183,6 +197,8 @@ func TestNormalizeInputAppliesDeliveryRules(t *testing.T) {
 }
 
 func TestAnnouncementLetterHelpers(t *testing.T) {
+	t.Parallel()
+
 	letter := &usersModels.ParentAnnouncement{
 		DeliveryMode:  usersModels.ParentAnnouncementDeliveryLetter,
 		EmailAudience: usersModels.EmailAudienceAllContacts,
