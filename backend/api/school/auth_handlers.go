@@ -1,7 +1,6 @@
 package school
 
 import (
-	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -108,14 +107,7 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie,
 		)
 	} else {
-		targetedLogin, ok := rs.AuthService.(interface {
-			LoginSchoolAtTenantWithMFAGate(context.Context, string, string, string, string, string, string) (*authService.LoginResult, error)
-		})
-		if !ok {
-			common.RenderError(w, r, common.ErrorInternalServer(errors.New("school tenant handoff is not configured")))
-			return
-		}
-		result, err = targetedLogin.LoginSchoolAtTenantWithMFAGate(
+		result, err = rs.AuthService.LoginSchoolAtTenantWithMFAGate(
 			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie, req.TenantSlug,
 		)
 	}
