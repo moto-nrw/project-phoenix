@@ -1112,6 +1112,9 @@ func TestPermissionManagement(t *testing.T) {
 	tc, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
+	platformClaims := adminClaims
+	platformClaims.Scope = tenant.ScopePlatform
+	platformClaims.TenantID = 0
 
 	t.Run("list permissions with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/permissions", nil)
@@ -1144,7 +1147,7 @@ func TestPermissionManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"permissions:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, platformClaims, []string{"permissions:create"})
 
 		testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
@@ -1168,7 +1171,7 @@ func TestPermissionManagement(t *testing.T) {
 		}
 
 		req := testutil.NewJSONRequest(t, "POST", "/auth/permissions", body)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"permissions:create"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, platformClaims, []string{"permissions:create"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -1320,6 +1323,8 @@ func TestPermissionUpdate(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
+	adminClaims.Scope = tenant.ScopePlatform
+	adminClaims.TenantID = 0
 
 	t.Run("update permission with permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, tc.db, "UpdatePerm", "testres", "read")
@@ -1357,12 +1362,15 @@ func TestPermissionDelete(t *testing.T) {
 	t.Parallel()
 	tc, router := setupProtectedRouter(t)
 	adminClaims := testutil.AdminTestClaims(1)
+	platformClaims := adminClaims
+	platformClaims.Scope = tenant.ScopePlatform
+	platformClaims.TenantID = 0
 
 	t.Run("delete permission with permission", func(t *testing.T) {
 		permission := testpkg.CreateTestPermission(t, tc.db, "DeletePerm", "testres", "read")
 
 		req := testutil.NewJSONRequest(t, "DELETE", fmt.Sprintf("/auth/permissions/%d", permission.ID), nil)
-		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"permissions:delete"})
+		rr := testutil.ExecuteWithAuthPermissions(t, router, req, platformClaims, []string{"permissions:delete"})
 
 		assert.Equal(t, http.StatusNoContent, rr.Code, "Body: %s", rr.Body.String())
 	})

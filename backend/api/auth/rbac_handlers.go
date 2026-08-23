@@ -1,12 +1,14 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/render"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
@@ -249,7 +251,12 @@ func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permission, err := rs.AuthService.CreatePermission(r.Context(), req.Name, req.Description, req.Resource, req.Action)
+	var permission *authModel.Permission
+	err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+		var createErr error
+		permission, createErr = rs.AuthService.CreatePermission(ctx, req.Name, req.Description, req.Resource, req.Action)
+		return createErr
+	})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -318,7 +325,9 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Resource = req.Resource
 	permission.Action = req.Action
 
-	if err := rs.AuthService.UpdatePermission(r.Context(), permission); err != nil {
+	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+		return rs.AuthService.UpdatePermission(ctx, permission)
+	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -333,7 +342,9 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.AuthService.DeletePermission(r.Context(), id); err != nil {
+	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
+		return rs.AuthService.DeletePermission(ctx, id)
+	}); err != nil {
 		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return

@@ -50,8 +50,6 @@ function InteractiveWrapper() {
         selectedId={selectedId}
         selectedPermission={selectedPermission}
         onSelect={setSelectedId}
-        onEditClick={() => undefined}
-        onDeleteClick={() => undefined}
       />
     </div>
   );
@@ -67,8 +65,6 @@ export const NoSelection: Story = {
     selectedId: null,
     selectedPermission: null,
     onSelect: () => undefined,
-    onEditClick: () => undefined,
-    onDeleteClick: () => undefined,
   },
   decorators: [
     (StoryComponent) => (
@@ -85,8 +81,6 @@ export const Empty: Story = {
     selectedId: null,
     selectedPermission: null,
     onSelect: () => undefined,
-    onEditClick: () => undefined,
-    onDeleteClick: () => undefined,
   },
   decorators: [
     (StoryComponent) => (
