@@ -121,23 +121,6 @@ type masterDataReviewService struct {
 	logger            *slog.Logger
 }
 
-// NewMasterDataReviewService wires the staff review service. emitter posts the
-// parent-visible decision pill into the child's chat thread (nil = no pills,
-// e.g. in tests). userCtx resolves the caller's supervised groups for the
-// per-child write gate on ListPending/Decide (nil is treated as "no groups", so
-// only admins pass — keep it wired outside admin-only tests).
-func NewMasterDataReviewService(
-	changeRequestRepo userModels.StudentDataChangeRequestRepository,
-	studentRepo userModels.StudentRepository,
-	personRepo userModels.PersonRepository,
-	userCtx authorize.StudentAccessUserContext,
-	emitter *parentmessaging.Emitter,
-	logger *slog.Logger,
-	broadcasters ...realtime.Broadcaster,
-) MasterDataReviewService {
-	return newMasterDataReviewService(changeRequestRepo, studentRepo, personRepo, userCtx, emitter, nil, logger, broadcasters...)
-}
-
 // NewMasterDataReviewServiceWithAudit wires the staff review service and the
 // per-child change recorder used for approved departure-plan requests.
 func NewMasterDataReviewServiceWithAudit(

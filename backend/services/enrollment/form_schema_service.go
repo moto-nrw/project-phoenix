@@ -130,9 +130,6 @@ type PublishFormVersionInput struct {
 // publish/validation failures keep their 400 contract.
 type RenameStepError struct{ err error }
 
-// NewRenameStepError wraps err as a rename-step failure.
-func NewRenameStepError(err error) RenameStepError { return RenameStepError{err: err} }
-
 func (e RenameStepError) Error() string { return e.err.Error() }
 func (e RenameStepError) Unwrap() error { return e.err }
 

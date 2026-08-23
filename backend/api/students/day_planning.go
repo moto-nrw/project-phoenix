@@ -351,19 +351,6 @@ func applyDayPlanning(
 	}
 }
 
-// resolveDayPlanning keeps the original today-bound shape; it exists so the
-// single computation in resolveDayPlanningForDate stays the only logic while
-// today-callers (and existing tests) keep their signature.
-func resolveDayPlanning(
-	student StudentResponse,
-	arrival *scheduleService.EffectiveArrivalTime,
-	pickup *scheduleService.EffectivePickupTime,
-	attendance *activeService.AttendanceStatus,
-	timetableIDs map[int64]struct{},
-) (string, string, string) {
-	return resolveDayPlanningForDate(student, arrival, pickup, attendance, timetableIDs, true)
-}
-
 // resolveDayPlanningForDate applies the #1448 precedence (owned by
 // scheduleService.ResolveDayPlanning) to one calendar day and renders the German
 // label for the decision. For non-today dates the actual-attendance shortcut is

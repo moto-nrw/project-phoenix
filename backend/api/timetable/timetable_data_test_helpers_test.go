@@ -14,6 +14,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
 
 // testTimetableData builds the full TimetableDataService against the test
@@ -57,7 +58,7 @@ func testTimetableDataWithOfferingCallbacks(
 		),
 		ArrivalExceptionRepo: scheduleRepo.NewStudentArrivalExceptionRepository(db),
 		PickupScheduleRepo:   scheduleRepo.NewStudentPickupScheduleRepository(db),
-		PickupBaselines: scheduleSvc.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			enrollmentRepo.NewRequestChildOfferingRepository(db),
 			enrollmentRepo.NewCareOfferingRepository(db),

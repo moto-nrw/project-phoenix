@@ -599,26 +599,6 @@ func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestUpdateSchemaHandler_RenameInfraErrorReturns500(t *testing.T) {
-	t.Parallel()
-
-	// A rename failure that is neither a name collision nor a missing lineage
-	// (a DB/lock/read fault) is infrastructure, not a client error. The
-	// service wraps it in RenameStepError; the handler surfaces it as a 5xx —
-	// matching the PATCH handler — so it takes the normal error-logging path,
-	// NOT the publish path's 400.
-	mock := &mockFormSchemaService{
-		publishVersionErr: enrollmentService.NewRenameStepError(errors.New("lineage lock failed")),
-	}
-	router := buildSchemaRouter(mock)
-	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
-		map[string]any{
-			"name":   "Neuer Name",
-			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
-		})
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
 // --- deleteSchema -----------------------------------------------------
 
 func TestDeleteSchemaHandler_NilServiceReturns500(t *testing.T) {

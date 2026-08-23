@@ -29,10 +29,9 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 
 	repoFactory := repositories.NewFactory(db)
 
-	facilityService := facilitiesSvc.NewService(
-		repoFactory.Room,
-		repoFactory.ActiveGroup,
-	)
+	facilityService := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+		RoomRepo: repoFactory.Room, ActiveGroupRepo: repoFactory.ActiveGroup,
+	})
 
 	activityService, err := activitiesSvc.NewService(
 		repoFactory.ActivityCategory,

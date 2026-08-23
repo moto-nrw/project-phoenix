@@ -164,12 +164,12 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 
 	t.Run("without a notifier or an audience nothing is dispatched", func(t *testing.T) {
 		s := &service{}
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 
 		s = &service{cfg: Config{Notifier: &dispatchNotifier{}, Preferences: &dispatchPreferences{}}}
-		dispatched, err = s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, nil, students)
+		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, nil, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 	})
@@ -178,7 +178,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		notifier := &dispatchNotifier{}
 		s := &service{cfg: Config{Notifier: notifier}}
 
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 		assert.Empty(t, notifier.events)
@@ -191,7 +191,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{err: consentErr},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students, "")
 		require.ErrorIs(t, err, consentErr)
 		assert.False(t, dispatched)
 	})
@@ -203,7 +203,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{optedIn: []int64{}},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 		assert.Empty(t, notifier.events)
@@ -214,7 +214,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		prefs := &dispatchPreferences{}
 		s := &service{cfg: Config{Notifier: notifier, Preferences: prefs}}
 
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentCancelled, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentCancelled, accounts, students, "")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 1)
@@ -226,7 +226,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 		assert.Equal(t, students, notifier.events[0].Audience.StudentIDs,
 			"the children the recipients were let through by must reach the delivery transaction, which rechecks their access")
 
-		dispatched, err = s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentReminder, accounts, students)
+		dispatched, err = s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentReminder, accounts, students, "")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 2)
@@ -254,7 +254,7 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 			Preferences: &dispatchPreferences{},
 		}}
 
-		dispatched, err := s.dispatchGuardianAccountDevices(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students)
+		dispatched, err := s.dispatchGuardianAccountDevicesLocalized(ctx, helperAppointment(), platformModels.EmailKindAppointmentPublished, accounts, students, "")
 		require.ErrorIs(t, err, dispatchErr)
 		assert.False(t, dispatched)
 	})
@@ -271,12 +271,12 @@ func TestDispatchGuardianAccountReminderDevices(t *testing.T) {
 
 	t.Run("without a synchronous notifier or an audience nothing is dispatched", func(t *testing.T) {
 		s := &service{}
-		dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, helperAppointment(), accounts, students)
+		dispatched, err := s.dispatchGuardianAccountReminderDevicesLocalized(ctx, helperAppointment(), accounts, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 
 		s = &service{cfg: Config{ReminderNotifier: &dispatchNotifier{}}}
-		dispatched, err = s.dispatchGuardianAccountReminderDevices(ctx, helperAppointment(), nil, students)
+		dispatched, err = s.dispatchGuardianAccountReminderDevicesLocalized(ctx, helperAppointment(), nil, students, "")
 		require.NoError(t, err)
 		assert.False(t, dispatched)
 	})
@@ -285,7 +285,7 @@ func TestDispatchGuardianAccountReminderDevices(t *testing.T) {
 		notifier := &dispatchNotifier{}
 		s := &service{cfg: Config{ReminderNotifier: notifier}}
 
-		dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, helperAppointment(), accounts, students)
+		dispatched, err := s.dispatchGuardianAccountReminderDevicesLocalized(ctx, helperAppointment(), accounts, students, "")
 		require.NoError(t, err)
 		assert.True(t, dispatched)
 		require.Len(t, notifier.events, 1)
@@ -299,7 +299,7 @@ func TestDispatchGuardianAccountReminderDevices(t *testing.T) {
 		dispatchErr := errors.New("push service unreachable")
 		s := &service{cfg: Config{ReminderNotifier: &dispatchNotifier{err: dispatchErr}}}
 
-		dispatched, err := s.dispatchGuardianAccountReminderDevices(ctx, helperAppointment(), accounts, students)
+		dispatched, err := s.dispatchGuardianAccountReminderDevicesLocalized(ctx, helperAppointment(), accounts, students, "")
 		require.ErrorIs(t, err, dispatchErr)
 		assert.False(t, dispatched,
 			"reporting a failed push as delivered would drop the reminder permanently")

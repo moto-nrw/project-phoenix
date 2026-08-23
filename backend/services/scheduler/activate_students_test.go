@@ -161,7 +161,7 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -183,7 +183,7 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -209,7 +209,7 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -234,7 +234,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	// "Re-query" empty-handed: the repo would now return no rows because the
 	// previous tick already moved them to active. Clear the test fixture to
@@ -243,7 +243,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 	repo.pendingDue = nil
 	repo.mu.Unlock()
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -265,7 +265,7 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -284,9 +284,7 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	assert.NotPanics(t, func() {
-		s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
-	})
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -313,7 +311,7 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -330,7 +328,7 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()

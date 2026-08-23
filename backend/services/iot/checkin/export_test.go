@@ -27,24 +27,8 @@ func (s *CheckinService) RoomNameForResponseForTest(ctx context.Context, current
 	return s.roomNameForResponse(ctx, currentVisit, roomID)
 }
 
-func (s *CheckinService) EnsureWCRoomForTest(ctx context.Context) (*facilities.Room, error) {
-	return s.ensureWCRoom(ctx)
-}
-
-func (s *CheckinService) EnsureWCCategoryForTest(ctx context.Context) (*activities.Category, error) {
-	return s.ensureWCCategory(ctx)
-}
-
 func (s *CheckinService) WCActivityGroupForTest(ctx context.Context) (*activities.Group, error) {
 	return s.wcActivityGroup(ctx)
-}
-
-func (s *CheckinService) EnsureSchulhofRoomForTest(ctx context.Context) (*facilities.Room, error) {
-	return s.ensureSchulhofRoom(ctx)
-}
-
-func (s *CheckinService) EnsureSchulhofCategoryForTest(ctx context.Context) (*activities.Category, error) {
-	return s.ensureSchulhofCategory(ctx)
 }
 
 func (s *CheckinService) SchulhofActivityGroupForTest(ctx context.Context) (*activities.Group, error) {

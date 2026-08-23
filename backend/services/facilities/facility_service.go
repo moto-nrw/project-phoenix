@@ -34,8 +34,7 @@ type service struct {
 	validateCareOfferingRoomDeletion func(context.Context, int64) error
 }
 
-// ServiceConfig carries the optional cross-domain guard needed by room
-// deletion. NewService remains for focused tests and legacy wiring.
+// ServiceConfig carries the cross-domain guard needed by room deletion.
 type ServiceConfig struct {
 	RoomRepo                         facilities.RoomRepository
 	ActiveGroupRepo                  active.GroupRepository
@@ -53,14 +52,6 @@ type ServiceConfig struct {
 // unique index from migration 1.15.48 — all exact-case). Fixed array (not a
 // slice) so a future caller can't append to a package global.
 var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasName}
-
-// NewService creates a new facilities service
-func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository) Service {
-	return NewServiceWithConfig(ServiceConfig{
-		RoomRepo:        roomRepo,
-		ActiveGroupRepo: activeGroupRepo,
-	})
-}
 
 // NewServiceWithConfig builds the facilities service with recurrence-aware
 // room deletion validation.

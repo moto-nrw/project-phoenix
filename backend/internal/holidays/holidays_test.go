@@ -196,14 +196,3 @@ func TestDateSetPropagatesRangeErrors(t *testing.T) {
 	_, err := DateSet("DE-NW", date(2026, time.June, 2), date(2026, time.June, 1))
 	assert.Error(t, err)
 }
-
-func TestRegionsComplete(t *testing.T) {
-	t.Parallel()
-
-	regions := Regions()
-	assert.Len(t, regions, 16)
-	for _, code := range regions {
-		assert.True(t, ValidRegion(code))
-	}
-	assert.True(t, ValidRegion(DefaultRegion))
-}

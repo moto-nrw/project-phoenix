@@ -116,8 +116,10 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 	require.NoError(t, err)
 
 	res := NewResource(Dependencies{
-		TimetableData:          testTimetableData(db),
-		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), nil),
+		TimetableData: testTimetableData(db),
+		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
+			Repo: scheduleRepo.NewCalendarPeriodRepository(db),
+		}),
 		MaterializationService: mat,
 		InstanceService:        serviceFactory.Instance,
 		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),

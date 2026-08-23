@@ -156,14 +156,6 @@ func DetectShiftCoverage(ctx context.Context, deps ShiftCoverageDependencies, qu
 	return ShiftCoverageResult{Warnings: buildShiftCoverageWarnings(pending, staff), TotalWarningCount: total}, nil
 }
 
-// DetectShiftCoverageWarnings preserves the warning-only service contract used
-// by existing non-HTTP callers. The API uses DetectShiftCoverage to expose the
-// total count alongside the bounded detail list.
-func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
-	result, err := DetectShiftCoverage(ctx, deps, query)
-	return result.Warnings, err
-}
-
 func emptyShiftCoverageResult() ShiftCoverageResult {
 	return ShiftCoverageResult{Warnings: make([]ShiftCoverageWarning, 0)}
 }

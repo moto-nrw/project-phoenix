@@ -66,17 +66,6 @@ var displayNames = map[string]string{
 	"Weihnachten":               "Erster Weihnachtsfeiertag",
 }
 
-// Regions returns the supported region codes (sorted, for validation and
-// option lists).
-func Regions() []string {
-	codes := make([]string, 0, len(regionFuncs))
-	for code := range regionFuncs {
-		codes = append(codes, code)
-	}
-	sort.Strings(codes)
-	return codes
-}
-
 // ValidRegion reports whether code is a supported Bundesland code.
 func ValidRegion(code string) bool {
 	_, ok := regionFuncs[code]
