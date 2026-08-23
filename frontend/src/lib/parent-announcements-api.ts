@@ -38,7 +38,7 @@ interface AnnouncementOption {
  * How the announcement is delivered. "letter" is the Elternbrief (#2384):
  * e-mail and confirmation are mandatory and the mail carries the full text.
  */
-export type AnnouncementDeliveryMode = "standard" | "letter";
+type AnnouncementDeliveryMode = "standard" | "letter";
 
 /**
  * Who receives the e-mail — a separate axis from who sees the announcement in
@@ -184,7 +184,7 @@ export interface LetterChild {
   acknowledged_by?: string;
 }
 
-export interface LetterSummary {
+interface LetterSummary {
   children_total: number;
   children_confirmable: number;
   children_fulfilled: number;
