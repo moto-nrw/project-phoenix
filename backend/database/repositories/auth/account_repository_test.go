@@ -228,19 +228,16 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role name", func(t *testing.T) {
-		// Create account and role
 		account := testpkg.CreateTestAccount(t, db, "findbyrole")
 		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
 		defer cleanupAccountRecords(t, db, account.ID)
 		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
-		// Assign role to account
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
 			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
-		// Find by role
 		accounts, err := repo.FindByRole(ctx, role.Name)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accounts)
@@ -266,7 +263,6 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 			account.ID, role.ID, testpkg.Tenant(t))
 		require.NoError(t, err)
 
-		// Search with the actual role name in uppercase to verify case insensitivity
 		upperRoleName := strings.ToUpper(role.Name)
 		accounts, err := repo.FindByRole(ctx, upperRoleName)
 		require.NoError(t, err)

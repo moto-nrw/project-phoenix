@@ -75,6 +75,15 @@ func (r stubStaffAccountRepo) Create(context.Context, *authModels.Account) error
 func (r stubStaffAccountRepo) FindByID(context.Context, interface{}) (*authModels.Account, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) FindManageableByID(context.Context, int64) (*authModels.Account, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) ListManageable(context.Context, map[string]interface{}) ([]*authModels.Account, error) {
+	panic("not implemented")
+}
+func (r stubStaffAccountRepo) UpdateManageable(context.Context, *authModels.Account) error {
+	panic("not implemented")
+}
 func (r stubStaffAccountRepo) FindByIDForUpdate(context.Context, int64) (*authModels.Account, error) {
 	panic("not implemented")
 }
