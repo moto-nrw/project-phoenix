@@ -548,10 +548,12 @@ export function CareScheduleManager({
         }
         return;
       }
+      const today = formatDateISO(new Date());
+      const weekStart = formatDateISO(weekDays[0] ?? new Date());
       const basePayload = weeklyPickupAdjustmentPayload(
         data,
         adjustment,
-        formatDateISO(weekDays[0] ?? new Date()),
+        weekStart > today ? weekStart : today,
       );
 
       if (adjustment?.resolution === "offering" && !adjustment.confirm) {

@@ -385,6 +385,8 @@ describe("CarePlanEditorModal", () => {
   });
 
   it("keeps the current-date preview when switching from a future offering to an exception", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime("2026-05-25T12:00:00");
     const initial = decisionPreview("preview-current");
     const selected = {
       ...decisionPreview("preview-selected"),
@@ -432,24 +434,13 @@ describe("CarePlanEditorModal", () => {
       screen.queryByRole("button", { name: "Angebot ändern und speichern" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(
+    expect(
       screen.getByRole("button", {
         name: "Als dauerhafte Ausnahme speichern",
       }),
-    );
-
-    await waitFor(() => {
-      expect(onSubmitWeekly).toHaveBeenLastCalledWith(
-        expect.any(Object),
-        expect.objectContaining({
-          resolution: "exception",
-          preview: expect.objectContaining({
-            preview_token: "preview-current",
-            effective_from: "2026-05-25",
-          }),
-        }),
-      );
-    });
+    ).toBeDisabled();
+    expect(onSubmitWeekly).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
   });
 
   it("shows all exact matches and requires confirmation before changing the offering", async () => {

@@ -21,6 +21,7 @@ import type {
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
 import {
+  formatDateISO,
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
@@ -749,6 +750,9 @@ export function CarePlanEditorModal({
               reason={offeringReason}
               selectedOfferingId={selectedOfferingId}
               effectiveFrom={offeringEffectiveFrom}
+              canSaveException={
+                offeringEffectiveFrom <= formatDateISO(new Date())
+              }
               confirmed={offeringConfirmed}
               busy={isSubmitting}
               onReasonChange={setOfferingReason}

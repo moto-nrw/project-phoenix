@@ -715,7 +715,7 @@ describe("CareScheduleManager", () => {
         arrival_schedules: [
           { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
         ],
-        effective_from: "2026-05-25",
+        effective_from: "2026-05-27",
       });
       expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
         schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
@@ -723,7 +723,7 @@ describe("CareScheduleManager", () => {
         arrival_schedules: [
           { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
         ],
-        effective_from: "2026-05-25",
+        effective_from: "2026-05-27",
         preview_token: "preview-token",
         resolution: "exception",
       });

@@ -25,6 +25,7 @@ interface PickupAdjustmentDecisionProps {
   reason: string;
   selectedOfferingId: string | null;
   effectiveFrom: string;
+  canSaveException: boolean;
   confirmed: boolean;
   busy: boolean;
   onReasonChange: (value: string) => void;
@@ -46,7 +47,11 @@ export function PickupAdjustmentDecision(props: PickupAdjustmentDecisionProps) {
       <ReasonField value={props.reason} onChange={props.onReasonChange} />
       <MatchingOfferings {...props} />
       {props.selectedOfferingId ? <OfferingDetails {...props} /> : null}
-      <ExceptionAction busy={props.busy} onSave={props.onSaveException} />
+      <ExceptionAction
+        busy={props.busy}
+        canSave={props.canSaveException}
+        onSave={props.onSaveException}
+      />
     </section>
   );
 }
@@ -301,9 +306,11 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
 
 function ExceptionAction({
   busy,
+  canSave,
   onSave,
 }: {
   readonly busy: boolean;
+  readonly canSave: boolean;
   readonly onSave: () => void;
 }) {
   return (
@@ -313,14 +320,15 @@ function ExceptionAction({
         variant="outline"
         size="md"
         className="w-full"
-        disabled={busy}
+        disabled={busy || !canSave}
         onClick={onSave}
       >
         Als dauerhafte Ausnahme speichern
       </Button>
       <p className="mt-2 text-xs leading-5 text-gray-500">
-        Das gebuchte Angebot bleibt unverändert. Bei einer Abweichung steht in
-        der Kinderkartei „Andere Zeit als im Angebot“.
+        {canSave
+          ? "Das gebuchte Angebot bleibt unverändert. Bei einer Abweichung steht in der Kinderkartei „Andere Zeit als im Angebot“."
+          : "Eine dauerhafte Ausnahme gilt ab heute. Bearbeiten Sie die aktuelle Woche."}
       </p>
     </div>
   );
