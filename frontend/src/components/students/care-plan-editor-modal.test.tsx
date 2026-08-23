@@ -398,6 +398,7 @@ describe("CarePlanEditorModal", () => {
       ...selected,
       preview_token: "preview-future",
       effective_from: "2026-06-01",
+      matching_offerings: [],
     };
     const onSubmitWeekly = vi
       .fn()
@@ -426,6 +427,10 @@ describe("CarePlanEditorModal", () => {
       }),
     );
     await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalledTimes(3));
+
+    expect(
+      screen.queryByRole("button", { name: "Angebot ändern und speichern" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {

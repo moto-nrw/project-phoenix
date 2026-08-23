@@ -505,19 +505,6 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	reviewRequired, err := rs.legacyPickupReviewRequired(r.Context(), student.ID, req)
-	if err != nil {
-		renderPickupAdjustmentError(w, r, err)
-		return
-	}
-	if reviewRequired {
-		renderError(w, r, common.ErrorInvalidRequestWithCode(
-			enrollmentService.ErrPickupAdjustmentResolutionRequired,
-			"pickup.resolution_required",
-		))
-		return
-	}
-
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
@@ -562,31 +549,6 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	response := buildPickupDataResponse(data)
 
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules updated successfully")
-}
-
-func (rs *Resource) legacyPickupReviewRequired(
-	ctx context.Context,
-	studentID int64,
-	req *BulkPickupScheduleRequest,
-) (bool, error) {
-	if rs.PickupAdjustmentService == nil {
-		return false, nil
-	}
-	careDays := make([]int, 0, len(req.Schedules))
-	for _, row := range req.Schedules {
-		careDays = append(careDays, row.Weekday)
-	}
-	input, err := pickupAdjustmentPreviewInput(studentID, pickupAdjustmentRequest{
-		Schedules: req.Schedules, CareDays: careDays, EffectiveFrom: req.EffectiveDate,
-	})
-	if err != nil {
-		return false, fmt.Errorf("%w: %v", enrollmentService.ErrPickupAdjustmentInvalid, err)
-	}
-	preview, err := rs.PickupAdjustmentService.Preview(ctx, input)
-	if err != nil {
-		return false, err
-	}
-	return preview.ResolutionRequired, nil
 }
 
 func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Request) {

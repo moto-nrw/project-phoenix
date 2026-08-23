@@ -677,6 +677,22 @@ describe("CareScheduleManager", () => {
     );
   });
 
+  it("uses the visible week's start date for weekly changes", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ effective_from: "2026-06-01" }),
+      );
+    });
+  });
+
   it("keeps direct saving when review is off even if an offering matches", async () => {
     const onUpdate = vi.fn();
 
@@ -699,7 +715,7 @@ describe("CareScheduleManager", () => {
         arrival_schedules: [
           { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
         ],
-        effective_from: "2026-05-27",
+        effective_from: "2026-05-25",
       });
       expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
         schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
@@ -707,7 +723,7 @@ describe("CareScheduleManager", () => {
         arrival_schedules: [
           { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
         ],
-        effective_from: "2026-05-27",
+        effective_from: "2026-05-25",
         preview_token: "preview-token",
         resolution: "exception",
       });

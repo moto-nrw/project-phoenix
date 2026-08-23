@@ -489,6 +489,14 @@ export function CarePlanEditorModal({
         throw new Error("Die Angebotsänderung konnte nicht geprüft werden.");
       }
       if (requestId !== offeringPreviewRequestId.current) return;
+      if (
+        !preview.matching_offerings.some(
+          (item) => item.offering_id === offeringId,
+        )
+      ) {
+        setWeeklyAdjustment(preview);
+        return;
+      }
       const refreshedTarget = preview.offering_catalog?.items.find(
         (item) => item.offering_id === offeringId,
       );

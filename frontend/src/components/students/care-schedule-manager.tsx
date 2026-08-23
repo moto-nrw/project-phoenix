@@ -98,6 +98,7 @@ function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
 function weeklyPickupAdjustmentPayload(
   data: CarePlanWeeklySubmit,
   adjustment?: CarePlanWeeklyAdjustment,
+  effectiveFrom = formatDateISO(new Date()),
 ): PickupAdjustmentPayload {
   return {
     schedules: data.pickupSchedules.map((schedule) => ({
@@ -107,7 +108,7 @@ function weeklyPickupAdjustmentPayload(
     })),
     care_days: data.arrivalSchedules.map((schedule) => schedule.weekday),
     arrival_schedules: weeklyArrivalPayload(data),
-    effective_from: adjustment?.effectiveFrom ?? formatDateISO(new Date()),
+    effective_from: adjustment?.effectiveFrom ?? effectiveFrom,
     ...(adjustment?.selections ? { selections: adjustment.selections } : {}),
   };
 }
@@ -547,7 +548,11 @@ export function CareScheduleManager({
         }
         return;
       }
-      const basePayload = weeklyPickupAdjustmentPayload(data, adjustment);
+      const basePayload = weeklyPickupAdjustmentPayload(
+        data,
+        adjustment,
+        formatDateISO(weekDays[0] ?? new Date()),
+      );
 
       if (adjustment?.resolution === "offering" && !adjustment.confirm) {
         return previewStudentPickupAdjustment(studentId, basePayload);
@@ -564,7 +569,13 @@ export function CareScheduleManager({
         invalidatePickupCaches();
       }
     },
-    [studentId, refreshCareData, pickupData.schedules, arrivalData.schedules],
+    [
+      studentId,
+      refreshCareData,
+      pickupData.schedules,
+      arrivalData.schedules,
+      weekDays,
+    ],
   );
 
   const editingDayDate = editorTarget?.date ?? null;
