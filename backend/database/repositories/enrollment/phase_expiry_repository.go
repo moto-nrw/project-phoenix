@@ -112,13 +112,17 @@ effective_source_bookings AS (
       AND expiry.first_affected_date IS NOT NULL
       AND (
           (
-              student.status IN ('active', 'pending')
+              student.status = 'active'
               AND student.enrolled_from IS NOT NULL
               AND student.enrolled_from <= source_phase.service_end_date
               AND (
                   student.enrolled_until IS NULL
                   OR student.enrolled_until >= source_phase.service_end_date
               )
+          )
+          OR (
+              student.status = 'pending'
+              AND student.enrolled_from IS NOT NULL
           )
           OR (
               student.status = 'inactive'
