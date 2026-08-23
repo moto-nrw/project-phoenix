@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -17,6 +18,40 @@ const (
 	accountTable      = "auth.accounts"
 	accountTableAlias = `auth.accounts AS "account"`
 )
+
+func accountMembershipScope(ctx context.Context) (string, []any) {
+	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+		return "", nil
+	}
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		organizationID := tenant.OrgFromContext(ctx)
+		if organizationID == 0 {
+			return "FALSE", nil
+		}
+		return `EXISTS (
+			SELECT 1
+			FROM auth.account_tenants AS "account_tenant"
+			INNER JOIN platform.schools AS "school" ON "school".id = "account_tenant".tenant_id
+			WHERE "account_tenant".account_id = "account".id
+			  AND "account_tenant".status = ?
+			  AND "school".organization_id = ?
+			  AND "school".active = TRUE
+			  AND "school".deleted_at IS NULL
+		)`, []any{auth.AccountTenantStatusActive, organizationID}
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return "FALSE", nil
+	}
+	return `EXISTS (
+		SELECT 1
+		FROM auth.account_tenants AS "account_tenant"
+		WHERE "account_tenant".account_id = "account".id
+		  AND "account_tenant".tenant_id = ?
+		  AND "account_tenant".status = ?
+	)`, []any{tenantID, auth.AccountTenantStatusActive}
+}
 
 // EffectiveAdminExistsSQL builds the SQL predicate that decides whether an
 // account holds effective admin scope within one tenant: the literal admin
@@ -122,6 +157,28 @@ func NewAccountRepository(db *bun.DB) auth.AccountRepository {
 		Repository: base.NewRepository[*auth.Account](db, accountTable, "Account"),
 		db:         db,
 	}
+}
+
+// FindManageableByID restricts account administration to active memberships
+// in the tenant or organization from the caller's context. Platform and admin
+// contexts keep the global lookup used by operator flows.
+func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*auth.Account, error) {
+	predicate, args := accountMembershipScope(ctx)
+	if predicate == "" {
+		return r.FindByID(ctx, id)
+	}
+
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id).
+		Where(predicate, args...).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+	}
+	return account, nil
 }
 
 // FindByEmail retrieves an account by email address
@@ -431,10 +488,25 @@ func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*aut
 	return accounts, nil
 }
 
-// List retrieves accounts matching the provided filters
+// List retrieves accounts matching the provided filters without applying an
+// account-management boundary. Internal authentication flows remain global.
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
+	return r.list(ctx, filters, false)
+}
+
+// ListManageable lists only accounts the caller may administer.
+func (r *AccountRepository) ListManageable(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
+	return r.list(ctx, filters, true)
+}
+
+func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}, manageable bool) ([]*auth.Account, error) {
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
+	if manageable {
+		if predicate, args := accountMembershipScope(ctx); predicate != "" {
+			query = query.Where(predicate, args...)
+		}
+	}
 
 	// Apply filters
 	for field, value := range filters {
@@ -730,8 +802,18 @@ func (r *AccountRepository) mergePermissions(directPermissions, rolePermissions 
 	return allPermissions
 }
 
-// Update overrides the base Update method to handle email normalization
+// Update overrides the base Update method to handle email normalization.
 func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) error {
+	return r.update(ctx, account, false)
+}
+
+// UpdateManageable atomically applies the account-management membership
+// predicate to the write as well as its preceding read.
+func (r *AccountRepository) UpdateManageable(ctx context.Context, account *auth.Account) error {
+	return r.update(ctx, account, true)
+}
+
+func (r *AccountRepository) update(ctx context.Context, account *auth.Account, manageable bool) error {
 	if account == nil {
 		return fmt.Errorf("account cannot be nil")
 	}
@@ -742,19 +824,24 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 	}
 
 	// Execute the query using GetDB for transaction support
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(account).
-		Where(whereID, account.ID).
-		ModelTableExpr(accountTable).
-		Exec(ctx)
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, account.ID)
+	if manageable {
+		if predicate, args := accountMembershipScope(ctx); predicate != "" {
+			query = query.Where(predicate, args...)
+		}
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
 			Err: err,
 		}
 	}
-
-	return nil
+	return base.AssertRowsAffected(result, 1, "update account")
 }
 
 // AnonymizeForDeletion overwrites the account's email with the given

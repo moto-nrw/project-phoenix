@@ -168,7 +168,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("account not found")))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 
@@ -179,11 +179,18 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 
 	common.RespondNoContent(w, r)
+}
+
+func accountManagementErrorRenderer(err error) render.Renderer {
+	if errors.Is(err, authService.ErrAccountNotFound) {
+		return common.ErrorNotFound(errors.New("account not found"))
+	}
+	return common.ErrorInternalServer(err)
 }
 
 // listAccounts handles listing accounts

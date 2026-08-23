@@ -371,17 +371,15 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 		return nil
 	}
 
-	if err := s.AccountTenantRepo.Deactivate(ctx, accountID, tenantID); err != nil {
-		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate tenant mapping: %w", err)}
-	}
-
-	// Deactivate the account entirely (and revoke all tokens) only when it has
-	// no active mapping to any other school.
-	remaining, err := s.AccountTenantRepo.FindActiveByAccountID(ctx, accountID)
+	// Deactivate the account entirely (and revoke all tokens) only when the
+	// current tenant is its last active membership. This must happen before the
+	// mapping is deactivated: account management requires that active mapping.
+	activeMappings, err := s.AccountTenantRepo.FindActiveByAccountID(ctx, accountID)
 	if err != nil {
 		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("check remaining tenant mappings: %w", err)}
 	}
-	if len(remaining) == 0 {
+	deactivateAccount := len(activeMappings) == 1 && activeMappings[0].TenantID == tenantID
+	if deactivateAccount {
 		if err := s.AuthService.DeactivateAccount(ctx, int(accountID)); err != nil {
 			return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate account: %w", err)}
 		}
@@ -389,11 +387,14 @@ func (s *staffOffboardingService) offboardPersonAndAccount(ctx context.Context, 
 			*deactivatedAccountID = accountID
 		}
 	}
+	if err := s.AccountTenantRepo.Deactivate(ctx, accountID, tenantID); err != nil {
+		return &UsersError{Op: opOffboardStaff, Err: fmt.Errorf("deactivate tenant mapping: %w", err)}
+	}
 
 	s.getLogger().Info("staff account offboarded",
 		"account_id", accountID,
 		"tenant_id", tenantID,
-		"account_deactivated", len(remaining) == 0,
+		"account_deactivated", deactivateAccount,
 		"guardian_access_preserved", false,
 	)
 

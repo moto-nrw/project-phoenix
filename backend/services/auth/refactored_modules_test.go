@@ -594,6 +594,7 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Account is already active by default
 
@@ -656,6 +657,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate first
 		err = service.DeactivateAccount(ctx, int(account.ID))
@@ -685,6 +687,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Get the original password hash
 		original, err := service.GetAccountByID(ctx, int(account.ID))
@@ -737,6 +740,7 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		filters := map[string]interface{}{
@@ -1180,6 +1184,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate account
 		err = service.DeactivateAccount(ctx, int(account.ID))

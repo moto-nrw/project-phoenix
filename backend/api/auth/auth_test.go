@@ -1183,9 +1183,11 @@ func TestPermissionManagement(t *testing.T) {
 // TestAccountManagement tests account management endpoints (protected)
 func TestAccountManagement(t *testing.T) {
 	t.Parallel()
-	_, router := setupProtectedRouter(t)
+	tc, router := setupProtectedRouter(t)
 
-	adminClaims := testutil.AdminTestClaims(1)
+	tenantID := testpkg.Tenant(t)
+	account := testpkg.CreateTestAccount(t, tc.db, "account-management-list")
+	adminClaims := testutil.AdminTestClaimsForTenant(1, tenantID)
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
@@ -1196,7 +1198,10 @@ func TestAccountManagement(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, ok := response["data"].([]interface{})
 		require.True(t, ok, "Expected data to be an array")
-		assert.NotEmpty(t, data, "Expected at least one account")
+		require.Len(t, data, 1)
+		listed, ok := data[0].(map[string]interface{})
+		require.True(t, ok, "Expected account data to be an object")
+		assert.Equal(t, float64(account.ID), listed["id"])
 	})
 
 	t.Run("list accounts forbidden without permission", func(t *testing.T) {

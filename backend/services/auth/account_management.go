@@ -12,13 +12,13 @@ import (
 
 // ActivateAccount activates a user account
 func (s *Service) ActivateAccount(ctx context.Context, accountID int) error {
-	account, err := s.repos.Account.FindByID(ctx, int64(accountID))
+	account, err := s.repos.Account.FindManageableByID(ctx, int64(accountID))
 	if err != nil {
 		return &AuthError{Op: "activate account", Err: ErrAccountNotFound}
 	}
 
 	account.Active = true
-	if err := s.repos.Account.Update(ctx, account); err != nil {
+	if err := s.repos.Account.UpdateManageable(ctx, account); err != nil {
 		return &AuthError{Op: "activate account", Err: err}
 	}
 
@@ -57,12 +57,12 @@ func (s *Service) markPendingWipeCompletedIndependently(ctx context.Context, acc
 // DeactivateAccount deactivates a user account
 func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
-		account, err := s.repos.Account.FindByID(txCtx, int64(accountID))
+		account, err := s.repos.Account.FindManageableByID(txCtx, int64(accountID))
 		if err != nil {
 			return &AuthError{Op: "deactivate account", Err: ErrAccountNotFound}
 		}
 		account.Active = false
-		if err := s.repos.Account.Update(txCtx, account); err != nil {
+		if err := s.repos.Account.UpdateManageable(txCtx, account); err != nil {
 			return &AuthError{Op: "deactivate account", Err: err}
 		}
 		return nil
@@ -79,7 +79,7 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 // UpdateAccount updates account information
 func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) error {
 	// Verify account exists
-	existing, err := s.repos.Account.FindByID(ctx, account.ID)
+	existing, err := s.repos.Account.FindManageableByID(ctx, account.ID)
 	if err != nil {
 		return &AuthError{Op: opUpdateAccount, Err: ErrAccountNotFound}
 	}
@@ -89,7 +89,7 @@ func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) erro
 		account.PasswordHash = existing.PasswordHash
 	}
 
-	if err := s.repos.Account.Update(ctx, account); err != nil {
+	if err := s.repos.Account.UpdateManageable(ctx, account); err != nil {
 		return &AuthError{Op: opUpdateAccount, Err: err}
 	}
 
@@ -98,7 +98,7 @@ func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) erro
 
 // ListAccounts retrieves accounts matching the provided filters
 func (s *Service) ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
-	accounts, err := s.repos.Account.List(ctx, filters)
+	accounts, err := s.repos.Account.ListManageable(ctx, filters)
 	if err != nil {
 		return nil, &AuthError{Op: "list accounts", Err: err}
 	}
