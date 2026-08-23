@@ -1166,6 +1166,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
 	authConfig.ParentsURL = parentsURL
+	authConfig.SchoolURL = schoolURL
 	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {

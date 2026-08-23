@@ -236,35 +236,27 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
-func TestNewFactory_ParentsURL_Required(t *testing.T) {
+func TestNewFactory_PortalURLs_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-
 	repos := repositories.NewFactory(db)
 
-	viper.Reset()
-	seedFactoryRequiredConfig()
-	viper.Set("parents_url", "")
+	for _, tc := range []struct {
+		name, key, want string
+	}{
+		{"parents", "parents_url", "PARENTS_URL"},
+		{"school", "school_url", "SCHOOL_URL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Reset()
+			seedFactoryRequiredConfig()
+			viper.Set(tc.key, "")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
-	require.Error(t, err)
-	require.Nil(t, factory)
-	assert.Contains(t, err.Error(), "PARENTS_URL")
-}
-
-// Deliberately NOT parallel: mutates process-global configuration.
-func TestNewFactory_SchoolURL_Required(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-
-	repos := repositories.NewFactory(db)
-
-	viper.Reset()
-	seedFactoryRequiredConfig()
-	viper.Set("school_url", "")
-
-	factory, err := services.NewFactory(repos, db, slog.Default())
-	require.Error(t, err)
-	require.Nil(t, factory)
-	assert.Contains(t, err.Error(), "SCHOOL_URL")
+			factory, err := services.NewFactory(repos, db, slog.Default())
+			require.Error(t, err)
+			require.Nil(t, factory)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.

@@ -425,6 +425,19 @@ describe("proxy", () => {
       expect(rewrite).toContain("token=abc");
     });
 
+    it("rewrites /reset-password to the school reset flow", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/reset-password?token=abc`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/reset-password",
+      );
+    });
+
     it("returns 404 for tenant, operator, and parent auth endpoints", () => {
       for (const path of [
         "/api/auth/session",
@@ -449,6 +462,28 @@ describe("proxy", () => {
       expect(res.status).toBe(200);
       expect(res.headers.get("x-middleware-rewrite")).toBeNull();
       expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("passes through the public invitation API routes", () => {
+      for (const path of [
+        "/api/invitations/validate",
+        "/api/invitations/accept",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      }
+    });
+
+    it("returns 404 for non-school API routes", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/api/students`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.status).toBe(404);
     });
 
     it("redirects unknown paths like /dashboard to /", () => {

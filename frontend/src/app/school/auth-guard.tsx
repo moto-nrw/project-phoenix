@@ -35,6 +35,8 @@ const SCHOOL_PUBLIC_PAGES = [
   // Accept flow for Lehrkraft invitations — gated by the invitation token.
   "/school/invite",
   "/invite",
+  "/school/reset-password",
+  "/reset-password",
 ];
 
 export function SchoolAuthGuard({

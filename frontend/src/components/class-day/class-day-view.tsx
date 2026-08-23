@@ -18,6 +18,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -25,7 +26,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { getTimeBasedGreeting } from "~/lib/greeting";
 import type { ClassDayReport, ClassDayRow } from "~/lib/class-day-api";
 import {
@@ -210,7 +211,7 @@ function ClassCard({
       aria-pressed={selected}
       className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
         selected
-          ? "border-[#5080D8] ring-1 ring-[#5080D8]/30"
+          ? "border-[var(--class-day-blue)] ring-1 ring-[var(--class-day-blue)]"
           : "border-gray-200 hover:border-gray-300"
       }`}
     >
@@ -218,7 +219,7 @@ function ClassCard({
         {classLabel(klass)}
       </h3>
       <p
-        className={`mt-1 text-xs ${failed ? "text-[#CC2626]" : "text-gray-500"}`}
+        className={`mt-1 text-xs ${failed ? "text-[var(--class-day-danger)]" : "text-gray-500"}`}
       >
         {subtitle}
       </p>
@@ -413,11 +414,19 @@ export function ClassDayView({
   const noClasses = classes !== undefined && classes.length === 0;
 
   return (
-    <div className="w-full">
+    <div
+      className="w-full"
+      style={
+        {
+          "--class-day-blue": MOTO_COLOR_PALETTE.blue.base,
+          "--class-day-danger": MOTO_COLOR_PALETTE.red.base,
+        } as CSSProperties
+      }
+    >
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+            <p className="text-xs font-semibold tracking-wide text-[var(--class-day-blue)] uppercase">
               Klassenansicht
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -566,7 +575,7 @@ export function ClassDayView({
                     <Section
                       title="Abgemeldet"
                       count={absent.length}
-                      accent="text-[#CC2626]"
+                      accent="text-[var(--class-day-danger)]"
                       rows={absent}
                       enrollmentKnown={false}
                     />
@@ -586,7 +595,7 @@ export function ClassDayView({
                     <Section
                       title="Bleiben in der Betreuung"
                       count={staying.length}
-                      accent="text-[#5080D8]"
+                      accent="text-[var(--class-day-blue)]"
                       rows={staying}
                     />
                     <Section
@@ -604,7 +613,7 @@ export function ClassDayView({
                     <Section
                       title="Abgemeldet"
                       count={absent.length}
-                      accent="text-[#CC2626]"
+                      accent="text-[var(--class-day-danger)]"
                       rows={absent}
                     />
                   </div>

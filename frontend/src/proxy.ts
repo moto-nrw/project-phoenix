@@ -374,7 +374,11 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
  * /school/* internally so the App Router routes them under app/school/.
  * The Klassenansicht itself lives at the root ("/" → /school).
  */
-const SCHOOL_PUBLIC_PATHS = ["/login", "/invite"];
+const SCHOOL_PUBLIC_PATHS = ["/login", "/invite", "/reset-password"];
+const SCHOOL_INVITATION_API_PATHS = [
+  "/api/invitations/validate",
+  "/api/invitations/accept",
+];
 
 function isSchoolHost(hostname: string): boolean {
   return hostname === SCHOOL_HOSTNAME;
@@ -398,13 +402,20 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
     return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
-  // Pass through: school API routes, static assets, Sentry tunnel.
+  // Only the school portal's BFF routes may run on this host. In particular,
+  // do not pass tenant API routes through: tenant session cookies are
+  // domain-scoped and would otherwise be sent to this subdomain as well.
   if (
-    pathname.startsWith("/api/") ||
+    pathname.startsWith("/api/school/") ||
+    SCHOOL_INVITATION_API_PATHS.includes(pathname) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/monitoring")
   ) {
     return secureNext(request);
+  }
+
+  if (pathname.startsWith("/api/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
   }
 
   // Root → /school (the Klassenansicht). The staff/school surfaces are

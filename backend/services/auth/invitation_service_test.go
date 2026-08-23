@@ -154,6 +154,7 @@ func TestCreateInvitationSuccess(t *testing.T) {
 // school-portal role (lehrkraft) invitation links to SCHOOL_URL, every other
 // role keeps linking to FRONTEND_URL.
 func TestCreateInvitationSchoolPortalLink(t *testing.T) {
+	t.Parallel()
 	service, _, _, roles, _, _, rawMailer, mock, cleanup := newInvitationTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	t.Cleanup(cleanup)
 	mailer, ok := rawMailer.(*testpkg.CapturingMailer)

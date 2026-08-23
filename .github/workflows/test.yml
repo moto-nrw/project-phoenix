@@ -336,8 +336,10 @@ jobs:
       ADMIN_PASSWORD: SeedSmoke1234%
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
+      SCHOOL_URL: http://schule.localhost:3000
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
       TENANT_DOMAIN: localhost
       # api/server.go refuses to build the server without it.
       METRICS_BEARER_TOKEN: ci-metrics-token

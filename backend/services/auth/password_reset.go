@@ -22,6 +22,7 @@ type passwordResetScope string
 const (
 	passwordResetScopeStaff  passwordResetScope = "staff"
 	passwordResetScopeParent passwordResetScope = "parent"
+	passwordResetScopeSchool passwordResetScope = "school"
 )
 
 type passwordResetOptions struct {
@@ -45,6 +46,15 @@ func (s *Service) InitiateParentPasswordReset(ctx context.Context, emailAddress 
 	})
 }
 
+// InitiateSchoolPasswordReset creates a reset link for school-portal accounts
+// only, so the link remains on the isolated school host.
+func (s *Service) InitiateSchoolPasswordReset(ctx context.Context, emailAddress string) (*auth.PasswordResetToken, error) {
+	return s.initiatePasswordReset(ctx, emailAddress, passwordResetOptions{
+		scope:   passwordResetScopeSchool,
+		baseURL: s.schoolURL,
+	})
+}
+
 func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string, opts passwordResetOptions) (*auth.PasswordResetToken, error) {
 	// Normalize email
 	emailAddress = strings.TrimSpace(strings.ToLower(emailAddress))
@@ -62,6 +72,15 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 			return nil, err
 		}
 		if !hasGuardianRole {
+			return nil, nil
+		}
+	}
+	if opts.scope == passwordResetScopeSchool {
+		hasSchoolRole, _, err := s.findSchoolPortalTenantForAccount(ctx, account.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !hasSchoolRole {
 			return nil, nil
 		}
 	}

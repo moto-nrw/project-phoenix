@@ -19,23 +19,26 @@ interface ErrorResponse {
 
 /**
  * Password reset from the school portal (#2207). School accounts are
- * regular auth.accounts, so this forwards to the shared account-level
- * reset endpoint — mirrored here because the proxy blocks /api/auth/* on
- * the school host. The Retry-After header is preserved: it drives the
- * live countdown in the password-reset modal (cross-layer contract).
+ * regular auth.accounts, so this forwards to the school-scoped reset
+ * endpoint — mirrored here because the proxy blocks /api/auth/* on the
+ * school host. The Retry-After header is preserved: it drives the live
+ * countdown in the password-reset modal (cross-layer contract).
  */
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as PasswordResetRequestBody;
 
-    const response = await fetch(`${getServerApiUrl()}/auth/password-reset`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getClientForwardHeaders(request),
+    const response = await fetch(
+      `${getServerApiUrl()}/school/auth/password-reset`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getClientForwardHeaders(request),
+        },
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    });
+    );
 
     if (!response.ok) {
       const retryAfter = response.headers.get("Retry-After");
