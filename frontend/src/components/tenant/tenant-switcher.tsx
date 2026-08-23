@@ -7,8 +7,10 @@ import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
   performTenantSwitch,
+  TenantSwitchError,
   type TenantSummary,
 } from "~/lib/tenant-api";
+import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 import { trackTenantEvent } from "~/lib/analytics";
@@ -52,6 +54,7 @@ export function BrandTenantSwitcher({
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
+  const [schoolPortalUrl, setSchoolPortalUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
   const { status } = useSession();
@@ -90,6 +93,7 @@ export function BrandTenantSwitcher({
       setIsSwitching(true);
       setIsOpen(false);
       setSwitchError("");
+      setSchoolPortalUrl(null);
 
       try {
         // The backend resolves the switch target by SUBDOMAIN (same as
@@ -118,9 +122,27 @@ export function BrandTenantSwitcher({
           error: err instanceof Error ? err.message : String(err),
           target_slug: targetTenant.subdomain,
         });
-        setSwitchError(
-          `Wechsel zu ${targetTenant.name} fehlgeschlagen. Bitte erneut versuchen oder direkt über die Schul-URL anmelden.`,
-        );
+        if (
+          err instanceof TenantSwitchError &&
+          err.code === "use_school_portal"
+        ) {
+          let portalUrl: string | null = null;
+          try {
+            portalUrl = schoolPortalLoginUrl();
+          } catch (urlErr) {
+            logger.error("school_portal_url_unavailable", {
+              error: urlErr instanceof Error ? urlErr.message : String(urlErr),
+            });
+          }
+          setSchoolPortalUrl(portalUrl);
+          setSwitchError(
+            "Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an.",
+          );
+        } else {
+          setSwitchError(
+            `Wechsel zu ${targetTenant.name} fehlgeschlagen. Bitte erneut versuchen.`,
+          );
+        }
         setIsSwitching(false);
       }
     },
@@ -154,6 +176,7 @@ export function BrandTenantSwitcher({
         type="button"
         onClick={() => {
           setSwitchError("");
+          setSchoolPortalUrl(null);
           setIsOpen(!isOpen);
         }}
         disabled={isSwitching}
@@ -233,7 +256,20 @@ export function BrandTenantSwitcher({
           #1975 to go unnoticed. */}
       {switchError && !isOpen && (
         <div className="absolute left-0 z-50 mt-1 w-72">
-          <Alert type="error" message={switchError} />
+          <Alert
+            type="error"
+            message={switchError}
+            action={
+              schoolPortalUrl ? (
+                <a
+                  href={schoolPortalUrl}
+                  className="font-medium whitespace-nowrap underline underline-offset-2"
+                >
+                  Jetzt zu moto schule
+                </a>
+              ) : undefined
+            }
+          />
         </div>
       )}
     </div>

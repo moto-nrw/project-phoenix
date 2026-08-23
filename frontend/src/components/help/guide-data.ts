@@ -1060,7 +1060,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
           "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
-          "moto schule hat eine eigene Adresse: `schule.moto-app.de`. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
+          "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
         ],
         callout: {

@@ -6,12 +6,27 @@ import "@testing-library/jest-dom/vitest";
 // Mocks
 // ============================================================================
 
-const { mockListAvailableTenants, mockPerformTenantSwitch } = vi.hoisted(
-  () => ({
+const {
+  mockListAvailableTenants,
+  mockPerformTenantSwitch,
+  MockTenantSwitchError,
+} = vi.hoisted(() => {
+  class MockTenantSwitchError extends Error {
+    constructor(
+      public status: number,
+      public code: "access_denied" | "use_school_portal" | "unknown",
+      message: string,
+    ) {
+      super(message);
+    }
+  }
+
+  return {
     mockListAvailableTenants: vi.fn(),
     mockPerformTenantSwitch: vi.fn(),
-  }),
-);
+    MockTenantSwitchError,
+  };
+});
 
 const { mockSignIn, mockUseSession } = vi.hoisted(() => ({
   mockSignIn: vi.fn(),
@@ -33,6 +48,7 @@ const { mockTrackTenantEvent } = vi.hoisted(() => ({
 vi.mock("~/lib/tenant-api", () => ({
   listAvailableTenants: mockListAvailableTenants,
   performTenantSwitch: mockPerformTenantSwitch,
+  TenantSwitchError: MockTenantSwitchError,
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -57,6 +73,10 @@ vi.mock("~/env", () => ({
   env: {
     NEXT_PUBLIC_TENANT_DOMAIN: "localhost",
   },
+}));
+
+vi.mock("~/lib/school-url", () => ({
+  schoolPortalLoginUrl: () => "http://schule.localhost:3000/login",
 }));
 
 vi.mock("next/link", () => ({
@@ -325,6 +345,26 @@ describe("BrandTenantSwitcher", () => {
 
     // Should NOT redirect (performTenantSwitch threw)
     expect(window.location.href).toBe("");
+  });
+
+  it("offers moto schule when the selected school only grants Lehrkraft access", async () => {
+    mockListAvailableTenants.mockResolvedValue([tenantA, tenantB]);
+    mockPerformTenantSwitch.mockRejectedValue(
+      new MockTenantSwitchError(403, "use_school_portal", "wrong portal"),
+    );
+
+    render(<BrandTenantSwitcher />);
+
+    await screen.findByRole("button", { name: TRIGGER_LABEL });
+    openDropdown();
+    fireEvent.click(screen.getByText("School B"));
+
+    expect(
+      await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Jetzt zu moto schule" }),
+    ).toHaveAttribute("href", "http://schule.localhost:3000/login");
   });
 
   it("shows organization headers when tenants span multiple orgs", async () => {

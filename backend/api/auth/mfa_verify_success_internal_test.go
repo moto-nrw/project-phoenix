@@ -266,6 +266,29 @@ func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
 
+func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
+	t.Parallel()
+
+	auth := &completeMFAExchangeStub{err: &authService.AuthError{
+		Err: authService.ErrMustUseSchoolPortal,
+	}}
+	mfa := &trustedDeviceMFAStub{
+		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+	}
+	rs := &Resource{AuthService: auth, MFAService: mfa}
+
+	rr := httptest.NewRecorder()
+	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
+		ChallengeToken: "challenge.tok",
+		Code:           "123456",
+	}))
+
+	require.Equal(t, http.StatusForbidden, rr.Code)
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(rr.Body).Decode(&body))
+	assert.Equal(t, "use_school_portal", body["code"])
+}
+
 func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 
