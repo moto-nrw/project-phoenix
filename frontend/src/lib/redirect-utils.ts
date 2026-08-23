@@ -6,6 +6,12 @@ import type { Session } from "next-auth";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
 
+export const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
+
+export function isSchoolPortalHandoffPath(path: string): boolean {
+  return path === SCHOOL_PORTAL_HANDOFF_PATH;
+}
+
 export interface SupervisionState {
   hasGroups: boolean;
   isLoadingGroups: boolean;
@@ -21,7 +27,8 @@ export interface SupervisionState {
  * 3. Caregivers with groups: /ogs-groups
  * 4. Caregivers actively supervising: /active-supervisions
  * 5. Other caregivers: /ogs-groups
- * 6. Admin-only users: /dashboard
+ * 6. Existing school-portal-only sessions: school portal handoff
+ * 7. Admin-only users: /dashboard
  */
 export function getSmartRedirectPath(
   session: Session | null,
@@ -31,6 +38,16 @@ export function getSmartRedirectPath(
 ): string {
   const canUseCaregiverFlows = isCaregiver(session);
   const canUseAdminFlows = hasRole(session, "admin");
+  // Tenant login no longer issues these sessions. This handles access tokens
+  // minted before the cutover until they expire; the next refresh is refused
+  // by the backend. Exact matching avoids treating tenant-defined roles with
+  // similar names as the system role.
+  const isExistingSchoolPortalOnlySession =
+    session?.user?.roles?.length === 1 && session.user.roles[0] === "lehrkraft";
+
+  if (isExistingSchoolPortalOnlySession) {
+    return SCHOOL_PORTAL_HANDOFF_PATH;
+  }
 
   if (canUseCaregiverFlows) {
     if (presenceMode === "binary" || openCareGroupMode) {

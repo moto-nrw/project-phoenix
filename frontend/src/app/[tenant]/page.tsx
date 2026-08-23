@@ -25,6 +25,7 @@ import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { parentsPortalLoginUrl } from "~/lib/parent-url";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
+import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import {
   login as loginApi,
@@ -488,6 +489,16 @@ function LoginForm() {
               trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
               trustedDeviceDays={mfaStep.trustedDeviceDays}
               onSuccess={handleMFASuccess}
+              onError={(mfaError) => {
+                if (
+                  mfaError instanceof MFAApiError &&
+                  showWrongPortalHint(mfaError.code)
+                ) {
+                  setMfaStep(null);
+                  return true;
+                }
+                return false;
+              }}
               onCancel={() => {
                 setMfaStep(null);
                 setError("");
@@ -632,6 +643,12 @@ function LoginForm() {
             <SmartRedirect
               onRedirect={(path) => {
                 logger.info("redirecting based on user permissions", { path });
+                if (isSchoolPortalHandoffPath(path)) {
+                  window.location.href = schoolPortalLoginUrl(
+                    `?from=staff&tenant=${encodeURIComponent(tenantSlug)}`,
+                  );
+                  return;
+                }
                 router.push(path);
               }}
             />

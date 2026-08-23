@@ -644,6 +644,52 @@ describe("HomePage (Login)", () => {
         "https://schule.example.test/login?from=staff&tenant=test-tenant",
       );
     });
+
+    it("hands an MFA exchange with a school-portal response to moto schule", async () => {
+      global.fetch = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: "mfa_required",
+              challenge_token: "mfa-challenge",
+              masked_email: "l***@example.com",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              error: "school portal accounts must log in at the school portal",
+              code: "use_school_portal",
+            }),
+            { status: 403, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("input-email")).toBeInTheDocument();
+      });
+      fireEvent.change(screen.getByTestId("input-email"), {
+        target: { value: "lehrkraft@example.com" },
+      });
+      fireEvent.change(screen.getByTestId("input-password"), {
+        target: { value: "correct-password" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+
+      const firstCodeInput = await screen.findByLabelText("Stelle 1");
+      await act(async () => {
+        fireEvent.change(firstCodeInput, { target: { value: "123456" } });
+      });
+
+      expect(
+        await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+      ).toBeInTheDocument();
+    });
   });
 
   it("sends a Lehrkraft-only passkey login to moto schule", async () => {
