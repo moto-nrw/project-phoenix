@@ -27,10 +27,18 @@ func dailyCheckoutAllRoomsExistingTenantsUp(ctx context.Context, db *bun.DB) err
 	fmt.Println("Migration 1.15.321: Preserving the daily-checkout room policy for existing tenants...")
 
 	if _, err := db.NewRaw(`
-		INSERT INTO config.setting_values (tenant_id, setting_key, value)
-		SELECT id, ?, 'false'::jsonb
-		FROM platform.schools
-		ON CONFLICT (tenant_id, setting_key) DO NOTHING;
+		WITH inserted AS (
+			INSERT INTO config.setting_values (tenant_id, setting_key, value)
+			SELECT id, ?, 'false'::jsonb
+			FROM platform.schools
+			ON CONFLICT (tenant_id, setting_key) DO NOTHING
+			RETURNING tenant_id, setting_key, value
+		)
+		INSERT INTO config.setting_audit (
+			tenant_id, setting_key, old_value, new_value, action, changed_by
+		)
+		SELECT tenant_id, setting_key, NULL, value, 'set', NULL
+		FROM inserted;
 	`, dailyCheckoutAllRoomsSettingKey).Exec(ctx); err != nil {
 		return fmt.Errorf("failed backfilling daily-checkout room policy: %w", err)
 	}
@@ -38,15 +46,9 @@ func dailyCheckoutAllRoomsExistingTenantsUp(ctx context.Context, db *bun.DB) err
 	return nil
 }
 
-func dailyCheckoutAllRoomsExistingTenantsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.321: Removing the daily-checkout room policy overrides...")
-
-	if _, err := db.NewRaw(`
-		DELETE FROM config.setting_audit WHERE setting_key = ?;
-		DELETE FROM config.setting_values WHERE setting_key = ?;
-	`, dailyCheckoutAllRoomsSettingKey, dailyCheckoutAllRoomsSettingKey).Exec(ctx); err != nil {
-		return fmt.Errorf("failed removing daily-checkout room policy overrides: %w", err)
-	}
-
+// Stored values may have been changed after rollout and carry no migration
+// provenance. Old binaries safely ignore the unknown key, so rollback is a no-op.
+func dailyCheckoutAllRoomsExistingTenantsDown(_ context.Context, _ *bun.DB) error {
+	fmt.Println("Rolling back migration 1.15.321: keeping daily-checkout room policy values...")
 	return nil
 }
