@@ -738,7 +738,10 @@ function ParentAnnouncementsContent() {
       {isFormOpen && (
         <AnnouncementFormModal
           announcement={editing}
-          kind={editing ? (isPoll(editing) ? "poll" : "announcement") : kind}
+          // kindOf, not a poll/announcement ternary: editing a letter must keep
+          // its mode, otherwise saving the draft would silently downgrade it to
+          // a plain Mitteilung and drop the mandatory channels.
+          kind={editing ? kindOf(editing) : kind}
           groups={groups ?? []}
           activities={activities ?? []}
           schoolClasses={schoolClasses ?? []}
@@ -1170,9 +1173,13 @@ function AnnouncementFormModal({
           ? isEdit
             ? "Umfrage bearbeiten"
             : "Neue Umfrage"
-          : isEdit
-            ? "Elternmitteilung bearbeiten"
-            : "Neue Elternmitteilung"
+          : isLetterForm
+            ? isEdit
+              ? "Elternbrief bearbeiten"
+              : "Neuer Elternbrief"
+            : isEdit
+              ? "Elternmitteilung bearbeiten"
+              : "Neue Elternmitteilung"
       }
       footer={footer}
       size="xl"
@@ -1331,7 +1338,12 @@ function AnnouncementFormModal({
                     dropdownPlacement="down"
                   />
                   <p className="mt-1.5 text-xs text-gray-500">
-                    Danach wird {isPollForm ? "die Umfrage" : "die Mitteilung"}{" "}
+                    Danach wird{" "}
+                    {isPollForm
+                      ? "die Umfrage"
+                      : isLetterForm
+                        ? "der Elternbrief"
+                        : "die Mitteilung"}{" "}
                     für Eltern ausgeblendet.
                   </p>
                 </div>

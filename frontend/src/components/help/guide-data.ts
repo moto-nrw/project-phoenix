@@ -1710,6 +1710,26 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Statusansicht eines Elternbriefs: oben die Zahl der bestätigten Kinder, darunter die Kinderliste mit „Bestätigt“ und „Offen“ sowie die Empfängerliste mit getrenntem E-Mail- und moto-Status.",
+        // gallery statt image: der Renderer zeigt entweder das eine Bild ODER die
+        // Galerie (guide-components.tsx:681), und der Ablauf braucht drei
+        // Stationen — Liste, Assistent, Status.
+        gallery: [
+          {
+            image: "/help/screens/elternbriefe.webp",
+            caption:
+              "Der Bereich `Mitteilungen und Umfragen` mit dem Reiter `Elternbriefe`.",
+          },
+          {
+            image: "/help/screens/elternbrief-anlegen.webp",
+            caption:
+              "Schritt `Inhalt`: der Kasten `Beim Veröffentlichen passiert automatisch` und die Auswahl `Wer erhält die E-Mail?`.",
+          },
+          {
+            image: "/help/screens/elternbrief-status.webp",
+            caption:
+              "Statusansicht: bestätigte Kinder, erreichte Kinder ohne Portalzugang und die Aktionen `Offene erinnern` sowie `Fehlgeschlagene erneut senden`.",
+          },
+        ],
       },
       {
         id: "elternumfragen",
