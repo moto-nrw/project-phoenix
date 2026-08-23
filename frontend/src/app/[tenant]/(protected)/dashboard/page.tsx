@@ -31,6 +31,7 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -247,6 +248,8 @@ function DashboardContent() {
           {error}
         </div>
       )}
+
+      <PhaseExpiryWarnings className="mb-6 md:mb-8" />
 
       {/* Main Stats Grid */}
       <div

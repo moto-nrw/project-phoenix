@@ -228,6 +228,7 @@ type Factory struct {
 	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
 	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
 	Phase                 enrollmentModels.PhaseRepository
+	PhaseExpiry           enrollmentModels.PhaseExpiryRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -443,6 +444,7 @@ func NewFactory(db *bun.DB) *Factory {
 		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                 enrollment.NewPhaseRepository(db),
+		PhaseExpiry:           enrollment.NewPhaseExpiryRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

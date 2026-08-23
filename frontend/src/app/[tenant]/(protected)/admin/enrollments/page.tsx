@@ -5,6 +5,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 
 export default function AdminEnrollmentsPage() {
   const { isReady } = useRequireAdmin();
@@ -20,6 +21,7 @@ export default function AdminEnrollmentsPage() {
       <DesktopOnlyNotice />
       <div className="hidden lg:block">
         <PageHeaderWithSearch title="Überblick" />
+        <PhaseExpiryWarnings className="mt-4" />
         <AdminEnrollmentsList />
       </div>
     </div>

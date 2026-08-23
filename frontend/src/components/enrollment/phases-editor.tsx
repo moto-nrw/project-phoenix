@@ -1,6 +1,6 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   OverflowMenu,
@@ -64,6 +64,8 @@ import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
 } from "~/components/enrollment/phase-enrollment-actions";
+import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
+import { useTenantMutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -228,6 +230,8 @@ function formatDateTime(value: string): string {
 
 export function PhasesEditor() {
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const [phases, setPhases] = useState<Phase[]>([]);
   const [schemas, setSchemas] = useState<FormSchema[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
@@ -255,6 +259,7 @@ export function PhasesEditor() {
   // (admin opened phase A, then phase B before A resolved) are ignored by
   // comparing against the latest id.
   const impactRequestRef = useRef(0);
+  const rolloverRequestRef = useRef<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
@@ -265,7 +270,9 @@ export function PhasesEditor() {
     : null;
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
+  const tenantMutate = useTenantMutate();
   const assignFormId = searchParams.get("assignForm");
+  const rolloverPhaseID = searchParams.get("rollover");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
   const assignSchema = useMemo(
     () => latestSchemas.find((schema) => schema.id === assignFormId) ?? null,
@@ -528,12 +535,52 @@ export function PhasesEditor() {
     toast,
   ]);
 
-  const startRollover = (phase: Phase) => {
+  const startRollover = useCallback((phase: Phase) => {
     setRolloverSource(phase);
     setEditingId(null);
     setDraft(null);
     setError(null);
-  };
+  }, []);
+
+  const startRolloverByID = useCallback(
+    (sourcePhaseID: string) => {
+      const source = phases.find((phase) => phase.id === sourcePhaseID);
+      if (!source) {
+        setError(
+          "Die Anmeldephase wurde nicht gefunden. Laden Sie die Seite neu.",
+        );
+        return;
+      }
+      startRollover(source);
+    },
+    [phases, startRollover],
+  );
+
+  useEffect(() => {
+    if (
+      loading ||
+      !rolloverPhaseID ||
+      rolloverRequestRef.current === rolloverPhaseID
+    ) {
+      return;
+    }
+    rolloverRequestRef.current = rolloverPhaseID;
+    startRolloverByID(rolloverPhaseID);
+
+    const nextSearchParams = new URLSearchParams(searchParams.toString());
+    nextSearchParams.delete("rollover");
+    const query = nextSearchParams.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  }, [
+    loading,
+    pathname,
+    rolloverPhaseID,
+    router,
+    searchParams,
+    startRolloverByID,
+  ]);
 
   const handleRolloverSuccess = (result: RolloverResult) => {
     setRolloverSource(null);
@@ -552,6 +599,16 @@ export function PhasesEditor() {
       `Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`,
     );
     void loadAll();
+    void tenantMutate("enrollment-phase-expiry-warnings").catch(
+      (refreshError: unknown) => {
+        logger.error("phase_expiry_warning_refresh_failed", {
+          error:
+            refreshError instanceof Error
+              ? refreshError.message
+              : String(refreshError),
+        });
+      },
+    );
   };
 
   const handleToggleActive = useCallback(
@@ -702,6 +759,7 @@ export function PhasesEditor() {
       saving,
       schemaNameById,
       startEdit,
+      startRollover,
       gradeLevelMax,
       tenantSlug,
       tenantPath,
@@ -719,6 +777,10 @@ export function PhasesEditor() {
           {error}
         </div>
       )}
+
+      {!editingId && !rolloverSource ? (
+        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
+      ) : null}
 
       <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-2 sm:grid-cols-3">
