@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -381,8 +382,8 @@ func (rs *Resource) canModifyStudent(ctx context.Context, studentID int64) (bool
 		return true, nil
 	}
 
-	// Any verified staff member may modify guardians of any active student
-	// (#2329).
+	// After the route's users:update gate, any verified staff member may modify
+	// guardians of any active student (#2329).
 	staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 	if err != nil || staff == nil {
 		return false, fmt.Errorf("insufficient permissions to modify this student's guardians")
@@ -1089,7 +1090,7 @@ func (rs *Resource) getGuardianStudents(w http.ResponseWriter, r *http.Request) 
 	common.Respond(w, r, http.StatusOK, responses, "Guardian students retrieved successfully")
 }
 
-// linkGuardianToStudent handles linking a guardian to a student (SUPERVISOR only)
+// linkGuardianToStudent handles linking a guardian to a student.
 func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
@@ -1098,7 +1099,7 @@ func (rs *Resource) linkGuardianToStudent(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Check permissions - only supervisors of the student's group can link guardians
+	// Add the active-student and verified-staff/admin check on top of users:update.
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
 		common.RenderError(w, r, common.ErrorForbidden(err))
@@ -1201,12 +1202,9 @@ func toPhoneCreateRequests(phones []GuardianPhoneInput) []guardianSvc.PhoneNumbe
 // authorize (which a non-admin supervisor could not perform once the guardian
 // had no remaining links). See #819.
 //
-// Auth mirrors the single-link endpoint (linkGuardianToStudent): only
-// supervisors of the student's group, or admins, may attach guardians. That one
-// gate is sufficient and grants no extra reach — the endpoint only ever links to
-// the {studentId} in the path, and creating the profile + linking it + adding
-// its phones are all writes scoped to that student's guardian, exactly what
-// "may I modify this student's guardians?" already authorizes.
+// Existing-profile links require users:update. A batch that creates any profile
+// additionally requires users:create; canModifyStudent adds the active-student
+// and verified-staff/admin check.
 func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Request) {
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
@@ -1223,6 +1221,10 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 	req := &CreateStudentGuardiansRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if batchCreatesGuardian(req.Guardians) && !authorize.HasPermission(permissions.UsersCreate, jwt.PermissionsFromCtx(r.Context())) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
 		return
 	}
 
@@ -1247,7 +1249,16 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 	common.Respond(w, r, http.StatusCreated, nil, "Guardians added successfully")
 }
 
-// updateStudentGuardianRelationship handles updating a student-guardian relationship (SUPERVISOR only)
+func batchCreatesGuardian(guardians []GuardianWithRelationshipInput) bool {
+	for _, guardian := range guardians {
+		if guardian.GuardianProfileID == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// updateStudentGuardianRelationship handles updating a student-guardian relationship.
 func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *http.Request) {
 	// Parse relationship ID from URL
 	relationshipID, err := common.ParseIDParam(r, "relationshipId")
@@ -1263,7 +1274,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 		return
 	}
 
-	// Check permissions - only supervisors of the student's group can update relationships
+	// Add the active-student and verified-staff/admin check on top of users:update.
 	canModify, err := rs.canModifyStudent(r.Context(), relationship.StudentID)
 	if !canModify {
 		common.RenderError(w, r, common.ErrorForbidden(err))
@@ -1300,7 +1311,7 @@ func (rs *Resource) updateStudentGuardianRelationship(w http.ResponseWriter, r *
 	common.Respond(w, r, http.StatusOK, nil, "Relationship updated successfully")
 }
 
-// removeGuardianFromStudent handles removing a guardian from a student (SUPERVISOR only)
+// removeGuardianFromStudent handles removing a guardian from a student.
 func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
@@ -1316,7 +1327,7 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	// Check permissions - only supervisors of the student's group can remove guardians
+	// Add the active-student and verified-staff/admin check on top of users:update.
 	canModify, err := rs.canModifyStudent(r.Context(), studentID)
 	if !canModify {
 		common.RenderError(w, r, common.ErrorForbidden(err))

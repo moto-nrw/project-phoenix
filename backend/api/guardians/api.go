@@ -63,9 +63,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/without-account", rs.listGuardiansWithoutAccount)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/invitable", rs.listInvitableGuardians)
 
-		// Write operations - guardian profile creation allowed for all staff
-		// Security enforced when linking guardians to students
-		r.With(withTx).Post("/", rs.createGuardian)
+		// Write operations
+		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createGuardian)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}", rs.updateGuardian)
 		// Read-only preview of a full delete's blast radius (admin-only check in
 		// the handler). Lets the UI show the affected children before confirming
@@ -82,15 +81,15 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/students/{studentId}/guardians", rs.getStudentGuardians)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/students", rs.getGuardianStudents)
 
-		// Create/Update/Delete relationships - custom supervisor permissions checked in handlers
-		r.With(withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
+		// Relationship writes require users:update plus the per-student check in handlers.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/students/{studentId}/guardians", rs.linkGuardianToStudent)
 		// Atomic create-or-link of one or more guardians for an existing student
 		// (#819): the whole batch succeeds or rolls back as one transaction, so a
 		// partially-created guardian is never orphaned and the frontend needs no
-		// client-side rollback. Supervisor gate checked in the handler.
-		r.With(withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)
-		r.With(withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
-		r.With(withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
+		// client-side rollback. The per-student gate remains in the handler.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/students/{studentId}/guardians/batch", rs.createStudentGuardians)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/relationships/{relationshipId}", rs.updateStudentGuardianRelationship)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/students/{studentId}/guardians/{guardianId}", rs.removeGuardianFromStudent)
 
 		// Related-accounts: invite a further guardian to a child by email
 		// (staff always allowed; resolves existing-account / existing-profile /
