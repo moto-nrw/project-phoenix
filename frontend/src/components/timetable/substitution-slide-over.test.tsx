@@ -501,6 +501,29 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
+  it("lässt eine andere manuelle Abwesenheit neben der geöffneten Krankmeldung ändern", async () => {
+    const onApply = applyMock(true);
+    const sick = makeInstance({
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    const manual = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      startTime: "11:00",
+      endTime: "12:00",
+      staff: [plannedPerson({ isAbsent: true })],
+    });
+    renderEditor({ instance: sick, dayInstances: [sick, manual], onApply });
+
+    chooseScope("Bestimmte Termine");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      presences: [{ staffId: "11", instanceIds: ["43"] }],
+    });
+  });
+
   it("entfernt eine Vertretung nur im geöffneten Termin, ohne sie abwesend zu melden", async () => {
     const onApply = applyMock(true);
     const instance = makeInstance({

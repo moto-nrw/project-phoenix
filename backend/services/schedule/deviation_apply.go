@@ -574,7 +574,11 @@ func (s *instanceService) planSubstitutionRemovals(
 		if err != nil {
 			return nil, devErrInternal("load substitute assignments failed", err)
 		}
+		selected := make(map[int64]bool)
 		for _, row := range rows {
+			if removal.InstanceIDs != nil && row.IsSubstitute && !row.IsAbsent && scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
+				selected[row.InstanceID] = true
+			}
 			if seenRows[row.ID] || !row.IsSubstitute || row.IsAbsent || !scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
 				continue
 			}
@@ -590,6 +594,13 @@ func (s *instanceService) planSubstitutionRemovals(
 			}
 			seenRows[row.ID] = true
 			plan = append(plan, deviationSubstitutionRemovalOp{row: row, instance: instance})
+		}
+		if removal.InstanceIDs != nil {
+			for _, instanceID := range *removal.InstanceIDs {
+				if !selected[instanceID] {
+					return nil, devErrBadRequest("die Ersatzperson ist nicht für jeden ausgewählten Termin eingetragen")
+				}
+			}
 		}
 	}
 	return plan, nil

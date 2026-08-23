@@ -210,13 +210,12 @@ function AppointmentChoice({
 
 function appointmentState(appointment: EnrichedInstance, person: PersonForm) {
   const editable = isEditableAppointment(appointment);
-  const selectable =
-    editable &&
-    (!person.sickLocked || person.existingAbsentIds.includes(appointment.id));
+  const sickLocked = person.sickAbsenceIds.includes(appointment.id);
+  const selectable = editable && !sickLocked;
   const status = !editable
     ? ` · ${getStatusLabel(appointment.status)}`
-    : person.sickLocked && !selectable
-      ? " · Nicht abwesend"
+    : sickLocked
+      ? " · Krankgemeldet"
       : "";
   return { selectable, status };
 }

@@ -44,9 +44,10 @@ export function desiredAbsenceIds(
   person: PersonForm,
   openIds: string[],
 ): string[] {
-  if (person.sickLocked) return person.existingAbsentIds;
   let desired = person.existingAbsentIds;
-  if (!person.absent)
+  if (person.sickLocked && person.scope !== "selected") {
+    desired = person.existingAbsentIds;
+  } else if (!person.absent)
     desired = person.wasAbsent ? [] : person.existingAbsentIds;
   else if (person.scope === "all" || person.allDayAbsence) desired = openIds;
   else if (person.scope === "selected") desired = person.selectedInstanceIds;
@@ -94,11 +95,11 @@ function changesForPerson(
   desired: string[],
   targets: string[],
 ): PersonChanges {
-  const restored = withoutIds(person.existingAbsentIds, desired);
+  const restored = withoutIds(person.existingAbsentIds, desired).filter(
+    (instanceID) => !person.sickAbsenceIds.includes(instanceID),
+  );
   const presence =
-    !person.sickLocked && restored.length > 0
-      ? { staffId, instanceIds: restored }
-      : undefined;
+    restored.length > 0 ? { staffId, instanceIds: restored } : undefined;
   if (person.substituteId) {
     return substitutionChanges(staffId, person, presence, targets);
   }
