@@ -72,6 +72,8 @@ const (
 	ActivitiesUpdate = ResourceActivities + ":" + ActionUpdate
 	ActivitiesDelete = ResourceActivities + ":" + ActionDelete
 	ActivitiesList   = ResourceActivities + ":" + ActionList
+	ActivitiesEnroll = ResourceActivities + ":enroll"
+	ActivitiesAssign = ResourceActivities + ":assign"
 
 	// ActivitiesManageCategories gates the category Stammdaten endpoints
 	// (#2131). It cannot be one of the constants above: migration 1.9.4

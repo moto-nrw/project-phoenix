@@ -263,6 +263,8 @@ type workTimeMonthService struct {
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
+	// nowFunc is a test hook; production uses time.Now.
+	nowFunc func() time.Time
 }
 
 func NewWorkTimeMonthService(
@@ -316,6 +318,13 @@ func (s *workTimeMonthService) today() timezone.Date {
 		return s.todayFunc()
 	}
 	return timezone.TodayDate()
+}
+
+func (s *workTimeMonthService) now() time.Time {
+	if s.nowFunc != nil {
+		return s.nowFunc()
+	}
+	return time.Now()
 }
 
 // ---- month arithmetic ----------------------------------------------------
@@ -601,7 +610,7 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
-	now := time.Now()
+	now := s.now()
 	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
 	if err != nil {
 		return err
@@ -1356,7 +1365,7 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
 	actualByDate := make(map[timezone.Date]int)
-	now := time.Now()
+	now := s.now()
 	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
 	if err != nil {
 		return nil, err
