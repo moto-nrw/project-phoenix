@@ -437,6 +437,17 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
   });
 
+  it("uses its own width to choose the readable week layout", async () => {
+    render(<CareScheduleManager studentId="42" />);
+
+    const heading = await screen.findByText("Betreuungszeiten");
+    const surface = heading.closest("section");
+
+    expect(surface).toHaveClass("@container");
+    expect(surface?.querySelector('[class~="@4xl:hidden"]')).not.toBeNull();
+    expect(surface?.querySelector('[class~="@4xl:block"]')).not.toBeNull();
+  });
+
   it("re-fetches arrival and pickup on a remote care-schedule-stale event", async () => {
     // The editor holds arrival/pickup in local state and stays force-mounted, so
     // it cannot see SWR invalidation; the global SSE hook announces remote
@@ -746,9 +757,14 @@ describe("CareScheduleManager", () => {
     render(<CareScheduleManager studentId="42" />);
     await screen.findByText("Betreuungszeiten");
 
-    expect(
-      screen.getAllByText("Andere Zeit als im Angebot „Ganztag“").length,
-    ).toBeGreaterThan(0);
+    const mismatchMarker = screen.getAllByText(
+      "Andere Zeit als im Angebot „Ganztag“",
+    )[0];
+    expect(mismatchMarker).toHaveClass("max-w-full", "truncate");
+    expect(mismatchMarker).toHaveAttribute(
+      "title",
+      "Andere Zeit als im Angebot „Ganztag“",
+    );
     expect(screen.getAllByText("von Hand").length).toBeGreaterThan(0);
   });
 

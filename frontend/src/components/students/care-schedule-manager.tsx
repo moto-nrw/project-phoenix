@@ -795,7 +795,7 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
+    <section className="moto-content-surface @container overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
       <div className="border-b border-gray-100 p-4 sm:p-5">
         <ConceptSectionHeader
           title="Betreuungszeiten"
@@ -831,7 +831,7 @@ export function CareScheduleManager({
             </div>
           }
         />
-        <div className="relative mt-4 hidden items-center justify-between gap-2 xl:flex">
+        <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
           <div>
             <WeekNavButton
               ariaLabel="Vorherige Woche"
@@ -867,7 +867,7 @@ export function CareScheduleManager({
       </div>
 
       <div className="p-3 sm:p-4">
-        <div className="xl:hidden">
+        <div className="@4xl:hidden">
           <MobileCareWeek
             days={days}
             weekMonth={weekMonth}
@@ -881,8 +881,8 @@ export function CareScheduleManager({
             onRequestDeleteStatusDay={setStatusDayToDelete}
           />
         </div>
-        <div className="hidden xl:block">
-          <div className="grid gap-3 xl:grid-cols-5">
+        <div className="hidden @4xl:block">
+          <div className="grid grid-cols-5 gap-3">
             {days.map((day) => (
               <CareDayCard
                 key={formatDateISO(day.date)}
@@ -1344,7 +1344,10 @@ function CareBoundaryRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker ? (
-              <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
+              <span
+                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm"
+                title={boundary.marker}
+              >
                 {boundary.marker}
               </span>
             ) : null}
