@@ -824,6 +824,7 @@ class TimetableService {
         body.absences = input.absences.map((a) => ({
           staff_id: Number(a.staffId),
           reason: a.reason ?? undefined,
+          instance_ids: a.instanceIds?.map(Number),
         }));
       }
       if (input.substitutions && input.substitutions.length > 0) {
@@ -831,10 +832,20 @@ class TimetableService {
           absent_staff_id: Number(s.absentStaffId),
           substitute_staff_id: Number(s.substituteStaffId),
           reason: s.reason ?? undefined,
+          instance_ids: s.instanceIds?.map(Number),
+        }));
+      }
+      if (input.substitutionRemovals && input.substitutionRemovals.length > 0) {
+        body.substitution_removals = input.substitutionRemovals.map((r) => ({
+          staff_id: Number(r.staffId),
+          instance_ids: r.instanceIds?.map(Number),
         }));
       }
       if (input.presences && input.presences.length > 0) {
-        body.presences = input.presences.map((staffId) => Number(staffId));
+        body.presences = input.presences.map((presence) => ({
+          staff_id: Number(presence.staffId),
+          instance_ids: presence.instanceIds?.map(Number),
+        }));
       }
     }
 

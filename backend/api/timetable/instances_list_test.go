@@ -319,7 +319,10 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", fmt.Sprintf("Pupil-%d-B", suffix), "1a")
 
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	sickAbsenceID := sickRow.ID
+	sickRow.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, repositories.NewFactory(s.db).InstanceStaff.Update(s.ctx, sickRow))
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
 
@@ -345,6 +348,7 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	assert.True(t, staffByID[staff1.ID].IsPrimary)
 	assert.False(t, staffByID[staff1.ID].IsAbsent)
 	assert.True(t, staffByID[staff2.ID].IsAbsent)
+	assert.True(t, staffByID[staff2.ID].IsSickAbsence)
 	assert.ElementsMatch(t, []int64{student1.ID, student2.ID}, item.StudentIDs)
 	require.Len(t, item.Students, 2)
 	studentByID := map[int64]instanceStudentSummary{}

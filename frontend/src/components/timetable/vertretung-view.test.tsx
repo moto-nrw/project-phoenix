@@ -147,7 +147,7 @@ vi.mock("~/components/timetable/substitution-slide-over", () => ({
     initialTab: string;
     staffLoadError?: boolean;
     canManage: boolean;
-    dayAbsentStaffIds: ReadonlySet<string>;
+    dayInstances: Array<{ id: string }>;
     onClose: () => void;
     onApply: (input: unknown) => Promise<boolean>;
     onTabChange: (tab: "bearbeiten" | "verlauf") => void;
@@ -168,6 +168,22 @@ vi.mock("~/components/timetable/substitution-slide-over", () => ({
           onClick={() => void props.onApply({ cancel: true })}
         >
           editor-cancel-save
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void props.onApply({
+              substitutions: [
+                {
+                  absentStaffId: "11",
+                  substituteStaffId: "12",
+                  instanceIds: ["42", "43"],
+                },
+              ],
+            })
+          }
+        >
+          editor-save
         </button>
       </div>
     );
@@ -582,6 +598,45 @@ describe("VertretungView", () => {
     expect(urlKeys()).toEqual(["d"]);
   });
 
+  it("nennt im Erfolgs-Toast die geänderten Termine und die Person", async () => {
+    setupSWR({ staffData: [{ id: "11", name: "Anna Alt" }] });
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    mockApplyDeviations.mockResolvedValueOnce({
+      instanceId: "42",
+      cancelled: false,
+      understaffedAck: false,
+      affectedInstances: [
+        {
+          instanceId: "42",
+          title: "Mensa",
+          startTime: "12:00",
+          action: "substituted",
+        },
+        {
+          instanceId: "43",
+          title: "Lernzeit",
+          startTime: "14:00",
+          action: "substituted",
+        },
+      ],
+      warnings: [],
+    });
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-save"));
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "2 Termine wurden für Anna Alt angepasst.",
+      ),
+    );
+  });
+
   // --- Wochenansicht (#2030) -------------------------------------------
   // Die Tagesansicht ist der Standard; die Woche ist eine zusätzliche Sicht
   // auf dieselben bereits geladenen Daten und lebt in `view=woche`.
@@ -735,7 +790,11 @@ describe("VertretungView", () => {
     unmount();
     mockSearch.value = "view=woche&block=43";
     render(<VertretungView />);
-    expect(mockEditorProps.mock.calls.at(-1)?.[0].instance?.id).toBe("43");
+    const editor = mockEditorProps.mock.calls.at(-1)?.[0];
+    expect(editor.instance?.id).toBe("43");
+    expect(
+      editor.dayInstances.map((instance: EnrichedInstance) => instance.id),
+    ).toEqual(["43"]);
     expect(screen.getByTestId("editor")).toBeInTheDocument();
   });
 

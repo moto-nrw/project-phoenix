@@ -10,12 +10,13 @@
 // Atomicity note (same as the former handler): TenantTxMiddleware rolls the
 // request tx back only on 5xx. A 409 rendered mid-save would commit prior
 // writes, so Phase A validates + classifies everything before Phase B touches a
-// single row. A DeviationError carries the exact HTTP status / code / message
-// the handler renders, keeping the wire contract byte-identical.
+// single row. A DeviationError separates the stable client response from the
+// internal cause retained for logs.
 package schedule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -29,19 +30,37 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// DeviationAbsenceInput marks one staff member absent day-wide with no
-// substitute (a planned person left open, or a removed substitute).
+// DeviationAbsenceInput marks one staff member absent. Nil InstanceIDs means
+// every plannable same-day appointment; a non-nil list targets exact ones.
 type DeviationAbsenceInput struct {
-	StaffID int64
-	Reason  *string
+	StaffID     int64
+	Reason      *string
+	InstanceIDs *[]int64
 }
 
-// DeviationSubstitutionInput assigns SubstituteStaffID to cover AbsentStaffID
-// day-wide.
+// DeviationSubstitutionInput assigns SubstituteStaffID to cover AbsentStaffID.
+// Nil InstanceIDs means every plannable same-day appointment; a non-nil list
+// targets exactly those appointments.
 type DeviationSubstitutionInput struct {
 	AbsentStaffID     int64
 	SubstituteStaffID int64
 	Reason            *string
+	InstanceIDs       *[]int64
+}
+
+// DeviationPresenceInput clears an absence. Nil InstanceIDs means every
+// plannable same-day appointment; a non-nil list targets exact ones.
+type DeviationPresenceInput struct {
+	StaffID     int64
+	InstanceIDs *[]int64
+}
+
+// DeviationSubstitutionRemovalInput removes an active substitute assignment
+// without marking that substitute absent. Nil InstanceIDs means every
+// plannable same-day appointment; a non-nil list targets exact ones.
+type DeviationSubstitutionRemovalInput struct {
+	StaffID     int64
+	InstanceIDs *[]int64
 }
 
 // ApplyDeviationsInput is the parsed deviations request. All mutation fields are
@@ -49,14 +68,15 @@ type DeviationSubstitutionInput struct {
 // omitted field ("no change") is distinguishable from an explicit false
 // ("clear").
 type ApplyDeviationsInput struct {
-	Cancel           bool
-	CancelReason     *string
-	UnderstaffedAck  *bool
-	UnderstaffedNote *string
-	Absences         []DeviationAbsenceInput
-	Substitutions    []DeviationSubstitutionInput
-	Presences        []int64
-	ActorAccountID   *int64
+	Cancel               bool
+	CancelReason         *string
+	UnderstaffedAck      *bool
+	UnderstaffedNote     *string
+	Absences             []DeviationAbsenceInput
+	Substitutions        []DeviationSubstitutionInput
+	SubstitutionRemovals []DeviationSubstitutionRemovalInput
+	Presences            []DeviationPresenceInput
+	ActorAccountID       *int64
 }
 
 // DeviationAffected is one classified target the save touched — the neutral
@@ -71,19 +91,20 @@ type DeviationAffected struct {
 // ApplyDeviationsResult is what ApplyDeviations returns on success. ActiveTouched
 // plus the counts drive the handler's SSE broadcast and log line.
 type ApplyDeviationsResult struct {
-	InstanceID        int64
-	Cancelled         bool
-	UnderstaffedAck   bool
-	Affected          []DeviationAffected
-	Warnings          []SubstituteTimeConflict
-	ActiveTouched     map[int64]*scheduleModel.ActivityInstance
-	AppliedWrites     int
-	AckChanged        bool
-	ClearedAcks       int
-	AbsenceCount      int
-	PresenceCount     int
-	SubstitutionCount int
-	Message           string
+	InstanceID               int64
+	Cancelled                bool
+	UnderstaffedAck          bool
+	Affected                 []DeviationAffected
+	Warnings                 []SubstituteTimeConflict
+	ActiveTouched            map[int64]*scheduleModel.ActivityInstance
+	AppliedWrites            int
+	AckChanged               bool
+	ClearedAcks              int
+	AbsenceCount             int
+	PresenceCount            int
+	SubstitutionCount        int
+	SubstitutionRemovalCount int
+	Message                  string
 }
 
 // DeviationError carries the exact HTTP mapping the handler renders, so the
@@ -118,12 +139,22 @@ func devErrConflict(code, msg string) *DeviationError {
 	return &DeviationError{Status: http.StatusConflict, Code: code, ClientMsg: msg}
 }
 
-func devErrInternal(msg string, cause error) *DeviationError {
-	return &DeviationError{Status: http.StatusInternalServerError, ClientMsg: msg, Cause: cause}
+const deviationSaveErrorMessage = "Die Änderungen konnten nicht gespeichert werden. Versuchen Sie es erneut."
+
+func devErrInternal(operation string, cause error) *DeviationError {
+	return &DeviationError{
+		Status:    http.StatusInternalServerError,
+		ClientMsg: deviationSaveErrorMessage,
+		Cause:     fmt.Errorf("%s: %w", operation, cause),
+	}
 }
 
-func devErrInternalPlain(msg string) *DeviationError {
-	return &DeviationError{Status: http.StatusInternalServerError, ClientMsg: msg}
+func devErrInternalPlain(detail string) *DeviationError {
+	return &DeviationError{
+		Status:    http.StatusInternalServerError,
+		ClientMsg: deviationSaveErrorMessage,
+		Cause:     errors.New(detail),
+	}
 }
 
 // deviationAbsenceOp pairs a plannable instance row of an absent staff member
@@ -149,6 +180,16 @@ type deviationSubOp struct {
 	reason *string
 }
 
+type deviationSubstitutionRemovalOp struct {
+	row      *scheduleModel.InstanceStaff
+	instance *scheduleModel.ActivityInstance
+}
+
+// deviationStaffByInstance is the projected staff state keyed by concrete
+// appointment. A person's state on one appointment must never leak into a
+// different appointment on the same day.
+type deviationStaffByInstance map[int64]map[int64]bool
+
 // deviationPlan is the fully-classified Phase-A result: nothing here has written
 // a row yet.
 type deviationPlan struct {
@@ -157,6 +198,7 @@ type deviationPlan struct {
 	absencePlan  []deviationAbsenceOp
 	presencePlan []deviationPresenceOp
 	subPlan      []deviationSubOp
+	removalPlan  []deviationSubstitutionRemovalOp
 	subs         []DeviationSubstitutionInput
 	finalAck     bool
 	finalAckNote *string
@@ -174,7 +216,7 @@ func (s *instanceService) ApplyDeviations(ctx context.Context, instanceID int64,
 	// Past blocks are historical record; no deviation — including a cancellation
 	// — may rewrite them. Guard before the exclusive cancel branch (#1840).
 	if instance.Date.Before(timezone.TodayDate()) {
-		return nil, devErrBadRequest("block date is in the past")
+		return nil, devErrBadRequest("dieser Termin liegt in der Vergangenheit")
 	}
 
 	if in.Cancel {
@@ -182,23 +224,28 @@ func (s *instanceService) ApplyDeviations(ctx context.Context, instanceID int64,
 	}
 
 	if !isPlannableInstance(instance) {
-		return nil, devErrConflict("invalid_transition", fmt.Sprintf("cannot edit instance in status %q", instance.Status))
+		return nil, devErrConflict("invalid_transition", "dieser Termin kann nicht mehr geändert werden")
 	}
 
 	if in.UnderstaffedNote != nil && utf8.RuneCountInString(*in.UnderstaffedNote) > scheduleModel.ActivityExceptionReasonMaxLength {
-		return nil, devErrBadRequest("note is too long")
+		return nil, devErrBadRequest("der Hinweis ist zu lang")
 	}
 
-	// Reject non-positive staff ids on the RAW request, before dedupePositive
-	// silently drops them (#1840).
+	// Reject non-positive staff ids on the raw request before any repository
+	// lookup or write planning.
 	for _, a := range in.Absences {
 		if a.StaffID <= 0 {
-			return nil, devErrBadRequest("absent staff must be a positive id")
+			return nil, devErrBadRequest("die Auswahl der abwesenden Person ist ungültig")
 		}
 	}
-	for _, pid := range in.Presences {
-		if pid <= 0 {
-			return nil, devErrBadRequest("present staff must be a positive id")
+	for _, presence := range in.Presences {
+		if presence.StaffID <= 0 {
+			return nil, devErrBadRequest("die Auswahl der anwesenden Person ist ungültig")
+		}
+	}
+	for _, removal := range in.SubstitutionRemovals {
+		if removal.StaffID <= 0 {
+			return nil, devErrBadRequest("die Auswahl der Ersatzperson ist ungültig")
 		}
 	}
 
@@ -217,12 +264,12 @@ func (s *instanceService) loadDeviationInstance(ctx context.Context, instanceID 
 		// FindByID wraps sql.ErrNoRows in a DatabaseError (never (nil, nil)), so a
 		// stale link or deleted/other-tenant instance maps to 404 here.
 		if modelBase.IsNoRows(err) {
-			return nil, devErrNotFound("instance not found")
+			return nil, devErrNotFound("der Termin wurde nicht gefunden")
 		}
 		return nil, devErrInternal("load instance failed", err)
 	}
 	if instance == nil {
-		return nil, devErrNotFound("instance not found")
+		return nil, devErrNotFound("der Termin wurde nicht gefunden")
 	}
 	return instance, nil
 }
@@ -243,12 +290,12 @@ func (s *instanceService) cancelDeviation(ctx context.Context, instanceID int64,
 	// cancelling the moved block would break the day-lock ordering. Abort so the
 	// client reopens it on its new day (#1840).
 	if locked.Date != instance.Date {
-		return nil, devErrConflict("instance_moved", "block was changed concurrently; reopen it and try again")
+		return nil, devErrConflict("instance_moved", "der Termin wurde gleichzeitig geändert. Öffnen Sie ihn erneut")
 	}
 	// A move to a past day would rewrite history; the initial guard ran against a
 	// possibly-stale read, so re-check under the lock.
 	if locked.Date.Before(timezone.TodayDate()) {
-		return nil, devErrBadRequest("block date is in the past")
+		return nil, devErrBadRequest("dieser Termin liegt in der Vergangenheit")
 	}
 	cancelled, err := s.Cancel(ctx, instanceID, trimDeviationReason(in.CancelReason), in.ActorAccountID)
 	if err != nil {
@@ -260,7 +307,7 @@ func (s *instanceService) cancelDeviation(ctx context.Context, instanceID int64,
 		UnderstaffedAck: cancelled.UnderstaffedAck,
 		Affected:        []DeviationAffected{},
 		Warnings:        []SubstituteTimeConflict{},
-		Message:         "Block cancelled",
+		Message:         "Termin wurde abgesagt",
 	}, nil
 }
 
@@ -272,8 +319,8 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	date := instance.Date
 
 	// Serialize concurrent saves for the whole (tenant, date) BEFORE any
-	// classification read. A substitution/absence is day-wide: it touches every
-	// same-day block of the affected staff, not just this one (#1840).
+	// classification read. One request may target several appointments on the
+	// day, while the Sammel-Vertretung still targets the whole day.
 	if err := s.acquireSubstituteDayLock(ctx, date); err != nil {
 		return nil, devErrInternal("lock day failed", err)
 	}
@@ -285,54 +332,47 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 		return nil, err
 	}
 	if locked.Date != date || !isPlannableInstance(locked) {
-		return nil, devErrConflict("instance_moved", "block was changed concurrently; reopen it and try again")
+		return nil, devErrConflict("instance_moved", "der Termin wurde gleichzeitig geändert. Öffnen Sie ihn erneut")
 	}
 	instance = locked
 
-	absenceIDs := make([]int64, 0, len(in.Absences))
-	for _, a := range in.Absences {
-		absenceIDs = append(absenceIDs, a.StaffID)
+	if err := s.validateDeviationStaff(ctx, in, date); err != nil {
+		return nil, err
 	}
-	absenceOnly := dedupePositive(absenceIDs)
-	absenceReason := make(map[int64]*string, len(in.Absences))
-	for _, a := range in.Absences {
-		absenceReason[a.StaffID] = trimDeviationReason(a.Reason)
-	}
-	absenceOnlySet := toSet(absenceOnly)
-
-	// fullAbsent = absence-only staff plus every substituted person.
-	fullAbsent := toSet(absenceOnly)
-	for _, sub := range in.Substitutions {
-		fullAbsent[sub.AbsentStaffID] = true
-	}
-
-	presences := dedupePositive(in.Presences)
-	presenceSet := toSet(presences)
-
-	if err := s.validateDeviationStaff(ctx, in, absenceOnlySet, fullAbsent, presenceSet, date); err != nil {
+	if err := rejectContradictoryDeviationScopes(in); err != nil {
 		return nil, err
 	}
 
-	absencePlan, err := s.planAbsences(ctx, absenceOnly, absenceReason, date)
+	absencePlan, err := s.planAbsences(ctx, in.Absences, date)
 	if err != nil {
 		return nil, err
 	}
-	presencePlan, err := s.planPresences(ctx, presences, date)
+	presencePlan, err := s.planPresences(ctx, in.Presences, date)
 	if err != nil {
 		return nil, err
 	}
-	subPlan, newSubByInstance, err := s.planSubstitutions(ctx, in.Substitutions, absenceOnlySet, date)
+	removalPlan, err := s.planSubstitutionRemovals(ctx, in.SubstitutionRemovals, date)
 	if err != nil {
 		return nil, err
 	}
+	absenceOnlyByInstance := absentStaffFromAbsences(absencePlan)
+	removedSubstitutes := removedSubstituteStaffFromPlans(removalPlan)
+	subPlan, newSubByInstance, err := s.planSubstitutions(ctx, in.Substitutions, absenceOnlyByInstance, removedSubstitutes, date)
+	if err != nil {
+		return nil, err
+	}
+	absencePlan = withoutSubstitutionTargets(absencePlan, subPlan)
+	absentByInstance := absentStaffFromPlans(absencePlan, subPlan)
+	presentByInstance := presentStaffFromPlans(presencePlan)
+	removedByInstance := removalCountByInstance(removalPlan)
 
 	// Restoring a persisted absence must not orphan an already-assigned
 	// substitute (over-staffing). Reject before any write (#1840).
-	if err := s.rejectOverstaffingPresences(ctx, presencePlan, fullAbsent, presenceSet, newSubByInstance); err != nil {
+	if err := s.rejectOverstaffingPresences(ctx, presencePlan, absentByInstance, presentByInstance, newSubByInstance, removedByInstance); err != nil {
 		return nil, err
 	}
 
-	finalAck, finalAckNote, ackChanged, err := s.reconcileSelectedAck(ctx, instanceID, instance, in, fullAbsent, presenceSet, newSubByInstance)
+	finalAck, finalAckNote, ackChanged, err := s.reconcileSelectedAck(ctx, instanceID, instance, in, absentByInstance, presentByInstance, newSubByInstance, removedByInstance)
 	if err != nil {
 		return nil, err
 	}
@@ -343,11 +383,81 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 		absencePlan:  absencePlan,
 		presencePlan: presencePlan,
 		subPlan:      subPlan,
+		removalPlan:  removalPlan,
 		subs:         in.Substitutions,
 		finalAck:     finalAck,
 		finalAckNote: finalAckNote,
 		ackChanged:   ackChanged,
 	}, nil
+}
+
+// withoutSubstitutionTargets prevents an all-day absence plus appointment-
+// scoped coverage from staging the same original row twice. ApplySubstitute
+// already marks its original row absent, so the standalone absence operation is
+// needed only for the uncovered appointments.
+func withoutSubstitutionTargets(absences []deviationAbsenceOp, substitutions []deviationSubOp) []deviationAbsenceOp {
+	coveredRows := make(map[int64]bool, len(substitutions))
+	for _, substitution := range substitutions {
+		if substitution.write.OrigRow != nil {
+			coveredRows[substitution.write.OrigRow.ID] = true
+		}
+	}
+	filtered := make([]deviationAbsenceOp, 0, len(absences))
+	for _, absence := range absences {
+		if !coveredRows[absence.row.ID] {
+			filtered = append(filtered, absence)
+		}
+	}
+	return filtered
+}
+
+func absentStaffFromAbsences(absences []deviationAbsenceOp) deviationStaffByInstance {
+	absent := make(deviationStaffByInstance)
+	for _, op := range absences {
+		absent.add(op.instance.ID, op.row.StaffID)
+	}
+	return absent
+}
+
+func absentStaffFromPlans(absences []deviationAbsenceOp, substitutions []deviationSubOp) deviationStaffByInstance {
+	absent := absentStaffFromAbsences(absences)
+	for _, op := range substitutions {
+		if op.write.OrigRow != nil {
+			absent.add(op.write.Instance.ID, op.write.OrigRow.StaffID)
+		}
+	}
+	return absent
+}
+
+func presentStaffFromPlans(presences []deviationPresenceOp) deviationStaffByInstance {
+	present := make(deviationStaffByInstance)
+	for _, op := range presences {
+		present.add(op.instance.ID, op.row.StaffID)
+	}
+	return present
+}
+
+func removalCountByInstance(removals []deviationSubstitutionRemovalOp) map[int64]int {
+	counts := make(map[int64]int)
+	for _, op := range removals {
+		counts[op.instance.ID]++
+	}
+	return counts
+}
+
+func removedSubstituteStaffFromPlans(removals []deviationSubstitutionRemovalOp) deviationStaffByInstance {
+	removed := make(deviationStaffByInstance)
+	for _, op := range removals {
+		removed.add(op.instance.ID, op.row.StaffID)
+	}
+	return removed
+}
+
+func (staff deviationStaffByInstance) add(instanceID, staffID int64) {
+	if staff[instanceID] == nil {
+		staff[instanceID] = make(map[int64]bool)
+	}
+	staff[instanceID][staffID] = true
 }
 
 // validateDeviationStaff runs every 4xx precondition on the referenced staff:
@@ -356,13 +466,12 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 func (s *instanceService) validateDeviationStaff(
 	ctx context.Context,
 	in ApplyDeviationsInput,
-	absenceOnlySet, fullAbsent, presenceSet map[int64]bool,
 	date timezone.Date,
 ) error {
 	seen := make(map[int64]bool)
 	ensure := func(staffID int64, label string) error {
 		if staffID <= 0 {
-			return devErrBadRequest(fmt.Sprintf("%s must be a positive id", label))
+			return devErrBadRequest(fmt.Sprintf("die Auswahl für %s ist ungültig", label))
 		}
 		if seen[staffID] {
 			return nil
@@ -371,77 +480,203 @@ func (s *instanceService) validateDeviationStaff(
 		staff, err := s.deps.StaffRepo.FindByID(ctx, staffID)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
-				return devErrNotFound(fmt.Sprintf("%s not found", label))
+				return devErrNotFound(fmt.Sprintf("%s wurde nicht gefunden", label))
 			}
 			return devErrInternal("load staff failed", err)
 		}
 		if staff == nil || staff.ID == 0 {
-			return devErrNotFound(fmt.Sprintf("%s not found", label))
+			return devErrNotFound(fmt.Sprintf("%s wurde nicht gefunden", label))
 		}
 		return nil
 	}
 
-	for id := range absenceOnlySet {
-		if err := ensure(id, "absent staff"); err != nil {
+	for _, absence := range in.Absences {
+		if err := ensure(absence.StaffID, "die abwesende Person"); err != nil {
 			return err
 		}
 	}
-	for id := range presenceSet {
-		// A person cannot be marked present and absent (or substituted-away) in
-		// the same save — contradictory day-wide states.
-		if fullAbsent[id] {
-			return devErrBadRequest("staff cannot be marked present and absent in the same request")
-		}
-		if err := ensure(id, "present staff"); err != nil {
+	for _, presence := range in.Presences {
+		if err := ensure(presence.StaffID, "die anwesende Person"); err != nil {
 			return err
 		}
 	}
 	seenAbsentSub := make(map[int64]bool)
 	for _, sub := range in.Substitutions {
-		// Each absent person's substitution is day-wide, so an absent staff id must
-		// appear at most once (#1840).
+		// The editor chooses one scope and one replacement per absent person, so an
+		// absent staff id must appear at most once in one save.
 		if seenAbsentSub[sub.AbsentStaffID] {
-			return devErrBadRequest("each absent staff member may have at most one substitute per request")
+			return devErrBadRequest("für eine abwesende Person darf nur eine Ersatzperson gewählt werden")
 		}
 		seenAbsentSub[sub.AbsentStaffID] = true
-		if err := ensure(sub.AbsentStaffID, "absent staff"); err != nil {
+		if err := ensure(sub.AbsentStaffID, "die abwesende Person"); err != nil {
 			return err
 		}
-		if err := ensure(sub.SubstituteStaffID, "substitute staff"); err != nil {
+		if err := ensure(sub.SubstituteStaffID, "die Ersatzperson"); err != nil {
 			return err
 		}
 		if sub.AbsentStaffID == sub.SubstituteStaffID {
-			return devErrBadRequest("absent and substitute staff must differ")
+			return devErrBadRequest("die abwesende Person kann sich nicht selbst vertreten")
 		}
-		// A person being marked absent anywhere in this form cannot also cover a
-		// shift — absence is day-wide.
-		if fullAbsent[sub.SubstituteStaffID] {
-			return devErrBadRequest("substitute is marked absent in this request")
+		// A person cannot cover an appointment on which this same save marks them
+		// absent. Appointment-scoped absences elsewhere on the day are independent.
+		if inputMarksStaffAbsentInScope(in, sub.SubstituteStaffID, sub.InstanceIDs) {
+			return devErrBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend")
 		}
-		// ...nor if they are already absent that day in the DB.
+		// ...nor if they are already absent on an appointment this substitution
+		// targets. A terminbezogene Abwesenheit elsewhere on the day does not make
+		// the person unavailable for a different appointment.
 		subRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, sub.SubstituteStaffID, date)
 		if err != nil {
 			return devErrInternal("load substitute assignments failed", err)
 		}
 		for _, row := range subRows {
-			if row.IsAbsent {
-				return devErrBadRequest("substitute is marked absent on this date")
+			if row.IsAbsent && scopeContainsInstance(sub.InstanceIDs, row.InstanceID) {
+				return devErrBadRequest("die Ersatzperson ist in einem ausgewählten Termin selbst abwesend")
+			}
+		}
+	}
+	for _, removal := range in.SubstitutionRemovals {
+		if err := ensure(removal.StaffID, "die Ersatzperson"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func rejectContradictoryDeviationScopes(in ApplyDeviationsInput) error {
+	for _, presence := range in.Presences {
+		for _, absence := range in.Absences {
+			if presence.StaffID == absence.StaffID && deviationScopesOverlap(presence.InstanceIDs, absence.InstanceIDs) {
+				return devErrBadRequest("eine Person kann im selben Termin nicht anwesend und abwesend sein")
+			}
+		}
+		for _, substitution := range in.Substitutions {
+			if presence.StaffID == substitution.AbsentStaffID && deviationScopesOverlap(presence.InstanceIDs, substitution.InstanceIDs) {
+				return devErrBadRequest("eine Person kann im selben Termin nicht anwesend und abwesend sein")
 			}
 		}
 	}
 	return nil
 }
 
-// planAbsences loads every absent-only staff member's plannable same-day rows.
-func (s *instanceService) planAbsences(ctx context.Context, absentStaffIDs []int64, absenceReason map[int64]*string, date timezone.Date) ([]deviationAbsenceOp, error) {
-	plan := make([]deviationAbsenceOp, 0)
-	for _, staffID := range absentStaffIDs {
-		rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+func (s *instanceService) planSubstitutionRemovals(
+	ctx context.Context,
+	removals []DeviationSubstitutionRemovalInput,
+	date timezone.Date,
+) ([]deviationSubstitutionRemovalOp, error) {
+	plan := make([]deviationSubstitutionRemovalOp, 0)
+	seenRows := make(map[int64]bool)
+	for _, removal := range removals {
+		if err := s.validateExplicitScopeInstances(ctx, date, removal.InstanceIDs); err != nil {
+			return nil, err
+		}
+		rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, removal.StaffID, date)
 		if err != nil {
-			return nil, devErrInternal("load absent assignments failed", err)
+			return nil, devErrInternal("load substitute assignments failed", err)
 		}
 		for _, row := range rows {
-			if row.IsAbsent {
+			if seenRows[row.ID] || !row.IsSubstitute || row.IsAbsent || !scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
+				continue
+			}
+			instance, err := s.loadPlannableInstance(ctx, row)
+			if err != nil {
+				return nil, err
+			}
+			if instance == nil {
+				if removal.InstanceIDs != nil {
+					return nil, devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
+				}
+				continue
+			}
+			seenRows[row.ID] = true
+			plan = append(plan, deviationSubstitutionRemovalOp{row: row, instance: instance})
+		}
+	}
+	return plan, nil
+}
+
+func (s *instanceService) validateExplicitScopeInstances(ctx context.Context, date timezone.Date, instanceIDs *[]int64) error {
+	if instanceIDs == nil {
+		return nil
+	}
+	if len(*instanceIDs) == 0 {
+		return devErrBadRequest("wählen Sie mindestens einen Termin aus")
+	}
+	seen := make(map[int64]bool, len(*instanceIDs))
+	for _, instanceID := range *instanceIDs {
+		if instanceID <= 0 || seen[instanceID] {
+			return devErrBadRequest("die Terminauswahl ist ungültig")
+		}
+		seen[instanceID] = true
+		instance, err := s.loadDeviationInstance(ctx, instanceID)
+		if err != nil {
+			return err
+		}
+		if instance.Date != date {
+			return devErrBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen")
+		}
+		if !isPlannableInstance(instance) {
+			return devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
+		}
+	}
+	return nil
+}
+
+func inputMarksStaffAbsentInScope(in ApplyDeviationsInput, staffID int64, targetScope *[]int64) bool {
+	for _, absence := range in.Absences {
+		if absence.StaffID == staffID && deviationScopesOverlap(absence.InstanceIDs, targetScope) {
+			return true
+		}
+	}
+	for _, substitution := range in.Substitutions {
+		if substitution.AbsentStaffID == staffID && deviationScopesOverlap(substitution.InstanceIDs, targetScope) {
+			return true
+		}
+	}
+	return false
+}
+
+func deviationScopesOverlap(left, right *[]int64) bool {
+	if left == nil || right == nil {
+		return true
+	}
+	rightIDs := make(map[int64]bool, len(*right))
+	for _, instanceID := range *right {
+		rightIDs[instanceID] = true
+	}
+	for _, instanceID := range *left {
+		if rightIDs[instanceID] {
+			return true
+		}
+	}
+	return false
+}
+
+func scopeContainsInstance(instanceIDs *[]int64, instanceID int64) bool {
+	if instanceIDs == nil {
+		return true
+	}
+	for _, selectedID := range *instanceIDs {
+		if selectedID == instanceID {
+			return true
+		}
+	}
+	return false
+}
+
+// planAbsences resolves every absence scope and stages its currently-present
+// plannable rows. Explicit scopes reject terminal appointments rather than
+// silently widening or partially applying the request.
+func (s *instanceService) planAbsences(ctx context.Context, absences []DeviationAbsenceInput, date timezone.Date) ([]deviationAbsenceOp, error) {
+	plan := make([]deviationAbsenceOp, 0)
+	seenRows := make(map[int64]bool)
+	for _, absence := range absences {
+		rows, err := s.scopedStaffRows(ctx, absence.StaffID, date, absence.InstanceIDs)
+		if err != nil {
+			return nil, err
+		}
+		for _, row := range rows {
+			if seenRows[row.ID] || row.IsAbsent {
 				continue // idempotent: already absent, no write
 			}
 			instance, err := s.loadPlannableInstance(ctx, row)
@@ -449,35 +684,49 @@ func (s *instanceService) planAbsences(ctx context.Context, absentStaffIDs []int
 				return nil, err
 			}
 			if instance == nil {
+				if absence.InstanceIDs != nil {
+					return nil, devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
+				}
 				continue // terminal instance, skip
 			}
-			plan = append(plan, deviationAbsenceOp{row: row, instance: instance, reason: absenceReason[row.StaffID]})
+			seenRows[row.ID] = true
+			plan = append(plan, deviationAbsenceOp{row: row, instance: instance, reason: trimDeviationReason(absence.Reason)})
 		}
 	}
 	return plan, nil
 }
 
-// planPresences loads every to-be-restored staff member's plannable same-day
-// rows that are currently marked absent (day-wide clear, #1840). A non-absent
-// row is a no-op.
-func (s *instanceService) planPresences(ctx context.Context, presentStaffIDs []int64, date timezone.Date) ([]deviationPresenceOp, error) {
+// planPresences loads every to-be-restored staff member's scoped, plannable
+// rows that are currently marked absent. A non-absent row is a no-op.
+func (s *instanceService) planPresences(ctx context.Context, presences []DeviationPresenceInput, date timezone.Date) ([]deviationPresenceOp, error) {
 	plan := make([]deviationPresenceOp, 0)
-	for _, staffID := range presentStaffIDs {
-		rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	seenRows := make(map[int64]bool)
+	for _, presence := range presences {
+		rows, err := s.scopedStaffRows(ctx, presence.StaffID, date, presence.InstanceIDs)
 		if err != nil {
-			return nil, devErrInternal("load present assignments failed", err)
+			return nil, err
 		}
 		for _, row := range rows {
-			if !row.IsAbsent {
+			if seenRows[row.ID] || !row.IsAbsent {
 				continue // only a persisted absence can be cleared
+			}
+			if row.SickAbsenceID != nil {
+				return nil, devErrConflict(
+					"sick_absence_scope_locked",
+					"diese Abwesenheit kommt aus einer Krankmeldung und kann hier nicht geändert werden",
+				)
 			}
 			instance, err := s.loadPlannableInstance(ctx, row)
 			if err != nil {
 				return nil, err
 			}
 			if instance == nil {
+				if presence.InstanceIDs != nil {
+					return nil, devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
+				}
 				continue // terminal instance, skip
 			}
+			seenRows[row.ID] = true
 			plan = append(plan, deviationPresenceOp{row: row, instance: instance})
 		}
 	}
@@ -490,7 +739,8 @@ func (s *instanceService) planPresences(ctx context.Context, presentStaffIDs []i
 func (s *instanceService) planSubstitutions(
 	ctx context.Context,
 	subs []DeviationSubstitutionInput,
-	absenceOnlySet map[int64]bool,
+	absenceOnlyByInstance deviationStaffByInstance,
+	removedSubstitutes deviationStaffByInstance,
 	date timezone.Date,
 ) ([]deviationSubOp, map[int64]int, error) {
 	plan := make([]deviationSubOp, 0)
@@ -501,9 +751,9 @@ func (s *instanceService) planSubstitutions(
 	stagedSubs := make(map[int64]map[int64]bool)
 
 	for _, sub := range subs {
-		origRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, sub.AbsentStaffID, date)
+		origRows, err := s.scopedStaffRows(ctx, sub.AbsentStaffID, date, sub.InstanceIDs)
 		if err != nil {
-			return nil, nil, devErrInternal("load absent assignments failed", err)
+			return nil, nil, err
 		}
 		reason := trimDeviationReason(sub.Reason)
 		for _, orig := range origRows {
@@ -512,18 +762,21 @@ func (s *instanceService) planSubstitutions(
 				return nil, nil, err
 			}
 			if instance == nil {
+				if sub.InstanceIDs != nil {
+					return nil, nil, devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
+				}
 				continue
 			}
 			allRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
 			if err != nil {
 				return nil, nil, devErrInternal("load instance staff failed", err)
 			}
-			projectedRows, origProjected := projectAbsent(allRows, absenceOnlySet, orig)
-			action, conflictOther, ok := classifySubstitute(projectedRows, origProjected, sub.SubstituteStaffID)
+			allRows = withoutRemovedSubstitutes(allRows, removedSubstitutes[instance.ID])
+			projectedRows, origProjected := projectAbsent(allRows, absenceOnlyByInstance[instance.ID], orig)
+			action, _, ok := classifySubstitute(projectedRows, origProjected, sub.SubstituteStaffID)
 			if !ok {
-				return nil, nil, devErrConflict("substitute_conflict", fmt.Sprintf(
-					"instance %d is already fully covered by another substitute (staff_id=%d); remove a replacement before adding one",
-					instance.ID, conflictOther))
+				return nil, nil, devErrConflict("substitute_conflict",
+					"dieser Termin hat bereits eine andere Ersatzperson. Entfernen Sie diese zuerst")
 			}
 			// The SAME substitute staged twice on one block would insert a duplicate
 			// row in Phase B. Collapse the repeat into already_on_instance (#1840).
@@ -550,14 +803,74 @@ func (s *instanceService) planSubstitutions(
 	return plan, newSubByInstance, nil
 }
 
+func withoutRemovedSubstitutes(rows []*scheduleModel.InstanceStaff, removed map[int64]bool) []*scheduleModel.InstanceStaff {
+	if len(removed) == 0 {
+		return rows
+	}
+	kept := make([]*scheduleModel.InstanceStaff, 0, len(rows))
+	for _, row := range rows {
+		if row.IsSubstitute && removed[row.StaffID] {
+			continue
+		}
+		kept = append(kept, row)
+	}
+	return kept
+}
+
+// scopedStaffRows resolves a day-wide or explicit appointment scope against
+// the absent person's assignments. Explicit scopes fail closed: an empty list,
+// duplicate/non-positive id, or an appointment that does not belong to this
+// person on this day is rejected instead of broadening to the whole day.
+func (s *instanceService) scopedStaffRows(
+	ctx context.Context,
+	staffID int64,
+	date timezone.Date,
+	instanceIDs *[]int64,
+) ([]*scheduleModel.InstanceStaff, error) {
+	rows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	if err != nil {
+		return nil, devErrInternal("load staff assignments failed", err)
+	}
+	if instanceIDs == nil {
+		return rows, nil
+	}
+	if len(*instanceIDs) == 0 {
+		return nil, devErrBadRequest("wählen Sie mindestens einen Termin aus")
+	}
+
+	requested := make(map[int64]bool, len(*instanceIDs))
+	for _, instanceID := range *instanceIDs {
+		if instanceID <= 0 {
+			return nil, devErrBadRequest("die Terminauswahl ist ungültig")
+		}
+		if requested[instanceID] {
+			return nil, devErrBadRequest("die Terminauswahl enthält einen Termin mehrfach")
+		}
+		requested[instanceID] = true
+	}
+
+	selected := make([]*scheduleModel.InstanceStaff, 0, len(requested))
+	for _, row := range rows {
+		if requested[row.InstanceID] {
+			selected = append(selected, row)
+			delete(requested, row.InstanceID)
+		}
+	}
+	if len(requested) > 0 {
+		return nil, devErrBadRequest("mindestens ein ausgewählter Termin gehört nicht zu dieser Person")
+	}
+	return selected, nil
+}
+
 // rejectOverstaffingPresences returns a 409 when clearing a persisted absence
 // would push any touched instance above its planned headcount, which only
 // happens when a restore orphans an already-assigned substitute (#1840).
 func (s *instanceService) rejectOverstaffingPresences(
 	ctx context.Context,
 	presencePlan []deviationPresenceOp,
-	fullAbsent, presenceSet map[int64]bool,
+	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
+	removedByInstance map[int64]int,
 ) error {
 	checked := make(map[int64]bool)
 	for _, op := range presencePlan {
@@ -575,7 +888,13 @@ func (s *instanceService) rejectOverstaffingPresences(
 				baseline++
 			}
 		}
-		if projectedNonAbsentCount(rows, fullAbsent, presenceSet, newSubByInstance[op.instance.ID]) > baseline {
+		if projectedNonAbsentCount(
+			rows,
+			absentByInstance[op.instance.ID],
+			presentByInstance[op.instance.ID],
+			newSubByInstance[op.instance.ID],
+			removedByInstance[op.instance.ID],
+		) > baseline {
 			return devErrConflict("presence_would_overstaff",
 				"das Wiederherstellen dieser Anwesenheit würde den Block überbesetzen; bitte zuerst die nicht mehr benötigte Vertretung entfernen")
 		}
@@ -608,14 +927,21 @@ func (s *instanceService) reconcileSelectedAck(
 	instanceID int64,
 	instance *scheduleModel.ActivityInstance,
 	in ApplyDeviationsInput,
-	fullAbsent, presenceSet map[int64]bool,
+	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
+	removedByInstance map[int64]int,
 ) (finalAck bool, note *string, ackChanged bool, err error) {
 	thisRows, loadErr := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if loadErr != nil {
 		return false, nil, false, devErrInternal("load instance staff failed", loadErr)
 	}
-	projectedPresent := projectedNonAbsentCount(thisRows, fullAbsent, presenceSet, newSubByInstance[instanceID])
+	projectedPresent := projectedNonAbsentCount(
+		thisRows,
+		absentByInstance[instanceID],
+		presentByInstance[instanceID],
+		newSubByInstance[instanceID],
+		removedByInstance[instanceID],
+	)
 	plannedBaseline := 0
 	for _, row := range thisRows {
 		if !row.IsSubstitute {
@@ -674,28 +1000,29 @@ func (s *instanceService) executeDeviationPlan(ctx context.Context, instanceID i
 	}
 
 	return &ApplyDeviationsResult{
-		InstanceID:        instanceID,
-		Cancelled:         false,
-		UnderstaffedAck:   plan.finalAck,
-		Affected:          affected,
-		Warnings:          warnings,
-		ActiveTouched:     activeTouched,
-		AppliedWrites:     len(affected),
-		AckChanged:        plan.ackChanged,
-		ClearedAcks:       cleared,
-		AbsenceCount:      len(plan.absencePlan),
-		PresenceCount:     len(plan.presencePlan),
-		SubstitutionCount: len(plan.subPlan),
-		Message:           "Deviations applied",
+		InstanceID:               instanceID,
+		Cancelled:                false,
+		UnderstaffedAck:          plan.finalAck,
+		Affected:                 affected,
+		Warnings:                 warnings,
+		ActiveTouched:            activeTouched,
+		AppliedWrites:            len(affected),
+		AckChanged:               plan.ackChanged,
+		ClearedAcks:              cleared,
+		AbsenceCount:             len(plan.absencePlan),
+		PresenceCount:            len(plan.presencePlan),
+		SubstitutionCount:        len(plan.subPlan),
+		SubstitutionRemovalCount: len(plan.removalPlan),
+		Message:                  "Vertretungen wurden gespeichert",
 	}, nil
 }
 
-// writeDeviationOps applies the presence, absence, and substitution writes in
-// that order and returns the affected-instance rows plus the active groups they
-// touched.
+// writeDeviationOps applies presence, absence, substitution removal, and new
+// substitution writes in that order. Removals must precede additions so one
+// atomic request can replace a substitute on the same appointment.
 func (s *instanceService) writeDeviationOps(ctx context.Context, actor *int64, plan *deviationPlan) ([]DeviationAffected, map[int64]*scheduleModel.ActivityInstance, error) {
 	now := time.Now()
-	affected := make([]DeviationAffected, 0, len(plan.absencePlan)+len(plan.subPlan)+len(plan.presencePlan))
+	affected := make([]DeviationAffected, 0, len(plan.absencePlan)+len(plan.subPlan)+len(plan.presencePlan)+len(plan.removalPlan))
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
 
 	for _, op := range plan.presencePlan {
@@ -709,6 +1036,12 @@ func (s *instanceService) writeDeviationOps(ctx context.Context, actor *int64, p
 			return nil, nil, devErrInternal("mark absent failed", err)
 		}
 		affected = append(affected, affectedOf(op.instance, SubstituteActionMarkedAbsent))
+	}
+	for _, op := range plan.removalPlan {
+		if err := s.RemoveSubstitute(ctx, op.row, op.instance, actor, activeTouched); err != nil {
+			return nil, nil, devErrInternal("remove substitute failed", err)
+		}
+		affected = append(affected, affectedOf(op.instance, SubstituteActionRemoved))
 	}
 	for _, op := range plan.subPlan {
 		if err := s.ApplySubstitute(ctx, op.write, op.subID, op.reason, now, actor, activeTouched); err != nil {
@@ -863,7 +1196,7 @@ func (s *instanceService) AcknowledgeUnderstaffed(ctx context.Context, instanceI
 	// insufficient: a materialized past occurrence can still be planned/active,
 	// so gate on the Berlin calendar date (#1840).
 	if instance.Date.Before(timezone.TodayDate()) {
-		return nil, devErrBadRequest("block date is in the past")
+		return nil, devErrBadRequest("dieser Termin liegt in der Vergangenheit")
 	}
 	// Serialize with substitute/deviation saves on the same (tenant, date) before
 	// validating and writing the acknowledgement (#1840).
@@ -878,13 +1211,13 @@ func (s *instanceService) AcknowledgeUnderstaffed(ctx context.Context, instanceI
 		return nil, err
 	}
 	if locked.Date != instance.Date {
-		return nil, devErrConflict("instance_moved", "block was changed concurrently; reopen it and try again")
+		return nil, devErrConflict("instance_moved", "der Termin wurde gleichzeitig geändert. Öffnen Sie ihn erneut")
 	}
 	return s.SetUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID)
 }
 
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
-// serializes every day-wide staffing mutation, within the caller's tx.
+// serializes every same-day staffing mutation, within the caller's tx.
 func (s *instanceService) acquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
 	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), date))
 }
@@ -992,10 +1325,10 @@ func projectAbsent(rows []*scheduleModel.InstanceStaff, absent map[int64]bool, o
 
 // projectedNonAbsentCount counts staff that remain non-absent on an instance
 // after the deviation writes.
-func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, fullAbsent, presence map[int64]bool, newSubs int) int {
+func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, absent, presence map[int64]bool, newSubs, removedSubs int) int {
 	count := 0
 	for _, row := range rows {
-		if fullAbsent[row.StaffID] {
+		if absent[row.StaffID] {
 			continue
 		}
 		if row.IsAbsent && !presence[row.StaffID] {
@@ -1003,29 +1336,7 @@ func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, fullAbsent, pr
 		}
 		count++
 	}
-	return count + newSubs
-}
-
-// dedupePositive returns the unique positive ids in order.
-func dedupePositive(ids []int64) []int64 {
-	seen := make(map[int64]bool, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 || seen[id] {
-			continue
-		}
-		seen[id] = true
-		out = append(out, id)
-	}
-	return out
-}
-
-func toSet(ids []int64) map[int64]bool {
-	set := make(map[int64]bool, len(ids))
-	for _, id := range ids {
-		set[id] = true
-	}
-	return set
+	return count + newSubs - removedSubs
 }
 
 // sameNote reports whether two optional notes carry the same text.

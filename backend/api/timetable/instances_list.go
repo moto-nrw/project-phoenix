@@ -46,6 +46,7 @@ type instanceStaffSummary struct {
 	IsPrimary     bool    `json:"is_primary"`
 	IsAbsent      bool    `json:"is_absent"`
 	IsSubstitute  bool    `json:"is_substitute"`
+	IsSickAbsence bool    `json:"is_sick_absence"`
 	AbsenceReason *string `json:"absence_reason,omitempty"`
 }
 
@@ -522,6 +523,7 @@ func (rs *Resource) enrichInstance(
 			IsPrimary:     row.IsPrimary,
 			IsAbsent:      row.IsAbsent,
 			IsSubstitute:  row.IsSubstitute,
+			IsSickAbsence: row.SickAbsenceID != nil,
 			AbsenceReason: row.AbsenceReason,
 		})
 	}

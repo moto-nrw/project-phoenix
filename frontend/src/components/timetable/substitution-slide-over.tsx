@@ -18,7 +18,7 @@
  * is a radio branch, not a checkbox that silently disables the rest.
  */
 
-import { Plus, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { berlinTodayISO, formatDate, parseISODate } from "~/lib/date-helpers";
@@ -40,7 +40,6 @@ import type {
 } from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -60,6 +59,15 @@ import {
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
+import {
+  buildStaffDeviationInput,
+  coverageIds as resolveCoverageIds,
+  desiredAbsenceIds as resolveDesiredAbsenceIds,
+  isEditableAppointment,
+  sameIds,
+  type PersonForm,
+} from "./substitution-deviation-input";
+import { SubstitutionPersonCard } from "./substitution-person-card";
 
 interface StaffOption {
   id: string;
@@ -71,15 +79,11 @@ export type SubstitutionEditorTab = "bearbeiten" | "verlauf";
 
 interface SubstitutionSlideOverProps {
   instance: EnrichedInstance | null;
+  /** All appointments on the selected day, including terminal ones. */
+  dayInstances: readonly EnrichedInstance[];
   /** Every staff member in the tenant, the substitute picker source. */
   staffOptions: readonly StaffOption[];
   staffNames: Map<string, string>;
-  /**
-   * Staff ids already marked absent somewhere on this instance's date. They are
-   * out of action for the whole day (absence is day-wide) and must not be
-   * offered as substitutes — the backend rejects them too (#1840).
-   */
-  dayAbsentStaffIds: ReadonlySet<string>;
   /**
    * True when the tenant staff list failed to load. The substitute picker then
    * shows an explicit error instead of an empty list that reads like "no staff".
@@ -118,22 +122,13 @@ interface SubstitutionSlideOverProps {
   onTabChange?: (tab: SubstitutionEditorTab) => void;
 }
 
-// Per-planned-person edit state.
-interface PersonForm {
-  absent: boolean;
-  wasAbsent: boolean;
-  reason: string;
-  substituteId: string;
-  showReason: boolean;
-}
-
 const FORM_ID = "vertretung-form";
 
 export function SubstitutionSlideOver({
   instance,
+  dayInstances,
   staffOptions,
   staffNames,
-  dayAbsentStaffIds,
   staffLoadError = false,
   canManage,
   onClose,
@@ -162,34 +157,34 @@ export function SubstitutionSlideOver({
   const plannedStaff = (instance?.staff ?? []).filter((s) => !s.isSubstitute);
   const substitutes = (instance?.staff ?? []).filter((s) => s.isSubstitute);
   const assignedIds = new Set((instance?.staff ?? []).map((s) => s.staffId));
-  const substituteOptions = staffOptions
-    // Exclude staff already on this block and anyone marked absent elsewhere
-    // that day — a day-absent person cannot cover a shift (#1840).
-    .filter((s) => !assignedIds.has(s.id) && !dayAbsentStaffIds.has(s.id))
-    .map((s) => ({ value: s.id, label: s.name }));
-  // A block may hold several substitutes — one per absent planned position. What
-  // the backend rejects (409 substitute_conflict) is re-substituting a position
-  // that is ALREADY flagged absent while another active substitute exists. So the
-  // picker is locked only on such already-absent rows (see substituteDisabled
-  // below); a newly-absent position may still name its own distinct substitute.
-  // Removing an existing substitute is the "Entfernen" button below.
+  const appointmentsByStaff = useMemo(() => {
+    const appointments = new Map<string, EnrichedInstance[]>();
+    for (const dayInstance of dayInstances) {
+      for (const row of dayInstance.staff) {
+        if (row.isSubstitute) continue;
+        const current = appointments.get(row.staffId) ?? [];
+        current.push(dayInstance);
+        appointments.set(row.staffId, current);
+      }
+    }
+    for (const current of appointments.values()) {
+      current.sort((left, right) =>
+        left.startTime.localeCompare(right.startTime),
+      );
+    }
+    return appointments;
+  }, [dayInstances]);
 
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
   const [cancel, setCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
   const [unstaffed, setUnstaffed] = useState(false);
   const [unstaffedReason, setUnstaffedReason] = useState("");
-  // Substitute staff ids the admin marked for removal (#1840). An assigned
-  // substitute who later becomes unavailable can be marked absent day-wide,
-  // which frees the block so another replacement can be chosen — otherwise a
-  // new pick for the original absent person 409s (substitute_conflict) because
-  // the old substitute is still non-absent.
+  // Existing substitutes staged for removal from the opened appointment.
   const [removedSubs, setRemovedSubs] = useState<Set<string>>(new Set());
-  // Substitutes who are already marked absent (removed on a prior save) and are
-  // being brought back in this save. Clearing the persisted absence restores them
-  // as the active substitute, so an accidental "Entfernen" is correctable without
-  // a DB edit (#1840). Inverse of removedSubs; the two never touch the same row
-  // (a row is either absent → restorable, or present → removable).
+  // Legacy substitute rows can already be absent. They remain restorable for
+  // this appointment, but new removals delete the substitute row instead of
+  // inventing an absence for the replacement person.
   const [restoredSubs, setRestoredSubs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   // Which reiter is shown (#1886). Seeded from initialTab and re-seeded whenever
@@ -204,9 +199,47 @@ export function SubstitutionSlideOver({
     const seed: Record<string, PersonForm> = {};
     for (const row of instance.staff) {
       if (row.isSubstitute) continue;
+      const appointments = appointmentsByStaff.get(row.staffId) ?? [instance];
+      const openAppointments = appointments.filter(isEditableAppointment);
+      const existingAbsentIds = openAppointments
+        .filter((appointment) =>
+          appointment.staff.some(
+            (staff) =>
+              !staff.isSubstitute &&
+              staff.staffId === row.staffId &&
+              staff.isAbsent,
+          ),
+        )
+        .map((appointment) => appointment.id);
+      const sickAbsenceIds = openAppointments
+        .filter((appointment) =>
+          appointment.staff.some(
+            (staff) =>
+              !staff.isSubstitute &&
+              staff.staffId === row.staffId &&
+              staff.isAbsent &&
+              staff.isSickAbsence,
+          ),
+        )
+        .map((appointment) => appointment.id);
+      const sickLocked = row.isSickAbsence === true;
+      const allOpenAbsent =
+        openAppointments.length > 0 &&
+        existingAbsentIds.length === openAppointments.length;
       seed[row.staffId] = {
         absent: row.isAbsent,
         wasAbsent: row.isAbsent,
+        existingAbsentIds,
+        sickAbsenceIds,
+        sickLocked,
+        scope:
+          row.isAbsent && !sickLocked
+            ? allOpenAbsent
+              ? "all"
+              : "selected"
+            : "",
+        selectedInstanceIds: sickLocked ? [] : existingAbsentIds,
+        allDayAbsence: false,
         reason: row.absenceReason ?? "",
         substituteId: "",
         showReason: Boolean(row.absenceReason),
@@ -220,6 +253,8 @@ export function SubstitutionSlideOver({
     setRemovedSubs(new Set());
     setRestoredSubs(new Set());
     setActiveTab(initialTab);
+    // Re-seed only when another appointment opens. Revalidation after a failed
+    // save must not erase the person's unsaved choices.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id]);
 
@@ -262,6 +297,64 @@ export function SubstitutionSlideOver({
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
   }
 
+  function openAppointmentIds(staffId: string): string[] {
+    return (appointmentsByStaff.get(staffId) ?? [])
+      .filter(isEditableAppointment)
+      .map((appointment) => appointment.id);
+  }
+
+  function choosePersonScope(staffId: string, scope: "all" | "selected") {
+    const person = people[staffId];
+    if (!person) return;
+    const selected = new Set(person.sickLocked ? [] : person.existingAbsentIds);
+    if (
+      scope === "selected" &&
+      instance &&
+      openAppointmentIds(staffId).includes(instance.id)
+    ) {
+      selected.add(instance.id);
+    }
+    updatePerson(staffId, {
+      scope,
+      selectedInstanceIds: [...selected],
+      allDayAbsence: false,
+    });
+  }
+
+  function togglePersonAppointment(staffId: string, instanceId: string) {
+    const person = people[staffId];
+    if (!person) return;
+    const selected = new Set(person.selectedInstanceIds);
+    if (selected.has(instanceId)) selected.delete(instanceId);
+    else selected.add(instanceId);
+    updatePerson(staffId, { selectedInstanceIds: [...selected] });
+  }
+
+  function desiredAbsenceIds(staffId: string, person: PersonForm): string[] {
+    return resolveDesiredAbsenceIds(person, openAppointmentIds(staffId));
+  }
+
+  function coverageIds(staffId: string, person: PersonForm): string[] {
+    return resolveCoverageIds(person, openAppointmentIds(staffId));
+  }
+
+  function substituteOptionsFor(staffId: string, person: PersonForm) {
+    const targetIds = coverageIds(staffId, person);
+    return staffOptions
+      .filter((option) => {
+        if (assignedIds.has(option.id)) return false;
+        return !targetIds.some((targetId) => {
+          const target = dayInstances.find(
+            (appointment) => appointment.id === targetId,
+          );
+          return target?.staff.some(
+            (row) => row.staffId === option.id && row.isAbsent,
+          );
+        });
+      })
+      .map((option) => ({ value: option.id, label: option.name }));
+  }
+
   // A substitute is still covering the block when it is either non-absent and not
   // staged for removal, or absent but staged for restore. Such a substitute
   // counts toward projected coverage; once coverage meets the planned position
@@ -285,7 +378,9 @@ export function SubstitutionSlideOver({
   const plannedPositions = plannedStaff.length;
   const presentPlanned = plannedStaff.filter((row) => {
     const p = people[row.staffId];
-    return p ? !p.absent : !row.isAbsent;
+    return p && instance
+      ? !desiredAbsenceIds(row.staffId, p).includes(instance.id)
+      : !row.isAbsent;
   }).length;
   const activeSubstitutes = substitutes.filter(isSubstituteActive).length;
   // Count UNIQUE newly-picked substitutes. The backend collapses the same
@@ -295,9 +390,14 @@ export function SubstitutionSlideOver({
   // block as fully staffed, disable "Bewusst unbesetzt", and clear a valid
   // acknowledgement even though the backend still reports a shortfall (#1840).
   const newReplacements = new Set(
-    Object.values(people)
-      .filter((p) => p.absent && p.substituteId !== "")
-      .map((p) => p.substituteId),
+    Object.entries(people)
+      .filter(
+        ([staffId, p]) =>
+          p.substituteId !== "" &&
+          instance != null &&
+          coverageIds(staffId, p).includes(instance.id),
+      )
+      .map(([, p]) => p.substituteId),
   ).size;
   const projectedCoverage =
     presentPlanned + activeSubstitutes + newReplacements;
@@ -311,23 +411,30 @@ export function SubstitutionSlideOver({
     unstaffed &&
     unstaffedReason.trim() !== (instance?.understaffedNote ?? "").trim();
 
+  const peopleValid = Object.values(people).every(
+    (person) =>
+      !person.absent ||
+      (person.sickLocked && !person.substituteId) ||
+      person.scope === "all" ||
+      (person.scope === "selected" && person.selectedInstanceIds.length > 0),
+  );
+  const peopleChanged = Object.entries(people).some(([staffId, person]) => {
+    const desired = desiredAbsenceIds(staffId, person);
+    return (
+      !sameIds(desired, person.existingAbsentIds) || person.substituteId !== ""
+    );
+  });
   const hasChanges =
     cancel ||
     unstaffed !== wasUnstaffed ||
     noteEdited ||
     removedSubs.size > 0 ||
     restoredSubs.size > 0 ||
-    Object.values(people).some(
-      (p) =>
-        (p.absent && !p.wasAbsent) ||
-        (p.absent && p.substituteId !== "") ||
-        // A persisted absence being cleared (marked present again) is a change.
-        (!p.absent && p.wasAbsent),
-    );
+    peopleChanged;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    if (!instance || !hasChanges || saving) return;
+    if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
     setSaving(true);
     try {
       // Cancel is exclusive — it maps to the backend's cancel branch and ignores
@@ -344,47 +451,14 @@ export function SubstitutionSlideOver({
         return;
       }
 
-      // Build ONE payload. The backend applies absences, the substitute, the
-      // acknowledgement, and the removed-substitute absences atomically, so the
-      // frontend no longer has to order independent requests to avoid a
-      // half-saved block.
-      const absences: NonNullable<ApplyDeviationsInput["absences"]> = [];
-      const substitutions: NonNullable<ApplyDeviationsInput["substitutions"]> =
-        [];
-      // Persisted absences the admin cleared — mark them present again (#1840).
-      const presences: NonNullable<ApplyDeviationsInput["presences"]> = [];
-
-      // Removed substitutes are marked absent day-wide, which frees the block so
-      // the replacement below no longer conflicts with the old substitute.
-      for (const staffId of removedSubs) {
-        absences.push({ staffId });
-      }
-      // Restored substitutes were absent (removed on a prior save) and are brought
-      // back by clearing their day-wide absence — the inverse of removal (#1840).
-      for (const staffId of restoredSubs) {
-        presences.push(staffId);
-      }
-      for (const [staffId, p] of Object.entries(people)) {
-        const reason = p.reason.trim() || undefined;
-        const newlyAbsent = p.absent && !p.wasAbsent;
-        if (p.absent && p.substituteId) {
-          substitutions.push({
-            absentStaffId: staffId,
-            substituteStaffId: p.substituteId,
-            reason,
-          });
-        } else if (newlyAbsent) {
-          absences.push({ staffId, reason });
-        } else if (!p.absent && p.wasAbsent) {
-          // Was absent in the DB, now marked present → clear the day-wide absence.
-          presences.push(staffId);
-        }
-      }
-
-      const input: ApplyDeviationsInput = {};
-      if (absences.length > 0) input.absences = absences;
-      if (substitutions.length > 0) input.substitutions = substitutions;
-      if (presences.length > 0) input.presences = presences;
+      const input = buildStaffDeviationInput({
+        instanceId: instance.id,
+        people,
+        removedSubs,
+        restoredSubs,
+        desiredIds: desiredAbsenceIds,
+        targetIds: coverageIds,
+      });
 
       // "Bewusst unbesetzt" only holds while the block stays understaffed after
       // the save. isUnderstaffed forces it off if the block ends up fully
@@ -531,201 +605,51 @@ export function SubstitutionSlideOver({
                     ) : (
                       <ul className="space-y-2">
                         {plannedStaff.map((row) => {
-                          const p = people[row.staffId];
-                          if (!p) return null;
-                          const name = staffLabel(staffNames, row.staffId);
-                          // Each absent planned position may name its own
-                          // replacement. The backend applies a count-based rule:
-                          // a substitute is accepted while the block still has an
-                          // open absent slot (active coverage below the planned
-                          // position count) and 409s only when every absent
-                          // position is already covered. Mirror that here so the
-                          // picker matches what the save will accept. A
-                          // NEWLY-absent row (!wasAbsent) always opens its own
-                          // picker; an ALREADY-absent (persisted) row keeps its
-                          // picker open too as long as projected coverage is still
-                          // below the planned count — so a still-open gap left by a
-                          // previous save can be filled without first removing
-                          // another position's valid replacement. Once coverage
-                          // meets the planned count a further replacement would
-                          // overstaff, so persisted-absent rows that DON'T already
-                          // hold a pick lock; a row that already named a
-                          // replacement stays editable (changing or clearing its
-                          // own pick never overstaffs) (#1840).
-                          const substituteDisabled =
-                            unstaffed ||
-                            substituteOptions.length === 0 ||
-                            (p.wasAbsent &&
-                              !p.substituteId &&
-                              projectedCoverage >= plannedPositions);
+                          const person = people[row.staffId];
+                          if (!person) return null;
+                          const substituteOptions = substituteOptionsFor(
+                            row.staffId,
+                            person,
+                          );
+                          const scopeReady =
+                            person.scope === "all" ||
+                            (person.scope === "selected" &&
+                              person.selectedInstanceIds.length > 0);
+                          const fullyCovered =
+                            person.wasAbsent &&
+                            !person.substituteId &&
+                            projectedCoverage >= plannedPositions;
                           return (
-                            <li
+                            <SubstitutionPersonCard
                               key={row.staffId}
-                              className={`rounded-xl border shadow-sm ${
-                                p.absent
-                                  ? "border-moto-red/25 bg-moto-red/5"
-                                  : "border-gray-200 bg-white"
-                              }`}
-                            >
-                              {/* Status row */}
-                              <div className="flex items-center justify-between gap-2 p-3">
-                                <div className="min-w-0">
-                                  <div
-                                    className={`truncate text-sm font-semibold ${
-                                      p.absent
-                                        ? "text-gray-400 line-through"
-                                        : "text-gray-900"
-                                    }`}
-                                  >
-                                    {name}
-                                  </div>
-                                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
-                                    {p.absent ? (
-                                      <span className="text-moto-red-strong font-semibold">
-                                        Abwesend
-                                      </span>
-                                    ) : (
-                                      <span className="text-gray-500">
-                                        Anwesend
-                                      </span>
-                                    )}
-                                    {row.isPrimary && (
-                                      <span className="text-gray-400">
-                                        • Zuständig
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                {canEdit && (
-                                  <div className="shrink-0">
-                                    {!p.absent ? (
-                                      <Button
-                                        type="button"
-                                        variant="outline_danger"
-                                        size="md"
-                                        onClick={() =>
-                                          updatePerson(row.staffId, {
-                                            absent: true,
-                                          })
-                                        }
-                                      >
-                                        <MotoConceptIcon
-                                          concept="substitution"
-                                          size={16}
-                                          className="mr-1.5"
-                                        />
-                                        Abwesend
-                                      </Button>
-                                    ) : (
-                                      // Both a freshly-marked absence and a
-                                      // persisted one (wasAbsent) can be undone:
-                                      // the persisted case clears the saved
-                                      // absence day-wide so a wrongly-marked
-                                      // person can be corrected (#1840).
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="md"
-                                        onClick={() =>
-                                          updatePerson(row.staffId, {
-                                            absent: false,
-                                            substituteId: "",
-                                          })
-                                        }
-                                      >
-                                        <RotateCcw className="mr-1.5 h-4 w-4" />
-                                        {p.wasAbsent
-                                          ? "Anwesend melden"
-                                          : "Rückgängig"}
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Absent detail: clearly-labelled Vertretung + optional reason */}
-                              {p.absent && (
-                                <div className="border-moto-red/15 space-y-2 rounded-b-xl border-t bg-white/60 p-3">
-                                  <div>
-                                    <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                                      Vertretung für {name}
-                                    </span>
-                                    {canEdit ? (
-                                      <CustomSelect
-                                        value={p.substituteId}
-                                        options={substituteOptions}
-                                        ariaLabel={`Vertretung für ${name}`}
-                                        placeholder="Ersatzperson wählen…"
-                                        disabled={substituteDisabled}
-                                        onChange={(value) =>
-                                          updatePerson(row.staffId, {
-                                            substituteId: value,
-                                          })
-                                        }
-                                      />
-                                    ) : (
-                                      <span className="text-sm text-gray-500">
-                                        —
-                                      </span>
-                                    )}
-                                    {unstaffed ? (
-                                      <p className="mt-1 text-[11px] text-gray-400">
-                                        Keine Vertretung möglich, solange der
-                                        Block als bewusst unbesetzt markiert
-                                        ist.
-                                      </p>
-                                    ) : p.wasAbsent &&
-                                      !p.substituteId &&
-                                      projectedCoverage >= plannedPositions ? (
-                                      <p className="mt-1 text-[11px] text-gray-400">
-                                        Der Block ist bereits vollständig
-                                        vertreten. Zum Tauschen zuerst
-                                        „Entfernen“.
-                                      </p>
-                                    ) : staffLoadError &&
-                                      substituteOptions.length === 0 ? (
-                                      <p className="text-moto-red-strong mt-1 text-[11px]">
-                                        Personalliste konnte nicht geladen
-                                        werden. Bitte die Seite neu laden.
-                                      </p>
-                                    ) : null}
-                                  </div>
-
-                                  {p.wasAbsent ? (
-                                    p.reason ? (
-                                      <p className="text-xs text-gray-500">
-                                        Grund: {p.reason}
-                                      </p>
-                                    ) : null
-                                  ) : p.showReason ? (
-                                    <Input
-                                      controlSize="compact"
-                                      value={p.reason}
-                                      maxLength={500}
-                                      onChange={(e) =>
-                                        updatePerson(row.staffId, {
-                                          reason: e.target.value,
-                                        })
-                                      }
-                                      placeholder="Grund (optional)"
-                                    />
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        updatePerson(row.staffId, {
-                                          showReason: true,
-                                        })
-                                      }
-                                      className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700"
-                                    >
-                                      <Plus className="h-3.5 w-3.5" />
-                                      Grund hinzufügen
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                            </li>
+                              row={row}
+                              person={person}
+                              name={staffLabel(staffNames, row.staffId)}
+                              appointments={
+                                appointmentsByStaff.get(row.staffId) ?? []
+                              }
+                              substituteOptions={substituteOptions}
+                              canEdit={canEdit}
+                              unstaffed={unstaffed}
+                              scopeReady={scopeReady}
+                              substituteDisabled={
+                                unstaffed ||
+                                !scopeReady ||
+                                substituteOptions.length === 0 ||
+                                fullyCovered
+                              }
+                              staffLoadError={staffLoadError}
+                              fullyCovered={fullyCovered}
+                              onUpdate={(patch) =>
+                                updatePerson(row.staffId, patch)
+                              }
+                              onChooseScope={(scope) =>
+                                choosePersonScope(row.staffId, scope)
+                              }
+                              onToggleAppointment={(instanceId) =>
+                                togglePersonAppointment(row.staffId, instanceId)
+                              }
+                            />
                           );
                         })}
                       </ul>
@@ -781,7 +705,7 @@ export function SubstitutionSlideOver({
                                     </span>
                                   )}
                                   {canEdit &&
-                                    (row.isAbsent ? (
+                                    (row.isAbsent && !row.isSickAbsence ? (
                                       // A persisted-absent substitute (removed on
                                       // a prior save) can be brought back so an
                                       // accidental removal is correctable without
@@ -810,7 +734,7 @@ export function SubstitutionSlideOver({
                                           </>
                                         )}
                                       </Button>
-                                    ) : (
+                                    ) : !row.isAbsent ? (
                                       <Button
                                         type="button"
                                         variant="ghost"
@@ -835,7 +759,7 @@ export function SubstitutionSlideOver({
                                           </>
                                         )}
                                       </Button>
-                                    ))}
+                                    ) : null)}
                                 </div>
                               </li>
                             );
@@ -844,25 +768,21 @@ export function SubstitutionSlideOver({
                         {canEdit &&
                           substitutes.some((row) => !row.isAbsent) && (
                             <p className="text-[11px] leading-5 text-gray-400">
-                              „Entfernen“ meldet die Vertretung für den ganzen
-                              Tag abwesend und gibt den Block für eine andere
-                              Ersatzperson frei.
+                              „Entfernen“ löscht die Vertretung nur aus diesem
+                              Termin. Die Ersatzperson wird nicht als abwesend
+                              markiert.
                             </p>
                           )}
-                        {canEdit && substitutes.some((row) => row.isAbsent) && (
-                          <p className="text-[11px] leading-5 text-gray-400">
-                            „Anwesend melden“ macht eine entfernte Vertretung
-                            wieder verfügbar.
-                          </p>
-                        )}
+                        {canEdit &&
+                          substitutes.some(
+                            (row) => row.isAbsent && !row.isSickAbsence,
+                          ) && (
+                            <p className="text-[11px] leading-5 text-gray-400">
+                              „Anwesend melden“ macht eine entfernte Vertretung
+                              wieder verfügbar.
+                            </p>
+                          )}
                       </div>
-                    )}
-
-                    {canEdit && (
-                      <p className="text-[11px] leading-5 text-gray-400">
-                        Abwesenheit und Vertretung gelten für alle Termine
-                        dieser Person am {formatDate(instance.date)}.
-                      </p>
                     )}
                   </section>
                 )}
@@ -989,7 +909,9 @@ export function SubstitutionSlideOver({
                       size="md"
                       isLoading={saving}
                       loadingText="Speichere …"
-                      disabled={saving || !hasChanges}
+                      disabled={
+                        saving || !hasChanges || (!cancel && !peopleValid)
+                      }
                     >
                       Speichern
                     </Button>
