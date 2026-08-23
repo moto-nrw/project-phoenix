@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -260,7 +262,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if err != nil {
 		return nil, err
 	}
-	allOperational := s.adminOverviewEnabled(ctx, isAdmin) || (hasStaff && s.openCareMode(ctx))
+	allOperational := s.operationalOverview(ctx, isAdmin, hasStaff)
 	if !hasStaff && !allOperational {
 		return nil, ErrTimetableOperationForbidden
 	}
@@ -684,10 +686,7 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if err != nil {
 		return 0, err
 	}
-	if hasStaff && s.openCareMode(ctx) {
-		return staffID, nil
-	}
-	if s.adminOverviewEnabled(ctx, isAdmin) {
+	if s.operationalOverview(ctx, isAdmin, hasStaff) {
 		return staffID, nil
 	}
 	if !hasStaff {
@@ -720,18 +719,6 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
-}
-
-func (s *timetableOperationsService) openCareMode(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return false
-	}
-	mode, err := s.deps.Settings.ResolveString(ctx, configModel.KeyGroupMode)
-	if err != nil {
-		s.logger().ErrorContext(ctx, "failed to resolve operational group mode", slog.String("error", err.Error()))
-		return false
-	}
-	return mode == configModel.GroupModeOpenCare
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
@@ -1259,17 +1246,27 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 	})
 }
 
-func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, isAdmin bool) bool {
-	if !isAdmin || s.deps.Settings == nil {
-		return false
-	}
-	enabled, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+// operationalOverview reports whether this caller may see and operate every
+// running module of the school (#2380). It reuses the staff record this
+// service already resolved instead of looking it up a second time, but asks
+// the same setting as every other surface, so a module listed by PlannedNow
+// can never 403 on the detail call. Fails closed on a settings fault.
+func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
+	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings)
 	if err != nil {
-		s.logger().WarnContext(ctx, "admin supervision overview setting check failed for timetable operations",
+		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	return enabled
+	admin := isAdmin || authorize.HasEffectiveAdminScope(ctx)
+	switch scope {
+	case configModel.OverviewScopeAllStaff:
+		return admin || hasStaff
+	case configModel.OverviewScopeAdmins:
+		return admin
+	default:
+		return false
+	}
 }
 
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {

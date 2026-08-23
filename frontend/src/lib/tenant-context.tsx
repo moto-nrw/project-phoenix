@@ -10,6 +10,7 @@ import {
 } from "react";
 import {
   resolveTenant,
+  type OperationalOverviewScope,
   type PresenceMode,
   type TenantInfo,
 } from "~/lib/tenant-api";
@@ -257,6 +258,16 @@ export function useAttendanceLogEnabled(): boolean {
 export function useOpenCareGroupMode(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.groupMode === "open_care";
+}
+
+/**
+ * The school's configured scope for the operational overview (#2380). Only a
+ * hint for which endpoint to ask; every route decides for itself. Defaults to
+ * the restrictive "own" while tenant metadata is unavailable.
+ */
+export function useOperationalOverviewScope(): OperationalOverviewScope {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.operationalOverviewScope ?? "own";
 }
 
 export function useShowTimetableCounts(): boolean {

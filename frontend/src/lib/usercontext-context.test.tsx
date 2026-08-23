@@ -94,7 +94,7 @@ describe("UserContextProvider", () => {
       supervisedRoomId: undefined,
       supervisedRoomName: undefined,
       isLoadingSupervision: false,
-      adminOverviewEnabled: false,
+      overviewEnabled: false,
       supervisedRooms: [],
       refresh: vi.fn(),
     });
@@ -270,7 +270,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });
@@ -323,7 +323,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: mockRefresh,
       });
@@ -357,7 +357,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: mockRefresh,
       });
@@ -419,7 +419,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });
@@ -444,7 +444,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });
@@ -469,7 +469,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });
@@ -500,7 +500,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });
@@ -584,7 +584,7 @@ describe("UserContextProvider", () => {
         supervisedRoomId: undefined,
         supervisedRoomName: undefined,
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
         supervisedRooms: [],
         refresh: vi.fn(),
       });

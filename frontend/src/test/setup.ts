@@ -204,6 +204,7 @@ const tenantProviderMock = vi.hoisted(() => ({
   useCareOfferingsEnabled: vi.fn(() => true),
   useAttendanceWebEnabled: vi.fn(() => true),
   useOpenCareGroupMode: vi.fn(() => false),
+  useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
   TenantProvider: ({

@@ -112,7 +112,7 @@ vi.mock("~/lib/supervision-context", () => ({
     isSupervising: false,
     supervisedRooms: [],
     isLoadingSupervision: false,
-    adminOverviewEnabled: false,
+    overviewEnabled: false,
     refresh: mockRefreshSupervision,
   }),
 }));
@@ -581,31 +581,43 @@ describe("SettingsContent (via renderTab)", () => {
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it("refreshes supervision context after toggling admin_supervision_overview", async () => {
-    const schemaWithAdminOverview = {
+  it("refreshes supervision context after changing the operational overview scope", async () => {
+    const schemaWithOverviewScope = {
       tabs: [
         {
           key: "operations",
           label: "Betrieb",
           categories: [
             {
-              key: "sessions",
-              label: "Sitzungen",
+              key: "aufsicht",
+              label: "Aufsicht",
               items: [
                 {
-                  key: "operations.admin_supervision_overview",
-                  label: "Administrator-Aufsichtsübersicht",
-                  description: "Admins sehen alle Aufsichten",
-                  type: "boolean" as const,
-                  default: false,
-                  value: false,
+                  key: "operations.operational_overview_scope",
+                  label: "Sicht auf alle Räume",
+                  description: "Wer alle Räume der Schule sieht",
+                  type: "select" as const,
+                  default: "own",
+                  value: "own",
                   is_default: true,
                   writable: true,
                   visible: true,
                   sort_order: 1,
                   validation: null,
                   depends_on: null,
-                  options: null,
+                  options: {
+                    static: [
+                      { label: "Nur eigene Räume", value: "own" },
+                      {
+                        label: "Alle Räume für Administratoren",
+                        value: "admins",
+                      },
+                      {
+                        label: "Alle Räume für alle Mitarbeitenden",
+                        value: "all_staff",
+                      },
+                    ],
+                  },
                 },
               ],
             },
@@ -613,12 +625,16 @@ describe("SettingsContent (via renderTab)", () => {
         },
       ],
     };
-    mockFetchSchema.mockResolvedValue(schemaWithAdminOverview);
+    mockFetchSchema.mockResolvedValue(schemaWithOverviewScope);
     mockSetSettingValue.mockResolvedValue(null);
 
     renderWithProviders(<RenderedTab tabId="settings-operations" />);
-    const toggle = await screen.findByRole("switch");
-    fireEvent.click(toggle);
+    fireEvent.click(await screen.findByRole("combobox"));
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Alle Räume für alle Mitarbeitenden",
+      }),
+    );
 
     await waitFor(() => {
       expect(mockRefreshSupervision).toHaveBeenCalledWith({ force: true });

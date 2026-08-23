@@ -176,8 +176,8 @@ func TestSettingsDrivenProjectionBranches(t *testing.T) {
 	settings := &configtest.Mock{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
 			switch key {
-			case configModel.KeyGroupMode:
-				return configModel.GroupModeOpenCare, nil
+			case configModel.KeyOperationalOverviewScope:
+				return configModel.OverviewScopeAdmins, nil
 			case configModel.KeyCareConcept:
 				return configModel.CareConceptOpenRooms, nil
 			default:
@@ -190,7 +190,7 @@ func TestSettingsDrivenProjectionBranches(t *testing.T) {
 	}
 	service := &service{deps: Dependencies{Settings: settings}}
 
-	overview, err := service.hasOperationalOverview(context.Background())
+	overview, err := service.hasOperationalOverview(adminContext())
 	require.NoError(t, err)
 	assert.True(t, overview)
 

@@ -146,6 +146,9 @@ describe("tenant-api", () => {
         // Opt-in feature flag (#1456): missing on older backends means off.
         attendanceLogEnabled: false,
         groupMode: "fixed_groups",
+        // Absent operational_overview_scope collapses to the restrictive
+        // "own": an older backend must never widen the UI (#2380).
+        operationalOverviewScope: "own",
         showTimetableCounts: true,
         waitlistEnabled: true,
         gradeLevelMax: 13,
@@ -172,6 +175,7 @@ describe("tenant-api", () => {
                 care_offerings_enabled: true,
                 attendance_web_enabled: true,
                 group_mode: "open_care",
+                operational_overview_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
               },
@@ -188,6 +192,7 @@ describe("tenant-api", () => {
                 care_offerings_enabled: false,
                 attendance_web_enabled: false,
                 group_mode: "fixed_groups",
+                operational_overview_scope: "nonsense_from_a_newer_backend",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
               },
@@ -200,6 +205,7 @@ describe("tenant-api", () => {
         careOfferingsEnabled: true,
         attendanceWebEnabled: true,
         groupMode: "open_care",
+        operationalOverviewScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
       });
@@ -207,6 +213,9 @@ describe("tenant-api", () => {
         careOfferingsEnabled: false,
         attendanceWebEnabled: false,
         groupMode: "fixed_groups",
+        // An unrecognised scope collapses to the restrictive "own" — a value
+        // the client cannot interpret must never widen the UI (#2380).
+        operationalOverviewScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
       });

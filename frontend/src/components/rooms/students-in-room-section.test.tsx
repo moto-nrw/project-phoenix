@@ -1,10 +1,24 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentsInRoomSection } from "./students-in-room-section";
-import {
-  useAttendanceWebEnabled,
-  useOpenCareGroupMode,
-} from "~/lib/tenant-context";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+
+/** Default supervision context: no school-wide overview (#2380). */
+const EMPTY_SUPERVISION = {
+  hasGroups: false,
+  isLoadingGroups: false,
+  groups: [],
+  isSupervising: false,
+  supervisedRooms: [],
+  isLoadingSupervision: false,
+  overviewEnabled: false,
+  refresh: vi.fn(),
+};
+
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: vi.fn(),
+}));
 
 // ----------------------------------------------------------------------------
 // Mocks
@@ -247,7 +261,7 @@ const setBulkData = ({
 
 beforeEach(() => {
   vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
-  vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
+  vi.mocked(useOptionalSupervision).mockReturnValue(EMPTY_SUPERVISION);
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
   mockUseTenantMutateMatching.mockReset();

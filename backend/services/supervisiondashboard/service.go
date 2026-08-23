@@ -242,7 +242,7 @@ func (s *service) prefetchSettings(ctx context.Context) (context.Context, error)
 		return ctx, nil
 	}
 	snapshot, err := batch.ResolveMany(ctx, []string{
-		configModel.KeyAdminSupervisionOverview,
+		configModel.KeyOperationalOverviewScope,
 		configModel.KeyGroupMode,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyCareConcept,
@@ -274,11 +274,10 @@ func (s *service) loadCurrentStaffID(ctx context.Context) (*int64, error) {
 	return &id, nil
 }
 
-// resolveGroups mirrors the scope split of the former fan-out: admins with the
-// supervision overview setting and everyone under open care see all running
-// sessions; otherwise the caller's own supervised sessions. Errors propagate —
-// the former BFF's silent 403→fallback chain is replaced by one deterministic
-// decision here.
+// resolveGroups mirrors the scope split of the former fan-out: callers covered
+// by the school-wide overview scope (#2380) see all running sessions,
+// otherwise their own supervised sessions. Errors propagate — the former BFF's
+// silent 403→fallback chain is replaced by one deterministic decision here.
 func (s *service) resolveGroups(ctx context.Context) ([]Group, error) {
 	broad, err := s.hasOperationalOverview(ctx)
 	if err != nil {
@@ -360,22 +359,15 @@ func (s *service) loadGroupsWithRelations(ctx context.Context, groups []*activeM
 	return result, nil
 }
 
+// hasOperationalOverview asks the one school-wide rule (#2380). The
+// organisational group mode is deliberately not consulted here: it describes
+// how the school organises children, not who may open a running module.
 func (s *service) hasOperationalOverview(ctx context.Context) (bool, error) {
-	claims := jwt.ClaimsFromCtx(ctx)
-	if claims.IsAdmin {
-		enabled, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
-		if err != nil {
-			return false, fmt.Errorf("resolve admin supervision overview setting: %w", err)
-		}
-		if enabled {
-			return true, nil
-		}
-	}
-	mode, err := s.deps.Settings.ResolveString(ctx, configModel.KeyGroupMode)
+	allowed, err := authorize.HasOperationalOverview(ctx, s.deps.Settings, s.deps.UserContext)
 	if err != nil {
-		return false, fmt.Errorf("resolve group mode setting: %w", err)
+		return false, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
-	return mode == configModel.GroupModeOpenCare, nil
+	return allowed, nil
 }
 
 // loadRooms bulk-resolves rooms for groups whose relation is not preloaded —

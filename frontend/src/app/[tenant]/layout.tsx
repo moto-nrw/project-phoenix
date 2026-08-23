@@ -3,7 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
-import { normalizePresenceMode } from "~/lib/tenant-api";
+import {
+  normalizeOverviewScope,
+  normalizePresenceMode,
+} from "~/lib/tenant-api";
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
@@ -26,6 +29,7 @@ interface TenantResolveResponse {
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
   group_mode?: string;
+  operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
@@ -70,6 +74,9 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     attendanceWebEnabled: data.attendance_web_enabled === true,
     attendanceLogEnabled: data.attendance_log_enabled === true,
     groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+    operationalOverviewScope: normalizeOverviewScope(
+      data.operational_overview_scope,
+    ),
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
     gradeLevelMax: data.grade_level_max,

@@ -285,7 +285,13 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 			return staff, nil
 		},
 	}
-	settings := &fakeOperationSettingsService{hasOverride: true, boolValue: true}
+	// The caller is an admin covered by the school-wide overview (#2380), so
+	// the operation is not gated on a per-instance staff assignment.
+	settings := &fakeOperationSettingsService{
+		hasOverride: true,
+		boolValue:   true,
+		scope:       configModel.OverviewScopeAdmins,
+	}
 	res := NewResource(Dependencies{
 		InstanceService:   instanceSvc,
 		OperationsService: newRealSpontaneousOpsService(db, instanceSvc, personSvc, settings),
@@ -1082,7 +1088,11 @@ type fakeOperationSettingsService struct {
 	hasOverride bool
 	boolValue   bool
 	stringValue string
-	err         error
+	// scope answers operations.operational_overview_scope only (#2380), so a
+	// test can open the school-wide overview without changing what every
+	// other string setting resolves to.
+	scope string
+	err   error
 }
 
 func (s *fakeOperationSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
@@ -1099,9 +1109,12 @@ func (s *fakeOperationSettingsService) ResolveBool(_ context.Context, _ string) 
 	return s.boolValue, nil
 }
 
-func (s *fakeOperationSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
+func (s *fakeOperationSettingsService) ResolveString(_ context.Context, key string) (string, error) {
 	if s.err != nil {
 		return "", s.err
+	}
+	if key == configModel.KeyOperationalOverviewScope {
+		return s.scope, nil
 	}
 	return s.stringValue, nil
 }

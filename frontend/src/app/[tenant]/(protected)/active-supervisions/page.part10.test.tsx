@@ -26,7 +26,7 @@ const navigationMockState = vi.hoisted(() => ({
 const defaultSupervisionState = vi.hoisted(() => ({
   supervisedRooms: [],
   isLoadingSupervision: false,
-  adminOverviewEnabled: false,
+  overviewEnabled: false,
   hasGroups: false,
   isLoadingGroups: false,
   groups: [],
@@ -950,13 +950,13 @@ describe("RoleGuard integration", () => {
       status: "authenticated",
     } as never);
 
-    // Mock useOptionalSupervision to return adminOverviewEnabled = true,
+    // Mock useOptionalSupervision to return overviewEnabled = true,
     // which is the explicit signal that the admin_supervision_overview
     // setting is enabled on the backend.
     vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
-      adminOverviewEnabled: true,
+      overviewEnabled: true,
       hasGroups: false,
       isLoadingGroups: false,
       groups: [],
@@ -971,8 +971,34 @@ describe("RoleGuard integration", () => {
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
+  it("renders content for a non-caregiver confirmed by the overview", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { token: "test-token", isAdmin: false, isCaregiver: false },
+      },
+      status: "authenticated",
+    } as never);
+
+    vi.mocked(useOptionalSupervision).mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Raum", groupId: "1" }],
+      isLoadingSupervision: false,
+      overviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
   it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
-    // P1-A regression guard — the gate must consult adminOverviewEnabled,
+    // P1-A regression guard — the gate must consult overviewEnabled,
     // not supervisedRooms.length. A synthetic Schulhof entry is always
     // present when the tenant has a Schulhof, regardless of the setting.
     const { useSession } = await import("next-auth/react");
@@ -991,7 +1017,7 @@ describe("RoleGuard integration", () => {
         },
       ],
       isLoadingSupervision: false,
-      adminOverviewEnabled: false,
+      overviewEnabled: false,
       hasGroups: false,
       isLoadingGroups: false,
       groups: [],
@@ -1014,7 +1040,7 @@ describe("RoleGuard integration", () => {
     vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [],
       isLoadingSupervision: true,
-      adminOverviewEnabled: false,
+      overviewEnabled: false,
       hasGroups: false,
       isLoadingGroups: true,
       groups: [],
@@ -1044,7 +1070,7 @@ describe("Aggregate fetcher error contract", () => {
     vi.mocked(useOptionalSupervision).mockReturnValue({
       supervisedRooms: [{ id: "10", name: "Admin Room", groupId: "1" }],
       isLoadingSupervision: false,
-      adminOverviewEnabled: true,
+      overviewEnabled: true,
       hasGroups: false,
       isLoadingGroups: false,
       groups: [],

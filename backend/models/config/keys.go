@@ -119,7 +119,7 @@ const (
 	KeySessionCleanupIntervalMinutes   = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin    = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin     = "operations.session_inactivity_timeout_minutes"
-	KeyAdminSupervisionOverview        = "operations.admin_supervision_overview"
+	KeyOperationalOverviewScope        = "operations.operational_overview_scope"
 	KeyStatusFlagClearTime             = "operations.status_flag_clear_time"
 	KeySickClearMode                   = "operations.sick_clear_mode"
 	KeyExcusedClearMode                = "operations.excused_clear_mode"
@@ -190,6 +190,22 @@ const (
 const (
 	GroupModeFixedGroups = "fixed_groups"
 	GroupModeOpenCare    = "open_care"
+)
+
+// OperationalOverviewScope option values for KeyOperationalOverviewScope
+// (#2380). The setting is the ONLY rule deciding who may see and operate every
+// running module of the school; the organisational group mode
+// (KeyGroupMode) deliberately no longer grants operational access.
+const (
+	// OverviewScopeOwn keeps every caller on the modules they supervise
+	// themselves. Administrators included — this is the default.
+	OverviewScopeOwn = "own"
+	// OverviewScopeAdmins opens every running module to administrators.
+	OverviewScopeAdmins = "admins"
+	// OverviewScopeAllStaff opens every running module to administrators and
+	// to every verified staff member of the tenant. Role permissions still
+	// decide WHICH actions those callers may perform.
+	OverviewScopeAllStaff = "all_staff"
 )
 
 // CareConcept option values for KeyCareConcept.

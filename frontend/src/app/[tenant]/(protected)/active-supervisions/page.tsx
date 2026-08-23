@@ -70,7 +70,7 @@ import type {
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
-import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
@@ -2778,8 +2778,8 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, admins only when they have supervised rooms
-// (i.e., admin_supervision_overview setting is active and there are active groups)
+// Gate component: allows caregivers always, everyone else only when the
+// server confirmed the school-wide overview covers them (#2380).
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -2789,8 +2789,7 @@ function ActiveSupervisionGate({
       redirect("/");
     },
   });
-  const { adminOverviewEnabled, isLoadingSupervision } =
-    useOptionalSupervision();
+  const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
     return <ActiveSupervisionLoadingView />;
@@ -2801,11 +2800,11 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  // Admins only when the admin_supervision_overview setting is confirmed
-  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
-  // supervisedRooms.length would incorrectly let admins through when the
-  // setting is OFF but a synthetic Schulhof entry is present.
-  if (isAdmin(session) && adminOverviewEnabled) {
+  // The overview endpoint confirms the backend granted this caller access.
+  // That includes effective admins and verified staff under all_staff.
+  // Checking supervisedRooms.length would incorrectly let callers through
+  // when the scope is "own" but a synthetic Schulhof entry is present.
+  if (overviewEnabled) {
     return <>{children}</>;
   }
 

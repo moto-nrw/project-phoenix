@@ -191,22 +191,27 @@ func TestHasOperationalOverviewAdmin(t *testing.T) {
 
 	ctx := adminContext()
 
-	settings := &configtest.Mock{ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-		return key == configModel.KeyAdminSupervisionOverview, nil
+	settings := &configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
+		if key != configModel.KeyOperationalOverviewScope {
+			return "", errors.New("unexpected settings key: " + key)
+		}
+		return configModel.OverviewScopeAdmins, nil
 	}}
 	svc := &service{deps: Dependencies{Settings: settings}}
 	broad, err := svc.hasOperationalOverview(ctx)
 	require.NoError(t, err)
 	assert.True(t, broad)
 
-	settings.ResolveBoolFn = func(context.Context, string) (bool, error) { return false, errors.New("boom") }
-	_, err = svc.hasOperationalOverview(ctx)
-	require.ErrorContains(t, err, "admin supervision overview")
+	settings.ResolveStringFn = func(context.Context, string) (string, error) {
+		return configModel.OverviewScopeOwn, nil
+	}
+	broad, err = svc.hasOperationalOverview(ctx)
+	require.NoError(t, err)
+	assert.False(t, broad, "the own scope keeps even admins on their own supervisions")
 
-	settings.ResolveBoolFn = func(context.Context, string) (bool, error) { return false, nil }
 	settings.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("boom") }
 	_, err = svc.hasOperationalOverview(ctx)
-	require.ErrorContains(t, err, "group mode")
+	require.ErrorContains(t, err, "operational overview scope")
 }
 
 func TestResolveGroupsBroadScope(t *testing.T) {
@@ -238,7 +243,9 @@ func TestResolveGroupsBroadScope(t *testing.T) {
 			}, nil
 		},
 	}
-	settings := &configtest.Mock{ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil }}
+	settings := &configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+		return configModel.OverviewScopeAdmins, nil
+	}}
 	svc := &service{deps: Dependencies{Active: active, Settings: settings}}
 
 	groups, err := svc.resolveGroups(ctx)

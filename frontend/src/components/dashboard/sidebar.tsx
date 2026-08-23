@@ -393,7 +393,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     isLoadingSupervision,
     groups,
     supervisedRooms,
-    adminOverviewEnabled,
+    overviewEnabled,
   } = useOptionalSupervision();
 
   // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
@@ -989,13 +989,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
   }, [toggle, pathname, router]);
 
-  // Caregiver accordions are driven by the explicit caregiver role.
-  // Show staff accordions for caregivers (user/teacher role) and for admins
-  // only when the admin_supervision_overview setting is confirmed enabled
-  // (adminOverviewEnabled avoids the synthetic Schulhof entry triggering the
-  // accordion when the setting is off).
-  const showStaffAccordions =
-    userIsCaregiver || (userIsAdmin && adminOverviewEnabled);
+  // Caregivers see their own supervision. A successful overview request also
+  // covers effective admins and verified staff under all_staff (#2380).
+  // overviewEnabled avoids the synthetic Schulhof entry triggering the
+  // accordion when the school keeps everyone on their own supervisions.
+  const showStaffAccordions = userIsCaregiver || overviewEnabled;
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(
@@ -1049,10 +1047,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     );
   }
 
-  // Reines Lehrkraft-Konto (#1772): minimale Navigation. Die Betreuungs- und
-  // Verwaltungsbereiche würden alle 403 antworten — nur Klassenansicht und
-  // Hilfe sind erreichbar.
-  if (userIsLehrkraftOnly) {
+  // Reines Lehrkraft-Konto (#1772): Ohne bestätigte Übersicht würden die
+  // Betreuungs- und Verwaltungsbereiche alle 403 antworten — nur
+  // Klassenansicht und Hilfe sind erreichbar.
+  if (userIsLehrkraftOnly && !overviewEnabled) {
     const klassenItem = filteredNavItems.find(
       (item) => item.href === "/klassen",
     );
