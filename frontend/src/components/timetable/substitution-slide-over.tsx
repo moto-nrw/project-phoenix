@@ -498,7 +498,7 @@ export function SubstitutionSlideOver({
             onValueChange={(v) => handleTabChange(v as SubstitutionEditorTab)}
             className="flex min-h-0 flex-1 flex-col"
           >
-            <SlideOverHeader>
+            <SlideOverHeader className="pb-0">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -523,7 +523,10 @@ export function SubstitutionSlideOver({
                 </div>
                 <SlideOverCloseButton />
               </div>
-              <TabsList variant="default" className="mt-3">
+              <TabsList
+                variant="line"
+                className="mt-3 w-full justify-start border-b-0"
+              >
                 <TabsTrigger value="bearbeiten">Bearbeiten</TabsTrigger>
                 <TabsTrigger value="verlauf">Verlauf</TabsTrigger>
               </TabsList>
