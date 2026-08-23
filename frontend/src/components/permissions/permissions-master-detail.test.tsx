@@ -39,8 +39,6 @@ const writePermission: Permission = {
 
 describe("PermissionsMasterDetail", () => {
   const onSelect = vi.fn();
-  const onEditClick = vi.fn();
-  const onDeleteClick = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -53,8 +51,6 @@ describe("PermissionsMasterDetail", () => {
         selectedId={null}
         selectedPermission={null}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 
@@ -70,8 +66,6 @@ describe("PermissionsMasterDetail", () => {
         selectedId="1"
         selectedPermission={readPermission}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 
@@ -80,23 +74,18 @@ describe("PermissionsMasterDetail", () => {
     expect(screen.getByText("Berechtigungsdetails")).toBeInTheDocument();
   });
 
-  it("triggers edit and delete callbacks from the header", () => {
+  it("does not show mutation actions in the selected detail", () => {
     render(
       <PermissionsMasterDetail
         permissions={[readPermission]}
         selectedId="1"
         selectedPermission={readPermission}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 
-    fireEvent.click(screen.getByText("Bearbeiten"));
-    expect(onEditClick).toHaveBeenCalled();
-
-    fireEvent.click(screen.getByText("Löschen"));
-    expect(onDeleteClick).toHaveBeenCalled();
+    expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
+    expect(screen.queryByText("Löschen")).not.toBeInTheDocument();
   });
 
   it("groups permissions under a single 'Alle Berechtigungen' bucket and renders a Stammdaten tab", () => {
@@ -106,8 +95,6 @@ describe("PermissionsMasterDetail", () => {
         selectedId="1"
         selectedPermission={readPermission}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 
@@ -122,8 +109,6 @@ describe("PermissionsMasterDetail", () => {
         selectedId={null}
         selectedPermission={null}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 
@@ -147,8 +132,6 @@ describe("PermissionsMasterDetail", () => {
         selectedId={null}
         selectedPermission={null}
         onSelect={onSelect}
-        onEditClick={onEditClick}
-        onDeleteClick={onDeleteClick}
       />,
     );
 

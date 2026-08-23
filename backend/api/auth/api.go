@@ -85,6 +85,18 @@ func NewResource(authService authService.AuthService, invitationService authServ
 	}
 }
 
+func requirePlatformScope(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		claims := jwt.ClaimsFromCtx(r.Context())
+		if !claims.IsPlatformScope() {
+			common.RenderError(w, r, authorize.ErrForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 // Router returns a configured router for auth endpoints
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
@@ -208,12 +220,12 @@ func (rs *Resource) Router() chi.Router {
 
 			// Permission management routes
 			r.Route(pathPermissions, func(r chi.Router) {
-				r.With(authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
+				r.With(requirePlatformScope, authorize.RequiresPermission("permissions:create")).Post("/", rs.createPermission)
 				r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.listPermissions)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("permissions:read")).Get("/", rs.getPermissionByID)
-					r.With(authorize.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
-					r.With(authorize.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
+					r.With(requirePlatformScope, authorize.RequiresPermission("permissions:update")).Put("/", rs.updatePermission)
+					r.With(requirePlatformScope, authorize.RequiresPermission("permissions:delete")).Delete("/", rs.deletePermission)
 				})
 			})
 
