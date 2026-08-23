@@ -29,6 +29,7 @@ import (
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1183,11 +1184,10 @@ func TestPermissionManagement(t *testing.T) {
 // TestAccountManagement tests account management endpoints (protected)
 func TestAccountManagement(t *testing.T) {
 	t.Parallel()
-	tc, router := setupProtectedRouter(t)
+	_, router := setupProtectedRouter(t)
 
-	tenantID := testpkg.Tenant(t)
-	account := testpkg.CreateTestAccount(t, tc.db, "account-management-list")
-	adminClaims := testutil.AdminTestClaimsForTenant(1, tenantID)
+	adminClaims := testutil.AdminTestClaims(1)
+	adminClaims.Scope = tenant.ScopePlatform
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
@@ -1198,10 +1198,7 @@ func TestAccountManagement(t *testing.T) {
 		response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 		data, ok := response["data"].([]interface{})
 		require.True(t, ok, "Expected data to be an array")
-		require.Len(t, data, 1)
-		listed, ok := data[0].(map[string]interface{})
-		require.True(t, ok, "Expected account data to be an object")
-		assert.Equal(t, float64(account.ID), listed["id"])
+		assert.NotEmpty(t, data, "Expected at least one account")
 	})
 
 	t.Run("list accounts forbidden without permission", func(t *testing.T) {

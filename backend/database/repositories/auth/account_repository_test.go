@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -215,6 +216,63 @@ func TestAccountRepository_List(t *testing.T) {
 		accounts, err := repo.List(ctx, nil)
 		require.NoError(t, err)
 		assert.NotEmpty(t, accounts)
+	})
+}
+
+func TestAccountRepository_FindByRole(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.Ctx(t)
+
+	t.Run("finds accounts by role name", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "findbyrole")
+		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
+		require.NoError(t, err)
+
+		accounts, err := repo.FindByRole(ctx, role.Name)
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+
+		var found bool
+		for _, a := range accounts {
+			if a.ID == account.ID {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "Account should be found by role")
+	})
+
+	t.Run("finds accounts by role name case insensitive", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "rolecase")
+		role := testpkg.CreateTestRole(t, db, "CaseSensitiveRole")
+		defer cleanupAccountRecords(t, db, account.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
+
+		_, err := db.ExecContext(ctx,
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			account.ID, role.ID, testpkg.Tenant(t))
+		require.NoError(t, err)
+
+		upperRoleName := strings.ToUpper(role.Name)
+		accounts, err := repo.FindByRole(ctx, upperRoleName)
+		require.NoError(t, err)
+		assert.NotEmpty(t, accounts)
+	})
+
+	t.Run("returns empty slice for non-existent role", func(t *testing.T) {
+		accounts, err := repo.FindByRole(ctx, "NonExistentRoleName12345")
+		require.NoError(t, err)
+		assert.Empty(t, accounts)
 	})
 }
 

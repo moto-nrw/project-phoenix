@@ -475,6 +475,12 @@ func (r *AccountRepository) ListManageable(ctx context.Context, filters map[stri
 	return r.list(ctx, filters, true)
 }
 
+// FindByRole retrieves manageable accounts that hold a named role in the
+// caller's tenant or organization.
+func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
+	return r.list(ctx, map[string]interface{}{"role": role}, true)
+}
+
 func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}, manageable bool) ([]*auth.Account, error) {
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
@@ -487,7 +493,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = r.applyAccountFilter(query, field, value)
+			query = r.applyAccountFilter(ctx, query, field, value)
 		}
 	}
 
@@ -503,7 +509,7 @@ func (r *AccountRepository) list(ctx context.Context, filters map[string]interfa
 }
 
 // applyAccountFilter applies a single filter to the query
-func (r *AccountRepository) applyAccountFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "email":
 		return r.applyStringEqualFilter(query, "email", value)
@@ -516,7 +522,7 @@ func (r *AccountRepository) applyAccountFilter(query *bun.SelectQuery, field str
 	case "active":
 		return query.Where("active = ?", value)
 	case "role":
-		return r.applyRoleFilter(query, value)
+		return r.applyRoleFilter(ctx, query, value)
 	default:
 		return query.Where("? = ?", bun.Ident(field), value)
 	}
@@ -539,12 +545,30 @@ func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field 
 }
 
 // applyRoleFilter applies role-based filtering
-func (r *AccountRepository) applyRoleFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.
-			Join("JOIN auth.account_roles ar ON ar.account_id = account.id").
-			Join("JOIN auth.roles r ON ar.role_id = r.id").
-			Where("LOWER(r.name) = LOWER(?)", strValue)
+		query = query.
+			Join(`JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id`).
+			Join(`JOIN auth.roles AS "role" ON "account_role".role_id = "role".id`).
+			Where(`LOWER("role".name) = LOWER(?)`, strValue)
+		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+			return query
+		}
+		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+			organizationID := tenant.OrgFromContext(ctx)
+			if organizationID == 0 {
+				return query.Where("FALSE")
+			}
+			return query.
+				Join(`INNER JOIN platform.schools AS "role_school" ON "role_school".id = "account_role".tenant_id`).
+				Where(`"role_school".organization_id = ?`, organizationID).
+				Where(`"role_school".active = TRUE`).
+				Where(`"role_school".deleted_at IS NULL`)
+		}
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			return query.Where(`"account_role".tenant_id = ?`, tenantID)
+		}
+		return query.Where("FALSE")
 	}
 	return query
 }

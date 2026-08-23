@@ -125,6 +125,38 @@ func TestAccountManagementForeignAccountsAbsentFromList(t *testing.T) {
 	assert.NotContains(t, ids, foreignID)
 }
 
+func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	local := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-role-local")
+	foreignID, _ := e.foreignAccount(t, "account-scope-role-foreign")
+	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role", e.tenantID)
+
+	for _, assignment := range []struct {
+		accountID int64
+		tenantID  int64
+	}{
+		{accountID: local.ID, tenantID: e.tenantID},
+		{accountID: foreignID, tenantID: e.foreignTenantID},
+	} {
+		_, err := e.tc.db.ExecContext(context.Background(),
+			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+			assignment.accountID, role.ID, assignment.tenantID)
+		require.NoError(t, err)
+	}
+
+	rr := e.execute(t, e.claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var response struct {
+		Data []authAPI.AccountResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+
+	ids := accountIDs(response.Data)
+	assert.Contains(t, ids, local.ID)
+	assert.NotContains(t, ids, foreignID)
+}
+
 func TestAccountManagementForeignGetDoesNotLeakExistence(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)

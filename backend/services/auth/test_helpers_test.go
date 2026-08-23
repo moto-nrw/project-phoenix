@@ -207,6 +207,10 @@ func (noopAccountRepository) UpdateAvatar(context.Context, int64, string) error 
 	panic("UpdateAvatar not implemented")
 }
 
+func (noopAccountRepository) FindByRole(context.Context, string) ([]*authModel.Account, error) {
+	panic("FindByRole not implemented")
+}
+
 func (noopAccountRepository) ListEffectiveAdminAccountIDs(context.Context) ([]int64, error) {
 	panic("ListEffectiveAdminAccountIDs not implemented")
 }
