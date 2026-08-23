@@ -256,12 +256,14 @@ func (r *CareExitCleanupRepository) CountPlannedByStudentIDsAfter(
 		SELECT student_id, COUNT(*)::int AS total FROM (
 			SELECT s.student_id AS student_id
 			FROM schedule.instance_students AS s
-			JOIN schedule.activity_instances AS ai ON ai.id = s.instance_id
+			JOIN schedule.activity_instances AS ai
+			  ON ai.id = s.instance_id AND ai.tenant_id = s.tenant_id
 			WHERE s.student_id IN (?)` + carePlannedRosterPredicate + `
 			UNION ALL
 			SELECT rm.student_id AS student_id
 			FROM users.student_care_exit_removals AS rm
-			JOIN schedule.activity_instances AS ai ON ai.id = rm.instance_id
+			JOIN schedule.activity_instances AS ai
+			  ON ai.id = rm.instance_id AND ai.tenant_id = rm.tenant_id
 			WHERE rm.kind = 'roster'
 			  AND rm.tenant_id = ?
 			  AND rm.student_id IN (?)
