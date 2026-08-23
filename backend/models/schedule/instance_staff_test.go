@@ -8,6 +8,8 @@ import (
 )
 
 func TestInstanceStaff_Validate(t *testing.T) {
+	t.Parallel()
+
 	base := func() *InstanceStaff {
 		return &InstanceStaff{InstanceID: 1, StaffID: 2}
 	}

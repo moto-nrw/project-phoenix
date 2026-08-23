@@ -219,6 +219,13 @@ export interface FormField {
     includeEmpty?: boolean;
     emptyLabel?: string;
   }>;
+  /**
+   * Extra props handed to `component`, bound where the field is configured
+   * (e.g. a room-specific default colour). Lets one shared custom field be
+   * reused with different presets instead of wrapping it per call site.
+   * The form-owned props above always win over these.
+   */
+  componentProps?: Record<string, unknown>;
   helperText?: string;
   autoComplete?: string;
   colSpan?: 1 | 2;
@@ -646,6 +653,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
         const Component = field.component;
         return (
           <Component
+            {...field.componentProps}
             value={formData[field.name]}
             onChange={(value: unknown) => {
               setFormData((prev) => ({

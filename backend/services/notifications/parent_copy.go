@@ -92,6 +92,8 @@ func parentRequestSubjectDE(requestType string) string {
 		return "Ihre Anfrage zu den Stammdaten"
 	case "excused_absence":
 		return "Ihre Abmeldung"
+	case "sick_absence":
+		return "Ihre Krankmeldung"
 	default:
 		return "Ihre Anfrage"
 	}
@@ -107,6 +109,8 @@ func parentRequestSubjectEN(requestType string) string {
 		return "Your master data request"
 	case "excused_absence":
 		return "Your absence notice"
+	case "sick_absence":
+		return "Your sick note"
 	default:
 		return "Your request"
 	}
@@ -122,6 +126,8 @@ func parentRequestSubjectRU(requestType string) string {
 		return "Ваш запрос об изменении основных данных"
 	case "excused_absence":
 		return "Ваше уведомление об отсутствии"
+	case "sick_absence":
+		return "Ваше уведомление о болезни"
 	default:
 		return "Ваш запрос"
 	}
@@ -137,6 +143,8 @@ func parentRequestSubjectSQ(requestType string) string {
 		return "Kërkesa juaj për të dhënat bazë"
 	case "excused_absence":
 		return "Njoftimi juaj për mungesën"
+	case "sick_absence":
+		return "Njoftimi juaj për sëmundjen"
 	default:
 		return "Kërkesa juaj"
 	}

@@ -484,7 +484,12 @@ describe("timetableService", () => {
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [
-          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
+          {
+            id: "7",
+            name: "Frühbetreuung Jg. 1",
+            gradeLevels: [1],
+            schoolClasses: [],
+          },
         ],
         legacyLinkedTemplateId: "7",
       },

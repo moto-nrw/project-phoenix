@@ -442,16 +442,21 @@
     "sick": {
       "title": "Abwesenheit melden",
       "intro": "Melden Sie der OGS, dass Ihr Kind an den ausgewählten Tagen nicht an der Betreuung teilnimmt. Die Anmeldung bei der OGS bleibt unverändert.",
-      "introApproval": "Melden Sie der OGS, dass Ihr Kind an den ausgewählten Tagen nicht an der Betreuung teilnimmt. Krankmeldungen gelten sofort, entschuldigte Abwesenheiten bestätigt die OGS. Die Anmeldung bei der OGS bleibt unverändert.",
       "kindLabel": "Grund der Abwesenheit",
       "kindSick": "Krank melden",
       "kindExcused": "Entschuldigen",
       "kindHintSick": "Für Krankheitstage. Die OGS sieht die Krankmeldung sofort.",
+      "kindHintSickApproval": "Die OGS bestätigt die Krankmeldung. Bis dahin gilt Ihr Kind als erwartet.",
+      "kindHintSickUnknown": "Für Krankheitstage. Die OGS erhält Ihre Krankmeldung.",
       "kindHintExcused": "Für Termine oder andere geplante Abwesenheiten. Geben Sie den Grund kurz an.",
+      "kindHintExcusedApproval": "Die OGS bestätigt die Abmeldung. Bis dahin gilt Ihr Kind als erwartet.",
+      "kindHintExcusedUnknown": "Für Termine oder andere Abwesenheiten. Geben Sie den Grund an.",
       "periodLabel": "Tage der Abwesenheit",
       "from": "Erster Tag",
       "to": "Letzter Tag",
       "daysCount": "{count, plural, one {Ihr Kind wird für diesen Tag abgemeldet.} other {Ihr Kind wird für # Tage abgemeldet.}}",
+      "requestDaysCount": "Sie fragen die Abwesenheit für die ausgewählten Tage an.",
+      "unknownDaysCount": "{count, plural, one {Ein Tag ist ausgewählt.} other {# Tage sind ausgewählt.}}",
       "reasonLabel": "Hinweis an die OGS",
       "reasonPlaceholder": "Zum Beispiel Fieber oder Arzttermin",
       "invalidDate": "Bitte wählen Sie ein gültiges Datum. Das Bis-Datum darf nicht vor dem Von-Datum liegen.",
@@ -463,7 +468,9 @@
       "submitExcused": "Entschuldigung an die OGS senden",
       "reasonLabelRequired": "Grund / Hinweis an die OGS",
       "reasonRequiredError": "Bitte geben Sie einen kurzen Hinweis für die OGS ein.",
-      "approvalHint": "Die OGS muss diese entschuldigte Abwesenheit bestätigen."
+      "approvalHint": "Nach dem Senden muss die OGS die Abwesenheit noch bestätigen.",
+      "requestSentTitle": "Anfrage gesendet",
+      "requestSentBody": "Die OGS muss die Abwesenheit noch bestätigen. Bis dahin gilt Ihr Kind als erwartet."
     },
     "summary": {
       "none": "Keine Abmeldung",
@@ -924,6 +931,15 @@
       "home": "Privat",
       "work": "Arbeit",
       "other": "Sonstige"
+    },
+    "locked": {
+      "badge": "Schon in der Betreuung",
+      "birthday": "Geburtsdatum",
+      "grade": "Klassenstufe",
+      "care": "Gebuchte Angebote",
+      "noCare": "Keine Angebote gebucht.",
+      "hint": "Änderungen für {name} laufen jetzt über die Eltern-App.",
+      "noAccess": "Sie haben noch keinen Zugang zur Eltern-App? Die OGS kann Sie einladen."
     }
   },
   "enrollmentStatus": {
@@ -1107,7 +1123,12 @@
     "renewalAdjustHint": "Sie können die Betreuung unverändert fortführen, nur Angebote oder Wochentage anpassen oder die Betreuung zum Ende des aktuellen Zeitraums beenden. Alle übrigen Daten bleiben unverändert.",
     "adjustTitle": "Angebote und Wochentage anpassen",
     "adjustDescription": "Passen Sie nur die Betreuungsangebote und gebuchten Wochentage an. Alle übrigen Daten bleiben unverändert und werden nicht erneut abgefragt.",
-    "adjustSubmit": "Anpassung senden"
+    "adjustSubmit": "Anpassung senden",
+    "lockedChildHint": "Änderungen für dieses Kind laufen über die Eltern-App.",
+    "lockedAllTitle": "Änderungen laufen über die Eltern-App",
+    "lockedAllBodyOne": "Ihr Kind ist schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllBodyMany": "Ihre Kinder sind schon in der Betreuung. Änderungen stellen Sie jetzt in der Eltern-App. Sie haben noch keinen Zugang? Die OGS kann Sie einladen.",
+    "lockedAllAction": "Zur Eltern-App"
   },
   "parentMasterData": {
     "title": "Daten und Betreuung",
@@ -1329,11 +1350,14 @@
     "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
     "eventRequestCreatedExcusedAbsence": "Anfrage zur entschuldigten Abmeldung gestellt",
     "eventRequestConfirmedExcusedAbsence": "Anfrage bestätigt, Abmeldung übernommen",
+    "eventRequestCreatedSickAbsence": "Anfrage zur Krankmeldung gestellt",
+    "eventRequestConfirmedSickAbsence": "Anfrage bestätigt, Krankmeldung übernommen",
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",
     "eventRequestCreatedCareOffering": "Anfrage zur gebuchten Betreuung gestellt",
-    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt"
+    "eventRequestConfirmedCareOffering": "Anfrage bestätigt, gebuchte Betreuung wird umgestellt",
+    "eventRequestConfirmedCareOfferingDated": "Anfrage bestätigt, gebuchte Betreuung wird ab {date} umgestellt"
   },
   "parentFeedback": {
     "kicker": "Rückmeldung",
@@ -1444,6 +1468,10 @@
     "overviewKicker": "Kinder im Überblick",
     "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Betreuung beendet",
+      "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
+    },
     "loadError": "Die Angaben zu Ihrem Kind konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",

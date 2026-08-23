@@ -274,12 +274,12 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomNameReserved}
 	}
 
-	// System-room color handling.
+	// Toilet-room color handling.
 	//
-	// The frontend strips the color picker for Schulhof/WC, so a benign edit
+	// The frontend strips the color picker for WC/Toilette, so a benign edit
 	// (e.g. changing capacity) arrives with room.Color == nil regardless of
 	// what's persisted. If we treated nil as "user wants to clear", every
-	// non-color edit on a Schulhof that still carries the legacy #4F46E5
+	// non-color edit on a toilet room that still carries the legacy #4F46E5
 	// bug-default would 403 — the migration covers most cases but not all
 	// (e.g. a tenant that hasn't run migrations yet, or a system room
 	// imported with a colour later).
@@ -290,12 +290,12 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// the path a malicious or buggy direct API call would take, and the one
 	// the rule actually exists to stop.
 	//
-	// Side-effect of this strategy: a system room cannot have its colour
-	// *cleared* via the API. If a Schulhof somehow carries a stale colour
-	// (legacy bug-default that escaped migration cleanup, or an imported
-	// dataset), the only way to drop it is direct SQL. Acceptable trade-off
-	// — system rooms shouldn't have admin-set colours anyway, and the
-	// alternative is admins losing the ability to edit any other field.
+	// Side-effect of this strategy: a toilet room cannot have its colour
+	// *cleared* via the API. If one somehow carries a stale colour (legacy
+	// bug-default that escaped migration cleanup, or an imported dataset),
+	// the only way to drop it is direct SQL. Acceptable trade-off — the WC
+	// has no badge of its own, and the alternative is admins losing the
+	// ability to edit any other field.
 	//
 	// Why both `room.Color != nil` AND equalStringPtr?
 	//   - Inline `*room.Color != *existingRoom.Color` would NPE when the
@@ -305,7 +305,13 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	//     this comment block exists to fix).
 	// Both checks together give: "block only when the request explicitly
 	// names a different non-nil colour, ignore colour-field absence".
-	if constants.IsSystemRoomName(existingRoom.Name) {
+	//
+	// The Schulhof is deliberately NOT covered here (#2405): schools
+	// colour-code rooms and tablets and need the yard in that scheme, so its
+	// colour follows the ordinary room rules — Validate()'s format and
+	// reserved-hex checks plus the per-tenant uniqueness index. Rename and
+	// delete protection above stays untouched.
+	if constants.IsWCRoomName(existingRoom.Name) {
 		if room.Color != nil && !equalStringPtr(room.Color, existingRoom.Color) {
 			return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
 		}

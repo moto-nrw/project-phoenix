@@ -390,8 +390,9 @@ type DecisionServiceConfig struct {
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo        users.GuardianPhoneNumberRepository             // target: guardian.phone_numbers / contact.phone_numbers
-	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
+	GuardianPhoneRepo        users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
+	PickupBaselines          OfferingPickupBaselineReader
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
 	ActivityGroupRepo        activities.GroupRepository
@@ -415,9 +416,10 @@ type DecisionServiceConfig struct {
 	FrontendURL            string                   // not used by parent-facing emails today; kept for future admin links
 	ParentsURL             string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
 	Settings               DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
-	// LockTemplateRecurrence serializes sourced roster writes with template
-	// split/end/materialization. Production wires the schedule service's
-	// transaction-scoped tenant recurrence gate; tests may leave it nil.
+	// LockTemplateRecurrence serializes offering-derived writes: sourced roster
+	// changes, booking links, care-offering configuration, and manual-pickup
+	// reset preflights. Production wires the schedule service's transaction-
+	// scoped tenant recurrence gate; tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	// InstanceRosters propagates sourced-roster resync results onto already-
 	// materialized future occurrences (#2147 review). Production wires the
@@ -1216,6 +1218,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	if input.Status == DecisionApproved {
+		if err := s.validateApprovalOfferingSelection(ctx, target, phase); err != nil {
+			return nil, err
+		}
+	}
 
 	reason := strings.TrimSpace(input.Reason)
 	var reasonPtr *string
@@ -1270,13 +1277,13 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, ErrDecisionChildNotFound
 	}
 
-	// Materialize the Angebots-Gehzeiten AFTER the refresh: the re-read
-	// child carries the created_student_id the approval just stamped (#2290).
+	// Refresh projected-pickup consumers AFTER the re-read has the student id
+	// stamped by this approval.
 	if input.Status == DecisionApproved {
 		today := timezone.TodayDate()
 		if !phase.ServiceStartDate.After(today) {
-			if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy, today); err != nil {
-				return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+			if err := s.syncOfferingPickupAfterApproval(ctx, target); err != nil {
+				return nil, fmt.Errorf("decision: refresh offering pickup projection: %w", err)
 			}
 		}
 	}
@@ -1305,6 +1312,54 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = target
 	return outcome, nil
+}
+
+func (s *decisionService) validateApprovalOfferingSelection(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx,
+		child.ID,
+		phase.ServiceStartDate,
+	)
+	if err != nil {
+		return fmt.Errorf("decision: validate child offerings: %w", err)
+	}
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	choosableCount := 0
+	for _, offering := range offerings {
+		if offering != nil && offering.PhaseID == phase.ID && !offering.IsRequired {
+			choosableCount++
+		}
+	}
+	switch phase.CareOfferingSelectionMode {
+	case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		if choosableCount == 0 {
+			return ErrCareOfferingMissing
+		}
+	case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		if choosableCount != 1 {
+			return ErrCareOfferingExactlyOneRequired
+		}
+	}
+	return nil
 }
 
 func isParentVisibleDecision(status DecisionStatus) bool {
@@ -2915,6 +2970,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
+			SchoolClasses:        tmpl.SourceSchoolClasses,
 			CalendarPeriodID:     tmpl.CalendarPeriodID,
 			EffectiveFrom:        effectiveFrom,
 			ScopeRequestChildIDs: scopeRequestChildIDs,
@@ -4210,31 +4266,30 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if hhmm == "" {
 			continue
 		}
+		if !isPickup {
+			row := &scheduleModels.StudentArrivalSchedule{
+				StudentID: studentID,
+				Weekday:   weekdayInt[day],
+				CreatedBy: createdBy,
+			}
+			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
+				return fmt.Errorf("create arrival %s: %w", day, err)
+			}
+			continue
+		}
 		t, err := time.Parse("15:04", hhmm)
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
 		t = timezone.WallClock(t)
-		if isPickup {
-			row := &scheduleModels.StudentPickupSchedule{
-				StudentID:  studentID,
-				Weekday:    weekdayInt[day],
-				PickupTime: t,
-				CreatedBy:  createdBy,
-			}
-			if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
-				return fmt.Errorf("upsert pickup %s: %w", day, err)
-			}
-		} else {
-			row := &scheduleModels.StudentArrivalSchedule{
-				StudentID:       studentID,
-				Weekday:         weekdayInt[day],
-				ExpectedArrival: t,
-				CreatedBy:       createdBy,
-			}
-			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
-				return fmt.Errorf("create arrival %s: %w", day, err)
-			}
+		row := &scheduleModels.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    weekdayInt[day],
+			PickupTime: t,
+			CreatedBy:  createdBy,
+		}
+		if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+			return fmt.Errorf("upsert pickup %s: %w", day, err)
 		}
 	}
 	return nil

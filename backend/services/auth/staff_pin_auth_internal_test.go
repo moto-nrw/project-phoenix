@@ -114,6 +114,8 @@ func expectStaffPINAuthTenantTx(mock sqlmock.Sqlmock) {
 }
 
 func TestAuthenticateStaffPINAcceptsMatchingAccountPIN(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{
 		Model:  base.Model{ID: 10},
 		Active: true,
@@ -133,6 +135,8 @@ func TestAuthenticateStaffPINAcceptsMatchingAccountPIN(t *testing.T) {
 }
 
 func TestAuthenticateStaffPINCommitsFailedAttemptForWrongPIN(t *testing.T) {
+	t.Parallel()
+
 	account := &authModel.Account{
 		Model:  base.Model{ID: 10},
 		Active: true,
@@ -151,6 +155,8 @@ func TestAuthenticateStaffPINCommitsFailedAttemptForWrongPIN(t *testing.T) {
 }
 
 func TestAuthenticateStaffPINRejectsLockedAccount(t *testing.T) {
+	t.Parallel()
+
 	lockedUntil := time.Now().Add(time.Hour)
 	account := &authModel.Account{
 		Model:          base.Model{ID: 10},
@@ -171,6 +177,8 @@ func TestAuthenticateStaffPINRejectsLockedAccount(t *testing.T) {
 }
 
 func TestAuthenticateStaffPINRejectsNonActiveTenantMapping(t *testing.T) {
+	t.Parallel()
+
 	for _, status := range []string{
 		authModel.AccountTenantStatusPending,
 		authModel.AccountTenantStatusInactive,

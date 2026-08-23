@@ -22,6 +22,8 @@ func datePtr(d timezone.Date) *timezone.Date { return &d }
 // A school-year phase IS the child's new master window: it replaces whatever
 // the previous year left behind, in both directions.
 func TestRenewedEnrollmentWindow_SchoolYearReplaces(t *testing.T) {
+	t.Parallel()
+
 	phase := windowPhase(enrollmentModels.PhaseKindSchoolYear,
 		timezone.NewDate(2027, 9, 1), timezone.NewDate(2028, 7, 31))
 
@@ -37,6 +39,8 @@ func TestRenewedEnrollmentWindow_SchoolYearReplaces(t *testing.T) {
 // with it would let the deactivation scheduler mark them inactive when the
 // holiday ends.
 func TestRenewedEnrollmentWindow_HolidayNeverTruncatesActiveWindow(t *testing.T) {
+	t.Parallel()
+
 	phase := windowPhase(enrollmentModels.PhaseKindHoliday,
 		timezone.NewDate(2027, 10, 11), timezone.NewDate(2027, 10, 22))
 
@@ -50,6 +54,8 @@ func TestRenewedEnrollmentWindow_HolidayNeverTruncatesActiveWindow(t *testing.T)
 // The window is still WIDENED where the phase reaches beyond it, so a child
 // whose window already expired is covered for the booked period.
 func TestRenewedEnrollmentWindow_CustomWidensExpiredWindow(t *testing.T) {
+	t.Parallel()
+
 	phase := windowPhase(enrollmentModels.PhaseKindCustom,
 		timezone.NewDate(2027, 8, 1), timezone.NewDate(2027, 8, 20))
 
@@ -63,6 +69,8 @@ func TestRenewedEnrollmentWindow_CustomWidensExpiredWindow(t *testing.T) {
 // A legacy student without a stored window takes the phase's dates whatever
 // the kind is — there is nothing to preserve.
 func TestRenewedEnrollmentWindow_MissingBoundsTakePhaseDates(t *testing.T) {
+	t.Parallel()
+
 	phase := windowPhase(enrollmentModels.PhaseKindHoliday,
 		timezone.NewDate(2027, 10, 11), timezone.NewDate(2027, 10, 22))
 

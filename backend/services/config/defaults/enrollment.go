@@ -150,6 +150,25 @@ func registerEnrollmentCareOfferings() {
 		SortOrder:       31,
 	})
 
+	// Operator-only, because switching it changes what the whole school sees
+	// as "wird erwartet": in this mode the booked care offerings decide which
+	// weekdays a child is in care, and the arrival times follow them
+	// (#2414, ADR 0005). Schools without a Halbjahresanmeldung keep the
+	// class timetable as the only source and are unaffected.
+	config.Register(config.Definition{
+		Key:             config.KeyEnrollmentBookingsAuthoritative,
+		Label:           "Buchungen bestimmen die Betreuungstage",
+		Description:     "Die gebuchten Betreuungsangebote legen fest, an welchen Wochentagen ein Kind da ist. Ankunfts- und Abholzeiten gelten dann nur an gebuchten Tagen. Nur für Schulen mit Anmeldung über moto.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "enrollment",
+		Category:        "betreuungsangebote",
+		SortOrder:       32,
+		AccessPolicy:    config.AccessOperatorOnly,
+	})
+
 	minLeadDays := float64(0)
 	maxLeadDays := float64(90)
 	config.Register(config.Definition{

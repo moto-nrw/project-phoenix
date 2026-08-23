@@ -27,8 +27,9 @@ import (
 // into the child's thread (the parent's own timeline of what they changed), and
 // deleting it drops a correction pill.
 func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
@@ -55,7 +56,6 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A future in-window date; a fixed clock time is fine (wall-clock only).
 	today := timezone.TodayDate()
@@ -86,8 +86,9 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 // showing a stale pickup time until they refocused or reloaded. The write must
 // now fan a message-independent parent_child_updated wake to EVERY guardian.
 func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
@@ -117,7 +118,6 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	date := timezone.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)

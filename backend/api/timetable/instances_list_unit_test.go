@@ -14,6 +14,8 @@ import (
 // the template value; both NULL means "derive from the Betreuungsschlüssel"
 // downstream (#1839).
 func TestInstanceRequiredStaffOverride(t *testing.T) {
+	t.Parallel()
+
 	pin := 5
 	tmpl := 3
 
@@ -42,6 +44,8 @@ func TestInstanceRequiredStaffOverride(t *testing.T) {
 // the early-pickup marker — the child is not leaving early, they are not
 // coming at all (#2360 review round 5).
 func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.T) {
+	t.Parallel()
+
 	const studentID = int64(4711)
 	day := timezone.NewDate(2030, time.March, 4)
 	inst := &scheduleModel.ActivityInstance{

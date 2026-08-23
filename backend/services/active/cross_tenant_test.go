@@ -25,14 +25,13 @@ func createActiveServiceWithCrossTenant(t *testing.T, db *bun.DB) active.Service
 }
 
 func TestCrossTenantStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Ensure two tenants exist
-	tenantA := int64(42)
-	tenantB := int64(43)
-	testpkg.CleanupTenantTestData(t, db, tenantA, tenantB)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
@@ -84,10 +83,8 @@ func TestCrossTenantStudents(t *testing.T) {
 
 	t.Run("ended visits are not returned", func(t *testing.T) {
 		// Use a different pair of tenants to avoid pollution
-		tenantC := int64(44)
-		tenantD := int64(45)
-		testpkg.CleanupTenantTestData(t, db, tenantC, tenantD)
-		t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantC, tenantD) })
+		tenantC := testpkg.UniqueTestTenantID(t)
+		tenantD := testpkg.UniqueTestTenantID(t)
 		testpkg.EnsureTestTenant(t, db, tenantC)
 		testpkg.EnsureTestTenant(t, db, tenantD)
 
@@ -124,13 +121,12 @@ func TestCrossTenantStudents(t *testing.T) {
 // TestCrossTenantRepository_Direct tests the repository directly to ensure
 // the SQL query works correctly.
 func TestCrossTenantRepository_Direct(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	tenantHost := int64(50)
-	tenantVisitor := int64(51)
-	testpkg.CleanupTenantTestData(t, db, tenantHost, tenantVisitor)
-	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantHost, tenantVisitor) })
+	db := testpkg.SetupTestDB(t)
+
+	tenantHost := testpkg.UniqueTestTenantID(t)
+	tenantVisitor := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantHost)
 	testpkg.EnsureTestTenant(t, db, tenantVisitor)
 

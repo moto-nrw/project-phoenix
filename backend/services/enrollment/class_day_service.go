@@ -24,16 +24,24 @@ const StudentStatusDayCancelled = "cancelled"
 // names or contact details: the Lehrkraft view is a privacy-reduced
 // projection of the class roster — who stays, who goes home, and how.
 type ClassDayRow struct {
-	StudentID  int64    `json:"student_id"`
-	FirstName  string   `json:"first_name"`
-	LastName   string   `json:"last_name"`
-	GroupName  string   `json:"group_name,omitempty"`
-	Registered bool     `json:"registered"`
-	StaysToday bool     `json:"stays_today"`
-	Offerings  []string `json:"offerings"`
-	Arrival    string   `json:"arrival,omitempty"`
-	Pickup     string   `json:"pickup,omitempty"`
-	Departure  string   `json:"departure,omitempty"`
+	StudentID int64  `json:"student_id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	// ListEntry marks a class-list-only entry (#2382): a child of the class
+	// cohort with NO OGS record ("Keine Betreuung"). StudentID is 0;
+	// ListEntryID carries the users.class_list_entries id, serialized as a
+	// JSON string because JavaScript clients round numbers beyond 2^53. The
+	// row never stays, never has offerings, times or a departure plan — and
+	// unlike a missing plan of an OGS child, that is a statement, not a gap.
+	ListEntry   bool     `json:"list_entry,omitempty"`
+	ListEntryID int64    `json:"list_entry_id,string,omitempty"`
+	GroupName   string   `json:"group_name,omitempty"`
+	Registered  bool     `json:"registered"`
+	StaysToday  bool     `json:"stays_today"`
+	Offerings   []string `json:"offerings"`
+	Arrival     string   `json:"arrival,omitempty"`
+	Pickup      string   `json:"pickup,omitempty"`
+	Departure   string   `json:"departure,omitempty"`
 	// Status is the scheduled day status ("sick" / "excused" / "class_trip",
 	// plus the derived "cancelled" when a pickup exception calls the care day
 	// off), empty when none is reported. The free-text note stays private.
@@ -45,6 +53,11 @@ type ClassDayTotals struct {
 	Staying  int `json:"staying"`
 	Leaving  int `json:"leaving"`
 	Absent   int `json:"absent"`
+	// ListEntries counts the class-list-only entries (#2382) among Students.
+	// They are neither staying nor leaving: "Keine Betreuung" is a roster
+	// statement, not a handoff instruction, so they get their own bucket
+	// instead of inflating "Gehen nach Hause".
+	ListEntries int `json:"list_entries"`
 }
 
 type ClassDayReport struct {
@@ -303,7 +316,10 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	// roster build and the departure rendering below. The view fans out per
 	// class on the teachers' landing page — re-reading identical students
 	// per phase (and again for the departures) was pure query fan-out.
-	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass})
+	// The date matters for more than the offering selection: a child whose
+	// care ended belongs on the sheets of the days they were still there and
+	// on none after that (#2487).
+	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass, OfferingDate: &date})
 	if err != nil {
 		return nil, err
 	}
@@ -337,9 +353,26 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 		}
 	}
 
+	// The class-list-only entries (#2382) complete the Klassenverband:
+	// children without any OGS record, marked "Keine Betreuung". They sort in
+	// alphabetically like every student row and can never stay in care.
+	entryRows, err := s.classListEntryRows(ctx, schoolClass, false)
+	if err != nil {
+		return nil, err
+	}
+	if len(entryRows) > 0 {
+		if len(rosterRows)+len(entryRows) > maxReportRows {
+			return nil, fmt.Errorf("class day report: %d rows: %w", len(rosterRows)+len(entryRows), ErrReportExportTooLarge)
+		}
+		rosterRows = append(rosterRows, entryRows...)
+		sortClassRosterRows(rosterRows)
+	}
+
 	studentIDs := make([]int64, 0, len(rosterRows))
 	for _, row := range rosterRows {
-		studentIDs = append(studentIDs, row.StudentID)
+		if row.StudentID > 0 {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
 	}
 
 	// Weekends render "Kein Schultag" — skip the status/departure/schedule
@@ -615,28 +648,38 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		// zeroed totals below) — a weekend request must not serve any
 		// departure instruction to non-UI consumers either.
 		departure := ""
-		if weekday != "" {
+		if weekday != "" && !row.ListEntry {
+			// A class-list-only entry has no departure column at all: "Keine
+			// Betreuung" is the whole statement, and rendering "Keine Angabe"
+			// would suggest a plan gap the office should fill.
 			departure = departures[row.StudentID]
 			if departure == "" {
 				departure = classDayDepartureUnknown
 			}
 		}
 		dayRow := ClassDayRow{
-			StudentID:  row.StudentID,
-			FirstName:  row.FirstName,
-			LastName:   row.LastName,
-			GroupName:  row.GroupName,
-			Registered: row.Registered,
-			StaysToday: stays,
-			Offerings:  offerings,
-			Arrival:    arrival,
-			Pickup:     pickup,
-			Departure:  departure,
-			Status:     status,
+			StudentID:   row.StudentID,
+			FirstName:   row.FirstName,
+			LastName:    row.LastName,
+			ListEntry:   row.ListEntry,
+			ListEntryID: row.ListEntryID,
+			GroupName:   row.GroupName,
+			Registered:  row.Registered,
+			StaysToday:  stays,
+			Offerings:   offerings,
+			Arrival:     arrival,
+			Pickup:      pickup,
+			Departure:   departure,
+			Status:      status,
 		}
 		report.Rows = append(report.Rows, dayRow)
 		report.Totals.Students++
 		switch {
+		case row.ListEntry:
+			// A class-list-only entry neither stays nor leaves — "Keine
+			// Betreuung" is its own neutral roster bucket, never a
+			// "geht nach Hause" claim.
+			report.Totals.ListEntries++
 		case status != "":
 			report.Totals.Absent++
 		case stays:
@@ -651,6 +694,7 @@ func buildClassDayReport(schoolClass string, date timezone.Date, phaseName strin
 		report.Totals.Staying = 0
 		report.Totals.Leaving = 0
 		report.Totals.Absent = 0
+		report.Totals.ListEntries = 0
 	}
 	return report
 }

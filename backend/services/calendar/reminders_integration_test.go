@@ -77,20 +77,16 @@ func berlinInstant(t *testing.T, date timezone.Date, hour, minute int) time.Time
 // The reminder scan walks the real query, the real occurrence expansion and the
 // real recipient resolution. Only the outbox is a recorder.
 func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
@@ -105,7 +101,6 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	require.Len(t, outbox.enqueued, 1, "the published notice")
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
@@ -152,8 +147,9 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
@@ -163,17 +159,12 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
 	service := calendarSvc.NewService(cfg)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -186,7 +177,6 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	require.Len(t, outbox.enqueued, 1, "the lifecycle e-mail uses explicit opt-out semantics")
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
@@ -199,8 +189,9 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{}
@@ -211,15 +202,10 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	service := calendarSvc.NewService(cfg)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	_, err := db.NewUpdate().
 		TableExpr(`users.guardian_profiles`).
 		Set(`email = NULL`).
@@ -228,7 +214,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	require.NoError(t, err)
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err = service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -241,7 +227,6 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	notifier.events = nil // Ignore the appointment publication push.
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
@@ -259,8 +244,9 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: errors.New("temporary notification failure")}
@@ -271,15 +257,10 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	service := calendarSvc.NewService(cfg)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	_, err := db.NewUpdate().
 		TableExpr(`users.guardian_profiles`).
 		Set(`email = NULL`).
@@ -288,7 +269,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	require.NoError(t, err)
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err = service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -301,7 +282,6 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	notifier.events = nil
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
@@ -322,20 +302,16 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 // outbox must still remind the guardians who agreed to hear it on their device;
 // gating the scan on the outbox would silence the push half along with it.
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoOutbox")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoOutbox")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{}).
+	_, err := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{}).
 		CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 			Title:        "Elternabend",
 			StartDate:    appointmentDate,
@@ -349,7 +325,6 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 			},
 		})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	notifier := &reminderCaptureNotifier{}
 	cfg := calendarTestConfig(db)
@@ -373,8 +348,9 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 // The push claim must not survive it though — nothing was delivered, so a later
 // scan has to be free to send once a device exists.
 func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSubscribers(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
@@ -384,16 +360,11 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
 	service := calendarSvc.NewService(cfg)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -406,10 +377,9 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, 1, queued)
@@ -423,8 +393,9 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 }
 
 func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	cfg := calendarTestConfig(db)
@@ -432,16 +403,11 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}
 	service := calendarSvc.NewService(cfg)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	appointmentDate := timezone.NewDate(2026, 4, 2)
-	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -454,27 +420,22 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	assert.Empty(t, outbox.enqueued, "a guardian who opted out must not receive the appointment e-mail")
 }
 
 // A cancelled appointment must not remind anyone: the guardians already got the
 // cancellation notice, and a reminder for it would contradict it.
 func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "CancelRem", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "CancelRem", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 9)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Ausflug",
@@ -489,7 +450,6 @@ func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	_, err = service.CancelStaffAppointment(ctx, detail.Appointment.ID)
 	require.NoError(t, err)
@@ -506,22 +466,18 @@ func TestCalendarServiceIntegration_CancelledAppointmentIsNotReminded(t *testing
 // outside the reminder's reach: the reminder is a second notice on a channel the
 // organizer opted into, not a new one.
 func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SilentRem", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SilentRem", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 16)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Interner Termin",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -534,7 +490,6 @@ func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T)
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 	require.Empty(t, outbox.enqueued, "no publish mail either")
 
 	startsAt := berlinInstant(t, appointmentDate, 15, 0)
@@ -548,23 +503,19 @@ func TestCalendarServiceIntegration_SilentAppointmentIsNotReminded(t *testing.T)
 // date — a reminder that advertised the series start would be wrong for all but
 // the first.
 func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SeriesRem", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SeriesRem", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	seriesStart := timezone.NewDate(2026, 5, 6) // a Wednesday
 	endsOn := timezone.NewDate(2026, 5, 27)
-	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Mittwochs-AG",
 		StartDate:    seriesStart,
 		EndDate:      seriesStart,
@@ -583,7 +534,6 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	secondOccurrence := timezone.NewDate(2026, 5, 13)
 	startsAt := berlinInstant(t, secondOccurrence, 14, 0)
@@ -615,26 +565,22 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 // past the date range — which fails the scan for the whole tenant, not just for
 // this appointment, so nobody in that school gets a reminder that tick.
 func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ExtremeRem", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ExtremeRem", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	appointmentDate := timezone.NewDate(2026, 4, 2)
 	// The series starts before the scan window, so it only reaches the candidate
 	// query through its recurrence bound — the arm that does the date arithmetic.
 	seriesStart := timezone.NewDate(2025, 4, 2)
 	occurrenceCount := calModels.MaxRecurrenceOccurrenceCount
-	extreme, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Jahrhundertreihe",
 		StartDate:    seriesStart,
 		EndDate:      seriesStart,
@@ -652,11 +598,10 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, extreme.Appointment.ID) })
 
 	// A second, ordinary appointment in the same window: the point is that it
 	// still gets its reminder while the extreme series sits in the same scan.
-	plain, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
+	_, err = service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
 		Title:        "Elternabend",
 		StartDate:    appointmentDate,
 		EndDate:      appointmentDate,
@@ -669,7 +614,6 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, plain.Appointment.ID) })
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	queued, err := service.EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
@@ -678,21 +622,17 @@ func TestCalendarServiceIntegration_ExtremeRecurrenceIntervalDoesNotBreakTheScan
 }
 
 func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	outbox := &recordingOutbox{}
 	service := setupCalendarServiceWithOutbox(t, db, outbox)
 	repos := repositories.NewFactory(db)
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MovedReminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, parentChain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
-	ctx := calendarContext(organizerAccount.ID)
+	ctx := calendarContext(t, organizerAccount.ID)
 	seriesStart := timezone.NewDate(2026, 1, 7)
 	endsOn := timezone.NewDate(2026, 1, 7)
 	detail, err := service.CreateStaffAppointment(ctx, calendarSvc.CreateAppointmentRequest{
@@ -712,7 +652,6 @@ func TestCalendarServiceIntegration_ReminderForMovedRecurringOccurrence(t *testi
 		Targets: []calendarSvc.AppointmentTarget{{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
 
 	movedDate := timezone.NewDate(2026, 2, 4)
 	require.NoError(t, repos.CalendarOccurrenceOverride.Create(ctx, &calModels.AppointmentOccurrenceOverride{

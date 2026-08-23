@@ -778,8 +778,15 @@ func buildClassRosterTableDocument(report *enrollmentService.ClassRosterReport) 
 			currentClass = class
 			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
+		name := strings.TrimSpace(row.FirstName + " " + row.LastName)
+		if row.ListEntry {
+			// Class-list-only entry (#2382): the child has no OGS record at
+			// all. The marker sits in the name cell because the roster table
+			// has no status column — every weekday cell stays "—".
+			name += " (" + enrollmentService.ClassListEntryNoCareLabel + ")"
+		}
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:             strings.TrimSpace(row.FirstName + " " + row.LastName),
+			listexport.ColumnName:             name,
 			listexport.ColumnSchoolClass:      row.SchoolClass,
 			listexport.ColumnWeeklyMonday:     classRosterWeeklyCell(row, "mon"),
 			listexport.ColumnWeeklyTuesday:    classRosterWeeklyCell(row, "tue"),
@@ -820,7 +827,11 @@ func classRosterSubtitle(report *enrollmentService.ClassRosterReport) string {
 	if report == nil {
 		return "0 Kinder"
 	}
-	return fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+	subtitle := fmt.Sprintf("%d Kinder, %d angemeldet", report.Totals.Students, report.Totals.Registered)
+	if report.Totals.ListEntries > 0 {
+		subtitle += fmt.Sprintf(", %d ohne Betreuung", report.Totals.ListEntries)
+	}
+	return subtitle
 }
 
 func classRosterFilterLabels(report *enrollmentService.ClassRosterReport) []string {

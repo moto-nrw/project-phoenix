@@ -26,7 +26,6 @@ import (
 	mealplanModels "github.com/moto-nrw/project-phoenix/models/mealplan"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
@@ -36,7 +35,6 @@ import (
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -83,26 +81,19 @@ type Service interface {
 	// status must be StudentStatusDaySick or StudentStatusDayExcused. Gated by
 	// operations.parent_sick_note_enabled for the child's tenant.
 	//
-	// A "sick" report (and, by default, an "excused" report) is written straight
-	// to the status days — it clears any opposing status days for the date,
-	// upserts a status-day per date with source=parent, and (for sick) flips the
-	// live sick flag when today is included; excused sets no live flag (#1735).
+	// By default, both statuses become PENDING requests. The independent sick
+	// and excused approval settings can opt a school into direct status writes.
 	// A note is mandatory for both absence types.
-	//
-	// When the school turned operations.parent_excused_requires_approval on, an
-	// "excused" report instead becomes a PENDING request (#1845): no status day
-	// is written until staff approve it, so the result carries PendingRequest
-	// and an empty StatusDays. Sick reports are always direct.
 	SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error)
 
-	// ListExcusedRequests returns the child's pending excused-absence approval
-	// requests plus any decided in the recent window (so a parent sees a
-	// declined request), newest-first. Empty when the approval gate is off.
-	// Authorization only.
+	// ListExcusedRequests returns the child's pending sick and excused absence
+	// requests plus any decided in the recent window, newest-first. The method
+	// retains its legacy excused-only name. Authorization only.
 	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
 
-	// WithdrawExcusedRequest withdraws the caller's own pending excused-absence
-	// request. Authorization: the account must be the submitting guardian.
+	// WithdrawExcusedRequest withdraws the caller's own pending sick or excused
+	// absence request. The method retains its legacy excused-only name.
+	// Authorization: the account must be the submitting guardian.
 	WithdrawExcusedRequest(ctx context.Context, accountID, studentID, requestID int64) (*activeModels.ExcusedAbsenceRequest, error)
 
 	// ListSickDays returns the child's currently-active parent-facing
@@ -217,55 +208,6 @@ type Service interface {
 	// parent-portal sidebar badge. Cross-tenant; a light COUNT, not a projection.
 	UnreadMessageCount(ctx context.Context, accountID int64) (int, error)
 
-	// --- Feedback board to the product team (#1678) ---
-	//
-	// This board is deliberately NOT the school's: entries are addressed to
-	// moto, the school never sees them, and guardian identities are replaced by
-	// a pseudonym before they leave the database. Every method below validates
-	// that the guardian has a child at tenantID and then runs inside a
-	// parent-actor transaction.
-
-	// ListFeedbackSchools returns the schools whose feedback board the guardian
-	// may post to, for the picker shown to multi-school guardians.
-	ListFeedbackSchools(ctx context.Context, accountID int64) ([]*FeedbackSchool, error)
-
-	// ListFeedback returns one school's parent feedback board.
-	// sortBy is "score" (default), "newest" or "status".
-	ListFeedback(ctx context.Context, accountID, tenantID int64, sortBy string) ([]*suggestionsModels.Post, error)
-
-	// CreateFeedback posts new feedback and returns the stored entry.
-	CreateFeedback(ctx context.Context, accountID, tenantID int64, title, description string) (*suggestionsModels.Post, error)
-
-	// GetFeedback returns one entry including vote and comment counts.
-	GetFeedback(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
-
-	// UpdateFeedback edits the guardian's own entry (title/description only).
-	UpdateFeedback(ctx context.Context, accountID, tenantID, postID int64, title, description string) (*suggestionsModels.Post, error)
-
-	// DeleteFeedback removes the guardian's own entry.
-	DeleteFeedback(ctx context.Context, accountID, tenantID, postID int64) error
-
-	// VoteFeedback casts or changes a vote ("up"/"down").
-	VoteFeedback(ctx context.Context, accountID, tenantID, postID int64, direction string) (*suggestionsModels.Post, error)
-
-	// RemoveFeedbackVote withdraws the guardian's vote.
-	RemoveFeedbackVote(ctx context.Context, accountID, tenantID, postID int64) (*suggestionsModels.Post, error)
-
-	// ListFeedbackComments returns one entry's thread, oldest first.
-	ListFeedbackComments(ctx context.Context, accountID, tenantID, postID int64) ([]*suggestionsModels.Comment, error)
-
-	// CreateFeedbackComment appends a comment to a thread.
-	CreateFeedbackComment(ctx context.Context, accountID, tenantID, postID int64, content string) error
-
-	// DeleteFeedbackComment removes the guardian's own comment from one thread.
-	DeleteFeedbackComment(ctx context.Context, accountID, tenantID, postID, commentID int64) error
-
-	// MarkFeedbackCommentsRead clears the unread marker of one thread.
-	MarkFeedbackCommentsRead(ctx context.Context, accountID, tenantID, postID int64) error
-
-	// FeedbackUnreadCount sums unread replies across all the guardian's boards.
-	FeedbackUnreadCount(ctx context.Context, accountID int64) (int, error)
-
 	// GetChildConversation returns the guardian's conversation about one owned
 	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
 	// 0) when no conversation exists yet. Authorization only.
@@ -343,7 +285,15 @@ type Service interface {
 // ChildFeatureFlags reports the resolved per-tenant parent-portal feature
 // toggles for a single child.
 type ChildFeatureFlags struct {
+	// CareEnded says the child has left the OGS (#2487). It is STATE, not a
+	// capability: when it is true every write flag below is false, and the
+	// portal shows a read-only profile with one sentence explaining why
+	// instead of buttons that would all fail the same way.
+	CareEnded       bool
 	SickNoteEnabled bool
+	// SickRequiresApproval is true when a Krankmeldung stays pending until the
+	// OGS confirms it (operations.parent_sick_requires_approval, #2449).
+	SickRequiresApproval bool
 	// ExcusedRequiresApproval is true when an "excused" report must be confirmed
 	// by the office before it takes effect (operations.parent_excused_requires_approval,
 	// #1845). The parent UI uses it to explain that the absence will be pending
@@ -468,9 +418,9 @@ type ServiceConfig struct {
 	ArrivalSchedules scheduleSvc.ArrivalScheduleService
 	PickupSchedules  scheduleSvc.PickupScheduleService
 	CareRequests     scheduleSvc.CareScheduleRequestService
-	// ExcusedRequests backs the optional office-approval gate for parent
-	// excused absences (#1845). When the school setting is on, an excused
-	// submission becomes a pending request here instead of a direct status day.
+	// ExcusedRequests is the legacy-named office-approval store for parent sick
+	// and excused absences. When the matching setting is on, a submission becomes
+	// a pending request here instead of a direct status day.
 	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
 
 	// AbsenceNotifier informs the child's group and the office that an absence
@@ -504,11 +454,6 @@ type ServiceConfig struct {
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
-
-	// Suggestions backs the parent feedback board (#1678). It is the same
-	// service the staff board uses; the two are kept apart by the actor-scoped
-	// RLS policy, which tenant.WithParentTx switches to the parent side.
-	Suggestions suggestionsSvc.Service
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.

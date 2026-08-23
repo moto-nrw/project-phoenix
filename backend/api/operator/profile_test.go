@@ -20,6 +20,8 @@ import (
 )
 
 func TestGetProfile_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			assert.Equal(t, int64(123), id)
@@ -55,6 +57,8 @@ func TestGetProfile_Success(t *testing.T) {
 }
 
 func TestGetProfile_OperatorNotFound(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return nil, &platformSvc.OperatorNotFoundError{}
@@ -76,6 +80,8 @@ func TestGetProfile_OperatorNotFound(t *testing.T) {
 }
 
 func TestGetProfile_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		getOperatorFn: func(ctx context.Context, id int64) (*platform.Operator, error) {
 			return nil, errors.New("database error")
@@ -97,6 +103,8 @@ func TestGetProfile_ServiceError(t *testing.T) {
 }
 
 func TestUpdateProfile_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
 			assert.Equal(t, int64(123), operatorID)
@@ -136,6 +144,8 @@ func TestUpdateProfile_Success(t *testing.T) {
 }
 
 func TestUpdateProfile_EmptyDisplayName(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -157,6 +167,8 @@ func TestUpdateProfile_EmptyDisplayName(t *testing.T) {
 }
 
 func TestUpdateProfile_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -173,6 +185,8 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 }
 
 func TestUpdateProfile_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		updateProfileFn: func(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
 			return nil, &platformSvc.InvalidDataError{Err: errors.New("display name too long")}
@@ -198,6 +212,8 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 }
 
 func TestChangePassword_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		changePasswordFn: func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
 			assert.Equal(t, int64(123), operatorID)
@@ -228,6 +244,8 @@ func TestChangePassword_Success(t *testing.T) {
 }
 
 func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -250,6 +268,8 @@ func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
 }
 
 func TestChangePassword_EmptyNewPassword(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -272,6 +292,8 @@ func TestChangePassword_EmptyNewPassword(t *testing.T) {
 }
 
 func TestChangePassword_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -288,6 +310,8 @@ func TestChangePassword_InvalidJSON(t *testing.T) {
 }
 
 func TestChangePassword_PasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		changePasswordFn: func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
 			return &platformSvc.PasswordMismatchError{}
@@ -315,6 +339,8 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 }
 
 func TestUpdateProfileRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPut, "/profile", nil)
 	updateReq := &operator.UpdateProfileRequest{}
 
@@ -323,6 +349,8 @@ func TestUpdateProfileRequest_Bind(t *testing.T) {
 }
 
 func TestChangePasswordRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", nil)
 	changeReq := &operator.ChangePasswordRequest{}
 
@@ -335,6 +363,8 @@ func TestChangePasswordRequest_Bind(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestInitiateEmailChange_Success(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			assert.Equal(t, int64(123), operatorID)
@@ -365,6 +395,8 @@ func TestInitiateEmailChange_Success(t *testing.T) {
 }
 
 func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -387,6 +419,8 @@ func TestInitiateEmailChange_EmptyNewEmail(t *testing.T) {
 }
 
 func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -409,6 +443,8 @@ func TestInitiateEmailChange_EmptyPassword(t *testing.T) {
 }
 
 func TestInitiateEmailChange_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -425,6 +461,8 @@ func TestInitiateEmailChange_InvalidJSON(t *testing.T) {
 }
 
 func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return &platformSvc.PasswordMismatchError{}
@@ -452,6 +490,8 @@ func TestInitiateEmailChange_PasswordMismatch(t *testing.T) {
 }
 
 func TestInitiateEmailChange_SameEmail(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return &platformSvc.EmailChangeSameEmailError{}
@@ -479,6 +519,8 @@ func TestInitiateEmailChange_SameEmail(t *testing.T) {
 }
 
 func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return &platformSvc.EmailAlreadyInUseError{}
@@ -506,6 +548,8 @@ func TestInitiateEmailChange_EmailAlreadyInUse(t *testing.T) {
 }
 
 func TestInitiateEmailChange_RateLimit(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return &platformSvc.EmailChangeRateLimitError{}
@@ -533,6 +577,8 @@ func TestInitiateEmailChange_RateLimit(t *testing.T) {
 }
 
 func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return &platformSvc.OperatorInactiveError{OperatorID: operatorID}
@@ -560,6 +606,8 @@ func TestInitiateEmailChange_OperatorInactive(t *testing.T) {
 }
 
 func TestInitiateEmailChange_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{
 		initiateEmailChangeFn: func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 			return errors.New("database error")
@@ -591,6 +639,8 @@ func TestInitiateEmailChange_ServiceError(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestConfirmEmailChange_Success(t *testing.T) {
+	t.Parallel()
+
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
@@ -622,6 +672,8 @@ func TestConfirmEmailChange_Success(t *testing.T) {
 }
 
 func TestConfirmEmailChange_EmptyToken(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -640,6 +692,8 @@ func TestConfirmEmailChange_EmptyToken(t *testing.T) {
 }
 
 func TestConfirmEmailChange_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -653,6 +707,8 @@ func TestConfirmEmailChange_InvalidJSON(t *testing.T) {
 }
 
 func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
+	t.Parallel()
+
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
@@ -677,6 +733,8 @@ func TestConfirmEmailChange_TokenInvalid(t *testing.T) {
 }
 
 func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
+	t.Parallel()
+
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
@@ -702,6 +760,8 @@ func TestConfirmEmailChange_EmailAlreadyInUse(t *testing.T) {
 }
 
 func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
+	t.Parallel()
+
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
@@ -727,6 +787,8 @@ func TestConfirmEmailChange_OperatorInactive(t *testing.T) {
 }
 
 func TestConfirmEmailChange_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	testUUID := "00000000-0000-4000-a000-000000000001"
 	mockService := &mockOperatorAuthService{
 		confirmEmailChangeFn: func(ctx context.Context, token string, clientIP net.IP) (string, error) {
@@ -754,6 +816,8 @@ func TestConfirmEmailChange_ServiceError(t *testing.T) {
 }
 
 func TestConfirmEmailChange_WhitespaceToken(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 
@@ -772,6 +836,8 @@ func TestConfirmEmailChange_WhitespaceToken(t *testing.T) {
 }
 
 func TestInitiateEmailChangeRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/profile/email-change", nil)
 	changeReq := &operator.InitiateEmailChangeRequest{
 		NewEmail:        "test@example.com",
@@ -783,6 +849,8 @@ func TestInitiateEmailChangeRequest_Bind(t *testing.T) {
 }
 
 func TestConfirmEmailChangeRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodPost, "/auth/email-confirm", nil)
 	confirmReq := &operator.ConfirmEmailChangeRequest{
 		Token: "00000000-0000-4000-a000-000000000001",
@@ -793,6 +861,8 @@ func TestConfirmEmailChangeRequest_Bind(t *testing.T) {
 }
 
 func TestConfirmEmailChange_InvalidTokenFormat(t *testing.T) {
+	t.Parallel()
+
 	mockService := &mockOperatorAuthService{}
 	resource := operator.NewProfileResource(mockService)
 

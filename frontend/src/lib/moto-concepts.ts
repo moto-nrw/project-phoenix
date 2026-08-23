@@ -51,6 +51,7 @@ import {
   SignOutIcon,
   SunIcon,
   TranslateIcon,
+  TrayIcon,
   TrendUpIcon,
   UserCheckIcon,
   UserCircleGearIcon,
@@ -404,6 +405,9 @@ export const MOTO_CONCEPTS = {
     "function",
     "administration",
   ),
+  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+  // Mitarbeitenden, über die die OGS entscheidet.
+  requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
   rfid: concept(
     "RFID",
     ContactlessPaymentIcon,

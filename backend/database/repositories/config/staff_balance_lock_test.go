@@ -16,14 +16,11 @@ import (
 )
 
 func TestStaffWorkScheduleReplaceSharesBalanceLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "BalanceLock")
-	t.Cleanup(func() {
-		cleanupStaffWorkSchedules(t, db, staff.ID)
-		testpkg.CleanupStaffFixtures(t, db, staff.ID)
-	})
 
 	adjustments := activeRepo.NewStaffBalanceAdjustmentRepository(db)
 	schedules := configRepo.NewStaffWorkScheduleRepository(db)

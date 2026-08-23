@@ -180,6 +180,8 @@ func expectAdminTx(mock sqlmock.Sqlmock) {
 // =====================================================================
 
 func TestInviteOperator_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -212,6 +214,8 @@ func TestInviteOperator_Success(t *testing.T) {
 }
 
 func TestInviteOperator_NormalizesEmail(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -238,6 +242,8 @@ func TestInviteOperator_NormalizesEmail(t *testing.T) {
 }
 
 func TestInviteOperator_InvalidEmailFormat(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service := newInvitationTestService(t, &mockOperatorRepo{}, &mockAuditLogRepoShared{}, &mockInvitationTokenRepo{}, bunDB)
@@ -250,6 +256,8 @@ func TestInviteOperator_InvalidEmailFormat(t *testing.T) {
 }
 
 func TestInviteOperator_EmailTooLong(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service := newInvitationTestService(t, &mockOperatorRepo{}, &mockAuditLogRepoShared{}, &mockInvitationTokenRepo{}, bunDB)
@@ -268,6 +276,8 @@ func TestInviteOperator_EmailTooLong(t *testing.T) {
 }
 
 func TestInviteOperator_EmailAlreadyOperator(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	operatorRepo := &mockOperatorRepo{
@@ -288,6 +298,8 @@ func TestInviteOperator_EmailAlreadyOperator(t *testing.T) {
 }
 
 func TestInviteOperator_InvalidatesPreviousInvitations(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -317,6 +329,8 @@ func TestInviteOperator_InvalidatesPreviousInvitations(t *testing.T) {
 }
 
 func TestInviteOperator_NilInvitationTokenRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	// Service with nil invitation token repo
@@ -335,6 +349,8 @@ func TestInviteOperator_NilInvitationTokenRepo(t *testing.T) {
 }
 
 func TestInviteOperator_MissingFrontendURL(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -353,6 +369,8 @@ func TestInviteOperator_MissingFrontendURL(t *testing.T) {
 }
 
 func TestInviteOperator_InvalidateError(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -376,6 +394,8 @@ func TestInviteOperator_InvalidateError(t *testing.T) {
 }
 
 func TestInviteOperator_RateLimit_BlocksAtLimit(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -416,6 +436,8 @@ func TestInviteOperator_RateLimit_BlocksAtLimit(t *testing.T) {
 }
 
 func TestInviteOperator_RateLimit_AllowsJustBelowLimit(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -446,6 +468,8 @@ func TestInviteOperator_RateLimit_AllowsJustBelowLimit(t *testing.T) {
 }
 
 func TestInviteOperator_RateLimit_CountError(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -472,6 +496,8 @@ func TestInviteOperator_RateLimit_CountError(t *testing.T) {
 }
 
 func TestInviteOperator_RateLimit_LockFailure(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -501,6 +527,8 @@ func TestInviteOperator_RateLimit_LockFailure(t *testing.T) {
 }
 
 func TestInviteOperator_AuditLogErrorDoesNotBlock(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -530,6 +558,8 @@ func TestInviteOperator_AuditLogErrorDoesNotBlock(t *testing.T) {
 }
 
 func TestInviteOperator_WithDisplayName(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -563,6 +593,8 @@ func TestInviteOperator_WithDisplayName(t *testing.T) {
 // =====================================================================
 
 func TestValidateOperatorInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	expectedToken := &platform.OperatorInvitationToken{
@@ -588,6 +620,8 @@ func TestValidateOperatorInvitation_Success(t *testing.T) {
 }
 
 func TestValidateOperatorInvitation_TokenNotFound(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -607,6 +641,8 @@ func TestValidateOperatorInvitation_TokenNotFound(t *testing.T) {
 }
 
 func TestValidateOperatorInvitation_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -623,6 +659,8 @@ func TestValidateOperatorInvitation_NilRepo(t *testing.T) {
 }
 
 func TestValidateOperatorInvitation_RepoError(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -643,6 +681,8 @@ func TestValidateOperatorInvitation_RepoError(t *testing.T) {
 // =====================================================================
 
 func TestAcceptOperatorInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectCommit()
@@ -688,6 +728,8 @@ func TestAcceptOperatorInvitation_Success(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_WeakPassword(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service := newInvitationTestService(t, &mockOperatorRepo{}, &mockAuditLogRepoShared{}, &mockInvitationTokenRepo{}, bunDB)
@@ -701,6 +743,8 @@ func TestAcceptOperatorInvitation_WeakPassword(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_EmptyDisplayName(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service := newInvitationTestService(t, &mockOperatorRepo{}, &mockAuditLogRepoShared{}, &mockInvitationTokenRepo{}, bunDB)
@@ -714,6 +758,8 @@ func TestAcceptOperatorInvitation_EmptyDisplayName(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_DisplayNameTooLong(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service := newInvitationTestService(t, &mockOperatorRepo{}, &mockAuditLogRepoShared{}, &mockInvitationTokenRepo{}, bunDB)
@@ -732,6 +778,8 @@ func TestAcceptOperatorInvitation_DisplayNameTooLong(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_TokenNotFound(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -753,6 +801,8 @@ func TestAcceptOperatorInvitation_TokenNotFound(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_EmailAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	bunDB, mock := setupSqlMock(t)
 	expectAdminTx(mock)
 	mock.ExpectRollback()
@@ -786,6 +836,8 @@ func TestAcceptOperatorInvitation_EmailAlreadyExists(t *testing.T) {
 }
 
 func TestAcceptOperatorInvitation_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -806,6 +858,8 @@ func TestAcceptOperatorInvitation_NilRepo(t *testing.T) {
 // =====================================================================
 
 func TestRevokeOperatorInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -830,6 +884,8 @@ func TestRevokeOperatorInvitation_Success(t *testing.T) {
 }
 
 func TestRevokeOperatorInvitation_NotFound(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -848,6 +904,8 @@ func TestRevokeOperatorInvitation_NotFound(t *testing.T) {
 }
 
 func TestRevokeOperatorInvitation_AlreadyUsed(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	usedAt := time.Now()
@@ -873,6 +931,8 @@ func TestRevokeOperatorInvitation_AlreadyUsed(t *testing.T) {
 }
 
 func TestRevokeOperatorInvitation_Expired(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -896,6 +956,8 @@ func TestRevokeOperatorInvitation_Expired(t *testing.T) {
 }
 
 func TestRevokeOperatorInvitation_MarkAsUsedFails(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -922,6 +984,8 @@ func TestRevokeOperatorInvitation_MarkAsUsedFails(t *testing.T) {
 }
 
 func TestRevokeOperatorInvitation_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -941,6 +1005,8 @@ func TestRevokeOperatorInvitation_NilRepo(t *testing.T) {
 // =====================================================================
 
 func TestResendOperatorInvitation_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -974,6 +1040,8 @@ func TestResendOperatorInvitation_Success(t *testing.T) {
 }
 
 func TestResendOperatorInvitation_NotFound(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -992,6 +1060,8 @@ func TestResendOperatorInvitation_NotFound(t *testing.T) {
 }
 
 func TestResendOperatorInvitation_AlreadyUsed(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	usedAt := time.Now()
@@ -1017,6 +1087,8 @@ func TestResendOperatorInvitation_AlreadyUsed(t *testing.T) {
 }
 
 func TestResendOperatorInvitation_ExtendExpiryFails(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -1043,6 +1115,8 @@ func TestResendOperatorInvitation_ExtendExpiryFails(t *testing.T) {
 }
 
 func TestResendOperatorInvitation_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -1062,6 +1136,8 @@ func TestResendOperatorInvitation_NilRepo(t *testing.T) {
 // =====================================================================
 
 func TestListPendingOperatorInvitations_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	expected := []*platform.OperatorInvitationToken{
@@ -1083,6 +1159,8 @@ func TestListPendingOperatorInvitations_Success(t *testing.T) {
 }
 
 func TestListPendingOperatorInvitations_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -1103,6 +1181,8 @@ func TestListPendingOperatorInvitations_NilRepo(t *testing.T) {
 // =====================================================================
 
 func TestCleanupExpiredOperatorInvitations_Success(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -1119,6 +1199,8 @@ func TestCleanupExpiredOperatorInvitations_Success(t *testing.T) {
 }
 
 func TestCleanupExpiredOperatorInvitations_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
@@ -1135,6 +1217,8 @@ func TestCleanupExpiredOperatorInvitations_NilRepo(t *testing.T) {
 }
 
 func TestCleanupExpiredOperatorInvitations_RepoError(t *testing.T) {
+	t.Parallel()
+
 	bunDB, _ := setupSqlMock(t)
 
 	invitationRepo := &mockInvitationTokenRepo{
@@ -1155,11 +1239,15 @@ func TestCleanupExpiredOperatorInvitations_RepoError(t *testing.T) {
 // =====================================================================
 
 func TestOperatorInvitationNotFoundError_Message(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.OperatorInvitationNotFoundError{}
 	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestOperatorInvitationEmailExistsError_Message(t *testing.T) {
+	t.Parallel()
+
 	err := &platformSvc.OperatorInvitationEmailExistsError{}
 	assert.Contains(t, err.Error(), "already exists")
 }

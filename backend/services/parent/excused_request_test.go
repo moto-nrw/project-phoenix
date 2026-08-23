@@ -27,15 +27,21 @@ import (
 // exercised both ways.
 type excusedApprovalSettings struct {
 	configService.SettingsService
-	requiresApproval bool
+	// requiresApproval keeps older error-path fixtures focused on the original
+	// excused-only gate; new tests set the two explicit switches below.
+	requiresApproval        bool
+	sickRequiresApproval    bool
+	excusedRequiresApproval bool
 }
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
 	case configModels.KeyParentSickNoteEnabled:
 		return true, nil
+	case configModels.KeyParentSickRequiresApproval:
+		return s.sickRequiresApproval, nil
 	case configModels.KeyParentExcusedRequiresApproval:
-		return s.requiresApproval, nil
+		return s.requiresApproval || s.excusedRequiresApproval, nil
 	default:
 		return false, nil
 	}
@@ -52,9 +58,12 @@ func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int
 // attached and the approval gate set as requested. Returns both so tests can
 // drive the parent submit path and the staff decide path.
 func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
+	return buildAbsenceApprovalServices(t, false, requiresApproval)
+}
+
+func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedRequiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 	bc := testpkg.NewRecordingBroadcaster()
 	excused := absenceSvc.NewExcusedAbsenceRequestServiceWithPartialAbsences(
@@ -74,13 +83,91 @@ func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Se
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
-		Settings:            excusedApprovalSettings{requiresApproval: requiresApproval},
-		Broadcaster:         bc,
-		ExcusedRequests:     excused,
-		DB:                  db,
-		Logger:              slog.Default(),
+		Settings: excusedApprovalSettings{
+			sickRequiresApproval:    sickRequiresApproval,
+			excusedRequiresApproval: excusedRequiresApproval,
+		},
+		Broadcaster:     bc,
+		ExcusedRequests: excused,
+		DB:              db,
+		Logger:          slog.Default(),
 	})
 	return svc, excused, bc, db
+}
+
+// TestSubmitSick_ApprovalOn_CreatesPendingRequest verifies the new sick-note
+// gate (#2449): no status day or live sick flag changes before staff approve.
+func TestSubmitSick_ApprovalOn_CreatesPendingRequest(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, db := buildAbsenceApprovalServices(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	day := timezone.TodayDate()
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+	require.NotNil(t, res.PendingRequest, "a sick report must become a pending request when approval is on")
+	assert.Empty(t, res.StatusDays, "no status day is written while the sick request is pending")
+	assert.Equal(t, activeModels.StudentStatusDaySick, res.PendingRequest.AbsenceStatus)
+
+	var sick bool
+	require.NoError(t, db.NewSelect().
+		Table("users.students").
+		Column("sick").
+		Where("id = ?", chain.StudentID).
+		Scan(context.Background(), &sick))
+	assert.False(t, sick, "the child stays expected until the OGS approves the sick request")
+}
+
+func TestSubmitSick_ApprovalOff_WritesDirectly(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _, db := buildAbsenceApprovalServices(t, false, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+
+	day := timezone.TodayDate().AddDays(2)
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{day}, "Fieber", activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+	require.Nil(t, res.PendingRequest)
+	require.Len(t, res.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, res.StatusDays[0].Status)
+}
+
+func TestSickRequest_ApproveWritesSickStatusAndLiveFlag(t *testing.T) {
+	t.Parallel()
+
+	svc, requests, _, db := buildAbsenceApprovalServices(t, true, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	today := timezone.TodayDate()
+
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{today}, "Fieber", activeModels.StudentStatusDaySick)
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := requests.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID:  res.PendingRequest.ID,
+			Approve:    true,
+			ReviewedBy: chain.AccountID,
+		})
+		return decideErr
+	})
+	require.NoError(t, err)
+
+	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, today, today)
+	require.NoError(t, err)
+	require.Len(t, absences, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, absences[0].Status)
+
+	var sick bool
+	require.NoError(t, db.NewSelect().
+		Table("users.students").
+		Column("sick").
+		Where("id = ?", chain.StudentID).
+		Scan(context.Background(), &sick))
+	assert.True(t, sick, "approving today's sick request must mark the child sick")
 }
 
 // adminCtx returns a context carrying wildcard-admin permissions so the staff
@@ -93,9 +180,10 @@ func adminCtx() context.Context {
 // approval gate on an excused report becomes a pending request and does NOT
 // write a status day — the child stays "expected" until staff decide.
 func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -104,6 +192,7 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 	require.NotNil(t, res.PendingRequest, "an excused report must become a pending request when approval is on")
 	assert.Empty(t, res.StatusDays, "no status day is written while the request is pending")
 	assert.Equal(t, activeModels.ExcusedRequestStatusPending, res.PendingRequest.Status)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, res.PendingRequest.AbsenceStatus)
 	assert.Equal(t, "Familienfeier", res.PendingRequest.Note)
 
 	// The absence list (status days) stays empty — the child is still expected.
@@ -123,9 +212,10 @@ func TestSubmitExcused_ApprovalOn_CreatesPendingRequest(t *testing.T) {
 // TestSubmitExcused_ApprovalOff_WritesDirectly verifies the gate-off path is
 // unchanged: an excused report is written straight to the status days.
 func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -139,6 +229,8 @@ func TestSubmitExcused_ApprovalOff_WritesDirectly(t *testing.T) {
 // TestSubmitExcused_EmptyNoteRejected verifies AC2: a note is mandatory for an
 // excused report, independent of the approval gate.
 func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
+	t.Parallel()
+
 	for _, gate := range []bool{true, false} {
 		svc, _, _, db := buildExcusedServices(t, gate)
 		chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -148,16 +240,16 @@ func TestSubmitExcused_EmptyNoteRejected(t *testing.T) {
 			[]timezone.Date{day}, "   ", activeModels.StudentStatusDayExcused)
 		assert.ErrorIs(t, err, parentService.ErrEmptyNote, "excused with blank note must be rejected (gate=%v)", gate)
 
-		testpkg.CleanupParentGuardianChain(t, db, chain)
 	}
 }
 
 // TestExcusedRequest_ApproveWritesStatusDays drives the staff decide path: an
 // approval writes the excused status days that the parent list then shows.
 func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -194,9 +286,10 @@ func TestExcusedRequest_ApproveWritesStatusDays(t *testing.T) {
 // TestExcusedRequest_RejectWritesNoStatusDay verifies a rejection leaves the
 // child expected: no status day is written.
 func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -228,9 +321,10 @@ func TestExcusedRequest_RejectWritesNoStatusDay(t *testing.T) {
 // row the instant it left the pending set, hiding the rejection from the parent
 // (#1845 review).
 func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
@@ -275,9 +369,10 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 // confirmation vanish entirely — the pending row would just disappear (#1845
 // review).
 func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
+	t.Parallel()
+
 	svc, excused, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	// A date well beyond the parent's ~2-month status-day window.
 	far := timezone.TodayDate().AddDays(120)
@@ -316,9 +411,10 @@ func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
 // write gate must match it (portal access only) and rely on the request service
 // to enforce submitter ownership (#1845 review).
 func TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, db := buildExcusedServices(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	day := timezone.TodayDate().AddDays(3)
 	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,

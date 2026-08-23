@@ -1601,6 +1601,7 @@ describe("staff-api", () => {
 
       const requested = mockFetch.mock.calls.map((c) => {
         const params = new URL(c[0] as string, "http://x").searchParams;
+        expect(params.get("target_only")).toBe("true");
         return `${params.get("from")}..${params.get("to")}`;
       });
       // 2.5 years -> three 366-day windows, contiguous and gapless, the last
@@ -1740,6 +1741,73 @@ describe("staff-api", () => {
       reserved_days: 2,
       remaining_days: 19,
     };
+
+    it("lädt Anfragen mit Ansicht, Suche und Art-Filter", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [
+              {
+                id: "9007199254740993",
+                staff_id: "9007199254740993",
+                approved_by: "9007199254740993",
+                staff_name: "Mira Muster",
+                status: "requested",
+              },
+            ],
+          }),
+      } as Response);
+
+      const result = await staffAbsenceService.listRequests("history", {
+        search: "  Mira  ",
+        types: ["vacation", "sick"],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/requests?view=history&search=Mira&types=vacation%2Csick",
+        expect.any(Object),
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0]?.staff_name).toBe("Mira Muster");
+      expect(result[0]).toMatchObject({
+        id: "9007199254740993",
+        staff_id: "9007199254740993",
+        approved_by: "9007199254740993",
+      });
+    });
+
+    it("lässt leere Suche und leeren Art-Filter aus der Abfrage weg", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: null }),
+      } as Response);
+
+      const result = await staffAbsenceService.listRequests("open", {
+        search: "   ",
+        types: [],
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/absences/requests?view=open",
+        expect.any(Object),
+      );
+      expect(result).toEqual([]);
+    });
+
+    it("wirft, wenn die Anfragenliste fehlschlägt", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        statusText: "Forbidden",
+      } as Response);
+
+      await expect(staffAbsenceService.listRequests("open")).rejects.toThrow(
+        "Failed to fetch absence requests: Forbidden",
+      );
+    });
 
     it("loads absences and returns an empty array for null data", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
@@ -2273,6 +2341,39 @@ describe("staff-api", () => {
       await expect(
         staffSessionService.createSession("1", payload),
       ).rejects.toThrow("Failed to create session: Bad Request");
+    });
+
+    // #2402: the overlap 409 carries a stable code; its message holds the
+    // dynamic conflicting interval and is not presentable to a user.
+    it("maps the work_session_overlap code to a German message", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const overlapBody = JSON.stringify({
+        status: "error",
+        error: "work session overlaps an existing block (08:00-12:00)",
+        code: "work_session_overlap",
+      });
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Conflict",
+          text: () => Promise.resolve(overlapBody),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Conflict",
+          text: () => Promise.resolve(overlapBody),
+        } as Response);
+
+      await expect(
+        staffSessionService.updateSession("1", "4", payload),
+      ).rejects.toThrow(
+        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+      );
+      await expect(
+        staffSessionService.createSession("1", payload),
+      ).rejects.toThrow(
+        "Der Zeitraum überschneidet sich mit einem anderen Arbeitsblock an diesem Tag.",
+      );
     });
   });
 

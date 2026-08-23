@@ -150,10 +150,6 @@ func (rs *Resource) Router() chi.Router {
 				r.With(authorize.RequiresPermission("config:manage")).Put("/", rs.updateCareOffering)
 				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteCareOffering)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/clone", rs.cloneCareOffering)
-				// Angebots-Gehzeit rollout (#2290): preview feeds the
-				// confirmation dialog, POST executes with per-child opt-outs.
-				r.With(authorize.RequiresPermission("config:manage")).Get("/pickup-rollout", rs.previewCareOfferingPickupRollout)
-				r.With(authorize.RequiresPermission("config:manage")).Post("/pickup-rollout", rs.rolloutCareOfferingPickupTimes)
 			})
 		})
 
@@ -228,6 +224,10 @@ func (rs *Resource) Router() chi.Router {
 		})
 		r.Route("/admin/change-requests", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.listAdminChangeRequests)
+			// Anmeldungsänderungen in the shared display format of the request
+			// module, open or history, keyset-paginated (#2435).
+			r.With(authorize.RequiresPermission("config:manage")).Get("/list", rs.listChangeRequestReviewEntries)
+			r.With(authorize.RequiresPermission("config:manage")).Get("/pending-count", rs.pendingChangeRequestReviewCount)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminChangeRequest)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/question", rs.askChangeRequestQuestion)

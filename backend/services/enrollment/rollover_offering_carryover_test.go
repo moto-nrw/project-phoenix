@@ -29,22 +29,24 @@ import (
 func sourceOffering(t *testing.T, env *rolloverTestEnv, offering *enrollmentModels.CareOffering) *enrollmentModels.CareOffering {
 	t.Helper()
 	offering.PhaseID = env.sourcePhase.ID
-	offering.SetTenantID(1)
-	require.NoError(t, env.repos.CareOffering.Create(testpkg.TenantContext(1), offering))
+	offering.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, env.repos.CareOffering.Create(testpkg.Ctx(t), offering))
 	return offering
 }
 
 func linkChildOffering(t *testing.T, env *rolloverTestEnv, link *enrollmentModels.RequestChildOffering) *enrollmentModels.RequestChildOffering {
 	t.Helper()
-	link.SetTenantID(1)
-	require.NoError(t, env.repos.RequestChildOffering.Create(testpkg.TenantContext(1), link))
+	link.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, env.repos.RequestChildOffering.Create(testpkg.Ctx(t), link))
 	return link
 }
 
 func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Seed the child before the exactly_one group exists — the Submit
 	// path validates selection rules against the live catalog.
@@ -208,9 +210,11 @@ func TestRolloverService_CreatePhaseFromSource_ClonesCatalogAndRemapsBookings(t 
 }
 
 func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
 		Name:           "Legacy-Phasenreferenz",
@@ -262,9 +266,11 @@ func TestRolloverService_CreatePhaseFromSource_ClonesLegacyCrossPhaseBooking(t *
 }
 
 func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRules(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, rule := range []string{enrollmentModels.SelectionRuleExactlyOne, enrollmentModels.SelectionRuleAtLeastOne} {
 		sourceOffering(t, env, &enrollmentModels.CareOffering{
@@ -277,7 +283,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 		})
 	}
 
-	err := tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -289,9 +295,11 @@ func TestRolloverService_CreatePhaseFromSource_RejectsConflictingLegacyGroupRule
 }
 
 func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
 		Name:           "Legacy ohne Tage",
@@ -318,7 +326,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 
 	// Production wraps the rollover in the handler's tenant transaction —
 	// that is where the atomicity contract comes from.
-	err := tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -336,9 +344,11 @@ func TestRolloverService_CreatePhaseFromSource_FailsAtomicallyOnInvalidSourceOff
 }
 
 func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplateOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := createCareOfferingTestPeriod(t, env.db, "rollover-inactive-selected",
 		timezone.NewDate(2026, 8, 1), timezone.NewDate(2028, 8, 31))
@@ -347,7 +357,7 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
 		CalendarPeriodID: &period.ID,
 	}
-	schedule.SetTenantID(1)
+	schedule.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, schedule))
 
 	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
@@ -365,7 +375,7 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 		CareOfferingID: offering.ID,
 	})
 
-	err := tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := env.rolloverSvc.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -375,9 +385,11 @@ func TestRolloverService_CreatePhaseFromSource_ValidatesInactiveSelectedTemplate
 }
 
 func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offering := sourceOffering(t, env, &enrollmentModels.CareOffering{
 		Name:           "Ohne Cloner",
@@ -405,7 +417,7 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 		ParentsURL:               "http://parents.localhost:3000",
 		DB:                       env.db,
 	})
-	err := tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, createErr := svcNoCloner.CreatePhaseFromSource(txCtx,
 			validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 		return createErr
@@ -422,9 +434,11 @@ func TestRolloverService_CreatePhaseFromSource_FailsWhenBookingHasNoClone(t *tes
 // #2249 the carried booking pointed at a source-phase offering, which the
 // edit-draft loader rejects with ErrEditNotAllowed.
 func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentStatus(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Elena", "Edit", "elena.edit@example.com",
@@ -471,9 +485,11 @@ func TestRolloverService_CreatePhaseFromSource_RolledRequestIsEditableInParentSt
 // Re-running the rollover must not duplicate target requests, bookings, or
 // cloned offerings — the second execution fails up front and atomically.
 func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplicates(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	child := seedApprovedChild(t, env, env.sourcePhase.ID,
 		"Rita", "Repeat", "rita.repeat@example.com",
@@ -516,9 +532,11 @@ func TestRolloverService_CreatePhaseFromSource_RepeatedExecutionCreatesNoDuplica
 // Freigabe, and the approval materializes the carried weekdays into the
 // template roster.
 func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Template + period spanning source AND target phase (the half-year
 	// rollover case: one planning period, two enrollment phases).
@@ -539,7 +557,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		AvailableDays:   []string{"tue", "thu"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
 
 	source, existing := seedApprovedChildWithStudent(
@@ -554,7 +572,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 		SelectedDays:       []string{"tue", "thu"},
 		ManualSelectedDays: []string{"tue", "thu"},
 	}
-	link.SetTenantID(1)
+	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
@@ -586,7 +604,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 			Exec(context.Background())
 	})
 
-	err = tenant.WithTenantTx(context.Background(), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithTenantTx(context.Background(), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		summary, workerErr := env.rolloverSvc.RunDeadlineWorker(txCtx, time.Now())
 		if workerErr != nil {
 			return workerErr
@@ -602,7 +620,7 @@ func TestRolloverService_AutoApprove_MaterializesCarriedDaysIntoLinkedTemplate(t
 	require.NoError(t, env.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
-		Where(`"student_enrollment".tenant_id = ?`, 1).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
 		Where(`"student_enrollment".student_id = ?`, existing.ID).
 		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
 		Scan(ctx))

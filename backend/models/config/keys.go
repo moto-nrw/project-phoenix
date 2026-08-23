@@ -70,9 +70,10 @@ const (
 
 // Checkout button settings (devices tab).
 const (
-	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"
-	KeyCheckoutSchulhofEnabled    = "checkout.schulhof_enabled"
-	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
+	KeyCheckoutRaumwechselEnabled       = "checkout.raumwechsel_enabled"
+	KeyCheckoutSchulhofEnabled          = "checkout.schulhof_enabled"
+	KeyCheckoutWCEnabled                = "checkout.wc_enabled"
+	KeyCheckoutDailyFromAllRoomsEnabled = "checkout.daily_checkout_from_all_rooms_enabled"
 )
 
 // Checkin capacity-detail disclosure settings (issue #1879, devices tab).
@@ -133,6 +134,7 @@ const (
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
@@ -238,6 +240,7 @@ const (
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
+	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"

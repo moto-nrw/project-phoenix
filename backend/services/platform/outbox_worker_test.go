@@ -108,6 +108,8 @@ func (s *stubOutboxRepo) CancelPendingByRelatedEntity(_ context.Context, _ strin
 
 // TestTemplateRegistry_LookupRoundTrip — register + lookup + kinds.
 func TestTemplateRegistry_LookupRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	reg := NewTemplateRegistry()
 	reg.Register("test_kind", RendererFunc(func(_ context.Context, _ *platformModels.EmailOutbox) (*email.Message, error) {
 		return &email.Message{Subject: "ok"}, nil
@@ -127,6 +129,8 @@ func TestTemplateRegistry_LookupRoundTrip(t *testing.T) {
 // TestPickBackoff_ClampsAtCeiling — backoff schedule must not panic on
 // large attempts counts.
 func TestPickBackoff_ClampsAtCeiling(t *testing.T) {
+	t.Parallel()
+
 	last := defaultBackoff[len(defaultBackoff)-1]
 	assert.Equal(t, last, pickBackoff(99))
 	// First retry uses index 0.
@@ -137,6 +141,8 @@ func TestPickBackoff_ClampsAtCeiling(t *testing.T) {
 // TestOutboxService_Enqueue_PopulatesPayloadAndStatus — Enqueue defaults
 // status to pending and clones nil payload to empty map.
 func TestOutboxService_Enqueue_RejectsMissingKind(t *testing.T) {
+	t.Parallel()
+
 	svc := NewOutboxService(&stubOutboxRepo{})
 	_, err := svc.Enqueue(context.Background(), EnqueueRequest{Kind: ""})
 	require.Error(t, err)
@@ -175,7 +181,6 @@ func newAdminTxDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
 		// Allow the underlying driver to close without an unexpected-close
 		// assertion failure; sqlmock treats Close like any other operation.
 		mock.ExpectClose()
-		_ = db.Close()
 	}
 	return db, mock, cleanup
 }
@@ -204,6 +209,8 @@ func makeRow(id, tenantID int64, kind string, attempts int) *platformModels.Emai
 // TestOutboxWorker_RunOnce_NoRows — empty pickup returns (0, nil) and
 // never starts a send cycle.
 func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -232,6 +239,8 @@ func TestOutboxWorker_RunOnce_NoRows(t *testing.T) {
 // TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent — single
 // pending row → render → send → MarkSent.
 func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -268,6 +277,8 @@ func TestOutboxWorker_RunOnce_HappyPath_SendsAndMarksSent(t *testing.T) {
 // rows, e.g. enrollment deletion), the worker must NOT send the already
 // rendered message and must not record sent/retry/failed for it.
 func TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -304,6 +315,8 @@ func TestOutboxWorker_RunOnce_RowCancelledAfterClaim_SkipsSend(t *testing.T) {
 // failure on a row well under MaxAttempts goes to MarkRetry, not
 // MarkFailed.
 func TestOutboxWorker_RunOnce_RenderError_SchedulesRetry(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -340,6 +353,8 @@ func TestOutboxWorker_RunOnce_RenderError_SchedulesRetry(t *testing.T) {
 // TestOutboxWorker_RunOnce_SendError_SchedulesRetry — mailer send
 // failure on a row under MaxAttempts also retries.
 func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -373,6 +388,8 @@ func TestOutboxWorker_RunOnce_SendError_SchedulesRetry(t *testing.T) {
 // next attempt would equal MaxAttempts, the row goes to terminal
 // 'failed' instead of being rescheduled.
 func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -407,6 +424,8 @@ func TestOutboxWorker_RunOnce_ExhaustedAttempts_MarksFailed(t *testing.T) {
 // TestOutboxWorker_RunOnce_UnknownKind_MarksFailedImmediately —
 // unknown renderer is terminal regardless of attempts. No backoff.
 func TestOutboxWorker_RunOnce_UnknownKind_MarksFailedImmediately(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -436,6 +455,8 @@ func TestOutboxWorker_RunOnce_UnknownKind_MarksFailedImmediately(t *testing.T) {
 // TestOutboxWorker_RunOnce_ClaimError_Bubbles — a repo-level claim
 // error surfaces to the caller and short-circuits the batch.
 func TestOutboxWorker_RunOnce_ClaimError_Bubbles(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -463,6 +484,8 @@ func TestOutboxWorker_RunOnce_ClaimError_Bubbles(t *testing.T) {
 // row's failure doesn't stop the rest. The worker processes them
 // sequentially and records the right outcome per row.
 func TestOutboxWorker_RunOnce_MultipleRows_OneBadDoesNotStallBatch(t *testing.T) {
+	t.Parallel()
+
 	db, mock, cleanup := newAdminTxDB(t)
 	defer cleanup()
 
@@ -499,6 +522,8 @@ func TestOutboxWorker_RunOnce_MultipleRows_OneBadDoesNotStallBatch(t *testing.T)
 // TestOutboxWorker_RunOnce_MissingDependencies_Errors — bootstrap
 // guard. Misconfiguration surfaces before any rows are touched.
 func TestOutboxWorker_RunOnce_MissingDependencies_Errors(t *testing.T) {
+	t.Parallel()
+
 	db, _, cleanup := newAdminTxDB(t)
 	defer cleanup()
 

@@ -36,6 +36,8 @@ func (f *fakeStudentLifecycleAuditor) RecordSystemStatusChange(
 }
 
 func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{Status: userModels.StudentStatusPending}
 	student.ID = 701
 	repo := &fakeStudentLifecycleRepo{pendingDue: []*userModels.Student{student}}
@@ -55,6 +57,8 @@ func TestRunActivateStudentsForTenant_AuditsSystemTransition(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{Status: userModels.StudentStatusActive}
 	student.ID = 702
 	repo := &fakeStudentLifecycleRepo{activeDue: []*userModels.Student{student}}
@@ -72,6 +76,8 @@ func TestRunActivateStudentsForTenant_PropagatesAuditFailure(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_SkipsStaleTransitionAndAudit(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{Status: userModels.StudentStatusPending}
 	student.ID = 703
 	repo := &fakeStudentLifecycleRepo{

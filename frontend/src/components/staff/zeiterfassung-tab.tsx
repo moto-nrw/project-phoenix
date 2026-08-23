@@ -24,7 +24,7 @@ import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { useSWRConfig } from "swr";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
-import type { MonthSummary } from "~/lib/time-tracking-helpers";
+import type { DayProjection, MonthSummary } from "~/lib/time-tracking-helpers";
 import {
   endOfMonth,
   endOfWeek,
@@ -135,13 +135,18 @@ export function ZeiterfassungTab({
 
   const visibleFromKey = toDateKey(visibleFrom);
   const visibleToKey = toDateKey(visibleTo);
+  const historyFrom = useMemo(() => {
+    const previousDay = new Date(visibleFrom);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [visibleFrom]);
   // Keyed by range only (no "visible" qualifier): usePeriodMetrics asks for the
   // current week under the same scheme, so while the table shows that week SWR
   // dedupes both into one request instead of fetching it twice.
   const { data: visibleSessions, isLoading: visibleLoading } = useSWRAuth<
     readonly StaffHistorySession[]
-  >(`staff-history-${staffId}-${visibleFromKey}-${visibleToKey}`, () =>
-    staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
+  >(`staff-history-${staffId}-${historyFrom}-${visibleToKey}`, () =>
+    staffHistoryService.getHistory(staffId, historyFrom, visibleToKey),
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
@@ -174,21 +179,23 @@ export function ZeiterfassungTab({
       ),
   );
 
-  // Date-valid Soll for the visible range (#1842) — the same source the
-  // Monatskarte is computed from. Without it the table applies the CURRENT
-  // schedule to historical dates, so card and rows disagree the moment a
-  // staff member's contracted hours change.
+  // Servergerechnete Tagesprojektion für den sichtbaren Zeitraum (#1842,
+  // #2443) — dieselbe Quelle, aus der die Monatskarte gerechnet wird: Soll,
+  // Gutschrift, Ist und Saldo je Tag. Ohne sie wendet die Tabelle den
+  // AKTUELLEN Plan auf vergangene Tage an und leitet den Saldo aus „Ist minus
+  // Soll" ab — Karte und Zeilen widersprechen sich dann, sobald jemand seine
+  // Stunden ändert oder einen Abwesenheitstag hat.
   // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
   // SWR serves the PREVIOUS range's map while the new one is in flight, and the
   // table must not fall back to today's plan for the days it doesn't cover.
   const {
-    data: dailyTargets,
-    error: dailyTargetsError,
-    isLoading: dailyTargetsLoading,
-  } = useSWRAuth<ReadonlyMap<string, number>>(
+    data: dailyProjection,
+    error: dailyProjectionError,
+    isLoading: dailyProjectionLoading,
+  } = useSWRAuth<ReadonlyMap<string, DayProjection>>(
     `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
-      staffMonthSummaryService.getScheduleTargets(
+      staffMonthSummaryService.getDailyProjection(
         staffId,
         visibleFromKey,
         visibleToKey,
@@ -409,9 +416,9 @@ export function ZeiterfassungTab({
                 visibleAbsences === undefined
               }
               schedule={schedule ?? null}
-              dailyTargets={dailyTargets}
-              dailyTargetsError={dailyTargetsError != null}
-              dailyTargetsPending={dailyTargetsLoading}
+              dailyProjection={dailyProjection}
+              dailyProjectionError={dailyProjectionError != null}
+              dailyProjectionPending={dailyProjectionLoading}
               holidays={tableHolidays}
               closingDays={tableClosingDays}
               accountStartDate={timeTrackingConfig?.accountStartDate ?? null}

@@ -17,6 +17,9 @@ const (
 	OfferingChangeStatusApproved  = "approved"
 	OfferingChangeStatusRejected  = "rejected"
 	OfferingChangeStatusWithdrawn = "withdrawn"
+	// OfferingChangeStatusCareEnded closes an open request whose child left
+	// the OGS before anybody decided it (#2487).
+	OfferingChangeStatusCareEnded = "care_ended"
 )
 
 var (
@@ -65,7 +68,7 @@ type OfferingChangeRequest struct {
 // IsTerminal reports whether the row can still be decided or withdrawn.
 func (r *OfferingChangeRequest) IsTerminal() bool {
 	switch r.Status {
-	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn:
+	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn, OfferingChangeStatusCareEnded:
 		return true
 	default:
 		return false
@@ -130,7 +133,12 @@ type OfferingChangeRequestRepository interface {
 
 	// ListPendingForTenant backs the staff review queue, ordered by effective
 	// date so the switch that lands soonest is decided first.
-	ListPendingForTenant(ctx context.Context) ([]*OfferingChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
+
+	// ListDecidedForTenant returns the tenant's decided rows (approved,
+	// rejected, withdrawn) newest-decision-first via keyset pagination on
+	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
+	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*OfferingChangeRequest, error)
 
 	// FindByIDForUpdate locks a row by id regardless of status, so an ownership
 	// check can run on the locked row before the pending check (a foreign id

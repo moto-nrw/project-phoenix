@@ -91,3 +91,21 @@ type GroupSubstitutionRepository interface {
 	FindActiveBySubstituteWithRelations(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*GroupSubstitution, error)
 	FindActiveByGroupWithRelations(ctx context.Context, groupID int64, date timezone.Date) ([]*GroupSubstitution, error)
 }
+
+// ClassArrivalTimeRepository is the data access boundary for class arrival
+// times.
+type ClassArrivalTimeRepository interface {
+	base.CRUDRepository[*ClassArrivalTime]
+
+	// FindByClasses returns the rows for the given school classes, matched
+	// case-insensitively on the normalized class. Classes without a row are
+	// simply absent from the result.
+	FindByClasses(ctx context.Context, classes []string) ([]*ClassArrivalTime, error)
+
+	// Upsert stores the weekday map for one class, replacing what was there.
+	Upsert(ctx context.Context, row *ClassArrivalTime) error
+
+	// LockClass serializes read-modify-write updates for one class, including
+	// concurrent attempts to create its first row.
+	LockClass(ctx context.Context, schoolClass string) error
+}

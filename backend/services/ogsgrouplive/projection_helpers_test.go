@@ -14,6 +14,8 @@ import (
 )
 
 func TestPlanningLabelCoversEveryReason(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		decision scheduleService.DayPlanningDecision
@@ -41,6 +43,8 @@ func TestPlanningLabelCoversEveryReason(t *testing.T) {
 }
 
 func TestApplyEffectiveStatusPrecedence(t *testing.T) {
+	t.Parallel()
+
 	since := time.Date(2026, 8, 1, 8, 0, 0, 0, time.UTC)
 
 	t.Run("sick wins and clears the other flags", func(t *testing.T) {
@@ -84,6 +88,8 @@ func TestApplyEffectiveStatusPrecedence(t *testing.T) {
 }
 
 func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
+	t.Parallel()
+
 	assert.Empty(t, buildPhotoURL(5, ""))
 	assert.Equal(t, "https://example.invalid/x.jpg", buildPhotoURL(5, "https://example.invalid/x.jpg"),
 		"non-upload URLs pass through untouched")
@@ -92,6 +98,8 @@ func TestBuildPhotoURLRewritesOnlyStoredUploads(t *testing.T) {
 }
 
 func TestApplyTimesFormatsArrivalAndAttendance(t *testing.T) {
+	t.Parallel()
+
 	arrivalAt := time.Date(2026, 8, 3, 13, 15, 0, 0, time.UTC)
 	checkIn := time.Date(2026, 8, 3, 11, 2, 0, 0, time.UTC)
 	checkOut := time.Date(2026, 8, 3, 14, 30, 0, 0, time.UTC)
@@ -121,6 +129,8 @@ func TestApplyTimesFormatsArrivalAndAttendance(t *testing.T) {
 }
 
 func TestPickupTimesSkipsRedactedAndMissingStudents(t *testing.T) {
+	t.Parallel()
+
 	pickupAt := time.Date(2026, 8, 3, 15, 0, 0, 0, time.UTC)
 	students := []Student{
 		{ID: 1, fullAccess: true},
@@ -144,11 +154,15 @@ func TestPickupTimesSkipsRedactedAndMissingStudents(t *testing.T) {
 }
 
 func TestValidateDependenciesRejectsPartialWiring(t *testing.T) {
+	t.Parallel()
+
 	incomplete := &service{}
 	assert.Error(t, incomplete.validateDependencies())
 }
 
 func TestSelectGroupFallsBackAndMatches(t *testing.T) {
+	t.Parallel()
+
 	first := &educationModels.Group{Name: "A"}
 	first.ID = 1
 	second := &educationModels.Group{Name: "B"}
@@ -164,6 +178,8 @@ func TestSelectGroupFallsBackAndMatches(t *testing.T) {
 // in open care the staffer who decides the request supervises no group, so the
 // child reaches them redacted (#2232). The day plan itself stays full-access.
 func TestApplyPlanningAttachesPendingNoteToRedactedStudent(t *testing.T) {
+	t.Parallel()
+
 	state := &buildState{
 		projected: []Student{
 			{ID: 11, fullAccess: true},

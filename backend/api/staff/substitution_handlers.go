@@ -72,6 +72,21 @@ func (rs *Resource) loadAbsenceMap(ctx context.Context) map[int64]string {
 	return am
 }
 
+// loadAbsenceLabelMap loads the school's own Abwesenheitsart wording per staff
+// member for today (#2403). Non-critical like loadAbsenceMap: an error yields
+// an empty map, and every staff member then falls back to the standard label.
+func (rs *Resource) loadAbsenceLabelMap(ctx context.Context) map[int64]string {
+	if rs.StaffAbsenceService == nil {
+		return make(map[int64]string)
+	}
+	labels, err := rs.StaffAbsenceService.GetTodayAbsenceLabelMap(ctx)
+	if err != nil {
+		rs.getLogger().Warn("failed to fetch absence label map", slog.String("error", err.Error()))
+		return make(map[int64]string)
+	}
+	return labels
+}
+
 // loadAccountMap batch-loads one per-account string attribute (role name,
 // email, avatar path) for all staff members. Non-critical: returns an empty
 // map when AuthService is missing, no staff member has an account, or the

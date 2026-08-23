@@ -544,11 +544,10 @@ describe("PasswordChangeModal", () => {
         expect(
           screen.getByText(/Bitte füllen Sie alle Felder aus/i),
         ).toBeInTheDocument();
-      });
-
-      expect(scrollIntoViewMock).toHaveBeenCalledWith({
-        behavior: "smooth",
-        block: "start",
+        expect(scrollIntoViewMock).toHaveBeenCalledWith({
+          behavior: "smooth",
+          block: "start",
+        });
       });
     });
 

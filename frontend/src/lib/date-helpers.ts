@@ -85,6 +85,28 @@ export function isValidISODate(s: string): boolean {
   return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
 }
 
+/**
+ * ISO-8601 calendar week number of a "YYYY-MM-DD" date (Mon-based; week 1 is
+ * the week holding the first Thursday). Schools plan in calendar weeks, so a
+ * date field that decides a school week shows its KW beside the date.
+ */
+export function isoWeekNumber(s: string): number {
+  const date = parseISODate(s);
+  date.setHours(0, 0, 0, 0);
+  // Thursday of the current week decides the year and the week.
+  date.setDate(date.getDate() + 3 - ((date.getDay() + 6) % 7));
+  const week1 = new Date(date.getFullYear(), 0, 4);
+  return (
+    1 +
+    Math.round(
+      ((date.getTime() - week1.getTime()) / 86_400_000 -
+        3 +
+        ((week1.getDay() + 6) % 7)) /
+        7,
+    )
+  );
+}
+
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
 export function todayISO(): string {
   return toISODate(new Date());
@@ -103,6 +125,21 @@ export function berlinTodayISO(at: Date = new Date()): string {
   const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(at);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * Midnight (00:00:00) of the Berlin calendar day an instant falls on, as the
+ * actual instant — the boundary a running work block has to be clamped to so
+ * its minutes before midnight stay booked on the previous day.
+ *
+ * Derived from the previous day's 23:59:59 plus a second rather than by
+ * subtracting 24h, so the DST nights (23h and 25h long) land on the real
+ * midnight instead of one hour beside it.
+ */
+export function berlinDayStart(at: Date = new Date()): Date {
+  const dayBefore = parseISODate(berlinTodayISO(at));
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  return new Date(new Date(endOfBerlinDayISO(dayBefore)).getTime() + 1_000);
 }
 
 /**
@@ -365,4 +402,33 @@ export function getStartDateForTimeRange(
 
   startDate.setHours(0, 0, 0, 0);
   return startDate;
+}
+
+/**
+ * Wie lange etwas schon liegt, als kurze deutsche Angabe ("heute",
+ * "gestern", "vor 5 Tagen"). Für Warteschlangen, in denen das Alter eines
+ * Eintrags die eigentliche Dringlichkeit trägt und ein Datum erst im Kopf
+ * ausgerechnet werden müsste.
+ *
+ * Gezählt werden Berliner Kalendertage, nicht 24-Stunden-Blöcke: eine
+ * Anfrage von gestern 23:00 Uhr ist heute früh "gestern" und nicht "heute".
+ * `at` ist injizierbar, damit Tests nicht an der echten Uhr hängen.
+ *
+ * Gibt null zurück, wenn der Wert nicht lesbar ist — dann zeigt die Zeile
+ * eben kein Alter, statt "NaN" zu schreiben.
+ */
+export function relativeDaysLabel(
+  dateString: string,
+  at: Date = new Date(),
+): string | null {
+  const then = berlinDayFromISO(dateString);
+  if (then === null) return null;
+  const today = parseISODate(berlinTodayISO(at));
+  const days = Math.round(
+    (today.getTime() - then.getTime()) / (24 * 60 * 60 * 1000),
+  );
+  if (Number.isNaN(days) || days < 0) return null;
+  if (days === 0) return "heute";
+  if (days === 1) return "gestern";
+  return `vor ${days} Tagen`;
 }

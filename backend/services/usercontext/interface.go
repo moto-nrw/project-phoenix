@@ -26,6 +26,10 @@ type UserContextService interface {
 	// GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
 
+	// GetNavigationContext aggregates the identity and group data consumed by
+	// the shared frontend context into one backend request.
+	GetNavigationContext(ctx context.Context) (*NavigationContext, error)
+
 	// ResolveSSESubscription resolves the SSE topic subscription (staff
 	// resolution + supervised/active groups + educational groups) for the
 	// authenticated caller. Returns an *SSESetupError carrying an HTTP status
@@ -80,4 +84,17 @@ type UserContextService interface {
 
 	// UpdateAvatar updates the current user's avatar
 	UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error)
+}
+
+type NavigationContextGroup struct {
+	*education.Group
+	ViaSubstitution bool `json:"via_substitution"`
+}
+
+type NavigationContext struct {
+	EducationalGroups   []*NavigationContextGroup `json:"educational_groups"`
+	SupervisedGroups    []*active.Group           `json:"supervised_groups"`
+	CurrentStaff        *users.Staff              `json:"current_staff"`
+	Incomplete          bool                      `json:"incomplete"`
+	UnavailableSections []string                  `json:"unavailable_sections"`
 }

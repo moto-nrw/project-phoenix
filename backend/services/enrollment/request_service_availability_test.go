@@ -10,6 +10,8 @@ import (
 )
 
 func TestMaterializeCareOfferingsEnforcesAvailabilityPerChild(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	conditional := &enrollmentModels.CareOffering{
 		Name: "Randstunde", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}, AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
@@ -32,6 +34,8 @@ func TestMaterializeCareOfferingsEnforcesAvailabilityPerChild(t *testing.T) {
 }
 
 func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T) {
+	t.Parallel()
+
 	grade2 := int16(2)
 	grade3 := int16(3)
 	forGradesOneAndTwo := &enrollmentModels.CareOffering{
@@ -70,6 +74,8 @@ func TestChangeRequestCareOfferingsUseEachChildsGradeIndependently(t *testing.T)
 }
 
 func TestMaterializeCareOfferingsMissingGradeRejectsPositiveAndNegativeRules(t *testing.T) {
+	t.Parallel()
+
 	for _, operator := range []string{enrollmentModels.AvailabilityOperatorIn, enrollmentModels.AvailabilityOperatorNotIn} {
 		t.Run(operator, func(t *testing.T) {
 			offering := &enrollmentModels.CareOffering{AvailabilityRule: testGradeAvailabilityRule(operator, 1, 2)}
@@ -85,6 +91,8 @@ func TestMaterializeCareOfferingsMissingGradeRejectsPositiveAndNegativeRules(t *
 }
 
 func TestConditionalRequiredAndSelectionModeOnlyApplyWhenAvailable(t *testing.T) {
+	t.Parallel()
+
 	grade3 := int16(3)
 	required := &enrollmentModels.CareOffering{
 		IsRequired: true, AvailabilityRule: testGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1, 2),
@@ -105,6 +113,8 @@ func TestConditionalRequiredAndSelectionModeOnlyApplyWhenAvailable(t *testing.T)
 }
 
 func TestSelectionModeStillRejectsAnEmptyCatalog(t *testing.T) {
+	t.Parallel()
+
 	_, err := materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{{}},
 		map[int64]*enrollmentModels.CareOffering{},
@@ -114,6 +124,8 @@ func TestSelectionModeStillRejectsAnEmptyCatalog(t *testing.T) {
 }
 
 func TestSelectionGroupsIgnoreUnavailableOfferings(t *testing.T) {
+	t.Parallel()
+
 	grade3 := int16(3)
 	conditional := &enrollmentModels.CareOffering{
 		SelectionGroup: "randstunde", SelectionRule: enrollmentModels.SelectionRuleExactlyOne,
@@ -144,6 +156,8 @@ func TestSelectionGroupsIgnoreUnavailableOfferings(t *testing.T) {
 }
 
 func TestUnavailableOfferingCannotBeAutoAdded(t *testing.T) {
+	t.Parallel()
+
 	grade3 := int16(3)
 	trigger := &enrollmentModels.CareOffering{Name: "Trigger", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"}}
 	trigger.ID = 10
@@ -163,6 +177,8 @@ func TestUnavailableOfferingCannotBeAutoAdded(t *testing.T) {
 }
 
 func TestUnknownOfferingStillUsesClosedError(t *testing.T) {
+	t.Parallel()
+
 	_, err := materializeAndValidateChildrenOfferingSelections(
 		[]SubmitChild{{OfferingIDs: []int64{999}}}, map[int64]*enrollmentModels.CareOffering{}, enrollmentModels.PhaseCareOfferingSelectionOptional,
 	)
@@ -182,6 +198,8 @@ func testGradeAvailabilityRule(operator string, values ...int) *enrollmentModels
 // tightened after a child was booked must not revoke the booking, and must
 // not make every later correction for that child unsaveable.
 func TestGrandfatheredOfferingsSurviveATightenedAvailabilityRule(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	restricted := &enrollmentModels.CareOffering{
 		Name:             "Randstunde",
@@ -220,6 +238,8 @@ func TestGrandfatheredOfferingsSurviveATightenedAvailabilityRule(t *testing.T) {
 }
 
 func TestGrandfatheringDoesNotLetANewBlockedOfferingBeAdded(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	restricted := &enrollmentModels.CareOffering{
 		Name:             "Randstunde",
@@ -247,6 +267,8 @@ func TestGrandfatheringDoesNotLetANewBlockedOfferingBeAdded(t *testing.T) {
 }
 
 func TestGrandfatheringIgnoresIDsOutsideTheCatalog(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	restricted := &enrollmentModels.CareOffering{
 		Name:             "Randstunde",
@@ -269,6 +291,8 @@ func TestGrandfatheringIgnoresIDsOutsideTheCatalog(t *testing.T) {
 // #2186 review: the exemption must lapse the moment an admin removes the
 // booking, or a removed offering keeps privileges it no longer has.
 func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 
 	t.Run("a removed required offering is not demanded back", func(t *testing.T) {
@@ -378,6 +402,8 @@ func TestGrandfatheringLapsesWhenTheOfferingIsRemoved(t *testing.T) {
 // — it is derived from its trigger on every save. Requiring it to be "still
 // selected" deleted it the first time an admin saved an unrelated correction.
 func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	newCatalog := func() map[int64]*enrollmentModels.CareOffering {
 		trigger := &enrollmentModels.CareOffering{
@@ -446,6 +472,8 @@ func TestAutomaticOnlyGrandfatheredBookingsSurviveAnUnrelatedSave(t *testing.T) 
 // it removed the whole booking — including the automatic days its still-
 // selected trigger keeps deriving.
 func TestMixedGrandfatheredBookingKeepsItsAutomaticDaysWhenUnticked(t *testing.T) {
+	t.Parallel()
+
 	grade := func(value int16) *int16 { return &value }
 	newCatalog := func() map[int64]*enrollmentModels.CareOffering {
 		trigger := &enrollmentModels.CareOffering{

@@ -23,15 +23,28 @@ import (
 )
 
 type fakeMasterDataReviewService struct {
-	items     []*userService.MasterDataReviewItem
-	listErr   error
-	decided   *userService.MasterDataReviewItem
-	decideErr error
-	gotInput  userService.MasterDataReviewDecideInput
+	items       []*userService.MasterDataReviewItem
+	listErr     error
+	decided     *userService.MasterDataReviewItem
+	decideErr   error
+	gotInput    userService.MasterDataReviewDecideInput
+	history     []*userService.MasterDataHistoryItem
+	historyNext *userService.HistoryCursor
+	historyErr  error
+	gotBefore   time.Time
+	gotBeforeID int64
+	gotLimit    int
 }
 
-func (f *fakeMasterDataReviewService) ListPending(context.Context) ([]*userService.MasterDataReviewItem, error) {
-	return f.items, f.listErr
+func (f *fakeMasterDataReviewService) ListHistory(_ context.Context, filters modelBase.RequestQueueFilters) ([]*userService.MasterDataHistoryItem, *userService.HistoryCursor, error) {
+	f.gotBefore = filters.BeforeInstant
+	f.gotBeforeID = filters.BeforeID
+	f.gotLimit = filters.Limit
+	return f.history, f.historyNext, f.historyErr
+}
+
+func (f *fakeMasterDataReviewService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*userService.MasterDataReviewItem, *userService.HistoryCursor, error) {
+	return f.items, nil, f.listErr
 }
 
 func (f *fakeMasterDataReviewService) Decide(_ context.Context, input userService.MasterDataReviewDecideInput) (*userService.MasterDataReviewItem, error) {
@@ -69,65 +82,30 @@ func reviewRow(status string) *usersModels.StudentDataChangeRequest {
 	}
 }
 
-func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
-	svc := &fakeMasterDataReviewService{
-		items: []*userService.MasterDataReviewItem{{
-			Request:   reviewRow(usersModels.DataChangeStatusPending),
-			FirstName: "Lara",
-			LastName:  "Beispiel",
-		}},
-	}
-	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
-	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
-	w := httptest.NewRecorder()
-
-	rs.listMasterDataChangeRequests(w, req)
-
-	require.Equal(t, http.StatusOK, w.Code)
-	body := w.Body.String()
-	assert.Contains(t, body, `"id":"100"`)
-	assert.Contains(t, body, `"student_id":"42"`)
-	assert.Contains(t, body, `"first_name":"Lara"`)
-	assert.Contains(t, body, `"field_key":"first_name"`)
-}
-
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
-	// The queue + decide routes now gate on users:update (deciding a request is
-	// the same child write as editing the child directly), with per-child scope
-	// enforced in the service. A caller with only users:read cannot reach them.
+	// The decide route gates on users:update (deciding a request is the same
+	// child write as editing the child directly), with per-child scope enforced
+	// in the service. A caller with only users:read cannot reach it.
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{permissions.UsersRead}
 	claims.IsAdmin = false
 	token := testutil.MintTestJWT(t, claims)
 
-	for _, tc := range []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{method: http.MethodGet, path: "/master-data-change-requests"},
-		{method: http.MethodPost, path: "/master-data-change-requests/100/decide", body: `{"approve":true}`},
-	} {
-		req := testutil.NewAuthenticatedRequest(t, tc.method, tc.path, strings.NewReader(tc.body), testutil.WithJWTBearer(token))
-		rr := testutil.ExecuteRequest(router, req)
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/master-data-change-requests/100/decide",
+		strings.NewReader(`{"approve":true}`), testutil.WithJWTBearer(token))
+	rr := testutil.ExecuteRequest(router, req)
 
-		require.Equal(t, http.StatusForbidden, rr.Code)
-	}
-}
-
-func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
-	rs := &Resource{}
-	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
-	w := httptest.NewRecorder()
-
-	rs.listMasterDataChangeRequests(w, req)
-
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	require.Equal(t, http.StatusForbidden, rr.Code)
 }
 
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {
+	t.Parallel()
+
 	svc := &fakeMasterDataReviewService{decided: reviewItem(usersModels.DataChangeStatusApproved)}
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
 	req := staffRequest(
@@ -151,6 +129,8 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 }
 
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}
 
 	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`, "nope")
@@ -170,6 +150,8 @@ func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
 }
 
 func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error

@@ -7,6 +7,8 @@ import (
 )
 
 func TestStudentGuardian_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		sg      *StudentGuardian
@@ -108,6 +110,8 @@ func TestStudentGuardian_Validate(t *testing.T) {
 }
 
 func TestStudentGuardian_SetStudent(t *testing.T) {
+	t.Parallel()
+
 	student := &Student{
 		Model: base.Model{
 			ID: 123,
@@ -138,6 +142,8 @@ func TestStudentGuardian_SetStudent(t *testing.T) {
 //   - auth/authorize/guardian_permission_test.go (TestStudentGuardianHasPermission)
 
 func TestStudentGuardian_GetRelationshipName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		relationshipType string
 		expectedName     string
@@ -163,6 +169,8 @@ func TestStudentGuardian_GetRelationshipName(t *testing.T) {
 }
 
 func TestStudentGuardian_UpdatePermissions(t *testing.T) {
+	t.Parallel()
+
 	sg := &StudentGuardian{
 		StudentID:         1,
 		GuardianProfileID: 2,

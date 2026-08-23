@@ -20,6 +20,8 @@ import (
 // *_mock_test.go files.
 
 func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("connection reset")
 	svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*activeModels.Visit, error) {
@@ -35,6 +37,8 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 }
 
 func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
+	t.Parallel()
+
 	// GetCurrentByStudentID still reports the visit as open, but by the time
 	// EndVisit re-reads it the exit time is set — the concurrent-caller race.
 	exitTime := time.Now()
@@ -64,6 +68,8 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 }
 
 func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
+	t.Parallel()
+
 	openVisit := &activeModels.Visit{
 		Model:     base.Model{ID: 4714},
 		StudentID: 4711,
@@ -98,6 +104,8 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 }
 
 func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	openVisit := &activeModels.Visit{
 		Model:     base.Model{ID: 4713},
 		StudentID: 4711,
@@ -124,6 +132,8 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 }
 
 func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
+	t.Parallel()
+
 	// A batch checkout crossing Berlin midnight closes its snapshot day's
 	// attendance; a room visit the student started AFTER that day belongs to
 	// the new day's session and must stay open (review #2372).

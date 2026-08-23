@@ -11,6 +11,8 @@ import (
 )
 
 func TestRunAppointmentRemindersForTenantLeadSettingErrorDoesNotScan(t *testing.T) {
+	t.Parallel()
+
 	queuer := &fakeReminderQueuer{}
 	s := &Scheduler{
 		logger:               slog.Default(),

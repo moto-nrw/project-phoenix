@@ -449,6 +449,7 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 	fmt.Printf("  Sick:             %d\n", result.Fixed.SickStudentCount)
 	fmt.Printf("  Guardians:        %d\n", result.Fixed.GuardianCount)
 	fmt.Printf("  Pickup schedules: %d\n", result.Fixed.PickupScheduleCount)
+	fmt.Printf("  Class arrival times: %d\n", result.Fixed.ClassArrivalTimeCount)
 	fmt.Printf("  Activities:       %d\n", result.Fixed.ActivityCount)
 	fmt.Printf("  IoT Devices:      %d\n", result.Fixed.DeviceCount)
 	if state != nil {

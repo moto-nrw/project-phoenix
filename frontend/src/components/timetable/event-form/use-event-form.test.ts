@@ -1,10 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import * as plannerReferenceApi from "~/lib/planner-reference-api";
+import { planningTrackService } from "~/lib/planning-track-api";
 import { staffService } from "~/lib/staff-api";
+import { timetableService } from "~/lib/timetable-api";
 import * as formModel from "./form-model";
 import { reconcileCategoryId, useEventForm } from "./use-event-form";
 import type { UseEventFormParams } from "./use-event-form";
@@ -17,7 +19,18 @@ vi.mock("~/contexts/ToastContext", () => ({
   }),
 }));
 
+beforeEach(() => {
+  vi.spyOn(planningTrackService, "list").mockResolvedValue([]);
+  vi.spyOn(timetableService, "getOfferingSources").mockResolvedValue([]);
+  vi.spyOn(timetableService, "getCombinedOfferingCounts").mockResolvedValue({
+    totalCount: 0,
+    gradeCounts: {},
+    students: [],
+  });
+});
+
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
 });
 
@@ -402,6 +415,104 @@ describe("useEventForm offering source roster stash", () => {
     expect(result.current.form.sourceCareOfferingIds).toEqual(["5"]);
     expect(result.current.form.perWeekdayRoster).toBe(false);
     expect(result.current.form.staffIds).toEqual(["7"]);
+  });
+});
+
+describe("useEventForm Quellenfilter-Modus (#2482)", () => {
+  const mountHook = () => {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    return renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose: vi.fn(),
+        onSaved: vi.fn(),
+        defaultDate: "2026-08-03",
+        calendarPeriods: [],
+        defaultCalendarPeriodId: null,
+        initialInstance: null,
+        initialSeries: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+      }),
+    );
+  };
+
+  it("clears the other filter when the mode switches", () => {
+    const { result } = mountHook();
+
+    act(() => {
+      result.current.changeSourceOfferings(["5"]);
+    });
+    act(() => {
+      result.current.changeSourceFilterMode("jahrgang");
+    });
+    act(() => {
+      result.current.toggleSourceGradeLevel(1);
+    });
+    expect(result.current.form.sourceGradeLevels).toEqual([1]);
+
+    act(() => {
+      result.current.changeSourceFilterMode("klasse");
+    });
+    expect(result.current.form.sourceGradeLevels).toEqual([]);
+
+    act(() => {
+      result.current.toggleSourceSchoolClass("1b");
+    });
+    expect(result.current.form.sourceSchoolClasses).toEqual(["1b"]);
+
+    act(() => {
+      result.current.changeSourceFilterMode("jahrgang");
+    });
+    expect(result.current.form.sourceSchoolClasses).toEqual([]);
+  });
+
+  it("drops the class filter together with the last source", () => {
+    const { result } = mountHook();
+
+    act(() => {
+      result.current.changeSourceOfferings(["5"]);
+    });
+    act(() => {
+      result.current.changeSourceFilterMode("klasse");
+    });
+    act(() => {
+      result.current.toggleSourceSchoolClass("1b");
+    });
+    expect(result.current.form.sourceSchoolClasses).toEqual(["1b"]);
+
+    act(() => {
+      result.current.changeSourceOfferings([]);
+    });
+    expect(result.current.form.sourceSchoolClasses).toEqual([]);
+    expect(result.current.form.sourceFilterMode).toBe("alle");
+  });
+
+  it("toggles a class off again, ignoring case and padding", () => {
+    const { result } = mountHook();
+
+    act(() => {
+      result.current.changeSourceOfferings(["5"]);
+    });
+    act(() => {
+      result.current.changeSourceFilterMode("klasse");
+    });
+    act(() => {
+      result.current.toggleSourceSchoolClass("1b");
+    });
+    act(() => {
+      result.current.toggleSourceSchoolClass(" 1B ");
+    });
+    expect(result.current.form.sourceSchoolClasses).toEqual([]);
   });
 });
 

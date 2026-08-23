@@ -220,7 +220,7 @@ func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinC
 		// unknown student (404), the same mapping errorRules, the IoT checkin
 		// mapper and the school-checkin handler use. Without it the row-lock race
 		// this guard exists to win surfaces as a 500 (#405).
-		if errors.Is(createErr, activeService.ErrStudentGraduated) {
+		if errors.Is(createErr, activeService.ErrStudentGraduated) || errors.Is(createErr, activeService.ErrStudentCareEnded) {
 			return nil, &checkinError{http.StatusNotFound, "Student not found"}
 		}
 		rs.getLogger().ErrorContext(ctx, "failed to create visit during check-in",

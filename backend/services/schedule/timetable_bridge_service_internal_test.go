@@ -91,6 +91,8 @@ func (f *bridgeCareDayStub) ResolveForRange(
 // finalizing attendance, which relabelled real children as never booked and
 // dropped them out of the attendance history.
 func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
+	t.Parallel()
+
 	const (
 		activeGroupID   int64 = 8801
 		instanceID      int64 = 7701
@@ -159,6 +161,8 @@ func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
 // 'expected' rows left the false absence standing in the history and the
 // exports (#1747 review).
 func TestTimetableBridgeUndoesStatusDayAbsenceForUnbookedChild(t *testing.T) {
+	t.Parallel()
+
 	const (
 		activeGroupID  int64 = 8803
 		instanceID     int64 = 7703
@@ -210,6 +214,8 @@ func TestTimetableBridgeUndoesStatusDayAbsenceForUnbookedChild(t *testing.T) {
 }
 
 func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testing.T) {
+	t.Parallel()
+
 	const (
 		activeGroupID int64 = 8802
 		instanceID    int64 = 7702
@@ -241,6 +247,8 @@ func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testin
 }
 
 func TestTimetableBridgeAllowsSystemCompleteBeforePlannedEnd(t *testing.T) {
+	t.Parallel()
+
 	const activeGroupID int64 = 8810
 	date := timezone.NewDate(2026, 5, 4)
 	inst := &scheduleModel.ActivityInstance{

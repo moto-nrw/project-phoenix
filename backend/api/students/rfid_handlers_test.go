@@ -39,13 +39,14 @@ func deviceExec(t *testing.T, tc *testContext, req *http.Request, device *iotMod
 	return testutil.ExecuteRequest(tc.resource.Router(), req)
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-reader")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "TagTest", "RT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("success_assigns_rfid_tag", func(t *testing.T) {
 		// RFID tag must be hexadecimal format (at least 8 chars)
@@ -103,13 +104,14 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create test device and student with RFID tag
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "UnassignTest", "RU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("error_no_tag_assigned", func(t *testing.T) {
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
@@ -139,10 +141,11 @@ func TestUnassignRFIDTag_WithDeviceAuth(t *testing.T) {
 }
 
 func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDevice", "RND1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	body := map[string]interface{}{
 		"rfid_tag": "TESTTAG12345678",
@@ -156,10 +159,11 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "NoDeviceUnassign", "RNDU1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
 
@@ -169,13 +173,14 @@ func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	tc := setupTestContext(t)
 
 	// Create device and student
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-unassign-success")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Unassign", "RUS1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	// First assign an RFID tag
 	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())
@@ -198,12 +203,13 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagValidation(t *testing.T) {
 	tc := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-validation")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Validation", "RV1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	t.Run("too_short_tag", func(t *testing.T) {
 		// Tag must be at least 8 characters
@@ -238,12 +244,13 @@ func TestRFIDTagValidation(t *testing.T) {
 // a bracelet created a tag the kiosk could see but never release. Releasing must
 // therefore work on an alumnus, while assigning a NEW tag to a soft-deleted
 // child stays blocked.
+// Deliberately NOT parallel: process-global state — t.Setenv on
+// OGS_DEVICE_PIN through the device-auth helper.
 func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
 	device := testpkg.CreateTestDevice(t, tc.db, "rfid-alumnus")
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Graduated", "RG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, device.ID, student.ID)
 
 	// Assign while the child is still enrolled, then graduate them.
 	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())

@@ -335,6 +335,8 @@ func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 }
 
 func TestProvisioningResource_CreateOrganization(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createOrganizationFn: func(_ context.Context, org *platformModels.Organization, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
 			assert.Equal(t, int64(42), operatorID)
@@ -361,6 +363,8 @@ func TestProvisioningResource_CreateOrganization(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateOrganization_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/organizations", bytes.NewBufferString(`{"name":`))
 	req.Header.Set("Content-Type", "application/json")
@@ -372,6 +376,8 @@ func TestProvisioningResource_CreateOrganization_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizations(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrganizationsFn: func(context.Context) ([]*platformModels.Organization, error) {
 			return []*platformModels.Organization{{Name: "Org", Slug: "org"}}, nil
@@ -385,6 +391,8 @@ func TestProvisioningResource_ListOrganizations(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizations_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrganizationsFn: func(context.Context) ([]*platformModels.Organization, error) {
 			return nil, errors.New("db fail")
@@ -398,6 +406,8 @@ func TestProvisioningResource_ListOrganizations_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateSchool(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
 			assert.Equal(t, int64(42), operatorID)
@@ -423,6 +433,8 @@ func TestProvisioningResource_CreateSchool(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchools(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolsFn: func(context.Context) ([]*platformModels.School, error) {
 			return []*platformModels.School{{Name: "School", Slug: "school"}}, nil
@@ -436,6 +448,8 @@ func TestProvisioningResource_ListSchools(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateSchool_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools", bytes.NewBufferString(`{"organization_id":`))
 	req.Header.Set("Content-Type", "application/json")
@@ -447,6 +461,8 @@ func TestProvisioningResource_CreateSchool_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchools_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolsFn: func(context.Context) ([]*platformModels.School, error) {
 			return nil, errors.New("db fail")
@@ -459,6 +475,7 @@ func TestProvisioningResource_ListSchools_Error(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 	expiresAt := time.Now().Add(time.Hour).UTC()
 	first := "Ada"
@@ -522,6 +539,8 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 }
 
 func TestProvisioningResource_InviteSchoolAdmin_InvalidSchoolID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/nope/invite-admin", bytes.NewBufferString(`{"email":"principal@example.com"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -536,6 +555,8 @@ func TestProvisioningResource_InviteSchoolAdmin_InvalidSchoolID(t *testing.T) {
 }
 
 func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		inviteSchoolAdminFn: func(context.Context, int64, int64, net.IP, authSvc.InvitationRequest) (*authModels.InvitationToken, error) {
 			return nil, &authSvc.AuthError{Op: "create invitation", Err: errors.New("invalid email")}
@@ -553,6 +574,7 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestProvisioningHelpers(t *testing.T) {
 	errText := "boom"
 	now := time.Now()
@@ -584,6 +606,8 @@ func TestProvisioningHelpers(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		err        error
 		statusCode int
@@ -603,6 +627,8 @@ func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateOrganization(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateOrganizationFn: func(_ context.Context, id int64, req platformSvc.UpdateOrganizationRequest, operatorID int64, clientIP net.IP) (*platformModels.Organization, error) {
 			assert.Equal(t, int64(5), id)
@@ -634,6 +660,8 @@ func TestProvisioningResource_UpdateOrganization(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateOrganization_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/5", bytes.NewBufferString(`{"name":`))
 	req.Header.Set("Content-Type", "application/json")
@@ -648,6 +676,8 @@ func TestProvisioningResource_UpdateOrganization_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateOrganization_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPut, "/operator/organizations/abc", bytes.NewBufferString(`{"name":"Updated Org","slug":"updated-org","active":true}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -662,6 +692,8 @@ func TestProvisioningResource_UpdateOrganization_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateOrganization_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 5}
@@ -682,6 +714,8 @@ func TestProvisioningResource_UpdateOrganization_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateOrganization_Conflict(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateOrganizationFn: func(context.Context, int64, platformSvc.UpdateOrganizationRequest, int64, net.IP) (*platformModels.Organization, error) {
 			return nil, &platformSvc.ConflictError{Err: errors.New("slug taken")}
@@ -702,6 +736,8 @@ func TestProvisioningResource_UpdateOrganization_Conflict(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateSchoolFn: func(_ context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
 			assert.Equal(t, int64(10), id)
@@ -733,6 +769,8 @@ func TestProvisioningResource_UpdateSchool(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool_Hidden(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateSchoolFn: func(_ context.Context, id int64, req platformSvc.UpdateSchoolRequest, operatorID int64, _ net.IP) (*platformModels.School, error) {
 			assert.Equal(t, int64(10), id)
@@ -759,6 +797,8 @@ func TestProvisioningResource_UpdateSchool_Hidden(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateSchool_Hidden(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, _ net.IP) (*platformModels.School, error) {
 			assert.True(t, school.Hidden, "Hidden field must be passed through from create handler")
@@ -782,6 +822,8 @@ func TestProvisioningResource_CreateSchool_Hidden(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPut, "/operator/schools/10", bytes.NewBufferString(`{"organization_id":`))
 	req.Header.Set("Content-Type", "application/json")
@@ -796,6 +838,8 @@ func TestProvisioningResource_UpdateSchool_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPut, "/operator/schools/nope", bytes.NewBufferString(`{"organization_id":7,"name":"School","slug":"school","subdomain":"sub","email":"a@b.com","active":true}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -810,6 +854,8 @@ func TestProvisioningResource_UpdateSchool_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateSchoolFn: func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error) {
 			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 10}
@@ -830,6 +876,8 @@ func TestProvisioningResource_UpdateSchool_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		updateSchoolFn: func(context.Context, int64, platformSvc.UpdateSchoolRequest, int64, net.IP) (*platformModels.School, error) {
 			return nil, &platformSvc.ConflictError{Err: errors.New("subdomain taken")}
@@ -852,6 +900,8 @@ func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
 // --- Bind method tests ---
 
 func TestUpdateOrganizationRequest_Bind_MissingName(t *testing.T) {
+	t.Parallel()
+
 	req := &updateOrganizationRequest{Name: "", Slug: "valid-slug", Active: true}
 	err := req.Bind(nil)
 	require.Error(t, err)
@@ -859,6 +909,8 @@ func TestUpdateOrganizationRequest_Bind_MissingName(t *testing.T) {
 }
 
 func TestUpdateOrganizationRequest_Bind_MissingSlug(t *testing.T) {
+	t.Parallel()
+
 	req := &updateOrganizationRequest{Name: "Valid Name", Slug: "", Active: true}
 	err := req.Bind(nil)
 	require.Error(t, err)
@@ -866,6 +918,8 @@ func TestUpdateOrganizationRequest_Bind_MissingSlug(t *testing.T) {
 }
 
 func TestUpdateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &updateOrganizationRequest{Name: "  Org Name  ", Slug: "  org-slug  ", Active: true}
 	err := req.Bind(nil)
 	require.NoError(t, err)
@@ -874,6 +928,8 @@ func TestUpdateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
 }
 
 func TestUpdateSchoolRequest_Bind_MissingName(t *testing.T) {
+	t.Parallel()
+
 	req := &updateSchoolRequest{Name: "", Slug: "valid", Subdomain: "valid"}
 	err := req.Bind(nil)
 	require.Error(t, err)
@@ -881,6 +937,8 @@ func TestUpdateSchoolRequest_Bind_MissingName(t *testing.T) {
 }
 
 func TestUpdateSchoolRequest_Bind_MissingSlug(t *testing.T) {
+	t.Parallel()
+
 	req := &updateSchoolRequest{Name: "Valid", Slug: "", Subdomain: "valid"}
 	err := req.Bind(nil)
 	require.Error(t, err)
@@ -888,6 +946,8 @@ func TestUpdateSchoolRequest_Bind_MissingSlug(t *testing.T) {
 }
 
 func TestUpdateSchoolRequest_Bind_MissingSubdomain(t *testing.T) {
+	t.Parallel()
+
 	req := &updateSchoolRequest{Name: "Valid", Slug: "valid", Subdomain: ""}
 	err := req.Bind(nil)
 	require.Error(t, err)
@@ -895,6 +955,8 @@ func TestUpdateSchoolRequest_Bind_MissingSubdomain(t *testing.T) {
 }
 
 func TestUpdateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	t.Parallel()
+
 	req := &updateSchoolRequest{
 		Name:      "  School  ",
 		Slug:      "  school  ",
@@ -919,6 +981,8 @@ func TestUpdateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 }
 
 func TestCreateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &createOrganizationRequest{Name: "  Org  ", Slug: "  org-slug  "}
 	err := req.Bind(nil)
 	require.NoError(t, err)
@@ -927,6 +991,8 @@ func TestCreateOrganizationRequest_Bind_TrimWhitespace(t *testing.T) {
 }
 
 func TestCreateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolRequest{
 		Name:      "  School  ",
 		Slug:      "  school  ",
@@ -942,6 +1008,8 @@ func TestCreateSchoolRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 }
 
 func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	t.Parallel()
+
 	req := &inviteSchoolAdminRequest{
 		Email:            "  ADMIN@EXAMPLE.COM  ",
 		FirstName:        "  Ada  ",
@@ -959,6 +1027,8 @@ func TestInviteSchoolAdminRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 }
 
 func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &createDeviceRequest{
 		SchoolID:   9,
 		DeviceID:   "  DEV-123  ",
@@ -977,6 +1047,8 @@ func TestCreateDeviceRequest_Bind_TrimWhitespace(t *testing.T) {
 }
 
 func TestCreateDeviceRequest_Bind_RequiresSchoolID(t *testing.T) {
+	t.Parallel()
+
 	req := &createDeviceRequest{DeviceID: "DEV-123", DeviceType: "terminal"}
 
 	err := req.Bind(nil)
@@ -985,6 +1057,8 @@ func TestCreateDeviceRequest_Bind_RequiresSchoolID(t *testing.T) {
 }
 
 func TestCreateDeviceRequest_Bind_RequiresDeviceID(t *testing.T) {
+	t.Parallel()
+
 	req := &createDeviceRequest{SchoolID: 9, DeviceType: "terminal"}
 
 	err := req.Bind(nil)
@@ -993,6 +1067,8 @@ func TestCreateDeviceRequest_Bind_RequiresDeviceID(t *testing.T) {
 }
 
 func TestCreateDeviceRequest_Bind_RequiresDeviceType(t *testing.T) {
+	t.Parallel()
+
 	req := &createDeviceRequest{SchoolID: 9, DeviceID: "DEV-123"}
 
 	err := req.Bind(nil)
@@ -1001,6 +1077,8 @@ func TestCreateDeviceRequest_Bind_RequiresDeviceType(t *testing.T) {
 }
 
 func TestSetDeviceAPIKeyRequest_Bind_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &setDeviceAPIKeyRequest{APIKey: "  manual-key  "}
 
 	err := req.Bind(nil)
@@ -1012,6 +1090,8 @@ func TestSetDeviceAPIKeyRequest_Bind_TrimWhitespace(t *testing.T) {
 // --- Account listing handler tests ---
 
 func TestProvisioningResource_ListSchoolAccounts(t *testing.T) {
+	t.Parallel()
+
 	expected := []authModels.TenantAccountInfo{
 		{AccountID: 1, Email: "admin@example.com", Active: true, RoleName: "admin"},
 	}
@@ -1033,6 +1113,8 @@ func TestProvisioningResource_ListSchoolAccounts(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolAccounts_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/schools/abc/accounts", nil)
 	routeCtx := chi.NewRouteContext()
@@ -1045,6 +1127,8 @@ func TestProvisioningResource_ListSchoolAccounts_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolAccounts_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolAccountsFn: func(_ context.Context, _ int64) ([]authModels.TenantAccountInfo, error) {
 			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
@@ -1062,6 +1146,8 @@ func TestProvisioningResource_ListSchoolAccounts_ServiceError(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationAccounts(t *testing.T) {
+	t.Parallel()
+
 	expected := []authModels.OrgAccountInfo{
 		{TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com"}, SchoolID: 9, SchoolName: "School A"},
 	}
@@ -1083,6 +1169,8 @@ func TestProvisioningResource_ListOrganizationAccounts(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationAccounts_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/nope/accounts", nil)
 	routeCtx := chi.NewRouteContext()
@@ -1095,6 +1183,8 @@ func TestProvisioningResource_ListOrganizationAccounts_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationAccounts_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgAccountsFn: func(_ context.Context, _ int64) ([]authModels.OrgAccountInfo, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 3}
@@ -1112,6 +1202,8 @@ func TestProvisioningResource_ListOrganizationAccounts_ServiceError(t *testing.T
 }
 
 func TestProvisioningResource_ListAllAccounts(t *testing.T) {
+	t.Parallel()
+
 	expected := []authModels.OrgAccountInfo{
 		{TenantAccountInfo: authModels.TenantAccountInfo{AccountID: 1, Email: "admin@example.com"}, SchoolID: 9},
 	}
@@ -1129,6 +1221,8 @@ func TestProvisioningResource_ListAllAccounts(t *testing.T) {
 }
 
 func TestProvisioningResource_ListAllAccounts_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listAllAccountsFn: func(_ context.Context) ([]authModels.OrgAccountInfo, error) {
 			return nil, errors.New("db fail")
@@ -1145,6 +1239,8 @@ func TestProvisioningResource_ListAllAccounts_Error(t *testing.T) {
 // --- Device listing handler tests ---
 
 func TestProvisioningResource_ListAllDevices(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listAllDevicesFn: func(_ context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
 			return []platformSvc.OperatorDeviceInfo{{ID: 1, DeviceID: "dev-1"}}, nil
@@ -1159,6 +1255,8 @@ func TestProvisioningResource_ListAllDevices(t *testing.T) {
 }
 
 func TestProvisioningResource_ListAllDevices_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listAllDevicesFn: func(_ context.Context) ([]platformSvc.OperatorDeviceInfo, error) {
 			return nil, errors.New("db fail")
@@ -1173,6 +1271,8 @@ func TestProvisioningResource_ListAllDevices_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolDevices(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolDevicesFn: func(_ context.Context, schoolID int64) ([]platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(7), schoolID)
@@ -1191,6 +1291,8 @@ func TestProvisioningResource_ListSchoolDevices(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolDevices_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/schools/nope/devices", nil)
 	routeCtx := chi.NewRouteContext()
@@ -1203,6 +1305,8 @@ func TestProvisioningResource_ListSchoolDevices_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolDevices_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolDevicesFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
 			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
@@ -1220,6 +1324,8 @@ func TestProvisioningResource_ListSchoolDevices_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationDevices(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrganizationDevicesFn: func(_ context.Context, orgID int64) ([]platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(3), orgID)
@@ -1238,6 +1344,8 @@ func TestProvisioningResource_ListOrganizationDevices(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationDevices_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/nope/devices", nil)
 	routeCtx := chi.NewRouteContext()
@@ -1250,6 +1358,8 @@ func TestProvisioningResource_ListOrganizationDevices_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationDevices_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrganizationDevicesFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorDeviceInfo, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: 3}
@@ -1267,6 +1377,8 @@ func TestProvisioningResource_ListOrganizationDevices_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateDevice(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createDeviceFn: func(_ context.Context, schoolID int64, deviceID, deviceType string, name, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(42), operatorID)
@@ -1299,6 +1411,8 @@ func TestProvisioningResource_CreateDevice(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateDevice_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/devices", bytes.NewBufferString(`{"school_id":0,"device_id":"","device_type":""}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1311,6 +1425,8 @@ func TestProvisioningResource_CreateDevice_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateDevice_Conflict(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createDeviceFn: func(_ context.Context, _ int64, _, _ string, _, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			return nil, &platformSvc.ConflictError{Err: errors.New("api_key already exists")}
@@ -1328,6 +1444,8 @@ func TestProvisioningResource_CreateDevice_Conflict(t *testing.T) {
 }
 
 func TestProvisioningResource_SetDeviceAPIKey(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		setDeviceAPIKeyFn: func(_ context.Context, deviceID int64, apiKey *string, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(42), operatorID)
@@ -1358,6 +1476,8 @@ func TestProvisioningResource_SetDeviceAPIKey(t *testing.T) {
 }
 
 func TestProvisioningResource_SetDeviceAPIKey_AutoGenerated(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		setDeviceAPIKeyFn: func(_ context.Context, deviceID int64, apiKey *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(17), deviceID)
@@ -1380,6 +1500,8 @@ func TestProvisioningResource_SetDeviceAPIKey_AutoGenerated(t *testing.T) {
 }
 
 func TestProvisioningResource_SetDeviceAPIKey_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/devices/nope/set-api-key", bytes.NewBufferString(`{}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1395,6 +1517,8 @@ func TestProvisioningResource_SetDeviceAPIKey_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_SetDeviceAPIKey_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		setDeviceAPIKeyFn: func(_ context.Context, _ int64, _ *string, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			return nil, &platformSvc.OperatorDeviceNotFoundError{DeviceID: 17}
@@ -1415,6 +1539,8 @@ func TestProvisioningResource_SetDeviceAPIKey_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_GetDeviceTransferStatus(t *testing.T) {
+	t.Parallel()
+
 	lastSeen := time.Now().Add(-10 * time.Minute)
 	resource := NewProvisioningResource(&mockProvisioningService{
 		getDeviceTransferStatusFn: func(_ context.Context, deviceID int64) (*platformSvc.DeviceTransferStatus, error) {
@@ -1439,6 +1565,8 @@ func TestProvisioningResource_GetDeviceTransferStatus(t *testing.T) {
 }
 
 func TestProvisioningResource_TransferDevice(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		transferDeviceFn: func(_ context.Context, deviceID, targetSchoolID, operatorID int64, clientIP net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			assert.Equal(t, int64(17), deviceID)
@@ -1468,6 +1596,8 @@ func TestProvisioningResource_TransferDevice(t *testing.T) {
 }
 
 func TestProvisioningResource_TransferDevice_Blocked(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		transferDeviceFn: func(_ context.Context, deviceID, _ int64, _ int64, _ net.IP) (*platformSvc.OperatorDeviceInfo, error) {
 			return nil, &platformSvc.DeviceTransferBlockedError{DeviceID: deviceID, Reason: platformSvc.DeviceTransferBlockedOnline}
@@ -1490,6 +1620,8 @@ func TestProvisioningResource_TransferDevice_Blocked(t *testing.T) {
 // --- CreateSchoolAccount handler tests ---
 
 func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createSchoolAccountFn: func(_ context.Context, schoolID, operatorID int64, clientIP net.IP, req platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error) {
 			assert.Equal(t, int64(7), schoolID)
@@ -1526,6 +1658,8 @@ func TestProvisioningResource_CreateSchoolAccount(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateSchoolAccount_InvalidSchoolID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/abc/create-account", bytes.NewBufferString(`{"email":"a@b.com","first_name":"A","last_name":"B","password":"Secure123!","confirm_password":"Secure123!"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1540,6 +1674,8 @@ func TestProvisioningResource_CreateSchoolAccount_InvalidSchoolID(t *testing.T) 
 }
 
 func TestProvisioningResource_CreateSchoolAccount_InvalidRequest(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/7/create-account", bytes.NewBufferString(`{"email":"","first_name":"","last_name":"","password":"x","confirm_password":"y"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -1554,6 +1690,8 @@ func TestProvisioningResource_CreateSchoolAccount_InvalidRequest(t *testing.T) {
 }
 
 func TestProvisioningResource_CreateSchoolAccount_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		createSchoolAccountFn: func(context.Context, int64, int64, net.IP, platformSvc.CreateSchoolAccountRequest) (*authModels.Account, error) {
 			return nil, &authSvc.AuthError{Op: "create account", Err: authSvc.ErrEmailAlreadyExists}
@@ -1577,6 +1715,8 @@ func TestProvisioningResource_CreateSchoolAccount_ServiceError(t *testing.T) {
 // --- ListSystemRoles handler tests ---
 
 func TestProvisioningResource_ListSystemRoles(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
 			return []*authModels.Role{{Name: "admin"}, {Name: "teacher"}}, nil
@@ -1590,6 +1730,8 @@ func TestProvisioningResource_ListSystemRoles(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSystemRolesFn: func(_ context.Context) ([]*authModels.Role, error) {
 			return nil, errors.New("db fail")
@@ -1605,6 +1747,8 @@ func TestProvisioningResource_ListSystemRoles_Error(t *testing.T) {
 // --- createSchoolAccountRequest Bind tests ---
 
 func TestCreateSchoolAccountRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
+	t.Parallel()
+
 	roleID := int64(3)
 	req := &createSchoolAccountRequest{
 		Email:           "  TEACHER@EXAMPLE.COM  ",
@@ -1624,30 +1768,40 @@ func TestCreateSchoolAccountRequest_Bind_TrimAndLowercaseEmail(t *testing.T) {
 }
 
 func TestCreateSchoolAccountRequest_Bind_RequiresEmail(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolAccountRequest{Email: "", FirstName: "A", LastName: "B", Password: "Secure123!", ConfirmPassword: "Secure123!"}
 	err := req.Bind(nil)
 	require.EqualError(t, err, "email is required")
 }
 
 func TestCreateSchoolAccountRequest_Bind_RequiresFirstName(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "", LastName: "B", Password: "Secure123!", ConfirmPassword: "Secure123!"}
 	err := req.Bind(nil)
 	require.EqualError(t, err, "first name is required")
 }
 
 func TestCreateSchoolAccountRequest_Bind_RequiresLastName(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "", Password: "Secure123!", ConfirmPassword: "Secure123!"}
 	err := req.Bind(nil)
 	require.EqualError(t, err, "last name is required")
 }
 
 func TestCreateSchoolAccountRequest_Bind_RequiresPassword(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "B", Password: "", ConfirmPassword: ""}
 	err := req.Bind(nil)
 	require.EqualError(t, err, "password is required")
 }
 
 func TestCreateSchoolAccountRequest_Bind_PasswordsMustMatch(t *testing.T) {
+	t.Parallel()
+
 	req := &createSchoolAccountRequest{Email: "a@b.com", FirstName: "A", LastName: "B", Password: "Secure123!", ConfirmPassword: "Different!"}
 	err := req.Bind(nil)
 	require.EqualError(t, err, "passwords do not match")
@@ -1656,6 +1810,8 @@ func TestCreateSchoolAccountRequest_Bind_PasswordsMustMatch(t *testing.T) {
 // --- Additional ProvisioningErrorRenderer cases ---
 
 func TestProvisioningErrorRenderer_SchoolInactive(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolInactiveError{SchoolID: 1})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1664,6 +1820,8 @@ func TestProvisioningErrorRenderer_SchoolInactive(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.OperatorDeviceNotFoundError{DeviceID: 42})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1671,6 +1829,8 @@ func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrEmailAlreadyExists})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1678,6 +1838,8 @@ func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrUsernameAlreadyExists})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1685,6 +1847,8 @@ func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordMismatch})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1692,6 +1856,8 @@ func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordTooWeak})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1699,6 +1865,8 @@ func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: authSvc.ErrInvitationNameRequired})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1706,6 +1874,8 @@ func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: errors.New("some validation error")})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1713,6 +1883,8 @@ func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "some op", Err: errors.New("db error")})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1722,6 +1894,8 @@ func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
 // --- Person handler tests ---
 
 func TestProvisioningResource_ListSchoolPersons_Success(t *testing.T) {
+	t.Parallel()
+
 	expected := []platformSvc.OperatorPersonInfo{
 		{ID: 10, FirstName: "Ada", LastName: "Lovelace", SchoolID: 7, SchoolName: "Test School"},
 		{ID: 11, FirstName: "Grace", LastName: "Hopper", SchoolID: 7, SchoolName: "Test School"},
@@ -1751,6 +1925,8 @@ func TestProvisioningResource_ListSchoolPersons_Success(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolPersons_SchoolNotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolPersonsFn: func(_ context.Context, _ int64) ([]platformSvc.OperatorPersonInfo, error) {
 			return nil, &platformSvc.SchoolNotFoundError{SchoolID: 7}
@@ -1768,6 +1944,8 @@ func TestProvisioningResource_ListSchoolPersons_SchoolNotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolPersons_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/schools/nope/persons", nil)
 	routeCtx := chi.NewRouteContext()
@@ -1780,6 +1958,8 @@ func TestProvisioningResource_ListSchoolPersons_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeletePerson_Success(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeletePersonFn: func(_ context.Context, personID int64, operatorID int64, clientIP net.IP) error {
 			assert.Equal(t, int64(15), personID)
@@ -1805,6 +1985,8 @@ func TestProvisioningResource_SoftDeletePerson_Success(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeletePerson_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeletePersonFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return &platformSvc.PersonNotFoundError{PersonID: 15}
@@ -1824,6 +2006,8 @@ func TestProvisioningResource_SoftDeletePerson_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeletePerson_ActiveSupervisions(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeletePersonFn: func(_ context.Context, _ int64, _ int64, _ net.IP) error {
 			return &platformSvc.PersonHasActiveSupervisionsError{PersonID: 15, Count: 2}
@@ -1843,6 +2027,8 @@ func TestProvisioningResource_SoftDeletePerson_ActiveSupervisions(t *testing.T) 
 }
 
 func TestProvisioningResource_SoftDeletePerson_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodDelete, "/operator/persons/abc", nil)
 	req = withOperatorClaims(req, 42)
@@ -1856,6 +2042,8 @@ func TestProvisioningResource_SoftDeletePerson_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.PersonNotFoundError{PersonID: 42})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1864,6 +2052,8 @@ func TestProvisioningErrorRenderer_PersonNotFound(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_PersonActiveSupervisors(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.PersonHasActiveSupervisionsError{PersonID: 42, Count: 3})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -1879,6 +2069,8 @@ var _ platformSvc.OperatorProvisioningService = (*mockProvisioningService)(nil)
 // --- SoftDeleteSchool handler tests ---
 
 func TestProvisioningResource_SoftDeleteSchool(t *testing.T) {
+	t.Parallel()
+
 	var deletedID int64
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteSchoolFn: func(schoolID int64) error {
@@ -1901,6 +2093,8 @@ func TestProvisioningResource_SoftDeleteSchool(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteSchool_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 
 	req := httptest.NewRequest(http.MethodDelete, "/operator/schools/abc", nil)
@@ -1915,6 +2109,8 @@ func TestProvisioningResource_SoftDeleteSchool_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteSchool_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteSchoolFn: func(_ int64) error {
 			return &platformSvc.SchoolNotFoundError{SchoolID: 99}
@@ -1934,6 +2130,8 @@ func TestProvisioningResource_SoftDeleteSchool_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteSchool_AlreadyDeleted(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteSchoolFn: func(_ int64) error {
 			return &platformSvc.SchoolAlreadyDeletedError{SchoolID: 55}
@@ -1955,6 +2153,8 @@ func TestProvisioningResource_SoftDeleteSchool_AlreadyDeleted(t *testing.T) {
 // --- RestoreSchool handler tests ---
 
 func TestProvisioningResource_RestoreSchool(t *testing.T) {
+	t.Parallel()
+
 	var restoredID int64
 	resource := NewProvisioningResource(&mockProvisioningService{
 		restoreSchoolFn: func(schoolID int64) error {
@@ -1977,6 +2177,8 @@ func TestProvisioningResource_RestoreSchool(t *testing.T) {
 }
 
 func TestProvisioningResource_RestoreSchool_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 
 	req := httptest.NewRequest(http.MethodPost, "/operator/schools/abc/restore", nil)
@@ -1991,6 +2193,8 @@ func TestProvisioningResource_RestoreSchool_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_RestoreSchool_NotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		restoreSchoolFn: func(_ int64) error {
 			return &platformSvc.SchoolNotFoundError{SchoolID: 99}
@@ -2010,6 +2214,8 @@ func TestProvisioningResource_RestoreSchool_NotFound(t *testing.T) {
 }
 
 func TestProvisioningResource_RestoreSchool_NotDeleted(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		restoreSchoolFn: func(_ int64) error {
 			return &platformSvc.SchoolNotDeletedError{SchoolID: 55}
@@ -2031,6 +2237,8 @@ func TestProvisioningResource_RestoreSchool_NotDeleted(t *testing.T) {
 // --- Error renderer tests for soft-delete/restore ---
 
 func TestProvisioningErrorRenderer_SchoolAlreadyDeleted(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolAlreadyDeletedError{SchoolID: 55})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2039,6 +2247,8 @@ func TestProvisioningErrorRenderer_SchoolAlreadyDeleted(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.SchoolNotDeletedError{SchoolID: 55})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2049,6 +2259,8 @@ func TestProvisioningErrorRenderer_SchoolNotDeleted(t *testing.T) {
 // --- SoftDeleteOrganization handler tests ---
 
 func TestProvisioningResource_SoftDeleteOrganization(t *testing.T) {
+	t.Parallel()
+
 	var deletedID int64
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteOrgFn: func(orgID int64) error {
@@ -2071,6 +2283,8 @@ func TestProvisioningResource_SoftDeleteOrganization(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteOrganization_HasSchools(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteOrgFn: func(_ int64) error {
 			return &platformSvc.OrganizationHasSchoolsError{OrganizationID: 10, SchoolCount: 3}
@@ -2090,6 +2304,8 @@ func TestProvisioningResource_SoftDeleteOrganization_HasSchools(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteOrganization_AlreadyDeleted(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		softDeleteOrgFn: func(_ int64) error {
 			return &platformSvc.OrganizationAlreadyDeletedError{OrganizationID: 10}
@@ -2111,6 +2327,8 @@ func TestProvisioningResource_SoftDeleteOrganization_AlreadyDeleted(t *testing.T
 // --- RestoreOrganization handler tests ---
 
 func TestProvisioningResource_RestoreOrganization(t *testing.T) {
+	t.Parallel()
+
 	var restoredID int64
 	resource := NewProvisioningResource(&mockProvisioningService{
 		restoreOrgFn: func(orgID int64) error {
@@ -2133,6 +2351,8 @@ func TestProvisioningResource_RestoreOrganization(t *testing.T) {
 }
 
 func TestProvisioningResource_RestoreOrganization_NotDeleted(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		restoreOrgFn: func(_ int64) error {
 			return &platformSvc.OrganizationNotDeletedError{OrganizationID: 10}
@@ -2152,6 +2372,8 @@ func TestProvisioningResource_RestoreOrganization_NotDeleted(t *testing.T) {
 }
 
 func TestProvisioningResource_SoftDeleteOrganization_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodDelete, "/operator/organizations/abc", nil)
 	req = withOperatorClaims(req, 42)
@@ -2165,6 +2387,8 @@ func TestProvisioningResource_SoftDeleteOrganization_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_RestoreOrganization_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodPost, "/operator/organizations/abc/restore", nil)
 	req = withOperatorClaims(req, 42)
@@ -2180,6 +2404,8 @@ func TestProvisioningResource_RestoreOrganization_InvalidID(t *testing.T) {
 // --- Error renderer tests for organization soft-delete/restore ---
 
 func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationAlreadyDeletedError{OrganizationID: 10})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2188,6 +2414,8 @@ func TestProvisioningErrorRenderer_OrganizationAlreadyDeleted(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationNotDeletedError{OrganizationID: 10})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2196,6 +2424,8 @@ func TestProvisioningErrorRenderer_OrganizationNotDeleted(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationHasSchoolsError{OrganizationID: 10, SchoolCount: 3})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2204,6 +2434,8 @@ func TestProvisioningErrorRenderer_OrganizationHasSchools(t *testing.T) {
 }
 
 func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
+	t.Parallel()
+
 	renderer := ProvisioningErrorRenderer(&platformSvc.OrganizationDeletedError{OrganizationID: 10})
 	resp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -2212,6 +2444,8 @@ func TestProvisioningErrorRenderer_OrganizationDeleted(t *testing.T) {
 }
 
 func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
+	t.Parallel()
+
 	req := &updateCaregiverCapabilityRequest{
 		FirstName: "  Ada ",
 		LastName:  " Lovelace  ",
@@ -2225,6 +2459,8 @@ func TestUpdateCaregiverCapabilityRequest_Bind_TrimWhitespace(t *testing.T) {
 }
 
 func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("renders blocker details", func(t *testing.T) {
 		renderer := caregiverCapabilityProvisioningErrorRenderer(&usersSvc.CaregiverCapabilityBlockedError{
 			Reasons: []userModels.CaregiverCapabilityBlockerCode{
@@ -2295,6 +2531,8 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 }
 
 func TestCaregiverCapabilityBlockedResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	resp := common.NewCaregiverCapabilityBlockedResponse(
 		http.StatusConflict,
 		"blocked",
@@ -2307,6 +2545,8 @@ func TestCaregiverCapabilityBlockedResponse_Render(t *testing.T) {
 }
 
 func TestProvisioningResource_CaregiverCapabilityServiceNotConfigured(t *testing.T) {
+	t.Parallel()
+
 	t.Run("GetSchoolAccountCaregiverCapability returns internal error", func(t *testing.T) {
 		resource := &ProvisioningResource{}
 		req := httptest.NewRequest(http.MethodGet, "/operator/schools/12/accounts/34/caregiver-capability", nil)
@@ -2337,6 +2577,8 @@ func TestProvisioningResource_CaregiverCapabilityServiceNotConfigured(t *testing
 }
 
 func TestProvisioningResource_DeleteDevice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("deletes device successfully", func(t *testing.T) {
 		resource := NewProvisioningResource(&mockProvisioningService{
 			deleteDeviceFn: func(_ context.Context, id int64, operatorID int64, clientIP net.IP) error {
@@ -2392,6 +2634,8 @@ func TestProvisioningResource_DeleteDevice(t *testing.T) {
 }
 
 func TestProvisioningResource_GetSchoolAccountCaregiverCapability(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newMockAdminDB(t)
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -2421,6 +2665,8 @@ func TestProvisioningResource_GetSchoolAccountCaregiverCapability(t *testing.T) 
 }
 
 func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newMockAdminDB(t)
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -2459,6 +2705,8 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability(t *testing.
 }
 
 func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	resource := &ProvisioningResource{
 		CaregiverCapabilityService: &mockCaregiverCapabilityService{},
 	}
@@ -2482,6 +2730,8 @@ func TestProvisioningResource_EnableSchoolAccountCaregiverCapability_EmptyBody(t
 }
 
 func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing.T) {
+	t.Parallel()
+
 	db, mock := newMockAdminDB(t)
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
@@ -2520,6 +2770,8 @@ func TestProvisioningResource_DisableSchoolAccountCaregiverCapability(t *testing
 // --- Provisioning summaries (drill-in refactor) ---
 
 func TestProvisioningResource_GetProvisioningStats(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		getProvisioningStatsFn: func(context.Context) (*platformSvc.ProvisioningStats, error) {
 			return &platformSvc.ProvisioningStats{
@@ -2545,6 +2797,8 @@ func TestProvisioningResource_GetProvisioningStats(t *testing.T) {
 }
 
 func TestProvisioningResource_GetProvisioningStats_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		getProvisioningStatsFn: func(context.Context) (*platformSvc.ProvisioningStats, error) {
 			return nil, errors.New("db fail")
@@ -2559,6 +2813,8 @@ func TestProvisioningResource_GetProvisioningStats_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationSummaries(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgSummariesFn: func(context.Context) ([]*platformSvc.OrganizationSummary, error) {
 			return []*platformSvc.OrganizationSummary{
@@ -2584,6 +2840,8 @@ func TestProvisioningResource_ListOrganizationSummaries(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationSummaries_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgSummariesFn: func(context.Context) ([]*platformSvc.OrganizationSummary, error) {
 			return nil, errors.New("db fail")
@@ -2598,6 +2856,8 @@ func TestProvisioningResource_ListOrganizationSummaries_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolSummaries(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolSummariesFn: func(context.Context) ([]*platformSvc.SchoolSummary, error) {
 			return []*platformSvc.SchoolSummary{
@@ -2622,6 +2882,8 @@ func TestProvisioningResource_ListSchoolSummaries(t *testing.T) {
 }
 
 func TestProvisioningResource_ListSchoolSummaries_Error(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listSchoolSummariesFn: func(context.Context) ([]*platformSvc.SchoolSummary, error) {
 			return nil, errors.New("db fail")
@@ -2636,6 +2898,8 @@ func TestProvisioningResource_ListSchoolSummaries_Error(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationSchoolSummaries(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgSchoolSummariesFn: func(_ context.Context, orgID int64) ([]*platformSvc.SchoolSummary, error) {
 			assert.Equal(t, int64(7), orgID)
@@ -2661,6 +2925,8 @@ func TestProvisioningResource_ListOrganizationSchoolSummaries(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationSchoolSummaries_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/nope/schools", nil)
 	routeCtx := chi.NewRouteContext()
@@ -2673,6 +2939,8 @@ func TestProvisioningResource_ListOrganizationSchoolSummaries_InvalidID(t *testi
 }
 
 func TestProvisioningResource_ListOrganizationSchoolSummaries_OrganizationNotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgSchoolSummariesFn: func(_ context.Context, orgID int64) ([]*platformSvc.SchoolSummary, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: orgID}
@@ -2689,6 +2957,8 @@ func TestProvisioningResource_ListOrganizationSchoolSummaries_OrganizationNotFou
 }
 
 func TestProvisioningResource_ListOrganizationPersons(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgPersonsFn: func(_ context.Context, orgID int64) ([]platformSvc.OperatorPersonInfo, error) {
 			assert.Equal(t, int64(7), orgID)
@@ -2716,6 +2986,8 @@ func TestProvisioningResource_ListOrganizationPersons(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationPersons_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{})
 	req := httptest.NewRequest(http.MethodGet, "/operator/organizations/abc/persons", nil)
 	routeCtx := chi.NewRouteContext()
@@ -2728,6 +3000,8 @@ func TestProvisioningResource_ListOrganizationPersons_InvalidID(t *testing.T) {
 }
 
 func TestProvisioningResource_ListOrganizationPersons_OrganizationNotFound(t *testing.T) {
+	t.Parallel()
+
 	resource := NewProvisioningResource(&mockProvisioningService{
 		listOrgPersonsFn: func(_ context.Context, orgID int64) ([]platformSvc.OperatorPersonInfo, error) {
 			return nil, &platformSvc.OrganizationNotFoundError{OrganizationID: orgID}

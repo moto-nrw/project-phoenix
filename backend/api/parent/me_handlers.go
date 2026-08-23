@@ -121,6 +121,11 @@ type ChildResponse struct {
 	EnrolledUntil *timezone.Date `json:"enrolled_until,omitempty"`
 	SchoolName    string         `json:"school_name"`
 	SchoolSlug    string         `json:"school_slug"`
+	// CareEnded says the school has ended this child's care (#2487). Derived
+	// on the server so the portal never has to do date arithmetic to decide
+	// whether to show a card as read-only. The exit REASON is deliberately not
+	// part of this response: it is a staff-internal note behind users:delete.
+	CareEnded bool `json:"care_ended"`
 }
 
 func toChildResponse(c *parentModels.ChildSummary) ChildResponse {
@@ -135,6 +140,7 @@ func toChildResponse(c *parentModels.ChildSummary) ChildResponse {
 		EnrolledUntil: c.EnrolledUntil,
 		SchoolName:    c.SchoolName,
 		SchoolSlug:    c.SchoolSlug,
+		CareEnded:     c.CareEnded(timezone.TodayDate()),
 	}
 }
 

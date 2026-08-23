@@ -15,6 +15,8 @@ import (
 // output carries the user-facing essentials (code, validity, anti-phishing
 // disclaimer). Phase 4 of issue #1308.
 func TestMFAEmailCodeTemplate_Renders(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 

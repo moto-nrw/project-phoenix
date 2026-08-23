@@ -2372,19 +2372,19 @@ describe("authConfig", () => {
     it("should resolve relative URLs against baseUrl", async () => {
       expect(
         await callOperatorRedirect(
-          "/operator/suggestions",
+          "/operator/organizations",
           "http://operator.moto-app.de",
         ),
-      ).toBe("http://operator.moto-app.de/operator/suggestions");
+      ).toBe("http://operator.moto-app.de/operator/organizations");
     });
 
     it("should allow same origin redirects", async () => {
       expect(
         await callOperatorRedirect(
-          "http://operator.moto-app.de/operator/suggestions",
+          "http://operator.moto-app.de/operator/organizations",
           "http://operator.moto-app.de",
         ),
-      ).toBe("http://operator.moto-app.de/operator/suggestions");
+      ).toBe("http://operator.moto-app.de/operator/organizations");
     });
 
     it("should block cross-subdomain redirects on the same parent domain", async () => {

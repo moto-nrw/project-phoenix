@@ -9,6 +9,8 @@ import (
 )
 
 func TestGroupExportResponsesByClassKeepsWithinClassOrder(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Emma", LastName: "Anders", SchoolClass: "10a"},
 		{ID: 2, FirstName: "Finn", LastName: "Becker", SchoolClass: "2a"},
@@ -25,6 +27,8 @@ func TestGroupExportResponsesByClassKeepsWithinClassOrder(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Finn", LastName: "Becker", SchoolClass: "1a"},
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
@@ -47,6 +51,8 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
+	t.Parallel()
+
 	// Case/spacing variants of one logical class arrive sort-adjacent
 	// (the comparator treats them as equal) and must share one heading.
 	students := []StudentResponse{
@@ -69,6 +75,8 @@ func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Finn", LastName: "Becker", SchoolClass: "1a"},
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
@@ -87,6 +95,8 @@ func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
 }
 
 func TestExportFilterLabelsIncludesGroupByClass(t *testing.T) {
+	t.Parallel()
+
 	labels := exportFilterLabels(studentExportFilters{GroupByClass: true})
 	assert.Contains(t, labels, "Nach Klassen getrennt")
 }

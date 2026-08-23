@@ -89,10 +89,11 @@ describe("useSidebarAccordion", () => {
   });
 
   it("expands 'eltern' section for parent sub-pages", () => {
+    // /admin/change-requests gehört seit #2429 nicht mehr zum Eltern-Bereich —
+    // die Route ist nur noch ein Redirect auf das Top-Level-Modul /anfragen.
     for (const path of [
       "/messages",
       "/admin/guardian-approvals",
-      "/admin/change-requests",
       "/parent-announcements",
       "/meal-plan",
     ]) {

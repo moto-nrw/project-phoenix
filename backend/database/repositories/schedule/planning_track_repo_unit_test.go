@@ -28,6 +28,8 @@ func newPlanningTrackMockRepository(t *testing.T) (*PlanningTrackRepository, sql
 }
 
 func TestPlanningTrackRepositoryReadErrors(t *testing.T) {
+	t.Parallel()
+
 	repo, mock := newPlanningTrackMockRepository(t)
 	wantErr := errors.New("read failed")
 	mock.ExpectQuery("SELECT").WillReturnError(wantErr)
@@ -42,6 +44,8 @@ func TestPlanningTrackRepositoryReadErrors(t *testing.T) {
 }
 
 func TestPlanningTrackRepositoryUpdateErrors(t *testing.T) {
+	t.Parallel()
+
 	repo, mock := newPlanningTrackMockRepository(t)
 	track := &model.PlanningTrack{Name: "Spur", Color: "#5080D8"}
 	track.ID = time.Now().UnixNano()
@@ -78,6 +82,8 @@ func TestPlanningTrackRepositoryUpdateErrors(t *testing.T) {
 }
 
 func TestPlanningTrackRepositoryReorderErrors(t *testing.T) {
+	t.Parallel()
+
 	repo, mock := newPlanningTrackMockRepository(t)
 	ctx := tenant.WithTenantID(context.Background(), time.Now().UnixNano())
 	wantErr := errors.New("reorder failed")

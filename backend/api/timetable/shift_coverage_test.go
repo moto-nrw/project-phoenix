@@ -39,9 +39,8 @@ func createCoverageShift(t *testing.T, s *plannedConflictsSetup, staffID int64, 
 		StartTime: coverageClock(t, start), EndTime: coverageClock(t, end),
 		CreatedBy: staffID,
 	}
-	shift.SetTenantID(1)
+	shift.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(s.db).StaffShift.Create(s.ctx, shift))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.staff_shifts", shift.ID) })
 	return shift
 }
 
@@ -82,23 +81,20 @@ func decodeShiftCoverage(t *testing.T, recorder *httptest.ResponseRecorder) Shif
 }
 
 func TestShiftCoverage_ExactWarningAndConcreteDeviationSemantics(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	s.date = timezone.NewDate(2064, time.November, 3) // Monday
 	router := shiftCoverageRouter(s.ctx, s.res)
 	planned := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("Planned-%d", time.Now().UnixNano()))
 	substitute := testpkg.CreateTestStaff(t, s.db, "Active", fmt.Sprintf("Sub-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, s.db, planned.ID, substitute.ID) })
 	createCoverageShift(t, s, substitute.ID, s.date, "14:00", "15:00")
 
 	instance := testpkg.CreateTestActivityInstance(t, s.db, s.date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title: "Konkrete Vertretung", StartHHMM: "14:30", EndHHMM: "15:30",
 	})
-	absent := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, planned.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	sub := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, substitute.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, absent.ID, sub.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instance.ID)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, planned.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, substitute.ID, testpkg.InstanceStaffOpts{IsSubstitute: true})
 
 	recorder := postShiftCoverage(t, router, ShiftCoverageRequest{
 		Dates: []string{s.date.String()}, StartTime: "14:30", EndTime: "15:30",
@@ -126,13 +122,14 @@ func TestShiftCoverage_ExactWarningAndConcreteDeviationSemantics(t *testing.T) {
 }
 
 func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	weekA := timezone.NewDate(2065, time.November, 2) // Monday
 	weekB := weekA.AddDays(7)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	target := testpkg.CreateTestStaff(t, s.db, "Series", fmt.Sprintf("Target-%d", time.Now().UnixNano()))
 	activator := testpkg.CreateTestStaff(t, s.db, "Week", fmt.Sprintf("Activator-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, s.db, target.ID, activator.ID) })
 	createCoverageShift(t, s, activator.ID, weekA, "07:00", "08:00")
 	createCoverageShift(t, s, activator.ID, weekB, "07:00", "08:00")
 
@@ -141,9 +138,8 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 		Name: fmt.Sprintf("Coverage Period %d", time.Now().UnixNano()), PeriodType: scheduleModel.PeriodTypeSchoolYear,
 		StartDate: weekA, EndDate: weekB.AddDays(6), WeekCycleLength: 2, WeekCycleAnchor: &anchor, IsActive: true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repositories.NewFactory(s.db).CalendarPeriod.Create(s.ctx, period))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 	weekPattern := 1
 
 	recorder := postShiftCoverage(t, router, ShiftCoverageRequest{
@@ -162,13 +158,14 @@ func TestShiftCoverage_MultiDatePeriodAndABFiltering(t *testing.T) {
 }
 
 func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	usedMonday := timezone.NewDate(2066, time.November, 1)
 	unusedMonday := usedMonday.AddDays(7)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	target := testpkg.CreateTestStaff(t, s.db, "Weekly", fmt.Sprintf("Target-%d", time.Now().UnixNano()))
 	activator := testpkg.CreateTestStaff(t, s.db, "Weekly", fmt.Sprintf("Activator-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, s.db, target.ID, activator.ID) })
 	createCoverageShift(t, s, activator.ID, usedMonday, "07:00", "08:00")
 
 	recorder := postShiftCoverage(t, router, ShiftCoverageRequest{
@@ -183,6 +180,8 @@ func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
 }
 
 func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
+	t.Parallel()
+
 	s := buildPlannedConflictsSetup(t)
 	router := shiftCoverageRouter(s.ctx, s.res)
 	validDate := timezone.NewDate(2067, time.November, 7)
@@ -232,10 +231,12 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, services := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	resource := NewResource(Dependencies{TimetableData: services.TimetableData, DB: db})
 	router := chi.NewRouter()
 	router.Mount("/timetable", resource.Router())

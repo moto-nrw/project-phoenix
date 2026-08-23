@@ -6,6 +6,8 @@ import (
 )
 
 func TestVisitValidate(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -99,6 +101,8 @@ func TestVisitValidate(t *testing.T) {
 }
 
 func TestVisitIsActive(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 
@@ -135,6 +139,8 @@ func TestVisitIsActive(t *testing.T) {
 }
 
 func TestVisitSetExitTime(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 	pastTime := nowTime.Add(-2 * time.Hour)
@@ -179,6 +185,8 @@ func TestVisitSetExitTime(t *testing.T) {
 }
 
 func TestVisitGetDuration(t *testing.T) {
+	t.Parallel()
+
 	nowTime := time.Now()
 	futureTime := nowTime.Add(2 * time.Hour)
 

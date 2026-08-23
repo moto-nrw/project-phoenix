@@ -26,6 +26,11 @@ const (
 	DataChangeStatusPending     = "pending"
 	DataChangeStatusApproved    = "approved"
 	DataChangeStatusRejected    = "rejected"
+	// DataChangeStatusCareEnded closes an open request whose child left the
+	// OGS before anybody decided it (#2487). Deliberately its own value:
+	// "abgelehnt" would tell the family the office looked at the change and
+	// said no, which is not what happened.
+	DataChangeStatusCareEnded = "care_ended"
 )
 
 // Target identifies which underlying record a change applies to. For person /
@@ -65,7 +70,7 @@ type StudentDataChangeRequest struct {
 // rows accept a staff decision.
 func (c *StudentDataChangeRequest) IsTerminal() bool {
 	switch c.Status {
-	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected:
+	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected, DataChangeStatusCareEnded:
 		return true
 	default:
 		return false
@@ -94,7 +99,12 @@ type StudentDataChangeRequestRepository interface {
 
 	// ListPendingForTenant returns every pending Track B row for the current
 	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context) ([]*StudentDataChangeRequest, error)
+	ListPendingForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*StudentDataChangeRequest, error)
+
+	// ListDecidedForTenant returns the tenant's decided rows (auto-applied,
+	// approved, rejected) newest-decision-first via keyset pagination on
+	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
+	ListDecidedForTenant(ctx context.Context, filters base.RequestQueueFilters) ([]*StudentDataChangeRequest, error)
 
 	// HasPendingForField reports whether an undecided pending row already
 	// exists for the same student/target/field, so the parent flow can reject

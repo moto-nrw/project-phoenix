@@ -27,6 +27,8 @@ func received(t *testing.T, client *Client) bool {
 // transport for personal notifications. Every case here is one where reaching
 // the wrong tab would show someone a count derived from data they may not read.
 func TestBroadcastToStaffAccountsAddressesExactlyTheNamedAccounts(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(nil)
 
 	addressed := staffClient(11, 100, 1)
@@ -52,6 +54,8 @@ func TestBroadcastToStaffAccountsAddressesExactlyTheNamedAccounts(t *testing.T) 
 // person can hold staff sessions at several schools, and school A's counts must
 // never land in school B's tab.
 func TestBroadcastToStaffAccountsIsTenantScoped(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(nil)
 
 	atSchoolA := staffClient(11, 100, 1)
@@ -75,6 +79,8 @@ func TestBroadcastToStaffAccountsIsTenantScoped(t *testing.T) {
 // Unregister closes the channel, so an index entry left behind would make the
 // next broadcast send on a closed channel.
 func TestBroadcastToStaffAccountsSkipsUnregisteredClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(nil)
 
 	client := staffClient(11, 100, 1)
@@ -90,6 +96,8 @@ func TestBroadcastToStaffAccountsSkipsUnregisteredClients(t *testing.T) {
 // stays empty. Widening it into a tenant-wide send is the worst possible
 // interpretation of "nobody was addressed".
 func TestBroadcastToStaffAccountsEmptyRecipients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(nil)
 
 	client := staffClient(11, 100, 1)
@@ -107,6 +115,8 @@ func TestBroadcastToStaffAccountsEmptyRecipients(t *testing.T) {
 // record: their account id may be unknown, and bucketing them under 0 would
 // merge every such admin across every school into one recipient.
 func TestRegisterIgnoresZeroAccountID(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(nil)
 
 	anonymous := staffClient(0, 100, 0)

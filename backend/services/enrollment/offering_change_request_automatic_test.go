@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,7 +52,7 @@ func createAutoAddTarget(
 	// Create writes only the offering row; the rule lives in
 	// enrollment.care_offering_auto_triggers.
 	require.NoError(t, env.repos.CareOffering.ReplaceAutoAddTriggers(
-		testpkg.TenantContext(1), offering.ID, []int64{triggerID},
+		testpkg.Ctx(t), offering.ID, []int64{triggerID},
 	))
 	offering.AutoAddTriggerOfferingIDs = []int64{triggerID}
 	return offering
@@ -65,7 +66,7 @@ func createPendingTriggerRequest(
 	days []string,
 ) *enrollmentModels.OfferingChangeRequest {
 	t.Helper()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
 		Selections: []enrollmentService.OfferingChangeSelection{{
@@ -73,14 +74,15 @@ func createPendingTriggerRequest(
 		}},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 	return row
 }
 
 func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "MarkAuto")
 	auto := createAutoAddTarget(t, env, "MarkAuto", fx.newOffering.ID)
@@ -108,16 +110,20 @@ func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t 
 	assert.Empty(t, manualEntry.AutoTriggerNames)
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueAuto")
 	auto := createAutoAddTarget(t, env, "QueueAuto", fx.newOffering.ID)
 	row := createPendingTriggerRequest(t, env, svc, fx, []string{"mon"})
 
-	views, err := svc.ListPending(ctx)
+	views, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	var view *enrollmentService.OfferingChangeView
 	for _, candidate := range views {
@@ -139,9 +145,11 @@ func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *t
 }
 
 func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfatheredRuleTarget(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueUnchangedAuto")
 	auto := createAutoAddTarget(t, env, "QueueUnchangedAuto", fx.oldOffering.ID)
@@ -170,9 +178,8 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
-	views, err := svc.ListPending(ctx)
+	views, _, err := svc.ListPending(ctx, modelBase.RequestQueueFilters{})
 	require.NoError(t, err)
 	for _, view := range views {
 		if view.Request == nil || view.Request.ID != row.ID {
@@ -193,9 +200,11 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsOverride(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOut")
 	auto := createAutoAddTarget(t, env, "OptOut", fx.newOffering.ID)
@@ -235,9 +244,11 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFromSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutSnapshot")
 	auto := createAutoAddTarget(t, env, "OptOutSnapshot", fx.newOffering.ID)
@@ -257,9 +268,11 @@ func TestOfferingChangeRequestService_Decide_ExclusionOmitsNeverBookedTargetFrom
 }
 
 func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomaticBooking(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "GrandfatheredSnapshot")
 	automatic := createAutoAddTarget(t, env, "GrandfatheredSnapshot", fx.oldOffering.ID)
@@ -287,7 +300,6 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
@@ -313,9 +325,11 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 }
 
 func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunchDays(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutMixed")
 	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutMixed", func(o *enrollmentModels.CareOffering) {
@@ -339,7 +353,6 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	view, err := svc.GetForStudent(ctx, fx.studentID)
 	require.NoError(t, err)
@@ -368,9 +381,11 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 }
 
 func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusionCascade(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "PreviewPartialCascade")
 	care := createAdjustmentCareOfferingWith(t, env, "Ganztag PreviewPartialCascade", func(o *enrollmentModels.CareOffering) {
@@ -396,12 +411,11 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
-	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID})
+	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID}, nil)
 	require.NoError(t, err)
-	byID := make(map[int64][]string, len(preview))
-	for _, selection := range preview {
+	byID := make(map[int64][]string, len(preview.Selections))
+	for _, selection := range preview.Selections {
 		byID[selection.OfferingID] = selection.Days
 	}
 	assert.Equal(t, []string{"mon", "wed"}, byID[mixed.ID])
@@ -410,9 +424,11 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutInvalid")
 	createAutoAddTarget(t, env, "OptOutInvalid", fx.newOffering.ID)
@@ -433,9 +449,11 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionOfNonAutomaticOffer
 }
 
 func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedDays(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "OptOutNoRuleDays")
 	care := createAdjustmentCareOfferingWith(t, env, "Ganztag OptOutNoRuleDays", func(o *enrollmentModels.CareOffering) {
@@ -464,7 +482,6 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, env.db, "enrollment.offering_change_requests", row.ID) })
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID:               row.ID,
@@ -481,9 +498,11 @@ func TestOfferingChangeRequestService_Decide_RejectsExclusionWithoutRuleDerivedD
 }
 
 func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedRules(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	fx := setupOfferingChangeFixture(t, env, "FinalOverrideRules")
 	auto := createAutoAddTarget(t, env, "FinalOverrideRules", fx.newOffering.ID)
 	mutatingRepo := &ruleMutationOnLockCareOfferingRepo{
@@ -510,9 +529,11 @@ func TestOfferingChangeRequestService_Decide_RevalidatesExclusionAgainstAppliedR
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "SnapReject")
 	auto := createAutoAddTarget(t, env, "SnapReject", fx.newOffering.ID)
@@ -542,9 +563,11 @@ func TestOfferingChangeRequestService_Decide_RejectionFreezesDiffSnapshot(t *tes
 }
 
 func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := offeringChangeAdminContext()
+	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")
 	auto := createAutoAddTarget(t, env, "RejectSnapshotFailure", fx.oldOffering.ID)

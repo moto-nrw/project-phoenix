@@ -41,6 +41,7 @@ import {
 } from "~/lib/student-companion-api";
 import type { SSEEvent, SSEHookState } from "~/lib/sse-types";
 import { createLogger } from "~/lib/logger";
+import { isOwnAttendanceEvent } from "~/lib/sse-optimistic-mutations";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
@@ -54,7 +55,7 @@ export const DEBOUNCE_MS = 500;
 export const FLUSH_JITTER_MS = 1000;
 // Upper bound on how long a sustained event stream (morning check-in rush) can
 // keep postponing the flush. Measured from the first event of a burst.
-export const MAX_FLUSH_WAIT_MS = 3000;
+export const MAX_FLUSH_WAIT_MS = 1000;
 
 // The dashboard caches that reflect live check-in/out counts. Deliberately an
 // explicit list instead of the old `key.includes("dashboard")`: that substring
@@ -63,10 +64,7 @@ export const MAX_FLUSH_WAIT_MS = 3000;
 // "staff-dashboard-summary-" (staff time tracking, which has its own
 // staff_time_tracking_changed trigger + refresh interval) — refetching both on
 // every check-in was a large part of the #2057 request herd.
-const DASHBOARD_COUNT_CACHE_KEYS = [
-  "dashboard-analytics",
-  "active-supervision-dashboard-",
-] as const;
+const DASHBOARD_COUNT_CACHE_KEYS = ["dashboard-analytics"] as const;
 
 // Every cache family derived from work sessions, absences, balance
 // adjustments, month-close snapshots, contractual schedules, or planned
@@ -107,16 +105,16 @@ const STUDENT_SCOPED_KEY_PREFIXES = [
 const OGS_STUDENTS_KEY_PREFIX = "ogs-students-";
 
 // Every cache family that renders a child's resolved PICKUP (Gehzeit) time.
-// "pickup-supervisions-" is the Aktuelle-Aufsicht card row, whose key embeds
-// the room's student-id list — nothing but a roster change or Berlin midnight
-// rotates it, and it disables focus revalidation, so this list is its only
-// live update path.
+// "active-supervision-dashboard-" carries the Aktuelle-Aufsicht pickup rows
+// since #2096 folded them into the aggregate; the key disables focus
+// revalidation, so this list is its only pickup-driven live update path.
+// ("pickup-supervisions-" was the former per-room bulk fetch's key.)
 const PICKUP_TIME_CACHE_KEY_PARTS = [
   "care-plan-day-",
   "care-plan-week-",
   "pickup-data-",
   "student-partial-absences-",
-  "pickup-supervisions-",
+  "active-supervision-dashboard-",
   "student-detail-",
   // A pulled-forward day pickup time auto-excuses the child from later
   // blocks (#2360): the planner list renders the changed attendance plus the
@@ -134,10 +132,10 @@ const PICKUP_TIME_CACHE_KEY_PARTS = [
 // their own, they read it inline from their list responses, which the
 // student-list and ogs-students blocks invalidate on the same event.
 const ARRIVAL_TIME_CACHE_KEY_PARTS = [
-  "arrival-supervisions-",
   "arrival-data-",
   "care-plan-day-",
   "care-plan-week-",
+  "active-supervision-dashboard-",
 ] as const;
 
 // What a student_updated write can invalidate. It covers both time families on
@@ -157,8 +155,7 @@ const STUDENT_UPDATE_CACHE_KEY_PARTS = [
   "care-plan-week-",
   "pickup-data-",
   "arrival-data-",
-  "pickup-supervisions-",
-  "arrival-supervisions-",
+  "active-supervision-dashboard-",
   // Parent care-exception submits/deletes announce ONLY student_updated, and
   // a pulled-forward pickup time now rewrites timetable attendance and the
   // early_pickup_time marker (#2360) — same narrow key set as the pickup
@@ -202,8 +199,8 @@ function revalidateKeyParts(parts: readonly string[], scope: string): void {
  *   (pickup) must not carry a student id at all (GDPR:
  *   group_supervisors_only).
  * - educational group ids ("ogs-students-{gid}", #2057), which legitimately
- *   ride the tenant-wide dashboard_counts_changed event — a group id reveals
- *   "counts in group X changed", never a child's identity.
+ *   ride tenant-wide refresh events — a group id reveals "counts in group X
+ *   changed", never a child's identity.
  */
 function keyTargetsId(
   key: string,
@@ -301,6 +298,8 @@ export function useGlobalSSE(): SSEHookState {
   const hasPendingBroadOgsEvent = useRef(false);
   const hasPendingActivityEvent = useRef(false);
   const hasPendingActiveSupervisionEvent = useRef(false);
+  const hasPendingUnscopedActiveEvent = useRef(false);
+  const hasPendingRemoteRosterEvent = useRef(false);
   const hasPendingDashboardEvent = useRef(false);
   const hasPendingStaffTimeTrackingEvent = useRef(false);
   const hasPendingDailyCheckoutDashboardEvent = useRef(false);
@@ -350,21 +349,10 @@ export function useGlobalSSE(): SSEHookState {
       });
     }
 
-    // Invalidate ALL supervision-visits caches for student/dashboard events.
-    // A student checked out of Room A may appear on the Schulhof (catch-all),
-    // so we can't limit to just the source group's cache key.
-    // Zero-topic clients only receive dashboard_counts_changed, so include
-    // that flag to keep their detail views in sync.
-    if (pendingGroupIds.current.size > 0 || hasPendingDashboardEvent.current) {
-      mutate(
-        (key) => typeof key === "string" && key.includes("supervision-visits-"),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "supervision_visits",
-        });
-      });
-    }
+    // Per-room supervision visits ride in the aggregated
+    // active-supervision-dashboard key since #2096 — the count-dashboard
+    // block below covers the same pendingGroupIds/dashboard triggers, so no
+    // separate supervision-visits invalidation exists anymore.
 
     // Invalidate the per-group OGS student lists ("Meine Gruppe"). Scoped
     // (#2057): when every pending count event carried its educational group
@@ -374,10 +362,9 @@ export function useGlobalSSE(): SSEHookState {
     // activity lifecycle) and the structural events (arrival/pickup/student
     // update) whose payload can never carry a scope.
     //
-    // Deliberately NOT triggered by pendingGroupIds/pendingStudentIds: those
-    // are fed by the tenant-wide active_supervision_changed too, which fires
-    // alongside every dashboard_counts_changed — keeping them as triggers
-    // would re-broaden every scoped event and save nothing.
+    // Deliberately NOT triggered by pendingGroupIds/pendingStudentIds: the
+    // tenant-wide active_supervision_changed also feeds the active-group set,
+    // so using it here would re-broaden every precisely scoped event.
     {
       const broadOgs =
         hasPendingBroadOgsEvent.current ||
@@ -424,13 +411,14 @@ export function useGlobalSSE(): SSEHookState {
     // it keeps refetching — the payload it refetches is the slim projection.
     //
     // Deliberately NOT triggered by pendingGroupIds/pendingStudentIds: those
-    // carry ACTIVE-group and student ids fed by the tenant-wide
-    // active_supervision_changed, which fires alongside every
-    // dashboard_counts_changed. Keeping them would re-broaden every scoped
-    // event and save nothing (same lesson as #2057). Supervision changes do not
-    // move a child or alter has_full_access — that is decided by the viewer's
+    // carry ACTIVE-group and student ids. Keeping them would re-broaden every
+    // scoped event and save nothing (same lesson as #2057). Supervision
+    // changes do not alter has_full_access — that is decided by the viewer's
     // EDUCATION groups (services/usercontext/student_access.go).
     {
+      const unfilteredSearchOnly =
+        hasPendingUnscopedActiveEvent.current &&
+        !hasPendingDashboardEvent.current;
       const broadSearch =
         hasPendingBroadOgsEvent.current ||
         hasPendingArrivalScheduleEvent.current ||
@@ -448,7 +436,7 @@ export function useGlobalSSE(): SSEHookState {
         // the extra refetch costs nothing in practice.
         hasPendingGroupAccessEvent.current;
       const scopedEduGroupIds = new Set(pendingEduGroupIds.current);
-      if (broadSearch || scopedEduGroupIds.size > 0) {
+      if (broadSearch || unfilteredSearchOnly || scopedEduGroupIds.size > 0) {
         mutate(
           (key) =>
             typeof key === "string" &&
@@ -474,13 +462,13 @@ export function useGlobalSSE(): SSEHookState {
     // (tracking-indicators-*). Triggered by pendingGroupIds (room-level
     // events), pendingStudentIds (daily checkout sends student_checkout
     // without an active_group_id), or hasPendingDashboardEvent
-    // (dashboard_counts_changed reaches every client of the tenant on every
-    // check-in/out — ensures these pages update even when the user doesn't
-    // supervise the affected room/group). These caches cannot be scoped by
+    // (legacy dashboard_counts_changed), or the current tenant-wide aggregate
+    // refresh. These caches cannot be scoped by
     // group id, but each is mounted only on its own page.
     if (
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
+      hasPendingActiveSupervisionEvent.current ||
       hasPendingDashboardEvent.current ||
       hasPendingArrivalScheduleEvent.current ||
       hasPendingPickupScheduleEvent.current ||
@@ -490,8 +478,6 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("database-students-list") ||
-            key.includes("tracking-supervisions-") ||
-            key.includes("tracking-indicators-") ||
             // Live "Kinder im Raum" view on /rooms/{id}. Cache key shape is
             // "room-students-{roomId}" — see
             // components/rooms/students-in-room-section.tsx. Student
@@ -506,7 +492,6 @@ export function useGlobalSSE(): SSEHookState {
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
             // section above it refreshes (#1374).
-            key.includes("room-detail-") ||
             // Room overview cards on /rooms use their own direct rooms
             // list cache. A room move changes studentCount there even
             // though the Room entity itself did not change.
@@ -635,10 +620,9 @@ export function useGlobalSSE(): SSEHookState {
     }
 
     // Invalidate the count dashboards for activity events, explicit dashboard
-    // broadcasts, and student movement fallbacks. The tenant broadcast is
-    // best-effort, so a delivered student_checkin/student_checkout may be the
-    // only signal that counts changed if dashboard_counts_changed gets
-    // dropped under backpressure. Matches the explicit
+    // broadcasts, and student movement fallbacks. Tenant broadcasts are
+    // best-effort, so a delivered group-scoped movement may be the only signal
+    // that counts changed under backpressure. Matches the explicit
     // DASHBOARD_COUNT_CACHE_KEYS list — NOT every key containing "dashboard"
     // (see the constant's comment; the old substring match dragged the OGS
     // BFF and staff time tracking into every check-in, #2057).
@@ -669,39 +653,24 @@ export function useGlobalSSE(): SSEHookState {
     // trigger set already includes the structural events (student edits,
     // arrival plans, activity lifecycle via hasPendingBroadOgsEvent).
 
-    // Activity events also need room/supervision refresh
-    if (hasPendingActivityEvent.current) {
-      mutate(
-        (key) =>
-          typeof key === "string" &&
-          (key.includes("supervision") ||
-            key.includes("active") ||
-            key.includes("rooms") ||
-            // Detail modal/subpage header (#1374) — activity_start /
-            // activity_end change groupName/activityName/isOccupied,
-            // which the room summary in the modal reflects.
-            key.includes("room-detail-")),
-      ).catch((err) => {
-        logger.debug("swr_revalidation_failed", {
-          error: err instanceof Error ? err.message : String(err),
-          scope: "activity_supervision",
-        });
-      });
-    }
-
-    if (hasPendingActiveSupervisionEvent.current) {
-      // No bare "dashboard" substring here (#2057): dashboard-analytics is
-      // already covered by the count-dashboard block above (its trigger list
-      // includes hasPendingActiveSupervisionEvent), and the old substring
-      // dragged ogs-dashboard + staff-dashboard-summary into every check-in.
+    const refreshLiveSupervision =
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0 ||
+      hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
+      hasPendingDashboardEvent.current;
+    if (refreshLiveSupervision) {
+      const refreshRoster =
+        hasPendingRemoteRosterEvent.current ||
+        hasPendingActivityEvent.current ||
+        (hasPendingActiveSupervisionEvent.current &&
+          pendingStudentIds.current.size === 0);
       mutate(
         (key) =>
           typeof key === "string" &&
           (key.includes("active-supervision-dashboard-") ||
-            key.includes("supervision-visits-") ||
-            key.includes("timetable-roster-") ||
+            (refreshRoster && key.includes("timetable-roster-")) ||
             key.includes("room-detail-") ||
-            key.includes("tracking-supervisions-") ||
             key.includes("tracking-indicators-")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {
@@ -732,8 +701,8 @@ export function useGlobalSSE(): SSEHookState {
       });
 
       // The sidebar's "Meine Gruppen" list lives in SupervisionContext, which
-      // keeps it in local state behind its own fetch and only refreshes on a
-      // one-minute tick — there is no SWR key to invalidate. That list is
+      // keeps it in local state behind its own fetch — there is no SWR key to
+      // invalidate. That list is
       // exactly what a colleague looks at after a handover, so announce
       // staleness and let the provider refetch (same decoupling as reminders
       // and the care-schedule editor above).
@@ -744,6 +713,14 @@ export function useGlobalSSE(): SSEHookState {
 
     if (hasPendingGroupSubscriptionRefresh.current) {
       setGroupAccessRevision((revision) => revision + 1);
+    }
+
+    if (hasPendingActivityEvent.current && typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("phoenix:supervision-stale", {
+          detail: { groupsOnly: false },
+        }),
+      );
     }
 
     if (hasPendingTimetableEvent.current) {
@@ -778,9 +755,8 @@ export function useGlobalSSE(): SSEHookState {
     // and which rows fall inside the caller's readable scope — so the reminders
     // view must revalidate on these events. The 60s poll only catches the
     // time-based threshold crossings ("in 10 Min" → "überfällig"), not these.
-    // Zero-topic admins (no supervised group / admin_supervision_overview off)
-    // receive check-ins only as the dashboard_counts_changed broadcast, so
-    // include hasPendingDashboardEvent or their bell/list stays stale until poll.
+    // Zero-topic admins receive only the tenant-wide aggregate event, so it
+    // must also wake their bell/list.
     //
     // This hook deliberately does not own the tenant-prefixed
     // "{slug}:reminders" SWR key. Dispatch a window event and let
@@ -793,6 +769,7 @@ export function useGlobalSSE(): SSEHookState {
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0 ||
       hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
       hasPendingTimetableEvent.current ||
       hasPendingDashboardEvent.current ||
       hasPendingDailyCheckoutDashboardEvent.current ||
@@ -819,6 +796,8 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingBroadOgsEvent.current = false;
     hasPendingActivityEvent.current = false;
     hasPendingActiveSupervisionEvent.current = false;
+    hasPendingUnscopedActiveEvent.current = false;
+    hasPendingRemoteRosterEvent.current = false;
     hasPendingDashboardEvent.current = false;
     hasPendingStaffTimeTrackingEvent.current = false;
     hasPendingDailyCheckoutDashboardEvent.current = false;
@@ -876,6 +855,38 @@ export function useGlobalSSE(): SSEHookState {
     }
   }, []);
 
+  const collectActiveSupervisionChange = useCallback(
+    (event: SSEEvent) => {
+      if (event.active_group_id) {
+        pendingGroupIds.current.add(event.active_group_id);
+      }
+      // The tenant-wide event carries no student_id (#2085). Still wake a
+      // child detail/care-plan view that this user already has open: the id
+      // comes from the viewer's own route and the refetch remains subject to
+      // the backend access check.
+      const openStudentId = currentStudentDetailId();
+      if (openStudentId) {
+        pendingOpenStudentIds.current.add(openStudentId);
+      }
+      hasPendingActiveSupervisionEvent.current = true;
+      if (event.data.group_ids && event.data.group_ids.length > 0) {
+        collectEduGroupScope(event.data.group_ids);
+      } else {
+        // During a frontend-first rolling deploy, the legacy dashboard
+        // companion may still supply the precise group scope before flush.
+        hasPendingUnscopedActiveEvent.current = true;
+      }
+      if (
+        event.data.reason === "activity_started" ||
+        event.data.reason === "activity_ended"
+      ) {
+        hasPendingActivityEvent.current = true;
+        hasPendingBroadOgsEvent.current = true;
+      }
+    },
+    [collectEduGroupScope],
+  );
+
   // Date-bound substitutions can start or expire at Berlin midnight without
   // a database write. Detect the boundary here in the always-mounted global
   // hook: an OGS page opened after midnight has no previous day to compare,
@@ -901,6 +912,9 @@ export function useGlobalSSE(): SSEHookState {
           // Target the specific student detail cache
           if (event.data.student_id) {
             pendingStudentIds.current.add(event.data.student_id);
+            if (!isOwnAttendanceEvent(event.type, event.data.student_id)) {
+              hasPendingRemoteRosterEvent.current = true;
+            }
           }
           // Scope the ogs-students-{gid} invalidation to the affected
           // educational groups (#2057). These group-topic events carry the
@@ -930,6 +944,9 @@ export function useGlobalSSE(): SSEHookState {
           if (event.data.student_ids) {
             for (const id of event.data.student_ids) {
               pendingStudentIds.current.add(id);
+              if (!isOwnAttendanceEvent(event.type, id)) {
+                hasPendingRemoteRosterEvent.current = true;
+              }
             }
           }
           collectEduGroupScope(event.data.group_ids);
@@ -968,36 +985,22 @@ export function useGlobalSSE(): SSEHookState {
         }
 
         case "active_supervision_changed": {
-          if (event.active_group_id) {
-            pendingGroupIds.current.add(event.active_group_id);
-          }
-          // The tenant-wide event carries no student_id (#2085). Still wake a
-          // child detail/care-plan view that this user already has open: the id
-          // comes from the viewer's own route and the refetch remains subject
-          // to the backend access check. This covers all_staff users outside
-          // the child's group and timetable attendance patches, which have no
-          // child-identifying companion event. Group-scoped check-in/checkout
-          // events continue to target background caches for entitled group
-          // supervisors.
-          const openStudentId = currentStudentDetailId();
-          if (openStudentId) {
-            pendingOpenStudentIds.current.add(openStudentId);
-          }
-          hasPendingActiveSupervisionEvent.current = true;
+          // Kept for unpaired emitters and a frontend-first rolling deploy.
+          collectActiveSupervisionChange(event);
           scheduleFlush();
           break;
         }
 
         case "dashboard_counts_changed": {
-          // Tenant-wide broadcast on every check-in/out — only refresh
-          // dashboard counts and the (scoped) OGS student lists, NOT
-          // room/supervision/active caches (those are for activity events).
-          // group_ids carries the affected educational groups (#2057) so the
-          // ogs-students invalidation can skip every other group's tab; an
-          // event without them (old backend, activity lifecycle, student
-          // without OGS group) falls back to the broad refresh.
+          // The current backend folds the former paired supervision signal
+          // into this legacy event type. Old frontends still refresh their
+          // dashboard/OGS caches; current frontends recognize `reason` and
+          // apply the union of both former invalidation sets (#2115).
           hasPendingDashboardEvent.current = true;
           collectEduGroupScope(event.data.group_ids);
+          if (event.data.reason) {
+            collectActiveSupervisionChange(event);
+          }
           scheduleFlush();
           break;
         }
@@ -1129,7 +1132,7 @@ export function useGlobalSSE(): SSEHookState {
         }
       }
     },
-    [scheduleFlush, collectEduGroupScope],
+    [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],
   );
 
   // Use the underlying SSE hook with global event handler.

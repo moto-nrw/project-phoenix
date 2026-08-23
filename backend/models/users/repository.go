@@ -46,6 +46,10 @@ type PersonRepository interface {
 	// FindByAccountID retrieves a person by their account ID
 	FindByAccountID(ctx context.Context, accountID int64) (*Person, error)
 
+	// FindByAccountIDs retrieves persons for the given account IDs in one
+	// query, keyed by account ID.
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*Person, error)
+
 	// ListWithOptions retrieves persons with type-safe query options
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Person, error)
 
@@ -242,6 +246,36 @@ type StudentRepository interface {
 	// overlapping batches serialize instead of deadlocking. Unknown or
 	// foreign ids are absent from the returned map.
 	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
+
+	// FindCareBoundsByIDs returns the last care day of each given child that
+	// has one. Deliberately a projection of a single DATE column rather than
+	// whole rows: the materializer needs it per date for hundreds of children
+	// and must not pay for departure-plan hydration to answer one question
+	// (#2487).
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+
+	// SetEnrolledUntilByIDs writes the enrollment interval's upper bound —
+	// the LAST CARE DAY, inclusive — for a whole batch in one statement, and
+	// returns how many rows changed. A nil `until` clears the bound, which is
+	// what cancelling a planned exit and resuming care both do (#2487).
+	SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *timezone.Date) (int64, error)
+
+	// SetEnrollmentWindowByID reopens one child's care from a new start day:
+	// enrolled_from moves to `from`, enrolled_until is cleared and the
+	// lifecycle status is recomputed against `today` (#2487).
+	SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status StudentStatus) error
+}
+
+// ClassListEntryRepository defines operations for the class-list-only entries
+// (#2382). School classes are free-text strings; every class comparison uses
+// LOWER(BTRIM(...)) — see models/users.ClassListEntry.
+type ClassListEntryRepository interface {
+	base.CRUDRepository[*ClassListEntry]
+	// FindBySchoolClass returns the entries of one class, name-sorted.
+	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*ClassListEntry, error)
+	// FindByNameAndClass returns entries matching first name, last name and
+	// class case-insensitively (duplicate guard for create and import).
+	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*ClassListEntry, error)
 }
 
 // StaffRepository defines operations for managing staff members

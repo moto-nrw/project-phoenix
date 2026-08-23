@@ -14,6 +14,8 @@ import (
 )
 
 func TestBaseModel_Accessors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	m := base.Model{ID: 42, CreatedAt: now, UpdatedAt: now.Add(time.Hour)}
 	assert.Equal(t, int64(42), m.GetID())

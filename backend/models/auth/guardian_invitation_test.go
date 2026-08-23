@@ -8,6 +8,8 @@ import (
 )
 
 func TestGuardianInvitation_Validate(t *testing.T) {
+	t.Parallel()
+
 	futureTime := time.Now().Add(48 * time.Hour)
 
 	tests := []struct {
@@ -108,6 +110,8 @@ func TestGuardianInvitation_Validate(t *testing.T) {
 }
 
 func TestGuardianInvitation_IsAccepted(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -145,6 +149,8 @@ func TestGuardianInvitation_IsAccepted(t *testing.T) {
 }
 
 func TestGuardianInvitation_SetExpiry(t *testing.T) {
+	t.Parallel()
+
 	inv := &GuardianInvitation{
 		Token:             "test-token",
 		GuardianProfileID: 1,
@@ -164,6 +170,8 @@ func TestGuardianInvitation_SetExpiry(t *testing.T) {
 }
 
 func TestGuardianInvitation_GetID(t *testing.T) {
+	t.Parallel()
+
 	inv := &GuardianInvitation{
 		Model: base.Model{ID: 42},
 	}
@@ -175,6 +183,8 @@ func TestGuardianInvitation_GetID(t *testing.T) {
 }
 
 func TestGuardianInvitation_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	inv := &GuardianInvitation{
 		Model: base.Model{CreatedAt: now},
@@ -186,6 +196,8 @@ func TestGuardianInvitation_GetCreatedAt(t *testing.T) {
 }
 
 func TestGuardianInvitation_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	inv := &GuardianInvitation{
 		Model: base.Model{UpdatedAt: now},

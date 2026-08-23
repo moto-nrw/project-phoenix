@@ -62,16 +62,22 @@ interface BackendErrorPayload {
 export class ApiResponseError extends Error {
   readonly status: number;
   readonly bodyText: string;
+  readonly retryAfter: string | null;
   // Memoized parse result — `null` means "not JSON". Lazy so callers that
   // only check status never pay the JSON.parse cost.
   private parsedBody: JsonBody | null = null;
   private parseAttempted = false;
 
-  constructor(status: number, bodyText: string, options?: ErrorOptions) {
+  constructor(
+    status: number,
+    bodyText: string,
+    options?: ErrorOptions & { retryAfter?: string | null },
+  ) {
     super(`API error (${status}): ${bodyText}`, options);
     this.name = "ApiResponseError";
     this.status = status;
     this.bodyText = bodyText;
+    this.retryAfter = options?.retryAfter ?? null;
   }
 
   /**
@@ -176,7 +182,9 @@ async function serverFetchWithRetry<T>(
     if (!response.ok) {
       outcome = "backend_error";
       const errorText = await response.text();
-      throw new ApiResponseError(response.status, errorText);
+      throw new ApiResponseError(response.status, errorText, {
+        retryAfter: response.headers.get("Retry-After"),
+      });
     }
 
     if (response.status === 204) {
@@ -356,7 +364,14 @@ export function handleApiError(error: unknown): NextResponse<ApiErrorResponse> {
   const status = getApiErrorStatus(error);
   if (error instanceof Error && status !== null) {
     logApiRouteError(status, error.message);
-    return NextResponse.json(buildApiErrorResponse(error.message), { status });
+    const headers =
+      error instanceof ApiResponseError && error.retryAfter
+        ? { "Retry-After": error.retryAfter }
+        : undefined;
+    return NextResponse.json(buildApiErrorResponse(error.message), {
+      status,
+      headers,
+    });
   }
 
   // Unknown errors are logged as errors and return 500

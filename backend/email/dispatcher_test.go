@@ -131,6 +131,8 @@ func (ct *callbackTracker) getResults() []DeliveryResult {
 // =============================================================================
 
 func TestNewDispatcher(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -147,6 +149,8 @@ func TestNewDispatcher(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_SetDefaults(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -159,6 +163,8 @@ func TestDispatcher_SetDefaults(t *testing.T) {
 }
 
 func TestDispatcher_SetDefaults_NilDispatcher(t *testing.T) {
+	t.Parallel()
+
 	var dispatcher *Dispatcher
 	// Should not panic
 	assert.NotPanics(t, func() {
@@ -167,6 +173,8 @@ func TestDispatcher_SetDefaults_NilDispatcher(t *testing.T) {
 }
 
 func TestDispatcher_SetDefaults_ZeroMaxAttempts(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 	originalRetry := dispatcher.defaultRetry
@@ -177,6 +185,8 @@ func TestDispatcher_SetDefaults_ZeroMaxAttempts(t *testing.T) {
 }
 
 func TestDispatcher_SetDefaults_EmptyBackoff(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 	originalBackoff := dispatcher.defaultBackoff
@@ -191,6 +201,8 @@ func TestDispatcher_SetDefaults_EmptyBackoff(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_Success(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 	// Use short backoff for testing
@@ -233,6 +245,8 @@ func TestDispatcher_Dispatch_Success(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
+	t.Parallel()
+
 	dispatcher := NewDispatcher(nil, slog.Default())
 
 	tracker := newCallbackTracker()
@@ -252,6 +266,8 @@ func TestDispatcher_Dispatch_NilMailer(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_NoCallback(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -281,6 +297,8 @@ func TestDispatcher_Dispatch_NoCallback(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	mailer.sendError = errors.New("SMTP error")
 	mailer.setFailCount(2) // Fail twice, then succeed
@@ -325,6 +343,8 @@ func TestDispatcher_Dispatch_RetryOnFailure(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	mailer.sendError = errors.New("permanent SMTP error")
 	mailer.alwaysFail = true // Always fail, not just for failCount times
@@ -369,6 +389,8 @@ func TestDispatcher_Dispatch_AllRetriesFail(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_CustomMaxAttempts(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	mailer.sendError = errors.New("error")
 	mailer.alwaysFail = true // Always fail for this test
@@ -394,6 +416,8 @@ func TestDispatcher_Dispatch_CustomMaxAttempts(t *testing.T) {
 }
 
 func TestDispatcher_Dispatch_CustomBackoff(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	mailer.setFailCount(1)
 
@@ -429,6 +453,8 @@ func TestDispatcher_Dispatch_CustomBackoff(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_MetadataPassedToCallback(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -465,6 +491,8 @@ func TestDispatcher_Dispatch_MetadataPassedToCallback(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_MessageCopied(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -499,6 +527,8 @@ func TestDispatcher_Dispatch_MessageCopied(t *testing.T) {
 // =============================================================================
 
 func TestBackoffDuration(t *testing.T) {
+	t.Parallel()
+
 	backoff := []time.Duration{time.Second, 2 * time.Second, 5 * time.Second}
 
 	testCases := []struct {
@@ -521,12 +551,16 @@ func TestBackoffDuration(t *testing.T) {
 }
 
 func TestBackoffDuration_ZeroAttempt(t *testing.T) {
+	t.Parallel()
+
 	backoff := []time.Duration{time.Second, 2 * time.Second}
 	result := backoffDuration(backoff, 0)
 	assert.Equal(t, time.Second, result)
 }
 
 func TestBackoffDuration_NegativeAttempt(t *testing.T) {
+	t.Parallel()
+
 	backoff := []time.Duration{time.Second, 2 * time.Second}
 	result := backoffDuration(backoff, -1)
 	assert.Equal(t, time.Second, result)
@@ -537,6 +571,8 @@ func TestBackoffDuration_NegativeAttempt(t *testing.T) {
 // =============================================================================
 
 func TestDeliveryStatus_Values(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, DeliveryStatus("pending"), DeliveryStatusPending)
 	assert.Equal(t, DeliveryStatus("sent"), DeliveryStatusSent)
 	assert.Equal(t, DeliveryStatus("failed"), DeliveryStatusFailed)
@@ -547,6 +583,8 @@ func TestDeliveryStatus_Values(t *testing.T) {
 // =============================================================================
 
 func TestDeliveryResult_SentAt(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -578,6 +616,8 @@ func TestDeliveryResult_SentAt(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 
@@ -624,6 +664,8 @@ func TestDispatcher_Dispatch_Concurrent(t *testing.T) {
 // =============================================================================
 
 func TestDispatcher_Dispatch_ContextPassedToCallback(t *testing.T) {
+	t.Parallel()
+
 	mailer := newMockMailer()
 	dispatcher := NewDispatcher(mailer, slog.Default())
 

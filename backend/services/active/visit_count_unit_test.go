@@ -18,6 +18,8 @@ import (
 // =============================================================================
 
 func TestCountActiveVisitsByRoomID_Success(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
 			return 5, nil
@@ -32,6 +34,8 @@ func TestCountActiveVisitsByRoomID_Success(t *testing.T) {
 }
 
 func TestCountActiveVisitsByRoomID_Error(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
 			return 0, errors.New("db error")
@@ -47,6 +51,8 @@ func TestCountActiveVisitsByRoomID_Error(t *testing.T) {
 }
 
 func TestCountActiveVisitsByRoomID_ZeroCount(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
 			return 0, nil
@@ -65,6 +71,8 @@ func TestCountActiveVisitsByRoomID_ZeroCount(t *testing.T) {
 // =============================================================================
 
 func TestCountActiveVisitsByActiveGroupID_Success(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByGroupIDFunc: func(ctx context.Context, activeGroupID int64) (int, error) {
 			return 3, nil
@@ -79,6 +87,8 @@ func TestCountActiveVisitsByActiveGroupID_Success(t *testing.T) {
 }
 
 func TestCountActiveVisitsByActiveGroupID_Error(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByGroupIDFunc: func(ctx context.Context, activeGroupID int64) (int, error) {
 			return 0, errors.New("db error")
@@ -94,6 +104,8 @@ func TestCountActiveVisitsByActiveGroupID_Error(t *testing.T) {
 }
 
 func TestCountActiveVisitsByActiveGroupID_ZeroCount(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		countActiveByGroupIDFunc: func(ctx context.Context, activeGroupID int64) (int, error) {
 			return 0, nil
@@ -112,6 +124,8 @@ func TestCountActiveVisitsByActiveGroupID_ZeroCount(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentCurrentVisit_Success(t *testing.T) {
+	t.Parallel()
+
 	testStudentID := int64(42)
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
@@ -132,6 +146,8 @@ func TestGetStudentCurrentVisit_Success(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_NotFound(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, &base.DatabaseError{Op: "get current", Err: sql.ErrNoRows}
@@ -147,6 +163,8 @@ func TestGetStudentCurrentVisit_NotFound(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, errors.New("connection refused")
@@ -162,6 +180,8 @@ func TestGetStudentCurrentVisit_DatabaseError(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisit_NilVisit(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, nil
@@ -180,6 +200,8 @@ func TestGetStudentCurrentVisit_NilVisit(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentCurrentVisitWithRoom_Success(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDWithRoomFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return &active.Visit{
@@ -206,6 +228,8 @@ func TestGetStudentCurrentVisitWithRoom_Success(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisitWithRoom_NotFound(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDWithRoomFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, &base.DatabaseError{Op: "get with room", Err: sql.ErrNoRows}
@@ -221,6 +245,8 @@ func TestGetStudentCurrentVisitWithRoom_NotFound(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisitWithRoom_DatabaseError(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDWithRoomFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, errors.New("connection reset")
@@ -236,6 +262,8 @@ func TestGetStudentCurrentVisitWithRoom_DatabaseError(t *testing.T) {
 }
 
 func TestGetStudentCurrentVisitWithRoom_NilVisit(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDWithRoomFunc: func(ctx context.Context, studentID int64) (*active.Visit, error) {
 			return nil, nil
@@ -258,6 +286,8 @@ func TestGetStudentCurrentVisitWithRoom_NilVisit(t *testing.T) {
 // =============================================================================
 
 func TestListStudentsPresentInRoom_ReturnsIDsFromRepo(t *testing.T) {
+	t.Parallel()
+
 	expected := []int64{11, 22, 33}
 	var receivedRoom int64
 	visitRepo := &mockVisitRepository{
@@ -276,6 +306,8 @@ func TestListStudentsPresentInRoom_ReturnsIDsFromRepo(t *testing.T) {
 }
 
 func TestListStudentsPresentInRoom_EmptyResult(t *testing.T) {
+	t.Parallel()
+
 	visitRepo := &mockVisitRepository{
 		listActiveStudentIDsByRoomIDFunc: func(_ context.Context, _ int64) ([]int64, error) {
 			return nil, nil
@@ -290,6 +322,8 @@ func TestListStudentsPresentInRoom_EmptyResult(t *testing.T) {
 }
 
 func TestListStudentsPresentInRoom_WrapsRepoError(t *testing.T) {
+	t.Parallel()
+
 	repoErr := errors.New("db unavailable")
 	visitRepo := &mockVisitRepository{
 		listActiveStudentIDsByRoomIDFunc: func(_ context.Context, _ int64) ([]int64, error) {

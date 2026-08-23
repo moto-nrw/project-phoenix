@@ -8,6 +8,8 @@ import (
 )
 
 func TestPermission_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		permission *Permission
@@ -72,6 +74,8 @@ func TestPermission_Validate(t *testing.T) {
 }
 
 func TestPermission_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name             string
 		inputName        string
@@ -137,6 +141,8 @@ func TestPermission_Validate_Normalization(t *testing.T) {
 }
 
 func TestPermission_GetFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		permission *Permission
@@ -179,6 +185,8 @@ func TestPermission_GetFullName(t *testing.T) {
 }
 
 func TestPermission_Clone(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	original := &Permission{
 		Model: base.Model{
@@ -224,6 +232,8 @@ func TestPermission_Clone(t *testing.T) {
 }
 
 func TestPermission_GetID(t *testing.T) {
+	t.Parallel()
+
 	perm := &Permission{
 		Model:    base.Model{ID: 42},
 		Name:     "test",
@@ -238,6 +248,8 @@ func TestPermission_GetID(t *testing.T) {
 }
 
 func TestPermission_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	perm := &Permission{
 		Model:    base.Model{CreatedAt: now},
@@ -252,6 +264,8 @@ func TestPermission_GetCreatedAt(t *testing.T) {
 }
 
 func TestPermission_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	perm := &Permission{
 		Model:    base.Model{UpdatedAt: now},

@@ -27,19 +27,26 @@ import (
 
 // TimetableDataDependencies wires the repositories behind TimetableDataService.
 type TimetableDataDependencies struct {
-	InstanceStudentRepo    scheduleModel.InstanceStudentRepository
-	ActivityInstanceRepo   scheduleModel.ActivityInstanceRepository
-	ActivityExceptionRepo  scheduleModel.ActivityExceptionRepository
-	ActivityScheduleRepo   activitiesModel.ScheduleRepository
-	InstanceStaffRepo      scheduleModel.InstanceStaffRepository
-	StaffShiftRepo         scheduleModel.StaffShiftRepository
-	StaffRepo              usersModel.StaffRepository
-	CalendarPeriodRepo     scheduleModel.CalendarPeriodRepository
-	ActiveGroupRepo        activeModel.GroupRepository
-	SupervisorRepo         activeModel.GroupSupervisorRepository
-	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
+	InstanceStudentRepo   scheduleModel.InstanceStudentRepository
+	ActivityInstanceRepo  scheduleModel.ActivityInstanceRepository
+	ActivityExceptionRepo scheduleModel.ActivityExceptionRepository
+	ActivityScheduleRepo  activitiesModel.ScheduleRepository
+	InstanceStaffRepo     scheduleModel.InstanceStaffRepository
+	StaffShiftRepo        scheduleModel.StaffShiftRepository
+	StaffRepo             usersModel.StaffRepository
+	CalendarPeriodRepo    scheduleModel.CalendarPeriodRepository
+	ActiveGroupRepo       activeModel.GroupRepository
+	SupervisorRepo        activeModel.GroupSupervisorRepository
+	ArrivalScheduleRepo   scheduleModel.StudentArrivalScheduleRepository
+	// ArrivalBaselines resolves the regular arrival plan the way every other
+	// reader sees it (#2414, ADR 0005): the class timetable supplies the time,
+	// and with enrollment.bookings_authoritative on the approved bookings
+	// supply the care days. Optional — nil keeps the stored rows as the plan,
+	// which is the behaviour of every school before #2414.
+	ArrivalBaselines       ArrivalBaselineReader
 	ArrivalExceptionRepo   scheduleModel.StudentArrivalExceptionRepository
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
+	PickupBaselines        PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
 	VisitRepo              activeModel.VisitRepository
 	RoomRepo               facilitiesModel.RoomRepository
@@ -303,14 +310,6 @@ func (s *TimetableDataService) EndGroupSupervisor(ctx context.Context, activeGro
 
 func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, supervisor *activeModel.GroupSupervisor) error {
 	return s.deps.SupervisorRepo.Create(ctx, supervisor)
-}
-
-func (s *TimetableDataService) GetArrivalSchedulesByStudentIDsAndWeekday(ctx context.Context, studentIDs []int64, weekday int) ([]*scheduleModel.StudentArrivalSchedule, error) {
-	return s.deps.ArrivalScheduleRepo.FindByStudentIDsAndWeekday(ctx, studentIDs, weekday)
-}
-
-func (s *TimetableDataService) GetArrivalSchedulesByStudent(ctx context.Context, studentID int64) ([]*scheduleModel.StudentArrivalSchedule, error) {
-	return s.deps.ArrivalScheduleRepo.FindByStudentID(ctx, studentID)
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {

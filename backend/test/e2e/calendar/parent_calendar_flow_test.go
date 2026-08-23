@@ -71,18 +71,15 @@ type feedE2EResponse struct {
 // a staff member creates an appointment for a guardian, then the guardian views
 // it, downloads its .ics, and fetches their subscription feed URL — all through
 // the real routers with a parent-scope JWT.
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	router := setupParentE2ERouter(t, db)
 
-	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
+	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() {
-		testpkg.CleanupParentGuardianChain(t, db, chain)
-		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
-		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
-	})
 
 	manageToken := calendarToken(t, organizerAccount.ID, permissions.CalendarManage, permissions.CalendarOwn)
 	createRR := doJSON(t, router, http.MethodPost, "/calendar/appointments", manageToken, map[string]any{
@@ -99,7 +96,6 @@ func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
 	require.NoError(t, json.Unmarshal(createRR.Body.Bytes(), &created))
 	apptID := created.Data.Appointment.ID
 	require.Greater(t, apptID, int64(0))
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "calendar.appointments", apptID) })
 
 	parentToken := parentCalendarToken(t, chain.AccountID)
 

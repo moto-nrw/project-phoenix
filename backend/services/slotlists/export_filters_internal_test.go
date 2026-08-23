@@ -12,6 +12,8 @@ import (
 // still be disclosed in the export header — otherwise an empty or partial
 // confidential export prints as if it were unfiltered.
 func TestSelectedGroupNames_DisclosesGroupWithoutRows(t *testing.T) {
+	t.Parallel()
+
 	t.Run("no selection returns nil", func(t *testing.T) {
 		names := selectedGroupNames(Params{}, &Result{
 			Groups: []GroupOption{{ID: 1, Name: "Delfine"}},

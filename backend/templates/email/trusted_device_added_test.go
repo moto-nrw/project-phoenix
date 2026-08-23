@@ -16,6 +16,8 @@ import (
 // validity window, plus the explicit "wasn't you?" guidance and a link
 // back to the security section so the user can revoke the device.
 func TestTrustedDeviceAddedTemplate_Renders(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 

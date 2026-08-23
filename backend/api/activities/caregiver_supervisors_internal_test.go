@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,17 +21,13 @@ func setupActivitiesResource(t *testing.T) (*bun.DB, *services.Factory, *Resourc
 }
 
 func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
+	t.Parallel()
 	db, _, resource := setupActivitiesResource(t)
-	defer func() { _ = db.Close() }()
 
-	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
-	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
+	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Active", "Caregiver")
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Teacher")
 
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	supervisors, err := resource.fetchAllSupervisors(ctx)
 	require.NoError(t, err)
 
@@ -46,10 +41,10 @@ func TestFetchAllSupervisors_IncludesLegacyTeachers(t *testing.T) {
 }
 
 func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
+	t.Parallel()
 	db, _, resource := setupActivitiesResource(t)
-	defer func() { _ = db.Close() }()
 
-	activeTeacher, activeAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
+	activeTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Filtered", "Caregiver")
 	_, err := db.NewUpdate().
 		Model(activeTeacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
@@ -58,7 +53,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	legacyTeacher, legacyAccount := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
+	legacyTeacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Legacy", "Included")
 	_, err = db.NewUpdate().
 		Model(legacyTeacher).
 		ModelTableExpr(`users.teachers AS "teacher"`).
@@ -67,12 +62,7 @@ func TestFetchSupervisorsBySpecialization_IncludesLegacyTeachers(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	defer testpkg.CleanupTeacherFixtures(t, db, activeTeacher.ID)
-	defer testpkg.CleanupTeacherFixtures(t, db, legacyTeacher.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, activeAccount.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, legacyAccount.ID)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
+	ctx := testpkg.Ctx(t)
 	supervisors, err := resource.fetchSupervisorsBySpecialization(ctx, "Sport")
 	require.NoError(t, err)
 

@@ -12,6 +12,8 @@ import (
 // =============================================================================
 
 func TestGetRequiredInt(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid float64 value", func(t *testing.T) {
 		claims := map[string]any{"id": float64(42)}
 		val, err := getRequiredInt(claims, "id")
@@ -55,6 +57,8 @@ func TestGetRequiredInt(t *testing.T) {
 }
 
 func TestGetRequiredString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid string", func(t *testing.T) {
 		claims := map[string]any{"sub": "user@example.com"}
 		val, err := getRequiredString(claims, "sub")
@@ -85,6 +89,8 @@ func TestGetRequiredString(t *testing.T) {
 }
 
 func TestGetOptionalString(t *testing.T) {
+	t.Parallel()
+
 	t.Run("present value", func(t *testing.T) {
 		claims := map[string]any{"username": "john"}
 		val := getOptionalString(claims, "username")
@@ -111,6 +117,8 @@ func TestGetOptionalString(t *testing.T) {
 }
 
 func TestGetOptionalBool(t *testing.T) {
+	t.Parallel()
+
 	t.Run("true value", func(t *testing.T) {
 		claims := map[string]any{"is_admin": true}
 		val := getOptionalBool(claims, "is_admin")
@@ -143,6 +151,8 @@ func TestGetOptionalBool(t *testing.T) {
 }
 
 func TestGetRequiredStringSlice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid string array", func(t *testing.T) {
 		claims := map[string]any{"roles": []any{"admin", "user"}}
 		val, err := getRequiredStringSlice(claims, "roles")
@@ -180,6 +190,8 @@ func TestGetRequiredStringSlice(t *testing.T) {
 }
 
 func TestGetOptionalStringSlice(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid string array", func(t *testing.T) {
 		claims := map[string]any{"permissions": []any{"read", "write"}}
 		val := getOptionalStringSlice(claims, "permissions")
@@ -216,6 +228,8 @@ func TestGetOptionalStringSlice(t *testing.T) {
 // =============================================================================
 
 func TestToStringSliceStrict(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid slice", func(t *testing.T) {
 		val, err := toStringSliceStrict([]any{"a", "b", "c"})
 		require.NoError(t, err)
@@ -241,6 +255,8 @@ func TestToStringSliceStrict(t *testing.T) {
 }
 
 func TestToStringSliceLenient(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid slice", func(t *testing.T) {
 		val := toStringSliceLenient([]any{"a", "b", "c"})
 		assert.Equal(t, []string{"a", "b", "c"}, val)
@@ -267,6 +283,8 @@ func TestToStringSliceLenient(t *testing.T) {
 // =============================================================================
 
 func TestAppClaims_ParseClaims_ValidClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":          float64(42),
 		"sub":         "user@example.com",
@@ -294,6 +312,8 @@ func TestAppClaims_ParseClaims_ValidClaims(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_MinimalClaims(t *testing.T) {
+	t.Parallel()
+
 	// Only required fields
 	claims := map[string]any{
 		"id":    float64(1),
@@ -317,6 +337,8 @@ func TestAppClaims_ParseClaims_MinimalClaims(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_MissingID(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"sub":   "test@test.com",
 		"roles": []any{"user"},
@@ -329,6 +351,8 @@ func TestAppClaims_ParseClaims_MissingID(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_MissingSub(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    float64(1),
 		"roles": []any{"user"},
@@ -341,6 +365,8 @@ func TestAppClaims_ParseClaims_MissingSub(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_MissingRoles(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":  float64(1),
 		"sub": "test@test.com",
@@ -353,6 +379,8 @@ func TestAppClaims_ParseClaims_MissingRoles(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_InvalidIDType(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    "not-a-number",
 		"sub":   "test@test.com",
@@ -365,6 +393,8 @@ func TestAppClaims_ParseClaims_InvalidIDType(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_InvalidRolesType(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    float64(1),
 		"sub":   "test@test.com",
@@ -377,6 +407,8 @@ func TestAppClaims_ParseClaims_InvalidRolesType(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_PermissionsWithInvalidElements(t *testing.T) {
+	t.Parallel()
+
 	// Permissions are optional and use lenient parsing
 	claims := map[string]any{
 		"id":          float64(1),
@@ -397,6 +429,8 @@ func TestAppClaims_ParseClaims_PermissionsWithInvalidElements(t *testing.T) {
 // =============================================================================
 
 func TestRefreshClaims_ParseClaims_ValidClaims(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    float64(42),
 		"token": "refresh-token-value",
@@ -411,6 +445,8 @@ func TestRefreshClaims_ParseClaims_ValidClaims(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_IntTypes(t *testing.T) {
+	t.Parallel()
+
 	// Test different numeric types for ID
 	testCases := []struct {
 		name string
@@ -437,6 +473,8 @@ func TestRefreshClaims_ParseClaims_IntTypes(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_MissingID(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"token": "token",
 	}
@@ -448,6 +486,8 @@ func TestRefreshClaims_ParseClaims_MissingID(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_MissingToken(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id": float64(1),
 	}
@@ -459,6 +499,8 @@ func TestRefreshClaims_ParseClaims_MissingToken(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_InvalidIDType(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    "not-a-number",
 		"token": "token",
@@ -475,6 +517,8 @@ func TestRefreshClaims_ParseClaims_InvalidIDType(t *testing.T) {
 // =============================================================================
 
 func TestAppClaims_ParseClaims_EmptyRolesArray(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":    float64(1),
 		"sub":   "test@test.com",
@@ -488,6 +532,8 @@ func TestAppClaims_ParseClaims_EmptyRolesArray(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_LargeID(t *testing.T) {
+	t.Parallel()
+
 	// Test with large ID values
 	claims := map[string]any{
 		"id":    float64(9223372036854775807), // Max int64 as float
@@ -502,6 +548,8 @@ func TestAppClaims_ParseClaims_LargeID(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_SpecialCharactersInStrings(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":         float64(1),
 		"sub":        "user+test@example.com",
@@ -522,6 +570,8 @@ func TestAppClaims_ParseClaims_SpecialCharactersInStrings(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_NilValues(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":          float64(1),
 		"sub":         "test@test.com",
@@ -545,21 +595,29 @@ func TestAppClaims_ParseClaims_NilValues(t *testing.T) {
 // =============================================================================
 
 func TestAppClaims_IsPlatformScope_True(t *testing.T) {
+	t.Parallel()
+
 	c := &AppClaims{Scope: "platform"}
 	assert.True(t, c.IsPlatformScope())
 }
 
 func TestAppClaims_IsPlatformScope_False_EmptyString(t *testing.T) {
+	t.Parallel()
+
 	c := &AppClaims{Scope: ""}
 	assert.False(t, c.IsPlatformScope())
 }
 
 func TestAppClaims_IsPlatformScope_False_Tenant(t *testing.T) {
+	t.Parallel()
+
 	c := &AppClaims{Scope: "tenant"}
 	assert.False(t, c.IsPlatformScope())
 }
 
 func TestAppClaims_IsPlatformScope_False_Other(t *testing.T) {
+	t.Parallel()
+
 	c := &AppClaims{Scope: "other"}
 	assert.False(t, c.IsPlatformScope())
 }
@@ -569,6 +627,8 @@ func TestAppClaims_IsPlatformScope_False_Other(t *testing.T) {
 // =============================================================================
 
 func TestGetOptionalInt64(t *testing.T) {
+	t.Parallel()
+
 	t.Run("present value", func(t *testing.T) {
 		claims := map[string]any{"tenant_id": float64(42)}
 		val := getOptionalInt64(claims, "tenant_id")
@@ -601,6 +661,8 @@ func TestGetOptionalInt64(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_WithFamilyID(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":        float64(7),
 		"sub":       "user@example.com",
@@ -614,6 +676,8 @@ func TestAppClaims_ParseClaims_WithFamilyID(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_WithTenantFields(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":        float64(1),
 		"sub":       "test@test.com",
@@ -633,6 +697,8 @@ func TestAppClaims_ParseClaims_WithTenantFields(t *testing.T) {
 }
 
 func TestAppClaims_ParseClaims_BackwardCompatNoTenantFields(t *testing.T) {
+	t.Parallel()
+
 	// Old tokens without tenant fields should still parse fine (zero values)
 	claims := map[string]any{
 		"id":    float64(1),
@@ -650,6 +716,8 @@ func TestAppClaims_ParseClaims_BackwardCompatNoTenantFields(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_WithTenantID(t *testing.T) {
+	t.Parallel()
+
 	claims := map[string]any{
 		"id":        float64(1),
 		"token":     "refresh-token",
@@ -664,6 +732,8 @@ func TestRefreshClaims_ParseClaims_WithTenantID(t *testing.T) {
 }
 
 func TestRefreshClaims_ParseClaims_BackwardCompatNoTenantID(t *testing.T) {
+	t.Parallel()
+
 	// Old refresh tokens without tenant_id should still parse fine
 	claims := map[string]any{
 		"id":    float64(1),

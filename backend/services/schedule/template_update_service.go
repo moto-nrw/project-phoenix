@@ -312,6 +312,7 @@ func (s *TimetableDataService) resyncUpdatedTemplateOfferingRoster(
 		TemplateID:       in.TemplateID,
 		OfferingIDs:      in.Fields.SourceCareOfferingIDs,
 		GradeLevels:      in.Fields.SourceGradeLevels,
+		SchoolClasses:    in.Fields.SourceSchoolClasses,
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom),
 	}); err != nil {
@@ -713,6 +714,7 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 	if err := validateOfferingSourceInput(
 		in.Fields.SourceCareOfferingIDs,
 		in.Fields.SourceGradeLevels,
+		in.Fields.SourceSchoolClasses,
 		in.Fields.TargetGroupType,
 		in.StudentIDs,
 		in.WeekdayAssignments,

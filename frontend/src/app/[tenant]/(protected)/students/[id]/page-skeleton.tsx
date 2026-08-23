@@ -30,7 +30,7 @@ export function StudentDetailSkeleton({
       )}
 
       <div className="mb-6 flex items-end justify-between gap-4">
-        <div className="ml-6 flex flex-1 items-center gap-4">
+        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
           <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-7 w-48 rounded" />
@@ -38,7 +38,7 @@ export function StudentDetailSkeleton({
             <Skeleton className="h-4 w-56 rounded" />
           </div>
         </div>
-        <div className="mr-4 flex-shrink-0 pb-3">
+        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
           <Skeleton className="h-8 w-28 rounded-full" />
         </div>
       </div>

@@ -22,9 +22,9 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
 	repo := scheduleRepo.NewActivityInstanceRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	inst := buildInstance(1, fx.roomID, &fx.activityID, date,
+	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
 		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
 		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
 		fmt.Sprintf("Instance-%s-%d", prefix, time.Now().UnixNano()),
@@ -32,7 +32,6 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 	require.NoError(t, repo.Create(ctx, inst))
 
 	cleanup := func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
 		fx.cleanup()
 	}
 
@@ -40,10 +39,11 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date timezon
 }
 
 func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "stf", timezone.NewDate(2026, 9, 15))
@@ -57,20 +57,17 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 		StaffID:    staffA.ID,
 		IsPrimary:  true,
 	}
-	rowA.SetTenantID(1)
+	rowA.SetTenantID(testpkg.Tenant(t))
 
 	rowB := &scheduleModels.InstanceStaff{
 		InstanceID:   inst.ID,
 		StaffID:      staffB.ID,
 		IsSubstitute: true,
 	}
-	rowB.SetTenantID(1)
+	rowB.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, rowA))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", rowA.ID)
 	require.NoError(t, repo.Create(ctx, rowB))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", rowB.ID)
-	defer testpkg.CleanupActivityFixtures(t, db, staffA.ID, staffB.ID)
 
 	t.Run("FindByInstanceID returns both", func(t *testing.T) {
 		rows, err := repo.FindByInstanceID(ctx, inst.ID)
@@ -102,7 +99,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 			InstanceID: inst.ID,
 			StaffID:    staffA.ID,
 		}
-		dup.SetTenantID(1)
+		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err, "UNIQUE constraint must reject duplicate")
 	})
@@ -115,7 +112,7 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 
 	t.Run("Create rejects invalid payload", func(t *testing.T) {
 		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staffA.ID}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "instance_id is required")
@@ -123,10 +120,11 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	date := timezone.NewDate(2026, 9, 16)
@@ -134,15 +132,13 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 	defer cleanupInst()
 
 	staff := testpkg.CreateTestStaff(t, db, "Claire", fmt.Sprintf("Multi-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{
 		InstanceID: inst.ID,
 		StaffID:    staff.ID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
 	rows, err := repo.FindByStaffAndDate(ctx, staff.ID, date)
 	require.NoError(t, err)
@@ -156,20 +152,20 @@ func TestInstanceStaffRepository_FindByStaffAndDate(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "del", timezone.NewDate(2026, 9, 18))
 	defer cleanupInst()
 
 	staff := testpkg.CreateTestStaff(t, db, "Dan", fmt.Sprintf("Del-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
 
 	require.NoError(t, repo.DeleteByInstanceID(ctx, inst.ID))
@@ -180,10 +176,11 @@ func TestInstanceStaffRepository_DeleteByInstanceID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	cutoff := timezone.NewDate(2026, 10, 1)
@@ -200,15 +197,12 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	defer cleanupFuture()
 
 	staff := testpkg.CreateTestStaff(t, db, "Olga", fmt.Sprintf("Offboard-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 	otherStaff := testpkg.CreateTestStaff(t, db, "Omar", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, otherStaff.ID)
 
 	makeRow := func(instanceID, staffID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
 		return row
 	}
 	pastRow := makeRow(pastInst.ID, staff.ID)
@@ -241,25 +235,24 @@ func TestInstanceStaffRepository_DeleteUpcomingByStaffID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_Update(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "upd", timezone.NewDate(2026, 9, 21))
 	defer cleanupInst()
 
 	staff := testpkg.CreateTestStaff(t, db, "Eve", fmt.Sprintf("Upd-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{
 		InstanceID: inst.ID,
 		StaffID:    staff.ID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
 	t.Run("updates fields in place", func(t *testing.T) {
 		row.IsPrimary = true
@@ -283,7 +276,7 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 
 	t.Run("rejects invalid payload", func(t *testing.T) {
 		bad := &scheduleModels.InstanceStaff{InstanceID: 0, StaffID: staff.ID}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		bad.ID = row.ID
 		err := repo.Update(ctx, bad)
 		require.Error(t, err)
@@ -292,22 +285,21 @@ func TestInstanceStaffRepository_Update(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "fid", timezone.NewDate(2026, 9, 22))
 	defer cleanupInst()
 
 	staff := testpkg.CreateTestStaff(t, db, "Finn", fmt.Sprintf("FID-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID, IsPrimary: true}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
 	t.Run("returns row for known id", func(t *testing.T) {
 		got, err := repo.FindByID(ctx, row.ID)
@@ -340,22 +332,21 @@ func TestInstanceStaffRepository_FindByID(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_List(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	inst, cleanupInst := createInstanceFixture(t, db, "lst", timezone.NewDate(2026, 9, 23))
 	defer cleanupInst()
 
 	staff := testpkg.CreateTestStaff(t, db, "Gina", fmt.Sprintf("Lst-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
 
 	row := &scheduleModels.InstanceStaff{InstanceID: inst.ID, StaffID: staff.ID}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, row))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID)
 
 	t.Run("nil options returns rows", func(t *testing.T) {
 		rows, err := repo.List(ctx, nil)
@@ -390,10 +381,11 @@ func TestInstanceStaffRepository_List(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
@@ -427,10 +419,11 @@ func TestInstanceStaffRepository_ErrorBranches(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
@@ -451,18 +444,16 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 	staff1 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S1-%d", suffix))
 	staff2 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S2-%d", suffix))
 	staff3 := testpkg.CreateTestStaff(t, db, "Cnt", fmt.Sprintf("S3-%d", suffix))
-	defer testpkg.CleanupActivityFixtures(t, db, staff1.ID, staff2.ID, staff3.ID)
 
 	// instA: 2 non-absent, 1 absent → expect 2
-	rowA1 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff1.ID, testpkg.InstanceStaffOpts{})
-	rowA2 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff2.ID, testpkg.InstanceStaffOpts{})
-	rowA3 := testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff3.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff1.ID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff2.ID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, db, instA.ID, staff3.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	// instB: 1 non-absent → expect 1
-	rowB1 := testpkg.CreateTestInstanceStaff(t, db, instB.ID, staff1.ID, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, db, instB.ID, staff1.ID, testpkg.InstanceStaffOpts{})
 
 	// instEmpty: nothing assigned → must NOT appear in map
-	defer testpkg.CleanupInstanceStaffFixtures(t, db, rowA1.ID, rowA2.ID, rowA3.ID, rowB1.ID)
 
 	t.Run("GroupsByInstance", func(t *testing.T) {
 		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{instA.ID, instB.ID, instEmpty.ID})
@@ -482,10 +473,11 @@ func TestInstanceStaffRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
 }
 
 func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewInstanceStaffRepository(db)
 
 	instEarly, cleanupEarly := createInstanceFixture(t, db, "range-early", timezone.NewDate(2026, 9, 18))
@@ -497,13 +489,11 @@ func TestInstanceStaffRepository_FindByStaffAndDateRange(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Dana", fmt.Sprintf("Range-%d", time.Now().UnixNano()))
 	other := testpkg.CreateTestStaff(t, db, "Erik", fmt.Sprintf("Other-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID, other.ID)
 
 	newRow := func(instID, staffID int64) *scheduleModels.InstanceStaff {
 		row := &scheduleModels.InstanceStaff{InstanceID: instID, StaffID: staffID}
-		row.SetTenantID(1)
+		row.SetTenantID(testpkg.Tenant(t))
 		require.NoError(t, repo.Create(ctx, row))
-		t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_staff", row.ID) })
 		return row
 	}
 

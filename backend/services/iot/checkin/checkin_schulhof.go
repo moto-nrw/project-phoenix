@@ -31,6 +31,7 @@ var schulhofSpace = systemSpace{
 	categoryName:    constants.SchulhofCategoryName,
 	categoryDesc:    constants.SchulhofCategoryDescription,
 	color:           constants.SchulhofColor,
+	roomColorless:   true,
 	activityName:    constants.SchulhofActivityName,
 	maxParticipants: constants.SchulhofMaxParticipants,
 	selectActivity: func(groups []*activities.Group, room *facilityModels.Room) *activities.Group {

@@ -8,6 +8,8 @@ import (
 )
 
 func TestRolePermission_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		rp      *RolePermission
@@ -74,6 +76,8 @@ func TestRolePermission_Validate(t *testing.T) {
 }
 
 func TestRolePermission_GetID(t *testing.T) {
+	t.Parallel()
+
 	rp := &RolePermission{
 		Model: base.Model{ID: 42},
 	}
@@ -85,6 +89,8 @@ func TestRolePermission_GetID(t *testing.T) {
 }
 
 func TestRolePermission_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	rp := &RolePermission{
 		Model: base.Model{CreatedAt: now},
@@ -96,6 +102,8 @@ func TestRolePermission_GetCreatedAt(t *testing.T) {
 }
 
 func TestRolePermission_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	rp := &RolePermission{
 		Model: base.Model{UpdatedAt: now},

@@ -194,6 +194,14 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		return nil, false
 	}
 
+	// A child whose care has ended leaves the operational timetable the same
+	// way (#2487). Their past days stay in the history exports; the live
+	// day/week view is for children who still attend.
+	if student.CareEndedOn(timezone.TodayDate()) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
+		return nil, false
+	}
+
 	if !authorize.CanReadStudent(
 		ctx,
 		jwt.PermissionsFromCtx(ctx),
@@ -307,7 +315,7 @@ func resolveArrivalSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date tim
 	exc, hasExc := pre.ArrivalExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	sched, hasSched := pre.ArrivalSchedByWeekly[wd]
+	sched, hasSched := pre.ArrivalSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
 	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {
@@ -325,7 +333,7 @@ func resolvePickupSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date time
 	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	sched, hasSched := pre.PickupSchedByWeekly[wd]
+	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
 	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {

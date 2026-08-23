@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/require"
 
@@ -23,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSchoolScopeRejectedOnAllAPIRoutes(t *testing.T) {
 	apiInstance := newGoldenAPI(t)
 
@@ -38,7 +41,7 @@ func TestSchoolScopeRejectedOnAllAPIRoutes(t *testing.T) {
 		Permissions: []string{"class_day:read", "users:read", "config:update", "admin:*"},
 		IsAdmin:     true,
 		Scope:       tenant.ScopeSchool,
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(t),
 		OrgID:       1,
 	})
 	require.NoError(t, err)

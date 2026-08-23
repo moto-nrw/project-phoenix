@@ -72,6 +72,10 @@ type createTemplateRequest struct {
 	// never carry the type "angebot").
 	SourceCareOfferingIDs []int64 `json:"source_care_offering_ids,omitempty"`
 	SourceGradeLevels     []int   `json:"source_grade_levels,omitempty"`
+	// SourceSchoolClasses narrows the same rule to concrete Schulklassen
+	// (#2482, empty = all). Mutually exclusive with source_grade_levels — a
+	// payload carrying both is rejected with 400.
+	SourceSchoolClasses []string `json:"source_school_classes,omitempty"`
 	// ListKind classifies the template for printable daily lists (#1565):
 	// one of activitiesModel.ListKind* ("edge_hours" | "learning_time" |
 	// "activity" | "mensa") or omitted/empty for none.
@@ -143,12 +147,13 @@ func normalizeTemplateTargetFields(
 	educationGroupID *int64,
 	sourceCareOfferingIDs []int64,
 	sourceGradeLevels []int,
+	sourceSchoolClasses []string,
 	targets []templateTargetRequest,
-) (string, *string, []int, error) {
+) (string, *string, []int, []string, error) {
 	// The offering-source rule (#2137) exists only on the single-target
 	// "angebot" shape; the multi-target list (#2130) never carries that type.
-	if (len(sourceCareOfferingIDs) > 0 || len(sourceGradeLevels) > 0) && len(targets) > 0 {
-		return "", nil, nil, errors.New("source_care_offering_ids cannot be combined with targets")
+	if (len(sourceCareOfferingIDs) > 0 || len(sourceGradeLevels) > 0 || len(sourceSchoolClasses) > 0) && len(targets) > 0 {
+		return "", nil, nil, nil, errors.New("source_care_offering_ids cannot be combined with targets")
 	}
 	target := &activitiesModel.Group{
 		TargetGroupType:       targetType,
@@ -157,14 +162,15 @@ func normalizeTemplateTargetFields(
 		EducationGroupID:      educationGroupID,
 		SourceCareOfferingIDs: sourceCareOfferingIDs,
 		SourceGradeLevels:     sourceGradeLevels,
+		SourceSchoolClasses:   sourceSchoolClasses,
 	}
 	if err := target.ValidateTargetGroup(); err != nil && len(targets) == 0 {
-		return "", nil, nil, err
+		return "", nil, nil, nil, err
 	}
 	if err := validateTargetRequests(target.TargetGroupType, targets); err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, nil, err
 	}
-	return target.TargetGroupType, target.TargetSchoolClass, target.SourceGradeLevels, nil
+	return target.TargetGroupType, target.TargetSchoolClass, target.SourceGradeLevels, target.SourceSchoolClasses, nil
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -200,9 +206,9 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if err := validateWeekdayAssignments(req.WeekdayAssignments, req.Weekdays); err != nil {
 		return err
 	}
-	targetType, schoolClass, sourceGradeLevels, err := normalizeTemplateTargetFields(
+	targetType, schoolClass, sourceGradeLevels, sourceSchoolClasses, err := normalizeTemplateTargetFields(
 		req.TargetGroupType, req.TargetGradeLevel, req.TargetSchoolClass, req.EducationGroupID,
-		req.SourceCareOfferingIDs, req.SourceGradeLevels, req.Targets,
+		req.SourceCareOfferingIDs, req.SourceGradeLevels, req.SourceSchoolClasses, req.Targets,
 	)
 	if err != nil {
 		return err
@@ -210,6 +216,7 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	req.TargetGroupType = targetType
 	req.TargetSchoolClass = schoolClass
 	req.SourceGradeLevels = sourceGradeLevels
+	req.SourceSchoolClasses = sourceSchoolClasses
 	listKind, err := normalizeTemplateListKind(req.ListKind)
 	if err != nil {
 		return err
@@ -414,6 +421,7 @@ func buildCreateTemplateInput(
 		Targets:               targetModels(req.Targets),
 		SourceCareOfferingIDs: req.SourceCareOfferingIDs,
 		SourceGradeLevels:     req.SourceGradeLevels,
+		SourceSchoolClasses:   req.SourceSchoolClasses,
 		ListKind:              req.ListKind,
 		Notes:                 normalizeNotes(req.Notes),
 		StudentIDs:            req.StudentIDs,

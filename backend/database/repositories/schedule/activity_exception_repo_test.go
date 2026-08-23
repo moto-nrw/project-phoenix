@@ -16,24 +16,23 @@ import (
 )
 
 func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Tpl-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	cancelled := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
 		ExceptionDate:   timezone.NewDate(2026, 12, 23),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	cancelled.SetTenantID(1)
+	cancelled.SetTenantID(testpkg.Tenant(t))
 
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("OverrideRoom-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 	modifiedRoom := room.ID
 	modified := &scheduleModels.ActivityException{
@@ -42,12 +41,10 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		RoomID:          &modifiedRoom,
 	}
-	modified.SetTenantID(1)
+	modified.SetTenantID(testpkg.Tenant(t))
 
 	require.NoError(t, repo.Create(ctx, cancelled))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", cancelled.ID)
 	require.NoError(t, repo.Create(ctx, modified))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", modified.ID)
 
 	t.Run("FindByActivityGroupID returns both", func(t *testing.T) {
 		got, err := repo.FindByActivityGroupID(ctx, activity.ID)
@@ -67,7 +64,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 			ExceptionDate:   cancelled.ExceptionDate,
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		}
-		dup.SetTenantID(1)
+		dup.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, dup)
 		require.Error(t, err)
 	})
@@ -79,7 +76,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 			RoomID:          &modifiedRoom,
 		}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "cancelled exception must not set")
@@ -91,7 +88,7 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 			ExceptionDate:   timezone.NewDate(2027, 1, 11),
 			ExceptionType:   scheduleModels.ActivityExceptionModified,
 		}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		err := repo.Create(ctx, bad)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "must override at least one")
@@ -99,14 +96,14 @@ func TestActivityExceptionRepository_Create_and_FindByActivityGroupID(t *testing
 }
 
 func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-By-Date-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	date := timezone.NewDate(2027, 2, 3)
 
@@ -115,9 +112,8 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 		ExceptionDate:   date,
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
 
 	t.Run("returns the row when exists", func(t *testing.T) {
 		got, err := repo.FindByActivityGroupAndDate(ctx, activity.ID, date)
@@ -135,14 +131,14 @@ func TestActivityExceptionRepository_FindByActivityGroupAndDate(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Range-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	from := timezone.NewDate(2027, 4, 1)
 	mid := timezone.NewDate(2027, 4, 10)
@@ -155,7 +151,7 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 			ExceptionDate:   date,
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		}
-		e.SetTenantID(1)
+		e.SetTenantID(testpkg.Tenant(t))
 		return e
 	}
 	eStart, eMid, eEnd, eOut := mk(from), mk(mid), mk(to), mk(outside)
@@ -179,23 +175,22 @@ func TestActivityExceptionRepository_FindByDateRange(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_Update(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-Upd-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
 		ExceptionDate:   timezone.NewDate(2027, 5, 1),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
 
 	t.Run("updates fields in place", func(t *testing.T) {
 		reason := "Ferien"
@@ -221,7 +216,7 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 			ExceptionDate:   timezone.NewDate(2027, 5, 2),
 			ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		}
-		bad.SetTenantID(1)
+		bad.SetTenantID(testpkg.Tenant(t))
 		bad.ID = exc.ID
 		err := repo.Update(ctx, bad)
 		require.Error(t, err)
@@ -230,23 +225,22 @@ func TestActivityExceptionRepository_Update(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_FindByID(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-FID-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
 		ExceptionDate:   timezone.NewDate(2027, 5, 3),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
 
 	t.Run("returns row for known id", func(t *testing.T) {
 		got, err := repo.FindByID(ctx, exc.ID)
@@ -266,23 +260,22 @@ func TestActivityExceptionRepository_FindByID(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_List(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Exc-List-%d", time.Now().UnixNano()))
-	defer testpkg.CleanupActivityFixtures(t, db, activity.ID)
 
 	exc := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
 		ExceptionDate:   timezone.NewDate(2027, 5, 4),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 	}
-	exc.SetTenantID(1)
+	exc.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repo.Create(ctx, exc))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", exc.ID)
 
 	t.Run("nil options returns rows", func(t *testing.T) {
 		rows, err := repo.List(ctx, nil)
@@ -317,10 +310,11 @@ func TestActivityExceptionRepository_List(t *testing.T) {
 }
 
 func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	repo := scheduleRepo.NewActivityExceptionRepository(db)
 
 	cancelledCtx, cancel := context.WithCancel(ctx)
@@ -362,10 +356,11 @@ func TestActivityExceptionRepository_ErrorBranches(t *testing.T) {
 //
 // Catalog code: 'c' = CASCADE, 'n' = SET NULL.
 func TestActivityExceptionFKOnDelete(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	cases := []struct {
 		refTable string

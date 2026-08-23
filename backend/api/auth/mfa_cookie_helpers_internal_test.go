@@ -17,6 +17,8 @@ import (
 // matching Secure flag is now a literal `true`, so no helper test is needed.)
 
 func TestParseClientIP_UsesChiXFFOverRawXRealIP(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.Header.Set("X-Real-IP", "203.0.113.10")
 	r.Header.Set("X-Forwarded-For", "198.51.100.7")
@@ -29,6 +31,8 @@ func TestParseClientIP_UsesChiXFFOverRawXRealIP(t *testing.T) {
 }
 
 func TestParseClientIP_UsesRightmostXForwardedForHop(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.Header.Set("X-Forwarded-For", "198.51.100.7, 10.0.0.1, 172.16.0.1")
 	r.RemoteAddr = "10.0.0.1:54321"
@@ -40,6 +44,8 @@ func TestParseClientIP_UsesRightmostXForwardedForHop(t *testing.T) {
 }
 
 func TestParseClientIP_FallsBackToRemoteAddr(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.RemoteAddr = "192.0.2.5:54321"
 
@@ -50,6 +56,8 @@ func TestParseClientIP_FallsBackToRemoteAddr(t *testing.T) {
 }
 
 func TestParseClientIP_ParsesIPv6(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.Header.Set("X-Forwarded-For", "2001:db8::1")
 
@@ -60,6 +68,8 @@ func TestParseClientIP_ParsesIPv6(t *testing.T) {
 }
 
 func TestParseClientIP_ReturnsNilOnUnparseable(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.Header.Set("X-Forwarded-For", "not-an-ip")
 	r.RemoteAddr = ""
@@ -69,6 +79,8 @@ func TestParseClientIP_ReturnsNilOnUnparseable(t *testing.T) {
 }
 
 func TestParseClientIP_ReturnsNilOnEmptyRequest(t *testing.T) {
+	t.Parallel()
+
 	r := httptest.NewRequest(http.MethodGet, "/mfa", nil)
 	r.RemoteAddr = ""
 

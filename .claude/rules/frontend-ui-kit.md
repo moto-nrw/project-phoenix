@@ -40,7 +40,7 @@ Don't design from imagination. The app's real screens are captured as images you
 - **App screenshots** → `frontend/public/help/screens/*.webp` (~50 screens, maintained for the in-app help guide; treat as approximate-current). Open the relevant one before building or changing that screen. Anchors:
   - `mitarbeiter.webp` = staff list · `mitarbeitende-anlegen.webp` = staff create
   - `kinderdetailansicht.webp` = child detail · `kindersuche.webp` = student search/list
-  - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities · `feedback.webp` = feedback
+  - `meine-gruppen.webp` = groups · `aktivitaeten.webp` = activities
   - `datenverwaltung.webp` = data admin · NFC kiosk = `nfc-*.webp`
 - **Component gallery (Storybook)** → https://moto-nrw.github.io/design-system/ (or `pnpm storybook` in the sibling `../design-system` repo → :6006; project-phoenix itself has no storybook script). Good for component anatomy and states. Caveat: it renders the `@moto-nrw/design-system` **package** components, which share the visual language but are NOT the ones we import — use it for spacing/anatomy intuition, not as import targets.
 
@@ -196,6 +196,7 @@ Apply before marking any UI work complete (and reviewers: before approving):
 - [ ] Works on mobile
 - [ ] Dense enough for daily operational use (not airy / landing-page)
 - [ ] Visually verified: ran the app, screenshotted the changed screen, compared against a canonical screen
+- [ ] **Missverständnis-Check** passed and recorded in the PR description: every visible block explains its purpose in one sentence, nothing read-only looks clickable, preconditions are stated in the product, no two labels share a word stem without a visible boundary, copy follows `moto-einfache-sprache` — full checklist in `.claude/rules/verstaendlichkeit.md`
 
 ## When to deviate
 

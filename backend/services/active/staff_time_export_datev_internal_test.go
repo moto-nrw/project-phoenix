@@ -8,6 +8,8 @@ import (
 )
 
 func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.T) {
+	t.Parallel()
+
 	minutes, _, _, ok := datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes: 180,
 		OpeningMinutes: 120,
@@ -33,6 +35,8 @@ func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.
 // dates), but the encoder must still be ANSI-correct the day a text field is
 // added — the LODAS handbook prescribes "ANSI-Code" with CR/LF record ends.
 func TestEncodeDatevANSI(t *testing.T) {
+	t.Parallel()
+
 	out := encodeDatevANSI("Bäcker-Größe;1\n")
 
 	// Windows-1252: ä = 0xE4, ö = 0xF6 — a UTF-8 pass-through would leak

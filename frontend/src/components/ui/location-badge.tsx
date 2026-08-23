@@ -158,18 +158,20 @@ export function LocationBadge({
     supervisedRooms,
   );
 
-  // Check sick / class trip / excused / notArrival status display modes.
-  // Priority: sick > class trip > excused > notArrival. Only one replace-mode applies at a time.
-  const sickMode = getSickDisplayMode(student);
+  // An actual presence that contradicts the plan is the actionable state.
+  // At home, the specific absence status keeps its existing precedence.
+  const notArrivalMode = getNotArrivalDisplayMode(student);
+  const sickMode =
+    notArrivalMode === "additional" ? "none" : getSickDisplayMode(student);
   const classTripMode =
-    sickMode === "none" ? getClassTripDisplayMode(student) : "none";
-  const excusedMode =
-    sickMode === "none" && classTripMode === "none"
-      ? getExcusedDisplayMode(student)
+    notArrivalMode !== "additional" && sickMode === "none"
+      ? getClassTripDisplayMode(student)
       : "none";
-  const notArrivalMode =
-    sickMode === "none" && classTripMode === "none" && excusedMode === "none"
-      ? getNotArrivalDisplayMode(student)
+  const excusedMode =
+    notArrivalMode !== "additional" &&
+    sickMode === "none" &&
+    classTripMode === "none"
+      ? getExcusedDisplayMode(student)
       : "none";
 
   // Determine color based on display mode and permissions
@@ -195,8 +197,11 @@ export function LocationBadge({
     } else {
       // Foreign students - user sees limited info (only status, no room)
       // Use the filtered label (e.g., "Anwesend") to determine color
-      // This ensures: Anwesend=Green, Zuhause=Gray (never Blue/Orange/Purple)
-      color = getLocationColor(label, false, []);
+      // This ensures: Anwesend=Green, Zuhause=Gray (never Blue/Purple)
+      // The label can still be the plain "Schulhof" status — that is a coarse
+      // status, not room detail, so it keeps following the school's configured
+      // yard color (#2405) and falls back to orange when none is set.
+      color = getLocationColor(label, false, [], student.current_room_color);
     }
   } else {
     // roomName mode - use full location for color
@@ -321,13 +326,13 @@ export function LocationBadge({
         className={`${sizeConfig.dot} rounded-full`}
         style={{ backgroundColor: notArrivalTone.dotColor }}
       />
-      {LOCATION_STATUSES.NOT_ARRIVAL}
+      {LOCATION_STATUSES.UNPLANNED_PRESENT}
     </span>
   );
 
   if (variant === "simple") {
     return (
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-end">
         <span
           className={`${SIMPLE_BASE_CLASS} ${sizeConfig.simple}`}
           style={{
@@ -357,7 +362,7 @@ export function LocationBadge({
   }
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-end">
       <span
         className={`${MODERN_BASE_CLASS} ${sizeConfig.modern}`}
         style={{

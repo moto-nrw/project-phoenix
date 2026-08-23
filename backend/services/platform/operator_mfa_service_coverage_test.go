@@ -32,7 +32,6 @@ import (
 func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB, *testpkg.CapturingMailer) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
@@ -57,6 +56,7 @@ func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *r
 // --- Tests ---
 
 func TestOperatorMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db, mailer := newOperatorMFAWithDispatcher(t)
 
@@ -76,6 +76,7 @@ func TestOperatorMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 }
 
 func TestOperatorMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db, mailer := newOperatorMFAWithDispatcher(t)
 
@@ -99,6 +100,7 @@ func TestOperatorMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T
 // --- VerifyCodeForOperator: no-active-challenge, unknown-id, wrong-code ---
 
 func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -112,6 +114,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge(t *testing.T
 }
 
 func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, _ := newTestOperatorMFAService(t)
 
@@ -122,6 +125,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator(t *testing.T) 
 }
 
 func TestOperatorMFAService_VerifyCodeForOperator_WrongCode(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -139,6 +143,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode(t *testing.T) {
 // --- VerifyChallenge: token rejected when scope is the tenant one ---
 
 func TestOperatorMFAService_VerifyChallenge_RejectsTenantScopeToken(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -164,6 +169,7 @@ func TestOperatorMFAService_VerifyChallenge_RejectsTenantScopeToken(t *testing.T
 // --- ResendChallenge: invalid token, wrong-scope, happy path ---
 
 func TestOperatorMFAService_ResendChallenge_InvalidToken(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newTestOperatorMFAService(t)
 	renewed, err := svc.ResendChallenge(context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"))
 	require.Error(t, err)
@@ -172,6 +178,7 @@ func TestOperatorMFAService_ResendChallenge_InvalidToken(t *testing.T) {
 }
 
 func TestOperatorMFAService_ResendChallenge_WrongScopeRejected(t *testing.T) {
+	t.Parallel()
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
 	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
@@ -189,6 +196,7 @@ func TestOperatorMFAService_ResendChallenge_WrongScopeRejected(t *testing.T) {
 }
 
 func TestOperatorMFAService_ResendChallenge_HappyPathDispatcher(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -211,6 +219,7 @@ func TestOperatorMFAService_ResendChallenge_HappyPathDispatcher(t *testing.T) {
 // --- Rate-limit + lockout: design-doc §11 mirror tests ---
 
 func TestOperatorMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -227,6 +236,7 @@ func TestOperatorMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 }
 
 func TestOperatorMFAService_VerifyChallenge_LockoutAfter5Failures(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
@@ -249,6 +259,7 @@ func TestOperatorMFAService_VerifyChallenge_LockoutAfter5Failures(t *testing.T) 
 // --- StartChallenge rejects unknown operator id ---
 
 func TestOperatorMFAService_StartChallenge_UnknownOperator_Rejected(t *testing.T) {
+	t.Parallel()
 	svc, _, _ := newTestOperatorMFAService(t)
 	_, err := svc.StartChallenge(context.Background(), 9876543210, net.ParseIP("127.0.0.1"))
 	require.Error(t, err, "unknown operator id must surface as an error, not silently mint a code")
@@ -257,6 +268,7 @@ func TestOperatorMFAService_StartChallenge_UnknownOperator_Rejected(t *testing.T
 // --- VerifyCodeForOperator happy path (drives the consume + reset branches) ---
 
 func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 

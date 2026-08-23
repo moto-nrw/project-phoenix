@@ -12,7 +12,6 @@
 //
 //	func TestHandler(t *testing.T) {
 //	    db, services := testutil.SetupAPITest(t)
-//	    defer db.Close()
 //
 //	    resource := NewResource(services.Auth, services.Invitation)
 //	    router := chi.NewRouter()
@@ -63,15 +62,10 @@ const (
 )
 
 // SetupAPITest initializes test database and service factory for API tests.
-// Returns the database connection and service factory.
-// The caller must close the database connection when done.
+// Returns the shared package database pool and a service factory. Tests must
+// not close the pool — it is shared by every test in the binary.
 func SetupAPITest(t *testing.T) (*bun.DB, *services.Factory) {
 	t.Helper()
-
-	// Set JWT config defaults (normally set in cmd/serve.go)
-	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
-	viper.SetDefault("auth_jwt_expiry", "15m")
-	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
 
 	db := testpkg.SetupTestDB(t)
 
@@ -95,8 +89,10 @@ func WithPermissions(permissions ...string) RequestOption {
 
 // WithClaims adds JWT claims to the request context.
 // Also injects tenant context (mirroring TenantMiddleware) so that
-// handler-level WithTenantTx can read the tenant ID.
-func WithClaims(claims jwt.AppClaims) RequestOption {
+// handler-level WithTenantTx can read the tenant ID. Claims carrying the
+// bootstrap tenant follow the test into its own tenant (#2419).
+func WithClaims(tb testing.TB, claims jwt.AppClaims) RequestOption {
+	claims.TenantID = testpkg.RebaseTenantID(tb, claims.TenantID)
 	return func(req *http.Request) {
 		ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
 		if claims.TenantID != 0 {
@@ -124,8 +120,13 @@ func WithJWTBearer(token string) RequestOption {
 // Callers must arrange for a non-empty auth_jwt_secret to be present before the
 // Resource is constructed (typically via SeedTestJWTConfig in init() or
 // TestMain). Without a secret, jwx refuses to HMAC-sign and this helper fails.
-func MintTestJWT(t *testing.T, claims jwt.AppClaims) string {
+//
+// Claims carrying the bootstrap tenant are rebased onto the tenant the test
+// owns, so a test that opted into a per-test tenant gets a matching token
+// without passing the tenant through every claims helper (#2419).
+func MintTestJWT(t testing.TB, claims jwt.AppClaims) string {
 	t.Helper()
+	claims.TenantID = testpkg.RebaseTenantID(t, claims.TenantID)
 	tokenAuth, err := jwt.NewTokenAuth()
 	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
 	token, err := tokenAuth.CreateJWT(claims)
@@ -142,7 +143,7 @@ func MintTestJWT(t *testing.T, claims jwt.AppClaims) string {
 // SetDefault leaves env-supplied values alone, so this is safe to call when
 // AUTH_JWT_SECRET is already set in the environment.
 func SeedTestJWTConfig() {
-	viper.SetDefault("auth_jwt_secret", "test-secret-for-unit-tests-minimum-32-chars")
+	viper.SetDefault("auth_jwt_secret", testpkg.TestJWTSecret)
 	viper.SetDefault("auth_jwt_expiry", "15m")
 	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
 }
@@ -269,12 +270,6 @@ func NewTenantRouter(db *bun.DB) chi.Router {
 	router.Use(render.SetContentType(render.ContentTypeJSON))
 	router.Use(tenant.TenantTxMiddleware(db))
 	return router
-}
-
-// TenantContext returns a context with tenant_id set.
-// Use this when calling service methods directly in test setup (not through HTTP handlers).
-func TenantContext(tenantID int64) context.Context {
-	return tenant.WithTenantID(context.Background(), tenantID)
 }
 
 // ExecuteRequest executes an HTTP request against a Chi router and returns the response recorder.

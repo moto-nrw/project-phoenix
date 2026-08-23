@@ -9,6 +9,8 @@ import (
 )
 
 func TestProfile_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		profile *Profile
@@ -74,6 +76,8 @@ func TestProfile_Validate(t *testing.T) {
 }
 
 func TestProfile_SetAccount(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set with account", func(t *testing.T) {
 		profile := &Profile{}
 
@@ -109,6 +113,8 @@ func TestProfile_SetAccount(t *testing.T) {
 }
 
 func TestProfile_GetSetting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("get existing setting", func(t *testing.T) {
 		profile := &Profile{
 			AccountID: 1,
@@ -150,6 +156,8 @@ func TestProfile_GetSetting(t *testing.T) {
 }
 
 func TestProfile_SetSetting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set new setting on empty profile", func(t *testing.T) {
 		profile := &Profile{
 			AccountID: 1,
@@ -203,6 +211,8 @@ func TestProfile_SetSetting(t *testing.T) {
 }
 
 func TestProfile_DeleteSetting(t *testing.T) {
+	t.Parallel()
+
 	t.Run("delete existing setting", func(t *testing.T) {
 		profile := &Profile{
 			AccountID: 1,
@@ -234,6 +244,8 @@ func TestProfile_DeleteSetting(t *testing.T) {
 }
 
 func TestProfile_HasAvatar(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		avatar   string
@@ -262,6 +274,8 @@ func TestProfile_HasAvatar(t *testing.T) {
 }
 
 func TestProfile_HasBio(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		bio      string
@@ -290,6 +304,8 @@ func TestProfile_HasBio(t *testing.T) {
 }
 
 func TestProfile_GetID(t *testing.T) {
+	t.Parallel()
+
 	profile := &Profile{
 		Model:     base.Model{ID: 42},
 		AccountID: 1,
@@ -301,6 +317,8 @@ func TestProfile_GetID(t *testing.T) {
 }
 
 func TestProfile_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	profile := &Profile{
 		Model:     base.Model{CreatedAt: now},
@@ -313,6 +331,8 @@ func TestProfile_GetCreatedAt(t *testing.T) {
 }
 
 func TestProfile_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	profile := &Profile{
 		Model:     base.Model{UpdatedAt: now},

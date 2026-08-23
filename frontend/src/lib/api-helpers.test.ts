@@ -15,6 +15,7 @@ import {
   handleApiError,
   apiGet,
   checkAuth,
+  ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
 
@@ -122,6 +123,14 @@ describe("ApiResponseError", () => {
     expect(error.body()).toBeNull();
     expect(error.body()).toBeNull();
   });
+
+  it("preserves Retry-After on a rate-limit error", () => {
+    const error = new ServerApiResponseError(429, "slow down", {
+      retryAfter: "17",
+    });
+
+    expect(error.retryAfter).toBe("17");
+  });
 });
 
 describe("handleApiError", () => {
@@ -135,6 +144,15 @@ describe("handleApiError", () => {
 
     expect(response.status).toBe(404);
     expect(body.error).toBe("API error (404): Not found");
+  });
+
+  it("forwards Retry-After from a backend 429", () => {
+    const response = handleApiError(
+      new ServerApiResponseError(429, "rate limited", { retryAfter: "17" }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("17");
   });
 
   it("extracts status code from 'API error: XXX' format", () => {

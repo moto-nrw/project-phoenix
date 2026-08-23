@@ -99,6 +99,7 @@ type Student struct {
 	ClassTrip          bool       `json:"class_trip"`
 	ClassTripSince     *time.Time `json:"class_trip_since,omitempty"`
 	DayPlanningStatus  string     `json:"day_planning_status,omitempty"`
+	DayPlanningReason  string     `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel   string     `json:"day_planning_label,omitempty"`
 	PendingExcusedNote *string    `json:"pending_excused_note,omitempty"`
 	ArrivalTime        *string    `json:"arrival_time,omitempty"`
@@ -387,6 +388,7 @@ func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activ
 		result.Attendances = attendances
 	}
 	if mode == activeService.PresenceModeBinary {
+		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
 		return result, nil
 	}
 	return s.loadDetailedLocations(ctx, result)
@@ -589,7 +591,7 @@ func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbs
 		_, hasTimetable := state.timetable[student.ID]
 		attendance := state.data.locations.Attendances[student.ID]
 		decision := scheduleService.ResolveDayPlanning(scheduleService.DayPlanningInputs{
-			HasActualAttendance: attendance != nil && attendance.CheckInTime != nil && attendance.Status != "not_checked_in",
+			HasActualAttendance: attendance.IsCurrentlyPresent(),
 			Sick:                student.Sick,
 			ClassTrip:           student.ClassTrip,
 			Excused:             student.Excused,
@@ -601,6 +603,7 @@ func applyPlanning(state *buildState, pending map[int64]*activeModels.ExcusedAbs
 		if decision.ComesToday {
 			student.DayPlanningStatus = "comes_today"
 		}
+		student.DayPlanningReason = decision.Reason
 		student.DayPlanningLabel = planningLabel(decision)
 		applyTimes(student, state.arrivals[student.ID], attendance)
 	}

@@ -14,6 +14,8 @@ import (
 // appointment (Termine) notification template renders with the payload the
 // renderer supplies for published / updated / cancelled / reminder mails.
 func TestAppointmentNotificationTemplate_Renders(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 

@@ -10,6 +10,8 @@ import (
 )
 
 func TestParseTemplateTimingAllowsUnlimitedCapacity(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/api/timetable/templates", nil)
 
@@ -20,6 +22,8 @@ func TestParseTemplateTimingAllowsUnlimitedCapacity(t *testing.T) {
 }
 
 func TestUpdateTemplateRequestTracksExplicitCapacityClear(t *testing.T) {
+	t.Parallel()
+
 	var req updateTemplateRequest
 	require.NoError(t, json.Unmarshal([]byte(`{"max_participants":null}`), &req))
 

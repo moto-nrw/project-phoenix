@@ -65,6 +65,8 @@ func assignStudentGroup(t *testing.T, tc *testContext, studentID, groupID int64)
 // (#2218). The filters therefore accept several values, and the result must be
 // the union — not the first value, and not everything.
 func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// The suffix keeps the class names unique in the shared test database while
@@ -82,8 +84,6 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 	groupB := testpkg.CreateTestEducationGroup(t, tc.db, fmt.Sprintf("Gruppe B %d", suffix))
 	assignStudentGroup(t, tc, third.ID, groupA.ID)
 	assignStudentGroup(t, tc, fourth.ID, groupB.ID)
-
-	defer testpkg.CleanupActivityFixtures(t, tc.db, third.ID, fourth.ID, second.ID, groupA.ID, groupB.ID)
 
 	t.Run("two classes return both cohorts", func(t *testing.T) {
 		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(
@@ -214,6 +214,8 @@ func TestListStudents_MultiValueClassGroupAndGradeFilters(t *testing.T) {
 // end to end; unescaped it would silently become two filters matching nothing
 // (#2218 review).
 func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	suffix := time.Now().UnixNano()
@@ -222,7 +224,6 @@ func TestListStudents_ClassNameContainingTheSeparator(t *testing.T) {
 
 	comma := testpkg.CreateTestStudent(t, tc.db, "Sep", "Comma", commaClass)
 	plain := testpkg.CreateTestStudent(t, tc.db, "Sep", "Plain", plainClass)
-	defer testpkg.CleanupActivityFixtures(t, tc.db, comma.ID, plain.ID)
 
 	t.Run("an escaped comma selects the one class", func(t *testing.T) {
 		ids, total := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(

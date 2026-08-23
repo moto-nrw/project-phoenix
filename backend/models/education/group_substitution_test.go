@@ -15,6 +15,8 @@ func ptr(i int64) *int64 {
 }
 
 func TestGroupSubstitution_Validate(t *testing.T) {
+	t.Parallel()
+
 	currentTime := timezone.TodayDate()
 	tomorrow := currentTime.AddDays(1)
 
@@ -152,6 +154,8 @@ func TestGroupSubstitution_Validate(t *testing.T) {
 }
 
 func TestGroupSubstitution_Duration(t *testing.T) {
+	t.Parallel()
+
 	// Use a fixed date to avoid DST edge cases
 	now := timezone.NewDate(2026, time.June, 15)
 
@@ -196,6 +200,8 @@ func TestGroupSubstitution_Duration(t *testing.T) {
 }
 
 func TestGroupSubstitution_SetGroup(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set group", func(t *testing.T) {
 		gs := &GroupSubstitution{SubstituteStaffID: 1}
 		group := &Group{
@@ -229,6 +235,8 @@ func TestGroupSubstitution_SetGroup(t *testing.T) {
 }
 
 func TestGroupSubstitution_SetRegularStaff(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set regular staff", func(t *testing.T) {
 		gs := &GroupSubstitution{GroupID: 1, SubstituteStaffID: 2}
 		staff := &users.Staff{
@@ -268,6 +276,8 @@ func TestGroupSubstitution_SetRegularStaff(t *testing.T) {
 }
 
 func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set substitute staff", func(t *testing.T) {
 		gs := &GroupSubstitution{GroupID: 1}
 		staff := &users.Staff{
@@ -301,6 +311,8 @@ func TestGroupSubstitution_SetSubstituteStaff(t *testing.T) {
 }
 
 func TestGroupSubstitution_GetID(t *testing.T) {
+	t.Parallel()
+
 	gs := &GroupSubstitution{
 		Model:             base.Model{ID: 42},
 		GroupID:           1,
@@ -313,6 +325,8 @@ func TestGroupSubstitution_GetID(t *testing.T) {
 }
 
 func TestGroupSubstitution_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	gs := &GroupSubstitution{
 		Model:             base.Model{CreatedAt: now},
@@ -326,6 +340,8 @@ func TestGroupSubstitution_GetCreatedAt(t *testing.T) {
 }
 
 func TestGroupSubstitution_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	gs := &GroupSubstitution{
 		Model:             base.Model{UpdatedAt: now},

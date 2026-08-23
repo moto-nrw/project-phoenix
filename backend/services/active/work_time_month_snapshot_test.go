@@ -66,7 +66,6 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -86,8 +85,6 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staff.ID, admin.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	// Contract: Mondays 480 minutes.
@@ -144,6 +141,8 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 // afterwards. The frozen closing balance and every later carry must stay put,
 // and the divergence must be reported as drift rather than swallowed.
 func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	augustBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotMonth)
@@ -207,6 +206,8 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 // issue names literally ("Schutz gegen Schedule-Wechsel-Historie"): changing
 // the contractual Soll of a past month must not move a closed balance.
 func TestMonthClose_FreezesBalanceAgainstRetroactiveScheduleChange(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
@@ -237,6 +238,8 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveScheduleChange(t *testing.T)
 // TestMonthClose_ReopenRestoresLiveChain proves the reopen path: the escape
 // hatch for a legitimate correction after the freeze.
 func TestMonthClose_ReopenRestoresLiveChain(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
@@ -272,6 +275,8 @@ func TestMonthClose_ReopenRestoresLiveChain(t *testing.T) {
 // a month that is not over would charge its full Soll against an Ist that stops
 // today, and that error would carry forward forever.
 func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 	today := timezone.TodayDate()
 
@@ -281,6 +286,8 @@ func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
 
 // TestMonthClose_RejectsMissingReason keeps freezing attributable.
 func TestMonthClose_RejectsMissingReason(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "   ")
@@ -289,6 +296,8 @@ func TestMonthClose_RejectsMissingReason(t *testing.T) {
 
 // TestMonthClose_IsIdempotent — a second click must skip, not double-write.
 func TestMonthClose_IsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	first, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
@@ -303,6 +312,8 @@ func TestMonthClose_IsIdempotent(t *testing.T) {
 // TestMonthClose_RejectsCloseBehindLaterSnapshot prevents a newly frozen older
 // month from contradicting the history used by an already frozen later month.
 func TestMonthClose_RejectsCloseBehindLaterSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
@@ -313,6 +324,8 @@ func TestMonthClose_RejectsCloseBehindLaterSnapshot(t *testing.T) {
 }
 
 func TestMonthClose_RetryBehindLaterSnapshotRemainsIdempotent(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
@@ -330,6 +343,8 @@ func TestMonthClose_RetryBehindLaterSnapshotRemainsIdempotent(t *testing.T) {
 // month could not move its closing balance, so the ledger refuses it. Work
 // sessions stay editable on purpose; that difference is what drift is for.
 func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
@@ -349,6 +364,8 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 // "adjustment_in_closed_month", so the frontend can explain the month close
 // instead of showing a generic validation error (#1417 UI).
 func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
@@ -366,6 +383,8 @@ func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 // TestMonthClose_ReopenRequiresNewestFirst — reopening an older month while a
 // later one stays frozen would leave a state no admin can reason about.
 func TestMonthClose_ReopenRequiresNewestFirst(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
@@ -383,6 +402,8 @@ func TestMonthClose_ReopenRequiresNewestFirst(t *testing.T) {
 
 // TestMonthClose_ReopenUnclosedMonthIsNotFound guards the 404 path.
 func TestMonthClose_ReopenUnclosedMonthIsNotFound(t *testing.T) {
+	t.Parallel()
+
 	f := newSnapshotFixture(t)
 
 	err := f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotMonth, "Korrektur")

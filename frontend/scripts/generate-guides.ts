@@ -25,9 +25,8 @@ const GUIDES = [
 const OUT_DIR = path.join(process.cwd(), "public", "help", "pdfs");
 
 // A correctly rendered guide PDF is always well above this; anything smaller
-// means the page rendered blank or the images never loaded. Failing here (and
-// retrying via the config) is preferable to silently shipping a broken
-// download into the production image.
+// means the page rendered blank or the images never loaded. Failing here is
+// preferable to silently shipping a broken download into the production image.
 const MIN_PDF_BYTES = 20_000;
 const PDF_MARGIN = { top: "18mm", right: "16mm", bottom: "18mm", left: "16mm" };
 const ONE_PAGER_MARGIN = { top: "0", right: "0", bottom: "0", left: "0" };

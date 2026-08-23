@@ -19,7 +19,13 @@ var (
 	// checked-in guard: the write path locks the student row FOR UPDATE and
 	// rejects an alumnus, closing the race where resolution saw an active
 	// student but a concurrent graduation committed mid-request (#405).
-	ErrStudentGraduated          = errors.New("student has graduated and cannot check in")
+	ErrStudentGraduated = errors.New("student has graduated and cannot check in")
+	// ErrStudentCareEnded guards every presence write against a child whose
+	// care has ended (#2487). Same shape as ErrStudentGraduated: resolution may
+	// have seen a child still in care while the exit took effect mid-request,
+	// so the write path re-checks under the row lock. The message is part of
+	// the /api/iot/* wire contract PyrePortal maps to German text.
+	ErrStudentCareEnded          = errors.New("student care has ended and cannot check in")
 	ErrActiveGroupAlreadyEnded   = errors.New("active group session already ended")
 	ErrVisitAlreadyEnded         = errors.New("visit already ended")
 	ErrSupervisionAlreadyEnded   = errors.New("supervision already ended")
@@ -48,6 +54,11 @@ var (
 	// Room conflict management errors
 	ErrRoomConflict         = errors.New("room is already occupied by another active group")
 	ErrRoomCapacityExceeded = errors.New("room capacity exceeded")
+	// ErrNoRoomAvailable: no room was selected and the activity has no planned
+	// room. There is no safe default here — room id 1 belongs to one specific
+	// school, so any hardcoded fallback trips fk_active_groups_room_tenant for
+	// every other tenant. The message is part of the PyrePortal contract.
+	ErrNoRoomAvailable = errors.New("no room available for this activity")
 )
 
 type RoomCapacityError struct {

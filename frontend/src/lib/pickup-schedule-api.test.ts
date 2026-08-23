@@ -71,13 +71,17 @@ function createMockResponse(
   } as Response;
 }
 
+const originalFetch = global.fetch;
+
 describe("pickup-schedule-api", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = vi.fn();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    global.fetch = originalFetch;
   });
 
   describe("bulkUpsertPickupSchedules", () => {
@@ -145,6 +149,24 @@ describe("pickup-schedule-api", () => {
         createdAt: "2024-01-15T10:00:00Z",
         updatedAt: "2024-01-15T10:00:00Z",
       });
+    });
+
+    it("forwards the visible date range", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: mockBackendPickupData,
+        }),
+      );
+
+      await fetchStudentPickupData("123", {
+        from: "2026-08-17",
+        to: "2026-08-21",
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-schedules?from=2026-08-17&to=2026-08-21",
+      );
     });
 
     it("returns empty arrays when data is undefined", async () => {
@@ -230,13 +252,13 @@ describe("pickup-schedule-api", () => {
         }),
       );
 
-      const result = await resetStudentPickupToOffering("123", 1);
+      const result = await resetStudentPickupToOffering("123", 1, "2026-08-17");
 
       expect(global.fetch).toHaveBeenCalledWith(
         "/api/students/123/pickup-schedules/reset-offering",
         expect.objectContaining({
           method: "POST",
-          body: JSON.stringify({ weekday: 1 }),
+          body: JSON.stringify({ weekday: 1, date: "2026-08-17" }),
         }),
       );
       expect(result.schedules[0]).toMatchObject({

@@ -234,7 +234,12 @@ export function TimetableEventModal({
     sourcePhaseLockId,
     sourceGradeOptions,
     sourceGradeCounts,
+    sourceClassOptions,
+    sourceClassCounts,
     sourceFilteredCount,
+    sourceCountsPending,
+    sourceCountsError,
+    sourceRosterDiff,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
@@ -242,6 +247,8 @@ export function TimetableEventModal({
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
     toggleSourceGradeLevel,
+    toggleSourceSchoolClass,
+    changeSourceFilterMode,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,
@@ -642,11 +649,18 @@ export function TimetableEventModal({
                 sourcePhaseLockId={sourcePhaseLockId}
                 sourceGradeOptions={sourceGradeOptions}
                 sourceGradeCounts={sourceGradeCounts}
+                sourceClassOptions={sourceClassOptions}
+                sourceClassCounts={sourceClassCounts}
                 sourceFilteredCount={sourceFilteredCount}
+                sourceCountsPending={sourceCountsPending}
+                sourceCountsError={sourceCountsError}
+                sourceRosterDiff={sourceRosterDiff}
                 sourcePhaseKidsFromWarning={sourcePhaseKidsFromWarning}
                 sourceOverlapWarnings={sourceOverlapWarnings}
                 changeSourceOfferings={changeSourceOfferings}
                 toggleSourceGradeLevel={toggleSourceGradeLevel}
+                toggleSourceSchoolClass={toggleSourceSchoolClass}
+                changeSourceFilterMode={changeSourceFilterMode}
                 conflictWarnings={conflictWarnings}
                 coverageWarnings={coverageWarnings}
                 coverageWarningCount={coverageWarningCount}

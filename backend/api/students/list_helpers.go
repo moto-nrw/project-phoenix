@@ -2,6 +2,7 @@ package students
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -10,9 +11,15 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/go-chi/render"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -71,6 +78,50 @@ type studentListParams struct {
 	// marshalling choice made after filtering and pagination — see
 	// list_projection.go.
 	slimView bool
+	// careStatus decides which side of the enrollment interval the list
+	// shows (#2487). Empty or "running" — the default every operational
+	// screen uses — hides children whose care has ended; "ended" shows only
+	// those; "all" turns the boundary off for callers that manage both.
+	careStatus   string
+	careStatusOn timezone.Date
+}
+
+// Values accepted by the care_status query parameter (#2487).
+const (
+	CareStatusRunning = "running"
+	CareStatusEnded   = "ended"
+	CareStatusAll     = "all"
+)
+
+// ErrCareStatusForbidden refuses the departed side of the list to a caller who
+// may not manage exits. The archive view sits behind users:delete, and this
+// parameter opens the same set of children on the ordinary list endpoint — a
+// caller with plain users:read must not be able to reach it by adding a query
+// parameter (#2487).
+//
+//nolint:staticcheck // ST1005: user-facing German message
+var ErrCareStatusForbidden = errors.New("Beendete Betreuungen dürfen nur Personen mit der Berechtigung „Benutzer löschen“ sehen.")
+
+// parseCareStatus resolves the care_status query parameter. An unknown value
+// is rejected rather than silently serving the operational list: a caller
+// asking for the archive and getting the ordinary roster would look like data
+// loss.
+//
+// canReadEnded is the caller's users:delete verdict: without it only the
+// running side exists.
+func parseCareStatus(value string, canReadEnded bool) (string, error) {
+	switch value {
+	case "", CareStatusRunning:
+		return CareStatusRunning, nil
+	case CareStatusEnded, CareStatusAll:
+		if !canReadEnded {
+			return "", ErrCareStatusForbidden
+		}
+		return value, nil
+	default:
+		return "", fmt.Errorf("invalid care_status %q: must be %q, %q or %q",
+			value, CareStatusRunning, CareStatusEnded, CareStatusAll)
+	}
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -188,6 +239,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		location:      r.URL.Query().Get("location"),
 		locationState: r.URL.Query().Get("location_state"),
 		search:        r.URL.Query().Get("search"),
+		careStatusOn:  timezone.TodayDate(),
 	}
 
 	// Parse group IDs if provided. Unparseable entries are skipped rather than
@@ -252,17 +304,18 @@ func (p *studentListParams) hasAdministrativeFilters() bool {
 }
 
 // canUseGroupOnlyShortcut reports whether the request is nothing but a group
-// selection, so the materialized group members already are the answer. Every
-// other filter must be listed here: the shortcut never runs the SQL query, so a
-// filter it does not name would simply not be applied. Grade level is named
-// explicitly because it is answered in SQL now and therefore no longer covered
-// by hasInMemoryFilters.
+// selection without a care-status boundary, so the materialized group members
+// already are the answer. Every other filter must be listed here: the shortcut
+// never runs the SQL query, so a filter it does not name would simply not be
+// applied. Grade level is named explicitly because it is answered in SQL now
+// and therefore no longer covered by hasInMemoryFilters.
 func (p *studentListParams) canUseGroupOnlyShortcut() bool {
 	return len(p.schoolClasses) == 0 &&
 		len(p.gradeLevels) == 0 &&
 		p.guardianName == "" &&
 		p.roomID == 0 &&
 		len(p.studentIDs) == 0 &&
+		p.careStatus == CareStatusAll &&
 		!p.hasInMemoryFilters()
 }
 
@@ -325,6 +378,12 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 	// Alumni (graduated via grade transition, soft-deleted) are invisible to
 	// every staff list and export.
 	filter.NotIn("status", string(users.StudentStatusAlumnus))
+	// Children whose care has ended are invisible to every operational list
+	// and export from the day after their last care day (#2487). The
+	// enrollment interval is the boundary — the lifecycle status only follows
+	// it once the scheduler ticks, and a list must not show a departed child
+	// for up to an hour because of that.
+	applyCareStatusFilter(filter, p.careStatus, p.careStatusOn)
 	// Several classes may be selected at once (#2218); TrimIn collapses to the
 	// single-value TrimEqual when exactly one is requested.
 	if len(p.schoolClasses) > 0 {
@@ -497,4 +556,48 @@ func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
 		}
 	}
 	return fullAccessIDs
+}
+
+// applyCareStatusFilter narrows the list to one side of the enrollment
+// interval's upper bound (#2487).
+//
+// "running" is the default and covers both a child with no end date at all and
+// one whose last care day is still ahead — the planned exit stays visible so
+// the office can see "Betreuung endet am …" while the child still attends.
+func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezone.Date) {
+	switch careStatus {
+	case CareStatusEnded:
+		filter.IsNotNull("enrolled_until")
+		filter.LessThan("enrolled_until", today)
+	case CareStatusAll:
+		// No boundary: the caller manages both sides.
+	default:
+		running := base.NewFilter()
+		running.IsNull("enrolled_until")
+		running.Or(*base.NewFilter().GreaterThanOrEqual("enrolled_until", today))
+		filter.And(*running)
+	}
+}
+
+// careStatusFromRequest resolves the care_status parameter together with the
+// permission guarding its departed side, and returns the response to render
+// when either says no (#2487).
+//
+// Extracted from listStudents so the handler keeps one branch instead of
+// three: a parameter with a permission and two different status codes is
+// exactly the orchestration that does not belong in a handler body
+// (backend-conventions rule 4).
+func careStatusFromRequest(r *http.Request) (string, render.Renderer) {
+	// The departed side of the list is the same set of children the archive
+	// view shows, so it needs the same permission.
+	canReadEnded := authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context()))
+	careStatus, err := parseCareStatus(r.URL.Query().Get("care_status"), canReadEnded)
+	switch {
+	case err == nil:
+		return careStatus, nil
+	case errors.Is(err, ErrCareStatusForbidden):
+		return "", common.ErrorForbidden(err)
+	default:
+		return "", common.ErrorInvalidRequest(err)
+	}
 }

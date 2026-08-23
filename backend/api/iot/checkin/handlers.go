@@ -501,8 +501,11 @@ func (rs *Resource) processBinaryModeCheckin(
 		// retry a scan that can never succeed. Route through the shared renderer
 		// so the whole family of recoverable active-service errors keeps the
 		// PyrePortal wire contract instead of collapsing into 500 (#405 review).
-		if errors.Is(err, activeSvc.ErrStudentGraduated) {
-			rs.getLogger().InfoContext(ctx, "binary mode checkin rejected: student graduated mid-scan",
+		// A care exit that took effect between the two is the same story
+		// (#2487): the kiosk maps one string for "not a child we care for".
+		if errors.Is(err, activeSvc.ErrStudentGraduated) ||
+			errors.Is(err, activeSvc.ErrStudentCareEnded) {
+			rs.getLogger().InfoContext(ctx, "binary mode checkin rejected: student not in care",
 				slog.Int64("student_id", student.ID),
 				slog.Int64("staff_id", staffID),
 			)

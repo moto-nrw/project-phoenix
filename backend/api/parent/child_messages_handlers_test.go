@@ -11,11 +11,14 @@ import (
 )
 
 func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
+	t.Parallel()
+
 	response := toThreadSummary(&usersModels.InboxThread{
 		ThreadID:               41,
 		StudentID:              82,
 		SchoolName:             "Schule am Berg",
 		LastMessageReadByStaff: true,
+		LastMessagePayload:     map[string]any{"effective_from": "2026-09-01"},
 	})
 
 	body, err := json.Marshal(response)
@@ -27,6 +30,7 @@ func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
 		"school_name":"Schule am Berg",
 		"counterpart_name":"OGS Schule am Berg",
 		"last_message_read_by_staff":true,
+		"last_message_payload":{"effective_from":"2026-09-01"},
 		"unread":0
 	}`, string(body))
 }

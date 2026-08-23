@@ -12,7 +12,6 @@ import (
 
 func TestStudentEnrollmentSelectedWeekdaysStrictConstraint(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)

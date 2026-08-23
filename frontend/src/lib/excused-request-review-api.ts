@@ -1,6 +1,5 @@
 /**
- * Staff client for the parent "entschuldigt" absence-request review queue
- * (#1845). Calls the Next.js proxy routes under
+ * Staff client for the parent absence-request review queue. Calls the Next.js proxy routes under
  * /api/students/excused-absence-requests which forward (with the tenant session
  * token) to the backend. Mirrors care-request-review-api.ts.
  */
@@ -11,13 +10,14 @@ const logger = createLogger({ component: "ExcusedRequestReviewAPI" });
 
 type ExcusedRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
-// One excused-absence request in the staff queue. Mirrors
+// One absence request in the staff queue. Mirrors
 // api/students.StaffExcusedRequestResponse. `dates` are YYYY-MM-DD.
 export interface StaffExcusedRequest {
   readonly id: string;
   readonly student_id: string;
   readonly first_name: string;
   readonly last_name: string;
+  readonly absence_status: "sick" | "excused";
   readonly status: ExcusedRequestStatus;
   readonly dates: readonly string[];
   readonly note: string;
@@ -73,25 +73,7 @@ async function readError(
   return new ExcusedRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending parent excused-absence requests. */
-export async function listExcusedAbsenceRequests(): Promise<
-  StaffExcusedRequest[]
-> {
-  const response = await fetch("/api/students/excused-absence-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Entschuldigungs-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffExcusedRequest[]>);
-}
-
-/** Approves (marks the child excused) or rejects one excused-absence request. */
+/** Approves (marks the child absent) or rejects one absence request. */
 export async function decideExcusedAbsenceRequest(
   requestId: string,
   approve: boolean,
@@ -112,4 +94,14 @@ export async function decideExcusedAbsenceRequest(
     );
   }
   return unwrap((await response.json()) as Envelope<StaffExcusedRequest>);
+}
+
+/**
+ * One decided absence request in the staff history. Mirrors
+ * api/students.StaffExcusedRequestHistoryResponse.
+ */
+export interface StaffExcusedRequestHistoryEntry extends StaffExcusedRequest {
+  readonly decided_at: string;
+  /** Absent for withdrawn rows (no reviewer). */
+  readonly decided_by_name?: string;
 }

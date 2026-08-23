@@ -1,11 +1,6 @@
-# Codex loads lifecycle hooks (.codex/hooks.json - including the Stop hook
-# that enforces the quorum re-request) only behind this experimental feature
-# flag. "hooks" is the current flag name, "codex_hooks" the pre-rename alias
-# still accepted for older CLI versions. If the Stop hook still does not fire
-# with this repo config, set the flag in ~/.codex/config.toml.
+# Codex loads lifecycle hooks from .codex/hooks.json when this feature is enabled.
 [features]
 hooks = true
-codex_hooks = true
 
 [shell_environment_policy]
 inherit = "core"

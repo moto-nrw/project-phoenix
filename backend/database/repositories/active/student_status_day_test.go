@@ -17,13 +17,13 @@ import (
 )
 
 func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
@@ -81,13 +81,13 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 }
 
 func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	now := time.Now()
 	firstDate := timezone.DateFromTime(now).AddDays(4)
@@ -131,16 +131,16 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 }
 
 func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(6)
 	require.NoError(t, repo.UpsertReported(context.Background(), &active.StudentStatusDay{
-		TenantModel: modelBase.TenantModel{TenantID: 1},
+		TenantModel: modelBase.TenantModel{TenantID: testpkg.Tenant(t)},
 		StudentID:   student.ID,
 		Date:        date,
 		Status:      active.StudentStatusDaySick,
@@ -152,14 +152,15 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 
-	rows, err = repo.FindActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, date, date)
+	rows, err = repo.FindActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 }
 
 func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 	tenantA := testpkg.UniqueTestTenantID(t)
@@ -229,8 +230,6 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	studentIDs = append(studentIDs, otherTenantStudent.ID)
 	report(ctxB, otherTenantStudent.ID, active.StudentStatusDayExcused)
 
-	defer testpkg.CleanupActivityFixtures(t, db, studentIDs...)
-
 	counts, err := repo.CountEffectiveDashboardAbsences(ctxA, today)
 	require.NoError(t, err)
 	require.NotNil(t, counts)
@@ -245,12 +244,13 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 }
 
 func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
 
-	err := repo.UpsertReported(testpkg.TenantContext(1), nil)
+	err := repo.UpsertReported(testpkg.Ctx(t), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
@@ -260,13 +260,13 @@ func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {
 // reactivating a previously-cleared row with no reason must NOT resurrect
 // the stale note from the superseded report.
 func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	date := timezone.TodayDate().AddDays(5)
 	reason := "Fieber"
@@ -319,13 +319,13 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 // a re-upsert hits the conflict path instead of duplicating the row — the
 // exact failure mode of the historical bug class.
 func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StudentStatusDay
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Boundary", "Student", "BR1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	// 23:30 UTC on the eve of the 2026 spring DST transition is 00:30 CEST
 	// on March 29 in Berlin — inside the historical failure window.

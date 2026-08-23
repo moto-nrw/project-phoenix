@@ -53,6 +53,8 @@ func (s gradeCollectionSettingsStub) ResolveInt(_ context.Context, key string) (
 // class guard, this one only applies to ACTIVE phases, so the fixtures below
 // are active.
 func TestValidateEligibleGradeLevelsCollectable(t *testing.T) {
+	t.Parallel()
+
 	restricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{3}, IsActive: true}
 	unrestricted := &enrollmentModels.Phase{EligibleGradeLevels: []int{}, IsActive: true}
 
@@ -96,6 +98,8 @@ func TestValidateEligibleGradeLevelsCollectable(t *testing.T) {
 // reject that config instead of persisting an active phase no submission can
 // reach (#1663).
 func TestValidateEligibleGradeLevelsWithinTenantCap(t *testing.T) {
+	t.Parallel()
+
 	collecting := func(gradeMax int) gradeCollectionSettingsStub {
 		return gradeCollectionSettingsStub{collectGrade: true, collectClass: true, gradeMax: gradeMax}
 	}

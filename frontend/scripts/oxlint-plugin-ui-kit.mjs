@@ -40,7 +40,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/students/[id]/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
   "src/app/[tenant]/(protected)/students/search/page.tsx",
-  "src/app/[tenant]/(protected)/suggestions/page.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.tsx",
   "src/app/operator/announcements/page.tsx",
   "src/app/operator/devices/page.tsx",
@@ -60,8 +59,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/app/operator/schools/page.tsx",
   "src/app/operator/settings/page.tsx",
-  "src/app/operator/suggestions/[id]/page.tsx",
-  "src/app/operator/suggestions/page.tsx",
   "src/app/page.tsx",
   "src/components/active-supervisions/states.tsx",
   "src/components/active/unclaimed-rooms.tsx",
@@ -97,13 +94,11 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/import/student-row-card.tsx",
   "src/components/import/upload-section.tsx",
   "src/components/operator/announcement-views-accordion.tsx",
-  "src/components/operator/status-dropdown.tsx",
   "src/components/permissions/permission-selector.tsx",
   "src/components/roles/roles-master-detail.tsx",
   "src/components/settings/passkey-settings-section.tsx",
   "src/components/settings/personalization-tab.tsx",
   "src/components/settings/settings-field.tsx",
-  "src/components/shared/base-comment-accordion.tsx",
   "src/components/staff/admin-session-edit-modal.tsx",
   "src/components/staff/school-overview-section.tsx",
   "src/components/staff/shift-edit-modal.tsx",
@@ -126,9 +121,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/components/students/student-form-fields.tsx",
   "src/components/students/student-historie-tab.tsx",
   "src/components/students/student-stammdaten-tab.tsx",
-  "src/components/suggestions/suggestion-card.tsx",
-  "src/components/suggestions/suggestion-form.tsx",
-  "src/components/suggestions/vote-buttons.tsx",
   "src/components/teachers/caregiver-blocker-resolution-modal.tsx",
   "src/components/teachers/caregiver-capability-modal.tsx",
   "src/components/teachers/teacher-form.tsx",
@@ -154,9 +146,7 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/lib/dashboard-helpers.ts",
   "src/lib/database/themes.tsx",
   "src/lib/iot-helpers.ts",
-  "src/lib/operator/suggestions-helpers.ts",
   "src/lib/staff-helpers.ts",
-  "src/lib/suggestions-helpers.ts",
 ]);
 
 const GENERIC_BRAND_COLOR_BASELINE = parseMatchBaseline(`
@@ -180,7 +170,6 @@ src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx|bg-blue-100
 src/app/[tenant]/(protected)/students/[id]/page.tsx|bg-blue-100 bg-blue-200 text-amber-600 text-blue-800
 src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx|bg-amber-50:3 bg-blue-50/50:2 border-amber-200 text-amber-700:3 text-amber-800:3 text-amber-900
 src/app/[tenant]/(protected)/students/search/page.tsx|text-red-400
-src/app/[tenant]/(protected)/suggestions/page.tsx|bg-red-500 bg-red-600
 src/app/[tenant]/(protected)/time-tracking/page.tsx|text-amber-600:4 text-red-500 text-red-600 text-red-700
 src/app/operator/announcements/page.tsx|bg-amber-100 bg-red-500 bg-red-600 border-blue-500:3 ring-blue-500:3 text-amber-700
 src/app/operator/devices/page.tsx|bg-red-50 bg-red-600:2 bg-red-700:2 text-red-600:2
@@ -200,8 +189,6 @@ src/app/operator/provisioning/set-api-key-modal.tsx|bg-amber-50 bg-green-50 bg-r
 src/app/operator/provisioning/soft-delete-shared.tsx|bg-amber-50 bg-green-100 bg-green-200 bg-red-100 bg-red-50:4 bg-red-50/50 bg-red-600 bg-red-700 border-red-100/50 border-red-500 ring-red-500 text-amber-800 text-green-700 text-red-600:4 text-red-700
 src/app/operator/schools/page.tsx|bg-red-100 bg-red-200 text-red-700
 src/app/operator/settings/page.tsx|bg-red-50 text-red-700
-src/app/operator/suggestions/[id]/page.tsx|bg-blue-200 bg-blue-50 bg-green-200 bg-green-50 bg-red-50 bg-red-500:2 bg-red-600:2 bg-yellow-50 border-blue-200 border-green-200 border-yellow-200 text-blue-600 text-blue-800 text-green-800 text-red-500:3 text-yellow-800
-src/app/operator/suggestions/page.tsx|bg-blue-100 bg-blue-500 bg-yellow-100 text-blue-700 text-red-500 text-yellow-700
 src/app/page.tsx|bg-red-50 border-red-200 text-red-700
 src/components/active-supervisions/states.tsx|bg-red-50/50 bg-red-600 bg-red-700 border-red-100 text-red-500
 src/components/active/unclaimed-rooms.tsx|bg-amber-100 bg-amber-50/80 bg-red-50 border-amber-200 border-red-200 text-amber-600 text-red-700
@@ -237,13 +224,11 @@ src/components/import/stats-cards.tsx|from-blue-50/80 from-green-50/80 from-red-
 src/components/import/student-row-card.tsx|bg-amber-100 bg-blue-100 bg-green-100 bg-red-100 text-amber-700 text-blue-700 text-green-700 text-red-600 text-red-700
 src/components/import/upload-section.tsx|bg-green-50 border-green-500 ring-green-500 text-green-500 text-green-600:2
 src/components/operator/announcement-views-accordion.tsx|bg-green-100 text-green-500 text-green-600 text-red-500
-src/components/operator/status-dropdown.tsx|ring-blue-500
 src/components/permissions/permission-selector.tsx|text-pink-600
 src/components/roles/roles-master-detail.tsx|bg-amber-50 bg-purple-100 bg-purple-50:2 border-purple-200 text-amber-700 text-purple-700:2
 src/components/settings/passkey-settings-section.tsx|bg-red-50 text-red-700
 src/components/settings/personalization-tab.tsx|bg-green-50 bg-red-50 border-green-500 border-red-200 ring-green-500 text-green-500 text-red-600
 src/components/settings/settings-field.tsx|bg-amber-50 bg-yellow-50 border-amber-200 text-amber-700 text-amber-800 text-red-600:4 text-yellow-700
-src/components/shared/base-comment-accordion.tsx|bg-blue-100 bg-red-500:2 bg-red-600 text-blue-600:2 text-red-500:2
 src/components/staff/admin-session-edit-modal.tsx|bg-amber-50 bg-red-50 text-amber-800 text-red-700
 src/components/staff/school-overview-section.tsx|bg-amber-500 text-amber-600 text-red-600:2
 src/components/staff/shift-edit-modal.tsx|bg-amber-50:2 bg-red-50 text-amber-800:2 text-red-700
@@ -266,9 +251,6 @@ src/components/students/student-detail-components.tsx|bg-orange-400
 src/components/students/student-form-fields.tsx|bg-blue-50/30:6 bg-red-50:2 border-red-300:2 text-blue-600 text-red-500 text-red-600:2
 src/components/students/student-historie-tab.tsx|bg-amber-50 bg-red-50 border-amber-200 border-red-200 text-amber-800 text-red-800
 src/components/students/student-stammdaten-tab.tsx|bg-red-50:2 border-red-200:2 text-red-800:2
-src/components/suggestions/suggestion-card.tsx|bg-blue-100 border-blue-200/50 text-blue-700
-src/components/suggestions/suggestion-form.tsx|text-red-500:2 text-red-600
-src/components/suggestions/vote-buttons.tsx|text-red-500:2 text-red-600
 src/components/teachers/caregiver-blocker-resolution-modal.tsx|bg-orange-100 bg-red-50:4 border-red-200:4 text-orange-700 text-red-700:4
 src/components/teachers/caregiver-capability-modal.tsx|bg-amber-100 bg-amber-200 bg-red-50 border-amber-300 border-red-200 text-amber-500 text-amber-800 text-amber-900 text-red-700
 src/components/teachers/teacher-form.tsx|bg-orange-50/30:2 bg-red-50:6 border-red-200 border-red-300:5 text-orange-600:2 text-red-500:6 text-red-600:6 text-red-800
@@ -294,9 +276,7 @@ src/lib/activity-helpers.ts|from-blue-500 from-green-500 from-green-600 from-ora
 src/lib/dashboard-helpers.ts|bg-amber-500:2 bg-blue-500 bg-green-500:2 bg-orange-500
 src/lib/database/themes.tsx|bg-amber-50 bg-blue-50 bg-green-50 bg-indigo-50 bg-orange-50 bg-purple-50 border-amber-200 border-blue-200 border-green-200 border-indigo-200 border-orange-200 border-purple-200 from-amber-400 from-amber-500 from-green-400 from-green-500 from-indigo-500:2 from-orange-500 from-pink-500 from-purple-400:2 from-purple-500 from-teal-400 from-teal-500 text-amber-800 text-blue-800 text-green-800 text-indigo-800 text-orange-800 text-purple-800 text-red-800 to-blue-500 to-blue-600 to-emerald-500 to-emerald-600 to-indigo-500:2 to-indigo-600:2 to-orange-600 to-purple-600 to-red-600 to-rose-600 to-yellow-500
 src/lib/iot-helpers.ts|bg-green-100:2 bg-red-100:2 bg-yellow-100 text-green-800:2 text-red-800:2 text-yellow-800
-src/lib/operator/suggestions-helpers.ts|bg-purple-500 border-purple-500
 src/lib/staff-helpers.ts|from-green-50/80 from-red-50/80 from-sky-50/80 to-emerald-100/80 to-rose-100/80 to-sky-100/80
-src/lib/suggestions-helpers.ts|bg-blue-100 bg-green-100 bg-purple-100 bg-red-100 bg-yellow-100 text-blue-700 text-green-700 text-purple-700 text-red-700 text-yellow-800
 `);
 
 const OVERLAY_BASELINE_FILES = new Set([
@@ -321,7 +301,6 @@ const ROUNDED_3XL_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/room-history/page-skeleton.tsx",
   "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
-  "src/app/[tenant]/(protected)/suggestions/page-skeleton.tsx",
   "src/app/[tenant]/(public)/enroll/[phaseId]/page.tsx",
   "src/app/[tenant]/(public)/enroll/page.tsx",
   "src/app/[tenant]/(public)/enroll/preview/page.tsx",
@@ -330,15 +309,12 @@ const ROUNDED_3XL_BASELINE_FILES = new Set([
   "src/app/operator/announcements/page.tsx",
   "src/app/operator/provisioning/provisioning-shared.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
-  "src/app/operator/suggestions/[id]/page.tsx",
-  "src/app/operator/suggestions/page.tsx",
   "src/components/enrollment/enrollment-status-view.tsx",
   "src/components/parent/child-detail.tsx",
   "src/components/rooms/room-detail-content.tsx",
   "src/components/rooms/students-in-room-section.tsx",
   "src/components/rooms/transit-students-section.tsx",
   "src/components/students/student-checkout-section.tsx",
-  "src/components/suggestions/suggestion-card.tsx",
 ]);
 
 const OVERLAY_BASELINE = new Map([
@@ -368,7 +344,6 @@ const ROUNDED_3XL_BASELINE = new Map([
     2,
   ],
   ["src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx", 3],
-  ["src/app/[tenant]/(protected)/suggestions/page-skeleton.tsx", 1],
   ["src/app/[tenant]/(public)/enroll/[phaseId]/page.tsx", 4],
   ["src/app/[tenant]/(public)/enroll/page.tsx", 2],
   ["src/app/[tenant]/(public)/enroll/preview/page.tsx", 4],
@@ -377,15 +352,12 @@ const ROUNDED_3XL_BASELINE = new Map([
   ["src/app/operator/announcements/page.tsx", 2],
   ["src/app/operator/provisioning/provisioning-shared.tsx", 1],
   ["src/app/operator/provisioning/soft-delete-shared.tsx", 1],
-  ["src/app/operator/suggestions/[id]/page.tsx", 3],
-  ["src/app/operator/suggestions/page.tsx", 2],
   ["src/components/enrollment/enrollment-status-view.tsx", 1],
   ["src/components/parent/child-detail.tsx", 2],
   ["src/components/rooms/room-detail-content.tsx", 1],
   ["src/components/rooms/students-in-room-section.tsx", 1],
   ["src/components/rooms/transit-students-section.tsx", 1],
   ["src/components/students/student-checkout-section.tsx", 5],
-  ["src/components/suggestions/suggestion-card.tsx", 1],
 ]);
 
 const BRAND_COLOR_RE =

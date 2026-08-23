@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -26,11 +27,16 @@ type ArrivalScheduleResponse struct {
 	StudentID       int64   `json:"student_id"`
 	Weekday         int     `json:"weekday"`
 	WeekdayName     string  `json:"weekday_name"`
-	ExpectedArrival string  `json:"expected_arrival"` // HH:MM format
+	ExpectedArrival string  `json:"expected_arrival"` // HH:MM, empty when no time is known yet
 	Notes           *string `json:"notes,omitempty"`
-	CreatedBy       int64   `json:"created_by"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	// Source says where ExpectedArrival comes from: "class_schedule" = the
+	// child's class timetable, "staff" = a deliberate per-child deviation.
+	// SourceClass names the class in the first case (#2414).
+	Source      string `json:"source,omitempty"`
+	SourceClass string `json:"source_class,omitempty"`
+	CreatedBy   int64  `json:"created_by"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // ArrivalExceptionResponse represents an arrival exception in API responses
@@ -90,6 +96,8 @@ type ArrivalNoteRequest struct {
 	Content  string `json:"content"`
 }
 
+const maxArrivalScheduleDateRangeDays = 7
+
 // BulkUpsertArrivalScheduleRequest represents a request to bulk upsert arrival
 // schedules for exactly one filtered student cohort.
 type BulkUpsertArrivalScheduleRequest struct {
@@ -116,9 +124,10 @@ func (r *BulkArrivalScheduleRequest) Bind(_ *http.Request) error {
 func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
 	return validateCareScheduleItems(items, "expected_arrival", func(item ArrivalScheduleRequestItem) careScheduleItem {
 		return careScheduleItem{
-			Weekday: item.Weekday,
-			Time:    item.ExpectedArrival,
-			Notes:   item.Notes,
+			Weekday:      item.Weekday,
+			Time:         item.ExpectedArrival,
+			Notes:        item.Notes,
+			TimeOptional: true,
 		}
 	})
 }
@@ -129,8 +138,9 @@ func validateArrivalScheduleItems(items []ArrivalScheduleRequestItem) error {
 //
 // Callers MUST run validateArrivalScheduleItems first (both current callers do,
 // via their Bind): the parse error below is intentionally discarded because the
-// time format is already guaranteed valid at that point. Mapping unvalidated
-// items here would silently persist a zero time.
+// time format is already guaranteed valid at that point. An empty time parses
+// to the zero value on purpose — that is the care day whose time comes from the
+// class timetable (#2414).
 func toArrivalScheduleModels(items []ArrivalScheduleRequestItem, studentID, staffID int64) []*schedule.StudentArrivalSchedule {
 	schedules := make([]*schedule.StudentArrivalSchedule, 0, len(items))
 	for _, s := range items {
@@ -161,7 +171,7 @@ func (r *BulkUpsertArrivalScheduleRequest) Bind(_ *http.Request) error {
 	if err := validateBulkArrivalSelector(r); err != nil {
 		return err
 	}
-	return validateBulkArrivalSchedules(r.Schedules)
+	return validateBulkArrivalSchedules(r)
 }
 
 func validateBulkArrivalSelector(r *BulkUpsertArrivalScheduleRequest) error {
@@ -196,12 +206,12 @@ func validateBulkArrivalSelector(r *BulkUpsertArrivalScheduleRequest) error {
 	return nil
 }
 
-func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInput) error {
-	if len(schedules) == 0 {
+func validateBulkArrivalSchedules(r *BulkUpsertArrivalScheduleRequest) error {
+	if len(r.Schedules) == 0 {
 		return errors.New("schedules array cannot be empty")
 	}
 	seenWeekdays := make(map[int]bool)
-	for i, s := range schedules {
+	for i, s := range r.Schedules {
 		if s.Weekday < schedule.WeekdayMonday || s.Weekday > schedule.WeekdayFriday {
 			return fmt.Errorf("schedule %d: weekday must be between 1 (Monday) and 5 (Friday)", i)
 		}
@@ -209,8 +219,13 @@ func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInp
 			return fmt.Errorf("schedule %d: duplicate weekday %d", i, s.Weekday)
 		}
 		seenWeekdays[s.Weekday] = true
+		// Only a class timetable can clear a time. Group and explicit-student
+		// updates always write an own time.
 		if s.ArrivalTime == "" {
-			return fmt.Errorf("schedule %d: expected_arrival is required", i)
+			if strings.TrimSpace(r.SchoolClass) == "" {
+				return fmt.Errorf("schedule %d: expected_arrival is required unless school_class is selected", i)
+			}
+			continue
 		}
 		if _, err := time.Parse("15:04", s.ArrivalTime); err != nil {
 			return fmt.Errorf("schedule %d: invalid expected_arrival format, expected HH:MM", i)
@@ -221,17 +236,24 @@ func validateBulkArrivalSchedules(schedules []scheduleService.ArrivalScheduleInp
 
 // mapArrivalScheduleToResponse converts an arrival schedule model to API response
 func mapArrivalScheduleToResponse(s *schedule.StudentArrivalSchedule) ArrivalScheduleResponse {
-	return ArrivalScheduleResponse{
-		ID:              s.ID,
-		StudentID:       s.StudentID,
-		Weekday:         s.Weekday,
-		WeekdayName:     s.GetWeekdayName(),
-		ExpectedArrival: s.ExpectedArrival.Format("15:04"),
-		Notes:           s.Notes,
-		CreatedBy:       s.CreatedBy,
-		CreatedAt:       s.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:       s.UpdatedAt.Format(time.RFC3339),
+	resp := ArrivalScheduleResponse{
+		ID:          s.ID,
+		StudentID:   s.StudentID,
+		Weekday:     s.Weekday,
+		WeekdayName: s.GetWeekdayName(),
+		Notes:       s.Notes,
+		Source:      s.Source,
+		SourceClass: s.SourceClass,
+		CreatedBy:   s.CreatedBy,
+		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
 	}
+	// A care day whose class has no time yet reports an empty string, never
+	// midnight (#2414).
+	if !s.ExpectedArrival.IsZero() {
+		resp.ExpectedArrival = s.ExpectedArrival.Format("15:04")
+	}
+	return resp
 }
 
 // mapArrivalExceptionToResponse converts an arrival exception model to API response
@@ -311,7 +333,41 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	rawDate := r.URL.Query().Get("date")
+	date := timezone.TodayDate()
+	if rawDate != "" {
+		parsed, err := timezone.ParseDate(rawDate)
+		if err != nil {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid date: %w", err)))
+			return
+		}
+		date = parsed
+	}
+	var (
+		data *scheduleService.StudentArrivalData
+		err  error
+	)
+	toRaw := r.URL.Query().Get("to")
+	if toRaw == "" && rawDate == "" {
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
+	} else if toRaw == "" {
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
+	} else {
+		to, parseErr := timezone.ParseDate(toRaw)
+		if parseErr != nil {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid to date: %w", parseErr)))
+			return
+		}
+		if to.Before(date) {
+			renderError(w, r, common.ErrorInvalidRequest(errors.New("to date must not be before date")))
+			return
+		}
+		if date.DaysUntil(to) >= maxArrivalScheduleDateRangeDays {
+			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("arrival schedule date range must span at most %d days", maxArrivalScheduleDateRangeDays)))
+			return
+		}
+		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDateRange(r.Context(), student.ID, date, to)
+	}
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -793,6 +849,44 @@ func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) 
 	)
 }
 
+type ArrivalScheduleStatusResponse struct {
+	StudentIDs []int64 `json:"student_ids"`
+}
+
+// getBulkArrivalScheduleStatus returns the selected children that have their
+// own weekly arrival rows. The class editor uses it for its overwrite hint in
+// one request instead of reading every child separately.
+func (rs *Resource) getBulkArrivalScheduleStatus(w http.ResponseWriter, r *http.Request) {
+	req := &BulkEffectiveTimeRequest{}
+	if err := render.Bind(r, req); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
+	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if len(authorizedIDs) == 0 {
+		common.Respond(w, r, http.StatusOK, ArrivalScheduleStatusResponse{StudentIDs: []int64{}}, "Bulk arrival schedule status retrieved successfully")
+		return
+	}
+
+	hasSchedules, err := rs.ArrivalScheduleService.GetStudentsWithStoredArrivalSchedules(r.Context(), authorizedIDs)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	studentIDs := make([]int64, 0, len(hasSchedules))
+	for _, studentID := range authorizedIDs {
+		if hasSchedules[studentID] {
+			studentIDs = append(studentIDs, studentID)
+		}
+	}
+	common.Respond(w, r, http.StatusOK, ArrivalScheduleStatusResponse{StudentIDs: studentIDs}, "Bulk arrival schedule status retrieved successfully")
+}
+
 func mapBulkArrivalTimeResponse(
 	studentID int64,
 	effectiveTime *scheduleService.EffectiveArrivalTime,
@@ -818,4 +912,29 @@ func mapBulkArrivalTimeResponse(
 		}
 	}
 	return response
+}
+
+// ClassArrivalTimesResponse is the current Unterrichtsschluss of one class.
+type ClassArrivalTimesResponse struct {
+	SchoolClass string            `json:"school_class"`
+	Times       map[string]string `json:"times"`
+	UpdatedAt   *string           `json:"updated_at,omitempty"`
+}
+
+// getClassArrivalTimes handles GET /students/class-arrival-times/{schoolClass}.
+// The bulk screen reads it so it opens with what the class already carries
+// instead of empty fields (#2414).
+func (rs *Resource) getClassArrivalTimes(w http.ResponseWriter, r *http.Request) {
+	schoolClass := chi.URLParam(r, "schoolClass")
+	times, err := rs.ArrivalScheduleService.GetClassArrivalTimes(r.Context(), schoolClass)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	resp := ClassArrivalTimesResponse{SchoolClass: times.SchoolClass, Times: times.Times}
+	if times.UpdatedAt != nil {
+		formatted := times.UpdatedAt.Format(time.RFC3339)
+		resp.UpdatedAt = &formatted
+	}
+	common.Respond(w, r, http.StatusOK, resp, "Class arrival times retrieved successfully")
 }

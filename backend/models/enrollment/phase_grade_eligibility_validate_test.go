@@ -11,6 +11,8 @@ import (
 // whole grade, which the concrete-class list cannot express.
 
 func TestPhaseValidate_CoalescesNilEligibleGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.EligibleGradeLevels = nil
 	require.NoError(t, p.Validate())
@@ -21,6 +23,8 @@ func TestPhaseValidate_CoalescesNilEligibleGradeLevels(t *testing.T) {
 // A whole-grade phase needs NO concrete classes — that is the entire point of
 // the field. Validate must not force a class list or the mandatory pick.
 func TestPhaseValidate_AcceptsGradeRestrictionWithoutConcreteClasses(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.EligibleGradeLevels = []int{3}
 	require.NoError(t, p.Validate())
@@ -30,6 +34,8 @@ func TestPhaseValidate_AcceptsGradeRestrictionWithoutConcreteClasses(t *testing.
 }
 
 func TestPhaseValidate_DedupesEligibleGradeLevelsKeepingOrder(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.EligibleGradeLevels = []int{3, 1, 3, 4}
 	require.NoError(t, p.Validate())
@@ -37,6 +43,8 @@ func TestPhaseValidate_DedupesEligibleGradeLevelsKeepingOrder(t *testing.T) {
 }
 
 func TestPhaseValidate_RejectsOutOfRangeEligibleGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	for _, level := range []int{0, -1, 14} {
 		p := makeEligibilityTestPhase()
 		p.EligibleGradeLevels = []int{level}
@@ -50,6 +58,8 @@ func TestPhaseValidate_RejectsOutOfRangeEligibleGradeLevels(t *testing.T) {
 // never be declared — the child would have to be in two grades at once. Reject
 // the unsatisfiable pair up front rather than letting every submission fail.
 func TestPhaseValidate_RejectsClassOutsideEligibleGradeLevels(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.AvailableSchoolClasses = []string{"2a"}
 	p.EligibleSchoolClasses = []string{"2a"}
@@ -60,6 +70,8 @@ func TestPhaseValidate_RejectsClassOutsideEligibleGradeLevels(t *testing.T) {
 }
 
 func TestPhaseValidate_AcceptsClassMatchingEligibleGradeLevel(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.AvailableSchoolClasses = []string{"3a", "3b"}
 	p.EligibleSchoolClasses = []string{"3a"}
@@ -71,6 +83,8 @@ func TestPhaseValidate_AcceptsClassMatchingEligibleGradeLevel(t *testing.T) {
 // stays compatible with any grade restriction — same rule the form's
 // class-per-grade filter uses.
 func TestPhaseValidate_AcceptsPrefixlessClassWithGradeRestriction(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.AvailableSchoolClasses = []string{"Bienen"}
 	p.EligibleSchoolClasses = []string{"Bienen"}

@@ -34,6 +34,12 @@ func ErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflict(err)
 	}
 
+	// The normal session-start path returns this sentinel unwrapped (see
+	// determineRoomIDWithStrategy), so it never reaches handleActiveServiceError.
+	if errors.Is(err, activeSvc.ErrNoRoomAvailable) {
+		return common.ErrorInvalidRequest(err)
+	}
+
 	// Delegate to service-specific error handlers
 	if iotErr, ok := err.(*iotSvc.IoTError); ok {
 		return handleIoTServiceError(iotErr)
@@ -99,7 +105,12 @@ func handleActiveServiceError(activeErr *activeSvc.ActiveError) render.Renderer 
 	// wrapped ActiveError renders "student has graduated and cannot check in",
 	// a string the kiosk knows nothing about (it would show a generic error).
 	// Render the documented contract string instead (#405 review).
-	if errors.Is(activeErr.Err, activeSvc.ErrStudentGraduated) {
+	// The same holds for a child whose care ended between the lookup and the
+	// write (#2487): the kiosk has one mapping for "this tag belongs to nobody
+	// we care for", and both cases mean exactly that to the person at the
+	// tablet. A second English string would arrive unmapped.
+	if errors.Is(activeErr.Err, activeSvc.ErrStudentGraduated) ||
+		errors.Is(activeErr.Err, activeSvc.ErrStudentCareEnded) {
 		return common.ErrorNotFound(errors.New(ErrMsgPersonNotStudent))
 	}
 
@@ -161,7 +172,8 @@ func isActiveValidationError(err error) bool {
 		errors.Is(err, activeSvc.ErrInvalidTimeRange) ||
 		errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup) ||
 		errors.Is(err, activeSvc.ErrInvalidData) ||
-		errors.Is(err, activeSvc.ErrInvalidActivitySession)
+		errors.Is(err, activeSvc.ErrInvalidActivitySession) ||
+		errors.Is(err, activeSvc.ErrNoRoomAvailable)
 }
 
 // handleFeedbackServiceError maps Feedback service errors to HTTP responses

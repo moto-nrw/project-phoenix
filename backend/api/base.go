@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
+	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
@@ -27,6 +28,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	classlistentriesAPI "github.com/moto-nrw/project-phoenix/api/classlistentries"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
@@ -51,7 +53,6 @@ import (
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
-	suggestionsAPI "github.com/moto-nrw/project-phoenix/api/suggestions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
@@ -111,9 +112,9 @@ type API struct {
 	WorkTimeModels   *worktimemodelsAPI.Resource
 	StaffShifts      *staffshiftsAPI.Resource
 	ShiftTypes       *shifttypesAPI.Resource
+	AbsenceTypes     *absencetypesAPI.Resource
 	Feedback         *feedbackAPI.Resource
 	MealPlan         *mealplanAPI.Resource
-	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
 	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
@@ -124,6 +125,7 @@ type API struct {
 	Users            *usersAPI.Resource
 	Birthdays        *birthdaysAPI.Resource
 	ClassDay         *classdayAPI.Resource
+	ClassListEntries *classlistentriesAPI.Resource
 	School           *schoolAPI.Resource
 	UserContext      *usercontextAPI.Resource
 	Substitutions    *substitutionsAPI.Resource
@@ -390,6 +392,15 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalBurst := parsePositiveInt("RATE_LIMIT_BURST", 10)
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
+	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return "read"
+		default:
+			return "write"
+		}
+	})
+	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	if tokenAuth, err := projectJWT.NewTokenAuth(); err == nil {
 		generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
 	}
@@ -507,7 +518,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		PersonService:           api.Services.Users,
 		GuardianService:         api.Services.Guardian,
 		StudentService:          api.Services.Students,
+		ClassListEntryService:   api.Services.ClassListEntries,
 		StudentDeletionService:  api.Services.StudentDeletion,
+		CareLifecycleService:    api.Services.CareLifecycle,
 		StudentAuditService:     api.Services.StudentAudit,
 		EducationService:        api.Services.Education,
 		GradeTransitionService:  api.Services.GradeTransition,
@@ -551,13 +564,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.Users, db)
+	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
 	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffDocuments, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, api.Services.WorkTimeMonth, api.Services.StaffBalanceAdjust, api.Services.StaffMonthClose, api.Services.StaffOverview, api.Services.TimeTrackingAuditLog, api.Services.StaffTimeExport, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
 	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, api.Services.PlanExport, db, logger.With("handler", "staff-shifts"))
 	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
+	api.AbsenceTypes = absencetypesAPI.NewResource(api.Services.StaffAbsenceType, db, logger.With("handler", "absence-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
@@ -579,12 +593,12 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
-	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.SetPayrollStatusService(api.Services.PayrollStatus)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
 		StaffPINAuthenticator: api.Services.StaffPINAuth,
@@ -611,6 +625,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Birthdays = birthdaysAPI.NewResource(api.Services.Birthdays, api.Services.ListExport, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "birthdays"))
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
+	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
 	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
@@ -652,7 +667,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		InvitationService:          api.Services.OperatorInvitation,
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
-		SuggestionsService:         api.Services.OperatorSuggestions,
 		AnnouncementsService:       api.Services.Announcement,
 		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
 		SettingsService:            api.Services.Settings,
@@ -857,6 +871,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/work-time-models", a.WorkTimeModels.Router())
 		r.Mount("/staff-shifts", a.StaffShifts.Router())
 		r.Mount("/shift-types", a.ShiftTypes.Router())
+		r.Mount("/absence-types", a.AbsenceTypes.Router())
 
 		// Mount personal calendar resources
 		r.Mount("/calendar", a.Calendar.Router())
@@ -872,9 +887,6 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount info-point display resources (issue #1325)
 		r.Mount("/display", a.Display.Router())
-
-		// Mount suggestions resources
-		r.Mount("/suggestions", a.Suggestions.Router())
 
 		// Mount schedule resources
 		r.Mount("/schedules", a.Schedules.Router())
@@ -899,6 +911,9 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount the Lehrkraft class-day view (#1772)
 		r.Mount("/class-day", a.ClassDay.Router())
+
+		// Mount class-list-only entries (#2382)
+		r.Mount("/class-list-entries", a.ClassListEntries.Router())
 
 		// Mount substitutions resources
 		r.Mount("/substitutions", a.Substitutions.Router())

@@ -14,6 +14,8 @@ import (
 )
 
 func TestMFAAdminOverrideRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects empty reason", func(t *testing.T) {
 		req := MFAAdminOverrideRequest{Reason: ""}
 		assert.Error(t, req.Bind(nil))
@@ -33,6 +35,8 @@ func TestMFAAdminOverrideRequest_Bind(t *testing.T) {
 // fail-closed default the user-facing handlers have: a deployment without
 // MFAService wired in must answer 503, never silently fall through.
 func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	cases := []struct {
@@ -68,6 +72,8 @@ func TestMFAAdminHandlers_ServiceUnavailableWhenNotWired(t *testing.T) {
 // request. The DB has a CHECK constraint, but rejecting at the API layer
 // gives the user a clear error instead of a generic 500.
 func TestMFAAdminOverrideSetRequest_Bind(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects unknown override value", func(t *testing.T) {
 		req := MFAAdminOverrideSetRequest{Override: "yes-please", Reason: "test"}
 		assert.Error(t, req.Bind(nil))

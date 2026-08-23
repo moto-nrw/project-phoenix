@@ -755,7 +755,12 @@ func rosterExcludedAlumni(inst *scheduleModel.ActivityInstance, students map[int
 		return excluded
 	}
 	for id, st := range students {
-		if st != nil && st.Status == usersModel.StudentStatusAlumnus {
+		if st == nil {
+			continue
+		}
+		// Graduated children and children whose care ended before this block
+		// are excluded from the roster of a not-yet-past occurrence (#2487).
+		if st.Status == usersModel.StudentStatusAlumnus || st.CareEndedOn(inst.Date) {
 			excluded[id] = true
 		}
 	}

@@ -64,6 +64,8 @@ func startPullUpdateInput(
 }
 
 func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesGapOnly(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMondayForStartPull(t)
 	oldStart := newStart.AddDays(7)
 
@@ -144,6 +146,8 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 // AC 4 (#2226): weekday-scoped roster rows (per-weekday staffing, #2129)
 // follow the pulled-forward start exactly like the shared roster.
 func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMondayForStartPull(t)
 	oldStart := newStart.AddDays(7)
 
@@ -215,6 +219,8 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 }
 
 func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeekday(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMondayForStartPull(t) // a Monday
 	oldStart := newStart.AddDays(8)         // Tuesday one week later
 
@@ -259,6 +265,8 @@ func TestUpdateTemplate_StartDatePullForward_MidweekDateStartsAtNextMatchingWeek
 }
 
 func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMondayForStartPull(t)
 	oldStart := newStart.AddDays(7)
 
@@ -338,6 +346,8 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 }
 
 func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testing.T) {
+	t.Parallel()
+
 	newStart := futureMondayForStartPull(t)
 	splitDate := newStart.AddDays(14)
 

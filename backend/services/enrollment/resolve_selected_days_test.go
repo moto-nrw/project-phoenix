@@ -35,12 +35,16 @@ func parentChoiceOffering(days ...string) *enrollmentModels.CareOffering {
 }
 
 func TestResolveSelectedDays_FixedWithoutPicksReturnsNil(t *testing.T) {
+	t.Parallel()
+
 	got, err := resolveManualSelectedDays(fixedOffering("mon", "tue"), nil)
 	require.NoError(t, err)
 	assert.Nil(t, got, "fixed offering writes nil so RC row reflects the offering's live schedule")
 }
 
 func TestResolveSelectedDays_FixedRejectsParentPicks(t *testing.T) {
+	t.Parallel()
+
 	_, err := resolveManualSelectedDays(fixedOffering("mon", "tue"), []string{"mon"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fixed")
@@ -51,6 +55,8 @@ func TestResolveSelectedDays_FixedRejectsParentPicks(t *testing.T) {
 // errParentChoiceOfferingMissingDays sentinel. Pin both halves of that
 // contract here.
 func TestResolveSelectedDays_ParentChoiceEmptyPicksRejected(t *testing.T) {
+	t.Parallel()
+
 	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed"), nil)
 	require.NoError(t, err)
 	assert.Empty(t, got)
@@ -60,18 +66,24 @@ func TestResolveSelectedDays_ParentChoiceEmptyPicksRejected(t *testing.T) {
 }
 
 func TestResolveSelectedDays_ParentChoiceSubsetOK(t *testing.T) {
+	t.Parallel()
+
 	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed", "thu", "fri"), []string{"tue", "thu"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tue", "thu"}, got)
 }
 
 func TestResolveSelectedDays_ParentChoiceRejectsOutOfRangeDay(t *testing.T) {
+	t.Parallel()
+
 	_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"mon", "sat"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestResolveSelectedDays_ParentChoiceDedupes(t *testing.T) {
+	t.Parallel()
+
 	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed"), []string{"mon", "mon", "tue"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "tue"}, got, "duplicate parent picks must collapse")
@@ -82,6 +94,8 @@ func TestResolveSelectedDays_ParentChoiceDedupes(t *testing.T) {
 // these errors have to wrap it — otherwise a bad day pick surfaces as a
 // 500 (looks like a server bug, and the frontend has no German message).
 func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]func() error{
 		"subset violation": func() error {
 			_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
@@ -110,6 +124,8 @@ func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T
 // The three parent-input errors additionally carry their own sentinel so
 // the HTTP layer can attach stable codes for localized messages (#1885).
 func TestResolveSelectedDays_ParentInputErrorsCarrySpecificSentinels(t *testing.T) {
+	t.Parallel()
+
 	_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrSelectedDayNotAvailable),
@@ -124,6 +140,8 @@ func TestResolveSelectedDays_ParentInputErrorsCarrySpecificSentinels(t *testing.
 }
 
 func TestResolveSelectedDays_RejectsUnknownMode(t *testing.T) {
+	t.Parallel()
+
 	bogus := &enrollmentModels.CareOffering{
 		DaysOfWeekMode: "weird",
 		AvailableDays:  []string{"mon"},

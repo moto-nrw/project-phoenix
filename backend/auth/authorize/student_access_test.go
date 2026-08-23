@@ -37,6 +37,8 @@ func studentInGroup(groupID int64) *users.Student {
 // --- hasAdminPermissions -----------------------------------------------
 
 func TestHasAdminPermissions(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty", func(t *testing.T) {
 		assert.False(t, HasAdminWildcard(nil))
 		assert.False(t, HasAdminWildcard([]string{}))
@@ -55,12 +57,16 @@ func TestHasAdminPermissions(t *testing.T) {
 // --- CanReadStudent ----------------------------------------------------
 
 func TestCanReadStudent_NilStudent(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, CanReadStudent(context.Background(), nil, nil, nil))
 	assert.False(t, CanReadStudent(context.Background(), []string{"admin:*"}, nil, nil),
 		"a missing student is never readable, not even for an admin")
 }
 
 func TestCanReadStudent_AdminAlwaysWins(t *testing.T) {
+	t.Parallel()
+
 	// No userCtx — the admin permission alone is enough.
 	got := CanReadStudent(
 		context.Background(),
@@ -72,6 +78,8 @@ func TestCanReadStudent_AdminAlwaysWins(t *testing.T) {
 }
 
 func TestCanReadStudent_StaffRecordRequired(t *testing.T) {
+	t.Parallel()
+
 	// Guest / guardian — has users:read but is NOT a staff member.
 	guest := &stubUserCtx{staffErr: errors.New("no staff record")}
 	got := CanReadStudent(
@@ -94,6 +102,8 @@ func TestCanReadStudent_StaffRecordRequired(t *testing.T) {
 }
 
 func TestCanReadStudent_GrouplessStudentReadableByStaff(t *testing.T) {
+	t.Parallel()
+
 	// #2329: a child without a group is an ordinary child, not an admin-only one.
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	got := CanReadStudent(
@@ -106,6 +116,8 @@ func TestCanReadStudent_GrouplessStudentReadableByStaff(t *testing.T) {
 }
 
 func TestCanReadStudent_NilUserContextDenies(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, CanReadStudent(
 		context.Background(),
 		[]string{"users:read"},
@@ -115,6 +127,8 @@ func TestCanReadStudent_NilUserContextDenies(t *testing.T) {
 }
 
 func TestCanReadStudent_StaffLookupErrorDenies(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staffErr: errors.New("DB outage")}
 	got := CanReadStudent(
 		context.Background(),
@@ -128,12 +142,16 @@ func TestCanReadStudent_StaffLookupErrorDenies(t *testing.T) {
 // --- CanModifyStudent --------------------------------------------------
 
 func TestCanModifyStudent_AdminWithNoStudent(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanModifyStudent(context.Background(), []string{"admin:*"}, nil, nil, "update")
 	assert.True(t, ok)
 	require.NoError(t, err)
 }
 
 func TestCanModifyStudent_NilStudentDenies(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanModifyStudent(context.Background(), []string{"users:update"}, nil, nil, "update")
 	assert.False(t, ok)
 	require.Error(t, err)
@@ -142,6 +160,8 @@ func TestCanModifyStudent_NilStudentDenies(t *testing.T) {
 }
 
 func TestCanModifyStudent_GrouplessStudentWritableByStaff(t *testing.T) {
+	t.Parallel()
+
 	// #2329: group membership no longer participates in the decision.
 	ok, err := CanModifyStudent(
 		context.Background(),
@@ -155,6 +175,8 @@ func TestCanModifyStudent_GrouplessStudentWritableByStaff(t *testing.T) {
 }
 
 func TestCanModifyStudent_NilUserContextDenies(t *testing.T) {
+	t.Parallel()
+
 	ok, err := CanModifyStudent(
 		context.Background(),
 		[]string{"users:update"},
@@ -168,6 +190,8 @@ func TestCanModifyStudent_NilUserContextDenies(t *testing.T) {
 }
 
 func TestCanModifyStudent_StaffLookupErrorDenies(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staffErr: errors.New("DB outage")}
 	ok, err := CanModifyStudent(
 		context.Background(),
@@ -181,6 +205,8 @@ func TestCanModifyStudent_StaffLookupErrorDenies(t *testing.T) {
 }
 
 func TestCanModifyStudent_StaffNilDenies(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staff: nil} // err nil, but no staff record
 	ok, err := CanModifyStudent(
 		context.Background(),
@@ -195,6 +221,8 @@ func TestCanModifyStudent_StaffNilDenies(t *testing.T) {
 }
 
 func TestCanModifyStudent_StaffWithoutSupervisionPasses(t *testing.T) {
+	t.Parallel()
+
 	// #2329: any verified staff member of the tenant may write any child; the
 	// route-level permission decides WHICH writes they reach.
 	uc := &stubUserCtx{staff: &users.Staff{}}
@@ -210,6 +238,8 @@ func TestCanModifyStudent_StaffWithoutSupervisionPasses(t *testing.T) {
 }
 
 func TestWritableStudentFilter(t *testing.T) {
+	t.Parallel()
+
 	// Admin: every student writable, including a groupless one.
 	admin := WritableStudentFilter(context.Background(), []string{"admin:*"}, nil)
 	assert.True(t, admin(studentInGroup(7)))
@@ -231,6 +261,8 @@ func TestWritableStudentFilter(t *testing.T) {
 }
 
 func TestCanUpdateStudent_Wrapper(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	ok, err := CanUpdateStudent(context.Background(), []string{"users:update"}, studentInGroup(5), uc)
 	assert.True(t, ok)
@@ -245,6 +277,8 @@ func TestCanUpdateStudent_Wrapper(t *testing.T) {
 }
 
 func TestCanDeleteStudent_Wrapper(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	ok, err := CanDeleteStudent(context.Background(), []string{"users:update"}, studentInGroup(5), uc)
 	assert.True(t, ok)

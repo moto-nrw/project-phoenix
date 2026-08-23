@@ -41,6 +41,8 @@ func ackUnitInstance(ack bool) *scheduleModel.ActivityInstance {
 }
 
 func TestClearUnderstaffedAckIfStaffed_NoAckIsNoop(t *testing.T) {
+	t.Parallel()
+
 	inst := ackUnitInstance(false)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{}
@@ -56,6 +58,8 @@ func TestClearUnderstaffedAckIfStaffed_NoAckIsNoop(t *testing.T) {
 }
 
 func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
+	t.Parallel()
+
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	// Two planned positions, one absent without a substitute → still understaffed.
@@ -76,6 +80,8 @@ func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
 }
 
 func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
+	t.Parallel()
+
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	events := &recordingDeviationEventRepo{}
@@ -104,6 +110,8 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 }
 
 func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
+	t.Parallel()
+
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{err: errors.New("staff load failed")}
@@ -121,6 +129,8 @@ func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
 }
 
 func TestClearUnderstaffedAckIfStaffed_LoadInstanceError(t *testing.T) {
+	t.Parallel()
+
 	instanceRepo := &deleteUnitInstanceRepo{findErr: errors.New("instance load failed")}
 	svc := &instanceService{deps: InstanceServiceDependencies{
 		InstanceRepo:      instanceRepo,
@@ -135,6 +145,8 @@ func TestClearUnderstaffedAckIfStaffed_LoadInstanceError(t *testing.T) {
 }
 
 func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
+	t.Parallel()
+
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst, updateColumnsErr: errors.New("update failed")}
 	staffRepo := &ackUnitStaffRepo{rows: []*scheduleModel.InstanceStaff{
@@ -154,6 +166,8 @@ func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
 }
 
 func TestIsUnderstaffed_SkipsNilRows(t *testing.T) {
+	t.Parallel()
+
 	// A nil row must be ignored; one present, non-substitute planned person
 	// leaves the block fully staffed.
 	rows := []*scheduleModel.InstanceStaff{

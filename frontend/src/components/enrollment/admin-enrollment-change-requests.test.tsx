@@ -27,10 +27,7 @@ vi.mock("~/lib/tenant-path", () => ({
   useTenantAwarePath: () => (path: string) => path,
 }));
 
-import {
-  AdminEnrollmentChangeRequestDetail,
-  AdminEnrollmentChangeRequestsList,
-} from "./admin-enrollment-change-requests";
+import { AdminEnrollmentChangeRequestDetail } from "./admin-enrollment-change-requests";
 import type { AdminEnrollmentChangeRequest } from "~/lib/enrollment-admin-api";
 
 const baseChangeRequest: AdminEnrollmentChangeRequest = {
@@ -104,6 +101,7 @@ const baseChangeRequest: AdminEnrollmentChangeRequest = {
     id: "7",
     phase_id: "5",
     phase_name: "Schuljahr 2026/27",
+    care_offering_selection_mode: "optional",
     guardian_first_name: "Mara",
     guardian_last_name: "Muster",
     guardian_email: "mara@example.test",
@@ -178,38 +176,32 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Nachricht an Eltern")).not.toBeInTheDocument();
   });
-});
 
-describe("AdminEnrollmentChangeRequestsList", () => {
-  beforeEach(() => {
-    mocks.approveEnrollmentChangeRequest.mockReset();
-    mocks.askEnrollmentChangeRequestQuestion.mockReset();
-    mocks.getAdminEnrollmentChangeRequest.mockReset();
-    mocks.listAdminEnrollmentChangeRequests.mockReset();
-    mocks.rejectEnrollmentChangeRequest.mockReset();
-  });
+  it("refreshes request badges after a decision", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.approveEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      status: "approved",
+    });
+    const refreshListener = vi.fn();
+    window.addEventListener("change-requests-refresh", refreshListener);
 
-  it("filters status through the custom dropdown", async () => {
-    mocks.listAdminEnrollmentChangeRequests
-      .mockResolvedValueOnce([baseChangeRequest])
-      .mockResolvedValueOnce([]);
-
-    render(<AdminEnrollmentChangeRequestsList />);
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Passt." },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
-      expect(mocks.listAdminEnrollmentChangeRequests).toHaveBeenCalledWith({}),
+      expect(mocks.approveEnrollmentChangeRequest).toHaveBeenCalledWith(
+        "42",
+        "Passt.",
+      ),
     );
-
-    const statusFilter = screen.getByRole("combobox", { name: "Status" });
-    expect(statusFilter.tagName).toBe("BUTTON");
-
-    fireEvent.click(statusFilter);
-    fireEvent.click(screen.getByRole("option", { name: "Freigegeben" }));
-
-    await waitFor(() =>
-      expect(mocks.listAdminEnrollmentChangeRequests).toHaveBeenLastCalledWith({
-        status: "approved",
-      }),
-    );
+    expect(refreshListener).toHaveBeenCalledTimes(1);
+    window.removeEventListener("change-requests-refresh", refreshListener);
   });
 });

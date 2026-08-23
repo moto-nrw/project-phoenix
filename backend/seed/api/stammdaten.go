@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // StaffCredentials stores login credentials for a staff member
@@ -39,18 +40,19 @@ type FixedSeeder struct {
 
 // FixedResult contains counts of created entities
 type FixedResult struct {
-	RoomCount           int
-	PersonCount         int
-	StaffCount          int
-	AccountCount        int
-	GroupCount          int
-	StudentCount        int
-	SickStudentCount    int // Students marked as sick for demo badges
-	GuardianCount       int
-	PickupScheduleCount int // Students with weekly pickup schedules seeded
-	ActivityCount       int
-	DeviceCount         int
-	StaffCredentials    []StaffCredentials // Login credentials for demo
+	RoomCount             int
+	PersonCount           int
+	StaffCount            int
+	AccountCount          int
+	GroupCount            int
+	StudentCount          int
+	SickStudentCount      int // Students marked as sick for demo badges
+	GuardianCount         int
+	PickupScheduleCount   int // Students with weekly pickup schedules seeded
+	ClassArrivalTimeCount int // Classes with seeded arrival times
+	ActivityCount         int
+	DeviceCount           int
+	StaffCredentials      []StaffCredentials // Login credentials for demo
 }
 
 // NewFixedSeeder creates a new fixed data seeder.
@@ -123,6 +125,9 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 	if err := s.seedStudents(ctx, result); err != nil {
 		return nil, fmt.Errorf("failed to seed students: %w", err)
 	}
+	if err := s.seedClassArrivalTimes(ctx, result); err != nil {
+		return nil, fmt.Errorf("failed to seed class arrival times: %w", err)
+	}
 
 	// 8. Create guardians and link to students
 	if err := s.seedGuardians(ctx, result); err != nil {
@@ -172,6 +177,42 @@ func (s *FixedSeeder) Seed(ctx context.Context) (*FixedResult, error) {
 
 	fmt.Println("✅ Fixed data creation complete!")
 	return result, nil
+}
+
+func (s *FixedSeeder) seedClassArrivalTimes(_ context.Context, result *FixedResult) error {
+	classes := make(map[string]struct{})
+	for _, student := range DemoStudents {
+		classes[student.Class] = struct{}{}
+	}
+
+	classNames := make([]string, 0, len(classes))
+	for class := range classes {
+		classNames = append(classNames, class)
+	}
+	sort.Strings(classNames)
+
+	schedules := []map[string]any{
+		{"weekday": 1, "expected_arrival": "11:45"},
+		{"weekday": 2, "expected_arrival": "11:45"},
+		{"weekday": 3, "expected_arrival": "12:45"},
+		{"weekday": 4, "expected_arrival": "11:45"},
+		{"weekday": 5, "expected_arrival": "11:45"},
+	}
+	for _, class := range classNames {
+		_, err := s.client.Post("/api/students/arrival-schedules/bulk", map[string]any{
+			"school_class": class,
+			"schedules":    schedules,
+		})
+		if err != nil {
+			return fmt.Errorf("seed class arrival times for %s: %w", class, err)
+		}
+		result.ClassArrivalTimeCount++
+	}
+
+	if s.verbose {
+		fmt.Printf("  ✓ %d class arrival times seeded\n", result.ClassArrivalTimeCount)
+	}
+	return nil
 }
 
 // switchToStaffAccount re-authenticates as the first OGS-Büro staff member.

@@ -175,7 +175,7 @@ export function OperatorShellProvider({
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
       },
       mode: "operator" as const,
-      homeUrl: operatorPath("/operator/suggestions"),
+      homeUrl: operatorPath("/operator/organizations"),
       profileUrl: operatorPath("/operator/settings"),
     };
   }, [session, sessionStatus]);

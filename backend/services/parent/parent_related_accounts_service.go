@@ -166,6 +166,14 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487). Inviting a
+	// further guardian account is such a change, and ChildFeatures already
+	// switches the button off — this is the half that also holds for a direct
+	// API call.
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 
 	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
@@ -179,6 +187,9 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	requestedBy := accountID
 	var result *authService.InviteToStudentResult
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		res, inviteErr := s.GuardianInvites.InviteToStudent(txCtx, authService.InviteToStudentRequest{
 			StudentID:                  studentID,
 			Email:                      email,
@@ -213,6 +224,10 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 	if err != nil {
 		return err
 	}
+	// Removing a guardian account is a change like any other (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return err
+	}
 
 	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
@@ -230,6 +245,9 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 	}
 
 	return tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		return s.GuardianInvites.RevokeAccess(txCtx, authService.RevokeAccessRequest{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,

@@ -67,6 +67,10 @@ const mainRoutes: Record<string, string> = {
   // einen Eintrag, damit während des Client-Redirects kein falscher Titel
   // aufblitzt.
   "/planung": PLANNING_SECTION.label,
+  // Alt-Route der Freigabeansicht; nur noch ein Redirect-Frame auf /anfragen
+  // (#2429). Der Eintrag verhindert, dass während des Client-Redirects kurz
+  // "Home" aufblitzt.
+  "/admin/change-requests": STAFF_FLAT_PAGES.anfragen.label,
   // Die Sektions-Hubs; ihre Unterseiten kommen aus den Katalogen.
   [DATABASE_SECTION.href]: DATABASE_SECTION.label,
   [PARENT_SECTION.href]: PARENT_SECTION.label,
@@ -75,7 +79,6 @@ const mainRoutes: Record<string, string> = {
   // wörtlich mit dem Seitentitel übereinstimmen, sonst blitzt beim Laden
   // kurz ein anderes Wort auf. `operator_page_titles` in
   // navigation-sync.test.ts hält beide Seiten zusammen.
-  "/operator/suggestions": "Feedback",
   "/operator/announcements": "Ankündigungen",
   "/operator/organizations": "Träger",
   "/operator/schools": "Schulen",
@@ -89,7 +92,6 @@ const mainRoutes: Record<string, string> = {
   "/parents/messages": "Nachrichten",
   "/parents/news": "Neuigkeiten",
   "/parents/meal-plan": "Essensplan",
-  "/parents/feedback": "Feedback",
 };
 
 const subPageLabels: Record<string, string> = {
@@ -99,6 +101,10 @@ const subPageLabels: Record<string, string> = {
   details: "Details",
   permissions: "Berechtigungen",
   "opening-balances": "Eröffnungssalden",
+  // Klassenlisteneinträge (#2382): Kinder ohne OGS-Datensatz.
+  "class-list": "Klassenliste",
+  // Archiv der regulär beendeten Betreuungen (#2487).
+  "ended-care": "Beendete Betreuungen",
 };
 
 /**

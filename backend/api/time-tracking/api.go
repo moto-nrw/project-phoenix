@@ -225,7 +225,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Check-in successful")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Check-in successful")
 }
 
 // checkOut handles POST /api/time-tracking/check-out
@@ -258,7 +258,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Check-out successful")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Check-out successful")
 }
 
 // getCurrent handles GET /api/time-tracking/current
@@ -271,15 +271,18 @@ func (rs *Resource) getCurrent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get current session
-	session, err := rs.WorkSessionService.GetCurrentSession(r.Context(), staffID)
+	// The running block, whichever day it was opened on. Filtering on today
+	// would hide a block that crossed Berlin midnight: the page would offer
+	// "Einstempeln", the check-in would refuse it as already checked in, and
+	// no button would close the block that is actually running.
+	session, err := rs.WorkSessionService.GetLatestOpenSession(r.Context(), staffID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Return null if no active session (not an error)
-	common.Respond(w, r, http.StatusOK, session, "Current session retrieved successfully")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Current session retrieved successfully")
 }
 
 // getConfig handles GET /api/time-tracking/config
@@ -314,8 +317,10 @@ func (rs *Resource) getHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get history with weekly aggregation
-	historyResp, err := rs.WorkSessionService.GetHistory(r.Context(), staffID, from, to)
+	// Get history with weekly aggregation. Intersecting for the same reason as
+	// the admin-side history (api/staff): a night block that began before
+	// `from` still carries minutes inside the range (#2402).
+	historyResp, err := rs.WorkSessionService.GetHistoryIntersecting(r.Context(), staffID, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -358,7 +363,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Session updated successfully")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Session updated successfully")
 }
 
 // StartBreakRequest represents a request to start a break
@@ -422,7 +427,7 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, session, "Break ended")
+	common.Respond(w, r, http.StatusOK, activeModels.WorkSessionWire{WorkSession: session}, "Break ended")
 }
 
 // getBreaks handles GET /api/time-tracking/breaks/{sessionId}

@@ -47,6 +47,8 @@ func (s *stubPhotoSettings) ResolveString(context.Context, string) (string, erro
 // close-fail. A startup misconfiguration must NEVER produce an open-by-
 // default photo upload path.
 func TestRequireFeatureEnabled_NilSettings(t *testing.T) {
+	t.Parallel()
+
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: nil}}
 	err := svc.requireFeatureEnabled(context.Background())
 	require.Error(t, err, "nil settings service must fail closed")
@@ -56,6 +58,8 @@ func TestRequireFeatureEnabled_NilSettings(t *testing.T) {
 // TestRequireFeatureEnabled_ResolveError — a settings DB outage must
 // propagate (wrapped) as an error, NOT silently default to enabled.
 func TestRequireFeatureEnabled_ResolveError(t *testing.T) {
+	t.Parallel()
+
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, _ string) (bool, error) {
 			return false, errors.New("db pool exhausted")
@@ -73,6 +77,8 @@ func TestRequireFeatureEnabled_ResolveError(t *testing.T) {
 // TestRequireFeatureEnabled_Disabled — feature off returns the canonical
 // sentinel so handlers can map it to the right HTTP status + German message.
 func TestRequireFeatureEnabled_Disabled(t *testing.T) {
+	t.Parallel()
+
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			require.Equal(t, configModel.KeyStudentPhotosEnabled, key,
@@ -90,6 +96,8 @@ func TestRequireFeatureEnabled_Disabled(t *testing.T) {
 // TestRequireFeatureEnabled_Enabled — happy path returns nil and looks up
 // the canonical key.
 func TestRequireFeatureEnabled_Enabled(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, key string) (bool, error) {
@@ -110,12 +118,16 @@ func TestRequireFeatureEnabled_Enabled(t *testing.T) {
 // TestPhotoFilenameOf_HappyPath returns the last segment of a stored URL,
 // independent of OS path separators (storedURL is always forward-slash).
 func TestPhotoFilenameOf_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "abc.jpg", photoFilenameOf("/uploads/student-photos/abc.jpg"))
 }
 
 // TestPhotoFilenameOf_NoSlash falls back to the input unchanged — guards
 // against legacy data stored without the canonical prefix.
 func TestPhotoFilenameOf_NoSlash(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "loose-name.jpg", photoFilenameOf("loose-name.jpg"))
 }
 
@@ -123,6 +135,8 @@ func TestPhotoFilenameOf_NoSlash(t *testing.T) {
 // ends in a slash. The handler maps an empty filename comparison to a
 // FilenameMismatch sentinel so the caller cannot probe via "" + manual URL.
 func TestPhotoFilenameOf_TrailingSlash(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "", photoFilenameOf("/uploads/student-photos/"))
 }
 
@@ -134,6 +148,8 @@ func ptrTime(t time.Time) *time.Time { return &t }
 func ptrInt64(v int64) *int64        { return &v }
 
 func TestApplyPhotoConsent_NoChangeWhenFieldOmitted(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Add(-time.Hour)
 	student := &userModels.Student{
 		PhotoPath:           ptrString("/uploads/student-photos/foo.jpg"),
@@ -151,6 +167,8 @@ func TestApplyPhotoConsent_NoChangeWhenFieldOmitted(t *testing.T) {
 }
 
 func TestApplyPhotoConsent_GrantTransition(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{}
 	got := applyPhotoConsent(ptrBool(true), student)
 
@@ -161,6 +179,8 @@ func TestApplyPhotoConsent_GrantTransition(t *testing.T) {
 }
 
 func TestApplyPhotoConsent_WithdrawalClearsAndSurfacesPath(t *testing.T) {
+	t.Parallel()
+
 	student := &userModels.Student{
 		PhotoPath:           ptrString("/uploads/student-photos/abc.jpg"),
 		PhotoConsentGivenAt: ptrTime(time.Now()),
@@ -177,6 +197,8 @@ func TestApplyPhotoConsent_WithdrawalClearsAndSurfacesPath(t *testing.T) {
 }
 
 func TestApplyPhotoConsent_AlreadyGrantedNoOp(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now().Add(-time.Hour)
 	student := &userModels.Student{
 		PhotoConsentGivenAt: ptrTime(now),
@@ -201,6 +223,8 @@ func (r *recordingUnlinker) UnlinkStored(url string) { r.urls = append(r.urls, u
 // unlinker call is observable inline. Inside a tx the same closure would
 // queue and fire after commit — covered by photo_routes_test.go.
 func TestApplyConsentTransition_GrantStampsConsent(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 4242})
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
@@ -216,6 +240,8 @@ func TestApplyConsentTransition_GrantStampsConsent(t *testing.T) {
 }
 
 func TestApplyConsentTransition_WithdrawalSchedulesUnlink(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
@@ -233,6 +259,8 @@ func TestApplyConsentTransition_WithdrawalSchedulesUnlink(t *testing.T) {
 }
 
 func TestApplyConsentTransition_WithdrawalWithoutPhotoNoUnlink(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
@@ -247,6 +275,8 @@ func TestApplyConsentTransition_WithdrawalWithoutPhotoNoUnlink(t *testing.T) {
 }
 
 func TestApplyConsentTransition_NoOpWhenFieldOmitted(t *testing.T) {
+	t.Parallel()
+
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 	student := &userModels.Student{PhotoPath: ptrString("/uploads/student-photos/x.jpg")}
@@ -258,6 +288,8 @@ func TestApplyConsentTransition_NoOpWhenFieldOmitted(t *testing.T) {
 }
 
 func TestScheduleUnlinkAfterCommit_EmptyURLNoOp(t *testing.T) {
+	t.Parallel()
+
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 
@@ -267,6 +299,8 @@ func TestScheduleUnlinkAfterCommit_EmptyURLNoOp(t *testing.T) {
 }
 
 func TestScheduleUnlinkAfterCommit_NilUnlinkerSafe(t *testing.T) {
+	t.Parallel()
+
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: nil}}
 	require.NotPanics(t, func() {
 		svc.ScheduleUnlinkAfterCommit(context.Background(), "/uploads/student-photos/x.jpg")
@@ -274,6 +308,8 @@ func TestScheduleUnlinkAfterCommit_NilUnlinkerSafe(t *testing.T) {
 }
 
 func TestScheduleUnlinkAfterCommit_OutsideTxRunsImmediately(t *testing.T) {
+	t.Parallel()
+
 	unlinker := &recordingUnlinker{}
 	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 

@@ -2,12 +2,14 @@ package active
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,6 +17,28 @@ import (
 type recordingAbsenceDeletionAuditRepo struct {
 	events []*auditModels.TimeTrackingDeletion
 	err    error
+}
+
+func TestWriteAbsenceDeletionAuditIncludesCustomLabel(t *testing.T) {
+	t.Parallel()
+
+	svc, _, _ := absSetupService()
+	customID := int64(42)
+	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+		Name:  "Regenerationstag",
+		Model: base.Model{ID: customID},
+	}}}, nil)
+	deletions := &recordingAbsenceDeletionAuditRepo{}
+	svc.deletionRepo = deletions
+
+	require.NoError(t, svc.writeAbsenceDeletionAudit(context.Background(), &activeModels.StaffAbsence{
+		AbsenceType:   activeModels.AbsenceTypeOther,
+		AbsenceTypeID: &customID,
+	}, 100))
+	require.Len(t, deletions.events, 1)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(deletions.events[0].Payload, &payload))
+	assert.Equal(t, "Regenerationstag", payload["absence_type_label"])
 }
 
 func (r *recordingAbsenceDeletionAuditRepo) Create(_ context.Context, event *auditModels.TimeTrackingDeletion) error {
@@ -49,6 +73,8 @@ func mergeAuditAbsences() (*activeModels.StaffAbsence, *activeModels.StaffAbsenc
 }
 
 func TestAbsCreateAbsenceFor_MergeWritesSecondaryDeletionAudit(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	primary, secondary := mergeAuditAbsences()
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
@@ -75,6 +101,8 @@ func TestAbsCreateAbsenceFor_MergeWritesSecondaryDeletionAudit(t *testing.T) {
 }
 
 func TestAbsCreateAbsenceFor_MergeAuditFailureKeepsSecondary(t *testing.T) {
+	t.Parallel()
+
 	svc, absRepo, _ := absSetupServiceWithSyncer()
 	primary, secondary := mergeAuditAbsences()
 	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {

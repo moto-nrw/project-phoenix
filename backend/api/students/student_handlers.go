@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -83,6 +85,12 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params.slimView = slimView
+	careStatus, careErr := careStatusFromRequest(r)
+	if careErr != nil {
+		renderError(w, r, careErr)
+		return
+	}
+	params.careStatus = careStatus
 	// Resolved BEFORE the fetch: the room/location pre-filters below query
 	// today's live active.visits state, so a non-today planning request has to
 	// be rejected before that query runs, not after it (#1939).
@@ -95,6 +103,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	params.careStatusOn = planningDate
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Fetch students based on parameters
@@ -166,6 +175,13 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	enrichPaginatedPlanningTimes(responses, params, dataSnapshot, planningTimes, isToday)
+
+	// After pagination: only the page that is actually returned needs to know
+	// which of its children carry a recorded exit (#2487).
+	if err := rs.enrichWithCareExitFlag(r.Context(), responses); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	// Companion ids ("läuft mit") for the day being SHOWN, not for today: the
 	// grouping is per weekday, so a list rendered for another planning date must
@@ -385,13 +401,57 @@ func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	classes, err = rs.appendClassListEntryClasses(r.Context(), classes)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
+}
+
+// appendClassListEntryClasses unions the classes that exist only through
+// class-list-only entries (#2382) into the dropdown list: a class whose
+// children are all list entries must still be selectable for class lists.
+// Dedupe uses the LOWER(TRIM(...)) identity every class comparison uses.
+func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []string) ([]string, error) {
+	if rs.ClassListEntryService == nil {
+		return classes, nil
+	}
+	entries, err := rs.ClassListEntryService.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]bool, len(classes))
+	for _, class := range classes {
+		seen[strings.ToLower(strings.TrimSpace(class))] = true
+	}
+	added := false
+	for _, entry := range entries {
+		key := strings.ToLower(strings.TrimSpace(entry.SchoolClass))
+		if key == "" || seen[key] {
+			continue
+		}
+		seen[key] = true
+		classes = append(classes, strings.TrimSpace(entry.SchoolClass))
+		added = true
+	}
+	if added {
+		sort.SliceStable(classes, func(i, j int) bool {
+			return collation.CompareSchoolClasses(classes[i], classes[j]) < 0
+		})
+	}
+	return classes, nil
 }
 
 // getStudent handles getting a student by ID
 func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
+		return
+	}
+	if student.CareEndedOn(timezone.TodayDate()) &&
+		!authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
 	}
 
@@ -448,6 +508,10 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 	// group and sees every child restricted (#2232).
 	single := []StudentResponse{response.StudentResponse}
 	if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, attendances); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	if err := rs.enrichWithCareExitFlag(r.Context(), single); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -1988,6 +2052,7 @@ var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: common.ErrorInvalidRequest},
 	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
 	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {

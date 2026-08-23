@@ -16,6 +16,8 @@ import (
 // =============================================================================
 
 func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
+	t.Parallel()
+
 	students := []*users.Student{}
 
 	result := buildNoRoomResponse(students)
@@ -26,6 +28,8 @@ func TestBuildNoRoomResponse_EmptyStudents(t *testing.T) {
 }
 
 func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
+	t.Parallel()
+
 	students := []*users.Student{
 		{Model: base.Model{ID: 1}},
 	}
@@ -42,6 +46,8 @@ func TestBuildNoRoomResponse_SingleStudent(t *testing.T) {
 }
 
 func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
+	t.Parallel()
+
 	students := []*users.Student{
 		{Model: base.Model{ID: 10}},
 		{Model: base.Model{ID: 20}},
@@ -63,6 +69,8 @@ func TestBuildNoRoomResponse_MultipleStudents(t *testing.T) {
 }
 
 func TestBuildNoRoomResponse_NilStudentsList(t *testing.T) {
+	t.Parallel()
+
 	var students []*users.Student
 
 	result := buildNoRoomResponse(students)
@@ -77,6 +85,8 @@ func TestBuildNoRoomResponse_NilStudentsList(t *testing.T) {
 // =============================================================================
 
 func TestGroupRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(5)
 	req := GroupRequest{
 		Name:       "Test Group",
@@ -90,12 +100,16 @@ func TestGroupRequest_Fields(t *testing.T) {
 }
 
 func TestGroupRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := GroupRequest{Name: "Valid Group"}
 	err := req.Bind(nil)
 	assert.NoError(t, err)
 }
 
 func TestGroupRequest_Bind_EmptyName(t *testing.T) {
+	t.Parallel()
+
 	req := GroupRequest{Name: ""}
 	err := req.Bind(nil)
 	assert.Error(t, err)
@@ -103,6 +117,8 @@ func TestGroupRequest_Bind_EmptyName(t *testing.T) {
 }
 
 func TestTransferGroupRequest_Fields(t *testing.T) {
+	t.Parallel()
+
 	req := TransferGroupRequest{
 		TargetUserID: 100,
 	}
@@ -110,12 +126,16 @@ func TestTransferGroupRequest_Fields(t *testing.T) {
 }
 
 func TestTransferGroupRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := TransferGroupRequest{TargetUserID: 100}
 	err := req.Bind(nil)
 	assert.NoError(t, err)
 }
 
 func TestTransferGroupRequest_Bind_ZeroID(t *testing.T) {
+	t.Parallel()
+
 	req := TransferGroupRequest{TargetUserID: 0}
 	err := req.Bind(nil)
 	assert.Error(t, err)
@@ -123,6 +143,8 @@ func TestTransferGroupRequest_Bind_ZeroID(t *testing.T) {
 }
 
 func TestTransferGroupRequest_Bind_NegativeID(t *testing.T) {
+	t.Parallel()
+
 	req := TransferGroupRequest{TargetUserID: -1}
 	err := req.Bind(nil)
 	assert.Error(t, err)
@@ -133,6 +155,8 @@ func TestTransferGroupRequest_Bind_NegativeID(t *testing.T) {
 // =============================================================================
 
 func TestGroupResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	roomID := int64(100)
 	repID := int64(200)
 	now := time.Now()
@@ -155,6 +179,8 @@ func TestGroupResponse_Fields(t *testing.T) {
 }
 
 func TestTeacherResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	resp := TeacherResponse{
 		ID:             1,
 		StaffID:        2,

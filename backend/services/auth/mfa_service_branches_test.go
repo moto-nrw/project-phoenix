@@ -25,6 +25,8 @@ import (
 // --- OperatorSetGlobalMFAOverride branches -----------------------------
 
 func TestMFAService_OperatorSetGlobalMFAOverride_RejectsInvalidValue(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-invalid")
@@ -37,6 +39,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_RejectsInvalidValue(t *testing.
 }
 
 func TestMFAService_OperatorSetGlobalMFAOverride_RejectsEmptyReason(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-empty-reason")
@@ -50,6 +54,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_RejectsEmptyReason(t *testing.T
 }
 
 func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) {
+	t.Parallel()
+
 	// "none" on a fresh account must succeed even though there's no row
 	// to delete — DeleteGlobal is idempotent and the audit row still fires.
 	ctx := context.Background()
@@ -65,6 +71,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_NoneOnEmptyState(t *testing.T) 
 }
 
 func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *testing.T) {
+	t.Parallel()
+
 	// force_on is a hardening override — it must NOT revoke trusted
 	// devices (that's the force_off branch). This locks in the asymmetry
 	// so a future refactor that copies the revoke into force_on would
@@ -89,6 +97,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOnKeepsExistingDevice(t *t
 }
 
 func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants(t *testing.T) {
+	t.Parallel()
+
 	// The platform-wide "emergency switch" must yank trust EVERYWHERE,
 	// not just in the tenant the operator happens to be looking at.
 	// Two distinct tenants make this visible — both must drop to zero
@@ -122,6 +132,8 @@ func TestMFAService_OperatorSetGlobalMFAOverride_ForceOffRevokesAcrossAllTenants
 // --- SetMFAOverride (tenant-scoped) branches ---------------------------
 
 func TestMFAService_SetMFAOverride_RejectsEmptyReason(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc, tenantID := tenantMappedAccount(t, db, "tenant-empty-reason")
@@ -133,6 +145,8 @@ func TestMFAService_SetMFAOverride_RejectsEmptyReason(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_NoneClearsExistingRow(t *testing.T) {
+	t.Parallel()
+
 	// Tenant-scoped "none" maps to a DELETE on the (account, tenant) row.
 	// After clearing, FindByAccountAndTenant must return nil (not the
 	// stale row, not an error).
@@ -156,6 +170,8 @@ func TestMFAService_SetMFAOverride_NoneClearsExistingRow(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
+	t.Parallel()
+
 	// Same asymmetry as the global path: only force_off clears trust.
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
@@ -175,6 +191,8 @@ func TestMFAService_SetMFAOverride_ForceOnKeepsTrustedDevices(t *testing.T) {
 }
 
 func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T) {
+	t.Parallel()
+
 	// Tenant-scoped force_off must NOT touch trusted devices in a
 	// different tenant the same account also belongs to. Mirror of the
 	// global force_off test — confirms the two scopes don't bleed.
@@ -207,6 +225,8 @@ func TestMFAService_SetMFAOverride_ForceOffOnlyAffectsTargetTenant(t *testing.T)
 // --- ShortenUserAgent — pure function ---------------------------------
 
 func TestShortenUserAgent(t *testing.T) {
+	t.Parallel()
+
 	// Every branch of the parser. The full UA strings come from real
 	// browsers (User-Agent headers as logged in development) so a future
 	// edit that breaks one of them is caught here.
@@ -264,6 +284,8 @@ func TestShortenUserAgent(t *testing.T) {
 }
 
 func TestShortenUserAgent_DoesNotMisidentifyChromeAsSafari(t *testing.T) {
+	t.Parallel()
+
 	// Regression guard: Chrome's UA contains "Safari/" — the parser
 	// must NOT report Safari for a Chrome string. Pulled into its own
 	// test because this is the easiest mistake to introduce while
@@ -283,6 +305,8 @@ func TestShortenUserAgent_DoesNotMisidentifyChromeAsSafari(t *testing.T) {
 // factor. The write therefore takes the same row first — account-first, the
 // order every revocation path walks — and waits.
 func TestMFAService_OperatorSetGlobalMFAOverride_WaitsForTheAccountRowLock(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, _, db := newTestMFAService(t)
 	acc := testpkg.CreateTestAccount(t, db, "global-override-lock-order")

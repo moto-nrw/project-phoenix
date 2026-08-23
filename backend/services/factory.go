@@ -61,7 +61,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
-	"github.com/moto-nrw/project-phoenix/services/suggestions"
+	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -80,6 +80,7 @@ type Factory struct {
 	Holidays                 schedule.HolidayService
 	ClosingDays              schedule.ClosingDayService
 	StaffAbsence             active.StaffAbsenceService
+	StaffAbsenceType         active.StaffAbsenceTypeService
 	StaffBalanceAdjust       active.StaffBalanceAdjustmentService
 	StaffMonthClose          active.StaffMonthCloseService
 	StaffOverview            active.StaffOverviewService
@@ -95,7 +96,6 @@ type Factory struct {
 	GuardianInvitation       auth.GuardianInvitationService
 	Feedback                 feedback.Service
 	MealPlan                 mealplan.Service
-	Suggestions              suggestions.Service
 	IoT                      iot.Service
 	Checkin                  *iotcheckin.CheckinService
 	StaffClock               *staffclock.Service
@@ -132,9 +132,10 @@ type Factory struct {
 	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
-	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
-	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	OpeningBalanceImport     importService.OpeningBalanceImportFactory                   // Opening balance import (#2132), request-scoped
+	Import                   *importService.ImportService[importModels.StudentImportRow]        // Student import service
+	StaffImport              *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
+	ClassListImport          *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
+	OpeningBalanceImport     importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
 	ListExport               *listexport.RendererService
 	Emergency                *emergency.Service
 	SlotLists                slotlists.Service
@@ -161,7 +162,9 @@ type Factory struct {
 	Schools              platform.SchoolService
 	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
+	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      users.StudentDeletionService
+	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
@@ -173,9 +176,9 @@ type Factory struct {
 	AbsenceOverview         *active.StudentStatusDayOverviewService
 	StudentHistory          active.StudentHistoryService
 	OGSGroupLive            ogsgrouplive.Getter
+	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
 	InstanceSeriesConverter schedule.InstanceSeriesConverter
-	OperatorSuggestions     platform.OperatorSuggestionsService
 	OperatorMFA             platform.OperatorMFAService
 	OperatorPasskey         platform.OperatorPasskeyService
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
@@ -349,15 +352,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize grade transition service
 	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
-		TransitionRepo:   repos.GradeTransition,
-		StudentRepo:      repos.Student,
-		PersonRepo:       repos.Person,
-		VisitRepo:        repos.ActiveVisit,
-		AttendanceRepo:   repos.Attendance,
-		ClassTeacherRepo: repos.ClassTeacher,
-		StaffRepo:        repos.Staff,
-		RosterReconciler: rosterReconciler,
-		DB:               db,
+		TransitionRepo:      repos.GradeTransition,
+		StudentRepo:         repos.Student,
+		PersonRepo:          repos.Person,
+		VisitRepo:           repos.ActiveVisit,
+		AttendanceRepo:      repos.Attendance,
+		ClassTeacherRepo:    repos.ClassTeacher,
+		StaffRepo:           repos.Staff,
+		ClassListEntryRepo:  repos.ClassListEntry,
+		ClassListEntryAudit: repos.ClassListEntryChange,
+		RosterReconciler:    rosterReconciler,
+		DB:                  db,
 	})
 
 	// Initialize settings service (new schema-driven settings system)
@@ -519,8 +524,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		holidayAware.SetHolidayReader(nonWorkingDayService)
 	}
 
+	// School-defined Abwesenheitsarten (#2403). Constructed before the absence
+	// service so it can be injected there and resolve custom names on both the
+	// write path (which base type an art inherits) and the read paths.
+	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
+	if typeAware, ok := workSessionService.(interface {
+		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+	}); ok {
+		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
+	}
+
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	if typeAware, ok := staffAbsenceService.(interface {
+		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+	}); ok {
+		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
+	}
 	if broadcastAware, ok := staffAbsenceService.(interface {
 		SetBroadcaster(realtime.Broadcaster)
 	}); ok {
@@ -645,6 +665,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
 	)
+	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(
+		repos.StudentPickupSchedule,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+		settingsService,
+	)
+	// The arrival mirror: the class timetable supplies the regular time and,
+	// with enrollment.bookings_authoritative on, the approved bookings supply
+	// the care days (#2414, ADR 0005). The care-day resolver reads through it
+	// so a stale row on an unbooked weekday stops marking a child expected.
+	arrivalBaselines := schedule.NewArrivalBaselineService(
+		repos.StudentArrivalSchedule,
+		repos.Student,
+		repos.ClassArrivalTime,
+		repos.RequestChildOffering,
+		repos.CareOffering,
+		settingsService,
+	)
 
 	// Care-day derivation (#1747): intersects timetable assignments with the
 	// children's care plans. Read-only, so it can be shared by every consumer
@@ -652,9 +690,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Built here, ahead of the active service, because the timetable bridge
 	// below needs it and the active service needs the bridge.
 	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalBaselines:  arrivalBaselines,
 		ArrivalSchedules:  repos.StudentArrivalSchedule,
 		ArrivalExceptions: repos.StudentArrivalException,
-		PickupSchedules:   repos.StudentPickupSchedule,
+		PickupBaselines:   pickupBaselines,
 		PickupExceptions:  repos.StudentPickupException,
 	})
 
@@ -707,21 +746,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize meal plan service
 	mealPlanService := mealplan.NewService(repos.MealPlanEntry)
-
-	// Initialize suggestions service
-	suggestionsNotifyEmail := viper.GetString("suggestion_notify_email")
-	suggestionsService := suggestions.NewService(suggestions.ServiceConfig{
-		PostRepo:        repos.SuggestionPost,
-		VoteRepo:        repos.SuggestionVote,
-		CommentRepo:     repos.SuggestionComment,
-		CommentReadRepo: repos.SuggestionCommentRead,
-		DB:              db,
-		Dispatcher:      dispatcher,
-		DefaultFrom:     defaultFrom,
-		NotifyEmail:     suggestionsNotifyEmail,
-		FrontendURL:     frontendURL,
-		Logger:          logger.With("service", "suggestions"),
-	})
 
 	// Initialize IoT service
 	iotService := iot.NewService(
@@ -891,7 +915,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// parent care-exception writers so both derive the same state.
 	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		repos.StudentPickupSchedule,
+		pickupBaselines,
 		repos.InstanceStudent,
 		db,
 	)
@@ -904,6 +928,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Student,
 		repos.Person,
 		pickupAutoExcusal,
+		pickupBaselines,
 		db,
 		logger.With("service", "pickup-schedule"),
 	)
@@ -980,6 +1005,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		realtimeHub,
 		logger.With("service", "materialization"),
 	)
+	// Per-date care filter (#2487): a child stays on the rosters the
+	// materializer builds up to and including their last care day, and drops
+	// out of every day after it.
+	schedule.WireMaterializationCareBounds(materializationService, repos.Student)
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
@@ -1082,13 +1111,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
 
-	// Initialize arrival schedule service
-	arrivalScheduleService := schedule.NewArrivalScheduleService(
+	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
 		repos.StudentArrivalException,
 		repos.StudentArrivalNote,
 		repos.Student,
 		repos.Person,
+		arrivalBaselines,
+		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
 	)
@@ -1400,6 +1430,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffImportService := importService.NewImportService(staffImportConfig)
 	staffImportService.SetAuditRepository(repos.DataImport)
 
+	// Class-list entry import (#2382): creates through the entry service so
+	// the duplicate guards and the audit trail apply to imported rows too.
+	classListImportConfig := importService.NewClassListImportConfig(importService.ClassListImportDeps{
+		EntryService: users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
+		EntryRepo:    repos.ClassListEntry,
+		StudentRepo:  repos.Student,
+	})
+	classListImportService := importService.NewImportService(classListImportConfig)
+	classListImportService.SetAuditRepository(repos.DataImport)
+
 	// Opening balance import (#2132): the config is request-scoped (Stichtag,
 	// Begründung, and acting staff member come from the upload form), so the
 	// factory closes over the request-independent deps and builds a fresh
@@ -1519,16 +1559,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:               platformLogger,
 	})
 
-	operatorSuggestionsService := platform.NewOperatorSuggestionsService(platform.OperatorSuggestionsServiceConfig{
-		PostRepo:        repos.SuggestionPost,
-		CommentRepo:     repos.SuggestionComment,
-		CommentReadRepo: repos.SuggestionCommentRead,
-		PostReadRepo:    repos.SuggestionPostRead,
-		AuditLogRepo:    repos.OperatorAuditLog,
-		DB:              db,
-		Logger:          platformLogger,
-	})
-
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
 		Repo:        repos.FormSchema,
 		PhaseRepo:   repos.Phase,
@@ -1622,6 +1652,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		PickupScheduleRepo:       repos.StudentPickupSchedule,
+		PickupBaselines:          pickupBaselines,
 		ArrivalScheduleRepo:      repos.StudentArrivalSchedule,
 		StudentEnrollmentRepo:    repos.StudentEnrollment,
 		ActivityGroupRepo:        repos.ActivityGroup,
@@ -1710,6 +1741,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("enrollment decision service does not implement the offering-update resync")
 	}
 	careOfferingSourceBinder.SetSourcedTemplateResyncer(careOfferingSourcedResyncer)
+	pickupResyncBinder, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPickupResyncBinder)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not accept the pickup resyncer")
+	}
+	pickupResyncer, ok := enrollmentDecisionService.(enrollment.CareOfferingPickupResyncer)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement pickup resync")
+	}
+	pickupResyncBinder.SetPickupResyncer(pickupResyncer)
 	// A phase service-window change re-bounds every roster row derived from
 	// the phase's offerings, so the templates sourcing them must resync too
 	// (#2147 review). Same late binding as above.
@@ -1756,6 +1796,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PersonRepo:               repos.Person,
 		EducationGroupRepo:       repos.Group,
 		StudentStatusDayRepo:     repos.StudentStatusDay,
+		ClassListEntryRepo:       repos.ClassListEntry,
 		PickupScheduleSvc:        pickupScheduleService,
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
@@ -1782,6 +1823,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
+
+	// "Betreuung beenden" (#2487): the ONE care-lifecycle contract. Manual
+	// single and batch exits, the archive view, cancellation, resumption and
+	// the effect-day housekeeping all go through it — there must not be a
+	// second way for a child to leave the OGS.
+	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+		StudentRepo:  repos.Student,
+		PersonRepo:   repos.Person,
+		CareExitRepo: repos.CareExit,
+		CleanupRepo:  repos.CareExitCleanup,
+		TagReleaser:  repos.GradeTransition,
+		AuditService: studentAuditService,
+		DB:           db,
+		Logger:       logger.With("service", "care_lifecycle"),
+	})
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
@@ -1810,6 +1866,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SchoolRepo:               repos.School,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
+		PersonRepo:               repos.Person,
 		StudentRepo:              repos.Student,
 		GuardianAuthorizer:       repos.StudentGuardian,
 		DecisionService:          enrollmentDecisionApplier,
@@ -1854,6 +1911,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		pickupScheduleService,
 		repos.StudentPickupException,
 		repos.Attendance,
+		pickupAutoExcusal,
 		userContextService,
 		pillEmitter,
 		realtimeHub,
@@ -1870,9 +1928,11 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestRepo:              repos.Request,
 		PhaseRepo:                repos.Phase,
 		CareOfferingRepo:         repos.CareOffering,
+		ImpactRepo:               repos.OfferingChangeImpact,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
+		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,
 		Settings:                 settingsService,
@@ -2024,7 +2084,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ExcusedRequests:          excusedRequestService,
 		Emitter:                  pillEmitter,
 		AnnouncementRepo:         repos.ParentAnnouncement,
-		Suggestions:              suggestionsService,
 		GuardianInvites:          guardianInvitationService,
 		GuardianInviteRepo:       repos.GuardianInvitation,
 		StudentGuardianRepo:      repos.StudentGuardian,
@@ -2093,7 +2152,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StatusDayRepo:       repos.StudentStatusDay,
 		CareDayService:      careDayService,
 		PickupExceptionRepo: repos.StudentPickupException,
-		PickupScheduleRepo:  repos.StudentPickupSchedule,
+		PickupBaselines:     pickupBaselines,
 		StudentRepo:         repos.Student,
 		PersonRepo:          repos.Person,
 		EducationGroupRepo:  repos.Group,
@@ -2197,6 +2256,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:          logger.With("service", "ogs-group-live"),
 	})
 
+	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
+		Active:      activeService,
+		UserContext: userContextService,
+		Education:   educationService,
+		Schulhof:    schulhofService,
+		Operations:  timetableOperationsService,
+		Settings:    settingsService,
+		Pickups:     pickupScheduleService,
+		Arrivals:    arrivalScheduleService,
+	})
+
 	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 		InstanceStudentRepo:        repos.InstanceStudent,
 		ActivityInstanceRepo:       repos.ActivityInstance,
@@ -2209,8 +2279,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActiveGroupRepo:            repos.ActiveGroup,
 		SupervisorRepo:             repos.GroupSupervisor,
 		ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+		ArrivalBaselines:           arrivalBaselines,
 		ArrivalExceptionRepo:       repos.StudentArrivalException,
 		PickupScheduleRepo:         repos.StudentPickupSchedule,
+		PickupBaselines:            pickupBaselines,
 		PickupExceptionRepo:        repos.StudentPickupException,
 		VisitRepo:                  repos.ActiveVisit,
 		RoomRepo:                   repos.Room,
@@ -2250,6 +2322,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Holidays:                 holidayService,
 		ClosingDays:              closingDayService,
 		StaffAbsence:             staffAbsenceService,
+		StaffAbsenceType:         staffAbsenceTypeService,
 		StaffBalanceAdjust:       staffBalanceAdjustService,
 		StaffMonthClose:          staffMonthCloseService,
 		StaffOverview:            staffOverviewService,
@@ -2263,7 +2336,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		WC:                       wcService,
 		Feedback:                 feedbackService,
 		MealPlan:                 mealPlanService,
-		Suggestions:              suggestionsService,
 		IoT:                      iotService,
 		Checkin:                  checkinService,
 		StaffClock:               staffClockService,
@@ -2303,6 +2375,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Database:                 databaseService,
 		Import:                   studentImportService,        // Student import service
 		StaffImport:              staffImportService,          // Staff (Mitarbeiter) import service
+		ClassListImport:          classListImportService,      // Class-list entry import (#2382)
 		OpeningBalanceImport:     openingBalanceImportFactory, // Opening balance import (#2132)
 		ListExport:               listExportService,
 		PlanExport:               planExportService,
@@ -2336,7 +2409,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schools:                 platform.NewSchoolService(repos.School),
 		WorkTimeModels:          workTimeModelService,
 		Students:                studentService,
+		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		StudentDeletion:         studentDeletionService,
+		CareLifecycle:           careLifecycleService,
 		StudentAudit:            studentAuditService,
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:            careRequestService,
@@ -2346,9 +2421,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AbsenceOverview:         studentStatusDayOverviewService,
 		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		OGSGroupLive:            ogsGroupLiveService,
+		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorSuggestions:     operatorSuggestionsService,
 		OperatorMFA:             operatorMFAService,
 		OperatorPasskey:         operatorPasskeyService,
 		UnregisteredTagScans:    unregisteredTagScanService,

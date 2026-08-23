@@ -5,7 +5,7 @@
 // These are B0 wire-format golden tests for issue #575 (API layer
 // technical-debt / error-response consolidation). The upcoming B1 refactor
 // collapses the per-package ErrResponse/ErrorRenderer duplication (active,
-// feedback, suggestions, operator, ...) into shared helpers in api/common.
+// feedback, operator, ...) into shared helpers in api/common.
 // That refactor MUST NOT change a single byte of what a client currently
 // receives on the wire. This file is the oracle: it renders through the
 // real render.Render(...) pipeline (go-chi/render's json.NewEncoder, which
@@ -45,6 +45,8 @@ func renderWireOperator(t *testing.T, renderer render.Renderer) (int, string) {
 }
 
 func TestWireFormat_Operator_ErrHelpers(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		renderer   render.Renderer

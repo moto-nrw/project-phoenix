@@ -8,73 +8,27 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // ============================================================================
 // Setup Helpers
 // ============================================================================
 
-// cleanupGroupTeacherRecords removes group-teacher assignments directly
-func cleanupGroupTeacherRecords(t *testing.T, db *bun.DB, ids ...int64) {
-	t.Helper()
-	for _, id := range ids {
-		testpkg.CleanupTableRecords(t, db, "education.group_teacher", id)
-	}
-}
-
-// cleanupTeacherChain cleans up teacher -> staff -> person chain
-func cleanupTeacherChain(t *testing.T, db *bun.DB, teacherID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-
-	// Get staff ID
-	var staffID int64
-	err := db.NewSelect().
-		TableExpr("users.teachers").
-		Column("staff_id").
-		Where("id = ?", teacherID).
-		Scan(ctx, &staffID)
-	if err != nil {
-		t.Logf("Warning: failed to get staff ID: %v", err)
-		return
-	}
-
-	// Get person ID
-	var personID int64
-	err = db.NewSelect().
-		TableExpr("users.staff").
-		Column("person_id").
-		Where("id = ?", staffID).
-		Scan(ctx, &personID)
-	if err != nil {
-		t.Logf("Warning: failed to get person ID: %v", err)
-	}
-
-	// Delete in order
-	_, _ = db.NewDelete().TableExpr("users.teachers").Where("id = ?", teacherID).Exec(ctx)
-	_, _ = db.NewDelete().TableExpr("users.staff").Where("id = ?", staffID).Exec(ctx)
-	if personID != 0 {
-		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", personID).Exec(ctx)
-	}
-}
-
 // ============================================================================
 // CRUD Tests
 // ============================================================================
 
 func TestGroupTeacherRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates group-teacher assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTCreate")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTCreate", "Teacher")
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		gt := &education.GroupTeacher{
 			GroupID:   group.ID,
@@ -85,30 +39,25 @@ func TestGroupTeacherRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, gt.ID)
 
-		cleanupGroupTeacherRecords(t, db, gt.ID)
 	})
 }
 
 func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	groupA := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherA")
 	groupB := testpkg.CreateTestEducationGroup(t, db, "GTDelByTeacherB")
 	teacher := testpkg.CreateTestTeacher(t, db, "GTDelByTeacher", "Offboarded")
 	otherTeacher := testpkg.CreateTestTeacher(t, db, "GTDelByTeacher", "Stays")
 
-	gtA := testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
-	gtB := testpkg.CreateTestGroupTeacher(t, db, groupB.ID, teacher.ID)
-	gtOther := testpkg.CreateTestGroupTeacher(t, db, groupA.ID, otherTeacher.ID)
-
-	defer cleanupGroupRecords(t, db, groupA.ID, groupB.ID)
-	defer cleanupTeacherChain(t, db, teacher.ID)
-	defer cleanupTeacherChain(t, db, otherTeacher.ID)
-	defer cleanupGroupTeacherRecords(t, db, gtA.ID, gtB.ID, gtOther.ID)
+	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, teacher.ID)
+	testpkg.CreateTestGroupTeacher(t, db, groupB.ID, teacher.ID)
+	testpkg.CreateTestGroupTeacher(t, db, groupA.ID, otherTeacher.ID)
 
 	affected, err := repo.DeleteByTeacherID(ctx, teacher.ID)
 	require.NoError(t, err)
@@ -124,20 +73,17 @@ func TestGroupTeacherRepository_DeleteByTeacherID(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTFindByID")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTFindByID", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		found, err := repo.FindByID(ctx, gt.ID)
 		require.NoError(t, err)
@@ -153,21 +99,18 @@ func TestGroupTeacherRepository_FindByID(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates group-teacher assignment", func(t *testing.T) {
 		group1 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate1")
 		group2 := testpkg.CreateTestEducationGroup(t, db, "GTUpdate2")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTUpdate", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group1.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group1.ID, group2.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		// Update to different group
 		gt.GroupID = group2.ID
@@ -181,19 +124,17 @@ func TestGroupTeacherRepository_Update(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing assignment", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTDelete")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTDelete", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		err := repo.Delete(ctx, gt.ID)
 		require.NoError(t, err)
@@ -208,20 +149,17 @@ func TestGroupTeacherRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestGroupTeacherRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all assignments", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTList")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTList", "Teacher")
-		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
+		testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
 
 		assignments, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -230,20 +168,17 @@ func TestGroupTeacherRepository_List(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by group ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByGroup")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTByGroup", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		assignments, err := repo.FindByGroup(ctx, group.ID)
 		require.NoError(t, err)
@@ -261,7 +196,6 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 
 	t.Run("returns empty for group with no teachers", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByGroupEmpty")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		assignments, err := repo.FindByGroup(ctx, group.ID)
 		require.NoError(t, err)
@@ -270,20 +204,17 @@ func TestGroupTeacherRepository_FindByGroup(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds assignments by teacher ID", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTByTeacher")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTByTeacher", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		assignments, err := repo.FindByTeacher(ctx, teacher.ID)
 		require.NoError(t, err)
@@ -301,7 +232,6 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 
 	t.Run("returns empty for teacher with no groups", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "NoGroups", "Teacher")
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		assignments, err := repo.FindByTeacher(ctx, teacher.ID)
 		require.NoError(t, err)
@@ -314,11 +244,12 @@ func TestGroupTeacherRepository_FindByTeacher(t *testing.T) {
 // ============================================================================
 
 func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
 		err := repo.Create(ctx, nil)
@@ -328,7 +259,6 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 
 	t.Run("returns error for zero group_id", func(t *testing.T) {
 		teacher := testpkg.CreateTestTeacher(t, db, "ValidTeacher", "Test")
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		gt := &education.GroupTeacher{
 			GroupID:   0, // Invalid
@@ -341,7 +271,6 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 
 	t.Run("returns error for zero teacher_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "ValidGroup")
-		defer cleanupGroupRecords(t, db, group.ID)
 
 		gt := &education.GroupTeacher{
 			GroupID:   group.ID,
@@ -354,11 +283,12 @@ func TestGroupTeacherRepository_Create_Validation(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil assignment", func(t *testing.T) {
 		err := repo.Update(ctx, nil)
@@ -368,20 +298,17 @@ func TestGroupTeacherRepository_Update_Validation(t *testing.T) {
 }
 
 func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).GroupTeacher
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by group_id", func(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTListFilter")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTListFilter", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		filters := map[string]interface{}{
 			"group_id": group.ID,
@@ -405,10 +332,6 @@ func TestGroupTeacherRepository_List_WithFilters(t *testing.T) {
 		group := testpkg.CreateTestEducationGroup(t, db, "GTListFilterTeacher")
 		teacher := testpkg.CreateTestTeacher(t, db, "GTListFilterTeacher", "Teacher")
 		gt := testpkg.CreateTestGroupTeacher(t, db, group.ID, teacher.ID)
-
-		defer cleanupGroupTeacherRecords(t, db, gt.ID)
-		defer cleanupGroupRecords(t, db, group.ID)
-		defer cleanupTeacherChain(t, db, teacher.ID)
 
 		filters := map[string]interface{}{
 			"teacher_id": teacher.ID,

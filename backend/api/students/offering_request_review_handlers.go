@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
@@ -23,12 +24,27 @@ type OfferingRequestResponse struct {
 	StudentName string `json:"student_name"`
 	Status      string `json:"status"`
 	// EffectiveFrom is the date the switch would take effect (YYYY-MM-DD).
-	EffectiveFrom string                        `json:"effective_from"`
-	Note          string                        `json:"note,omitempty"`
-	Diff          []OfferingRequestDiffResponse `json:"diff"`
-	Reason        *string                       `json:"reason,omitempty"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	ReviewedAt    *time.Time                    `json:"reviewed_at,omitempty"`
+	EffectiveFrom string `json:"effective_from"`
+	// EarliestEffectiveFrom / LatestEffectiveFrom bound the date staff may
+	// confirm the switch for (#2484), so the review card cannot offer a date the
+	// approval refuses. Omitted when the care period could not be resolved.
+	EarliestEffectiveFrom string `json:"earliest_effective_from,omitempty"`
+	LatestEffectiveFrom   string `json:"latest_effective_from,omitempty"`
+	// RequestedEffectiveFrom is the date the family asked for, sent only when it
+	// is not the date the queue offers — a request whose date passed while it
+	// waited applies at the earliest date left instead (#2484).
+	RequestedEffectiveFrom string                        `json:"requested_effective_from,omitempty"`
+	Note                   string                        `json:"note,omitempty"`
+	Diff                   []OfferingRequestDiffResponse `json:"diff"`
+	// Unchanged lists the bookings the request leaves as they are, so the review
+	// card shows the child's complete picture, not only the changed lines (#2434).
+	Unchanged []OfferingRequestUnchangedResponse `json:"unchanged,omitempty"`
+	// FullWithdrawal marks a Komplett-Abmeldung: approving would leave the child
+	// without any offering at all (#2434).
+	FullWithdrawal bool       `json:"full_withdrawal,omitempty"`
+	Reason         *string    `json:"reason,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
 }
 
 // OfferingRequestDiffResponse is one German-localized diff line for the
@@ -58,10 +74,20 @@ type OfferingRequestDiffResponse struct {
 	Optoutable bool `json:"optoutable,omitempty"`
 }
 
-func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) OfferingRequestResponse {
-	row := item.Request
-	diff := make([]OfferingRequestDiffResponse, 0, len(item.Diff))
-	for _, entry := range item.Diff {
+// OfferingRequestUnchangedResponse is one booking the request does not touch.
+type OfferingRequestUnchangedResponse struct {
+	OfferingID string `json:"offering_id"`
+	Label      string `json:"label"`
+	Days       string `json:"days"`
+}
+
+// offeringRequestDiffLines renders the review diff, including the bookkeeping a
+// Mitbuchungs-Regel line carries so the card can explain and override it.
+func offeringRequestDiffLines(
+	entries []enrollmentService.OfferingChangeDiffEntry,
+) []OfferingRequestDiffResponse {
+	diff := make([]OfferingRequestDiffResponse, 0, len(entries))
+	for _, entry := range entries {
 		line := OfferingRequestDiffResponse{
 			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
 			Label:      entry.Label,
@@ -85,16 +111,43 @@ func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) Offer
 		}
 		diff = append(diff, line)
 	}
+	return diff
+}
+
+func toOfferingRequestResponse(item *enrollmentService.OfferingChangeView) OfferingRequestResponse {
+	row := item.Request
+	diff := offeringRequestDiffLines(item.Diff)
+	unchanged := make([]OfferingRequestUnchangedResponse, 0, len(item.Unchanged))
+	for _, entry := range item.Unchanged {
+		unchanged = append(unchanged, OfferingRequestUnchangedResponse{
+			OfferingID: strconv.FormatInt(entry.OfferingID, 10),
+			Label:      entry.Label,
+			Days:       germanOfferingDiffLabel(entry.NewState, entry.NewDays),
+		})
+	}
 	resp := OfferingRequestResponse{
-		ID:            strconv.FormatInt(row.ID, 10),
-		StudentID:     strconv.FormatInt(row.StudentID, 10),
-		StudentName:   item.StudentName,
-		Status:        row.Status,
-		EffectiveFrom: row.EffectiveFrom.String(),
-		Diff:          diff,
-		Reason:        row.DecisionReason,
-		CreatedAt:     row.CreatedAt,
-		ReviewedAt:    row.ReviewedAt,
+		ID:             strconv.FormatInt(row.ID, 10),
+		StudentID:      strconv.FormatInt(row.StudentID, 10),
+		StudentName:    item.StudentName,
+		Status:         row.Status,
+		EffectiveFrom:  row.EffectiveFrom.String(),
+		Diff:           diff,
+		Reason:         row.DecisionReason,
+		FullWithdrawal: item.FullWithdrawal,
+		CreatedAt:      row.CreatedAt,
+		ReviewedAt:     row.ReviewedAt,
+	}
+	if !item.EarliestEffectiveFrom.IsZero() {
+		resp.EarliestEffectiveFrom = item.EarliestEffectiveFrom.String()
+	}
+	if !item.LatestEffectiveFrom.IsZero() {
+		resp.LatestEffectiveFrom = item.LatestEffectiveFrom.String()
+	}
+	if !item.RequestedEffectiveFrom.IsZero() && item.RequestedEffectiveFrom != row.EffectiveFrom {
+		resp.RequestedEffectiveFrom = item.RequestedEffectiveFrom.String()
+	}
+	if len(unchanged) > 0 {
+		resp.Unchanged = unchanged
 	}
 	if row.ParentNote != nil {
 		resp.Note = *row.ParentNote
@@ -125,30 +178,14 @@ func germanOfferingDiffLabel(state string, days []string) string {
 	return strings.Join(parts, ", ")
 }
 
-// listOfferingChangeRequests returns the tenant's pending offering-change
-// requests, soonest effective date first.
-func (rs *Resource) listOfferingChangeRequests(w http.ResponseWriter, r *http.Request) {
-	if rs.OfferingChangeService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("offering change service not configured")))
-		return
-	}
-	items, err := rs.OfferingChangeService.ListPending(r.Context())
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	out := make([]OfferingRequestResponse, 0, len(items))
-	for _, item := range items {
-		out = append(out, toOfferingRequestResponse(item))
-	}
-	common.Respond(w, r, http.StatusOK, out, "Offering change requests retrieved")
-}
-
 // DecideOfferingRequestBody is the body of POST
 // .../offering-change-requests/{requestId}/decide.
 type DecideOfferingRequestBody struct {
 	Approve *bool  `json:"approve"`
 	Reason  string `json:"reason"`
+	// EffectiveFrom is the date staff confirmed the switch takes effect on
+	// (YYYY-MM-DD), required on an approval (#2484).
+	EffectiveFrom string `json:"effective_from,omitempty"`
 	// ExcludedOfferingIDs are the rule-added offerings staff unticked for this
 	// one approval (#2370); the Mitbuchungs-Regel itself stays active.
 	ExcludedOfferingIDs []string `json:"excluded_offering_ids,omitempty"`
@@ -156,6 +193,23 @@ type DecideOfferingRequestBody struct {
 
 type PreviewOfferingRequestBody struct {
 	ExcludedOfferingIDs []string `json:"excluded_offering_ids"`
+	// EffectiveFrom previews the decision for the date currently chosen in the
+	// card; empty previews the date the parents requested.
+	EffectiveFrom string `json:"effective_from,omitempty"`
+}
+
+// parseConfirmedEffectiveFrom reads the staff-confirmed effective date. An
+// empty value is no date at all, which the caller decides how to treat.
+func parseConfirmedEffectiveFrom(raw string) (*timezone.Date, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+	parsed, err := timezone.ParseDate(trimmed)
+	if err != nil {
+		return nil, errors.New("effective_from must be a date (YYYY-MM-DD)")
+	}
+	return &parsed, nil
 }
 
 type OfferingRequestPreviewSelectionResponse struct {
@@ -165,7 +219,17 @@ type OfferingRequestPreviewSelectionResponse struct {
 }
 
 type OfferingRequestPreviewResponse struct {
-	Selections []OfferingRequestPreviewSelectionResponse `json:"selections"`
+	Selections                        []OfferingRequestPreviewSelectionResponse `json:"selections"`
+	ManualPlanningConflicts           []ManualPlanningConflictResponse          `json:"manual_planning_conflicts"`
+	ArrivalExpectationsFollowBookings bool                                      `json:"arrival_expectations_follow_bookings"`
+}
+
+type ManualPlanningConflictResponse struct {
+	ActivityGroupID   string   `json:"activity_group_id"`
+	ActivityGroupName string   `json:"activity_group_name"`
+	Days              []string `json:"days"`
+	FirstDate         string   `json:"first_date"`
+	OccurrenceCount   int      `json:"occurrence_count"`
 }
 
 func parseExcludedOfferingIDs(rawIDs []string) ([]int64, error) {
@@ -201,20 +265,43 @@ func (rs *Resource) previewOfferingChangeRequest(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	preview, err := rs.OfferingChangeService.PreviewDecision(r.Context(), requestID, excluded)
+	effectiveFrom, err := parseConfirmedEffectiveFrom(body.EffectiveFrom)
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	preview, err := rs.OfferingChangeService.PreviewDecision(r.Context(), requestID, excluded, effectiveFrom)
 	if err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
 	}
-	selections := make([]OfferingRequestPreviewSelectionResponse, 0, len(preview))
-	for _, selection := range preview {
+	if preview == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("offering change preview is empty")))
+		return
+	}
+	selections := make([]OfferingRequestPreviewSelectionResponse, 0, len(preview.Selections))
+	for _, selection := range preview.Selections {
 		selections = append(selections, OfferingRequestPreviewSelectionResponse{
 			OfferingID: strconv.FormatInt(selection.OfferingID, 10),
 			New:        germanOfferingDiffLabel(selection.State, selection.Days),
 			Removed:    selection.State == "removed",
 		})
 	}
-	common.Respond(w, r, http.StatusOK, OfferingRequestPreviewResponse{Selections: selections}, "Preview materialized")
+	conflicts := make([]ManualPlanningConflictResponse, 0, len(preview.ManualPlanningConflicts))
+	for _, conflict := range preview.ManualPlanningConflicts {
+		conflicts = append(conflicts, ManualPlanningConflictResponse{
+			ActivityGroupID:   strconv.FormatInt(conflict.ActivityGroupID, 10),
+			ActivityGroupName: conflict.ActivityGroupName,
+			Days:              conflict.Days,
+			FirstDate:         conflict.FirstDate.String(),
+			OccurrenceCount:   conflict.OccurrenceCount,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, OfferingRequestPreviewResponse{
+		Selections:                        selections,
+		ManualPlanningConflicts:           conflicts,
+		ArrivalExpectationsFollowBookings: preview.ArrivalExpectationsFollowBookings,
+	}, "Preview materialized")
 }
 
 // decideOfferingChangeRequest approves (and applies the dated switch) or
@@ -243,6 +330,17 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	effectiveFrom, err := parseConfirmedEffectiveFrom(body.EffectiveFrom)
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	// An approval always applies on a date, and the office confirms which one:
+	// without it there is nothing to check the switch against.
+	if *body.Approve && effectiveFrom == nil {
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("effective_from is required to approve")))
+		return
+	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
 	actorRole := strings.Join(claims.Roles, ",")
@@ -256,6 +354,7 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		ReviewedBy:              int64(claims.ID),
 		ActorRole:               actorRole,
 		ExcludedAutoOfferingIDs: excluded,
+		EffectiveFrom:           effectiveFrom,
 	}); err != nil {
 		renderOfferingDecisionError(w, r, err)
 		return
@@ -283,6 +382,8 @@ func renderOfferingDecisionError(w http.ResponseWriter, r *http.Request, err err
 		renderError(w, r, common.ErrorConflictWithCode(err, "offering_change_capacity_full"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeNoEnrollment):
 		renderError(w, r, common.ErrorConflictWithCode(err, "offering_changes_no_enrollment"))
+	case errors.Is(err, enrollmentService.ErrOfferingChangeDateOutOfRange):
+		renderError(w, r, common.ErrorInvalidRequestWithCode(err, "offering_change_date_out_of_range"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeInvalid),
 		errors.Is(err, enrollmentService.ErrOfferingAdjustmentInvalid):
 		renderError(w, r, common.ErrorInvalidRequest(err))

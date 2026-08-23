@@ -25,18 +25,16 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
-import { canReviewChangeRequests } from "~/lib/change-request-access";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
-import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -173,6 +171,17 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "users:read",
   },
   {
+    // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+    // Mitarbeitenden an einem Ort. Sichtbarkeit hängt an zwei getrennten
+    // Rechte-Regeln (Eltern-Reiter bzw. Mitarbeitende-Reiter) — Gating unten
+    // in filteredNavItems über canOpenRequestsPage, weil requiresPermission
+    // das users:absence+users:read-Paar nicht ausdrücken kann.
+    ...STAFF_FLAT_PAGES.anfragen,
+    icon: navigationIcons.tray,
+    concept: "requests",
+    activeColor: "text-moto-blue",
+  },
+  {
     href: "#",
     label: "Berichte",
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
@@ -196,14 +205,6 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
     bottomPinned: true,
     newTab: true,
-  },
-  {
-    ...STAFF_FLAT_PAGES.suggestions,
-    icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
-    concept: "feedback",
-    activeColor: "text-moto-coral",
-    alwaysShow: true,
-    bottomPinned: true,
   },
   {
     ...STAFF_FLAT_PAGES.settings,
@@ -287,14 +288,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   {
     label: "KOMMUNIKATION",
     items: [
-      {
-        href: "/operator/suggestions",
-        label: "Feedback",
-        icon: navigationIcons.feedback,
-        concept: "feedback",
-        activeColor: "text-moto-coral",
-        alwaysShow: true,
-      },
       {
         href: "/operator/announcements",
         label: "Ankündigungen",
@@ -381,7 +374,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const searchParams = useSearchParams();
   const router = useTenantRouter();
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator mode). Used for the Eltern hub sub-item link below.
+  // subdomain/operator mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const { data: session } = useSession();
   const { mode } = useShellAuth();
@@ -403,14 +396,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     adminOverviewEnabled,
   } = useOptionalSupervision();
 
-  // Get unread suggestions count for badge (teacher mode)
-  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
-    mode === "teacher",
-  );
-  // Pending staff absence requests badge (Mitarbeiter; vacation:approve, #1419)
+  // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
+  // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
+  // Mitarbeiter-Eintrag trägt kein eigenes Badge mehr.
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
-  // Get unread suggestions count for badge (operator mode)
-  const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
@@ -418,6 +407,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // group's requests)
   const { unreadCount: changeRequestsPendingCount } =
     useChangeRequestsPending();
+  // Offene Anmeldungsänderungen (config:manage, #2435). Sie zählen seit dem
+  // Umzug ins Anfragen-Modul auf dasselbe Badge ein.
+  const { unreadCount: enrollmentRequestsPendingCount } =
+    useEnrollmentRequestsPending();
+  const requestsPendingCount =
+    changeRequestsPendingCount +
+    staffAbsencesPendingCount +
+    enrollmentRequestsPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open
@@ -533,10 +530,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return true;
           case "approvals":
             return userIsAdmin;
-          case "changeRequests":
-            // users:absence alone opens the page too — it carries the excused
-            // absence queue, which that permission decides (#2232).
-            return canReviewChangeRequests(session);
           case "announcements":
             return canAnnounce && parentNewsEnabled;
           case "mealPlan":
@@ -549,14 +542,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Aggregate Eltern badge: unread messages plus pending change requests when
-  // the corresponding sub-page is visible.
-  const parentShowsChangeRequests = parentSubPages.some(
-    (page) => page.feature === "changeRequests",
-  );
-  const parentSectionBadgeCount =
-    messagesUnreadCount +
-    (parentShowsChangeRequests ? changeRequestsPendingCount : 0);
+  // Eltern badge: unread messages. Die Elternanfragen zählen seit #2429 am
+  // Top-Level-Eintrag "Anfragen", nicht mehr hier.
+  const parentSectionBadgeCount = messagesUnreadCount;
 
   // Filter flat navigation items based on permissions
   const filteredNavItems = NAV_ITEMS.filter((item) => {
@@ -564,6 +552,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // matches class_day:read, but admins have no class assignments and the
     // page would render empty for them.
     if (item.href === "/klassen") return userIsLehrkraft;
+    // Anfragen (#2429): zwei Reiter mit getrennten Rechten. Die geteilte Regel
+    // deckt users:update, das Paar users:absence+users:read und
+    // vacation:approve ab — als requiresPermission nicht ausdrückbar.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
@@ -771,7 +763,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href}
+          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -780,18 +772,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {renderNavIcon(item)}
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/suggestions" && (
-              <UnreadBadge
-                count={suggestionsUnreadCount}
-                tone="feedback"
-                className="ml-2"
-              />
-            )}
-            {item.href === "/staff" && (
+            {item.href === "/anfragen" && (
               <NotificationBadge
-                count={staffAbsencesPendingCount}
+                count={requestsPendingCount}
                 tone="staff"
-                ariaLabel={`${staffAbsencesPendingCount} ${staffAbsencesPendingCount === 1 ? "offener Abwesenheitsantrag" : "offene Abwesenheitsanträge"}`}
+                ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
                 className="ml-2"
               />
             )}
@@ -1024,11 +1009,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       })),
     [],
   );
-  const operatorSuggestionsHref = useMemo(
-    () => operatorPath("/operator/suggestions"),
-    [],
-  );
-
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
@@ -1040,13 +1020,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
         {renderNavIcon(item)}
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorSuggestionsHref && (
-            <UnreadBadge
-              count={operatorUnreadCount}
-              tone="feedback"
-              className="ml-2"
-            />
-          )}
         </span>
       </Link>
     );
@@ -1229,8 +1202,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
             renderNavItem(substitutionsItem)}
 
           {/* Eltern accordion — bundles the parent-communication surfaces
-              (Nachrichten, Anfragen, Mitteilungen, Essensplan) behind an
-              overview hub. Shown to all staff; sub-items are gated per item. */}
+              (Nachrichten, Konto-Anfragen, Mitteilungen, Essensplan) behind an
+              overview hub. Shown to all staff; sub-items are gated per item.
+              Die Elternanfragen leben seit #2429 im Top-Level-Modul
+              "Anfragen". */}
           <SidebarAccordionSection
             icon={navigationIcons.parents}
             concept="parents"
@@ -1258,11 +1233,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 label={page.label}
                 isActive={activeParentSubPageHref === page.href}
                 badgeCount={
-                  page.feature === "messages"
-                    ? messagesUnreadCount
-                    : page.feature === "changeRequests"
-                      ? changeRequestsPendingCount
-                      : 0
+                  page.feature === "messages" ? messagesUnreadCount : 0
                 }
               />
             ))}

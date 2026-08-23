@@ -27,6 +27,8 @@ func (r *recordingTracker) Capture(distinctID, event string, props map[string]an
 func (r *recordingTracker) Close() error { return nil }
 
 func TestTrackProductEventCapturesTenantScopedEvent(t *testing.T) {
+	t.Parallel()
+
 	rec := &recordingTracker{}
 	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
@@ -44,6 +46,8 @@ func TestTrackProductEventCapturesTenantScopedEvent(t *testing.T) {
 }
 
 func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
+	t.Parallel()
+
 	rec := &recordingTracker{}
 	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 
@@ -53,6 +57,8 @@ func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
 }
 
 func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
+	t.Parallel()
+
 	rec := &recordingTracker{}
 	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 7)
@@ -66,6 +72,8 @@ func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
 }
 
 func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	rec := &recordingTracker{}
 	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
@@ -84,6 +92,8 @@ func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
 }
 
 func TestAttendanceMethod(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "manual", attendanceMethod(context.Background()))
 
 	iotCtx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
@@ -91,6 +101,8 @@ func TestAttendanceMethod(t *testing.T) {
 }
 
 func TestTrackProductEventNilTrackerIsSafe(t *testing.T) {
+	t.Parallel()
+
 	svc := &service{}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 

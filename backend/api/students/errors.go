@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -46,6 +47,9 @@ var (
 	// ErrExceptionContainsPartialAbsence requires the dedicated partial-absence
 	// endpoint so slot provenance is restored atomically with the pickup row.
 	ErrExceptionContainsPartialAbsence = scheduleService.ErrCareExceptionContainsPartialAbsence
+	// ErrPickupResetNoOffering means a manual row cannot be removed because
+	// no booking-derived pickup time would replace it on the requested date.
+	ErrPickupResetNoOffering = enrollmentService.ErrPickupResetNoOffering
 )
 
 var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
@@ -59,6 +63,12 @@ var exceptionWriteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	}},
 	{Target: ErrExceptionContainsPartialAbsence, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "partial_absence_requires_dedicated_action")
+	}},
+}, common.ErrorInternalServer)
+
+var pickupResetErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: ErrPickupResetNoOffering, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "pickup_reset_requires_offering")
 	}},
 }, common.ErrorInternalServer)
 

@@ -2160,6 +2160,13 @@ func (s *instanceService) validateInstanceReferences(
 				if found[id].IsAlumnus() {
 					return fmt.Errorf("%w: graduated student in student_ids", ErrInvalidInstanceReference)
 				}
+				// Same for a child whose care ends before the block (#2487).
+				// Checked against the OCCURRENCE's date, not today: a child
+				// leaving at the end of the month may still be planned onto
+				// next week, and must not be planned onto next month.
+				if found[id].CareEndedOn(date) {
+					return fmt.Errorf("%w: student in student_ids has left the OGS", ErrInvalidInstanceReference)
+				}
 			}
 		}
 	}

@@ -57,6 +57,8 @@ func newTestRequest(tenantID int64) *http.Request {
 }
 
 func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{}
 	rs := &Resource{NotificationsService: svc}
 
@@ -73,6 +75,8 @@ func TestSendTestNotificationDispatchesOnlyToRequester(t *testing.T) {
 }
 
 func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{err: notificationsService.ErrDisabled}
 	rs := &Resource{NotificationsService: svc}
 
@@ -83,6 +87,8 @@ func TestSendTestNotificationDisabledMapsToConflict(t *testing.T) {
 }
 
 func TestSendTestNotificationErrorsMapToInternal(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{err: errors.New("boom")}
 	rs := &Resource{NotificationsService: svc}
 
@@ -93,6 +99,8 @@ func TestSendTestNotificationErrorsMapToInternal(t *testing.T) {
 }
 
 func TestSendTestNotificationMissingTenant(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{}
 	rs := &Resource{NotificationsService: svc}
 
@@ -104,6 +112,8 @@ func TestSendTestNotificationMissingTenant(t *testing.T) {
 }
 
 func TestSendTestNotificationMissingAccount(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{}
 	rs := &Resource{NotificationsService: svc}
 	ctx := tenant.WithTenantID(context.Background(), 41)
@@ -117,6 +127,8 @@ func TestSendTestNotificationMissingAccount(t *testing.T) {
 }
 
 func TestSendTestNotificationNilService(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	rec := httptest.NewRecorder()
@@ -126,8 +138,9 @@ func TestSendTestNotificationNilService(t *testing.T) {
 }
 
 func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
+	t.Parallel()
+
 	db, _ := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	svc := &captureService{}
 	router := NewResource(svc, nil, nil, db).Router()
@@ -149,6 +162,8 @@ func TestTestNotificationRouteAllowsStaffWithoutConfigUpdate(t *testing.T) {
 }
 
 func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name          string
 		serviceErr    error
@@ -196,6 +211,8 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 }
 
 func TestUnsubscribePushHidesServiceErrors(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{PushService: pushSubscriptionServiceStub{
 		unsubscribeErr: errors.New("delete subscription: pq: internal detail"),
 	}}

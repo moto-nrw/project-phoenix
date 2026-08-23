@@ -8,6 +8,8 @@ import (
 )
 
 func TestErrorVariablesExist(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -28,6 +30,8 @@ func TestErrorVariablesExist(t *testing.T) {
 }
 
 func TestErrorVariablesDistinct(t *testing.T) {
+	t.Parallel()
+
 	errors := []error{
 		substitutions.ErrSubstitutionNotFound,
 		substitutions.ErrInvalidSubstitutionData,
@@ -45,6 +49,8 @@ func TestErrorVariablesDistinct(t *testing.T) {
 }
 
 func TestErrorMessages(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name            string
 		err             error

@@ -44,6 +44,8 @@ func (*trackingStudentFieldEditRepo) DeleteOlderThan(context.Context, time.Time)
 }
 
 func TestStudentChangeLogCleanup_StopsWhenRetentionResolutionFails(t *testing.T) {
+	t.Parallel()
+
 	resolveErr := errors.New("settings unavailable")
 	repo := &trackingStudentFieldEditRepo{}
 	service := NewStudentChangeLogCleanupService(
@@ -62,6 +64,8 @@ func TestStudentChangeLogCleanup_StopsWhenRetentionResolutionFails(t *testing.T)
 }
 
 func TestStudentChangeLogCleanup_StopsWhenSettingsAreNotConfigured(t *testing.T) {
+	t.Parallel()
+
 	repo := &trackingStudentFieldEditRepo{}
 	service := NewStudentChangeLogCleanupService(repo, nil, nil, nil)
 	ctx := tenant.WithTenantID(context.Background(), 42)

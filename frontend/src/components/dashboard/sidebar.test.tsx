@@ -53,12 +53,36 @@ vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
 
-vi.mock("~/lib/hooks/use-suggestions-unread", () => ({
-  useSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
+vi.mock("~/lib/hooks/use-staff-absences-pending", () => ({
+  useStaffAbsencesPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
 }));
 
-vi.mock("~/lib/hooks/use-operator-suggestions-unread", () => ({
-  useOperatorSuggestionsUnread: vi.fn(() => ({ unreadCount: 0 })),
+vi.mock("~/lib/hooks/use-change-requests-pending", () => ({
+  useChangeRequestsPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
+vi.mock("~/lib/hooks/use-messages-unread", () => ({
+  useMessagesUnread: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
+vi.mock("~/lib/hooks/use-enrollment-requests-pending", () => ({
+  useEnrollmentRequestsPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
 }));
 
 // Import after mocks
@@ -68,6 +92,8 @@ import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
+import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -89,6 +115,8 @@ const mockHasPermission = vi.mocked(hasPermission);
 const restoreDefaultHasPermission = () =>
   mockHasPermission.mockImplementation((session) => mockIsAdmin(session));
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
+const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
@@ -136,6 +164,7 @@ function createMockSession(isAdminUser: boolean) {
 describe("Sidebar", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
 
     // Default mock implementations
     mockUseShellAuth.mockReturnValue({
@@ -163,7 +192,32 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockIsAdmin.mockReturnValue(false);
+    restoreDefaultHasPermission();
+    mockUsePresenceMode.mockReturnValue("detailed");
+    mockUseNFCEnabled.mockReturnValue(true);
+    mockUseOpenCareGroupMode.mockReturnValue(false);
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
+    mockUseSWRDefault.mockReturnValue({
+      data: undefined,
+      error: undefined,
+      isLoading: true,
+      isValidating: false,
+      mutate: vi.fn(),
+    } as unknown as ReturnType<typeof useSWR>);
+    mockUseStaffAbsencesPending.mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    mockUseChangeRequestsPending.mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe("rendering", () => {
@@ -271,6 +325,31 @@ describe("Sidebar", () => {
       // Staff items with alwaysShow: true
       expect(screen.getByText("Meine Gruppe")).toBeInTheDocument();
       expect(screen.getByText("Aktuelle Aufsicht")).toBeInTheDocument();
+    });
+
+    it("prefixes Anfragen and aggregates the visible request counts", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "users:update" || permission === "vacation:approve",
+      );
+      mockUseChangeRequestsPending.mockReturnValue({
+        unreadCount: 2,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+      mockUseStaffAbsencesPending.mockReturnValue({
+        unreadCount: 3,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/anfragen",
+      );
+      expect(screen.getByLabelText("5 offene Anfragen")).toBeInTheDocument();
     });
 
     it("hides admin-only items for staff", () => {
@@ -745,8 +824,8 @@ describe("Sidebar", () => {
     beforeEach(() => {
       mockRouterPush.mockClear();
       // Mock localStorage
-      vi.spyOn(Storage.prototype, "getItem").mockReturnValue(null);
-      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      vi.spyOn(localStorage, "getItem").mockReturnValue(null);
+      vi.spyOn(localStorage, "setItem").mockImplementation(() => {
         // no-op
       });
     });
@@ -883,12 +962,11 @@ describe("Sidebar", () => {
   });
 
   describe("bottom pinned items", () => {
-    it("renders feedback at the bottom and settings for admins", () => {
+    it("renders settings at the bottom for admins", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       render(<Sidebar />);
 
-      expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Einstellungen")).toBeInTheDocument();
     });
 
@@ -982,12 +1060,10 @@ describe("Sidebar", () => {
 
   describe("child page highlight persistence", () => {
     it("highlights group sub-item on student detail from ogs-groups", () => {
-      vi.spyOn(Storage.prototype, "getItem").mockImplementation(
-        (key: string) => {
-          if (key === "sidebar-last-group") return "1";
-          return null;
-        },
-      );
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === "sidebar-last-group") return "1";
+        return null;
+      });
       mockUsePathname.mockReturnValue("/students/123");
       mockUseSearchParams.mockReturnValue(
         createMockSearchParams((key: string) =>
@@ -1044,14 +1120,9 @@ describe("Sidebar", () => {
     });
 
     it("highlights room sub-item on student detail from active-supervisions", () => {
-      const mockGetItem = vi.fn((key: string) => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
         if (key === "sidebar-last-room") return "10";
         return null;
-      });
-      Object.defineProperty(localStorage, "getItem", {
-        value: mockGetItem,
-        writable: true,
-        configurable: true,
       });
       mockUsePathname.mockReturnValue("/students/456");
       mockUseSearchParams.mockReturnValue(
@@ -1082,48 +1153,12 @@ describe("Sidebar", () => {
 
   describe("localStorage persistence", () => {
     const mockSetItem = vi.fn();
-    let originalSetItem: typeof localStorage.setItem;
-    let originalGetItem: typeof localStorage.getItem;
-    let originalRemoveItem: typeof localStorage.removeItem;
 
     beforeEach(() => {
       mockSetItem.mockClear();
-      originalSetItem = localStorage.setItem.bind(localStorage);
-      originalGetItem = localStorage.getItem.bind(localStorage);
-      originalRemoveItem = localStorage.removeItem.bind(localStorage);
-      Object.defineProperty(localStorage, "setItem", {
-        value: mockSetItem,
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "getItem", {
-        value: vi.fn().mockReturnValue(null),
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "removeItem", {
-        value: vi.fn(),
-        writable: true,
-        configurable: true,
-      });
-    });
-
-    afterEach(() => {
-      Object.defineProperty(localStorage, "setItem", {
-        value: originalSetItem,
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "getItem", {
-        value: originalGetItem,
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "removeItem", {
-        value: originalRemoveItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "setItem").mockImplementation(mockSetItem);
+      vi.spyOn(localStorage, "getItem").mockReturnValue(null);
+      vi.spyOn(localStorage, "removeItem").mockImplementation(() => undefined);
     });
 
     it("persists selected group and group name to localStorage", () => {
@@ -1251,43 +1286,10 @@ describe("Sidebar", () => {
   });
 
   describe("accordion toggle with saved localStorage", () => {
-    let originalSetItem: typeof localStorage.setItem;
-    let originalGetItem: typeof localStorage.getItem;
-    let originalRemoveItem: typeof localStorage.removeItem;
-
     beforeEach(() => {
       mockRouterPush.mockClear();
-      originalSetItem = localStorage.setItem.bind(localStorage);
-      originalGetItem = localStorage.getItem.bind(localStorage);
-      originalRemoveItem = localStorage.removeItem.bind(localStorage);
-      Object.defineProperty(localStorage, "setItem", {
-        value: vi.fn(),
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "removeItem", {
-        value: vi.fn(),
-        writable: true,
-        configurable: true,
-      });
-    });
-
-    afterEach(() => {
-      Object.defineProperty(localStorage, "setItem", {
-        value: originalSetItem,
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "getItem", {
-        value: originalGetItem,
-        writable: true,
-        configurable: true,
-      });
-      Object.defineProperty(localStorage, "removeItem", {
-        value: originalRemoveItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "setItem").mockImplementation(() => undefined);
+      vi.spyOn(localStorage, "removeItem").mockImplementation(() => undefined);
     });
 
     it("navigates to saved group from localStorage when toggling groups", () => {
@@ -1295,11 +1297,7 @@ describe("Sidebar", () => {
         if (key === "sidebar-last-group") return "2";
         return null;
       });
-      Object.defineProperty(localStorage, "getItem", {
-        value: mockGetItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1330,11 +1328,7 @@ describe("Sidebar", () => {
         if (key === "sidebar-last-room") return "20";
         return null;
       });
-      Object.defineProperty(localStorage, "getItem", {
-        value: mockGetItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1365,11 +1359,7 @@ describe("Sidebar", () => {
         if (key === "sidebar-last-group") return "999";
         return null;
       });
-      Object.defineProperty(localStorage, "getItem", {
-        value: mockGetItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1400,11 +1390,7 @@ describe("Sidebar", () => {
         if (key === "sidebar-last-room") return "999";
         return null;
       });
-      Object.defineProperty(localStorage, "getItem", {
-        value: mockGetItem,
-        writable: true,
-        configurable: true,
-      });
+      vi.spyOn(localStorage, "getItem").mockImplementation(mockGetItem);
       mockUsePathname.mockReturnValue("/activities");
       mockUseSupervision.mockReturnValue({
         hasGroups: true,
@@ -1444,17 +1430,16 @@ describe("Sidebar", () => {
         isSessionExpired: false,
         logout: vi.fn(),
         mode: "operator",
-        homeUrl: "/operator/suggestions",
+        homeUrl: "/operator/organizations",
 
         profileUrl: "/operator/settings",
       });
-      mockUsePathname.mockReturnValue("/operator/suggestions");
+      mockUsePathname.mockReturnValue("/operator/organizations");
     });
 
     it("renders operator navigation items", () => {
       render(<Sidebar />);
 
-      expect(screen.getByText("Feedback")).toBeInTheDocument();
       expect(screen.getByText("Ankündigungen")).toBeInTheDocument();
       expect(screen.queryByText("Einstellungen")).not.toBeInTheDocument();
     });

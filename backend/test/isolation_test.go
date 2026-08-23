@@ -3,8 +3,8 @@
 //
 // WP 3.19: These tests exercise the defense-in-depth WHERE tenant_id = ? filters
 // applied by every tenant-scoped repository. Each test creates data for two
-// tenants (IDs 42 and 43), then verifies that List and FindByID respect
-// tenant boundaries in both directions.
+// tenants of its own, then verifies that List and FindByID respect tenant
+// boundaries in both directions.
 package test
 
 import (
@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	repoActivities "github.com/moto-nrw/project-phoenix/database/repositories/activities"
@@ -23,19 +24,23 @@ import (
 	repoFeedback "github.com/moto-nrw/project-phoenix/database/repositories/feedback"
 	repoIot "github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	repoSchedule "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// Tenant IDs used throughout isolation tests.
-// Values >= 42 satisfy the hermetic test scanner (int64(1)..int64(9) are flagged).
-const (
-	tenantA = int64(42)
-	tenantB = int64(43)
-)
+// isolationTenants gives one test its OWN pair of tenants. The pair used to
+// be two fixed IDs shared by every test in this file, which made the tests
+// mutually destructive the moment they ran in parallel: each one wipes "its"
+// tenants when it finishes (#2419).
+func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
+	tb.Helper()
+	tenantA = UniqueTestTenantID(tb)
+	tenantB = UniqueTestTenantID(tb)
+	EnsureTestTenant(tb, db, tenantA)
+	EnsureTestTenant(tb, db, tenantB)
+	return tenantA, tenantB
+}
 
 // ctxForTenant returns a background context with the given tenant ID set.
 func ctxForTenant(tenantID int64) context.Context {
@@ -47,11 +52,10 @@ func ctxForTenant(tenantID int64) context.Context {
 // ============================================================================
 
 func TestTenantIsolation_StudentVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	// Arrange: create one student per tenant
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
@@ -95,11 +99,10 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	gA := CreateTestEducationGroupForTenant(t, db, tenantA, "GroupA")
 	gB := CreateTestEducationGroupForTenant(t, db, tenantB, "GroupB")
@@ -142,11 +145,10 @@ func TestTenantIsolation_EducationGroupVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_RoomVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	rA := CreateTestRoomForTenant(t, db, tenantA, "RoomA")
 	rB := CreateTestRoomForTenant(t, db, tenantB, "RoomB")
@@ -189,11 +191,10 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	tfA := CreateTestTimeframeForTenant(t, db, tenantA, "TimeframeA")
 	tfB := CreateTestTimeframeForTenant(t, db, tenantB, "TimeframeB")
@@ -236,11 +237,10 @@ func TestTenantIsolation_TimeframeVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_DeviceVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	dA := CreateTestDeviceForTenant(t, db, tenantA, "DEV-A")
 	dB := CreateTestDeviceForTenant(t, db, tenantB, "DEV-B")
@@ -283,16 +283,14 @@ func TestTenantIsolation_DeviceVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_TokenVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	// Tokens require an account (accounts are not tenant-scoped).
 	acctA := CreateTestAccount(t, db, "token-isolation-a")
 	acctB := CreateTestAccount(t, db, "token-isolation-b")
-	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
 
 	tkA := CreateTestTokenForTenant(t, db, tenantA, acctA.ID)
 	tkB := CreateTestTokenForTenant(t, db, tenantB, acctB.ID)
@@ -335,11 +333,10 @@ func TestTenantIsolation_TokenVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	// Feedback entries require students (which require persons).
 	sA := CreateTestStudentForTenant(t, db, tenantA, "FeedbackA", "Student", "2a")
@@ -389,11 +386,10 @@ func TestTenantIsolation_FeedbackEntryVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
@@ -436,11 +432,10 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 // ============================================================================
 
 func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	catA := CreateTestActivityCategoryForTenant(t, db, tenantA, "CatA")
 	catB := CreateTestActivityCategoryForTenant(t, db, tenantB, "CatB")
@@ -479,70 +474,14 @@ func TestTenantIsolation_ActivityCategoryVisibility(t *testing.T) {
 }
 
 // ============================================================================
-// Suggestions Domain
-// ============================================================================
-
-func TestTenantIsolation_SuggestionPostVisibility(t *testing.T) {
-	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
-
-	// Posts require an author (account_id). Accounts are not tenant-scoped.
-	acctA := CreateTestAccount(t, db, "suggestion-isolation-a")
-	acctB := CreateTestAccount(t, db, "suggestion-isolation-b")
-	defer CleanupAuthFixtures(t, db, acctA.ID, acctB.ID)
-
-	postA := CreateTestSuggestionPostForTenant(t, db, tenantA, acctA.ID)
-	postB := CreateTestSuggestionPostForTenant(t, db, tenantB, acctB.ID)
-
-	repo := repoSuggestions.NewPostRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	resultA, err := repo.FindByID(ctx42, postB.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err, "PostRepository.FindByID returns nil on not-found, not error")
-	assert.Nil(t, resultA,
-		"cross-tenant FindByID should return nil: tenant A must not see tenant B post %d", postB.ID)
-
-	// List has unusual signature (accountID, readerType, sortBy, status)
-	posts, err := repo.List(ctx42, acctA.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantA, p.TenantID,
-			"cross-tenant leak: tenant B post visible to tenant A (List)")
-	}
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	resultB, err := repo.FindByID(ctx43, postA.ID, suggestions.ReaderTypeOperator)
-	assert.NoError(t, err)
-	assert.Nil(t, resultB,
-		"cross-tenant FindByID should return nil: tenant B must not see tenant A post %d", postA.ID)
-
-	posts, err = repo.List(ctx43, acctB.ID, "operator", "score", "")
-	require.NoError(t, err)
-
-	for _, p := range posts {
-		assert.Equal(t, tenantB, p.TenantID,
-			"cross-tenant leak: tenant A post visible to tenant B (List)")
-	}
-}
-
-// ============================================================================
 // Audit Domain
 // ============================================================================
 
 func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	// Data deletions require students (which require persons).
 	sA := CreateTestStudentForTenant(t, db, tenantA, "AuditA", "Student", "3a")
@@ -598,11 +537,10 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 //   - Update / AssignToGroup: AssertRowsAffected(result, 1) returns an error
 //   - Delete: no AssertRowsAffected call → silent no-op (0 rows deleted)
 func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
+	t.Parallel()
+
 	db := SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	defer CleanupTenantTestData(t, db, tenantA, tenantB)
-	EnsureTestTenant(t, db, tenantA)
-	EnsureTestTenant(t, db, tenantB)
+	tenantA, tenantB := isolationTenants(t, db)
 
 	// Arrange: create one record per tenant in each domain
 	studentA := CreateTestStudentForTenant(t, db, tenantA, "WriteA", "Student", "1a")

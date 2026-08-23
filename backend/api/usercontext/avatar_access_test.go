@@ -33,6 +33,10 @@ func (m *mockAvatarUserContextService) GetCurrentStaff(context.Context) (*users.
 	return nil, errors.New("not implemented")
 }
 
+func (m *mockAvatarUserContextService) GetNavigationContext(context.Context) (*usercontextsvc.NavigationContext, error) {
+	return nil, errors.New("not implemented")
+}
+
 func (m *mockAvatarUserContextService) GetCurrentTeacher(context.Context) (*users.Teacher, error) {
 	return nil, errors.New("not implemented")
 }
@@ -100,6 +104,8 @@ func requestWithAvatarFilename(filename string) *http.Request {
 }
 
 func TestServeAvatar_ServiceError(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -119,6 +125,8 @@ func TestServeAvatar_ServiceError(t *testing.T) {
 }
 
 func TestServeAvatar_NoAvatar(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -135,6 +143,8 @@ func TestServeAvatar_NoAvatar(t *testing.T) {
 }
 
 func TestServeAvatar_FilenameMismatch(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -151,6 +161,8 @@ func TestServeAvatar_FilenameMismatch(t *testing.T) {
 }
 
 func TestServeAvatar_EmptyFilename(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{}
 	req := requestWithAvatarFilename("")
 	rr := httptest.NewRecorder()
@@ -161,6 +173,8 @@ func TestServeAvatar_EmptyFilename(t *testing.T) {
 }
 
 func TestServeAvatar_InvalidStoredPath(t *testing.T) {
+	t.Parallel()
+
 	resource := &Resource{
 		service: &mockAvatarUserContextService{
 			getCurrentProfileFunc: func(context.Context) (map[string]interface{}, error) {
@@ -177,6 +191,8 @@ func TestServeAvatar_InvalidStoredPath(t *testing.T) {
 }
 
 func TestServeAvatar_MatchingFilename_PassesAccessControl(t *testing.T) {
+	t.Parallel()
+
 	// A valid avatar path with matching filename passes all access control guards.
 	// The request reaches common.ServeImage which returns 404 because the file
 	// doesn't exist on disk — proving the path traversal check, filename match,

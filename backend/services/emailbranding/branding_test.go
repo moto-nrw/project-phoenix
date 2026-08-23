@@ -3,6 +3,8 @@ package emailbranding
 import "testing"
 
 func TestMotoLogoURL(t *testing.T) {
+	t.Parallel()
+
 	if got := MotoLogoURL("https://parents.localhost:3000"); got != "https://parents.localhost:3000/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("unexpected moto logo url: %q", got)
 	}
@@ -15,6 +17,8 @@ func TestMotoLogoURL(t *testing.T) {
 }
 
 func TestSchoolLogoURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		baseURL string
@@ -36,6 +40,8 @@ func TestSchoolLogoURL(t *testing.T) {
 }
 
 func TestAbsoluteURL(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct{ base, raw, want string }{
 		{"https://x.test", "", ""},
 		{"https://x.test", "   ", ""},

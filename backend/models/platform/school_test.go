@@ -17,10 +17,14 @@ func validSchool() *School {
 }
 
 func TestSchool_Validate_Valid(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, validSchool().Validate())
 }
 
 func TestSchool_Validate_EmptyName(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.Name = ""
 	err := s.Validate()
@@ -29,6 +33,8 @@ func TestSchool_Validate_EmptyName(t *testing.T) {
 }
 
 func TestSchool_Validate_EmptySlug(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.Slug = ""
 	err := s.Validate()
@@ -37,6 +43,8 @@ func TestSchool_Validate_EmptySlug(t *testing.T) {
 }
 
 func TestSchool_Validate_InvalidSlugFormat(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.Slug = "-leading-hyphen"
 	err := s.Validate()
@@ -45,6 +53,8 @@ func TestSchool_Validate_InvalidSlugFormat(t *testing.T) {
 }
 
 func TestSchool_Validate_ReservedSlug(t *testing.T) {
+	t.Parallel()
+
 	for _, slug := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(slug, func(t *testing.T) {
 			s := validSchool()
@@ -57,6 +67,8 @@ func TestSchool_Validate_ReservedSlug(t *testing.T) {
 }
 
 func TestSchool_Validate_ReservedSubdomain(t *testing.T) {
+	t.Parallel()
+
 	for _, sub := range []string{"www", "api", "operator", "parents", "eltern", "grafana", "pyreportal", "admin", "app", "dashboard", "analytics", "status", "mail", "staging", "demo"} {
 		t.Run(sub, func(t *testing.T) {
 			s := validSchool()
@@ -69,6 +81,8 @@ func TestSchool_Validate_ReservedSubdomain(t *testing.T) {
 }
 
 func TestSchool_Validate_EmptySubdomain(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.Subdomain = ""
 	err := s.Validate()
@@ -77,6 +91,8 @@ func TestSchool_Validate_EmptySubdomain(t *testing.T) {
 }
 
 func TestSchool_Validate_MissingOrganizationID(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.OrganizationID = 0
 	err := s.Validate()
@@ -85,6 +101,8 @@ func TestSchool_Validate_MissingOrganizationID(t *testing.T) {
 }
 
 func TestSchool_Validate_TrimsAndLowercases(t *testing.T) {
+	t.Parallel()
+
 	s := validSchool()
 	s.Name = "  Trimmed School  "
 	s.Slug = "  MY-SLUG  "

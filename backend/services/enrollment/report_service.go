@@ -158,6 +158,32 @@ type ClassRosterFilters struct {
 	SkipGuardianData bool `json:"-"`
 }
 
+// careDate is the day this roster describes. It decides which children still
+// belong to the class for care purposes (#2487): the class day view pages
+// through the week and passes the day it renders, every other caller means
+// today.
+func (f ClassRosterFilters) careDate() timezone.Date {
+	if f.OfferingDate != nil {
+		return *f.OfferingDate
+	}
+	return timezone.TodayDate()
+}
+
+// filterCareRunningOn drops the children whose care at the OGS had already
+// ended on that day (#2487). FindBySchoolClass only filters graduates, so
+// without this a departed child would keep showing up on the Lehrkraft class
+// day sheet and on every Klassenliste export.
+func filterCareRunningOn(students []*userModels.Student, day timezone.Date) []*userModels.Student {
+	kept := make([]*userModels.Student, 0, len(students))
+	for _, student := range students {
+		if student == nil || student.CareEndedOn(day) {
+			continue
+		}
+		kept = append(kept, student)
+	}
+	return kept
+}
+
 type ClassRosterReport struct {
 	Phase   CareUsagePhase            `json:"phase"`
 	Filters ClassRosterAppliedFilters `json:"filters"`
@@ -175,21 +201,37 @@ type ClassRosterAppliedFilters struct {
 type ClassRosterTotals struct {
 	Students   int `json:"students"`
 	Registered int `json:"registered"`
+	// ListEntries counts the class-list-only entries (#2382) among Students.
+	ListEntries int `json:"list_entries"`
 }
 
+// ClassListEntryNoCareLabel marks a class-list-only entry (#2382) on every
+// class-list surface: the child has no OGS record at all — deliberately
+// distinct from "Keine Anmeldung" (a known OGS child without an enrollment in
+// this phase).
+const ClassListEntryNoCareLabel = "Keine Betreuung"
+
 type ClassRosterRow struct {
-	StudentID         int64                  `json:"student_id"`
-	FirstName         string                 `json:"first_name"`
-	LastName          string                 `json:"last_name"`
-	SchoolClass       string                 `json:"school_class"`
-	GroupName         string                 `json:"group_name,omitempty"`
-	Registered        bool                   `json:"registered"`
-	EnrollmentSummary string                 `json:"enrollment_summary"`
-	Offerings         []CareUsageRowOffering `json:"offerings"`
-	OfferingsByDay    map[string][]string    `json:"offerings_by_day"`
-	CareDays          []string               `json:"care_days"`
-	ArrivalByDay      map[string]string      `json:"arrival_by_day"`
-	PickupByDay       map[string]string      `json:"pickup_by_day"`
+	StudentID         int64  `json:"student_id"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	SchoolClass       string `json:"school_class"`
+	GroupName         string `json:"group_name,omitempty"`
+	Registered        bool   `json:"registered"`
+	EnrollmentSummary string `json:"enrollment_summary"`
+	// ListEntry marks a class-list-only entry (#2382): a child of the class
+	// cohort with NO OGS record. StudentID is 0 for these rows; ListEntryID
+	// carries the users.class_list_entries id instead, serialized as a JSON
+	// string because JavaScript clients round numbers beyond 2^53. The row
+	// exists only so the Klassenverband is complete — it can never carry
+	// offerings, times or guardians.
+	ListEntry      bool                   `json:"list_entry,omitempty"`
+	ListEntryID    int64                  `json:"list_entry_id,string,omitempty"`
+	Offerings      []CareUsageRowOffering `json:"offerings"`
+	OfferingsByDay map[string][]string    `json:"offerings_by_day"`
+	CareDays       []string               `json:"care_days"`
+	ArrivalByDay   map[string]string      `json:"arrival_by_day"`
+	PickupByDay    map[string]string      `json:"pickup_by_day"`
 	// SchedulePickupByDay is the maintained Kind-Gehzeit from
 	// schedule.student_pickup_schedules (manual rows and rolled-out
 	// Angebots-Gehzeiten). It outranks the enrollment-form answer in the
@@ -250,6 +292,11 @@ type ReportServiceConfig struct {
 	// StudentStatusDayRepo); no other report path consumes them.
 	PickupScheduleSvc  scheduleService.PickupScheduleService
 	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
+	// class roster and the class day view append to the Klassenverband.
+	// Optional: nil (older tests, report paths that never show class lists)
+	// simply serves rosters without list entries.
+	ClassListEntryRepo userModels.ClassListEntryRepository
 	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
 	// exception on EITHER leg cancels the day). The class day view consumes
 	// it instead of re-deriving the precedence from raw schedule entries —
@@ -352,7 +399,8 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, reportOfferingDate(phase))
+	offeringDate := reportOfferingDate(phase)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDsAtDate(ctx, childIDs, offeringDate)
 	if err != nil {
 		return nil, fmt.Errorf("care usage report: list child offerings: %w", err)
 	}
@@ -449,14 +497,14 @@ func (s *reportService) careUsage(ctx context.Context, filters CareUsageFilters,
 	report.FilterOptions.GradeLevels = careUsageGradeOptions(gradeSeen)
 	report.FilterOptions.PickupTimes = sortedPickupTimes(pickupTimeSeen)
 	if enrichCompact {
-		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID); err != nil {
+		if err := s.enrichCompactCareUsage(ctx, report, children, requestByID, offeringByID, offeringDate); err != nil {
 			return nil, err
 		}
 	}
 	return report, nil
 }
 
-func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering) error {
+func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *CareUsageReport, children []*enrollmentModels.RequestChild, requestByID map[int64]*enrollmentModels.Request, offeringByID map[int64]*enrollmentModels.CareOffering, offeringDate timezone.Date) error {
 	requestIDs := make([]int64, 0, len(report.Rows))
 	childByID := make(map[int64]*enrollmentModels.RequestChild, len(children))
 	for _, child := range children {
@@ -478,7 +526,7 @@ func (s *reportService) enrichCompactCareUsage(ctx context.Context, report *Care
 		}
 		guardiansByRequest = classRosterRequestGuardiansByRequestID(guardians)
 	}
-	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	schedulePickup, err := s.schedulePickupByStudentIDs(ctx, studentIDs, offeringDate)
 	if err != nil {
 		return fmt.Errorf("care usage report: %w", err)
 	}
@@ -545,7 +593,78 @@ func (s *reportService) ClassRoster(ctx context.Context, filters ClassRosterFilt
 	if err != nil {
 		return nil, err
 	}
-	return s.classRosterForStudents(ctx, filters, students)
+	report, err := s.classRosterForStudents(ctx, filters, students)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.appendClassListEntries(ctx, filters, report); err != nil {
+		return nil, err
+	}
+	return report, nil
+}
+
+// appendClassListEntries folds the class-list-only entries (#2382) into the
+// roster: children of the Klassenverband without any OGS record, marked
+// "Keine Betreuung". They sort into their class alphabetically like every
+// student row; the AllClasses heading logic keys off the row's class, so a
+// class that exists only through entries gets its own section automatically.
+func (s *reportService) appendClassListEntries(ctx context.Context, filters ClassRosterFilters, report *ClassRosterReport) error {
+	rows, err := s.classListEntryRows(ctx, filters.SchoolClass, filters.AllClasses)
+	if err != nil {
+		return err
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	if len(report.Rows)+len(rows) > maxReportRows {
+		return fmt.Errorf("class roster report: %d rows: %w", len(report.Rows)+len(rows), ErrReportExportTooLarge)
+	}
+	report.Rows = append(report.Rows, rows...)
+	sortClassRosterRows(report.Rows)
+	report.Totals.Students += len(rows)
+	report.Totals.ListEntries += len(rows)
+	return nil
+}
+
+// classListEntryRows loads the class-list-only entries — one class or all —
+// and renders them as roster rows. A nil repo (feature not wired) yields no
+// rows.
+func (s *reportService) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]ClassRosterRow, error) {
+	if s.ClassListEntryRepo == nil {
+		return nil, nil
+	}
+	var entries []*userModels.ClassListEntry
+	var err error
+	if allClasses {
+		entries, err = s.ClassListEntryRepo.List(ctx, nil)
+	} else {
+		entries, err = s.ClassListEntryRepo.FindBySchoolClass(ctx, schoolClass)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("class roster report: list class list entries: %w", err)
+	}
+	rows := make([]ClassRosterRow, 0, len(entries))
+	for _, entry := range entries {
+		if entry == nil {
+			continue
+		}
+		rows = append(rows, ClassRosterRow{
+			ListEntry:         true,
+			ListEntryID:       entry.ID,
+			FirstName:         entry.FirstName,
+			LastName:          entry.LastName,
+			SchoolClass:       entry.SchoolClass,
+			EnrollmentSummary: ClassListEntryNoCareLabel,
+			Offerings:         []CareUsageRowOffering{},
+			OfferingsByDay:    map[string][]string{},
+			CareDays:          []string{},
+			ArrivalByDay:      map[string]string{},
+			PickupByDay:       map[string]string{},
+			DepartureByDay:    map[string]string{},
+			Guardians:         []ClassRosterGuardian{},
+		})
+	}
+	return rows, nil
 }
 
 // classRosterForStudents builds the roster for an already-loaded student
@@ -669,7 +788,7 @@ func (s *reportService) classRosterForStudents(ctx context.Context, filters Clas
 	classRosterAttachOfferingLinks(enrollmentsByStudent, links)
 	classRosterAttachRequestGuardians(enrollmentsByStudent, requestGuardiansByID)
 
-	schedulePickup, err := s.classRosterSchedulePickupByStudent(ctx, students)
+	schedulePickup, err := s.classRosterSchedulePickupByStudent(ctx, students, offeringDate)
 	if err != nil {
 		return nil, err
 	}
@@ -1045,7 +1164,7 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students: %w", err)
 		}
-		return students, nil
+		return filterCareRunningOn(students, filters.careDate()), nil
 	}
 	classes, err := s.StudentRepo.ListSchoolClasses(ctx)
 	if err != nil {
@@ -1066,7 +1185,7 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 		if err != nil {
 			return nil, fmt.Errorf("class roster report: list students of class %q: %w", class, err)
 		}
-		students = append(students, classStudents...)
+		students = append(students, filterCareRunningOn(classStudents, filters.careDate())...)
 		if len(students) > maxReportRows {
 			return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
 		}
@@ -1082,7 +1201,10 @@ func sortClassRosterRows(rows []ClassRosterRow) {
 		if r := collation.CompareGermanNames(rows[i].LastName, rows[i].FirstName, rows[j].LastName, rows[j].FirstName); r != 0 {
 			return r < 0
 		}
-		return rows[i].StudentID < rows[j].StudentID
+		if rows[i].StudentID != rows[j].StudentID {
+			return rows[i].StudentID < rows[j].StudentID
+		}
+		return rows[i].ListEntryID < rows[j].ListEntryID
 	})
 }
 
@@ -2049,17 +2171,17 @@ func (s *reportService) recordClassRosterExportAudit(ctx context.Context, report
 // the report day codes used across the roster maps.
 var classRosterISOWeekdayDay = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
 
-// classRosterSchedulePickupByStudent loads the maintained weekly Kind-Gehzeit
-// rows (schedule.student_pickup_schedules) for the roster students (#2290).
+// classRosterSchedulePickupByStudent loads the effective weekly Kind-Gehzeit
+// plan on the same date used for the report's offering selection.
 // Nil-safe: wirings without the schedule service render without the column.
-func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student) (map[int64]map[string]string, error) {
+func (s *reportService) classRosterSchedulePickupByStudent(ctx context.Context, students []*userModels.Student, date timezone.Date) (map[int64]map[string]string, error) {
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		if student != nil {
 			studentIDs = append(studentIDs, student.ID)
 		}
 	}
-	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs)
+	out, err := s.schedulePickupByStudentIDs(ctx, studentIDs, date)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: %w", err)
 	}
@@ -2082,14 +2204,14 @@ func careUsageStudentID(child *enrollmentModels.RequestChild) int64 {
 	return 0
 }
 
-// schedulePickupByStudentIDs maps student ID -> day code -> maintained
-// pickup time (HH:MM), shared by the class-roster and care-usage reports.
-func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]map[string]string, error) {
+// schedulePickupByStudentIDs maps student ID -> day code -> effective pickup
+// time (HH:MM) on date, shared by the class-roster and care-usage reports.
+func (s *reportService) schedulePickupByStudentIDs(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]map[string]string, error) {
 	out := map[int64]map[string]string{}
 	if s.PickupScheduleSvc == nil || len(studentIDs) == 0 {
 		return out, nil
 	}
-	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDs(ctx, studentIDs)
+	rows, err := s.PickupScheduleSvc.GetWeeklySchedulesByStudentIDsForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, fmt.Errorf("list pickup schedules: %w", err)
 	}

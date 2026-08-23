@@ -17,6 +17,8 @@ import (
 // TestMFAEmailCodeTemplate_Renders (moto-brand variant) this covers both
 // branding partials defined in header.html. Issue #1687.
 func TestSchoolBrandTemplate_Renders(t *testing.T) {
+	t.Parallel()
+
 	templatesDir, err := filepath.Abs(".")
 	require.NoError(t, err)
 

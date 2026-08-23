@@ -31,6 +31,7 @@ func (e *erroringSchoolRepo) ListActive(_ context.Context) ([]platform.School, e
 }
 
 func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	s := &Scheduler{
@@ -50,6 +51,7 @@ func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
 }
 
 func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	s := &Scheduler{
@@ -71,6 +73,7 @@ func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
 }
 
 func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	// Real repo provides the embedded type plus TxFromContext wiring; the

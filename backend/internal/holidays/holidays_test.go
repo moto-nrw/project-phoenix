@@ -15,6 +15,8 @@ func date(y int, m time.Month, d int) timezone.Date {
 }
 
 func TestForYearNW2026(t *testing.T) {
+	t.Parallel()
+
 	list, err := ForYear("DE-NW", 2026)
 	require.NoError(t, err)
 
@@ -42,6 +44,8 @@ func TestForYearNW2026(t *testing.T) {
 }
 
 func TestRegionalDifferences(t *testing.T) {
+	t.Parallel()
+
 	names := func(region string) map[string]bool {
 		list, err := ForYear(region, 2026)
 		require.NoError(t, err)
@@ -65,11 +69,15 @@ func TestRegionalDifferences(t *testing.T) {
 }
 
 func TestForYearUnknownRegion(t *testing.T) {
+	t.Parallel()
+
 	_, err := ForYear("DE-XX", 2026)
 	assert.Error(t, err)
 }
 
 func TestForYearRespectsHolidayValidityWindows(t *testing.T) {
+	t.Parallel()
+
 	nameOn := func(region string, year int, d timezone.Date) string {
 		list, err := ForYear(region, year)
 		require.NoError(t, err)
@@ -95,6 +103,8 @@ func TestForYearRespectsHolidayValidityWindows(t *testing.T) {
 }
 
 func TestBrandenburgIncludesEasterAndPentecostSundays(t *testing.T) {
+	t.Parallel()
+
 	// Easter 2026 is April 5, Pentecost Sunday May 24. Statutory holidays
 	// in Brandenburg only.
 	bb, err := DateSet("DE-BB", date(2026, time.January, 1), date(2026, time.December, 31))
@@ -118,6 +128,8 @@ func TestBrandenburgIncludesEasterAndPentecostSundays(t *testing.T) {
 }
 
 func TestDisplayNameNormalization(t *testing.T) {
+	t.Parallel()
+
 	list, err := ForYear("DE-NW", 2026)
 	require.NoError(t, err)
 	names := make(map[timezone.Date]string, len(list))
@@ -141,6 +153,8 @@ func TestDisplayNameNormalization(t *testing.T) {
 }
 
 func TestInRangeCrossesYears(t *testing.T) {
+	t.Parallel()
+
 	list, err := InRange("DE-NW", date(2026, time.December, 20), date(2027, time.January, 10))
 	require.NoError(t, err)
 
@@ -151,16 +165,22 @@ func TestInRangeCrossesYears(t *testing.T) {
 }
 
 func TestInRangeInvalid(t *testing.T) {
+	t.Parallel()
+
 	_, err := InRange("DE-NW", date(2026, time.June, 2), date(2026, time.June, 1))
 	assert.Error(t, err)
 }
 
 func TestInRangeRejectsUnknownRegion(t *testing.T) {
+	t.Parallel()
+
 	_, err := InRange("DE-XX", date(2026, time.June, 1), date(2026, time.June, 2))
 	assert.Error(t, err)
 }
 
 func TestDateSet(t *testing.T) {
+	t.Parallel()
+
 	set, err := DateSet("DE-NW", date(2026, time.May, 1), date(2026, time.May, 31))
 	require.NoError(t, err)
 
@@ -171,11 +191,15 @@ func TestDateSet(t *testing.T) {
 }
 
 func TestDateSetPropagatesRangeErrors(t *testing.T) {
+	t.Parallel()
+
 	_, err := DateSet("DE-NW", date(2026, time.June, 2), date(2026, time.June, 1))
 	assert.Error(t, err)
 }
 
 func TestRegionsComplete(t *testing.T) {
+	t.Parallel()
+
 	regions := Regions()
 	assert.Len(t, regions, 16)
 	for _, code := range regions {

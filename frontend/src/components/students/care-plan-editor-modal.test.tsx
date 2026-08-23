@@ -124,6 +124,18 @@ const basePickupDay: PickupDayData = {
     createdAt: "2026-05-01T00:00:00Z",
     updatedAt: "2026-05-01T00:00:00Z",
   },
+  offeringSchedule: {
+    id: "0",
+    studentId: "42",
+    weekday: 1,
+    weekdayName: "Montag",
+    pickupTime: "15:30",
+    source: "care_offering",
+    careOfferingName: "Ganztagsbetreuung",
+    createdBy: "0",
+    createdAt: "0001-01-01T00:00:00Z",
+    updatedAt: "0001-01-01T00:00:00Z",
+  },
   effectiveTime: "15:00",
   effectiveNotes: "Bus",
   isException: false,
@@ -141,11 +153,18 @@ const basePickupDay: PickupDayData = {
 };
 
 const weeklyArrival = [
-  { weekday: 1, expected_arrival: "08:00", notes: "Haupteingang" },
-  { weekday: 2, expected_arrival: "08:15", notes: null },
-  { weekday: 3, expected_arrival: "", notes: null },
-  { weekday: 4, expected_arrival: "", notes: null },
-  { weekday: 5, expected_arrival: "", notes: null },
+  {
+    weekday: 1,
+    inCare: true,
+    expected_arrival: "08:00",
+    notes: "Haupteingang",
+  },
+  { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
+  // Not care days: since #2414 that is what an absent tick means, and it is
+  // what an empty time meant before the split.
+  { weekday: 3, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 4, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 5, inCare: false, expected_arrival: "", notes: null },
 ];
 
 const weeklyPickup = [
@@ -167,6 +186,7 @@ function renderEditor(
   ) => (
     <CarePlanEditorModal
       isOpen
+      careDaysSource="weekly_plan"
       onClose={onClose}
       date={MONDAY}
       arrivalDay={baseArrivalDay}
@@ -208,6 +228,113 @@ describe("CarePlanEditorModal", () => {
     expect(
       screen.getByText(/Gilt ab sofort für alle kommenden Wochen/),
     ).toBeInTheDocument();
+  });
+
+  it("disables care-day changes when bookings define them", () => {
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+    });
+
+    expect(
+      screen.getByText(/Die Betreuungstage kommen aus den Buchungen/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("keeps booked care days when clearing their own arrival time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "",
+          classTime: "11:45",
+          notes: null,
+        },
+        {
+          weekday: 2,
+          inCare: true,
+          expected_arrival: "12:15",
+          classTime: "11:45",
+          notes: null,
+        },
+        ...weeklyArrival.slice(2),
+      ],
+    });
+
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: [
+            expect.objectContaining({
+              weekday: 1,
+              expected_arrival: "",
+              notes: null,
+            }),
+            expect.objectContaining({
+              weekday: 2,
+              expected_arrival: "12:15",
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("disables arrival fields when a day is not in care", () => {
+    renderEditor({ date: null, arrivalDay: null, pickupDay: null });
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("resets an own arrival time to the class time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "08:00",
+          classTime: "08:30",
+          notes: null,
+        },
+        ...weeklyArrival.slice(1),
+      ],
+    });
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Klassenzeit nutzen" })[0]!,
+    );
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("");
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: expect.arrayContaining([
+            expect.objectContaining({ weekday: 1, expected_arrival: "" }),
+          ]),
+        }),
+      ),
+    );
   });
 
   it("saves a day exception with a Grund", async () => {
@@ -513,6 +640,8 @@ describe("CarePlanEditorModal", () => {
       }),
     );
 
+    expect(onResetPickupToOffering).toHaveBeenCalledWith(1, "2026-05-25");
+
     const message =
       "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
     expect(await screen.findByText(message)).toBeInTheDocument();
@@ -624,8 +753,13 @@ describe("CarePlanEditorModal", () => {
     await waitFor(() => {
       expect(onSubmitWeekly).toHaveBeenCalledWith({
         arrivalSchedules: [
-          { weekday: 1, expected_arrival: "08:45", notes: "Haupteingang" },
-          { weekday: 2, expected_arrival: "08:15", notes: null },
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:45",
+            notes: "Haupteingang",
+          },
+          { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
         ],
         pickupSchedules: [
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
@@ -635,7 +769,9 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("rejects a weekly note without its matching time", async () => {
+  // Business rule changed with #2414: an arrival note hangs on the care day,
+  // not on a time — the time may legitimately come from the class.
+  it("rejects a weekly arrival note without a care day", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
       arrivalDay: null,
@@ -653,7 +789,7 @@ describe("CarePlanEditorModal", () => {
 
     expect(
       await screen.findByText(
-        "Eine Ankunftsnotiz für Mittwoch benötigt eine Ankunftszeit.",
+        "Eine Ankunftsnotiz für Mittwoch braucht einen Betreuungstag.",
       ),
     ).toBeInTheDocument();
     expect(onSubmitWeekly).not.toHaveBeenCalled();

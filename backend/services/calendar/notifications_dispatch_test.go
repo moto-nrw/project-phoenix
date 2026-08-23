@@ -58,6 +58,8 @@ func guardianProfile(id int64, accountID *int64) *userModels.GuardianProfile {
 // guardian profiles into that list is where a profile that cannot sign in, and
 // a parent listed twice (once per child), have to fall out.
 func TestGuardianAccountIDs(t *testing.T) {
+	t.Parallel()
+
 	shared := int64(77)
 	other := int64(88)
 	unusable := int64(0)
@@ -82,6 +84,8 @@ func TestGuardianAccountIDs(t *testing.T) {
 // were let through by — anything more would ask about a child the audience was
 // never based on, anything less would drop a legitimate recipient.
 func TestGuardianStudentIDs(t *testing.T) {
+	t.Parallel()
+
 	addressed := int64(77)
 	elsewhere := int64(88)
 
@@ -112,6 +116,8 @@ func TestGuardianStudentIDs(t *testing.T) {
 // lost access to their own invited child would otherwise ride through on a
 // child of a different recipient they happen to be a guardian of.
 func TestGuardianStudentGroups(t *testing.T) {
+	t.Parallel()
+
 	first := int64(77)
 	second := int64(88)
 	third := int64(99)
@@ -150,6 +156,8 @@ func TestGuardianStudentGroups(t *testing.T) {
 // through. Consent narrows the audience the appointment already defined — it
 // never widens it, and a missing dependency means "do not push".
 func TestDispatchGuardianAccountDevices(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	accounts := []int64{77}
 	students := []int64{4711}
@@ -255,6 +263,8 @@ func TestDispatchGuardianAccountDevices(t *testing.T) {
 // The reminder push is dispatched synchronously because the caller holds a
 // delivery claim it must release when the push was not accepted.
 func TestDispatchGuardianAccountReminderDevices(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	accounts := []int64{77}
 	students := []int64{4711}
@@ -299,6 +309,8 @@ func TestDispatchGuardianAccountReminderDevices(t *testing.T) {
 // The nil-safe logger keeps every notification path usable from a bare service
 // value; a configured logger has to win.
 func TestServiceLoggerFallback(t *testing.T) {
+	t.Parallel()
+
 	assert.NotNil(t, (&service{}).logger())
 
 	logger := slog.New(slog.DiscardHandler)

@@ -20,6 +20,8 @@ import (
 // different tenants; a tenant-scoped broadcast must reach exactly the
 // matching client and not leak to the other.
 func TestHubBroadcastToTenant_OnlyMatchingTenantReceives(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	clientA := &Client{
@@ -61,6 +63,8 @@ func TestHubBroadcastToTenant_OnlyMatchingTenantReceives(t *testing.T) {
 }
 
 func TestHubBroadcastToTenantAdmins_ExcludesScopedStaffAndOtherTenants(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	admin := &Client{
@@ -112,6 +116,8 @@ func TestHubBroadcastToTenantAdmins_ExcludesScopedStaffAndOtherTenants(t *testin
 // TestHubBroadcastToTenant_NoClients — broadcasting on an empty hub
 // or to a tenant with no connected clients must return nil and not panic.
 func TestHubBroadcastToTenant_NoClients(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	if err := hub.BroadcastToTenant(int64(42), NewEvent(EventDashboardCountsChanged, "", EventData{})); err != nil {
@@ -142,6 +148,8 @@ func TestHubBroadcastToTenant_NoClients(t *testing.T) {
 // Without this, a single slow SSE consumer could hold up the whole
 // fan-out path that runs inside the post-commit settings hook.
 func TestHubBroadcastToTenant_SkipsFullChannel(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	full := &Client{
@@ -191,6 +199,8 @@ func TestHubBroadcastToTenant_SkipsFullChannel(t *testing.T) {
 // subscription. Mirrors the photo-purge use case where every staff
 // SSE session for a school must learn about the tenant-wide change.
 func TestHubBroadcastToTenant_MultipleSameTenant(t *testing.T) {
+	t.Parallel()
+
 	hub := NewHub(slog.Default())
 
 	clients := make([]*Client, 3)

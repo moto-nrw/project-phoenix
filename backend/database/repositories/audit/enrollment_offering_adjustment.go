@@ -39,3 +39,27 @@ func (r *enrollmentOfferingAdjustmentRepository) ListByRequestChildID(ctx contex
 	}
 	return rows, nil
 }
+
+// ListDirectForTenant returns the tenant's direct corrections newest first.
+// Request-applied rows are excluded: the central history already shows those as
+// the decided request they belong to (#2436).
+func (r *enrollmentOfferingAdjustmentRepository) ListDirectForTenant(
+	ctx context.Context,
+	filters modelBase.RequestQueueFilters,
+) ([]*audit.EnrollmentOfferingAdjustment, error) {
+	if filters.Limit <= 0 {
+		return []*audit.EnrollmentOfferingAdjustment{}, nil
+	}
+	var rows []*audit.EnrollmentOfferingAdjustment
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(enrollmentOfferingAdjustmentTableExpr).
+		Where(`"enrollment_offering_adjustment".source = ?`, audit.OfferingAdjustmentSourceDirect)
+	query = base.WithTenantFilter(ctx, query, "enrollment_offering_adjustment")
+	query = base.ApplyRequestQueueFilters(query, "enrollment_offering_adjustment", "changed_at", filters)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list direct enrollment offering adjustments", Err: err}
+	}
+	return rows, nil
+}

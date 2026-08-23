@@ -21,18 +21,16 @@ import (
 )
 
 func TestBalanceAdjustmentAPI(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	suffix := time.Now().UnixNano()
 
 	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Balance", fmt.Sprintf("Editor-%d", suffix))
-	editorStaff := testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
+	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
 	subject := testpkg.CreateTestStaff(t, tc.db, "Balance", fmt.Sprintf("Subject-%d", suffix))
 	t.Cleanup(func() {
 		_, _ = tc.db.Exec("DELETE FROM active.staff_balance_adjustments WHERE staff_id = ?", subject.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, subject.ID)
-		testpkg.CleanupStaffFixtures(t, tc.db, editorStaff.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "users.persons", editorPerson.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "auth.accounts", editorAccount.ID)
 	})
 
 	claims := testutil.DefaultTestClaims()
@@ -97,13 +95,6 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 			"Foreign",
 			fmt.Sprintf("Subject-%d", suffix),
 		)
-		t.Cleanup(func() {
-			testpkg.CleanupStaffFixtures(t, tc.db, foreignStaff.ID)
-			_, err := tc.db.Exec("DELETE FROM platform.schools WHERE id = ?", foreignTenantID)
-			require.NoError(t, err)
-			_, err = tc.db.Exec("DELETE FROM platform.organizations WHERE id = ?", foreignTenantID)
-			require.NoError(t, err)
-		})
 
 		foreignPath := fmt.Sprintf("/staff/%d/time-tracking/adjustments", foreignStaff.ID)
 		rec = do(http.MethodGet, foreignPath+"?from=2026-01-01&to=2026-12-31", "", token)
@@ -149,7 +140,7 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	// Accrue four hours before exercising payout and reset behavior. The source
 	// issue permits paying out plus-hours; an empty account is not a valid
 	// payout fixture.
-	tenantID := int64(testutil.DefaultTestClaims().TenantID)
+	tenantID := testpkg.Tenant(t)
 	// Adjustments are effective at the start of their date, so fund the
 	// payout with work completed on the preceding day.
 	accrualDate := resetDate.AddDays(-1)
@@ -167,9 +158,6 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 	accrualSession.SetTenantID(tenantID)
 	_, err := tc.db.NewInsert().Model(accrualSession).Exec(testpkg.TenantContext(tenantID))
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "active.work_sessions", accrualSession.ID)
-	})
 
 	t.Run("payout flows into month summary", func(t *testing.T) {
 		rec := do(http.MethodPost, adjustmentsPath,
@@ -236,17 +224,16 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 
 	t.Run("delete removes the adjustment", func(t *testing.T) {
 		// The session must fund the comp-time booking below, so its window has
-		// to be OVER when the test runs AND must lie entirely inside its own
-		// calendar day. The month math caps a session both at "now"
-		// (workedMinutesUpTo) and at the end of session.Date, so the previous
-		// fixed 08:00-09:00 UTC window contributed nothing on any run before
-		// 09:00 UTC: the balance stayed 0 after the reset and the booking was
-		// rejected for lack of capacity.
+		// to be OVER when the test runs. The month math caps a session at
+		// "now" (balanceSessionEnd), so the previous fixed 08:00-09:00 UTC
+		// window contributed nothing on any run before 09:00 UTC: the balance
+		// stayed 0 after the reset and the booking was rejected for lack of
+		// capacity.
 		//
-		// Four hours ending a minute ago satisfies both caps for any run from
-		// 04:01 local onwards; earlier than that the window would reach back
-		// past midnight and the day-end cap would trim most of it, so it moves
-		// to the previous day instead (which is past, hence uncapped).
+		// Four hours ending a minute ago satisfies that cap on any run. A
+		// window reaching back past midnight is counted in full since
+		// netMinutesByDate spreads it over both days, but it moves to the
+		// previous day anyway to keep the funding window inside one day.
 		sessionDate := today
 		checkOut := timezone.Now().Add(-time.Minute)
 		checkIn := checkOut.Add(-4 * time.Hour)
@@ -267,9 +254,6 @@ func TestBalanceAdjustmentAPI(t *testing.T) {
 		session.SetTenantID(tenantID)
 		_, err := tc.db.NewInsert().Model(session).Exec(testpkg.TenantContext(tenantID))
 		require.NoError(t, err)
-		t.Cleanup(func() {
-			testpkg.CleanupTableRecords(t, tc.db, "active.work_sessions", session.ID)
-		})
 
 		rec := do(http.MethodPost, adjustmentsPath,
 			fmt.Sprintf(`{"type":"comp_time","minutes_delta":-30,"effective_date":"%s","note":"Tippfehler"}`, today.AddDays(1)), token)

@@ -111,6 +111,8 @@ func createRouter(resource *Resource) chi.Router {
 }
 
 func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
+	t.Parallel()
+
 	sourceDate := timezone.NewDate(2026, 7, 6)
 	seriesID := int64(9)
 	shift := &scheduleModel.StaffShift{
@@ -124,6 +126,8 @@ func TestToShiftResponse_IncludesSeriesOccurrenceDate(t *testing.T) {
 }
 
 func TestToShiftResponse_SerializesShiftAndSeriesIDsAsStrings(t *testing.T) {
+	t.Parallel()
+
 	seriesID := int64(9223372036854775807)
 	originShiftID := int64(9223372036854775805)
 	shift := &scheduleModel.StaffShift{SeriesID: &seriesID, OriginShiftID: &originShiftID}
@@ -140,6 +144,8 @@ func TestToShiftResponse_SerializesShiftAndSeriesIDsAsStrings(t *testing.T) {
 }
 
 func TestCreateHandler_AcceptsStringOriginShiftIDWithoutPrecisionLoss(t *testing.T) {
+	t.Parallel()
+
 	const originShiftID = int64(9223372036854775807)
 	var got *scheduleModel.StaffShift
 	service := &fakeShiftService{
@@ -159,6 +165,8 @@ func TestCreateHandler_AcceptsStringOriginShiftIDWithoutPrecisionLoss(t *testing
 }
 
 func TestCreateHandler_AcceptsLegacyNumericOriginShiftID(t *testing.T) {
+	t.Parallel()
+
 	var got *scheduleModel.StaffShift
 	service := &fakeShiftService{
 		createFn: func(_ context.Context, shift *scheduleModel.StaffShift) (*scheduleModel.StaffShift, error) {
@@ -177,6 +185,8 @@ func TestCreateHandler_AcceptsLegacyNumericOriginShiftID(t *testing.T) {
 }
 
 func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.MoveShiftInput
 	service := &fakeShiftService{
 		moveFn: func(_ context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error) {
@@ -204,6 +214,8 @@ func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {
 }
 
 func TestMoveHandler_RequiresExplicitShiftType(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	service := &fakeShiftService{
 		moveFn: func(context.Context, scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error) {
@@ -224,6 +236,8 @@ func TestMoveHandler_RequiresExplicitShiftType(t *testing.T) {
 // A full origin payload (the admin modal always sends it) maps every field onto
 // ApplyOriginEdits without loss.
 func TestCancellationHandler_MapsFullOriginPayload(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.CancelShiftInput
 	service := &fakeShiftService{
 		applyFn: func(_ context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error) {
@@ -249,6 +263,8 @@ func TestCancellationHandler_MapsFullOriginPayload(t *testing.T) {
 // Omitting all four origin fields preserves the stored origin values: the handler
 // must not flag an origin edit.
 func TestCancellationHandler_OmittedOriginFieldsPreserveStoredValues(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.CancelShiftInput
 	service := &fakeShiftService{
 		applyFn: func(_ context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error) {
@@ -268,6 +284,8 @@ func TestCancellationHandler_OmittedOriginFieldsPreserveStoredValues(t *testing.
 // A partial origin payload must be rejected rather than silently zeroing the
 // omitted fields on the origin shift (#1841).
 func TestCancellationHandler_RejectsPartialOriginPayload(t *testing.T) {
+	t.Parallel()
+
 	called := false
 	service := &fakeShiftService{
 		applyFn: func(context.Context, scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error) {
@@ -300,6 +318,8 @@ func TestCancellationHandler_RejectsPartialOriginPayload(t *testing.T) {
 // An explicit null shift_type_id alongside the full window is a legitimate
 // "clear the type" edit, not a partial payload.
 func TestCancellationHandler_AcceptsExplicitNullShiftType(t *testing.T) {
+	t.Parallel()
+
 	var got scheduleSvc.CancelShiftInput
 	service := &fakeShiftService{
 		applyFn: func(_ context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error) {

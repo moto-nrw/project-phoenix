@@ -17,6 +17,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,6 +27,18 @@ type careOfferingsChildRepoStub struct {
 	parentModels.ChildRepository
 	child *parentModels.ChildSummary
 	err   error
+}
+
+// careOfferingsStudentRepoStub supplies the locked, still-active child that
+// CreateOfferingChangeRequest now requires before it delegates the write.
+type careOfferingsStudentRepoStub struct {
+	usersModels.StudentRepository
+}
+
+func (careOfferingsStudentRepoStub) FindByIDForUpdate(
+	context.Context, int64,
+) (*usersModels.Student, error) {
+	return &usersModels.Student{}, nil
 }
 
 func (s careOfferingsChildRepoStub) FindForAccount(
@@ -195,14 +208,13 @@ func (s offeringChangeSettingsStub) ResolveBoolForTenant(
 func careOfferingsTestDB(t *testing.T) *bun.DB {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	return db
 }
 
-func permittedCareOfferingsChild() *parentModels.ChildSummary {
+func permittedCareOfferingsChild(tb testing.TB) *parentModels.ChildSummary {
 	return &parentModels.ChildSummary{
 		StudentID: 22,
-		TenantID:  1,
+		TenantID:  testpkg.Tenant(tb),
 		GuardianPermissions: map[string]interface{}{
 			authorize.GuardianPermissionPortalAccess:  true,
 			authorize.GuardianPermissionRequestSubmit: true,
@@ -216,9 +228,10 @@ func careOfferingsService(
 	changes *offeringChangesStub,
 ) *service {
 	svc := &service{ServiceConfig: ServiceConfig{
-		ChildRepo: careOfferingsChildRepoStub{child: child},
-		DB:        db,
-		Logger:    slog.Default(),
+		ChildRepo:   careOfferingsChildRepoStub{child: child},
+		StudentRepo: careOfferingsStudentRepoStub{},
+		DB:          db,
+		Logger:      slog.Default(),
 	}}
 	if changes != nil {
 		svc.OfferingChanges = changes
@@ -227,6 +240,8 @@ func careOfferingsService(
 }
 
 func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	today := timezone.TodayDate()
 	description := "Mit Mittagessen"
@@ -273,7 +288,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 			LastDecision: &enrollmentSvc.OfferingChangeDecision{ID: 60, Status: "rejected"},
 		},
 	}
-	svc := careOfferingsService(db, permittedCareOfferingsChild(), changes)
+	svc := careOfferingsService(db, permittedCareOfferingsChild(t), changes)
 	svc.Settings = offeringChangeSettingsStub{enabled: true}
 	svc.RequestChildRepo = carePeriodRepoStub{periods: []*enrollmentModels.StudentCarePeriod{{
 		RequestChildID:   sourceChildID,
@@ -322,8 +337,10 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 }
 
 func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
-	svc := careOfferingsService(db, permittedCareOfferingsChild(), nil)
+	svc := careOfferingsService(db, permittedCareOfferingsChild(t), nil)
 	svc.RequestChildRepo = carePeriodRepoStub{}
 
 	view, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
@@ -335,6 +352,8 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 }
 
 func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	period := &enrollmentModels.StudentCarePeriod{
 		RequestChildID:   101,
@@ -364,6 +383,8 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 }
 
 func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
+	t.Parallel()
+
 	dependencyErr := errors.New("dependency failed")
 	tests := []struct {
 		name  string
@@ -416,7 +437,7 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := careOfferingsTestDB(t)
-			svc := careOfferingsService(db, permittedCareOfferingsChild(), nil)
+			svc := careOfferingsService(db, permittedCareOfferingsChild(t), nil)
 			tt.setup(svc)
 
 			_, err := svc.GetChildCareOfferings(context.Background(), 11, 22)
@@ -436,6 +457,8 @@ func currentCarePeriodStub() carePeriodRepoStub {
 }
 
 func TestCurrentCarePeriodSelection(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.NewDate(2027, time.January, 15)
 	current := &enrollmentModels.StudentCarePeriod{
 		RequestChildID:   1,
@@ -498,6 +521,8 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 }
 
 func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	activePeriod := &enrollmentModels.StudentCarePeriod{ServiceEndDate: today.AddDays(1)}
 	endedPeriod := &enrollmentModels.StudentCarePeriod{ServiceEndDate: today.AddDays(-1)}
@@ -570,9 +595,11 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 }
 
 func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
 	today := timezone.TodayDate()
-	child := permittedCareOfferingsChild()
+	child := permittedCareOfferingsChild(t)
 	changes := &offeringChangesStub{
 		catalog:  &enrollmentSvc.OfferingChangeCatalog{PhaseID: 99},
 		earliest: today.AddDays(15),
@@ -600,8 +627,10 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 }
 
 func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *testing.T) {
+	t.Parallel()
+
 	db := careOfferingsTestDB(t)
-	child := permittedCareOfferingsChild()
+	child := permittedCareOfferingsChild(t)
 	child.GuardianPermissions = map[string]interface{}{
 		authorize.GuardianPermissionPortalAccess: true,
 	}
@@ -615,6 +644,8 @@ func TestWithdrawOfferingChangeRequestAllowsOwnerWithoutSubmitPermission(t *test
 }
 
 func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateErrors(t *testing.T) {
+	t.Parallel()
+
 	delegateErr := errors.New("delegate failed")
 	tests := []struct {
 		name   string
@@ -625,7 +656,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 	}{
 		{
 			name:  "catalog no service",
-			child: permittedCareOfferingsChild(),
+			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
 				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
 				return err
@@ -634,7 +665,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:  "create no service",
-			child: permittedCareOfferingsChild(),
+			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
 				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "")
 				return err
@@ -643,7 +674,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:  "withdraw no service",
-			child: permittedCareOfferingsChild(),
+			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
 				_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 1)
 				return err
@@ -652,7 +683,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:   "catalog permission denied",
-			child:  &parentModels.ChildSummary{StudentID: 22, TenantID: 1},
+			child:  &parentModels.ChildSummary{StudentID: 22, TenantID: testpkg.Tenant(t)},
 			change: &offeringChangesStub{},
 			call: func(svc *service) error {
 				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
@@ -662,7 +693,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:   "catalog delegate",
-			child:  permittedCareOfferingsChild(),
+			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{catalogErr: delegateErr},
 			call: func(svc *service) error {
 				_, err := svc.GetChildOfferingCatalog(context.Background(), 11, 22)
@@ -672,7 +703,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:   "create delegate",
-			child:  permittedCareOfferingsChild(),
+			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{createErr: delegateErr},
 			call: func(svc *service) error {
 				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "")
@@ -682,7 +713,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:   "withdraw delegate",
-			child:  permittedCareOfferingsChild(),
+			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{withdrawErr: delegateErr},
 			call: func(svc *service) error {
 				_, err := svc.WithdrawOfferingChangeRequest(context.Background(), 11, 22, 1)

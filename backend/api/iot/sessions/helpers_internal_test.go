@@ -98,6 +98,8 @@ func (s *mirrorActivitiesServiceStub) GetGroup(context.Context, int64) (*activit
 }
 
 func TestBroadcastMirroredInstanceFiresAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{Broadcaster: bc}
 	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
@@ -126,6 +128,8 @@ func TestBroadcastMirroredInstanceFiresAfterCommit(t *testing.T) {
 }
 
 func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	ctx, drain := tenant.WithAfterCommitHooksForTest(tenant.WithTenantID(context.Background(), 42))
 	groupID := int64(44)
 	roomID := int64(55)
@@ -177,6 +181,8 @@ func TestMirrorSessionToTimetableCreatesInstanceStaffAndBroadcasts(t *testing.T)
 }
 
 func TestMirrorHelperFallbacks(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	assert.Equal(t, "RFID-Aktivität", rs.timetableTitleForActivity(context.Background(), nil))
@@ -188,6 +194,8 @@ func TestMirrorHelperFallbacks(t *testing.T) {
 }
 
 func TestMirrorSessionToTimetableSkipsWhenAlreadyMirroredOrLookupFails(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(44)
 	activeGroup := &active.Group{GroupID: &groupID, StartTime: time.Now()}
 	activeGroup.ID = 66
@@ -238,6 +246,8 @@ func TestMirrorSessionToTimetableSkipsWhenAlreadyMirroredOrLookupFails(t *testin
 }
 
 func TestMirrorSessionToTimetableHandlesCreateFailures(t *testing.T) {
+	t.Parallel()
+
 	groupID := int64(44)
 	activeGroup := &active.Group{GroupID: &groupID, StartTime: time.Now()}
 	activeGroup.ID = 66
@@ -287,6 +297,8 @@ func TestMirrorSessionToTimetableHandlesCreateFailures(t *testing.T) {
 }
 
 func TestCompleteMirroredTimetableInstanceSkipsInvalidAndFailedLookups(t *testing.T) {
+	t.Parallel()
+
 	// Nothing wired and nothing to complete are the two genuine no-ops.
 	rs := &Resource{}
 	require.NoError(t, rs.completeMirroredTimetableInstance(context.Background(), 0))
@@ -337,6 +349,8 @@ func TestCompleteMirroredTimetableInstanceSkipsInvalidAndFailedLookups(t *testin
 // instance completed instead would leave its attendance unfinalized (#1747
 // review).
 func TestCompleteMirroredTimetableInstanceRequiresBridge(t *testing.T) {
+	t.Parallel()
+
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
 	inst.ID = 77
@@ -364,6 +378,8 @@ func TestCompleteMirroredTimetableInstanceRequiresBridge(t *testing.T) {
 }
 
 func TestCompleteMirroredTimetableInstanceStopsWhenCompletionFails(t *testing.T) {
+	t.Parallel()
+
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{ActiveGroupID: &activeGroupID}
 	inst.ID = 77
@@ -394,6 +410,8 @@ func TestCompleteMirroredTimetableInstanceStopsWhenCompletionFails(t *testing.T)
 // The kiosk's session end finalizes the attendance through the bridge and only
 // then announces the completed instance (#1747 review).
 func TestCompleteMirroredTimetableInstanceGoesThroughBridge(t *testing.T) {
+	t.Parallel()
+
 	activeGroupID := int64(66)
 	inst := &scheduleModel.ActivityInstance{
 		Date:          timezone.NewDate(2026, 5, 11),
@@ -436,6 +454,8 @@ func TestCompleteMirroredTimetableInstanceGoesThroughBridge(t *testing.T) {
 }
 
 func TestResourceRouterIsWired(t *testing.T) {
+	t.Parallel()
+
 	rs := NewResource(nil, nil, nil, nil, nil, nil)
 	router := rs.Router()
 
@@ -443,6 +463,8 @@ func TestResourceRouterIsWired(t *testing.T) {
 }
 
 func TestConfigureTimetableMirrorStoresDependencies(t *testing.T) {
+	t.Parallel()
+
 	timetableData := scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{})
 	bc := testpkg.NewRecordingBroadcaster()
 	rs := &Resource{}

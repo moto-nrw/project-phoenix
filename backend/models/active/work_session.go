@@ -1,7 +1,9 @@
 package active
 
 import (
+	"encoding/json"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -26,6 +28,14 @@ const (
 	WorkSessionSourceUnknown = "unknown" // Pre-migration legacy rows; never written by new code
 )
 
+// MaxOpenWorkSessionDuration is the live safety limit for a block that is
+// still open. Past it a running block stops counting as work in progress:
+// the balance stops crediting it (services/active.BalanceSessionEnd) and the
+// presence lookup stops reporting its owner as present
+// (repositories/active.GetTodayPresenceMap). Both read this one constant so a
+// forgotten checkout drops out of both at the same moment (#2402).
+const MaxOpenWorkSessionDuration = 12 * time.Hour
+
 type WorkSession struct {
 	base.Model `bun:"schema:active,table:work_sessions"`
 	base.TenantModel
@@ -41,6 +51,43 @@ type WorkSession struct {
 	AutoCheckedOut bool          `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
 	CreatedBy      int64         `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy      *int64        `bun:"updated_by" json:"updated_by,omitempty"`
+}
+
+// WorkSessionWire serializes a session for endpoints that return the raw
+// model. JavaScript rounds int64 values above Number.MAX_SAFE_INTEGER while
+// parsing numeric JSON, so converting IDs in the frontend would be too late.
+type WorkSessionWire struct {
+	*WorkSession
+}
+
+func (ws WorkSessionWire) MarshalJSON() ([]byte, error) {
+	if ws.WorkSession == nil {
+		return []byte("null"), nil
+	}
+	type alias WorkSession
+	return json.Marshal(struct {
+		*alias
+		ID        string  `json:"id"`
+		TenantID  string  `json:"tenant_id"`
+		StaffID   string  `json:"staff_id"`
+		CreatedBy string  `json:"created_by"`
+		UpdatedBy *string `json:"updated_by,omitempty"`
+	}{
+		alias:     (*alias)(ws.WorkSession),
+		ID:        strconv.FormatInt(ws.ID, 10),
+		TenantID:  strconv.FormatInt(ws.TenantID, 10),
+		StaffID:   strconv.FormatInt(ws.StaffID, 10),
+		CreatedBy: strconv.FormatInt(ws.CreatedBy, 10),
+		UpdatedBy: formatOptionalID(ws.UpdatedBy),
+	})
+}
+
+func formatOptionalID(id *int64) *string {
+	if id == nil {
+		return nil
+	}
+	value := strconv.FormatInt(*id, 10)
+	return &value
 }
 
 func (ws *WorkSession) Validate() error {

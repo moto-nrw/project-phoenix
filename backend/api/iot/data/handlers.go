@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -403,6 +404,16 @@ func (rs *Resource) buildStudentRFIDResponse(ctx context.Context, person *users.
 	// handed to a current child, which is what physically happened (#405 review).
 	if student.Status == users.StudentStatusAlumnus {
 		slog.Default().InfoContext(ctx, "rfid tag still bound to a graduated student, reporting as unassigned",
+			slog.Int64("student_id", student.ID),
+		)
+		return nil
+	}
+
+	// Same for a child whose care has ended (#2487): the effect-day pass
+	// releases the bracelet, so a tag still bound here predates that pass and
+	// physically went back into the box.
+	if student.CareEndedOn(timezone.TodayDate()) {
+		rs.getLogger().InfoContext(ctx, "rfid tag still bound to a departed student, reporting as unassigned",
 			slog.Int64("student_id", student.ID),
 		)
 		return nil

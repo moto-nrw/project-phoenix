@@ -13,6 +13,8 @@ import (
 )
 
 func TestStudentImportTemplate_GehweiseHeadersRoundTripThroughParser(t *testing.T) {
+	t.Parallel()
+
 	headers := getStudentImportHeaders()
 	require.Contains(t, headers, "Gehweise.Mo")
 	require.NotContains(t, headers, "Gehweise.Mo (alleine/bus/abholung) (optional)")

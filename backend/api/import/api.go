@@ -46,8 +46,9 @@ const (
 
 // Resource defines the import resource
 type Resource struct {
-	studentImportService *importService.ImportService[importModels.StudentImportRow]
-	staffImportService   *importService.ImportService[importModels.StaffImportRow]
+	studentImportService   *importService.ImportService[importModels.StudentImportRow]
+	staffImportService     *importService.ImportService[importModels.StaffImportRow]
+	classListImportService *importService.ImportService[importModels.ClassListEntryImportRow]
 	// openingBalanceImportFactory builds a request-scoped opening balance
 	// import service (#2132) — Stichtag/Begründung/actor come from the
 	// upload form. Wired via SetOpeningBalanceImportFactory.
@@ -66,14 +67,16 @@ func (rs *Resource) SetOpeningBalanceImportFactory(factory importService.Opening
 func NewResource(
 	studentImportService *importService.ImportService[importModels.StudentImportRow],
 	staffImportService *importService.ImportService[importModels.StaffImportRow],
+	classListImportService *importService.ImportService[importModels.ClassListEntryImportRow],
 	personService userSvc.PersonService,
 	db *bun.DB,
 ) *Resource {
 	return &Resource{
-		studentImportService: studentImportService,
-		staffImportService:   staffImportService,
-		personService:        personService,
-		db:                   db,
+		studentImportService:   studentImportService,
+		staffImportService:     staffImportService,
+		classListImportService: classListImportService,
+		personService:          personService,
+		db:                     db,
 	}
 }
 
@@ -120,6 +123,16 @@ func (rs *Resource) Router() chi.Router {
 			// Note: no withTx here — the handler manages its own WithTenantTx
 			// to control commit/rollback based on import results.
 			r.With(authorize.RequiresPermission(permTimeTrackingManage)).Post(routeImport, rs.ImportOpeningBalances)
+		})
+
+		// Class-list entry (Klassenlisteneintrag, #2382) import endpoints
+		r.Route("/class-list-entries", func(r chi.Router) {
+			r.With(authorize.RequiresPermission(permUsersRead), withTx).Get(routeTemplate, rs.DownloadClassListTemplate)
+			// Note: no withTx on preview/import — the handler owns its tenant
+			// transaction so the GDPR audit row is committed before the
+			// success response.
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routePreview, rs.PreviewClassListImport)
+			r.With(authorize.RequiresPermission(permUsersCreate)).Post(routeImport, rs.ImportClassList)
 		})
 
 		// Staff (Mitarbeiter) import endpoints

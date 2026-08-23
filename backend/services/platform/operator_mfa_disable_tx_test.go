@@ -40,6 +40,8 @@ func (r *rollbackTrustedDeviceRepo) RevokeAllByOperatorID(_ context.Context, _ i
 // Post-fix the cascade runs inside WithAdminTx so any step's failure
 // rolls back the whole batch.
 func TestOperatorMFAService_Disable_RollsBackOnPartialFailure(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	_, repos, db := newTestOperatorMFAService(t)
 
@@ -98,6 +100,8 @@ func TestOperatorMFAService_Disable_RollsBackOnPartialFailure(t *testing.T) {
 // path so the new transactional wrapping doesn't accidentally regress the
 // successful cascade.
 func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 

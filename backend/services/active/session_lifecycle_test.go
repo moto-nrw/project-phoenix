@@ -21,12 +21,16 @@ func ptrTime(t time.Time) *time.Time { return &t }
 func ptrDate(d timezone.Date) *timezone.Date { return &d }
 
 func TestSessionInactivityDuration(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	group := &activeModels.Group{LastActivity: now.Add(-15 * time.Minute)}
 	assert.Equal(t, 15*time.Minute, SessionInactivityDuration(group, now))
 }
 
 func TestIsSupervisorActive(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	assert.True(t, IsSupervisorActive(&activeModels.GroupSupervisor{EndDate: nil}, now),
@@ -38,6 +42,8 @@ func TestIsSupervisorActive(t *testing.T) {
 }
 
 func TestIsCombinedGroupActive(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	assert.True(t, IsCombinedGroupActive(&activeModels.CombinedGroup{EndTime: nil}, now),
@@ -49,6 +55,8 @@ func TestIsCombinedGroupActive(t *testing.T) {
 }
 
 func TestResolveSessionTimeout(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("per-session TimeoutMinutes wins", func(t *testing.T) {
@@ -83,6 +91,8 @@ func TestResolveSessionTimeout(t *testing.T) {
 }
 
 func TestIsSessionTimedOut(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default
@@ -122,6 +132,8 @@ func TestIsSessionTimedOut(t *testing.T) {
 }
 
 func TestSessionTimeUntilTimeout(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default

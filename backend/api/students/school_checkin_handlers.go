@@ -93,7 +93,7 @@ func (rs *Resource) schoolCheckinHandler(w http.ResponseWriter, r *http.Request)
 		// ensureStudentCheckinAllowed guard on a stale request or graduation
 		// race — is treated like an unknown/absent student (404), matching the
 		// IoT and timetable mappers rather than surfacing a 500 (#405).
-		if errors.Is(changeErr, activeService.ErrStudentGraduated) {
+		if errors.Is(changeErr, activeService.ErrStudentGraduated) || errors.Is(changeErr, activeService.ErrStudentCareEnded) {
 			common.RenderError(w, r, common.ErrorNotFound(changeErr))
 			return
 		}

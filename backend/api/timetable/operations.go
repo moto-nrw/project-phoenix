@@ -616,7 +616,7 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	case errors.Is(err, activeSvc.ErrStudentNotFound), errors.Is(err, activeSvc.ErrVisitNotFound),
 		// A graduated (alumnus) student left on a roster is treated like an
 		// unknown/absent student (404), matching the IoT check-in mapper (#405).
-		errors.Is(err, activeSvc.ErrStudentGraduated):
+		errors.Is(err, activeSvc.ErrStudentGraduated), errors.Is(err, activeSvc.ErrStudentCareEnded):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, activeSvc.ErrInvalidData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))

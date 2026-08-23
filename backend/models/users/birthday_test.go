@@ -12,6 +12,8 @@ import (
 // A birthday row is rendered by its name, so a half-filled person must not
 // produce a stray leading or trailing space on the card or in the export.
 func TestBirthdayEntryFullName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		entry BirthdayEntry
@@ -48,6 +50,8 @@ func TestBirthdayEntryFullName(t *testing.T) {
 
 // A birthday recurs annually, so the lookup key drops the year.
 func TestMonthDayOf(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t,
 		MonthDay{Month: time.February, Day: 29},
 		MonthDayOf(timezone.NewDate(2020, time.February, 29)),

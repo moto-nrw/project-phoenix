@@ -14,11 +14,12 @@ import (
 )
 
 func TestOrganizationRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates organization", func(t *testing.T) {
 		now := time.Now().UnixNano()
@@ -33,9 +34,6 @@ func TestOrganizationRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		require.NotZero(t, org.ID)
 
-		t.Cleanup(func() {
-			_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, org.ID)
-		})
 	})
 
 	t.Run("rejects nil organization", func(t *testing.T) {
@@ -52,11 +50,12 @@ func TestOrganizationRepository_Create(t *testing.T) {
 }
 
 func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := platformRepo.NewOrganizationRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	now := time.Now().UnixNano()
 	orgA := &platformModels.Organization{
@@ -73,9 +72,6 @@ func TestOrganizationRepository_FindByIDAndSlugAndList(t *testing.T) {
 	}
 	require.NoError(t, repo.Create(ctx, orgA))
 	require.NoError(t, repo.Create(ctx, orgB))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id IN (?, ?)`, orgA.ID, orgB.ID)
-	})
 
 	t.Run("finds by id", func(t *testing.T) {
 		found, err := repo.FindByID(ctx, orgA.ID)

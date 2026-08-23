@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -26,6 +27,8 @@ import (
 )
 
 func TestCompanionPlanErrorRenderer(t *testing.T) {
+	t.Parallel()
+
 	t.Run("stranded companion is a client-fixable 400", func(t *testing.T) {
 		resp := rendererStatus(t, companionPlanErrorRenderer(userService.ErrCompanionWouldLoseDeparture))
 
@@ -57,6 +60,8 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 }
 
 func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
+	t.Parallel()
+
 	// Approving an allowed_departure_modes change drops the accompanied mode,
 	// which is exactly what strands a linked child.
 	tests := []struct {
@@ -104,8 +109,12 @@ func (f *companionErrCareRequestService) GetPendingForStudent(context.Context, i
 	return nil, nil, nil
 }
 
-func (f *companionErrCareRequestService) ListPending(context.Context) ([]*scheduleService.CareRequestReviewItem, error) {
-	return nil, nil
+func (f *companionErrCareRequestService) ListHistory(context.Context, modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestHistoryItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
+}
+
+func (f *companionErrCareRequestService) ListPending(context.Context, modelBase.RequestQueueFilters) ([]*scheduleService.CareRequestReviewItem, *userService.HistoryCursor, error) {
+	return nil, nil, nil
 }
 
 func (f *companionErrCareRequestService) CreatePickupChangeRequest(context.Context, int64, int64, timezone.Date, time.Time, string) (*scheduleModels.CareScheduleChangeRequest, error) {
@@ -120,20 +129,29 @@ func (f *companionErrCareRequestService) ListPickupChangeRequests(context.Contex
 	return nil, nil
 }
 
-func (f *companionErrCareRequestService) Decide(context.Context, scheduleService.CareRequestDecideInput) (*scheduleService.CareRequestReviewItem, error) {
+func (f *companionErrCareRequestService) Decide(_ context.Context, input scheduleService.CareRequestDecideInput) (*scheduleService.CareRequestReviewItem, error) {
+	if f.decideErr == nil && input.RequireImpactToken && input.ExpectedImpactToken == nil {
+		return nil, scheduleService.ErrPickupChangeImpactRequired
+	}
 	return nil, f.decideErr
 }
 
 func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
+	t.Parallel()
+
 	// Approving a care-schedule change merges new per-weekday modes onto the
 	// stored plan, so it can drop the accompanied day a link depends on.
 	tests := []struct {
-		name string
-		err  error
-		want int
+		name     string
+		err      error
+		want     int
+		wantCode string
 	}{
 		{name: "stranded companion", err: userService.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
 		{name: "busy companion lock", err: userService.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stale pickup impact", err: scheduleService.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
+		{name: "care day belongs to booking", err: scheduleService.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
+		{name: "missing pickup impact", want: http.StatusBadRequest},
 		{name: "unrelated error stays a server error", err: errors.New("boom"), want: http.StatusInternalServerError},
 	}
 
@@ -146,6 +164,9 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 			rs.decideCareScheduleChangeRequest(w, req)
 
 			assert.Equal(t, tt.want, w.Code)
+			if tt.wantCode != "" {
+				assert.Contains(t, w.Body.String(), `"code":"`+tt.wantCode+`"`)
+			}
 		})
 	}
 }

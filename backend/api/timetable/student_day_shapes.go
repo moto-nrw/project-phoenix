@@ -130,11 +130,14 @@ func mapUnplannedInstance(inst *scheduleModel.ActivityInstance, visit *activeMod
 
 // mapArrivalScheduleSlot maps a recurring weekly schedule to the slot shape.
 func mapArrivalScheduleSlot(s *scheduleModel.StudentArrivalSchedule) SlotResponse {
-	t := s.ExpectedArrival.Format("15:04")
-	return SlotResponse{
-		ExpectedTime: &t,
-		Source:       SlotSourceSchedule,
+	resp := SlotResponse{Source: SlotSourceSchedule}
+	// A care day whose class carries no time has no arrival time. Formatting
+	// the zero value would report 00:00 (#2414).
+	if !s.ExpectedArrival.IsZero() {
+		t := s.ExpectedArrival.Format("15:04")
+		resp.ExpectedTime = &t
 	}
+	return resp
 }
 
 // mapArrivalExceptionSlot maps a date-specific exception. A nil time means

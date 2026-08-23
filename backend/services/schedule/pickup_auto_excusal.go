@@ -30,9 +30,14 @@ import (
 // serialization contract the manual partial-absence writers follow.
 type PickupAutoExcusalSyncer struct {
 	pickups scheduleModel.StudentPickupExceptionRepository
-	weekly  scheduleModel.StudentPickupScheduleRepository
+	weekly  PickupBaselineReader
 	slots   scheduleModel.InstanceStudentRepository
+	preview partialAbsenceBlockFinder
 	db      *bun.DB
+}
+
+type partialAbsenceBlockFinder interface {
+	FindPartialAbsenceBlocks(context.Context, int64, timezone.Date, time.Time) ([]scheduleModel.PartialAbsenceBlock, error)
 }
 
 // NewPickupAutoExcusalSyncer wires the auto-excusal sync used by the staff
@@ -41,14 +46,16 @@ type PickupAutoExcusalSyncer struct {
 // care locks).
 func NewPickupAutoExcusalSyncer(
 	pickups scheduleModel.StudentPickupExceptionRepository,
-	weekly scheduleModel.StudentPickupScheduleRepository,
+	weekly PickupBaselineReader,
 	slots scheduleModel.InstanceStudentRepository,
 	db *bun.DB,
 ) *PickupAutoExcusalSyncer {
+	preview, _ := slots.(partialAbsenceBlockFinder)
 	return &PickupAutoExcusalSyncer{
 		pickups: pickups,
 		weekly:  weekly,
 		slots:   slots,
+		preview: preview,
 		db:      db,
 	}
 }
@@ -114,6 +121,33 @@ func (s *PickupAutoExcusalSyncer) Sync(ctx context.Context, exceptionID int64) (
 		}
 	}
 	return true, nil
+}
+
+// Preview lists the timetable blocks that would be excused by a proposed
+// pickup time. A later or unchanged pickup has no removal impact.
+func (s *PickupAutoExcusalSyncer) Preview(
+	ctx context.Context, studentID int64, date timezone.Date, pickupTime time.Time,
+) ([]scheduleModel.PartialAbsenceBlock, error) {
+	row := &scheduleModel.StudentPickupException{
+		StudentID:     studentID,
+		ExceptionDate: date,
+		PickupTime:    &pickupTime,
+	}
+	desired, cutoff, err := s.desiredCutoff(ctx, row)
+	if err != nil {
+		return nil, err
+	}
+	if !desired {
+		return []scheduleModel.PartialAbsenceBlock{}, nil
+	}
+	if s.preview == nil {
+		return nil, errors.New("auto excusal: block preview repository not configured")
+	}
+	blocks, err := s.preview.FindPartialAbsenceBlocks(ctx, studentID, date, cutoff)
+	if err != nil {
+		return nil, fmt.Errorf("auto excusal: preview affected blocks: %w", err)
+	}
+	return blocks, nil
 }
 
 // DetachForDate releases an existing auto excusal on the student's exception
@@ -217,10 +251,11 @@ func (s *PickupAutoExcusalSyncer) desiredCutoff(
 	if weekday > scheduleModel.WeekdayFriday {
 		return false, zero, nil
 	}
-	baseline, err := s.weekly.FindByStudentIDAndWeekday(ctx, row.StudentID, weekday)
+	projection, err := s.weekly.Project(ctx, []int64{row.StudentID}, row.ExceptionDate, row.ExceptionDate)
 	if err != nil {
 		return false, zero, fmt.Errorf("auto excusal: load weekly pickup baseline: %w", err)
 	}
+	baseline := projection.ForDate(row.StudentID, row.ExceptionDate)
 	if baseline == nil {
 		return false, zero, nil
 	}

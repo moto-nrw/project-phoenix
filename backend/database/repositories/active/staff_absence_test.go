@@ -17,16 +17,15 @@ import (
 // ============================================================================
 
 func TestStaffAbsenceRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		tomorrow := today.AddDays(1)
 		absence := &active.StaffAbsence{
@@ -42,10 +41,10 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, absence.ID)
 
-		testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 	})
 
 	t.Run("creates absence with vacation type", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		nextWeek := today.AddDays(7)
 		absence := &active.StaffAbsence{
@@ -62,10 +61,10 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		assert.NotZero(t, absence.ID)
 		assert.Equal(t, active.AbsenceTypeVacation, absence.AbsenceType)
 
-		testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 	})
 
 	t.Run("creates half-day absence", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -82,7 +81,6 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 		assert.NotZero(t, absence.ID)
 		assert.True(t, absence.HalfDay)
 
-		testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 	})
 
 	t.Run("create with nil absence should fail", func(t *testing.T) {
@@ -92,6 +90,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid absence type should fail", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -106,6 +105,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -122,6 +122,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with missing staff ID should fail", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     0, // Invalid
@@ -138,6 +139,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 	})
 
 	t.Run("create with date_start after date_end should fail", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		yesterday := today.AddDays(-1)
 		absence := &active.StaffAbsence{
@@ -159,16 +161,15 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 // ============================================================================
 
 func TestStaffAbsenceRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all staff absences", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -180,7 +181,6 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, absence)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		absences, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -188,6 +188,7 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 	})
 
 	t.Run("lists with query options", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		absence := &active.StaffAbsence{
 			StaffID:     staff.ID,
@@ -199,7 +200,6 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 		}
 		err := repo.Create(ctx, absence)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		options := modelBase.NewQueryOptions()
 		options.WithPagination(1, 10)
@@ -211,16 +211,15 @@ func TestStaffAbsenceRepository_List(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absences in date range", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		tomorrow := today.AddDays(1)
 		nextWeek := today.AddDays(7)
@@ -235,7 +234,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, absence)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		absences, err := repo.GetByStaffAndDateRange(ctx, staff.ID, today, nextWeek)
 		require.NoError(t, err)
@@ -252,6 +250,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	})
 
 	t.Run("returns empty for date range with no absences", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		futureDate := timezone.TodayDate().AddDays(365)
 		absences, err := repo.GetByStaffAndDateRange(ctx, staff.ID, futureDate, futureDate)
 		require.NoError(t, err)
@@ -259,6 +258,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 	})
 
 	t.Run("finds overlapping absences", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		yesterday := today.AddDays(-1)
 		tomorrow := today.AddDays(1)
@@ -274,7 +274,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 		}
 		err := repo.Create(ctx, absence)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		// Query just for today should find the overlapping absence
 		absences, err := repo.GetByStaffAndDateRange(ctx, staff.ID, today, today)
@@ -284,16 +283,15 @@ func TestStaffAbsenceRepository_GetByStaffAndDateRange(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds absence for specific date", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		tomorrow := today.AddDays(1)
 
@@ -307,7 +305,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 		}
 		err := repo.Create(ctx, absence)
 		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
 		require.NoError(t, err)
@@ -316,6 +313,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("returns nil when no absence for date", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		futureDate := timezone.TodayDate().AddDays(365)
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, futureDate)
 		require.NoError(t, err)
@@ -323,6 +321,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 	})
 
 	t.Run("ignores requested and canceled absences", func(t *testing.T) {
+		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		today := timezone.TodayDate()
 		for _, status := range []string{
 			active.AbsenceStatusRequested,
@@ -339,7 +338,6 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 			}
 			err := repo.Create(ctx, absence)
 			require.NoError(t, err)
-			defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 		}
 
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, today)
@@ -349,22 +347,16 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 }
 
 func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).StaffAbsence
-	ctx := testpkg.TenantContext(1)
-
-	staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
-	staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-	staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
-	defer func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, staff1.ID)
-		testpkg.CleanupActivityFixtures(t, db, 0, staff2.ID)
-		testpkg.CleanupActivityFixtures(t, db, 0, staff3.ID)
-	}()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns absence map for today", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
+		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
 		today := timezone.TodayDate()
 
 		absence1 := &active.StaffAbsence{
@@ -389,10 +381,6 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, absence2)
 		require.NoError(t, err)
-		defer func() {
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence1.ID)
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
-		}()
 
 		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
@@ -401,6 +389,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	})
 
 	t.Run("prioritizes sick over vacation", func(t *testing.T) {
+		staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
 		today := timezone.TodayDate()
 
 		// Create two overlapping absences for same staff
@@ -426,10 +415,6 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 		require.NoError(t, err)
 		err = repo.Create(ctx, absence2)
 		require.NoError(t, err)
-		defer func() {
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence1.ID)
-			testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence2.ID)
-		}()
 
 		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
 		require.NoError(t, err)
@@ -438,6 +423,7 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 	})
 
 	t.Run("uses the requested date", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		requestedDate := timezone.TodayDate().AddDays(30)
 		absence := &active.StaffAbsence{
 			StaffID:     staff1.ID,
@@ -449,10 +435,48 @@ func TestStaffAbsenceRepository_GetAbsenceMapForDate(t *testing.T) {
 		}
 
 		require.NoError(t, repo.Create(ctx, absence))
-		defer testpkg.CleanupTableRecords(t, db, "active.staff_absences", absence.ID)
 
 		absenceMap, err := repo.GetAbsenceMapForDate(ctx, requestedDate)
 		require.NoError(t, err)
 		assert.Equal(t, active.AbsenceTypeTraining, absenceMap[staff1.ID])
+	})
+
+	t.Run("uses the same ID tie-breaker for type and label maps", func(t *testing.T) {
+		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "Tie Breaker")
+		today := timezone.TodayDate()
+		absenceType := &active.StaffAbsenceType{
+			Name:     "Regenerationstag",
+			BaseType: active.AbsenceTypeOther,
+			IsActive: true,
+		}
+		require.NoError(t, repositories.NewFactory(db).StaffAbsenceType.Create(ctx, absenceType))
+
+		customAbsence := &active.StaffAbsence{
+			StaffID:       staff1.ID,
+			AbsenceType:   active.AbsenceTypeOther,
+			AbsenceTypeID: &absenceType.ID,
+			DateStart:     today,
+			DateEnd:       today,
+			Status:        active.AbsenceStatusApproved,
+			CreatedBy:     staff1.ID,
+		}
+		standardAbsence := &active.StaffAbsence{
+			StaffID:     staff1.ID,
+			AbsenceType: active.AbsenceTypeOther,
+			DateStart:   today,
+			DateEnd:     today,
+			Status:      active.AbsenceStatusApproved,
+			CreatedBy:   staff1.ID,
+		}
+		require.NoError(t, repo.Create(ctx, customAbsence))
+		require.NoError(t, repo.Create(ctx, standardAbsence))
+
+		absenceMap, err := repo.GetAbsenceMapForDate(ctx, today)
+		require.NoError(t, err)
+		typeIDMap, err := repo.GetAbsenceTypeIDMapForDate(ctx, today)
+		require.NoError(t, err)
+
+		assert.Equal(t, active.AbsenceTypeOther, absenceMap[staff1.ID])
+		assert.Equal(t, absenceType.ID, typeIDMap[staff1.ID])
 	})
 }

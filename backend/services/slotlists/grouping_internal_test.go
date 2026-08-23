@@ -14,6 +14,8 @@ import (
 // fold distinct instances into one section. Each distinct instance must therefore
 // receive its own GroupTitle.
 func TestApplyGrouping_SlotDisambiguatesDistinctInstances(t *testing.T) {
+	t.Parallel()
+
 	t.Run("unique slot labels stay clean", func(t *testing.T) {
 		rows := []Row{
 			{InstanceID: 1, Slot: "Fußball 14:00–15:00", StudentID: 10},

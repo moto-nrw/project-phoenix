@@ -94,6 +94,8 @@ func runningPhase() *enrollmentModels.Phase {
 }
 
 func TestListBookingStats_ReportsCapacityAndGradeDistribution(t *testing.T) {
+	t.Parallel()
+
 	offerings := []*enrollmentModels.CareOffering{
 		{Name: "Randstunde", Capacity: intPtr(20)},
 		{Name: "Ganztag"},
@@ -127,6 +129,8 @@ func TestListBookingStats_ReportsCapacityAndGradeDistribution(t *testing.T) {
 }
 
 func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
+	t.Parallel()
+
 	// The displayed occupancy must be the number the capacity gate will apply
 	// on save, so the window has to match applyCapacityOverflowCore's.
 	today := timezone.TodayDate()
@@ -148,6 +152,8 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 }
 
 func TestListBookingStats_CountsFromTheStartOfAFuturePhase(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	phase := &enrollmentModels.Phase{
 		ServiceStartDate: today.AddDays(30),
@@ -165,6 +171,8 @@ func TestListBookingStats_CountsFromTheStartOfAFuturePhase(t *testing.T) {
 }
 
 func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) {
+	t.Parallel()
+
 	// [today, end+1) is empty once a phase has ended. Reporting zero would
 	// claim every offering is free; the final service day is the honest
 	// answer for a historical phase.
@@ -187,6 +195,8 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 }
 
 func TestBookingStatsWindow_DefaultsToTodayWithoutPhaseDates(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 
 	from, until := bookingStatsWindow(nil)
@@ -200,6 +210,8 @@ func TestBookingStatsWindow_DefaultsToTodayWithoutPhaseDates(t *testing.T) {
 }
 
 func TestListBookingStats_ReturnsEmptyWithoutOfferings(t *testing.T) {
+	t.Parallel()
+
 	links := &bookingStatsLinkRepo{}
 
 	stats, err := bookingStatsService(runningPhase(), nil, links).
@@ -214,6 +226,8 @@ func TestListBookingStats_ReturnsEmptyWithoutOfferings(t *testing.T) {
 // #2186 review: occupancy used to be one query per offering on top of the
 // already-batched grade counts.
 func TestListBookingStats_BatchesTheOccupancyQuery(t *testing.T) {
+	t.Parallel()
+
 	offerings := []*enrollmentModels.CareOffering{{Name: "A"}, {Name: "B"}, {Name: "C"}}
 	for i, offering := range offerings {
 		offering.ID = int64(i + 1)
@@ -236,12 +250,16 @@ func TestListBookingStats_BatchesTheOccupancyQuery(t *testing.T) {
 }
 
 func TestListBookingStats_RejectsAnInvalidPhaseID(t *testing.T) {
+	t.Parallel()
+
 	_, err := bookingStatsService(runningPhase(), nil, &bookingStatsLinkRepo{}).
 		ListBookingStats(context.Background(), 0)
 	require.ErrorIs(t, err, ErrCareOfferingInvalid)
 }
 
 func TestListBookingStats_ClassifiesAMissingPhaseAsInvalid(t *testing.T) {
+	t.Parallel()
+
 	service := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
 		Repo:                     bookingStatsOfferingRepo{},
 		PhaseRepo:                bookingStatsPhaseRepo{err: sql.ErrNoRows},
@@ -253,6 +271,8 @@ func TestListBookingStats_ClassifiesAMissingPhaseAsInvalid(t *testing.T) {
 }
 
 func TestListBookingStats_RequiresItsRepositories(t *testing.T) {
+	t.Parallel()
+
 	noLinks := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
 		Repo:      bookingStatsOfferingRepo{},
 		PhaseRepo: bookingStatsPhaseRepo{phase: runningPhase()},
@@ -269,6 +289,8 @@ func TestListBookingStats_RequiresItsRepositories(t *testing.T) {
 }
 
 func TestListBookingStats_PropagatesRepositoryFailures(t *testing.T) {
+	t.Parallel()
+
 	offering := &enrollmentModels.CareOffering{Name: "Ganztag"}
 	offering.ID = 1
 

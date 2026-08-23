@@ -21,6 +21,10 @@ export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
+  "enrollment.approval_care_offering_missing":
+    "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+  "enrollment.approval_care_offering_exactly_one":
+    "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
   "enrollment.care_offering_exactly_one":
     "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
   "enrollment.care_offering_unavailable":
@@ -49,6 +53,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Für dieses Angebot sind die Betreuungstage fest vorgegeben und können nicht ausgewählt werden.",
   "enrollment.care_offering_days_required":
     "Bitte wähle mindestens einen Wochentag für das Angebot aus.",
+  "enrollment.care_offering_pickup_times_required":
+    "Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein.",
   "enrollment.late_invite_invalid":
     "Dieser Nachzügler-Link ist ungültig, abgelaufen oder wurde bereits verwendet. Bitte wende dich an die Schule.",
   "enrollment.phase_not_eligible":
@@ -65,6 +71,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Dieses Kind konnte nicht eindeutig zugeordnet werden, weil an der Schule mehrere übereinstimmende Datensätze vorliegen. Bitte wende dich an die Schule, damit die doppelten Einträge zusammengeführt werden.",
   "enrollment.child_not_permitted":
     "Dein Konto hat keine Berechtigung, dieses bereits angemeldete Kind erneut anzumelden. Bitte wende dich an die Schule, um die Berechtigung zu erhalten.",
+  "enrollment.change_request_child_locked":
+    "Dieses Kind ist schon in der Betreuung. Änderungen dafür laufen jetzt über die Eltern-App.",
   "enrollment.restore_phase_inactive":
     "Die Anmeldephase ist nicht mehr aktiv. Die Anmeldung kann nicht wiederhergestellt werden.",
   "enrollment.restore_duplicate":

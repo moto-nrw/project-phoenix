@@ -2606,6 +2606,30 @@ func editModeForChildren(children []*enrollmentModels.RequestChild) string {
 	return EditModeDirectEdit
 }
 
+// ChildTakenOver reports whether an enrollment child has already been taken
+// over into care: an approval materialized it into a student. From that moment
+// change wishes for this child run exclusively through the parent app, so the
+// status link keeps the child readable but locks it in the change form
+// (ADR 0003).
+func ChildTakenOver(child *enrollmentModels.RequestChild) bool {
+	return child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID > 0
+}
+
+// allChildrenTakenOver reports whether every child of the enrollment is past
+// the takeover. Then there is nothing left the status link could change and the
+// change form disappears entirely.
+func allChildrenTakenOver(children []*enrollmentModels.RequestChild) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, child := range children {
+		if !ChildTakenOver(child) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil {
 		return ErrEditNotAllowed
@@ -2623,6 +2647,9 @@ func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, 
 		if c.Status == enrollmentModels.ChildStatusWithdrawn {
 			return ErrEditNotAllowed
 		}
+	}
+	if allChildrenTakenOver(children) {
+		return ErrEditNotAllowed
 	}
 	return nil
 }

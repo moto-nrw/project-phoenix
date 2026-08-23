@@ -10,6 +10,8 @@ import (
 )
 
 func TestNewSettingsResource(t *testing.T) {
+	t.Parallel()
+
 	res := NewSettingsResource(nil, nil, nil, nil, nil)
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settingsService)
@@ -19,6 +21,8 @@ func TestNewSettingsResource(t *testing.T) {
 }
 
 func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "resolve",
 		Err: &configSvc.DefinitionNotFoundError{Key: "bad.key"},
@@ -33,6 +37,8 @@ func TestRenderOperatorSettingsError_DefinitionNotFound(t *testing.T) {
 }
 
 func TestRenderOperatorSettingsError_InvalidValue(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: &configSvc.InvalidValueError{Key: "test", Reason: "too small"},
@@ -47,6 +53,8 @@ func TestRenderOperatorSettingsError_InvalidValue(t *testing.T) {
 }
 
 func TestRenderOperatorSettingsError_PermissionDenied(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"},
@@ -61,6 +69,8 @@ func TestRenderOperatorSettingsError_PermissionDenied(t *testing.T) {
 }
 
 func TestRenderOperatorSettingsError_GenericSettingsError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: assert.AnError,
@@ -75,6 +85,8 @@ func TestRenderOperatorSettingsError_GenericSettingsError(t *testing.T) {
 }
 
 func TestRenderOperatorSettingsError_NonSettingsError(t *testing.T) {
+	t.Parallel()
+
 	err := assert.AnError
 
 	w := httptest.NewRecorder()

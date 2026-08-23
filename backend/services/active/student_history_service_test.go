@@ -13,6 +13,8 @@ import (
 // A nil slot repository (tests without a timetable) must answer the
 // tenant-wide care-plan signal with false instead of panicking.
 func TestStudentHistoryService_HasPlannedSlotsInRange_NilSlotRepo(t *testing.T) {
+	t.Parallel()
+
 	svc := activeService.NewStudentHistoryService(nil, nil, nil, nil)
 
 	has, err := svc.HasPlannedSlotsInRange(context.Background(), timezone.NewDate(2032, 3, 2), timezone.NewDate(2032, 3, 6))

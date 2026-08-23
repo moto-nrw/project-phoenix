@@ -56,7 +56,7 @@ src/app/
 │   ├── (protected)/       # Auth-required (dashboard, students, rooms, invitations, settings, …)
 │   └── (public)/          # Pre-auth (invite, enroll, reset-password)
 ├── operator/              # Operator portal: provisioning, schools, organizations, accounts,
-│                          #   devices, announcements, suggestions, settings, invite, login, …
+│                          #   devices, announcements, settings, invite, login, …
 ├── parents/               # Parents portal: children/[id], enroll/[tenantSlug]/[phaseId],
 │                          #   accept-guardian-invite/[token], login, …
 ├── help/                  # Public help guides (see .claude/rules/help-guide-sync.md)
@@ -76,6 +76,10 @@ src/app/
 ## UI: Reuse the Kit (MANDATORY)
 
 Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-roll buttons/cards/modals/tables. Brand colors come only from `LOCATION_COLORS` (`src/lib/location-helper.ts`) via arbitrary-value hex (`bg-[#83CD2D]`) — never generic Tailwind hues (`bg-green-500`), which are different colors. Component map, hex table, radius/spacing tokens, gotchas, and the design checklist: **`.claude/rules/frontend-ui-kit.md`**. Search `src/components/` and `src/lib/` for existing code before writing anything new.
+
+### Verständlichkeit: Missverständnis-Check (MANDATORY)
+
+Any change a school user sees runs the checklist in **`.claude/rules/verstaendlichkeit.md`** and records the result in the PR description. Core points: every visible block explains its purpose in one sentence, read-only blocks carry no button/chevron/pointer affordance, a function with a precondition (installed app, activated device, released phase) states that precondition where it is switched on, and two labels sharing a word stem need a visible boundary. All user-facing German copy follows the `moto-einfache-sprache` skill (`.claude/skills/moto-einfache-sprache/SKILL.md`) — load it before writing labels, errors, empty states, or hints.
 
 ### Before/After Screenshots for UI Changes (MANDATORY)
 

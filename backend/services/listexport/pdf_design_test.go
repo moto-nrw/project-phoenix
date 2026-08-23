@@ -45,6 +45,8 @@ func countRenderedPDFPages(data []byte) int {
 // Ported rule: every group starts on its own page, and a GroupTitle row is
 // never rendered as a table row.
 func TestDesignedPDFGroupsStartNewPages(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(designGroupedDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -73,6 +75,8 @@ func TestDesignedPDFGroupsStartNewPages(t *testing.T) {
 }
 
 func TestSplitRenderRowCarriesAccentIntoContinuation(t *testing.T) {
+	t.Parallel()
+
 	row := renderRow{cells: [][]styledLine{{
 		{text: "07:30–14:00", accent: "#83CD2D"},
 		{text: "Aufgabe 1"},
@@ -91,6 +95,8 @@ func TestSplitRenderRowCarriesAccentIntoContinuation(t *testing.T) {
 // Ported rule: when a group overflows, its heading repeats on every
 // continuation page so each printed sheet is self-describing.
 func TestDesignedPDFGroupHeadingRepeatsOnOverflowPages(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	rows := []Row{{GroupTitle: "Klasse 1a"}}
 	for i := 0; i < 60; i++ {
@@ -126,6 +132,8 @@ func TestDesignedPDFGroupHeadingRepeatsOnOverflowPages(t *testing.T) {
 
 // Ported rule: a short ungrouped list stays on a single page.
 func TestDesignedPDFUngroupedStaysSinglePage(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Rows = []Row{
 		{Values: map[ColumnID]string{ColumnName: "Anders, Emma", ColumnSchoolClass: "1a"}},
@@ -149,6 +157,8 @@ func TestDesignedPDFUngroupedStaysSinglePage(t *testing.T) {
 // A group marker with no body rows — consecutive markers, or a trailing
 // one — must not produce a heading-only page.
 func TestDesignedPDFEmptyGroupsProduceNoPages(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Rows = []Row{
 		{GroupTitle: "Klasse 1a"},
@@ -178,6 +188,8 @@ func TestDesignedPDFEmptyGroupsProduceNoPages(t *testing.T) {
 // Ported rule: cell text wraps instead of being truncated — every word
 // survives and no ellipsis is introduced.
 func TestDesignedPDFWrapKeepsAllWords(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(designGroupedDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -205,6 +217,8 @@ func TestDesignedPDFWrapKeepsAllWords(t *testing.T) {
 // (ToUnicode CMap present), diacritics render without error, and the
 // GDPR footer no longer vanishes on the PDF path.
 func TestDesignedPDFSmoke(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Subtitle = "Grundschule Bissendorf · Schuljahr 2026/27"
 	doc.Footer = "Vertraulich — enthält personenbezogene Daten."
@@ -241,6 +255,8 @@ func TestDesignedPDFSmoke(t *testing.T) {
 // macOS) would silently lose its combining marks. norms() must fold to NFC
 // before any text reaches the renderer.
 func TestNormsFoldsNFDToNFC(t *testing.T) {
+	t.Parallel()
+
 	// "\u1ec5" (e with circumflex+tilde) decomposed into base letter plus
 	// combining marks — what macOS filesystems and some XML emit.
 	decomposed := "Nguy\u0065\u0302\u0303n"
@@ -257,6 +273,8 @@ func TestNormsFoldsNFDToNFC(t *testing.T) {
 // the fallback font instead of being silently dropped by gopdf; runes no
 // embedded font covers become a visible U+FFFD.
 func TestDesignedPDFFallbackFontKeepsForeignNames(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(designGroupedDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -303,6 +321,8 @@ func TestDesignedPDFFallbackFontKeepsForeignNames(t *testing.T) {
 // continuation rows — it used to draw straight through the footer and off
 // the page, silently losing note text.
 func TestDesignedPDFOversizedRowSplits(t *testing.T) {
+	t.Parallel()
+
 	longNote := strings.TrimSpace(strings.Repeat("sehr lange Tagesnotiz mit vielen Details ", 200))
 	doc := designGroupedDocument()
 	doc.Rows = []Row{{Values: map[ColumnID]string{
@@ -356,6 +376,8 @@ func TestDesignedPDFOversizedRowSplits(t *testing.T) {
 // bounded, leave room for at least one body row, and mark the truncated label
 // with an ellipsis instead of losing it silently.
 func TestDesignedPDFOversizedHeaderStaysBounded(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	longLabel := strings.TrimSpace(strings.Repeat("Betreuungsanmeldestatuskategorie ", 60))
 	doc.Columns = []Column{
@@ -415,6 +437,8 @@ func TestDesignedPDFOversizedHeaderStaysBounded(t *testing.T) {
 // A header that fits comfortably must not be touched — no ellipsis, every
 // line intact. The cap only bites the pathological case above.
 func TestDesignedPDFNormalHeaderNotTruncated(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Columns = []Column{
 		{ID: ColumnName, Label: "Name"},
@@ -444,6 +468,8 @@ func TestDesignedPDFNormalHeaderNotTruncated(t *testing.T) {
 // running past the right page edge, and the body start moves down to make
 // room.
 func TestDesignedPDFFilterPillsWrapWithinPage(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	for i := 0; i < 12; i++ {
 		doc.Filters = append(doc.Filters, fmt.Sprintf("Betreuungsangebot: OGS Ganztag Variante %d", i))
@@ -491,6 +517,8 @@ func TestDesignedPDFFilterPillsWrapWithinPage(t *testing.T) {
 // table renderer failed on invalid rectangle coordinates. The header must
 // stay bounded and say how many filters it could not show.
 func TestDesignedPDFFilterPillsBoundedToPage(t *testing.T) {
+	t.Parallel()
+
 	filters := make([]string, 0, 60)
 	for i := 0; i < 60; i++ {
 		filters = append(filters, fmt.Sprintf("Betreuungsangebot: %s %d", strings.Repeat("Ganztagsbetreuung ", 5), i))
@@ -573,6 +601,8 @@ func TestDesignedPDFFilterPillsBoundedToPage(t *testing.T) {
 // allows, the marker must not claim a further filter exists — every filter is
 // on the page, the label just lost its tail.
 func TestDesignedPDFFilterPillsTruncatedSingleFilter(t *testing.T) {
+	t.Parallel()
+
 	only := "Betreuungsangebot: " + strings.Repeat("Ganztagsbetreuung ", 400)
 
 	c, err := newPageChrome(false, "Kinderliste — Nutzung", "42 Kinder", time.Now(), []string{only}, "")
@@ -594,6 +624,8 @@ func TestDesignedPDFFilterPillsTruncatedSingleFilter(t *testing.T) {
 // can no longer recompose the glyph afterwards, so the accent renders
 // detached or drops out.
 func TestSpaceOutKeepsCombiningMarksAttached(t *testing.T) {
+	t.Parallel()
+
 	const (
 		nfd  = "Schu\u0308ler"      // u + combining diaeresis
 		nfc  = "Sch\u00fcler"       // precomposed
@@ -620,6 +652,8 @@ func TestSpaceOutKeepsCombiningMarksAttached(t *testing.T) {
 // no filters, so the body started up to ~58pt below where the header
 // ended. These two must never drift apart again.
 func TestDesignedPDFHeaderReserveMatchesDrawnHeader(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name     string
 		title    string
@@ -658,6 +692,8 @@ func TestDesignedPDFHeaderReserveMatchesDrawnHeader(t *testing.T) {
 // with an ellipsis, not clipped at the page edge — and it must stay a single
 // line so the header reserve keeps matching what drawHeader draws.
 func TestDesignedPDFOversizedTitleStaysBounded(t *testing.T) {
+	t.Parallel()
+
 	longTitle := strings.TrimSpace(strings.Repeat("Betreuungsanmeldeliste ", 40))
 	doc := designGroupedDocument()
 	doc.Title, doc.Subtitle, doc.Filters = longTitle, "", nil
@@ -697,6 +733,8 @@ func TestDesignedPDFOversizedTitleStaysBounded(t *testing.T) {
 
 // A title that fits comfortably must render verbatim — no ellipsis.
 func TestDesignedPDFNormalTitleNotTruncated(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Title, doc.Subtitle, doc.Filters = "Tagesliste", "", nil
 	r, err := newDesignRenderer(doc)
@@ -717,6 +755,8 @@ func TestDesignedPDFNormalTitleNotTruncated(t *testing.T) {
 // budgets with, so a full page's card must reach the page body's bottom
 // to within one row.
 func TestDesignedPDFUngroupedPagesFillBody(t *testing.T) {
+	t.Parallel()
+
 	doc := Document{
 		Title:       "Tagesliste",
 		Subtitle:    "60 Kinder",
@@ -768,6 +808,8 @@ func TestDesignedPDFUngroupedPagesFillBody(t *testing.T) {
 // this the plan matrix ("07:30–14:00", task, room) reads as one run-on
 // line, because wrap() used to tokenize with strings.Fields.
 func TestDesignedPDFWrapHonoursExplicitLineBreaks(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(designGroupedDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -791,6 +833,8 @@ func TestDesignedPDFWrapHonoursExplicitLineBreaks(t *testing.T) {
 // A segment that is itself too wide still wraps inside its own line break,
 // so the two mechanisms compose instead of one disabling the other.
 func TestDesignedPDFWrapWrapsWithinLineBreaks(t *testing.T) {
+	t.Parallel()
+
 	r, err := newDesignRenderer(designGroupedDocument())
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
@@ -814,6 +858,8 @@ func TestDesignedPDFWrapWrapsWithinLineBreaks(t *testing.T) {
 // Line breaks must survive pagination too: a three-line cell is a
 // three-line row, otherwise rows overlap on the page.
 func TestDesignedPDFLineBreaksGrowRowHeight(t *testing.T) {
+	t.Parallel()
+
 	doc := designGroupedDocument()
 	doc.Rows = []Row{
 		{Values: map[ColumnID]string{ColumnName: "Kessener, Franziska", ColumnSchoolClass: "a\nb\nc"}},

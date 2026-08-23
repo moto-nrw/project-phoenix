@@ -654,6 +654,50 @@ describe("LocationBadge", () => {
       });
     });
 
+    it("paints the yard color for a foreign student on the Schulhof (contextAware)", () => {
+      // Binary mode: the yard arrives as the plain "Schulhof" status with no
+      // room visit behind it. A viewer without detailed access still sees that
+      // status, so it must follow the school's configured yard color (#2405).
+      const student = createStudent({
+        current_location: LOCATION_STATUSES.SCHOOLYARD,
+        current_room_color: "#A3D977",
+      });
+      render(
+        <LocationBadge
+          student={student}
+          displayMode="contextAware"
+          userGroups={["99"]}
+        />,
+      );
+      const badgeContainer = screen
+        .getByText(LOCATION_STATUSES.SCHOOLYARD)
+        .closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: getLocationBadgeTone("#A3D977").backgroundColor,
+      });
+    });
+
+    it("falls back to orange for a foreign student on the Schulhof without a color", () => {
+      const student = createStudent({
+        current_location: LOCATION_STATUSES.SCHOOLYARD,
+        current_room_color: null,
+      });
+      render(
+        <LocationBadge
+          student={student}
+          displayMode="contextAware"
+          userGroups={["99"]}
+        />,
+      );
+      const badgeContainer = screen
+        .getByText(LOCATION_STATUSES.SCHOOLYARD)
+        .closest("span");
+      expect(badgeContainer).toHaveStyle({
+        backgroundColor: getLocationBadgeTone(LOCATION_COLORS.SCHOOLYARD)
+          .backgroundColor,
+      });
+    });
+
     it("renders correctly when current_room_color key is absent (forward compat)", () => {
       // Old backend builds (rolled back during a deploy or older PyrePortal
       // proxy in the request path) won't include current_room_color in their

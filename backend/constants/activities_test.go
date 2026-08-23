@@ -7,6 +7,8 @@ import (
 )
 
 func TestIsSystemRoomName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string
@@ -28,7 +30,36 @@ func TestIsSystemRoomName(t *testing.T) {
 	}
 }
 
+// TestIsSchulhofRoomName covers the narrower predicate #2405 split out of
+// IsSystemRoomName: the Schulhof keeps its rename/delete protection but its
+// colour is admin-configurable, so callers that only care about the toilet
+// rooms need to tell the two apart.
+func TestIsSchulhofRoomName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{"canonical Schulhof", SchulhofRoomName, true},
+		{"WC is not the Schulhof", WCRoomName, false},
+		{"Toilette is not the Schulhof", WCRoomAliasName, false},
+		{"regular room is not the Schulhof", "Gruppenraum 1", false},
+		{"empty string is not the Schulhof", "", false},
+		{"case sensitive - lowercase schulhof", "schulhof", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsSchulhofRoomName(tt.input))
+		})
+	}
+}
+
 func TestIsSystemActivityName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		input    string

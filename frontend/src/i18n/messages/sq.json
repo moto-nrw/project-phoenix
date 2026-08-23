@@ -441,17 +441,22 @@
     "cancel": "Anulo",
     "sick": {
       "title": "Njoftoni sëmundje",
-      "intro": "Çregjistroni fëmijën tuaj për një ose disa ditë. OGS-ja njoftohet menjëherë.",
-      "introApproval": "Çregjistroni fëmijën tuaj për një ose disa ditë. Një njoftim sëmundjeje e sheh OGS-ja menjëherë; një mungesë e arsyetuar konfirmohet më parë nga ekipi.",
+      "intro": "Njoftoni mungesën e fëmijës për një ose disa ditë. OGS-ja e merr njoftimin.",
       "kindLabel": "A është fëmija juaj i sëmurë?",
       "kindSick": "Njofto sëmundjen",
       "kindExcused": "Justifiko mungesën",
       "kindHintSick": "Për ditët kur fëmija është i sëmurë. OGS-ja e sheh menjëherë njoftimin.",
+      "kindHintSickApproval": "OGS-ja konfirmon njoftimin e sëmundjes. Deri atëherë, fëmija juaj pritet të vijë.",
+      "kindHintSickUnknown": "Për ditët e sëmundjes. OGS-ja e merr njoftimin tuaj.",
       "kindHintExcused": "Për takime ose mungesa të tjera të planifikuara. Jepni shkurt arsyen.",
+      "kindHintExcusedApproval": "OGS-ja konfirmon mungesën. Deri atëherë, fëmija juaj pritet të vijë.",
+      "kindHintExcusedUnknown": "Për takime ose mungesa të tjera. Jepni arsyen.",
       "periodLabel": "Ditët e mungesës",
       "from": "Nga",
       "to": "Deri",
       "daysCount": "{count, plural, one {# ditë do të njoftohet.} other {# ditë do të njoftohen.}}",
+      "requestDaysCount": "Po kërkoni mungesë për ditët e zgjedhura.",
+      "unknownDaysCount": "{count, plural, one {Është zgjedhur # ditë.} other {Janë zgjedhur # ditë.}}",
       "reasonLabel": "Njoftim për OGS-në",
       "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme. Data e fundit nuk duhet të jetë para datës së parë.",
@@ -463,7 +468,9 @@
       "submitExcused": "Dërgoni justifikimin në OGS",
       "reasonLabelRequired": "Arsyeja / njoftimi për OGS-në",
       "reasonRequiredError": "Shkruani një njoftim të shkurtër për OGS-në.",
-      "approvalHint": "Kjo mungesë duhet të konfirmohet nga ekipi."
+      "approvalHint": "Pas dërgimit, OGS-ja duhet ta konfirmojë mungesën.",
+      "requestSentTitle": "Kërkesa u dërgua",
+      "requestSentBody": "OGS-ja duhet ta konfirmojë mungesën. Deri atëherë, fëmija juaj pritet të vijë."
     },
     "summary": {
       "none": "Asnjë mungesë",
@@ -924,6 +931,15 @@
       "home": "Privat",
       "work": "Punë",
       "other": "Tjetër"
+    },
+    "locked": {
+      "badge": "Tashmë në kujdes",
+      "birthday": "Data e lindjes",
+      "grade": "Klasa",
+      "care": "Ofertat e rezervuara",
+      "noCare": "Asnjë ofertë e rezervuar.",
+      "hint": "Ndryshimet për {name} tani bëhen përmes aplikacionit për prindër.",
+      "noAccess": "Nuk keni ende akses në aplikacionin për prindër? OGS-ja mund t’ju ftojë."
     }
   },
   "enrollmentStatus": {
@@ -1107,7 +1123,12 @@
     "renewalAdjustHint": "Mund ta vazhdoni kujdesin pa ndryshime, të përshtatni vetëm ofertat ose ditët e javës, ose ta përfundoni kujdesin në fund të periudhës aktuale. Të gjitha të dhënat e tjera mbeten të pandryshuara.",
     "adjustTitle": "Përshtat ofertat dhe ditët e javës",
     "adjustDescription": "Përshtatni vetëm ofertat e kujdesit dhe ditët e javës të rezervuara. Të gjitha të dhënat e tjera mbeten të pandryshuara dhe nuk kërkohen përsëri.",
-    "adjustSubmit": "Dërgo përshtatjen"
+    "adjustSubmit": "Dërgo përshtatjen",
+    "lockedChildHint": "Ndryshimet për këtë fëmijë bëhen përmes aplikacionit për prindër.",
+    "lockedAllTitle": "Ndryshimet bëhen përmes aplikacionit për prindër",
+    "lockedAllBodyOne": "Fëmija juaj është tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllBodyMany": "Fëmijët tuaj janë tashmë në kujdes. Ndryshimet bëjini në aplikacionin për prindër. Nuk keni akses? OGS-ja mund t’ju ftojë.",
+    "lockedAllAction": "Te aplikacioni për prindër"
   },
   "parentMasterData": {
     "title": "Të dhënat dhe përkujdesja",
@@ -1329,11 +1350,14 @@
     "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
     "eventRequestCreatedExcusedAbsence": "Kërkesë për mungesë të arsyetuar u dërgua",
     "eventRequestConfirmedExcusedAbsence": "Kërkesa u konfirmua, mungesa u regjistrua",
+    "eventRequestCreatedSickAbsence": "Kërkesa për njoftim sëmundjeje u dërgua",
+    "eventRequestConfirmedSickAbsence": "Kërkesa u konfirmua, sëmundja u regjistrua",
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",
     "eventRequestCreatedCareOffering": "U kërkua ndryshimi i kujdesit të rezervuar",
-    "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet"
+    "eventRequestConfirmedCareOffering": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet",
+    "eventRequestConfirmedCareOfferingDated": "Kërkesa u miratua, kujdesi i rezervuar do të ndryshohet nga {date}"
   },
   "parentFeedback": {
     "kicker": "Reagim",
@@ -1444,6 +1468,10 @@
     "overviewKicker": "Fëmijët me një vështrim",
     "overviewDescription": "Zgjidhni një fëmijë për të parë kujdesin, të dhënat dhe kontaktet.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Kujdesi ka përfunduar",
+      "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
+    },
     "loadError": "Të dhënat e fëmijës suaj nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
     "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj.",
     "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",

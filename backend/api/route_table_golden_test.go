@@ -65,7 +65,11 @@ func newGoldenAPI(t *testing.T) *API {
 	// package-isolated clone — api.New's DBConnForServe resolves through the
 	// same viper key, so the whole router builds against the clone.
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
+	// The pool belongs to the package, not to this test — never close it
+	// (#2419, gate no_shared_pool_close).
+	password := strings.ReplaceAll(os.Getenv("PHOENIX_AUTH_PASSWORD"), "'", "''")
+	_, err := db.ExecContext(t.Context(), "ALTER ROLE phoenix_auth PASSWORD '"+password+"'")
+	require.NoError(t, err, "sync phoenix_auth password for the API test database")
 
 	t.Setenv("METRICS_BEARER_TOKEN", "route-golden-test-token")
 
@@ -76,6 +80,7 @@ func newGoldenAPI(t *testing.T) *API {
 	return goldenAPI
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestRouteTableGolden(t *testing.T) {
 	apiInstance := newGoldenAPI(t)
 
@@ -96,6 +101,7 @@ func TestRouteTableGolden(t *testing.T) {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestIoTAuthMatrixGolden(t *testing.T) {
 	apiInstance := newGoldenAPI(t)
 

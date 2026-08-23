@@ -9,23 +9,31 @@ import (
 )
 
 func TestDataAccessLog_GetID(t *testing.T) {
+	t.Parallel()
+
 	d := &audit.DataAccessLog{ID: 42}
 	assert.Equal(t, int64(42), d.GetID())
 }
 
 func TestDataAccessLog_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	d := &audit.DataAccessLog{AccessedAt: now}
 	assert.Equal(t, now, d.GetCreatedAt())
 }
 
 func TestDataAccessLog_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	d := &audit.DataAccessLog{AccessedAt: now}
 	assert.Equal(t, now, d.GetUpdatedAt(), "GetUpdatedAt mirrors AccessedAt for append-only rows")
 }
 
 func TestDataAccessLog_Metadata(t *testing.T) {
+	t.Parallel()
+
 	d := &audit.DataAccessLog{}
 	// GetMetadata lazily initialises the map on a fresh row.
 	m := d.GetMetadata()

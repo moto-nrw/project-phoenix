@@ -40,15 +40,13 @@ type conflictsSetup struct {
 func buildConflictsSetup(t *testing.T) *conflictsSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Ec-Room-%d", suffix))
 	creator := testpkg.CreateTestStaff(t, db, "ExcCreator", fmt.Sprintf("Staff-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupActivityFixtures(t, db, 0, creator.ID, 0, 0, room.ID)
 	}
 
 	res := NewResource(Dependencies{
@@ -143,7 +141,7 @@ func createTestActivityException(
 		ExceptionDate:   date,
 		ExceptionType:   excType,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	if startHHMM != "" {
 		st := parseHHMM(t, startHHMM)
 		row.StartTime = &st
@@ -164,9 +162,6 @@ func createTestActivityException(
 		Exec(ctx)
 	require.NoError(t, err, "failed to insert activity_exception fixture")
 
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.activity_exceptions", row.ID)
-	})
 	return row
 }
 
@@ -186,7 +181,7 @@ func createTestActivitySchedule(
 		Weekday:         weekday,
 		TimeframeID:     timeframeID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -196,9 +191,6 @@ func createTestActivitySchedule(
 		Exec(ctx)
 	require.NoError(t, err, "failed to insert activities.schedules fixture")
 
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "activities.schedules", row.ID)
-	})
 	return row
 }
 
@@ -215,7 +207,7 @@ func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string)
 		IsActive:    true,
 		Description: fmt.Sprintf("tf-%s-%s-%d", startHHMM, endHHMM, time.Now().UnixNano()),
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -224,9 +216,6 @@ func createTestTimeframeRow(t *testing.T, db *bun.DB, startHHMM, endHHMM string)
 		ModelTableExpr(`schedule.timeframes AS "timeframe"`).
 		Exec(ctx)
 	require.NoError(t, err, "failed to insert timeframe fixture")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.timeframes", row.ID)
-	})
 	return row
 }
 
@@ -242,27 +231,22 @@ func parseHHMM(t *testing.T, hhmm string) time.Time {
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_CancelledInstance_EmitsWarningPerExpectedStudent(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Cancel-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Lernzeit-3a", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Anna", fmt.Sprintf("C-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
 
@@ -289,26 +273,21 @@ func TestExceptionConflicts_CancelledInstance_EmitsWarningPerExpectedStudent(t *
 }
 
 func TestExceptionConflicts_CancelledInstance_ArrivalExceptionOverridesSchedule(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("CancelOv-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Ben", fmt.Sprintf("C-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
 	// Arrival exception for the date — 12:30, which must win over the schedule.
@@ -326,6 +305,8 @@ func TestExceptionConflicts_CancelledInstance_ArrivalExceptionOverridesSchedule(
 }
 
 func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -334,20 +315,13 @@ func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing
 	dateStr, date := nextTuesday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("CancelNone-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Cara", fmt.Sprintf("C-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	// Monday schedule only — nothing for the Tuesday exception date.
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
@@ -364,34 +338,27 @@ func TestExceptionConflicts_CancelledInstance_NoArrivalInfo_OmitsTime(t *testing
 }
 
 func TestExceptionConflicts_CancelledInstance_SkipsNonExpectedAttendance(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("CancelSkip-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	stuExpected := testpkg.CreateTestStudent(t, s.db, "Expo", fmt.Sprintf("S-%d", suffix), "3a")
 	stuPresent := testpkg.CreateTestStudent(t, s.db, "Pres", fmt.Sprintf("S-%d", suffix+1), "3a")
 	stuAbsent := testpkg.CreateTestStudent(t, s.db, "Abso", fmt.Sprintf("S-%d", suffix+2), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, stuExpected.ID, stuPresent.ID, stuAbsent.ID) })
 
-	isExp := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuExpected.ID, schedule.AttendanceStatusExpected)
-	isPre := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuPresent.ID, schedule.AttendanceStatusPresent)
-	isAbs := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuAbsent.ID, schedule.AttendanceStatusAbsent)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", isExp.ID, isPre.ID, isAbs.ID)
-	})
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuExpected.ID, schedule.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuPresent.ID, schedule.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, stuAbsent.ID, schedule.AttendanceStatusAbsent)
 
 	for _, stu := range []*struct{ ID int64 }{{stuExpected.ID}, {stuPresent.ID}, {stuAbsent.ID}} {
 		testpkg.CreateTestArrivalSchedule(t, s.db, stu.ID, schedule.WeekdayMonday, s.staffID, "13:00")
@@ -408,16 +375,14 @@ func TestExceptionConflicts_CancelledInstance_SkipsNonExpectedAttendance(t *test
 }
 
 func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModEarly-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
 	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
@@ -429,12 +394,9 @@ func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", Title: "Lernzeit-Mod", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Dana", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	// Student arrives at 13:45 — that is AFTER the new 13:30 start: conflict.
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
@@ -456,16 +418,14 @@ func TestExceptionConflicts_ModifiedEarlier_EmitsWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModLate-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
 	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
@@ -473,12 +433,9 @@ func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Emil", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
 
@@ -493,29 +450,23 @@ func TestExceptionConflicts_ModifiedLater_NoWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModRoom-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	altRoom := testpkg.CreateTestRoom(t, s.db, fmt.Sprintf("Alt-%d", time.Now().UnixNano()))
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, 0, altRoom.ID) })
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Finn", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "14:30")
 
@@ -527,7 +478,7 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 		ExceptionType:   schedule.ActivityExceptionModified,
 		RoomID:          &roomID,
 	}
-	row.SetTenantID(1)
+	row.SetTenantID(testpkg.Tenant(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := s.db.NewInsert().
@@ -535,7 +486,6 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 		ModelTableExpr(`schedule.activity_exceptions`).
 		Exec(ctx)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_exceptions", row.ID) })
 
 	router := conflictsRouter(s.ctx, s.res)
 	w := doConflicts(t, router, fmt.Sprintf("/exception-conflicts?date=%s", dateStr))
@@ -545,6 +495,8 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 }
 
 func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -552,10 +504,6 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 	dateStr, date := nextTuesday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModNone-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
 	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayTuesday, &tf.ID)
@@ -563,12 +511,9 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Gara", fmt.Sprintf("M-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	// No arrival data for this student on Tuesday → source=none.
 
@@ -582,16 +527,14 @@ func TestExceptionConflicts_ModifiedEarlier_ArrivalSourceNone_NoWarning(t *testi
 }
 
 func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("AbsSkip-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	tf := createTestTimeframeRow(t, s.db, "14:00", "15:00")
 	createTestActivitySchedule(t, s.db, group.ID, schedule.WeekdayMonday, &tf.ID)
@@ -600,10 +543,6 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 	// group is not allowed (unique per template+date), so split across two
 	// templates.
 	group2 := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("AbsSkip2-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group2.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group2.ID)
-	})
 	tf2 := createTestTimeframeRow(t, s.db, "14:00", "15:00")
 	createTestActivitySchedule(t, s.db, group2.ID, schedule.WeekdayMonday, &tf2.ID)
 
@@ -613,17 +552,10 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 	instModified := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group2.ID,
 	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instCancelled.ID, instModified.ID)
-	})
 
 	student := testpkg.CreateTestStudent(t, s.db, "Hera", fmt.Sprintf("Abs-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is1 := testpkg.CreateTestInstanceStudent(t, s.db, instCancelled.ID, student.ID, "")
-	is2 := testpkg.CreateTestInstanceStudent(t, s.db, instModified.ID, student.ID, "")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID)
-	})
+	testpkg.CreateTestInstanceStudent(t, s.db, instCancelled.ID, student.ID, "")
+	testpkg.CreateTestInstanceStudent(t, s.db, instModified.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
 	// Absence exception — expected_arrival nil, source=exception + IsZero time.
@@ -641,16 +573,14 @@ func TestExceptionConflicts_ArrivalExceptionAbsence_SkipsBothKinds(t *testing.T)
 }
 
 func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModNoTpl-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	// Intentionally no activities.schedules row — resolveOriginalStart
 	// returns empty string with a warn log.
@@ -658,12 +588,9 @@ func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *t
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Ida", fmt.Sprintf("MNT-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
 
@@ -680,16 +607,14 @@ func TestExceptionConflicts_ModifiedNoTemplateSchedule_EmitsWithoutOriginal(t *t
 }
 
 func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("ModAmb-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	tfA := createTestTimeframeRow(t, s.db, "09:00", "10:00")
 	tfB := createTestTimeframeRow(t, s.db, "14:00", "15:00")
@@ -699,12 +624,9 @@ func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *te
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:30", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Jake", fmt.Sprintf("MA-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:45")
 
@@ -725,6 +647,8 @@ func TestExceptionConflicts_ModifiedAmbiguousTemplate_EmitsWithoutOriginal(t *te
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_Empty_NoExceptions(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -740,16 +664,14 @@ func TestExceptionConflicts_Empty_NoExceptions(t *testing.T) {
 }
 
 func TestExceptionConflicts_ExceptionWithoutInstance_SkipsSilently(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
 	dateStr, date := nextMonday()
 
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Orphan-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	// Exception exists but no materialised instance.
 	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "Geplant")
@@ -762,6 +684,8 @@ func TestExceptionConflicts_ExceptionWithoutInstance_SkipsSilently(t *testing.T)
 }
 
 func TestExceptionConflicts_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -769,20 +693,13 @@ func TestExceptionConflicts_TenantIsolation(t *testing.T) {
 
 	// Tenant 1 has the data.
 	group := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("Tiso-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, group.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-	})
 
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &group.ID,
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	student := testpkg.CreateTestStudent(t, s.db, "Kim", fmt.Sprintf("ISO-%d", time.Now().UnixNano()), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
-	is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is.ID) })
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, "")
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, student.ID, schedule.WeekdayMonday, s.staffID, "13:00")
 	createTestActivityException(t, s.db, group.ID, date, schedule.ActivityExceptionCancelled, "", "", "")
@@ -797,6 +714,8 @@ func TestExceptionConflicts_TenantIsolation(t *testing.T) {
 }
 
 func TestExceptionConflicts_SortOrder(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 
@@ -806,11 +725,6 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 
 	groupA := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("SortA-%d", time.Now().UnixNano()))
 	groupB := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("SortB-%d", time.Now().UnixNano()+1))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, groupA.CategoryID, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, 0, 0, 0, groupB.CategoryID, 0)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", groupA.ID, groupB.ID)
-	})
 
 	instA := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &groupA.ID,
@@ -818,14 +732,10 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 	instB := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", ActivityGroupID: &groupB.ID,
 	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instA.ID, instB.ID)
-	})
 
 	suffix := time.Now().UnixNano()
 	stu1 := testpkg.CreateTestStudent(t, s.db, "Alpha", fmt.Sprintf("Sort-%d", suffix), "3a")
 	stu2 := testpkg.CreateTestStudent(t, s.db, "Beta", fmt.Sprintf("Sort-%d", suffix+1), "3a")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, stu1.ID, stu2.ID) })
 
 	// Attach both students to both instances.
 	rows := []*schedule.InstanceStudent{
@@ -839,7 +749,6 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 		for i, r := range rows {
 			ids[i] = r.ID
 		}
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", ids...)
 	})
 
 	testpkg.CreateTestArrivalSchedule(t, s.db, stu1.ID, schedule.WeekdayMonday, s.staffID, "13:00")
@@ -879,6 +788,8 @@ func TestExceptionConflicts_SortOrder(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestExceptionConflicts_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	s := buildConflictsSetup(t)
 	defer s.cleanupFn()
 	router := conflictsRouter(s.ctx, s.res)

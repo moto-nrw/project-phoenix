@@ -14,6 +14,8 @@ import (
 // They run AFTER the defaults package init() functions execute (via blank import).
 
 func TestAllSettingsRegistered(t *testing.T) {
+	t.Parallel()
+
 	all := config.AllDefinitions()
 
 	expectedKeys := []string{
@@ -49,6 +51,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 		// Capacity-detail disclosure toggles (issue #1879, devices tab).
 		"checkin.activity_capacity_details_enabled",
 		"checkin.room_capacity_details_enabled",
@@ -126,6 +129,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.grade_level_max",
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
+		"operations.parent_sick_requires_approval",
 		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
 		"operations.parent_message_staff_name_visible",
@@ -169,6 +173,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 }
 
 func TestAbsenceApprovalEmailSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyNotificationsAbsenceApprovalEmail)
 	require.NotNil(t, def, "notifications.absence_approval_email should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -179,6 +185,8 @@ func TestAbsenceApprovalEmailSetting(t *testing.T) {
 }
 
 func TestPresenceModeSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyPresenceMode)
 	require.NotNil(t, def, "operations.presence_mode should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
@@ -193,6 +201,8 @@ func TestPresenceModeSetting(t *testing.T) {
 }
 
 func TestFederalStateSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyFederalState)
 	require.NotNil(t, def, "operations.federal_state should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
@@ -214,6 +224,8 @@ func TestFederalStateSetting(t *testing.T) {
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyDisplayEnabled)
 	require.NotNil(t, def, "display.enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -224,6 +236,8 @@ func TestDisplayEnabledSetting(t *testing.T) {
 }
 
 func TestGuardianRelatedAccountsSettings(t *testing.T) {
+	t.Parallel()
+
 	inviteDef := config.GetDefinition(config.KeyGuardianParentInviteMode)
 	require.NotNil(t, inviteDef, "guardians.parent_invite_mode should be registered")
 	assert.Equal(t, config.FieldSelect, inviteDef.Type)
@@ -253,6 +267,8 @@ func TestGuardianRelatedAccountsSettings(t *testing.T) {
 }
 
 func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyParentMessageStaffNameVisible)
 	require.NotNil(t, def, "operations.parent_message_staff_name_visible should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -273,6 +289,8 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 // access no longer depends on a tenant scope setting, so re-registering one of
 // these keys would silently reintroduce a policy the code no longer reads.
 func TestRemovedStudentGroupScopeSettings(t *testing.T) {
+	t.Parallel()
+
 	for _, key := range []string{
 		"gdpr.student_data_scope",
 		"gdpr.attendance_log_scope",
@@ -283,6 +301,8 @@ func TestRemovedStudentGroupScopeSettings(t *testing.T) {
 }
 
 func TestWebSpontaneousActivitiesSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyWebSpontaneousActivities)
 	require.NotNil(t, def, "attendance.web_spontaneous_activities_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -298,6 +318,8 @@ func TestWebSpontaneousActivitiesSetting(t *testing.T) {
 }
 
 func TestAttendanceSetupSettings(t *testing.T) {
+	t.Parallel()
+
 	webDef := config.GetDefinition(config.KeyAttendanceWebEnabled)
 	require.NotNil(t, webDef, "attendance.web_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, webDef.Type)
@@ -318,6 +340,8 @@ func TestAttendanceSetupSettings(t *testing.T) {
 }
 
 func TestOrganizationSetupSettings(t *testing.T) {
+	t.Parallel()
+
 	groupDef := config.GetDefinition(config.KeyGroupMode)
 	require.NotNil(t, groupDef, "operations.group_mode should be registered")
 	assert.Equal(t, config.FieldSelect, groupDef.Type)
@@ -346,6 +370,8 @@ func TestOrganizationSetupSettings(t *testing.T) {
 }
 
 func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyTimeTrackingAccountStartDate)
 	require.NotNil(t, def, "operations.time_tracking_account_start_date should be registered")
 	assert.Equal(t, config.FieldDate, def.Type)
@@ -357,6 +383,8 @@ func TestTimeTrackingAccountStartDateSetting(t *testing.T) {
 }
 
 func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyTimeTrackingEnforcePlannedStart)
 	require.NotNil(t, def, "operations.time_tracking_enforce_planned_start should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -368,6 +396,8 @@ func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
 }
 
 func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyTimeTrackingRequireDeviationReason)
 	require.NotNil(t, def, "operations.time_tracking_require_deviation_reason should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -380,6 +410,8 @@ func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
 }
 
 func TestTimeTrackingDeviationToleranceSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyTimeTrackingDeviationToleranceMinutes)
 	require.NotNil(t, def, "operations.time_tracking_deviation_tolerance_minutes should be registered")
 	assert.Equal(t, config.FieldNumber, def.Type)
@@ -400,6 +432,8 @@ func TestTimeTrackingDeviationToleranceSetting(t *testing.T) {
 }
 
 func TestTimetableSettings_Types(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		key      string
 		expected config.FieldType
@@ -422,6 +456,8 @@ func TestTimetableSettings_Types(t *testing.T) {
 }
 
 func TestTimetableSettings_Defaults(t *testing.T) {
+	t.Parallel()
+
 	enabledDef := config.GetDefinition("timetable.enabled")
 	require.NotNil(t, enabledDef)
 	assert.Equal(t, true, enabledDef.Default, "timetable must default to true so the feature is opt-out")
@@ -450,6 +486,8 @@ func TestTimetableSettings_Defaults(t *testing.T) {
 }
 
 func TestTimetableSettings_DependsOn(t *testing.T) {
+	t.Parallel()
+
 	toggleDef := config.GetDefinition("timetable.enabled")
 	require.NotNil(t, toggleDef)
 	assert.Nil(t, toggleDef.DependsOn, "top-level timetable toggle must stand alone")
@@ -492,6 +530,8 @@ func TestTimetableSettings_DependsOn(t *testing.T) {
 }
 
 func TestTimetableSettings_Permissions(t *testing.T) {
+	t.Parallel()
+
 	// Operational timetable settings use config:update (admin operational).
 	// The GDPR retention setting uses config:manage (admin GDPR-scoped).
 	opsKeys := []string{
@@ -521,6 +561,8 @@ func TestTimetableSettings_Permissions(t *testing.T) {
 }
 
 func TestTimetableMaterializationSettings_OperatorOnly(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{
 		"timetable.materialization_enabled",
 		"timetable.materialization_weekday",
@@ -535,6 +577,8 @@ func TestTimetableMaterializationSettings_OperatorOnly(t *testing.T) {
 }
 
 func TestTimetableSettings_WeekdayOptions(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("timetable.materialization_weekday")
 	require.NotNil(t, def)
 	require.NotNil(t, def.Options)
@@ -556,6 +600,8 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 }
 
 func TestTimetableChildrenPerStaffRatioSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("timetable.children_per_staff_ratio")
 	require.NotNil(t, def, "setting timetable.children_per_staff_ratio should exist")
 
@@ -578,6 +624,8 @@ func TestTimetableChildrenPerStaffRatioSetting(t *testing.T) {
 }
 
 func TestOperationsSettings_Types(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		key      string
 		expected config.FieldType
@@ -596,6 +644,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
+		{"operations.parent_sick_requires_approval", config.FieldBoolean},
 		{"operations.parent_excused_requires_approval", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
@@ -615,6 +664,8 @@ func TestOperationsSettings_Types(t *testing.T) {
 // parents-portal write toggles must default to true so schools with the
 // portal get them without extra configuration.
 func TestParentPortalSettings_DefaultOn(t *testing.T) {
+	t.Parallel()
+
 	for _, key := range []string{
 		"operations.parent_sick_note_enabled",
 		"operations.parent_notes_enabled",
@@ -627,21 +678,27 @@ func TestParentPortalSettings_DefaultOn(t *testing.T) {
 	}
 }
 
-// TestParentExcusedRequiresApprovalSetting guards the opt-in excused-approval
-// gate (#1845): unlike the other parents-portal toggles it defaults OFF (so
-// existing schools keep the immediate-write behavior) and is hidden while the
-// sick-note feature it extends is disabled.
-func TestParentExcusedRequiresApprovalSetting(t *testing.T) {
-	def := config.GetDefinition("operations.parent_excused_requires_approval")
-	require.NotNil(t, def, "operations.parent_excused_requires_approval should exist")
-	assert.Equal(t, config.FieldBoolean, def.Type, "excused-approval toggle should be boolean")
-	assert.Equal(t, false, def.Default, "excused-approval toggle must default OFF (opt-in)")
-	assert.Equal(t, "operations", def.Tab, "excused-approval toggle should be on the operations tab")
-	assert.Equal(t, "config:manage", def.WritePermission, "changes the absence-approval workflow -> manage")
-	require.NotNil(t, def.DependsOn, "should be hidden when the sick-note feature is off")
-	assert.Equal(t, config.KeyParentSickNoteEnabled, def.DependsOn.Key)
-	assert.Equal(t, "eq", def.DependsOn.Condition)
-	assert.Equal(t, true, def.DependsOn.Value)
+// TestParentAbsenceApprovalSettings guards the opt-out approval contract for
+// parent-submitted sick and excused absences (#2447/#2449). Both default ON and
+// remain configurable independently while the parent absence feature is on.
+func TestParentAbsenceApprovalSettings(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{
+		"operations.parent_sick_requires_approval",
+		"operations.parent_excused_requires_approval",
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type, "approval toggle should be boolean")
+		assert.Equal(t, true, def.Default, "approval toggle must default ON (opt-out)")
+		assert.Equal(t, "operations", def.Tab, "approval toggle should be on the operations tab")
+		assert.Equal(t, "config:manage", def.WritePermission, "changes the absence-approval workflow -> manage")
+		require.NotNil(t, def.DependsOn, "should be hidden when the sick-note feature is off")
+		assert.Equal(t, config.KeyParentSickNoteEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
 }
 
 // TestParentPickupChangeSetting_DefaultOn guards that the pickup-change toggle
@@ -649,6 +706,8 @@ func TestParentExcusedRequiresApprovalSetting(t *testing.T) {
 // (sick-note/notes). Schools that do not want parents to alter the care
 // schedule must switch it off deliberately.
 func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("operations.parent_pickup_change_enabled")
 	require.NotNil(t, def, "operations.parent_pickup_change_enabled should exist")
 	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
@@ -657,6 +716,8 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 }
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
+	t.Parallel()
+
 	for _, key := range []string{
 		config.KeyParentCarePickupRequestEnabled,
 		config.KeyParentCareModeRequestEnabled,
@@ -676,6 +737,8 @@ func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T
 // (helpers-only + audit), not by this toggle - but keeps config:manage because
 // enabling it can expose pickup-authority changes.
 func TestGuardianManagementSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("operations.parent_guardian_management_enabled")
 	require.NotNil(t, def, "operations.parent_guardian_management_enabled should exist")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -690,6 +753,8 @@ func TestGuardianManagementSetting(t *testing.T) {
 // out separately so a future tab refactor can't silently move user-visible
 // settings without breaking the test.
 func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
+	t.Parallel()
+
 	enrollmentTabKeys := []string{
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
@@ -729,6 +794,8 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 // config:manage write permission, and stay visible whenever enrollment is
 // enabled so admins can enter text before activating a block.
 func TestEnrollmentLegalTexts(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{
 		config.KeyEnrollmentLegalAGBText,
 		config.KeyEnrollmentLegalDSGVOText,
@@ -778,6 +845,8 @@ func TestEnrollmentLegalTexts(t *testing.T) {
 }
 
 func TestEnrollmentLegalBlockToggles(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{
 		config.KeyEnrollmentLegalTermsEnabled,
 		config.KeyEnrollmentLegalDSGVOEnabled,
@@ -805,6 +874,8 @@ func TestEnrollmentLegalBlockToggles(t *testing.T) {
 // off by default. Regressing this would silently expose a half-built
 // feature to every tenant on next deploy.
 func TestEnrollmentEnabled_DefaultsOff(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyEnrollmentEnabled)
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -817,6 +888,8 @@ func TestEnrollmentEnabled_DefaultsOff(t *testing.T) {
 // enrollment.enabled = true). Captures the rev-2.x intent that PR 4 is
 // pure plumbing and nothing renders in the parent UI until enabled.
 func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
+	t.Parallel()
+
 	gatedOnEnabled := []string{
 		config.KeyEnrollmentCollectGradeLevel,
 		config.KeyEnrollmentCareOfferingsEnabled,
@@ -843,6 +916,8 @@ func TestEnrollmentSettings_DependencyOnEnabled(t *testing.T) {
 // for the three select-typed enrollment settings. Drift here breaks the
 // frontend select renderer silently.
 func TestEnrollmentSelectOptions_AreCanonical(t *testing.T) {
+	t.Parallel()
+
 	activation := config.GetDefinition(config.KeyEnrollmentDefaultActivationMode)
 	require.NotNil(t, activation.Options)
 	require.Len(t, activation.Options.Static, 2)
@@ -878,6 +953,8 @@ func TestEnrollmentSelectOptions_AreCanonical(t *testing.T) {
 // outbox worker polling interval setting (PR 5). Operator-only because
 // the cadence is platform plumbing, not tenant-tunable.
 func TestEnrollmentOutboxWorkerInterval(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyEnrollmentOutboxWorkerIntervalSeconds)
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldNumber, def.Type)
@@ -897,6 +974,8 @@ func TestEnrollmentOutboxWorkerInterval(t *testing.T) {
 // editable. We use AccessOperatorOnly + config:manage instead of
 // introducing a new platform:config:update permission.
 func TestEnrollmentStatusTokenTTL_OperatorOnly(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyEnrollmentStatusTokenTTLDays)
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldNumber, def.Type)
@@ -914,6 +993,8 @@ func TestEnrollmentStatusTokenTTL_OperatorOnly(t *testing.T) {
 // settings - both with security/GDPR implications - use the stricter
 // config:manage write permission, not the operational config:update.
 func TestEnrollmentSafetyPermissions(t *testing.T) {
+	t.Parallel()
+
 	captcha := config.GetDefinition(config.KeyEnrollmentRequireCaptcha)
 	require.NotNil(t, captcha)
 	assert.Equal(t, "config:manage", captcha.WritePermission)
@@ -926,6 +1007,8 @@ func TestEnrollmentSafetyPermissions(t *testing.T) {
 // TestGuardianInvitationTokenExpiry guards the registry shape of the
 // guardian-invitation token TTL. Operator-only, default 48h, validation 1-168h.
 func TestGuardianInvitationTokenExpiry(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyGuardianInvitationTokenExpiryHours)
 	require.NotNil(t, def, "invitations.guardian_token_expiry_hours should be registered")
 	assert.Equal(t, config.FieldNumber, def.Type)
@@ -944,6 +1027,8 @@ func TestGuardianInvitationTokenExpiry(t *testing.T) {
 // TestStudentActivationInterval guards the registry shape of the activate-
 // students scheduler interval. Default 60 minutes, validation 5-1440.
 func TestStudentActivationInterval(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyStudentActivationIntervalMin)
 	require.NotNil(t, def, "operations.student_activation_interval_minutes should be registered")
 	assert.Equal(t, config.FieldNumber, def.Type)
@@ -962,6 +1047,8 @@ func TestStudentActivationInterval(t *testing.T) {
 // preserve existing behavior (sick clears on next check-in unconditionally,
 // new Entschuldigt flow clears at end of day).
 func TestStatusFlagClearMode_Defaults(t *testing.T) {
+	t.Parallel()
+
 	sickDef := config.GetDefinition(config.KeySickClearMode)
 	require.NotNil(t, sickDef)
 	assert.Equal(t, "operations", sickDef.Tab)
@@ -983,6 +1070,8 @@ func TestStatusFlagClearMode_Defaults(t *testing.T) {
 // of three modes (manual / next_checkin / end_of_day) so the frontend can
 // render a complete select.
 func TestStatusFlagClearMode_Options(t *testing.T) {
+	t.Parallel()
+
 	for _, key := range []string{config.KeySickClearMode, config.KeyExcusedClearMode} {
 		def := config.GetDefinition(key)
 		require.NotNilf(t, def, "setting %q should exist", key)
@@ -1000,6 +1089,8 @@ func TestStatusFlagClearMode_Options(t *testing.T) {
 }
 
 func TestGDPRSettings_Types(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		key      string
 		expected config.FieldType
@@ -1022,6 +1113,8 @@ func TestGDPRSettings_Types(t *testing.T) {
 }
 
 func TestSecuritySettings(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("security.ogs_device_pin")
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldPassword, def.Type)
@@ -1042,6 +1135,8 @@ func TestSecuritySettings(t *testing.T) {
 // stock config opt into the cookie skip — flipping it would silently
 // disable the feature for every existing school.
 func TestMFASettings_TypesAndDefaults(t *testing.T) {
+	t.Parallel()
+
 	t.Run("mfa_mode", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFAMode)
 		require.NotNil(t, def)
@@ -1081,6 +1176,8 @@ func TestMFASettings_TypesAndDefaults(t *testing.T) {
 // the settings UI hides irrelevant knobs when MFA is off or trusted devices
 // are disabled.
 func TestMFASettings_DependsOnGraph(t *testing.T) {
+	t.Parallel()
+
 	t.Run("trusted_device_enabled hidden when mfa_mode is off", func(t *testing.T) {
 		def := config.GetDefinition(config.KeyMFATrustedDeviceEnabled)
 		require.NotNil(t, def)
@@ -1107,6 +1204,8 @@ func TestMFASettings_DependsOnGraph(t *testing.T) {
 }
 
 func TestDependsOn_SessionEndGroup(t *testing.T) {
+	t.Parallel()
+
 	// session_end_time depends on session_end_enabled
 	timeDef := config.GetDefinition("operations.session_end_time")
 	require.NotNil(t, timeDef)
@@ -1123,6 +1222,8 @@ func TestDependsOn_SessionEndGroup(t *testing.T) {
 }
 
 func TestDependsOn_CleanupGroup(t *testing.T) {
+	t.Parallel()
+
 	intervalDef := config.GetDefinition("operations.session_cleanup_interval_minutes")
 	require.NotNil(t, intervalDef)
 	require.NotNil(t, intervalDef.DependsOn)
@@ -1135,6 +1236,8 @@ func TestDependsOn_CleanupGroup(t *testing.T) {
 }
 
 func TestDependsOn_GDPRGroup(t *testing.T) {
+	t.Parallel()
+
 	timeDef := config.GetDefinition("gdpr.data_cleanup_time")
 	require.NotNil(t, timeDef)
 	require.NotNil(t, timeDef.DependsOn)
@@ -1147,6 +1250,8 @@ func TestDependsOn_GDPRGroup(t *testing.T) {
 }
 
 func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
+	t.Parallel()
+
 	dailyCheckoutDef := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, dailyCheckoutDef)
 	require.NotNil(t, dailyCheckoutDef.DependsOn)
@@ -1170,6 +1275,8 @@ func TestDependsOn_PerStudentCheckoutGroup(t *testing.T) {
 }
 
 func TestDependsOn_AttendanceLogGroup(t *testing.T) {
+	t.Parallel()
+
 	dependentKeys := []string{
 		"gdpr.attendance_visible_days",
 		"gdpr.room_detail_visible_days",
@@ -1185,6 +1292,8 @@ func TestDependsOn_AttendanceLogGroup(t *testing.T) {
 }
 
 func TestDependsOn_FeedbackGroup(t *testing.T) {
+	t.Parallel()
+
 	retentionDef := config.GetDefinition("feedback.data_retention_days")
 	require.NotNil(t, retentionDef)
 	require.NotNil(t, retentionDef.DependsOn)
@@ -1194,6 +1303,8 @@ func TestDependsOn_FeedbackGroup(t *testing.T) {
 }
 
 func TestFeedbackSettings(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("feedback.enabled")
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -1204,10 +1315,13 @@ func TestFeedbackSettings(t *testing.T) {
 }
 
 func TestDevicesSettings(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 	}
 	for _, key := range keys {
 		def := config.GetDefinition(key)
@@ -1231,9 +1345,14 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, schulhof.Default, "schulhof should default to false (opt-in)")
 	wc := config.GetDefinition("checkout.wc_enabled")
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
+
+	allRooms := config.GetDefinition("checkout.daily_checkout_from_all_rooms_enabled")
+	assert.Equal(t, true, allRooms.Default, "new tenants should offer daily checkout from every room")
 }
 
 func TestCheckinCapacityDetailSettings(t *testing.T) {
+	t.Parallel()
+
 	keys := []string{
 		config.KeyCheckinActivityCapacityDetailsEnabled,
 		config.KeyCheckinRoomCapacityDetailsEnabled,
@@ -1262,12 +1381,16 @@ func TestCheckinCapacityDetailSettings(t *testing.T) {
 }
 
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, def)
 	assert.Equal(t, "", def.Default, "daily checkout time should default to empty (always available)")
 }
 
 func TestStatusFlagClearTime_Default(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyStatusFlagClearTime)
 	require.NotNil(t, def)
 	assert.Equal(t, config.FieldTime, def.Type)
@@ -1278,6 +1401,8 @@ func TestStatusFlagClearTime_Default(t *testing.T) {
 }
 
 func TestValidation_NumberFields(t *testing.T) {
+	t.Parallel()
+
 	// All number fields should have min/max validation
 	numberKeys := []string{
 		"operations.session_end_timeout_minutes",
@@ -1300,6 +1425,8 @@ func TestValidation_NumberFields(t *testing.T) {
 }
 
 func TestDefaults_HaveReasonableValues(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		key             string
 		expectedDefault any
@@ -1351,6 +1478,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 // alongside other Datenverwaltung-affecting toggles, and uses config:update
 // (operational, not GDPR-scoped - consent itself is captured per student).
 func TestStudentPhotosSetting(t *testing.T) {
+	t.Parallel()
+
 	def := config.GetDefinition(config.KeyStudentPhotosEnabled)
 	require.NotNil(t, def, "operations.student_photos_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
@@ -1362,6 +1491,8 @@ func TestStudentPhotosSetting(t *testing.T) {
 }
 
 func TestTrackingSettings_Types(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		key      string
 		expected config.FieldType
@@ -1380,6 +1511,8 @@ func TestTrackingSettings_Types(t *testing.T) {
 }
 
 func TestDependsOn_TrackingGroup(t *testing.T) {
+	t.Parallel()
+
 	dependentKeys := []string{
 		"tracking.indicator_1",
 		"tracking.indicator_2",
@@ -1396,6 +1529,8 @@ func TestDependsOn_TrackingGroup(t *testing.T) {
 }
 
 func TestTrackingIndicator_Validation(t *testing.T) {
+	t.Parallel()
+
 	indicatorKeys := []string{
 		"tracking.indicator_1",
 		"tracking.indicator_2",
@@ -1419,6 +1554,8 @@ func TestTrackingIndicator_Validation(t *testing.T) {
 // (must default to OFF so no school auto-closes sessions without consent) and
 // a grace-minutes number gated behind the toggle.
 func TestAutoCheckoutSettings(t *testing.T) {
+	t.Parallel()
+
 	enabled := config.GetDefinition(config.KeyTrackingAutoCheckoutEnabled)
 	require.NotNil(t, enabled, "tracking.auto_checkout_enabled should be registered")
 	assert.Equal(t, config.FieldBoolean, enabled.Type)
@@ -1448,6 +1585,8 @@ func TestAutoCheckoutSettings(t *testing.T) {
 // a plausible preset would silently bill wrong. Any change that introduces a
 // non-empty default here must be treated as a billing bug, not a convenience.
 func TestPayrollSettings(t *testing.T) {
+	t.Parallel()
+
 	lohnarten := []string{
 		config.KeyPayrollLohnartRegelarbeit,
 		config.KeyPayrollLohnartPlusStunden,

@@ -53,6 +53,8 @@ func newRequestWithAuth(claims jwt.AppClaims, permissions []string) *http.Reques
 // account without a staff row must get the admin view, not a 403 or a
 // caregiver-scoped list.
 func TestListRemindersAdminScope(t *testing.T) {
+	t.Parallel()
+
 	staff := &usersModels.Staff{}
 	staff.ID = 42
 
@@ -137,6 +139,8 @@ func TestListRemindersAdminScope(t *testing.T) {
 // TestListRemindersCaregiverWithoutStaffForbidden keeps the existing contract:
 // a non-admin, non-wildcard account with no staff row is a 403, not a 500.
 func TestListRemindersCaregiverWithoutStaffForbidden(t *testing.T) {
+	t.Parallel()
+
 	svc := &captureService{}
 	uc := &stubUserContext{err: usercontext.ErrUserNotLinkedToPerson}
 	rs := &Resource{RemindersService: svc, UserContext: uc}

@@ -116,6 +116,8 @@ func reqWithAccountID(t *testing.T, method, accountIDParam string, body any, cla
 }
 
 func TestMFAAdminGetState_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	// Post-#1430-round-2 the handler delegates the entire state read +
 	// permission/membership gate to MFAService.GetAdminState. Tests
 	// drive the stub's return value rather than the two-call shape the
@@ -143,6 +145,8 @@ func TestMFAAdminGetState_HappyPath(t *testing.T) {
 }
 
 func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodGet, "not-a-number", nil, 0, nil)
@@ -153,6 +157,8 @@ func TestMFAAdminGetState_BadIDReturns400(t *testing.T) {
 }
 
 func TestMFAAdminGetState_RequiresAuthenticatedActor(t *testing.T) {
+	t.Parallel()
+
 	// claims.ID == 0 means the request reached the handler without a
 	// valid AppClaims (e.g. forged or stripped context). Without an
 	// actor identity GetAdminState can't run its membership check, so
@@ -174,6 +180,8 @@ func TestMFAAdminGetState_RequiresAuthenticatedActor(t *testing.T) {
 }
 
 func TestMFAAdminGetState_CrossTenantReturns403(t *testing.T) {
+	t.Parallel()
+
 	// Service-layer membership check rejects the read when the target
 	// account doesn't belong to the actor's tenant. The handler maps
 	// ErrMFAPermissionDenied to 403 so a tenant admin cannot probe
@@ -194,6 +202,8 @@ func TestMFAAdminGetState_CrossTenantReturns403(t *testing.T) {
 }
 
 func TestMFAAdminGetState_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	// Generic service errors map to 500 so transient infra failures
 	// don't masquerade as 403 (which would invite confused-deputy
 	// debugging). Permission denial is the only "expected" failure
@@ -214,6 +224,8 @@ func TestMFAAdminGetState_ServiceErrorReturns500(t *testing.T) {
 }
 
 func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	var capturedOverride string
 	var capturedTenantID int64
 	rs := &Resource{
@@ -243,6 +255,8 @@ func TestMFAAdminSetOverride_HappyPath(t *testing.T) {
 }
 
 func TestMFAAdminSetOverride_RequiresClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		MFAService:  &adminMFAStub{},
 		AuthService: &adminAuthStub{},
@@ -258,6 +272,8 @@ func TestMFAAdminSetOverride_RequiresClaim(t *testing.T) {
 }
 
 func TestMFAAdminSetOverride_RejectsBadOverride(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		MFAService:  &adminMFAStub{},
 		AuthService: &adminAuthStub{},
@@ -273,6 +289,8 @@ func TestMFAAdminSetOverride_RejectsBadOverride(t *testing.T) {
 }
 
 func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{
 		MFAService: &adminMFAStub{
 			setOverrideFn: func(context.Context, int64, int64, int64, string, string, []string) error {
@@ -292,6 +310,8 @@ func TestMFAAdminSetOverride_PermissionDeniedMapsTo403(t *testing.T) {
 }
 
 func TestMFAAdminDisable_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	var capturedReason string
 	var capturedTenantID int64
 	rs := &Resource{
@@ -318,6 +338,8 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 }
 
 func TestMFAAdminDisable_BadID_Returns400(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodPost, "0",
@@ -330,6 +352,8 @@ func TestMFAAdminDisable_BadID_Returns400(t *testing.T) {
 }
 
 func TestMFAAdminDisable_RejectsEmptyReason(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: &adminMFAStub{}}
 
 	r := reqWithAccountID(t, http.MethodPost, "300",
@@ -342,6 +366,8 @@ func TestMFAAdminDisable_RejectsEmptyReason(t *testing.T) {
 }
 
 func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: &adminMFAStub{
 		adminDisableFn: func(context.Context, int64, int64, int64, string, []string) error {
 			return errors.New("db down")
@@ -360,6 +386,8 @@ func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
 // Verify reason-trimming happens before validation so leading/trailing
 // whitespace doesn't sneak through as valid input.
 func TestMFAAdminOverrideRequest_BindTrimsReason(t *testing.T) {
+	t.Parallel()
+
 	req := &MFAAdminOverrideRequest{Reason: "  spaced reason text   "}
 	require.NoError(t, req.Bind(nil))
 	assert.Equal(t, "spaced reason text", req.Reason)

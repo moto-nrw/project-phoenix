@@ -84,6 +84,7 @@ func validPushInput() PushSubscriptionInput {
 }
 
 func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
+	t.Parallel()
 	t.Run("reports configuration state", func(t *testing.T) {
 		unconfigured := NewPushSubscriptionService(nil, nil, nil, VAPIDConfig{}, nil)
 		_, err := unconfigured.PublicKey()
@@ -133,6 +134,7 @@ func TestPushSubscriptionServiceStaffLifecycle(t *testing.T) {
 }
 
 func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
+	t.Parallel()
 	t.Run("rejects subscribe without VAPID keys", func(t *testing.T) {
 		service := NewPushSubscriptionService(nil, nil, nil, VAPIDConfig{}, nil)
 		err := service.SubscribeParent(context.Background(), 42, validPushInput())
@@ -140,7 +142,6 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	var tenantID int64
 	require.NoError(t, db.NewSelect().
@@ -220,18 +221,13 @@ func TestPushSubscriptionServiceParentLifecycle(t *testing.T) {
 }
 
 func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "push-parent-mixed-roles")
-	guardianTenantID := account.ID + 4000
-	staffTenantID := account.ID + 4001
+	guardianTenantID := testpkg.UniqueTestTenantID(t)
+	staffTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, guardianTenantID)
 	testpkg.EnsureTestTenant(t, db, staffTenantID)
-	t.Cleanup(func() {
-		testpkg.CleanupAuthFixtures(t, db, account.ID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.schools WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
-		_, _ = db.ExecContext(context.Background(), `DELETE FROM platform.organizations WHERE id IN (?, ?)`, guardianTenantID, staffTenantID)
-		_ = db.Close()
-	})
 
 	testpkg.MapAccountToTenant(t, db, account.ID, guardianTenantID)
 	testpkg.MapAccountToTenant(t, db, account.ID, staffTenantID)
@@ -273,11 +269,11 @@ func TestPushSubscriptionServiceParentFiltersNonGuardianMappings(t *testing.T) {
 }
 
 func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
+	t.Parallel()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 
@@ -309,11 +305,11 @@ func TestPushSubscriptionServiceParentSubscribeIsAtomic(t *testing.T) {
 }
 
 func TestPushSubscriptionServiceParentUnsubscribeIsAtomic(t *testing.T) {
+	t.Parallel()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	db := bun.NewDB(sqlDB, pgdialect.New())
 	t.Cleanup(func() {
-		_ = db.Close()
 		_ = sqlDB.Close()
 	})
 

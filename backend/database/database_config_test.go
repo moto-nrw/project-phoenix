@@ -9,6 +9,7 @@ import (
 )
 
 // TestGetDatabaseDSN_ExplicitDSN verifies that an explicit DB_DSN is returned when set
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
 	defer viper.Reset()
 
@@ -22,6 +23,7 @@ func TestGetDatabaseDSN_ExplicitDSN(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_TestEnv verifies that APP_ENV=test requires an explicit test database DSN.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnv(t *testing.T) {
 	defer viper.Reset()
 
@@ -36,6 +38,7 @@ func TestGetDatabaseDSN_TestEnv(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_DevelopmentEnvRequiresDSN verifies that development no longer invents a localhost DSN.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
 	defer viper.Reset()
 
@@ -49,6 +52,7 @@ func TestGetDatabaseDSN_DevelopmentEnvRequiresDSN(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_TestDSNRequiresTestEnv verifies that TEST_DB_DSN is not a fallback outside test mode.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
 	defer viper.Reset()
 
@@ -63,6 +67,7 @@ func TestGetDatabaseDSN_TestDSNRequiresTestEnv(t *testing.T) {
 }
 
 // TestGetDatabaseDSN_MissingConfigFails verifies that no localhost fallback is returned.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 	defer viper.Reset()
 
@@ -76,6 +81,7 @@ func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 // TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN proves the documented
 // APP_ENV=test migration command cannot reset the development database merely
 // because dev.env also contains DB_DSN.
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
 	defer viper.Reset()
 
@@ -92,6 +98,7 @@ func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
 	assert.NotEqual(t, developmentDSN, result)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t *testing.T) {
 	defer viper.Reset()
 
@@ -106,6 +113,7 @@ func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t
 }
 
 // TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy verifies that explicit DB_DSN takes precedence over TEST_DB_DSN
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy(t *testing.T) {
 	defer viper.Reset()
 

@@ -27,9 +27,8 @@ import (
 func newPeriodsTestServer(t *testing.T) chi.Router {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	tenantID := int64(910000) + time.Now().UnixNano()%50000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
@@ -61,6 +60,8 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 // year (created=true), the second is a clean no-op (created=false) — both
 // answer 200, never 409.
 func TestBootstrapPeriodsEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	router := newPeriodsTestServer(t)
 
 	first := executeRequest(router, http.MethodPost, "/periods/bootstrap", nil)
@@ -87,6 +88,8 @@ func TestBootstrapPeriodsEndToEnd(t *testing.T) {
 // shape against the real overlap query: an overlapping active period yields
 // 201 + warnings, a disjoint one yields 201 without the warnings field.
 func TestCreatePeriodOverlapWarningsEndToEnd(t *testing.T) {
+	t.Parallel()
+
 	router := newPeriodsTestServer(t)
 	suffix := time.Now().UnixNano()
 

@@ -11,6 +11,8 @@ import (
 )
 
 func TestSettingAuditEntry_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		entry   config.SettingAuditEntry
@@ -62,21 +64,29 @@ func TestSettingAuditEntry_Validate(t *testing.T) {
 }
 
 func TestSettingAuditEntry_GetID(t *testing.T) {
+	t.Parallel()
+
 	entry := &config.SettingAuditEntry{ID: 99}
 	assert.Equal(t, int64(99), entry.GetID())
 }
 
 func TestSettingAuditEntry_GetCreatedAt_ReturnsChangedAt(t *testing.T) {
+	t.Parallel()
+
 	entry := &config.SettingAuditEntry{}
 	assert.Equal(t, entry.ChangedAt, entry.GetCreatedAt())
 }
 
 func TestSettingAuditEntry_GetUpdatedAt_ReturnsChangedAt(t *testing.T) {
+	t.Parallel()
+
 	entry := &config.SettingAuditEntry{}
 	assert.Equal(t, entry.ChangedAt, entry.GetUpdatedAt())
 }
 
 func TestNewAuditEntry(t *testing.T) {
+	t.Parallel()
+
 	changedBy := base.Int64Ptr(42)
 	oldValue := json.RawMessage(`"old"`)
 	newValue := json.RawMessage(`"new"`)
@@ -93,6 +103,8 @@ func TestNewAuditEntry(t *testing.T) {
 }
 
 func TestNewAuditEntry_NilValues(t *testing.T) {
+	t.Parallel()
+
 	entry := config.NewAuditEntry(1, "test.reset", "reset", nil, nil, nil)
 
 	assert.Equal(t, "reset", entry.Action)

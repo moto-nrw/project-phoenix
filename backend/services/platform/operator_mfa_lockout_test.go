@@ -12,6 +12,8 @@ import (
 // decision is now a pure operator read with the clock injected, so no repos
 // are needed.
 func TestOperatorMFAService_isMFALocked(t *testing.T) {
+	t.Parallel()
+
 	s := &operatorMFAService{}
 	now := time.Now()
 

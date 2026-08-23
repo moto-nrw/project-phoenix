@@ -29,6 +29,8 @@ func catalog(offerings ...*enrollmentModels.CareOffering) map[int64]*enrollmentM
 }
 
 func TestValidateOfferingGroupRules_NoGroups(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "", enrollmentModels.SelectionRuleOptional),
 		offering(2, "", ""),
@@ -38,6 +40,8 @@ func TestValidateOfferingGroupRules_NoGroups(t *testing.T) {
 }
 
 func TestValidateOfferingGroupRules_ExactlyOne(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "umfang", enrollmentModels.SelectionRuleExactlyOne),
 		offering(2, "umfang", enrollmentModels.SelectionRuleExactlyOne),
@@ -52,6 +56,8 @@ func TestValidateOfferingGroupRules_ExactlyOne(t *testing.T) {
 }
 
 func TestValidateOfferingGroupRules_AtLeastOne(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "module", enrollmentModels.SelectionRuleAtLeastOne),
 		offering(2, "module", enrollmentModels.SelectionRuleAtLeastOne),
@@ -62,6 +68,8 @@ func TestValidateOfferingGroupRules_AtLeastOne(t *testing.T) {
 }
 
 func TestValidateOfferingGroupRules_AtMostOne(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "extra", enrollmentModels.SelectionRuleAtMostOne),
 		offering(2, "extra", enrollmentModels.SelectionRuleAtMostOne),
@@ -72,6 +80,8 @@ func TestValidateOfferingGroupRules_AtMostOne(t *testing.T) {
 }
 
 func TestValidateOfferingGroupRules_IgnoresUngroupedAndOtherGroups(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "umfang", enrollmentModels.SelectionRuleExactlyOne),
 		offering(2, "umfang", enrollmentModels.SelectionRuleExactlyOne),
@@ -82,6 +92,8 @@ func TestValidateOfferingGroupRules_IgnoresUngroupedAndOtherGroups(t *testing.T)
 }
 
 func TestValidateOfferingGroupRules_ErrorNamesChildAndWrapsInvalidSubmission(t *testing.T) {
+	t.Parallel()
+
 	open := catalog(
 		offering(1, "umfang", enrollmentModels.SelectionRuleExactlyOne),
 		offering(2, "umfang", enrollmentModels.SelectionRuleExactlyOne),
@@ -98,6 +110,8 @@ func TestValidateOfferingGroupRules_ErrorNamesChildAndWrapsInvalidSubmission(t *
 }
 
 func TestValidateOfferingGroupRules_RejectsMixedRulesInGroup(t *testing.T) {
+	t.Parallel()
+
 	// Two offerings in the same group declare different non-optional rules.
 	// This is an admin misconfiguration: the chosen rule must not depend on
 	// map iteration order, so we reject it deterministically rather than
@@ -113,6 +127,8 @@ func TestValidateOfferingGroupRules_RejectsMixedRulesInGroup(t *testing.T) {
 }
 
 func TestValidateOfferingGroupRules_DeterministicAcrossManyRuns(t *testing.T) {
+	t.Parallel()
+
 	// Same conflicting catalog evaluated repeatedly must always error (never
 	// flip to "valid" depending on map iteration order).
 	for i := 0; i < 50; i++ {

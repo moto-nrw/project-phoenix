@@ -32,6 +32,13 @@ export interface OfferingRequestDiffLine {
   readonly optoutable?: boolean;
 }
 
+/** One booking the request leaves exactly as it is. */
+interface OfferingRequestUnchangedLine {
+  readonly offering_id: string;
+  readonly label: string;
+  readonly days: string;
+}
+
 /**
  * One offering change request in the staff queue. Mirrors
  * api/students.OfferingRequestResponse.
@@ -43,8 +50,25 @@ export interface StaffOfferingRequest {
   readonly status: OfferingRequestStatus;
   /** Date the switch would take effect (YYYY-MM-DD). */
   readonly effective_from: string;
+  /**
+   * Range staff may confirm the switch for (YYYY-MM-DD, #2484). Absent when the
+   * backend could not resolve the care period; the date field is then unbounded
+   * and the decision validates alone.
+   */
+  readonly earliest_effective_from?: string;
+  readonly latest_effective_from?: string;
+  /**
+   * Das Datum, das die Eltern eingetragen haben — nur gesetzt, wenn es nicht
+   * mehr geht (es ist vorbei oder liegt vor dem Beginn der Betreuungszeit) und
+   * `effective_from` deshalb der früheste noch mögliche Tag ist (#2484).
+   */
+  readonly requested_effective_from?: string;
   readonly note?: string;
   readonly diff: readonly OfferingRequestDiffLine[];
+  /** Bookings this request does not touch, for the complete after picture. */
+  readonly unchanged?: readonly OfferingRequestUnchangedLine[];
+  /** True when approving would leave the child without any offering (#2434). */
+  readonly full_withdrawal?: boolean;
   readonly reason?: string;
   readonly created_at: string;
   readonly reviewed_at?: string;
@@ -58,6 +82,16 @@ export interface OfferingRequestPreviewSelection {
 
 export interface OfferingRequestPreview {
   readonly selections: readonly OfferingRequestPreviewSelection[];
+  readonly manual_planning_conflicts: readonly ManualPlanningConflict[];
+  readonly arrival_expectations_follow_bookings: boolean;
+}
+
+interface ManualPlanningConflict {
+  readonly activity_group_id: string;
+  readonly activity_group_name: string;
+  readonly days: readonly string[];
+  readonly first_date: string;
+  readonly occurrence_count: number;
 }
 
 interface Envelope<T> {
@@ -107,24 +141,6 @@ async function readError(
   return new OfferingRequestApiError(message, code);
 }
 
-/** Lists the tenant's pending offering change requests. */
-export async function listOfferingChangeRequests(): Promise<
-  StaffOfferingRequest[]
-> {
-  const response = await fetch("/api/students/offering-change-requests", {
-    method: "GET",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw await readError(
-      response,
-      "Angebots-Anfragen konnten nicht geladen werden",
-    );
-  }
-  return unwrap((await response.json()) as Envelope<StaffOfferingRequest[]>);
-}
-
 /**
  * Approves (applies the dated switch) or rejects one offering change request.
  * Approval can legitimately fail (capacity, deactivated offering); the row then
@@ -135,6 +151,7 @@ export async function decideOfferingChangeRequest(
   approve: boolean,
   reason?: string,
   excludedOfferingIds?: readonly string[],
+  effectiveFrom?: string,
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -145,6 +162,7 @@ export async function decideOfferingChangeRequest(
         approve,
         reason: reason ?? "",
         excluded_offering_ids: excludedOfferingIds,
+        effective_from: effectiveFrom,
       }),
     },
   );
@@ -160,6 +178,7 @@ export async function decideOfferingChangeRequest(
 export async function previewOfferingChangeRequest(
   requestId: string,
   excludedOfferingIds: readonly string[],
+  effectiveFrom?: string,
 ): Promise<OfferingRequestPreview> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/preview`,
@@ -168,6 +187,7 @@ export async function previewOfferingChangeRequest(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         excluded_offering_ids: excludedOfferingIds,
+        effective_from: effectiveFrom,
       }),
     },
   );
@@ -178,4 +198,23 @@ export async function previewOfferingChangeRequest(
     );
   }
   return unwrap((await response.json()) as Envelope<OfferingRequestPreview>);
+}
+
+/**
+ * One decided offering change request in the staff history. Mirrors
+ * api/students.OfferingRequestHistoryResponse; the diff is the frozen
+ * decision snapshot, never recomputed against current bookings.
+ */
+export interface StaffOfferingRequestHistoryEntry extends StaffOfferingRequest {
+  readonly decided_at: string;
+  /** Absent for withdrawn rows (no reviewer). */
+  readonly decided_by_name?: string;
+  /** Payload-derived recap when no frozen decision snapshot exists. */
+  readonly requested?: readonly OfferingRequestRequestedLine[];
+}
+
+interface OfferingRequestRequestedLine {
+  readonly offering_id: string;
+  readonly label: string;
+  readonly new: string;
 }

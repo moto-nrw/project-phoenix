@@ -73,7 +73,6 @@ services:
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
-      SUGGESTION_NOTIFY_EMAIL: ${SUGGESTION_NOTIFY_EMAIL}
     # Run migrations before starting air (phoenix_auth role must exist for serve)
     command: ["sh", "-c", "go run . migrate && air -c .air.toml"]
 
@@ -192,6 +191,27 @@ services:
       TZ: ${TZ}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: phoenix_test
+    # Wegwerf-Datenbank: Durability aus, Speed an. fsync=off heißt: nach einem
+    # unsauberen Stop (Docker-Crash, Force-Quit) kann das Cluster kaputt sein.
+    # Recovery: docker volume rm <project>_postgres_test, Container neu starten,
+    # dann `cd backend && APP_ENV=test go run . migrate reset`.
+    # CI läuft NICHT über diese Datei (GitHub-Actions-Service-Container).
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - shared_buffers=256MB
+      - -c
+      # 300, nicht 200: `go test` startet bis zu -p Package-Binaries, jedes
+      # mit (-parallel + Reserve) Verbindungen plus einem Keeper. Ein nacktes
+      # `go test ./...` auf 16 Kernen landet damit bei 16 x 17 = 272.
+      # scripts/test-backend.sh pinnt -p/-parallel und bleibt bei 52.
+      - max_connections=300
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d phoenix_test"]
       interval: 1s

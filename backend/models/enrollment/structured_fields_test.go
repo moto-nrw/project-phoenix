@@ -16,6 +16,8 @@ import (
 // ---- PhoneEntry ---------------------------------------------------------
 
 func TestPhoneEntry_Validate_RequiresPhoneNumber(t *testing.T) {
+	t.Parallel()
+
 	p := &PhoneEntry{PhoneNumber: "  ", PhoneType: "mobile"}
 	err := p.Validate()
 	require.Error(t, err)
@@ -23,12 +25,16 @@ func TestPhoneEntry_Validate_RequiresPhoneNumber(t *testing.T) {
 }
 
 func TestPhoneEntry_Validate_DefaultsTypeToOther(t *testing.T) {
+	t.Parallel()
+
 	p := &PhoneEntry{PhoneNumber: "0177 12345"}
 	require.NoError(t, p.Validate())
 	assert.Equal(t, "other", p.PhoneType, "missing phone_type must default to other")
 }
 
 func TestPhoneEntry_Validate_RejectsUnknownType(t *testing.T) {
+	t.Parallel()
+
 	p := &PhoneEntry{PhoneNumber: "0177 12345", PhoneType: "carrier-pigeon"}
 	err := p.Validate()
 	require.Error(t, err)
@@ -36,6 +42,8 @@ func TestPhoneEntry_Validate_RejectsUnknownType(t *testing.T) {
 }
 
 func TestPhoneEntry_Validate_AcceptsKnownTypes(t *testing.T) {
+	t.Parallel()
+
 	for _, kind := range []string{"mobile", "home", "work", "other"} {
 		p := &PhoneEntry{PhoneNumber: "0177 12345", PhoneType: kind}
 		assert.NoError(t, p.Validate(), "type %q must validate", kind)
@@ -43,6 +51,8 @@ func TestPhoneEntry_Validate_AcceptsKnownTypes(t *testing.T) {
 }
 
 func TestPhoneEntry_Validate_TrimsPhoneNumber(t *testing.T) {
+	t.Parallel()
+
 	p := &PhoneEntry{PhoneNumber: "  0177 12345  ", PhoneType: "mobile"}
 	require.NoError(t, p.Validate())
 	assert.Equal(t, "0177 12345", p.PhoneNumber)
@@ -51,10 +61,14 @@ func TestPhoneEntry_Validate_TrimsPhoneNumber(t *testing.T) {
 // ---- WeekdaySchedule ----------------------------------------------------
 
 func TestWeekdaySchedule_Validate_EmptyIsValid(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, WeekdaySchedule{}.Validate())
 }
 
 func TestWeekdaySchedule_Validate_AcceptsAllKnownWeekdays(t *testing.T) {
+	t.Parallel()
+
 	s := WeekdaySchedule{
 		"mon": "08:00",
 		"tue": "08:30",
@@ -66,42 +80,56 @@ func TestWeekdaySchedule_Validate_AcceptsAllKnownWeekdays(t *testing.T) {
 }
 
 func TestWeekdaySchedule_Validate_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
 	err := WeekdaySchedule{"sat": "10:00"}.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestWeekdaySchedule_Validate_RejectsBadTime(t *testing.T) {
+	t.Parallel()
+
 	err := WeekdaySchedule{"mon": "25:99"}.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "HH:MM")
 }
 
 func TestWeekdaySchedule_Validate_AcceptsEmptyDayValueAsSkip(t *testing.T) {
+	t.Parallel()
+
 	// Empty string means "no time set for that day" — caller skips
 	// that weekday at insert time rather than failing the whole row.
 	assert.NoError(t, WeekdaySchedule{"mon": "", "tue": " "}.Validate())
 }
 
 func TestWeekdaySchedule_ValidateAllowed_AcceptsListedTimes(t *testing.T) {
+	t.Parallel()
+
 	allowed := []string{"14:45", "16:00"}
 	s := WeekdaySchedule{"mon": "14:45", "wed": "16:00", "fri": ""}
 	assert.NoError(t, s.ValidateAllowed(allowed))
 }
 
 func TestWeekdaySchedule_ValidateAllowed_RejectsOffListTime(t *testing.T) {
+	t.Parallel()
+
 	err := WeekdaySchedule{"mon": "15:00"}.ValidateAllowed([]string{"14:45", "16:00"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not an allowed pickup time")
 }
 
 func TestWeekdaySchedule_ValidateAllowed_EmptyDaysStayValid(t *testing.T) {
+	t.Parallel()
+
 	// A parent leaving every day blank is still valid under a restricted
 	// list — "kein fester Eintrag" is a legitimate answer.
 	assert.NoError(t, WeekdaySchedule{"mon": "", "tue": " "}.ValidateAllowed([]string{"14:45"}))
 }
 
 func TestWeekdaySchedule_ValidateAllowed_StillRejectsMalformedTime(t *testing.T) {
+	t.Parallel()
+
 	// ValidateAllowed runs the format check first, so a junk time fails
 	// even before the membership check.
 	err := WeekdaySchedule{"mon": "25:99"}.ValidateAllowed([]string{"25:99"})
@@ -112,24 +140,32 @@ func TestWeekdaySchedule_ValidateAllowed_StillRejectsMalformedTime(t *testing.T)
 // ---- WeekdayBoolean -----------------------------------------------------
 
 func TestWeekdayBoolean_Validate_AcceptsKnownWeekdays(t *testing.T) {
+	t.Parallel()
+
 	days := WeekdayBoolean{"mon": true, "wed": false, "fri": true}
 	assert.NoError(t, days.Validate())
 	assert.True(t, days.HasAny())
 }
 
 func TestWeekdayBoolean_Validate_RejectsUnknownWeekday(t *testing.T) {
+	t.Parallel()
+
 	err := WeekdayBoolean{"sat": true}.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestWeekdayBoolean_HasAny_FalseWhenNoSelectedDay(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, WeekdayBoolean{"mon": false, "fri": false}.HasAny())
 }
 
 // ---- ContactEntry -------------------------------------------------------
 
 func TestContactEntry_Validate_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{FirstName: " ", LastName: "Müller", Email: "a@b.de"}
 	err := c.Validate()
 	require.Error(t, err)
@@ -137,6 +173,8 @@ func TestContactEntry_Validate_RequiresName(t *testing.T) {
 }
 
 func TestContactEntry_Validate_RequiresEmailOrPhone(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{FirstName: "Erika", LastName: "Müller"}
 	err := c.Validate()
 	require.Error(t, err)
@@ -144,11 +182,15 @@ func TestContactEntry_Validate_RequiresEmailOrPhone(t *testing.T) {
 }
 
 func TestContactEntry_Validate_OKWithEmailOnly(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{FirstName: "Erika", LastName: "Müller", Email: "erika@example.com"}
 	assert.NoError(t, c.Validate())
 }
 
 func TestContactEntry_Validate_OKWithPhonesOnly(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{
 		FirstName: "Erika",
 		LastName:  "Müller",
@@ -160,6 +202,8 @@ func TestContactEntry_Validate_OKWithPhonesOnly(t *testing.T) {
 }
 
 func TestContactEntry_Validate_PropagatesPhoneError(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{
 		FirstName: "Erika",
 		LastName:  "Müller",
@@ -175,6 +219,8 @@ func TestContactEntry_Validate_PropagatesPhoneError(t *testing.T) {
 }
 
 func TestContactEntry_Validate_RejectsNegativeEmergencyPriority(t *testing.T) {
+	t.Parallel()
+
 	c := &ContactEntry{
 		FirstName:         "Erika",
 		LastName:          "Müller",

@@ -145,6 +145,8 @@ func rowLabels(doc listexport.Document) []string {
 }
 
 func TestDienstplanByPersonRendersShiftAndTask(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
@@ -184,6 +186,8 @@ func withType(s *scheduleModel.StaffShift, typeID int64) *scheduleModel.StaffShi
 // The wall sheet names the cancellation and its cover, but never the reason:
 // "krank" beside a name is a health datum.
 func TestDienstplanNoticeVariantHidesCancellationReason(t *testing.T) {
+	t.Parallel()
+
 	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
 	cancelled.Cancelled = true
 	cancelled.ChangeReason = ptr("krank")
@@ -229,6 +233,8 @@ func TestDienstplanNoticeVariantHidesCancellationReason(t *testing.T) {
 
 // Uncovered intervals are an office concern, not a corridor one.
 func TestDienstplanUncoveredIntervalsOnlyInternal(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Assignments: []scheduleSvc.StaffScheduleAssignment{{
@@ -262,6 +268,8 @@ func TestDienstplanUncoveredIntervalsOnlyInternal(t *testing.T) {
 // A wall plan listing every staff member with five empty days wastes the
 // page the reader needs for the rest.
 func TestDienstplanSkipsStaffWithoutEntries(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{
 			staffMember(7, "Franziska", "Kessener"),
@@ -285,6 +293,8 @@ func TestDienstplanSkipsStaffWithoutEntries(t *testing.T) {
 // both with different times — a deployment sheet whose Ganztag row goes
 // blank on the days someone also runs an Angebot answers nothing.
 func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{
 			staffMember(7, "Franziska", "Kessener"),
@@ -339,6 +349,8 @@ func TestDienstplanByAreaGroupsNamesUnderTasks(t *testing.T) {
 // A single week dates its day headers and needs no group heading; several
 // weeks keep generic headers and get one titled sheet each.
 func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},
@@ -385,6 +397,8 @@ func TestDienstplanWeekHeadingsAndColumns(t *testing.T) {
 // The week is expanded Monday–Sunday so the weekend gets loaded, then cut
 // back to Monday–Friday because nothing is planned on it.
 func TestExpandWeeksWidensToFullWeeks(t *testing.T) {
+	t.Parallel()
+
 	weeks, err := expandWeeks(wednesday, wednesday)
 	if err != nil {
 		t.Fatalf("expandWeeks: %v", err)
@@ -408,6 +422,8 @@ func TestExpandWeeksWidensToFullWeeks(t *testing.T) {
 // A Saturday shift keeps the weekend on the sheet — dropping it would print
 // a plan that silently misses a Dienst somebody is rostered for.
 func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
+	t.Parallel()
+
 	weeks, err := expandWeeks(monday, monday.AddDays(7))
 	if err != nil {
 		t.Fatalf("expandWeeks: %v", err)
@@ -427,12 +443,16 @@ func TestNarrowWeeksKeepsTheWeekendWhenItIsPlanned(t *testing.T) {
 }
 
 func TestExpandWeeksRejectsOversizedRange(t *testing.T) {
+	t.Parallel()
+
 	if _, err := expandWeeks(monday, monday.AddDays(7*maxExportWeeks)); err == nil {
 		t.Fatal("expected a range error beyond the week cap")
 	}
 }
 
 func TestParamsValidation(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		mutate  func(*Params)
@@ -461,6 +481,8 @@ func TestParamsValidation(t *testing.T) {
 }
 
 func TestParseParamsDefaults(t *testing.T) {
+	t.Parallel()
+
 	params, err := ParseParams("2026-07-27", "2026-07-31", string(TemplateByPerson), "", "")
 	if err != nil {
 		t.Fatalf("ParseParams: %v", err)
@@ -479,6 +501,8 @@ func TestParseParamsDefaults(t *testing.T) {
 // Closing days and holidays are labelled, so an empty Tuesday reads as a
 // closure rather than as a planning mistake.
 func TestDienstplanLabelsNonWorkingDays(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{
@@ -498,6 +522,8 @@ func TestDienstplanLabelsNonWorkingDays(t *testing.T) {
 }
 
 func TestDienstplanKeepsNonWorkingDaysForAnOtherwiseEmptyWeek(t *testing.T) {
+	t.Parallel()
+
 	renderer := &captureRenderer{}
 	service := NewService(Dependencies{
 		Overview: stubOverview{overview: &scheduleSvc.StaffScheduleOverview{}},
@@ -516,6 +542,8 @@ func TestDienstplanKeepsNonWorkingDaysForAnOtherwiseEmptyWeek(t *testing.T) {
 }
 
 func TestNonWorkingDaysClampsLongClosingRangesToTheExportWindow(t *testing.T) {
+	t.Parallel()
+
 	svc := NewService(Dependencies{
 		ClosingDays: stubClosingDays{days: []*scheduleModel.ClosingDay{
 			closingRange(monday.AddDays(-100_000), monday.AddDays(100_000), "Betriebsferien"),
@@ -532,6 +560,8 @@ func TestNonWorkingDaysClampsLongClosingRangesToTheExportWindow(t *testing.T) {
 }
 
 func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
+	t.Parallel()
+
 	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
 	cancelled.Cancelled = true
 	cancelled.ChangeReason = ptr("Fortbildung")
@@ -554,6 +584,8 @@ func TestDienstplanAreaInternalVariantShowsCancellationReason(t *testing.T) {
 }
 
 func TestDienstplanAreaKeepsSameNamedShiftAndOfferingSeparate(t *testing.T) {
+	t.Parallel()
+
 	typeID := int64(1)
 	shift := shift(1, 7, monday, clock(7, 30), clock(10, 0))
 	shift.ShiftTypeID = &typeID
@@ -596,6 +628,8 @@ func closingRange(start, end timezone.Date, reason string) *scheduleModel.Closin
 // Rooms are routinely named after what happens in them; "Mensa · Mensa" is
 // noise on a sheet meant to be read from across a room.
 func TestDienstplanDropsRoomThatRepeatsTheTitle(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff: []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Assignments: []scheduleSvc.StaffScheduleAssignment{{
@@ -617,6 +651,8 @@ func TestDienstplanDropsRoomThatRepeatsTheTitle(t *testing.T) {
 // weight, and secondary facts recede. Printed in one weight — the first
 // version of this export — a Dienst and an Angebot are indistinguishable.
 func TestDienstplanCellRanksShiftTaskAndDetail(t *testing.T) {
+	t.Parallel()
+
 	cancelled := shift(1, 7, monday, clock(7, 30), clock(14, 0))
 	cancelled.Cancelled = true
 	cancelled.ChangeReason = ptr("Fortbildung")
@@ -668,6 +704,8 @@ func TestDienstplanCellRanksShiftTaskAndDetail(t *testing.T) {
 
 // The care plan uses the same three ranks.
 func TestBetreuungsplanCellRanks(t *testing.T) {
+	t.Parallel()
+
 	service, renderer := newBetreuungsplanService(
 		[]*scheduleModel.ActivityInstance{instance(11, monday, clock(12, 0), clock(13, 0), "Mensa", 3)},
 		[]*scheduleModel.InstanceStaff{instanceStaff(11, 7)},
@@ -694,6 +732,8 @@ func TestBetreuungsplanCellRanks(t *testing.T) {
 // paper. It sits on the shift line only: on the staff plan the bar means
 // "this is a Dienst", which is the distinction the sheet exists to make.
 func TestDienstplanShiftLineCarriesShiftTypeColour(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{withType(shift(1, 7, monday, clock(7, 30), clock(14, 0)), 4)},
@@ -721,6 +761,8 @@ func TestDienstplanShiftLineCarriesShiftTypeColour(t *testing.T) {
 
 // A Schichtart without a stored colour costs the bar and nothing else.
 func TestDienstplanWithoutColourStillRendersStrongLine(t *testing.T) {
+	t.Parallel()
+
 	overview := &scheduleSvc.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffMember(7, "Franziska", "Kessener")},
 		Shifts: []*scheduleModel.StaffShift{shift(1, 7, monday, clock(7, 30), clock(14, 0))},

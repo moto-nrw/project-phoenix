@@ -44,6 +44,8 @@ func (s *binaryModeActiveServiceStub) ToggleStudentAttendance(
 }
 
 func TestBinaryModeGreeting(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name   string
 		action string
@@ -64,6 +66,8 @@ func TestBinaryModeGreeting(t *testing.T) {
 }
 
 func TestProcessBinaryModeCheckinAllowsDeviceAttributionWithoutStaffContext(t *testing.T) {
+	t.Parallel()
+
 	activeService := &binaryModeActiveServiceStub{}
 	resource := &Resource{
 		ActiveService: activeService,
