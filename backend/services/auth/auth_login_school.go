@@ -73,16 +73,58 @@ func (s *Service) LoginSchoolWithMFAGate(
 	ctx context.Context,
 	email, password, ipAddress, userAgent, trustedDeviceCookie string,
 ) (*LoginResult, error) {
+	return s.loginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, "")
+}
+
+// LoginSchoolAtTenantWithMFAGate pins a school-portal login to the selected
+// tenant. It is used only by a tenant-to-school handoff; direct school logins
+// keep the established first-eligible-school behavior above.
+func (s *Service) LoginSchoolAtTenantWithMFAGate(
+	ctx context.Context,
+	email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug string,
+) (*LoginResult, error) {
+	return s.loginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug)
+}
+
+func (s *Service) loginSchoolWithMFAGate(
+	ctx context.Context,
+	email, password, ipAddress, userAgent, trustedDeviceCookie, targetTenantSlug string,
+) (*LoginResult, error) {
 	account, err := s.validateLoginCredentials(ctx, email, password, ipAddress, userAgent)
 	if err != nil {
 		return nil, err
 	}
 
-	hasPortalRole, portalTenantID, err := s.findSchoolPortalTenantForAccount(ctx, account.ID)
-	if err != nil {
-		return nil, &AuthError{Op: "school login: enumerate tenants", Err: err}
+	portalTenantID := int64(0)
+	hasPortalRole := false
+	if targetTenantSlug != "" {
+		metadata, metadataErr := s.loadAccountMetadata(ctx, account, targetTenantSlug)
+		if metadataErr != nil {
+			return nil, metadataErr
+		}
+		portalTenantID = metadata.tenantID
+		for _, role := range account.Roles {
+			if isSchoolPortalRole(role) {
+				hasPortalRole = true
+				break
+			}
+		}
+		if !hasPortalRole {
+			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at requested school")
+			return nil, &AuthError{Op: "school login", Err: ErrAccountNoSchoolPortalRole}
+		}
+	} else {
+		var resolvedTenantID int64
+		var findErr error
+		hasPortalRole, resolvedTenantID, findErr = s.findSchoolPortalTenantForAccount(ctx, account.ID)
+		if findErr != nil {
+			return nil, &AuthError{Op: "school login: enumerate tenants", Err: findErr}
+		}
+		if hasPortalRole {
+			portalTenantID = resolvedTenantID
+		}
 	}
-	if !hasPortalRole {
+	if !hasPortalRole || portalTenantID == 0 {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "No school portal role at any school")
 		return nil, &AuthError{Op: "school login", Err: ErrAccountNoSchoolPortalRole}
 	}

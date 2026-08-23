@@ -128,7 +128,9 @@ export function BrandTenantSwitcher({
         ) {
           let portalUrl: string | null = null;
           try {
-            portalUrl = schoolPortalLoginUrl();
+            portalUrl = schoolPortalLoginUrl(
+              `?from=staff&tenant=${encodeURIComponent(targetTenant.subdomain)}`,
+            );
           } catch (urlErr) {
             logger.error("school_portal_url_unavailable", {
               error: urlErr instanceof Error ? urlErr.message : String(urlErr),

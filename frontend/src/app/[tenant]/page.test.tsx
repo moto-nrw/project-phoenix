@@ -641,7 +641,7 @@ describe("HomePage (Login)", () => {
       });
       expect(link).toHaveAttribute(
         "href",
-        "https://schule.example.test/login?from=staff",
+        "https://schule.example.test/login?from=staff&tenant=test-tenant",
       );
     });
   });

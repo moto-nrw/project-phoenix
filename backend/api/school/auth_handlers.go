@@ -1,6 +1,7 @@
 package school
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -28,18 +29,19 @@ const trustedDeviceCookieName = "mfa_trust_device"
 
 var errMFAServiceUnavailable = errors.New("mfa service is not configured for this deployment")
 
-// LoginRequest is the body shape for POST /school/auth/login. No tenant
-// slug: the login resolves the school from the account's school-portal role
-// mappings (first match), mirroring the parents login; multi-school
-// accounts switch afterwards via /school/auth/switch-school.
+// LoginRequest is the body shape for POST /school/auth/login. TenantSlug is
+// optional for direct school-portal logins, and pins an OGS-portal handoff to
+// the school the user selected.
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email      string `json:"email"`
+	Password   string `json:"password"`
+	TenantSlug string `json:"tenant_slug,omitempty"`
 }
 
 // Bind normalizes + validates the request.
 func (req *LoginRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
+	req.TenantSlug = strings.TrimSpace(req.TenantSlug)
 
 	return validation.ValidateStruct(req,
 		validation.Field(&req.Email, validation.Required, is.Email),
@@ -99,9 +101,24 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		trustedDeviceCookie = c.Value
 	}
 
-	result, err := rs.AuthService.LoginSchoolWithMFAGate(
-		r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie,
-	)
+	var result *authService.LoginResult
+	var err error
+	if req.TenantSlug == "" {
+		result, err = rs.AuthService.LoginSchoolWithMFAGate(
+			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie,
+		)
+	} else {
+		targetedLogin, ok := rs.AuthService.(interface {
+			LoginSchoolAtTenantWithMFAGate(context.Context, string, string, string, string, string, string) (*authService.LoginResult, error)
+		})
+		if !ok {
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("school tenant handoff is not configured")))
+			return
+		}
+		result, err = targetedLogin.LoginSchoolAtTenantWithMFAGate(
+			r.Context(), req.Email, req.Password, ipAddress, userAgent, trustedDeviceCookie, req.TenantSlug,
+		)
+	}
 	if err != nil {
 		rs.handleLoginError(w, r, err)
 		return

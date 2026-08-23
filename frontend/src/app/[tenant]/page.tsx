@@ -311,7 +311,9 @@ function LoginForm() {
       redirectUrl =
         portal === "parents"
           ? parentsPortalLoginUrl("?from=staff")
-          : schoolPortalLoginUrl("?from=staff");
+          : schoolPortalLoginUrl(
+              `?from=staff&tenant=${encodeURIComponent(tenantSlug)}`,
+            );
     } catch (urlErr) {
       logger.error("portal_url_unavailable", {
         portal,

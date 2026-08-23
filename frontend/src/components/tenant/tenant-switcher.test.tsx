@@ -76,7 +76,8 @@ vi.mock("~/env", () => ({
 }));
 
 vi.mock("~/lib/school-url", () => ({
-  schoolPortalLoginUrl: () => "http://schule.localhost:3000/login",
+  schoolPortalLoginUrl: (search?: string) =>
+    `http://schule.localhost:3000/login${search ?? ""}`,
 }));
 
 vi.mock("next/link", () => ({
@@ -364,7 +365,10 @@ describe("BrandTenantSwitcher", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Jetzt zu moto schule" }),
-    ).toHaveAttribute("href", "http://schule.localhost:3000/login");
+    ).toHaveAttribute(
+      "href",
+      "http://schule.localhost:3000/login?from=staff&tenant=school-b",
+    );
   });
 
   it("shows organization headers when tenants span multiple orgs", async () => {
