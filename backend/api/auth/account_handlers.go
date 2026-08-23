@@ -186,12 +186,12 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-func accountManagementErrorRenderer(err error) render.Renderer {
-	if errors.Is(err, authService.ErrAccountNotFound) {
-		return common.ErrorNotFound(errors.New("account not found"))
-	}
-	return common.ErrorInternalServer(err)
-}
+var accountManagementErrorRenderer = common.UnwrapRenderer[*authService.AuthError](
+	[]common.ErrorRule{
+		{Target: authService.ErrAccountNotFound, Render: common.ErrorNotFound},
+	},
+	common.ErrorInternalServer,
+)
 
 // listAccounts handles listing accounts
 func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
