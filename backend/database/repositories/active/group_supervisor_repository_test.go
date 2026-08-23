@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -45,7 +46,7 @@ func createSupervisorTestData(t *testing.T, db *bun.DB) *supervisorTestData {
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        modelBase.Int64Ptr(activityGroup.ID),
+		GroupID:        ptrtest.Ptr(activityGroup.ID),
 		RoomID:         room.ID,
 	}
 	err := groupRepo.Create(testpkg.Ctx(t), activeGroup)
@@ -413,7 +414,7 @@ func TestGroupSupervisorRepository_FindByActiveGroupIDs(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        modelBase.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			RoomID:         room2.ID,
 		}
 		err := groupRepo.Create(ctx, activeGroup2)

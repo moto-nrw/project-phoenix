@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -39,7 +40,7 @@ func TestGuardianPhoneNumber_Validate(t *testing.T) {
 				GuardianProfileID: 1,
 				PhoneNumber:       "+49 30 9876543",
 				PhoneType:         PhoneTypeWork,
-				Label:             base.StringPtr("Büro"),
+				Label:             ptrtest.Ptr("Büro"),
 			},
 			wantErr: false,
 		},
@@ -148,7 +149,7 @@ func TestGuardianPhoneNumber_Validate(t *testing.T) {
 				GuardianProfileID: 1,
 				PhoneNumber:       "+49 30 123456",
 				PhoneType:         PhoneTypeHome,
-				Label:             base.StringPtr("   "),
+				Label:             ptrtest.Ptr("   "),
 			},
 			wantErr: false,
 		},
@@ -276,7 +277,7 @@ func TestGuardianPhoneNumber_GetDisplayString(t *testing.T) {
 			phone: &GuardianPhoneNumber{
 				PhoneNumber: "+49 30 9876543",
 				PhoneType:   PhoneTypeWork,
-				Label:       base.StringPtr("Büro"),
+				Label:       ptrtest.Ptr("Büro"),
 			},
 			expected: "+49 30 9876543 (Büro)",
 		},
@@ -285,7 +286,7 @@ func TestGuardianPhoneNumber_GetDisplayString(t *testing.T) {
 			phone: &GuardianPhoneNumber{
 				PhoneNumber: "+49 30 123456",
 				PhoneType:   PhoneTypeHome,
-				Label:       base.StringPtr(""),
+				Label:       ptrtest.Ptr(""),
 			},
 			expected: "+49 30 123456",
 		},

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -28,7 +29,7 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   &endTime,
@@ -56,7 +57,7 @@ func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil, // Active group
@@ -80,7 +81,7 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil,
@@ -107,7 +108,7 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		Room: &facilities.Room{
@@ -205,7 +206,7 @@ func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
 		EntryTime:     now,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: base.Int64Ptr(300),
+			GroupID: ptrtest.Ptr(int64(300)),
 		},
 	}
 
@@ -292,7 +293,7 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 		StartDate: timezone.DateFromTime(now),
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: base.Int64Ptr(300),
+			GroupID: ptrtest.Ptr(int64(300)),
 		},
 	}
 
@@ -376,7 +377,7 @@ func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
 		ActiveCombinedGroupID: 200,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 100},
-			GroupID: base.Int64Ptr(50),
+			GroupID: ptrtest.Ptr(int64(50)),
 		},
 		CombinedGroup: &active.CombinedGroup{
 			Model:     base.Model{ID: 200},

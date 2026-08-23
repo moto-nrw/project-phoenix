@@ -96,18 +96,8 @@ type pickupBaselineService struct {
 	settings  config.SettingsService
 }
 
-// NewPickupBaselineService builds the date-aware regular-pickup projection.
-func NewPickupBaselineService(
-	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
-	offerings enrollmentModel.CareOfferingRepository,
-) PickupBaselineReader {
-	return newPickupBaselineService(weekly, links, offerings, nil)
-}
-
 // NewPickupBaselineServiceWithSettings applies the tenant's booking authority
-// at the pickup projection boundary. The settings-free constructor keeps CLI
-// and focused tests on the historical weekly-plan behavior.
+// at the pickup projection boundary.
 func NewPickupBaselineServiceWithSettings(
 	weekly scheduleModel.StudentPickupScheduleRepository,
 	links enrollmentModel.RequestChildOfferingRepository,

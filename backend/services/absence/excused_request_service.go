@@ -170,23 +170,6 @@ type excusedAbsenceRequestService struct {
 	db            *bun.DB
 }
 
-// NewExcusedAbsenceRequestService wires the excused-request service.
-func NewExcusedAbsenceRequestService(
-	requestRepo activeModels.ExcusedAbsenceRequestRepository,
-	statusDayRepo activeModels.StudentStatusDayRepository,
-	studentRepo usersModels.StudentRepository,
-	personRepo usersModels.PersonRepository,
-	userContext userContextService.UserContextService,
-	emitter *parentmessaging.Emitter,
-	broadcaster realtime.Broadcaster,
-	logger *slog.Logger,
-) ExcusedAbsenceRequestService {
-	return newExcusedAbsenceRequestService(
-		requestRepo, statusDayRepo, nil, studentRepo, personRepo,
-		userContext, emitter, broadcaster, logger, nil,
-	)
-}
-
 // NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
 // variant that also serializes approvals with time-specific excusals.
 func NewExcusedAbsenceRequestServiceWithPartialAbsences(

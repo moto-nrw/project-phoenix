@@ -36,7 +36,7 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Conrad", SchoolClass: ""},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	require.Len(t, rows, 7)
 	assert.Equal(t, "Klasse 1a", rows[0].GroupTitle)
@@ -62,7 +62,7 @@ func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Dreyer", SchoolClass: "1b"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	var headings []string
 	for _, row := range rows {
@@ -82,7 +82,7 @@ func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	require.Len(t, rows, 3)
 	headings := 0
@@ -97,6 +97,6 @@ func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
 func TestExportFilterLabelsIncludesGroupByClass(t *testing.T) {
 	t.Parallel()
 
-	labels := exportFilterLabels(studentExportFilters{GroupByClass: true})
+	labels := exportFilterLabelsForDate(studentExportFilters{GroupByClass: true}, testExportDate, true)
 	assert.Contains(t, labels, "Nach Klassen getrennt")
 }

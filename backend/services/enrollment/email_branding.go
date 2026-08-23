@@ -44,7 +44,3 @@ func motoLogoURL(baseURL string) string {
 func schoolEmailLogoURL(baseURL string, rawURL string) string {
 	return emailbranding.SchoolLogoURL(baseURL, rawURL)
 }
-
-func absoluteBrandURL(baseURL string, rawURL string) string {
-	return emailbranding.AbsoluteURL(baseURL, rawURL)
-}

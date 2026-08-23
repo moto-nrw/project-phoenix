@@ -8,6 +8,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func ValidateTemplateTargetGradeLimit(
+	gradeLevelMax int,
+	existing *activitiesModel.Group,
+	targetGroupType string,
+	targetGradeLevel *int16,
+) error {
+	target := &activitiesModel.GroupTarget{
+		TargetGroupType:  targetGroupType,
+		TargetGradeLevel: targetGradeLevel,
+	}
+	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, nil, []*activitiesModel.GroupTarget{target})
+}
+
 func TestValidateTemplateTargetGradeLimit(t *testing.T) {
 	t.Parallel()
 

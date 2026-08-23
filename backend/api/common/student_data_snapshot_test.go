@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -196,7 +196,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 		},
 		Groups: map[int64]*activeModels.Group{
 			456: {
-				GroupID:   base.Int64Ptr(789),
+				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
 				Room: &facilities.Room{
@@ -282,7 +282,7 @@ func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
 		},
 		Groups: map[int64]*activeModels.Group{
 			500: {
-				GroupID: base.Int64Ptr(10), RoomID: 1, StartTime: startTime,
+				GroupID: ptrtest.Ptr(int64(10)), RoomID: 1, StartTime: startTime,
 				Room: &facilities.Room{Name: "Library"},
 			},
 		},

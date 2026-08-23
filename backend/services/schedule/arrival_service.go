@@ -144,25 +144,10 @@ type arrivalScheduleService struct {
 	logger       *slog.Logger
 }
 
-func NewArrivalScheduleService(
-	scheduleRepo schedule.StudentArrivalScheduleRepository,
-	exceptionRepo schedule.StudentArrivalExceptionRepository,
-	noteRepo schedule.StudentArrivalNoteRepository,
-	studentRepo users.StudentRepository,
-	personRepo users.PersonRepository,
-	db *bun.DB,
-	logger *slog.Logger,
-) ArrivalScheduleService {
-	return NewArrivalScheduleServiceWithBaselines(
-		scheduleRepo, exceptionRepo, noteRepo, studentRepo, personRepo, nil, nil, db, logger,
-	)
-}
-
 // NewArrivalScheduleServiceWithBaselines is the wiring the HTTP server uses:
 // baselines resolves the regular arrival time from the class timetable and,
 // in booking mode, the care days from the approved bookings (#2414). Passing
-// nil keeps the pre-#2414 behaviour of reading stored rows only, which is what
-// the CLI and older tests want.
+// nil baseline readers keep the stored-row behavior for focused tests.
 func NewArrivalScheduleServiceWithBaselines(
 	scheduleRepo schedule.StudentArrivalScheduleRepository,
 	exceptionRepo schedule.StudentArrivalExceptionRepository,

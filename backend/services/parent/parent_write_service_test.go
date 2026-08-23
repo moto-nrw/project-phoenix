@@ -414,7 +414,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Logger:      slog.Default(),
 	})
 
-	statusSvc := activeService.NewStudentStatusDayService(repos.StudentStatusDay)
+	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil)
 	studentSvc := usersService.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
 	staffAttempted := make(chan struct{})
 	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}

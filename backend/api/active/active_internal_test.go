@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -298,7 +298,7 @@ func TestCheckinRequest_Fields(t *testing.T) {
 func TestCheckinContext_Fields(t *testing.T) {
 	t.Parallel()
 
-	group := &active.Group{GroupID: base.Int64Ptr(100)}
+	group := &active.Group{GroupID: ptrtest.Ptr(int64(100))}
 	staff := &users.Staff{PersonID: 200}
 	request := CheckinRequest{ActiveGroupID: 300}
 
@@ -443,7 +443,7 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 
 	resp := ActiveGroupResponse{
 		ID:              1,
-		GroupID:         base.Int64Ptr(10),
+		GroupID:         ptrtest.Ptr(int64(10)),
 		RoomID:          20,
 		StartTime:       now,
 		EndTime:         &endTime,

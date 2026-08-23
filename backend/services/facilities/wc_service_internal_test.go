@@ -20,10 +20,9 @@ func setupWCServiceInternal(t *testing.T, db *bun.DB) *wcService {
 
 	repoFactory := repositories.NewFactory(db)
 
-	facilityService := NewService(
-		repoFactory.Room,
-		repoFactory.ActiveGroup,
-	)
+	facilityService := NewServiceWithConfig(ServiceConfig{
+		RoomRepo: repoFactory.Room, ActiveGroupRepo: repoFactory.ActiveGroup,
+	})
 
 	activityService, err := activitiesSvc.NewService(
 		repoFactory.ActivityCategory,

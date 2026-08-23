@@ -117,18 +117,6 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 	})
 }
 
-// runActivateStudentsForTenant is the logging wrapper for direct callers.
-// Tenant iteration uses the error-returning variant below so audit failures
-// reach WithTenantTx and force a rollback.
-func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID int64, now time.Time) {
-	if err := s.runActivateStudentsForTenantWithError(ctx, tenantID, now); err != nil {
-		s.getLogger().Error("activate-students: tenant transition failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-	}
-}
-
 // runActivateStudentsForTenant flips eligible pending students to active and
 // eligible active students to inactive. Idempotent — running twice on the
 // same day is a no-op after the first pass. Status-update failures are logged

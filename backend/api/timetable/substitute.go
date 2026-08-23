@@ -1,11 +1,10 @@
-// Package timetable — shared substitute/deviation response + broadcast helpers.
+// Package timetable provides shared substitute/deviation response and broadcast helpers.
 //
 // The former POST /api/timetable/substitute endpoint was consolidated into
 // POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
 // moved into services/schedule (InstanceService.ApplyDeviations, #1840). What
 // remains here is the wire response row (AffectedInstance), the shared reason
-// normalizer, the plannable-status predicate (both still unit-tested here), and
-// the post-save SSE broadcast helpers the handlers drive.
+// normalizer, and the post-save SSE broadcast helpers the handlers drive.
 package timetable
 
 import (
@@ -45,15 +44,6 @@ func trimReason(reason *string) *string {
 		trimmed = string([]rune(trimmed)[:understaffedAckNoteMaxLength])
 	}
 	return &trimmed
-}
-
-// isPlannableInstance reports whether a substitute/absence write may touch this
-// instance. Only planned and active blocks are editable: completed and
-// cancelled ones are historical record. Mirrors the service-side predicate used
-// by ApplyDeviations.
-func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
-	return instance.Status == scheduleModel.InstanceStatusPlanned ||
-		instance.Status == scheduleModel.InstanceStatusActive
 }
 
 // broadcastDeviationSaveEvents fires the SSE signals after a /deviations save:

@@ -38,8 +38,9 @@ func newPeriodsTestServer(t *testing.T) chi.Router {
 	})
 
 	res := NewResource(Dependencies{
-		CalendarPeriodService: scheduleSvc.NewCalendarPeriodService(
-			scheduleRepo.NewCalendarPeriodRepository(db), nil),
+		CalendarPeriodService: scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
+			Repo: scheduleRepo.NewCalendarPeriodRepository(db),
+		}),
 		DB: db,
 	})
 

@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -231,12 +232,12 @@ func TestDevice_HasAPIKey(t *testing.T) {
 		},
 		{
 			name:     "empty API key",
-			apiKey:   base.StringPtr(""),
+			apiKey:   ptrtest.Ptr(""),
 			expected: false,
 		},
 		{
 			name:     "valid API key",
-			apiKey:   base.StringPtr("abc123xyz"),
+			apiKey:   ptrtest.Ptr("abc123xyz"),
 			expected: true,
 		},
 	}

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
@@ -204,14 +204,12 @@ func TestCoalesceVisitMap_BothNil(t *testing.T) {
 func TestCoalesceGroupMap_NonNilPrimary(t *testing.T) {
 	t.Parallel()
 
-	// Using base.Int64Ptr rather than local int64 literals keeps this test
-	// hermetic: the verifier flags bare `:= int64(1..9)` as a fixture-ID
-	// smell even when the value is only a pointer target.
+	// Typed pointer literals keep the fixture-ID intent explicit.
 	primary := map[int64]*activeModels.Group{
-		1: {GroupID: base.Int64Ptr(1)},
+		101: {GroupID: ptrtest.Ptr(int64(101))},
 	}
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: base.Int64Ptr(2)},
+		102: {GroupID: ptrtest.Ptr(int64(102))},
 	}
 	result := coalesce(primary, fallback)
 	assert.Equal(t, primary, result)
@@ -221,7 +219,7 @@ func TestCoalesceGroupMap_NilPrimary(t *testing.T) {
 	t.Parallel()
 
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: base.Int64Ptr(2)},
+		102: {GroupID: ptrtest.Ptr(int64(102))},
 	}
 	result := coalesce(nil, fallback)
 	assert.Equal(t, fallback, result)

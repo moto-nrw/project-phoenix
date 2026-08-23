@@ -60,62 +60,22 @@ func EvaluateLaborTime(ws *activeModels.WorkSession, breaks []*activeModels.Work
 	}
 }
 
-// EvaluateDayLaborTime aggregates the ArbZG view over ALL blocks of one
-// calendar day (#2402). Net and break minutes are summed per block; the gap
-// between two consecutive blocks (checkout → next check-in) additionally
-// counts as break time for the compliance judgment — a 90-minute Fahrtzeit
-// between Homeoffice and OGS satisfies §4 ArbZG exactly like a stamped break,
-// while the required amount is derived from the summed net work of the day.
-// The gap itself is NOT part of BreakMinutes (it is simply not work time);
-// only the compliance comparison credits it.
-//
-// `breaksBySession` carries each block's break rows keyed by session ID;
-// blocks must be passed in check-in order (the repository guarantees it).
-func EvaluateDayLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time, days ...timezone.Date) LaborTimeEvaluation {
-	day := timezone.DateFromTime(now)
-	if len(days) > 0 {
-		day = days[0]
-	}
-	return evaluateWorkSessionsLaborTime(sessions, breaksBySession, now, &day)
-}
-
 // EvaluateWorkSessionsLaborTime evaluates a continuous workday carried by the
-// supplied blocks. Unlike EvaluateDayLaborTime it does not split a block at
-// midnight, which lets a kiosk keep showing the complete running night block
-// while the check-out remains attached to its original session.
+// supplied blocks. Net and break minutes are summed per block; qualifying gaps
+// between blocks count toward break compliance without becoming stamped break
+// minutes. Blocks must be passed in check-in order.
 func EvaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time) LaborTimeEvaluation {
-	return evaluateWorkSessionsLaborTime(sessions, breaksBySession, now, nil)
-}
-
-func evaluateWorkSessionsLaborTime(sessions []*activeModels.WorkSession, breaksBySession map[int64][]*activeModels.WorkSessionBreak, now time.Time, day *timezone.Date) LaborTimeEvaluation {
-	var dayStart, dayEnd time.Time
-	if day != nil {
-		dayStart = day.BerlinMidnight()
-		dayEnd = day.AddDays(1).BerlinMidnight()
-	}
 	var net, taken, qualifyingBreaks, qualifyingGaps int
 	var prevEnd *time.Time
 	for _, ws := range sessions {
 		breaks := breaksBySession[ws.ID]
 		end := BalanceSessionEnd(ws, now)
-		if day != nil && (!end.After(dayStart) || !ws.CheckInTime.Before(dayEnd)) {
-			continue
-		}
 		start := ws.CheckInTime
-		if day != nil && start.Before(dayStart) {
-			start = dayStart
-		}
-		if day != nil && end.After(dayEnd) {
-			end = dayEnd
-		}
 		gross := int(end.Sub(start).Minutes())
 		if gross <= 0 {
 			continue
 		}
 		from, to := timezone.DateFromTime(start), timezone.DateFromTime(end)
-		if day != nil {
-			from, to = *day, *day
-		}
 		worked := 0
 		for _, minutes := range netMinutesByDate(ws, breaks, end, from, to) {
 			worked += minutes
@@ -182,20 +142,6 @@ func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {
 		end = *ws.CheckOutTime
 	}
 	return int(end.Sub(ws.CheckInTime).Minutes())
-}
-
-// netMinutes calculates net work time in minutes (gross minus the ENDED breaks
-// cached in BreakMinutes) for a work session. For an open session (no
-// check-out) it measures against now. Net is floored at 0.
-//
-// A running break is NOT deducted here — callers reporting net time to a
-// reader want netMinutesWithBreaks instead.
-func netMinutes(ws *activeModels.WorkSession, now time.Time) int {
-	net := grossMinutes(ws, now) - ws.BreakMinutes
-	if net < 0 {
-		return 0
-	}
-	return net
 }
 
 // runningBreakElapsedMinutes is the elapsed duration of a break that has
