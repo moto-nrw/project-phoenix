@@ -90,6 +90,16 @@ assert_workflow_filter() {
   fi
 }
 
+assert_workflow_output_contains() {
+  output=$1
+  fragment=$2
+  line=$(grep -F "      $output:" "$repo_root/.github/workflows/main.yml" || true)
+  if [[ "$line" != *"$fragment"* ]]; then
+    echo "workflow output $output: expected to contain $fragment" >&2
+    exit 1
+  fi
+}
+
 printf '\n// changed\n' >>"$fixture/backend/core/core_test.go"
 assert_output $'example.test/project/core\nexample.test/project/test'
 git -C "$fixture" restore backend/core/core_test.go
@@ -142,5 +152,8 @@ for pattern in \
   assert_workflow_filter backend-tests "$pattern" present
   assert_workflow_filter backend-production "$pattern" present
 done
+
+assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'\'' ||'
 
 echo 'backend affected-package selector tests passed'
