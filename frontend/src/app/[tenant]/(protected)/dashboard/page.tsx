@@ -166,20 +166,16 @@ function DashboardContent() {
   const presenceMode = usePresenceMode();
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
   const showRoomSurfaces = presenceMode !== "binary";
-  const showOnlyStaffSummary = presenceMode === "binary" && openCareGroupMode;
   const infoCardCount =
     Number(showRoomSurfaces) +
     Number(showActivitySurfaces) +
-    Number(!openCareGroupMode) +
-    1;
+    Number(!openCareGroupMode);
   const infoGridColumns =
-    infoCardCount >= 4
-      ? "xl:grid-cols-4"
-      : infoCardCount === 3
-        ? "xl:grid-cols-3"
-        : infoCardCount === 2
-          ? "xl:grid-cols-2"
-          : "xl:grid-cols-1";
+    infoCardCount === 3
+      ? "xl:grid-cols-3"
+      : infoCardCount === 2
+        ? "xl:grid-cols-2"
+        : "xl:grid-cols-1";
   const { data: session, status } = useSession({
     required: true,
     onUnauthenticated() {
@@ -564,70 +560,6 @@ function DashboardContent() {
             })()}
           </InfoCard>
         ) : null}
-
-        {/* Betreuer Summary */}
-        <div
-          className={
-            showOnlyStaffSummary ? "lg:col-span-2 xl:col-span-1" : undefined
-          }
-        >
-          <InfoCard title="Personal heute" concept="staff" href="/staff">
-            {isLoading ? (
-              // Mirrors the loaded 2-column stat grid: same tile surface,
-              // label line over a large value line.
-              <div className="grid grid-cols-2 gap-4" aria-hidden="true">
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4"
-                  >
-                    <div className="mb-2 h-3 w-24 animate-pulse rounded bg-gray-200"></div>
-                    <div className="h-7 w-12 animate-pulse rounded bg-gray-200"></div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">
-                  <p className="mb-1 text-xs font-medium text-gray-600">
-                    Betreuer im Dienst
-                  </p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {dashboardData?.supervisorsToday ?? 0}
-                  </p>
-                </div>
-                {dashboardData &&
-                dashboardData.studentsPresent > 0 &&
-                dashboardData.supervisorsToday > 0 ? (
-                  <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4 transition-colors hover:bg-gray-100/50">
-                    <p className="mb-1 text-xs font-medium text-gray-600">
-                      Kinder je Betreuer
-                    </p>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {dashboardData.supervisorsToday > 0
-                        ? Math.round(
-                            dashboardData.studentsPresent /
-                              dashboardData.supervisorsToday,
-                          )
-                        : "-"}
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Betreuungsschlüssel
-                    </p>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-gray-200/50 bg-gray-50/50 p-4">
-                    <p className="mb-1 text-xs font-medium text-gray-600">
-                      Kinder je Betreuer
-                    </p>
-                    <p className="text-2xl font-bold text-gray-400">-</p>
-                    <p className="mt-1 text-xs text-gray-500">Keine Daten</p>
-                  </div>
-                )}
-              </div>
-            )}
-          </InfoCard>
-        </div>
       </div>
     </div>
   );
