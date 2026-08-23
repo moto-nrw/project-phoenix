@@ -75,9 +75,6 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
 // The editor is exercised in its own test file; here it is reduced to the two
 // callbacks the manager wires up, so these tests stay about the manager's
 // persistence and refresh behaviour.
-// The editor is exercised in its own test file; here it is reduced to the two
-// callbacks the manager wires up, so these tests stay about the manager's
-// persistence and refresh behaviour.
 vi.mock("./care-plan-editor-modal", () => ({
   CarePlanEditorModal: ({
     isOpen,
@@ -696,21 +693,25 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalSchedules).toHaveBeenCalledWith("42", [
-        { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-      ]);
       expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
         schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
         care_days: [1],
+        arrival_schedules: [
+          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+        ],
         effective_from: "2026-05-27",
       });
       expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
         schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
         care_days: [1],
+        arrival_schedules: [
+          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+        ],
         effective_from: "2026-05-27",
         preview_token: "preview-token",
         resolution: "exception",
       });
+      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
       expect(onUpdate).toHaveBeenCalled();
     });
   });
@@ -884,11 +885,7 @@ describe("CareScheduleManager", () => {
     });
   });
 
-  it("refreshes after pickup succeeds but arrival fails", async () => {
-    mockUpdateArrivalSchedules.mockRejectedValueOnce(
-      new Error("Ankunftsplan konnte nicht gespeichert werden"),
-    );
-
+  it("saves arrival and pickup schedules in one adjustment request", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
@@ -896,8 +893,15 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
-      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalled();
+      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+        }),
+      );
+      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
       expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
       expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
     });

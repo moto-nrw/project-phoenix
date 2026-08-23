@@ -6,6 +6,13 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { formatDate } from "~/lib/date-helpers";
 import type {
   PickupAdjustmentCatalogItem,
   PickupAdjustmentMatch,
@@ -68,27 +75,10 @@ function DecisionNotice({
 
 function PlanDiff({ preview }: { readonly preview: PickupAdjustmentPreview }) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <PlanValue label="Vorher" value={preview.current_plan} />
-      <PlanValue label="Nachher" value={preview.proposed_plan} />
-    </div>
-  );
-}
-
-function PlanValue({
-  label,
-  value,
-}: {
-  readonly label: string;
-  readonly value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-gray-200 p-4">
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        {label}
-      </p>
-      <p className="mt-2 text-sm text-gray-900">{value}</p>
-    </div>
+    <DataGrid>
+      <DataField label="Vorher">{preview.current_plan}</DataField>
+      <DataField label="Nachher">{preview.proposed_plan}</DataField>
+    </DataGrid>
   );
 }
 
@@ -167,12 +157,17 @@ function OfferingButton(
 
 function OfferingDetails(props: PickupAdjustmentDecisionProps) {
   return (
-    <div className="space-y-4 rounded-xl border border-gray-200 p-4">
-      <EffectiveDateField {...props} />
-      <PlanningConflicts preview={props.preview} />
-      <BookingConsequences preview={props.preview} />
-      <OfferingConfirmation {...props} />
-    </div>
+    <InfoSection
+      title="Angebot ändern"
+      icon={<MotoConceptIcon concept="pickup" size={16} />}
+    >
+      <div className="space-y-4">
+        <EffectiveDateField {...props} />
+        <PlanningConflicts preview={props.preview} />
+        <BookingConsequences preview={props.preview} />
+        <OfferingConfirmation {...props} />
+      </div>
+    </InfoSection>
   );
 }
 
@@ -232,7 +227,7 @@ function BookingConsequences({
   const consequences = preview.offering_consequences;
   if (!consequences) return null;
   return (
-    <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">
+    <div className="text-sm text-gray-800">
       <p className="font-semibold">Änderung der Buchung</p>
       <ul className="mt-2 space-y-1.5">
         {consequences.selections.map((selection) => (
@@ -253,6 +248,20 @@ function BookingConsequences({
           Die Betreuungstage folgen danach automatisch den gebuchten Angeboten.
         </p>
       ) : null}
+      {(preview.removed_manual_notes?.length ?? 0) > 0 ? (
+        <div className="mt-3 border-t border-gray-200 pt-3">
+          <p className="font-semibold">
+            Diese Gehzeit-Notizen werden entfernt:
+          </p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {preview.removed_manual_notes?.map((note) => (
+              <li key={`${note.weekday}-${note.note}`}>
+                {weekdayLabel(note.weekday)}: {note.note}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -270,9 +279,11 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
           onChange={(event) => props.onConfirmedChange(event.target.checked)}
         />
         <span>
-          Ich bestätige: Das Angebot gilt ab{" "}
-          {formatGermanISODate(props.effectiveFrom)}. Die Gehzeiten folgen dem
-          Angebot.
+          Ich bestätige: Das Angebot gilt ab {formatDate(props.effectiveFrom)}.
+          Die Gehzeiten folgen dem Angebot.
+          {(props.preview.removed_manual_notes?.length ?? 0) > 0
+            ? " Die oben genannten Gehzeit-Notizen werden entfernt."
+            : ""}
         </span>
       </label>
       <Button
@@ -329,15 +340,15 @@ function formatOfferingDays(days: readonly string[]): string {
   return days.map((day) => OFFERING_DAY_LABELS[day] ?? day).join(", ");
 }
 
-function formatGermanISODate(value: string): string {
-  const [year, month, day] = value.split("-");
-  return year && month && day ? `${day}.${month}.${year}` : value;
-}
-
 function catalogItem(preview: PickupAdjustmentPreview, id: string) {
   return preview.offering_catalog?.items.find(
     (item) => item.offering_id === id,
   );
+}
+
+function weekdayLabel(weekday: number): string {
+  const key = Object.keys(OFFERING_DAY_LABELS)[weekday - 1];
+  return (key && OFFERING_DAY_LABELS[key]) || `Tag ${weekday}`;
 }
 
 function offeringHasNoFreeSlot(

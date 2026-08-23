@@ -1950,14 +1950,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
 	}
 	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
-		PickupSchedules:    pickupScheduleService,
-		PickupScheduleRepo: repos.StudentPickupSchedule,
-		PickupBaselines:    pickupBaselines,
-		Offerings:          pickupOfferingCoordinator,
-		Settings:           settingsService,
-		Audit:              studentAuditService,
-		Students:           repos.Student,
-		DB:                 db,
+		PickupSchedules:     pickupScheduleService,
+		ArrivalSchedules:    arrivalScheduleService,
+		PickupScheduleRepo:  repos.StudentPickupSchedule,
+		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+		PickupBaselines:     pickupBaselines,
+		Offerings:           pickupOfferingCoordinator,
+		Settings:            settingsService,
+		Audit:               studentAuditService,
+		Students:            repos.Student,
+		DB:                  db,
 	})
 
 	// Excused-absence approval requests (#1845): the optional office-approval

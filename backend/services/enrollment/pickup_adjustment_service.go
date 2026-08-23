@@ -46,6 +46,12 @@ type PickupAdjustmentSchedule struct {
 	Notes      *string
 }
 
+type PickupAdjustmentArrivalSchedule struct {
+	Weekday         int
+	ExpectedArrival string
+	Notes           *string
+}
+
 type PickupOfferingMatch struct {
 	OfferingID   int64
 	Name         string
@@ -56,6 +62,7 @@ type PickupOfferingMatch struct {
 type PickupAdjustmentPreviewInput struct {
 	StudentID               int64
 	Schedules               []PickupAdjustmentSchedule
+	ArrivalSchedules        *[]PickupAdjustmentArrivalSchedule
 	CareDays                []int
 	EffectiveFrom           timezone.Date
 	Selections              []OfferingChangeSelection
@@ -72,6 +79,12 @@ type PickupAdjustmentPreview struct {
 	MatchingOfferings    []PickupOfferingMatch
 	OfferingCatalog      *OfferingChangeCatalog
 	OfferingConsequences *OfferingChangePreview
+	RemovedManualNotes   []PickupAdjustmentRemovedNote
+}
+
+type PickupAdjustmentRemovedNote struct {
+	Weekday int
+	Note    string
 }
 
 type PickupAdjustmentApplyInput struct {
@@ -105,14 +118,16 @@ type PickupAdjustmentService interface {
 }
 
 type PickupAdjustmentServiceConfig struct {
-	PickupSchedules    scheduleService.PickupScheduleService
-	PickupScheduleRepo scheduleModels.StudentPickupScheduleRepository
-	PickupBaselines    scheduleService.PickupBaselineReader
-	Offerings          DirectOfferingAdjustmentCoordinator
-	Settings           DecisionSettingsResolver
-	Audit              usersService.StudentPickupPlanRecorder
-	Students           usersModels.StudentRepository
-	DB                 *bun.DB
+	PickupSchedules     scheduleService.PickupScheduleService
+	ArrivalSchedules    scheduleService.ArrivalScheduleService
+	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
+	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
+	PickupBaselines     scheduleService.PickupBaselineReader
+	Offerings           DirectOfferingAdjustmentCoordinator
+	Settings            DecisionSettingsResolver
+	Audit               usersService.StudentPickupPlanRecorder
+	Students            usersModels.StudentRepository
+	DB                  *bun.DB
 }
 
 type pickupAdjustmentService struct {
@@ -150,8 +165,97 @@ func (s *pickupAdjustmentService) Preview(
 	if err := s.attachOfferingAdjustment(ctx, input, proposed, preview); err != nil {
 		return nil, err
 	}
-	preview.PreviewToken, err = pickupAdjustmentToken(input, preview, current, offering, tenant.FromContext(ctx))
+	if err := s.attachRemovedManualNotes(ctx, input, preview); err != nil {
+		return nil, err
+	}
+	currentArrival, err := s.currentArrivalPlan(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	preview.PreviewToken, err = pickupAdjustmentToken(
+		input, preview, current, offering, currentArrival, tenant.FromContext(ctx),
+	)
 	return preview, err
+}
+
+func (s *pickupAdjustmentService) currentArrivalPlan(
+	ctx context.Context,
+	input PickupAdjustmentPreviewInput,
+) ([]PickupAdjustmentArrivalSchedule, error) {
+	if input.ArrivalSchedules == nil {
+		return nil, nil
+	}
+	if s.ArrivalScheduleRepo == nil {
+		return nil, errors.New("pickup adjustment: stored arrival schedule repository is not configured")
+	}
+	rows, err := s.ArrivalScheduleRepo.FindByStudentID(ctx, input.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("pickup adjustment: read current arrival schedules: %w", err)
+	}
+	current := make([]PickupAdjustmentArrivalSchedule, 0, len(rows))
+	for _, row := range rows {
+		if row == nil {
+			continue
+		}
+		item := PickupAdjustmentArrivalSchedule{Weekday: row.Weekday}
+		if !row.ExpectedArrival.IsZero() {
+			item.ExpectedArrival = row.ExpectedArrival.Format("15:04")
+		}
+		if row.Notes != nil {
+			note := *row.Notes
+			item.Notes = &note
+		}
+		current = append(current, item)
+	}
+	sort.Slice(current, func(i, j int) bool { return current[i].Weekday < current[j].Weekday })
+	return current, nil
+}
+
+func (s *pickupAdjustmentService) attachRemovedManualNotes(
+	ctx context.Context,
+	input PickupAdjustmentPreviewInput,
+	preview *PickupAdjustmentPreview,
+) error {
+	if len(input.Selections) == 0 || preview.OfferingConsequences == nil {
+		return nil
+	}
+	if s.PickupScheduleRepo == nil {
+		return errors.New("pickup adjustment: stored pickup schedule repository is not configured")
+	}
+	notesByWeekday := make(map[int]string)
+	representedWeekdays := make(map[int]bool, len(input.Schedules))
+	for _, row := range input.Schedules {
+		representedWeekdays[row.Weekday] = true
+		if row.Notes != nil {
+			if note := strings.TrimSpace(*row.Notes); note != "" {
+				notesByWeekday[row.Weekday] = note
+			}
+		}
+	}
+	existing, err := s.PickupScheduleRepo.FindByStudentID(ctx, input.StudentID)
+	if err != nil {
+		return err
+	}
+	for _, row := range existing {
+		if row == nil || representedWeekdays[row.Weekday] ||
+			row.Source == scheduleModels.PickupScheduleSourceCareOffering || row.Notes == nil {
+			continue
+		}
+		note := strings.TrimSpace(*row.Notes)
+		if note != "" {
+			notesByWeekday[row.Weekday] = note
+		}
+	}
+	for weekday, note := range notesByWeekday {
+		preview.RemovedManualNotes = append(preview.RemovedManualNotes, PickupAdjustmentRemovedNote{
+			Weekday: weekday,
+			Note:    note,
+		})
+	}
+	sort.Slice(preview.RemovedManualNotes, func(i, j int) bool {
+		return preview.RemovedManualNotes[i].Weekday < preview.RemovedManualNotes[j].Weekday
+	})
+	return nil
 }
 
 func (s *pickupAdjustmentService) projectPickupAdjustment(
@@ -228,6 +332,11 @@ func (s *pickupAdjustmentService) Apply(
 	if s.DB == nil || s.PickupSchedules == nil || s.Audit == nil || s.Students == nil {
 		return nil, fmt.Errorf("pickup adjustment: apply dependencies are not configured")
 	}
+	normalized, _, err := normalizePickupAdjustmentInput(input.PickupAdjustmentPreviewInput)
+	if err != nil {
+		return nil, err
+	}
+	input.PickupAdjustmentPreviewInput = normalized
 	resolution, err := pickupAdjustmentResolution(input)
 	if err != nil {
 		return nil, err
@@ -286,6 +395,22 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	}
 	if err := s.applyPickupResolution(ctx, input, preview, resolution); err != nil {
 		return nil, err
+	}
+	if input.ArrivalSchedules != nil {
+		if s.ArrivalSchedules == nil {
+			return nil, errors.New("pickup adjustment: arrival schedule service is not configured")
+		}
+		rows, err := pickupArrivalScheduleRows(
+			input.StudentID, input.CreatedByStaffID, *input.ArrivalSchedules,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ArrivalSchedules.UpsertBulkStudentArrivalSchedules(
+			ctx, input.StudentID, rows,
+		); err != nil {
+			return nil, fmt.Errorf("pickup adjustment: update arrival schedules: %w", err)
+		}
 	}
 	return &PickupAdjustmentResult{Resolution: resolution}, nil
 }
@@ -460,6 +585,9 @@ func (s *pickupAdjustmentService) auditBulkPickupPlans(
 		if !ok {
 			return errors.New("pickup adjustment: bulk preview is missing")
 		}
+		if prior == after[studentID] {
+			continue
+		}
 		if err := s.Audit.RecordPickupPlanForActor(
 			ctx, studentID, prior, after[studentID],
 			"Dauerhafte Ausnahme", "", input.ActorAccountID,
@@ -606,6 +734,14 @@ func normalizePickupAdjustmentInput(
 	input.CareDays = append([]int(nil), input.CareDays...)
 	sort.Ints(input.CareDays)
 	input.CareDays = slices.Compact(input.CareDays)
+	for _, weekday := range input.CareDays {
+		if weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
+			return input, nil, fmt.Errorf("%w: invalid care weekday %d", ErrPickupAdjustmentInvalid, weekday)
+		}
+	}
+	if err := normalizePickupArrivalSchedules(&input); err != nil {
+		return input, nil, err
+	}
 	byDay := make(map[int]PickupAdjustmentSchedule, len(input.Schedules))
 	for i := range input.Schedules {
 		row := &input.Schedules[i]
@@ -625,6 +761,39 @@ func normalizePickupAdjustmentInput(
 	return input, byDay, nil
 }
 
+func normalizePickupArrivalSchedules(input *PickupAdjustmentPreviewInput) error {
+	if input.ArrivalSchedules == nil {
+		return nil
+	}
+	rows := append([]PickupAdjustmentArrivalSchedule(nil), (*input.ArrivalSchedules)...)
+	seen := make(map[int]bool, len(rows))
+	weekdays := make([]int, 0, len(rows))
+	for i := range rows {
+		row := &rows[i]
+		row.ExpectedArrival = strings.TrimSpace(row.ExpectedArrival)
+		if row.Weekday < scheduleModels.WeekdayMonday || row.Weekday > scheduleModels.WeekdayFriday || seen[row.Weekday] {
+			return fmt.Errorf("%w: invalid or duplicate arrival weekday %d", ErrPickupAdjustmentInvalid, row.Weekday)
+		}
+		if row.ExpectedArrival != "" {
+			if _, err := time.Parse("15:04", row.ExpectedArrival); err != nil {
+				return fmt.Errorf("%w: invalid arrival time for weekday %d", ErrPickupAdjustmentInvalid, row.Weekday)
+			}
+		}
+		if row.Notes != nil && len(*row.Notes) > 500 {
+			return fmt.Errorf("%w: arrival notes are too long", ErrPickupAdjustmentInvalid)
+		}
+		seen[row.Weekday] = true
+		weekdays = append(weekdays, row.Weekday)
+	}
+	sort.Slice(rows, func(i, j int) bool { return rows[i].Weekday < rows[j].Weekday })
+	sort.Ints(weekdays)
+	if !slices.Equal(weekdays, input.CareDays) {
+		return fmt.Errorf("%w: arrival weekdays must match care days", ErrPickupAdjustmentInvalid)
+	}
+	input.ArrivalSchedules = &rows
+	return nil
+}
+
 func pickupScheduleRows(
 	studentID, createdBy int64,
 	input []PickupAdjustmentSchedule,
@@ -642,6 +811,31 @@ func pickupScheduleRows(
 			Notes:      item.Notes,
 			CreatedBy:  createdBy,
 			Source:     scheduleModels.PickupScheduleSourceStaff,
+		})
+	}
+	return rows, nil
+}
+
+func pickupArrivalScheduleRows(
+	studentID, createdBy int64,
+	input []PickupAdjustmentArrivalSchedule,
+) ([]*scheduleModels.StudentArrivalSchedule, error) {
+	rows := make([]*scheduleModels.StudentArrivalSchedule, 0, len(input))
+	for _, item := range input {
+		var expectedArrival time.Time
+		if item.ExpectedArrival != "" {
+			parsed, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+item.ExpectedArrival)
+			if err != nil {
+				return nil, fmt.Errorf("%w: invalid arrival time", ErrPickupAdjustmentInvalid)
+			}
+			expectedArrival = parsed
+		}
+		rows = append(rows, &scheduleModels.StudentArrivalSchedule{
+			StudentID:       studentID,
+			Weekday:         item.Weekday,
+			ExpectedArrival: expectedArrival,
+			Notes:           item.Notes,
+			CreatedBy:       createdBy,
 		})
 	}
 	return rows, nil
@@ -899,15 +1093,17 @@ func pickupAdjustmentToken(
 	input PickupAdjustmentPreviewInput,
 	preview *PickupAdjustmentPreview,
 	current, offering scheduleService.PickupWeek,
+	currentArrival []PickupAdjustmentArrivalSchedule,
 	tenantID int64,
 ) (string, error) {
 	payload := struct {
-		TenantID int64
-		Input    PickupAdjustmentPreviewInput
-		Preview  *PickupAdjustmentPreview
-		Current  scheduleService.PickupWeek
-		Offering scheduleService.PickupWeek
-	}{tenantID, input, preview, current, offering}
+		TenantID       int64
+		Input          PickupAdjustmentPreviewInput
+		Preview        *PickupAdjustmentPreview
+		Current        scheduleService.PickupWeek
+		Offering       scheduleService.PickupWeek
+		CurrentArrival []PickupAdjustmentArrivalSchedule
+	}{tenantID, input, preview, current, offering, currentArrival}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return "", fmt.Errorf("pickup adjustment: build preview token: %w", err)

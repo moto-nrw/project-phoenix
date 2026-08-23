@@ -3,6 +3,7 @@ package students_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -25,6 +26,18 @@ import (
 
 type failAfterOfferingWriteCoordinator struct {
 	enrollmentService.DirectOfferingAdjustmentCoordinator
+}
+
+type failingArrivalScheduleService struct {
+	scheduleService.ArrivalScheduleService
+}
+
+func (failingArrivalScheduleService) UpsertBulkStudentArrivalSchedules(
+	context.Context,
+	int64,
+	[]*scheduleModels.StudentArrivalSchedule,
+) error {
+	return errors.New("arrival write failed")
 }
 
 func (c failAfterOfferingWriteCoordinator) ApplyDirectOfferingAdjustment(
@@ -60,6 +73,18 @@ func TestPickupAdjustmentProtectedRouterRequiresExplicitExceptionAndAuditsApply(
 		t, tc, readOnlyReq, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"},
 	)
 	assert.Equal(t, http.StatusForbidden, readOnlyRec.Code, readOnlyRec.Body.String())
+	mismatchedArrivalBody := cloneMap(body)
+	mismatchedArrivalBody["arrival_schedules"] = []map[string]any{{
+		"weekday": scheduleModels.WeekdayTuesday, "expected_arrival": "08:00",
+	}}
+	mismatchedArrivalReq := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/preview", student.ID), mismatchedArrivalBody,
+	)
+	mismatchedArrivalRec := authExec(
+		t, tc, mismatchedArrivalReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
+	)
+	assert.Equal(t, http.StatusBadRequest, mismatchedArrivalRec.Code, mismatchedArrivalRec.Body.String())
+	assert.Contains(t, mismatchedArrivalRec.Body.String(), `"code":"pickup.invalid"`)
 
 	previewReq := testutil.NewAuthenticatedRequest(
 		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/preview", student.ID), body,
@@ -179,7 +204,11 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	schedules := make([]map[string]any, 0, 5)
 	careDays := make([]int, 0, 5)
 	for weekday := 1; weekday <= 5; weekday++ {
-		schedules = append(schedules, map[string]any{"weekday": weekday, "pickup_time": "14:30"})
+		row := map[string]any{"weekday": weekday, "pickup_time": "14:30"}
+		if weekday == scheduleModels.WeekdayFriday {
+			row["notes"] = "Fährt mit dem Bus"
+		}
+		schedules = append(schedules, row)
 		careDays = append(careDays, weekday)
 	}
 	baseBody := map[string]any{
@@ -188,6 +217,16 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	preview := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, baseBody)
 	require.Len(t, preview.MatchingOfferings, 1)
 	assert.Equal(t, fmt.Sprint(fixture.mittag.ID), preview.MatchingOfferings[0].OfferingID)
+	offeringBody := cloneMap(baseBody)
+	offeringBody["selections"] = []map[string]any{{
+		"offering_id":   fmt.Sprint(fixture.mittag.ID),
+		"selected_days": []string{},
+	}}
+	offeringBody["arrival_schedules"] = fiveDayArrivalBody("08:20", "Haupteingang")
+	previewWithNewNote := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
+	require.Len(t, previewWithNewNote.RemovedManualNotes, 1)
+	assert.Equal(t, scheduleModels.WeekdayFriday, previewWithNewNote.RemovedManualNotes[0].Weekday)
+	assert.Equal(t, "Fährt mit dem Bus", previewWithNewNote.RemovedManualNotes[0].Note)
 
 	exceptionBody := cloneMap(baseBody)
 	exceptionBody["preview_token"] = preview.PreviewToken
@@ -205,13 +244,11 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID,
 		"an explicit exception must keep the current offering")
 
-	offeringBody := cloneMap(baseBody)
-	offeringBody["selections"] = []map[string]any{{
-		"offering_id":   fmt.Sprint(fixture.mittag.ID),
-		"selected_days": []string{},
-	}}
 	confirmedPreview := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
 	require.NotEmpty(t, confirmedPreview.PreviewToken)
+	require.Len(t, confirmedPreview.RemovedManualNotes, 1)
+	assert.Equal(t, scheduleModels.WeekdayFriday, confirmedPreview.RemovedManualNotes[0].Weekday)
+	assert.Equal(t, "Fährt mit dem Bus", confirmedPreview.RemovedManualNotes[0].Note)
 
 	futureBody := cloneMap(offeringBody)
 	futureDate := timezone.TodayDate().AddDays(7)
@@ -269,6 +306,28 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		WherePK().Exec(t.Context())
 	require.NoError(t, err)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
+	concurrentArrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 07:55")
+	require.NoError(t, err)
+	concurrentArrival := &scheduleModels.StudentArrivalSchedule{
+		StudentID: student.ID, Weekday: scheduleModels.WeekdayMonday,
+		ExpectedArrival: concurrentArrivalTime, CreatedBy: staff.StaffID,
+	}
+	concurrentArrival.SetTenantID(student.TenantID)
+	require.NoError(t, repositories.NewFactory(tc.db).StudentArrivalSchedule.UpsertSchedule(
+		testpkg.Ctx(t), concurrentArrival,
+	))
+	staleArrivalBody := cloneMap(offeringBody)
+	staleArrivalBody["preview_token"] = confirmedPreview.PreviewToken
+	staleArrivalBody["resolution"] = "offering"
+	staleArrivalReq := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/apply", student.ID), staleArrivalBody,
+	)
+	staleArrivalRec := authExec(
+		t, tc, staleArrivalReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
+	)
+	assert.Equal(t, http.StatusConflict, staleArrivalRec.Code, staleArrivalRec.Body.String())
+	assert.Contains(t, staleArrivalRec.Body.String(), `"code":"pickup.preview_stale"`)
+	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
 
 	applyBody := cloneMap(offeringBody)
 	applyBody["preview_token"] = confirmedPreview.PreviewToken
@@ -292,6 +351,12 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 		Where("source <> ?", scheduleModels.PickupScheduleSourceCareOffering).
 		Scan(t.Context()))
 	assert.Empty(t, manualRows, "the selected offering must replace every lasting manual pickup time")
+	arrivalRows, err := repositories.NewFactory(tc.db).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	require.Len(t, arrivalRows, 5)
+	assert.Equal(t, "08:20", arrivalRows[0].ExpectedArrival.Format("15:04"))
+	require.NotNil(t, arrivalRows[0].Notes)
+	assert.Equal(t, "Haupteingang", *arrivalRows[0].Notes)
 
 	history, err := tc.services.StudentAudit.GetChangeHistory(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
@@ -349,6 +414,26 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 		Where("request_child_id = ?", fixture.child.ID).Count(t.Context())
 	require.NoError(t, err)
 	assert.Zero(t, adjustments, "the failed 400 response must roll back its offering audit")
+
+	// The arrival plan is part of the same request. A failure in that final
+	// write must roll back the offering change that happened before it.
+	tc.resource.PickupAdjustmentService = pickupAdjustmentServiceWithCoordinatorAndArrival(
+		tc, realCoordinator, failingArrivalScheduleService{tc.services.ArrivalSchedule},
+	)
+	body["arrival_schedules"] = fiveDayArrivalBody("08:15", "")
+	arrivalPreview := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, body)
+	body["preview_token"] = arrivalPreview.PreviewToken
+	arrivalFailureReq := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/apply", student.ID), body,
+	)
+	arrivalFailureRec := authExec(
+		t, tc, arrivalFailureReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
+	)
+	assert.Equal(t, http.StatusInternalServerError, arrivalFailureRec.Code, arrivalFailureRec.Body.String())
+	links, err = tc.services.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
+	require.NoError(t, err)
+	require.Len(t, links[fixture.child.ID].Current, 1)
+	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID)
 }
 
 func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
@@ -401,17 +486,41 @@ func pickupAdjustmentFiveDayBody(offeringID int64) map[string]any {
 	}
 }
 
+func fiveDayArrivalBody(arrivalTime, mondayNote string) []map[string]any {
+	rows := make([]map[string]any, 0, 5)
+	for weekday := scheduleModels.WeekdayMonday; weekday <= scheduleModels.WeekdayFriday; weekday++ {
+		row := map[string]any{"weekday": weekday, "expected_arrival": arrivalTime}
+		if weekday == scheduleModels.WeekdayMonday && mondayNote != "" {
+			row["notes"] = mondayNote
+		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
 func pickupAdjustmentServiceWithCoordinator(
 	tc *testContext,
 	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
+) enrollmentService.PickupAdjustmentService {
+	return pickupAdjustmentServiceWithCoordinatorAndArrival(
+		tc, coordinator, tc.services.ArrivalSchedule,
+	)
+}
+
+func pickupAdjustmentServiceWithCoordinatorAndArrival(
+	tc *testContext,
+	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
+	arrivalSchedules scheduleService.ArrivalScheduleService,
 ) enrollmentService.PickupAdjustmentService {
 	repos := repositories.NewFactory(tc.db)
 	baselines := scheduleService.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering, tc.services.Settings,
 	)
 	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
-		PickupSchedules: tc.services.PickupSchedule, PickupScheduleRepo: repos.StudentPickupSchedule,
-		PickupBaselines: baselines, Offerings: coordinator, Settings: tc.services.Settings,
+		PickupSchedules: tc.services.PickupSchedule, ArrivalSchedules: arrivalSchedules,
+		PickupScheduleRepo:  repos.StudentPickupSchedule,
+		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+		PickupBaselines:     baselines, Offerings: coordinator, Settings: tc.services.Settings,
 		Audit: tc.services.StudentAudit, Students: repos.Student, DB: tc.db,
 	})
 }
@@ -421,6 +530,10 @@ type pickupAdjustmentPreviewEnvelopeData struct {
 	MatchingOfferings []struct {
 		OfferingID string `json:"offering_id"`
 	} `json:"matching_offerings"`
+	RemovedManualNotes []struct {
+		Weekday int    `json:"weekday"`
+		Note    string `json:"note"`
+	} `json:"removed_manual_notes"`
 }
 
 func postPickupAdjustmentPreview(

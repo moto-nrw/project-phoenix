@@ -384,6 +384,69 @@ describe("CarePlanEditorModal", () => {
     ).toBe(false);
   });
 
+  it("keeps the current-date preview when switching from a future offering to an exception", async () => {
+    const initial = decisionPreview("preview-current");
+    const selected = {
+      ...decisionPreview("preview-selected"),
+      offering_consequences: {
+        selections: [{ offering_id: "2", state: "booked" as const, days: [] }],
+        manual_planning_conflicts: [],
+        arrival_expectations_follow_bookings: true,
+      },
+    };
+    const future = {
+      ...selected,
+      preview_token: "preview-future",
+      effective_from: "2026-06-01",
+    };
+    const onSubmitWeekly = vi
+      .fn()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(selected)
+      .mockResolvedValueOnce(future)
+      .mockResolvedValueOnce(undefined);
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Auf „Angebot A“ umbuchen" }),
+    );
+    await screen.findByRole("button", { name: "Angebot ändern und speichern" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Gilt ab" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Montag, 1\. Juni 2026/i,
+      }),
+    );
+    await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalledTimes(3));
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Als dauerhafte Ausnahme speichern",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenLastCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          resolution: "exception",
+          preview: expect.objectContaining({
+            preview_token: "preview-current",
+            effective_from: "2026-05-25",
+          }),
+        }),
+      );
+    });
+  });
+
   it("shows all exact matches and requires confirmation before changing the offering", async () => {
     const initialPreview = {
       preview_token: "preview-1",
@@ -507,6 +570,7 @@ describe("CarePlanEditorModal", () => {
         manual_planning_conflicts: [],
         arrival_expectations_follow_bookings: true,
       },
+      removed_manual_notes: [{ weekday: 1, note: "Abholung mit dem Bus" }],
     };
     const onSubmitWeekly = vi
       .fn()
@@ -535,6 +599,9 @@ describe("CarePlanEditorModal", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Auf „Bis 14:30“ umbuchen" }),
     );
+    expect(
+      await screen.findByText("Montag: Abholung mit dem Bus"),
+    ).toBeInTheDocument();
 
     const saveOffering = await screen.findByRole("button", {
       name: "Angebot ändern und speichern",

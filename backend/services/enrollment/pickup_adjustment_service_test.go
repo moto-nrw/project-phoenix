@@ -240,9 +240,9 @@ func TestPickupAdjustmentTokenChangesWithExistingNotes(t *testing.T) {
 	}
 	input := PickupAdjustmentPreviewInput{StudentID: 7}
 	preview := &PickupAdjustmentPreview{}
-	first, err := pickupAdjustmentToken(input, preview, base, nil, 3)
+	first, err := pickupAdjustmentToken(input, preview, base, nil, nil, 3)
 	require.NoError(t, err)
-	second, err := pickupAdjustmentToken(input, preview, changed, nil, 3)
+	second, err := pickupAdjustmentToken(input, preview, changed, nil, nil, 3)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, first, second)

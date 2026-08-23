@@ -185,6 +185,7 @@ export function CarePlanEditorModal({
   const initializedExceptionKey = useRef<string | null>(null);
   const initializedWeeklyEditor = useRef(false);
   const offeringPreviewRequestId = useRef(0);
+  const weeklyExceptionPreview = useRef<PickupAdjustmentPreview | null>(null);
   const decisionHeadingRef = useRef<HTMLHeadingElement>(null);
   const decisionWasVisible = useRef(false);
   // The form steps aside while the confirmation is up so the two dialogs never
@@ -206,6 +207,7 @@ export function CarePlanEditorModal({
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
     setWeeklyAdjustment(null);
+    weeklyExceptionPreview.current = null;
     setSelectedOfferingId(null);
     offeringPreviewRequestId.current++;
     setOfferingSelections([]);
@@ -237,6 +239,7 @@ export function CarePlanEditorModal({
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
     setWeeklyAdjustment(null);
+    weeklyExceptionPreview.current = null;
     setSelectedOfferingId(null);
     offeringPreviewRequestId.current++;
     setOfferingSelections([]);
@@ -376,6 +379,7 @@ export function CarePlanEditorModal({
       if (!isException) {
         const adjustment = await onSubmitWeekly(toWeeklySubmit(weeklyRows));
         if (adjustment) {
+          weeklyExceptionPreview.current = adjustment;
           setWeeklyAdjustment(adjustment);
           setOfferingEffectiveFrom(adjustment.effective_from);
           setOfferingConfirmed(false);
@@ -409,6 +413,7 @@ export function CarePlanEditorModal({
       setError(message);
       toast.error(message);
       offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
       setOfferingSelections([]);
       setSelectedOfferingId(null);
@@ -420,13 +425,14 @@ export function CarePlanEditorModal({
   };
 
   const saveWeeklyException = async () => {
-    if (!weeklyAdjustment) return;
+    const preview = weeklyExceptionPreview.current;
+    if (!preview) return;
     setError(null);
     setIsSubmitting(true);
     try {
       await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
         resolution: "exception",
-        preview: weeklyAdjustment,
+        preview,
         reason: offeringReason,
         confirm: true,
       });
@@ -440,6 +446,7 @@ export function CarePlanEditorModal({
       setError(message);
       toast.error(message);
       offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
       setOfferingSelections([]);
       setSelectedOfferingId(null);
@@ -536,6 +543,7 @@ export function CarePlanEditorModal({
       setError(message);
       toast.error(message);
       offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
       setWeeklyAdjustment(null);
       setOfferingSelections([]);
       setSelectedOfferingId(null);
@@ -552,6 +560,7 @@ export function CarePlanEditorModal({
       size="md"
       onClick={() => {
         offeringPreviewRequestId.current++;
+        weeklyExceptionPreview.current = null;
         setWeeklyAdjustment(null);
         setOfferingSelections([]);
         setOfferingConfirmed(false);

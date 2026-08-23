@@ -51,6 +51,8 @@ import {
   fetchStudentPickupData,
   applyStudentPickupAdjustment,
   previewStudentPickupAdjustment,
+  type PickupAdjustmentPayload,
+  type PickupAdjustmentPreview,
   resetStudentPickupToOffering,
   updateStudentPickupException,
   updateStudentPickupNote,
@@ -84,6 +86,49 @@ const weekMonthFormatter = new Intl.DateTimeFormat("de-DE", {
   year: "numeric",
 });
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
+
+function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
+  return data.arrivalSchedules.map((schedule) => ({
+    weekday: schedule.weekday,
+    expected_arrival: schedule.expected_arrival,
+    notes: schedule.notes ?? null,
+  }));
+}
+
+function weeklyPickupAdjustmentPayload(
+  data: CarePlanWeeklySubmit,
+  adjustment?: CarePlanWeeklyAdjustment,
+): PickupAdjustmentPayload {
+  return {
+    schedules: data.pickupSchedules.map((schedule) => ({
+      weekday: schedule.weekday,
+      pickup_time: schedule.pickupTime,
+      ...(schedule.notes ? { notes: schedule.notes } : {}),
+    })),
+    care_days: data.arrivalSchedules.map((schedule) => schedule.weekday),
+    arrival_schedules: weeklyArrivalPayload(data),
+    effective_from: adjustment?.effectiveFrom ?? formatDateISO(new Date()),
+    ...(adjustment?.selections ? { selections: adjustment.selections } : {}),
+  };
+}
+
+async function applyWeeklyPickupAdjustment(
+  studentId: string,
+  payload: PickupAdjustmentPayload,
+  adjustment?: CarePlanWeeklyAdjustment,
+): Promise<PickupAdjustmentPreview | undefined> {
+  let preview = adjustment?.preview;
+  if (!preview) {
+    preview = await previewStudentPickupAdjustment(studentId, payload);
+    if (preview.resolution_required) return preview;
+  }
+  await applyStudentPickupAdjustment(studentId, {
+    ...payload,
+    preview_token: preview.preview_token,
+    resolution: adjustment?.resolution ?? "exception",
+    ...(adjustment?.reason ? { reason: adjustment.reason } : {}),
+  });
+}
 
 interface CareScheduleManagerProps {
   readonly studentId: string;
@@ -496,62 +541,23 @@ export function CareScheduleManager({
       );
       if (!pickupChanged && !careDaysChanged && !adjustment) {
         try {
-          await updateArrivalSchedules(
-            studentId,
-            data.arrivalSchedules.map((schedule) => ({
-              weekday: schedule.weekday,
-              expected_arrival: schedule.expected_arrival,
-              notes: schedule.notes ?? null,
-            })),
-          );
+          await updateArrivalSchedules(studentId, weeklyArrivalPayload(data));
         } finally {
           await refreshCareData();
         }
         return;
       }
-      const basePayload = {
-        schedules: data.pickupSchedules.map((schedule) => ({
-          weekday: schedule.weekday,
-          pickup_time: schedule.pickupTime,
-          ...(schedule.notes ? { notes: schedule.notes } : {}),
-        })),
-        care_days: data.arrivalSchedules.map((schedule) => schedule.weekday),
-        effective_from: adjustment?.effectiveFrom ?? formatDateISO(new Date()),
-        ...(adjustment?.selections
-          ? { selections: adjustment.selections }
-          : {}),
-      };
+      const basePayload = weeklyPickupAdjustmentPayload(data, adjustment);
 
       if (adjustment?.resolution === "offering" && !adjustment.confirm) {
         return previewStudentPickupAdjustment(studentId, basePayload);
       }
 
-      let preview = adjustment?.preview;
-      if (!preview) {
-        preview = await previewStudentPickupAdjustment(studentId, basePayload);
-        if (preview.resolution_required) {
-          return preview;
-        }
-      }
-
-      await applyStudentPickupAdjustment(studentId, {
-        ...basePayload,
-        preview_token: preview.preview_token,
-        resolution: adjustment?.resolution ?? "exception",
-        ...(adjustment?.reason ? { reason: adjustment.reason } : {}),
-      });
-
-      // The pickup decision happens first. A required offering/exception choice
-      // therefore cannot leave only the arrival half saved. Arrival remains its
-      // established endpoint and is refreshed if that second write fails.
       try {
-        await updateArrivalSchedules(
+        return await applyWeeklyPickupAdjustment(
           studentId,
-          data.arrivalSchedules.map((schedule) => ({
-            weekday: schedule.weekday,
-            expected_arrival: schedule.expected_arrival,
-            notes: schedule.notes ?? null,
-          })),
+          basePayload,
+          adjustment,
         );
       } finally {
         await refreshCareData();

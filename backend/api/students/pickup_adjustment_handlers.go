@@ -24,6 +24,7 @@ type pickupAdjustmentSelectionRequest struct {
 
 type pickupAdjustmentRequest struct {
 	Schedules               []PickupScheduleRequest             `json:"schedules"`
+	ArrivalSchedules        *[]ArrivalScheduleRequestItem       `json:"arrival_schedules,omitempty"`
 	CareDays                []int                               `json:"care_days"`
 	EffectiveFrom           *timezone.Date                      `json:"effective_from,omitempty"`
 	Selections              *[]pickupAdjustmentSelectionRequest `json:"selections,omitempty"`
@@ -39,6 +40,11 @@ func (r *pickupAdjustmentRequest) Bind(_ *http.Request) error {
 	}
 	if len(r.Schedules) > 0 && len(r.CareDays) == 0 {
 		return errors.New("care_days must not be empty when schedules are set")
+	}
+	if r.ArrivalSchedules != nil {
+		if err := validateArrivalScheduleItems(*r.ArrivalSchedules); err != nil {
+			return err
+		}
 	}
 	if utf8.RuneCountInString(r.Reason) > 255 {
 		return errors.New("reason cannot exceed 255 characters")
@@ -114,6 +120,12 @@ type pickupAdjustmentPreviewResponse struct {
 	MatchingOfferings    []pickupAdjustmentMatchResponse       `json:"matching_offerings"`
 	OfferingCatalog      *pickupAdjustmentCatalogResponse      `json:"offering_catalog,omitempty"`
 	OfferingConsequences *pickupAdjustmentConsequencesResponse `json:"offering_consequences,omitempty"`
+	RemovedManualNotes   []pickupAdjustmentRemovedNoteResponse `json:"removed_manual_notes,omitempty"`
+}
+
+type pickupAdjustmentRemovedNoteResponse struct {
+	Weekday int    `json:"weekday"`
+	Note    string `json:"note"`
 }
 
 func (rs *Resource) previewStudentPickupAdjustment(w http.ResponseWriter, r *http.Request) {
@@ -177,6 +189,9 @@ func (rs *Resource) applyStudentPickupAdjustment(w http.ResponseWriter, r *http.
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 		rs.broadcastPickupScheduleChanged(tenantID, student.ID)
+		if body.ArrivalSchedules != nil {
+			rs.broadcastArrivalScheduleChanged(student.ID)
+		}
 	})
 	common.Respond(w, r, http.StatusOK, result, "Pickup adjustment applied")
 }
@@ -231,9 +246,20 @@ func pickupAdjustmentPreviewInput(
 	if err != nil {
 		return enrollmentService.PickupAdjustmentPreviewInput{}, err
 	}
+	var arrivalSchedules *[]enrollmentService.PickupAdjustmentArrivalSchedule
+	if body.ArrivalSchedules != nil {
+		rows := make([]enrollmentService.PickupAdjustmentArrivalSchedule, 0, len(*body.ArrivalSchedules))
+		for _, row := range *body.ArrivalSchedules {
+			rows = append(rows, enrollmentService.PickupAdjustmentArrivalSchedule{
+				Weekday: row.Weekday, ExpectedArrival: row.ExpectedArrival, Notes: row.Notes,
+			})
+		}
+		arrivalSchedules = &rows
+	}
 	return enrollmentService.PickupAdjustmentPreviewInput{
 		StudentID:               studentID,
 		Schedules:               schedules,
+		ArrivalSchedules:        arrivalSchedules,
 		CareDays:                body.CareDays,
 		EffectiveFrom:           effectiveFrom,
 		Selections:              selections,
@@ -266,6 +292,12 @@ func toPickupAdjustmentPreviewResponse(preview *enrollmentService.PickupAdjustme
 	}
 	response.OfferingCatalog = pickupAdjustmentCatalogResponseFrom(preview.OfferingCatalog)
 	response.OfferingConsequences = pickupAdjustmentConsequencesResponseFrom(preview.OfferingConsequences)
+	for _, note := range preview.RemovedManualNotes {
+		response.RemovedManualNotes = append(response.RemovedManualNotes, pickupAdjustmentRemovedNoteResponse{
+			Weekday: note.Weekday,
+			Note:    note.Note,
+		})
+	}
 	return response
 }
 

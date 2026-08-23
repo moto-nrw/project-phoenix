@@ -20,6 +20,7 @@ import {
   mapPickupExceptionFormToBackend,
   mapPickupNoteFormToBackend,
 } from "./pickup-schedule-helpers";
+import type { ArrivalScheduleInput } from "./student-arrival-api";
 
 // API Response Types
 interface ApiResponse<T> {
@@ -117,6 +118,7 @@ export interface PickupAdjustmentPreview {
   matching_offerings: PickupAdjustmentMatch[];
   offering_catalog?: PickupAdjustmentCatalog;
   offering_consequences?: PickupAdjustmentConsequences;
+  removed_manual_notes?: Array<{ weekday: number; note: string }>;
 }
 
 export interface PickupAdjustmentPayload {
@@ -126,6 +128,7 @@ export interface PickupAdjustmentPayload {
     notes?: string;
   }>;
   care_days: number[];
+  arrival_schedules?: ArrivalScheduleInput[];
   effective_from: string;
   selections?: PickupAdjustmentSelection[];
   excluded_auto_offering_ids?: string[];
