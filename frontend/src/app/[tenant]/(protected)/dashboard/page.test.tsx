@@ -209,8 +209,7 @@ describe("DashboardPage", () => {
       expect(screen.getByText("4")).toBeInTheDocument(); // studentsSick
       expect(screen.getByText("3")).toBeInTheDocument(); // studentsExcused
       expect(screen.getByText("33")).toBeInTheDocument(); // studentsHome
-      // 10 appears multiple times (studentsOnPlayground and supervisorsToday)
-      expect(screen.getAllByText("10")).toHaveLength(2);
+      expect(screen.getByText("10")).toBeInTheDocument(); // studentsOnPlayground
     });
   });
 
@@ -247,12 +246,13 @@ describe("DashboardPage", () => {
       expect(screen.getByText("Letzte Bewegungen")).toBeInTheDocument();
       expect(screen.getByText("Laufende Aktivitäten")).toBeInTheDocument();
       expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
-      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinder je Betreuer")).not.toBeInTheDocument();
       expect(screen.getByTestId("dashboard-stats-grid")).toHaveClass(
         "xl:grid-cols-4",
       );
       expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
-        "xl:grid-cols-4",
+        "xl:grid-cols-3",
       );
     });
   });
@@ -268,7 +268,7 @@ describe("DashboardPage", () => {
         screen.queryByRole("link", { name: /Aktive Gruppen/i }),
       ).not.toBeInTheDocument();
       expect(screen.getByText("Kinder anwesend")).toBeInTheDocument();
-      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
     });
   });
 
@@ -287,9 +287,9 @@ describe("DashboardPage", () => {
       ).not.toBeInTheDocument();
       expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
       expect(screen.queryByText("Freie Räume")).not.toBeInTheDocument();
-      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
       expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
-        "xl:grid-cols-3",
+        "xl:grid-cols-2",
       );
     });
   });
@@ -314,33 +314,10 @@ describe("DashboardPage", () => {
       expect(screen.queryByText("Auslastung")).not.toBeInTheDocument();
       expect(screen.queryByText("Letzte Bewegungen")).not.toBeInTheDocument();
       expect(screen.getByText("Aktive Gruppen")).toBeInTheDocument();
-      expect(screen.getByText("Personal heute")).toBeInTheDocument();
+      expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
       expect(screen.getByTestId("dashboard-info-grid")).toHaveClass(
-        "xl:grid-cols-2",
+        "xl:grid-cols-1",
       );
-    });
-  });
-
-  it("expands the staff summary when it is the only dashboard info card", async () => {
-    vi.mocked(usePresenceMode).mockReturnValue("binary");
-    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      const staffSummary = screen.getByRole("link", {
-        name: /Personal heute/i,
-      });
-      expect(staffSummary.parentElement).toHaveClass("lg:col-span-2");
-      expect(staffSummary).toHaveClass("h-full");
-    });
-  });
-
-  it("displays supervisor count", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Betreuer im Dienst")).toBeInTheDocument();
     });
   });
 
@@ -457,14 +434,16 @@ describe("DashboardContent rendering states", () => {
     });
   });
 
-  it("displays student ratio when supervisors are present", async () => {
+  it("does not display personnel metrics based on daily supervision", async () => {
     vi.mocked(useSWRAuth).mockReturnValue(mockSWR(mockDashboardData));
 
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Kinder je Betreuer")).toBeInTheDocument();
-      expect(screen.getByText("Betreuungsschlüssel")).toBeInTheDocument();
+      expect(screen.queryByText("Personal heute")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuer im Dienst")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinder je Betreuer")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsschlüssel")).not.toBeInTheDocument();
     });
   });
 
@@ -484,30 +463,6 @@ describe("DashboardContent rendering states", () => {
     await waitFor(() => {
       // Should show "John" (first part of "John Doe")
       expect(screen.getByText(/John/)).toBeInTheDocument();
-    });
-  });
-
-  it("shows dash for student ratio when no supervisors", async () => {
-    vi.mocked(useSWRAuth).mockReturnValue(
-      mockSWR({ ...mockDashboardData, supervisorsToday: 0 }),
-    );
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Daten")).toBeInTheDocument();
-    });
-  });
-
-  it("shows dash for student ratio when no students present", async () => {
-    vi.mocked(useSWRAuth).mockReturnValue(
-      mockSWR({ ...mockDashboardData, studentsPresent: 0 }),
-    );
-
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      expect(screen.getByText("Keine Daten")).toBeInTheDocument();
     });
   });
 
@@ -755,7 +710,6 @@ describe("InfoCard component behavior", () => {
       ["Letzte Bewegungen", "stone"],
       ["Laufende Aktivitäten", "coral"],
       ["Aktive Gruppen", "greenDeep"],
-      ["Personal heute", "orange"],
     ] as const;
 
     for (const [title, tone] of expectedTones) {
@@ -767,15 +721,6 @@ describe("InfoCard component behavior", () => {
         tone,
       );
     }
-  });
-
-  it("renders staff info card with link to staff page", async () => {
-    render(<DashboardPage />);
-
-    await waitFor(() => {
-      const staffLink = screen.getByRole("link", { name: /Personal heute/i });
-      expect(staffLink).toHaveAttribute("href", "/staff");
-    });
   });
 });
 
