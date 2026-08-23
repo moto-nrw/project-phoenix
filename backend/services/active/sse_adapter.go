@@ -11,9 +11,8 @@ import (
 )
 
 // broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
-// and activity changes. It preserves both legacy event types during a rolling
-// deploy: older clients use active_supervision_changed for supervision rosters,
-// while current clients recognize dashboard_counts_changed with Reason.
+// and activity changes. The dashboard event carries the union of the former
+// dashboard-count and active-supervision invalidation scopes.
 //
 // Carries no child identity (#2085). The scoped student_checkin /
 // student_checkout emitted alongside it still carry the id.
@@ -33,16 +32,6 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 	event := realtime.NewEvent(realtime.EventDashboardCountsChanged, activeGroupID, data)
 	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 		s.getLogger().Warn("SSE combined supervision broadcast failed",
-			slog.String("error", err.Error()),
-			slog.String("active_group_id", activeGroupID),
-			slog.String("reason", reason),
-			slog.Int64("tenant_id", tenantID),
-		)
-	}
-
-	legacyEvent := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
-	if err := s.Broadcaster.BroadcastToTenant(tenantID, legacyEvent); err != nil {
-		s.getLogger().Warn("SSE legacy supervision broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("active_group_id", activeGroupID),
 			slog.String("reason", reason),

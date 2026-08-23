@@ -1024,7 +1024,6 @@ func (s *service) emitVisitCheckout(
 			slog.String("student_id", studentID),
 		)
 	}
-	s.broadcastRosterRefreshToTopics(ctx, activeGroupID, studentRec, eduGroupIDs)
 
 	// Notify every client of the tenant so dashboard counts refresh, scoped to
 	// the affected educational group when known (#2057).
