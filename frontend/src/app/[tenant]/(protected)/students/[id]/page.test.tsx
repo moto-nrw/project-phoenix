@@ -10,7 +10,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
-import { useNFCEnabled } from "~/lib/tenant-context";
 
 const {
   mockSWRMutate,
@@ -441,11 +440,10 @@ vi.mock("~/lib/pickup-schedule-helpers", () => ({
   formatPickupTime: vi.fn().mockReturnValue("15:30"),
 }));
 
-// Mock checkin API
-const mockPerformImmediateCheckin = vi.fn();
-vi.mock("~/lib/checkin-api", () => ({
-  performImmediateCheckin: (studentId: number, activeGroupId: number) =>
-    mockPerformImmediateCheckin(studentId, activeGroupId) as Promise<
+const mockSchoolCheckinStudent = vi.fn();
+vi.mock("~/lib/student-api", () => ({
+  schoolCheckinStudent: (studentId: string, action: "in" | "out") =>
+    mockSchoolCheckinStudent(studentId, action) as Promise<
       Record<string, unknown>
     >,
 }));
@@ -495,25 +493,6 @@ vi.mock("~/lib/hooks/use-student-enrollment-extra-fields", () => ({
     studentId: string,
     hasFullAccess: boolean,
   ) => mockUseStudentEnrollmentExtraFields(studentId, hasFullAccess),
-}));
-
-// Mock active service
-const mockCheckoutStudent = vi.fn();
-interface MockActiveGroup {
-  id: string;
-  room?: { name: string };
-  actualGroup?: { name: string };
-}
-const mockGetActiveGroups = vi.fn();
-vi.mock("~/lib/active-service", () => ({
-  activeService: {
-    checkoutStudent: (studentId: string): Promise<Record<string, unknown>> =>
-      mockCheckoutStudent(studentId) as Promise<Record<string, unknown>>,
-    getActiveGroups: (params: {
-      active: boolean;
-    }): Promise<MockActiveGroup[]> =>
-      mockGetActiveGroups(params) as Promise<MockActiveGroup[]>,
-  },
 }));
 
 // Mock student service
@@ -595,7 +574,6 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(useNFCEnabled).mockReturnValue(true);
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     mockActionType = "none";
@@ -624,13 +602,6 @@ describe("StudentDetailPage", () => {
       hasError: false,
     });
 
-    mockGetActiveGroups.mockResolvedValue([
-      {
-        id: "1",
-        room: { name: "Raum 101" },
-        actualGroup: { name: "Gruppe A" },
-      },
-    ]);
     mockCreateStudentStatusDays.mockResolvedValue([]);
     mockFetchStudentStatusDays.mockResolvedValue([]);
     mockSWRMutate.mockResolvedValue(undefined);
@@ -1028,7 +999,7 @@ describe("StudentDetailPage", () => {
     });
 
     it("performs checkout successfully", async () => {
-      mockCheckoutStudent.mockResolvedValue({});
+      mockSchoolCheckinStudent.mockResolvedValue({});
 
       render(<StudentDetailPage />);
 
@@ -1045,14 +1016,14 @@ describe("StudentDetailPage", () => {
       });
 
       await waitFor(() => {
-        expect(mockCheckoutStudent).toHaveBeenCalledWith("1");
+        expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("1", "out");
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
     it("shows error toast when checkout fails", async () => {
-      mockCheckoutStudent.mockRejectedValue(new Error("Checkout failed"));
+      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkout failed"));
 
       render(<StudentDetailPage />);
 
@@ -1104,52 +1075,29 @@ describe("StudentDetailPage", () => {
       });
     });
 
-    it("loads active groups when checkin modal opens", async () => {
-      render(<StudentDetailPage />);
-
-      const checkinButton = screen.getByTestId("checkin-button");
-      fireEvent.click(checkinButton);
-
-      await waitFor(() => {
-        expect(mockGetActiveGroups).toHaveBeenCalledWith({ active: true });
-      });
-    });
-
-    it("performs checkin successfully when room is selected", async () => {
-      mockPerformImmediateCheckin.mockResolvedValue({});
+    it("allows checkin without selecting an active room or NFC device", async () => {
+      mockSchoolCheckinStudent.mockResolvedValue({});
 
       render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("checkin-button"));
 
-      const checkinButton = screen.getByTestId("checkin-button");
-      fireEvent.click(checkinButton);
+      const confirmButton = await screen.findByTestId("modal-confirm");
+      expect(confirmButton).toBeEnabled();
+      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
 
-      await waitFor(() => {
-        expect(screen.getByTestId("modal-kind-anmelden")).toBeInTheDocument();
-      });
-
-      // Wait for active groups to load and select one
-      const select = await screen.findByRole("combobox");
-      fireEvent.click(select);
-      fireEvent.click(
-        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
-      );
-
-      const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
         fireEvent.click(confirmButton);
       });
 
       await waitFor(() => {
-        expect(mockPerformImmediateCheckin).toHaveBeenCalledWith(1, 1);
+        expect(mockSchoolCheckinStudent).toHaveBeenCalledWith("1", "in");
         expect(mockRefreshData).toHaveBeenCalled();
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
 
     it("shows error toast when checkin fails", async () => {
-      mockPerformImmediateCheckin.mockRejectedValue(
-        new Error("Checkin failed"),
-      );
+      mockSchoolCheckinStudent.mockRejectedValue(new Error("Checkin failed"));
 
       render(<StudentDetailPage />);
 
@@ -1159,13 +1107,6 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(screen.getByTestId("modal-kind-anmelden")).toBeInTheDocument();
       });
-
-      // Select a room first
-      const select = await screen.findByRole("combobox");
-      fireEvent.click(select);
-      fireEvent.click(
-        screen.getByRole("option", { name: "Raum 101 (Gruppe A)" }),
-      );
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1175,83 +1116,6 @@ describe("StudentDetailPage", () => {
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalled();
       });
-    });
-
-    it("disables confirm button when no room is selected", async () => {
-      render(<StudentDetailPage />);
-
-      const checkinButton = screen.getByTestId("checkin-button");
-      fireEvent.click(checkinButton);
-
-      await waitFor(() => {
-        expect(screen.getByTestId("modal-kind-anmelden")).toBeInTheDocument();
-        const confirmButton = screen.getByTestId("modal-confirm");
-        expect(confirmButton).toBeDisabled();
-      });
-    });
-
-    it("shows loading state while fetching active groups", async () => {
-      // Make getActiveGroups take time
-      mockGetActiveGroups.mockImplementation(
-        () =>
-          new Promise((resolve) =>
-            setTimeout(
-              () =>
-                resolve([
-                  {
-                    id: "1",
-                    room: { name: "Raum 101" },
-                    actualGroup: { name: "Gruppe A" },
-                  },
-                ]),
-              100,
-            ),
-          ),
-      );
-
-      render(<StudentDetailPage />);
-
-      const checkinButton = screen.getByTestId("checkin-button");
-      fireEvent.click(checkinButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/Räume werden geladen/i)).toBeInTheDocument();
-      });
-    });
-
-    it("shows the NFC instruction when no active rooms are available for an NFC tenant", async () => {
-      mockGetActiveGroups.mockResolvedValue([]);
-
-      render(<StudentDetailPage />);
-
-      const checkinButton = screen.getByTestId("checkin-button");
-      fireEvent.click(checkinButton);
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über ein NFC-Tablet.",
-          ),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("shows a web instruction when no active rooms are available without NFC", async () => {
-      vi.mocked(useNFCEnabled).mockReturnValue(false);
-      mockGetActiveGroups.mockResolvedValue([]);
-
-      render(<StudentDetailPage />);
-
-      fireEvent.click(screen.getByTestId("checkin-button"));
-
-      await waitFor(() => {
-        expect(
-          screen.getByText(
-            "Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive Aufsicht in einem Raum über die Web-App.",
-          ),
-        ).toBeInTheDocument();
-      });
-      expect(screen.queryByText(/NFC-Tablet/i)).not.toBeInTheDocument();
     });
   });
 
