@@ -298,6 +298,9 @@ func (s *Service) GetAccountRoles(ctx context.Context, accountID int) ([]*auth.R
 	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
 		return nil, &AuthError{Op: "get account roles", Err: ErrAccountNotFound}
 	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, "get account roles", false); err != nil {
+		return nil, err
+	}
 	roles, err := s.repos.Role.FindByAccountID(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account roles", Err: err}

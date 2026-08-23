@@ -550,7 +550,8 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 		query = query.
 			Join(`JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id`).
 			Join(`JOIN auth.roles AS "role" ON "account_role".role_id = "role".id`).
-			Where(`LOWER("role".name) = LOWER(?)`, strValue)
+			Where(`LOWER("role".name) = LOWER(?)`, strValue).
+			Distinct()
 		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
 			return query
 		}

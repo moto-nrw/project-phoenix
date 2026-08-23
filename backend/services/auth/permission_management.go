@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Permission Management
@@ -129,6 +130,9 @@ func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*
 	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
 		return nil, &AuthError{Op: "get account permissions", Err: ErrAccountNotFound}
 	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, "get account permissions", false); err != nil {
+		return nil, err
+	}
 	permissions, err := s.getAccountPermissions(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account permissions", Err: err}
@@ -141,6 +145,9 @@ func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int
 	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
 		return nil, &AuthError{Op: "get account direct permissions", Err: ErrAccountNotFound}
 	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, "get account direct permissions", false); err != nil {
+		return nil, err
+	}
 	permissions, err := s.repos.Permission.FindDirectByAccountID(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account direct permissions", Err: err}
@@ -152,10 +159,42 @@ func (s *Service) lockManageableAccount(ctx context.Context, accountID int, op s
 	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
 		return &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, op, false); err != nil {
+		return err
+	}
 	if _, err := s.repos.Account.FindByIDForUpdate(ctx, int64(accountID)); err != nil {
 		return &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
 	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, op, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) ensureOrganizationRBACMembership(ctx context.Context, accountID int, op string, lock bool) error {
+	if tenant.ScopeFromContext(ctx) != tenant.ScopeOrg {
+		return nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	var (
+		exists bool
+		err    error
+	)
+	if lock {
+		exists, err = s.repos.AccountTenant.ExistsActiveByAccountAndTenantForShare(ctx, int64(accountID), tenantID)
+	} else {
+		exists, err = s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, int64(accountID), tenantID)
+	}
+	if err != nil {
+		return &AuthError{Op: op, Err: err}
+	}
+	if !exists {
 		return &AuthError{Op: op, Err: ErrAccountNotFound}
 	}
 	return nil
