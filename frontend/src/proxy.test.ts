@@ -506,22 +506,23 @@ describe("proxy", () => {
     });
 
     it.each([
-      "/klassen",
-      "/klassen/",
-      "/school-a/klassen",
-      "/school-a/klassen/",
-    ])("sends the old %s bookmark to the school host (#2207)", (path) => {
-      const res = proxy(
-        makeRequest(
-          `http://school-a.localhost:3000${path}`,
-          "school-a.localhost:3000",
-        ),
-      );
+      ["/klassen", "school-a.localhost:3000"],
+      ["/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "school-a.localhost:3000"],
+      ["/school-a/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "localhost:3000"],
+      ["/school-a/klassen/", "localhost:3000"],
+    ])(
+      "sends the old %s bookmark to the selected school (#2207)",
+      (path, host) => {
+        const res = proxy(makeRequest(`http://${host}${path}`, host));
 
-      const redirect = res.headers.get("location");
-      expect(redirect).toContain(SCHOOL_HOSTNAME);
-      expect(redirect).not.toContain("/klassen");
-    });
+        const redirect = res.headers.get("location");
+        expect(redirect).toContain(SCHOOL_HOSTNAME);
+        expect(redirect).toContain("tenant=school-a");
+        expect(redirect).not.toContain("/klassen");
+      },
+    );
 
     it("does NOT hijack tenant slugs that start with 'school'", () => {
       const res = proxy(
