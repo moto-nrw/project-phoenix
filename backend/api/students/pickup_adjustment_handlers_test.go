@@ -181,8 +181,9 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	require.NoError(t, err)
 	manualTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 13:15")
 	require.NoError(t, err)
+	existingNote := "Bestehende Busnotiz"
 	manual := &scheduleModels.StudentPickupSchedule{
-		StudentID: student.ID, Weekday: 5, PickupTime: manualTime, CreatedBy: staff.StaffID,
+		StudentID: student.ID, Weekday: 5, PickupTime: manualTime, Notes: &existingNote, CreatedBy: staff.StaffID,
 	}
 	manual.SetTenantID(student.TenantID)
 	require.NoError(t, repositories.NewFactory(tc.db).StudentPickupSchedule.UpsertSchedule(testpkg.Ctx(t), manual))
@@ -213,7 +214,7 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	previewWithNewNote := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
 	require.Len(t, previewWithNewNote.RemovedManualNotes, 1)
 	assert.Equal(t, scheduleModels.WeekdayFriday, previewWithNewNote.RemovedManualNotes[0].Weekday)
-	assert.Equal(t, "Fährt mit dem Bus", previewWithNewNote.RemovedManualNotes[0].Note)
+	assert.Equal(t, existingNote, previewWithNewNote.RemovedManualNotes[0].Note)
 
 	exceptionBody := cloneMap(baseBody)
 	exceptionBody["preview_token"] = preview.PreviewToken

@@ -223,22 +223,12 @@ func (s *pickupAdjustmentService) attachRemovedManualNotes(
 		return errors.New("pickup adjustment: stored pickup schedule repository is not configured")
 	}
 	notesByWeekday := make(map[int]string)
-	representedWeekdays := make(map[int]bool, len(input.Schedules))
-	for _, row := range input.Schedules {
-		representedWeekdays[row.Weekday] = true
-		if row.Notes != nil {
-			if note := strings.TrimSpace(*row.Notes); note != "" {
-				notesByWeekday[row.Weekday] = note
-			}
-		}
-	}
 	existing, err := s.PickupScheduleRepo.FindByStudentID(ctx, input.StudentID)
 	if err != nil {
 		return err
 	}
 	for _, row := range existing {
-		if row == nil || representedWeekdays[row.Weekday] ||
-			row.Source == scheduleModels.PickupScheduleSourceCareOffering || row.Notes == nil {
+		if row == nil || row.Source == scheduleModels.PickupScheduleSourceCareOffering || row.Notes == nil {
 			continue
 		}
 		note := strings.TrimSpace(*row.Notes)
