@@ -43,9 +43,9 @@ func (rs *Resource) Router() chi.Router {
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		// Basic Activity Group operations (Read) - All authenticated users can read
-		r.With(withTx).Get("/", rs.listActivities)
-		r.With(withTx).Get("/{id}", rs.getActivity)
+		// Activity reads include creator and supervisor names.
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listActivities)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getActivity)
 		r.With(withTx).Get("/categories", rs.listCategories)
 
 		// Category Stammdaten (#2131) — admin-only. Every activities:* write
@@ -79,20 +79,31 @@ func (rs *Resource) Router() chi.Router {
 		r.With(withTx).Put(routeScheduleByID, rs.updateActivitySchedule)
 		r.With(withTx).Delete(routeScheduleByID, rs.deleteActivitySchedule)
 
-		// Supervisor Assignment - All authenticated users can manage supervisors
-		r.With(withTx).Get("/{id}/supervisors", rs.getActivitySupervisors)
-		r.With(withTx).Get("/supervisors/available", rs.getAvailableSupervisors)
-		r.With(withTx).Post("/{id}/supervisors", rs.assignSupervisor)
-		r.With(withTx).Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
-		r.With(withTx).Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
+		// Supervisor Assignment
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).
+			Get("/{id}/supervisors", rs.getActivitySupervisors)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesAssign), withTx).
+			Get("/supervisors/available", rs.getAvailableSupervisors)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesAssign), withTx, rs.requireActivityModification).
+			Post("/{id}/supervisors", rs.assignSupervisor)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesAssign), withTx, rs.requireActivityModification).
+			Put("/{id}/supervisors/{supervisorId}", rs.updateSupervisorRole)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesAssign), withTx, rs.requireActivityModification).
+			Delete("/{id}/supervisors/{supervisorId}", rs.removeSupervisor)
 
-		// Student Enrollment - All authenticated users can manage enrollments
-		r.With(withTx).Get("/{id}/students", rs.getActivityStudents)
-		r.With(withTx).Get("/students/{studentId}", rs.getStudentEnrollments)
-		r.With(withTx).Get("/students/{studentId}/available", rs.getAvailableActivities)
-		r.With(withTx).Post("/{id}/students/{studentId}", rs.enrollStudent)
-		r.With(withTx).Delete("/{id}/students/{studentId}", rs.unenrollStudent)
-		r.With(withTx).Put("/{id}/students", rs.updateGroupEnrollments)
+		// Student Enrollment
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).
+			Get("/{id}/students", rs.getActivityStudents)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).
+			Get("/students/{studentId}", rs.getStudentEnrollments)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).
+			Get("/students/{studentId}/available", rs.getAvailableActivities)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll), withTx, rs.requireActivityModification).
+			Post("/{id}/students/{studentId}", rs.enrollStudent)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll), withTx, rs.requireActivityModification).
+			Delete("/{id}/students/{studentId}", rs.unenrollStudent)
+		r.With(authorize.RequiresPermission(permissions.ActivitiesEnroll), withTx, rs.requireActivityModification).
+			Put("/{id}/students", rs.updateGroupEnrollments)
 	})
 
 	return r
