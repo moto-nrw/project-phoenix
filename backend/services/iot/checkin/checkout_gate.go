@@ -172,11 +172,9 @@ func (s *CheckinService) isAfterGlobalCheckoutTime(ctx context.Context) bool {
 // "checked_out_daily" therefore shows the child NO buttons, so this predicate
 // must stay independent of ShouldUpgradeToDailyCheckout rather than share it.
 //
-// Two rooms qualify as "on the way out":
-//   - the child's own group room (or any room, when the group has none), and
-//   - the Schulhof, which since #2161 is a regular room but is precisely the
-//     route home. Without it a yard kiosk never offered "nach Hause" and
-//     children stayed "unterwegs" until staff logged them out by hand (#2377).
+// When checkout.daily_checkout_from_all_rooms_enabled is active, every room
+// qualifies. Otherwise the previous own-group-room plus Schulhof policy is
+// preserved for existing tenants.
 func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, student *users.Student, currentVisit *active.Visit) bool {
 	if !dailyCheckoutPreconditions(student, currentVisit) {
 		return false
@@ -186,6 +184,10 @@ func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, s
 		return false
 	}
 
+	if s.dailyCheckoutFromAllRoomsEnabled(ctx) {
+		return true
+	}
+
 	if s.isFromOwnGroupRoom(ctx, student, currentVisit) {
 		return true
 	}
@@ -193,6 +195,22 @@ func (s *CheckinService) ShouldShowDailyCheckoutWithGroup(ctx context.Context, s
 	// Checked last: it costs a room lookup, and the common case is a child
 	// leaving their own group room.
 	return s.isSchulhofRoom(ctx, currentVisit.ActiveGroup.RoomID)
+}
+
+func (s *CheckinService) dailyCheckoutFromAllRoomsEnabled(ctx context.Context) bool {
+	if s.settings == nil {
+		return false
+	}
+
+	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyCheckoutDailyFromAllRoomsEnabled)
+	if err != nil {
+		s.getLogger().WarnContext(ctx, "could not resolve daily-checkout room policy",
+			slog.String("key", configModel.KeyCheckoutDailyFromAllRoomsEnabled),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return enabled
 }
 
 // isFromOwnGroupRoom reports whether the visit being closed happened in the

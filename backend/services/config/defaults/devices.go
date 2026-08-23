@@ -47,6 +47,20 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyCheckoutDailyFromAllRoomsEnabled,
+		Label:           "„Nach Hause“ in jedem Raum anzeigen",
+		Description:     "Zeigt „Nach Hause“ nach der Abholzeit in jedem Raum. Ausgeschaltet erscheint die Auswahl nur im Gruppenraum und auf dem Schulhof.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "devices",
+		Category:        "checkout",
+		SortOrder:       13,
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
+	})
+
 	// Capacity-detail disclosure toggles (issue #1879). When enabled, the
 	// device checkin 409 includes the `details` object (name + occupancy)
 	// that the kiosk renders as a rich German message; when disabled, the
@@ -63,7 +77,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "devices",
 		Category:        "kapazität",
-		SortOrder:       13,
+		SortOrder:       14,
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
@@ -77,7 +91,7 @@ func init() {
 		WritePermission: "config:update",
 		Tab:             "devices",
 		Category:        "kapazität",
-		SortOrder:       14,
+		SortOrder:       15,
 		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 

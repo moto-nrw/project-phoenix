@@ -106,12 +106,10 @@ func TestDeviceCheckout_SchulhofOffersNachHauseWithoutAutoSendingHome(t *testing
 		`the yard must not auto-send the child home: PyrePortal renders its destination modal only for "checked_out"`)
 }
 
-// TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause is the counterpart: the
-// Schulhof branch must not have opened "nach Hause" everywhere. A child leaving
-// an ordinary room that is neither their group room nor the yard is still only
-// moving between rooms.
+// TestDeviceCheckout_OrdinaryRoomOffersNachHauseWithoutAutoSendingHome pins the
+// default for tenants created after the all-room setting was introduced.
 // Deliberately NOT parallel: mutates process-global configuration.
-func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
+func TestDeviceCheckout_OrdinaryRoomOffersNachHauseWithoutAutoSendingHome(t *testing.T) {
 	ctx := setupTestContext(t)
 
 	previousCheckoutTime, hadCheckoutTime := os.LookupEnv("STUDENT_DAILY_CHECKOUT_TIME")
@@ -175,8 +173,8 @@ func TestDeviceCheckout_OrdinaryRoomDoesNotOfferNachHause(t *testing.T) {
 
 	checkoutData := responseData(t, checkoutRR.Body.Bytes())
 	assert.Equal(t, "checked_out", checkoutData["action"])
-	assert.Equal(t, false, checkoutData["daily_checkout_available"],
-		"an ordinary room must not offer nach Hause")
+	assert.Equal(t, true, checkoutData["daily_checkout_available"],
+		"a new tenant must offer nach Hause from an ordinary room")
 }
 
 // responseData unwraps the standard {"data": {...}} envelope.
