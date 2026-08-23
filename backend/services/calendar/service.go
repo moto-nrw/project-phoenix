@@ -1901,21 +1901,6 @@ func staffRecipientStatus(recipients []*calModels.AppointmentRecipient, staffID 
 	return nil, nil
 }
 
-func guardianRecipientStatus(recipients []*calModels.AppointmentRecipient, guardianProfileIDs []int64) (*string, *int64) {
-	allowed := int64Set(guardianProfileIDs)
-	for _, recipient := range recipients {
-		if recipient.GuardianProfileID == nil {
-			continue
-		}
-		if _, ok := allowed[*recipient.GuardianProfileID]; ok {
-			status := recipient.Status
-			id := recipient.ID
-			return &status, &id
-		}
-	}
-	return nil, nil
-}
-
 func (s *service) guardianRecipientStatusForStudents(ctx context.Context, recipients []*calModels.AppointmentRecipient, guardianProfileIDs []int64, studentIDs []int64) (*string, *int64, error) {
 	allowedGuardians := int64Set(guardianProfileIDs)
 	allowedStudents := int64Set(studentIDs)

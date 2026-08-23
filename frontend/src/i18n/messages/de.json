@@ -1466,6 +1466,10 @@
     "overviewKicker": "Kinder im Überblick",
     "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Betreuung beendet",
+      "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
+    },
     "loadError": "Die Angaben zu Ihrem Kind konnten gerade nicht geladen werden. Bitte versuchen Sie es später noch einmal.",
     "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto.",
     "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",

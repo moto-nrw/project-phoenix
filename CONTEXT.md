@@ -68,6 +68,19 @@ Tagen abwesend zu sein — etwa Urlaub, Krankheit oder Fortbildung. Er betrifft
 keine Kinder und wird von einer dafür berechtigten Person genehmigt, abgelehnt
 oder mit einer Rückfrage beantwortet.
 
+## Vertretungsplan
+
+Eine **terminbezogene Abwesenheit** markiert eine Person in einem oder mehreren
+ausgewählten Terminen eines Tages als abwesend. Ihre übrigen Termine an diesem
+Tag bleiben unverändert.
+
+Eine **tagesweite Abwesenheit** markiert eine Person in allen ihren Terminen
+eines Tages als abwesend. Sie gilt unabhängig davon, für welche Termine eine
+Ersatzperson eingetragen ist.
+
+Eine **Vertretung** ordnet einer abwesenden Person für ausgewählte Termine eine
+Ersatzperson zu. Sie kann alle oder nur einen Teil ihrer Abwesenheit abdecken.
+
 ## Anmeldungsänderung
 
 Eine **Anmeldungsänderung** ist eine Anfrage zu einer noch laufenden Anmeldung,

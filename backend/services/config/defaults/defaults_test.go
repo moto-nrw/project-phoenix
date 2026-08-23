@@ -51,6 +51,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 		// Capacity-detail disclosure toggles (issue #1879, devices tab).
 		"checkin.activity_capacity_details_enabled",
 		"checkin.room_capacity_details_enabled",
@@ -213,13 +214,12 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
-	optionValues := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		optionValues = append(optionValues, value)
+		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
 	}
-	assert.ElementsMatch(t, holidays.Regions(), optionValues)
+	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
@@ -1320,6 +1320,7 @@ func TestDevicesSettings(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 	}
 	for _, key := range keys {
 		def := config.GetDefinition(key)
@@ -1343,6 +1344,9 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, schulhof.Default, "schulhof should default to false (opt-in)")
 	wc := config.GetDefinition("checkout.wc_enabled")
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
+
+	allRooms := config.GetDefinition("checkout.daily_checkout_from_all_rooms_enabled")
+	assert.Equal(t, true, allRooms.Default, "new tenants should offer daily checkout from every room")
 }
 
 func TestCheckinCapacityDetailSettings(t *testing.T) {

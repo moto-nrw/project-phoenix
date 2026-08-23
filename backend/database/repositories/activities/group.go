@@ -291,6 +291,11 @@ func (r *GroupRepository) FindTargetStudentIDs(ctx context.Context, groupID int6
 	return byGroup[groupID], nil
 }
 
+// A child whose care has already ended drops out of every dynamic source
+// (#2487) — the source answers "who belongs to this Jahrgang / class / group
+// today", and they no longer do. A child whose exit is still ahead stays in:
+// the per-date filter in the materializer decides which of the upcoming days
+// they are still planned for.
 func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
 	result := make(map[int64][]int64, len(groupIDs))
 	if len(groupIDs) == 0 {
@@ -317,8 +322,9 @@ func (r *GroupRepository) FindTargetStudentIDsByGroupIDs(ctx context.Context, gr
 			)
 		WHERE student.tenant_id = ?
 			AND student.status <> 'alumnus'
+			AND (student.enrolled_until IS NULL OR student.enrolled_until >= ?)
 		ORDER BY target.activity_group_id ASC, student.id ASC
-	`, bun.List(groupIDs), tenantID).Scan(ctx, &rows)
+	`, bun.List(groupIDs), tenantID, timezone.TodayDate()).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find target students", Err: err}
 	}

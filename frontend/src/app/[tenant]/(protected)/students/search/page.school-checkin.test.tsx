@@ -395,7 +395,7 @@ describe("StudentSearchPage — school check-in wiring", () => {
     expect(mockToggleStudent).not.toHaveBeenCalled();
   });
 
-  it("forwards pending count to the FAB via prop", async () => {
+  it("hides the separate FAB while the compact toolbar is active", async () => {
     mockUseSchoolCheckinMode.mockReturnValue({
       isActive: true,
       toggleActive: mockToggleActive,
@@ -418,10 +418,10 @@ describe("StudentSearchPage — school check-in wiring", () => {
       expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("school-checkin-fab")).toHaveAttribute(
-      "data-pending",
-      "2",
-    );
+    expect(screen.queryByTestId("school-checkin-fab")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "An- und Abmelde-Modus" }),
+    ).toBeInTheDocument();
   });
 
   // A live update (SWR/SSE) can remove a marked student from the result set
@@ -479,6 +479,66 @@ describe("StudentSearchPage — school check-in wiring", () => {
     expect(screen.getByText("0 ausgewählt")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Anmelden/ })).toBeDisabled();
     expect(screen.getByRole("button", { name: /Abmelden/ })).toBeDisabled();
+  });
+
+  it("marks only the requested bulk action as running until it settles", async () => {
+    let resolveBulk!: (value: {
+      action: "in";
+      results: never[];
+      succeeded: number;
+      failed: number;
+    }) => void;
+    const mockRunBulk = vi.fn(
+      () =>
+        new Promise<{
+          action: "in";
+          results: never[];
+          succeeded: number;
+          failed: number;
+        }>((resolve) => {
+          resolveBulk = resolve;
+        }),
+    );
+    mockUseSchoolCheckinMode.mockReturnValue({
+      isActive: true,
+      toggleActive: mockToggleActive,
+      deactivate: vi.fn(),
+      pendingIds: new Set<string>(),
+      successCount: 0,
+      toggle: mockToggleStudent,
+      selectionActive: true,
+      setSelectionActive: vi.fn(),
+      selectedIds: new Set<string>(["7"]),
+      toggleSelected: vi.fn(),
+      clearSelection: vi.fn(),
+      isBulkRunning: false,
+      runBulk: mockRunBulk,
+    });
+
+    render(<StudentSearchPage />);
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    expect(screen.getByRole("button", { name: "Anmelden" })).toContainElement(
+      document.querySelector(".animate-spin"),
+    );
+    expect(
+      screen.getByRole("button", { name: "Abmelden" }),
+    ).not.toContainElement(document.querySelector(".animate-spin"));
+    expect(
+      screen.getByRole("region", { name: "An- und Abmelde-Modus" }),
+    ).toHaveAttribute("aria-busy", "true");
+
+    resolveBulk({ action: "in", results: [], succeeded: 1, failed: 0 });
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("region", { name: "An- und Abmelde-Modus" }),
+      ).toHaveAttribute("aria-busy", "false");
+    });
   });
 
   // A scope change during a running batch keeps the failed students selected

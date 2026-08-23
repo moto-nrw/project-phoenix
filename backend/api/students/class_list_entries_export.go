@@ -204,7 +204,7 @@ func stableSortRowSources(sources []exportRowSource, nameSorted bool) {
 
 // buildExportRowSources renders the final rows (grouped or flat) from the
 // merged sources, reusing the exact heading semantics of
-// buildGroupedExportRows.
+// the grouped export builder.
 func buildExportRowSources(sources []exportRowSource, grouped bool) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(sources))
 	currentClass := ""

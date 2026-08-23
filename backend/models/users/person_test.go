@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -29,8 +30,8 @@ func TestPerson_Validate(t *testing.T) {
 			person: &Person{
 				FirstName: "Jane",
 				LastName:  "Smith",
-				AccountID: base.Int64Ptr(1),
-				TagID:     base.StringPtr("tag123"),
+				AccountID: ptrtest.Ptr(int64(1)),
+				TagID:     ptrtest.Ptr("tag123"),
 			},
 			wantErr: false,
 		},
@@ -262,7 +263,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     base.StringPtr("RFID-123"),
+				TagID:     ptrtest.Ptr("RFID-123"),
 			},
 			expected: true,
 		},
@@ -280,7 +281,7 @@ func TestPerson_HasRFIDCard(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				TagID:     base.StringPtr(""),
+				TagID:     ptrtest.Ptr(""),
 			},
 			expected: false,
 		},
@@ -309,7 +310,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(1),
+				AccountID: ptrtest.Ptr(int64(1)),
 			},
 			expected: true,
 		},
@@ -327,7 +328,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(0),
+				AccountID: ptrtest.Ptr(int64(0)),
 			},
 			expected: false,
 		},
@@ -336,7 +337,7 @@ func TestPerson_HasAccount(t *testing.T) {
 			person: &Person{
 				FirstName: "John",
 				LastName:  "Doe",
-				AccountID: base.Int64Ptr(-1),
+				AccountID: ptrtest.Ptr(int64(-1)),
 			},
 			expected: false,
 		},

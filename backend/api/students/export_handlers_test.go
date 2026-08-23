@@ -323,14 +323,14 @@ func TestExportRequestToListParamsParsesDayStatus(t *testing.T) {
 func TestExportFilterLabelsCombinesDayStatusAndAdministrative(t *testing.T) {
 	t.Parallel()
 
-	labels := exportFilterLabels(studentExportFilters{
+	labels := exportFilterLabelsForDate(studentExportFilters{
 		Bus:          "yes",
 		PhotoConsent: "no",
 		PickupStatus: "self",
 		Status:       "klassenfahrt",
 		DayStatus:    DayPlanningStatusNotComingToday,
 		SchoolClass:  "3a",
-	})
+	}, testExportDate, true)
 
 	assert.Contains(t, labels, "Klasse: 3a")
 	assert.Contains(t, labels, "Buskind")
@@ -377,7 +377,7 @@ func TestApplyExportFiltersMultipleSchoolYears(t *testing.T) {
 	}
 	assert.Equal(t, []int64{202, 203}, gotIDs)
 
-	labels := exportFilterLabels(studentExportFilters{Year: "3,4", SchoolClass: "3a,4b"})
+	labels := exportFilterLabelsForDate(studentExportFilters{Year: "3,4", SchoolClass: "3a,4b"}, testExportDate, true)
 	assert.Contains(t, labels, "Stufe: 3, 4")
 	assert.Contains(t, labels, "Klasse: 3a, 4b")
 }
@@ -497,9 +497,9 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 		},
 	}
 
-	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{
 		101: "Angemeldet: OGS",
-	}, testExportDate, true)
+	}, testExportDate, true), false)
 
 	require.Len(t, rows, len(students))
 	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])

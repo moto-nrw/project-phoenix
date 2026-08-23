@@ -24,6 +24,20 @@ type StudentLifecycleRepository interface {
 	TransitionStatus(ctx context.Context, studentID int64, expected, next userModels.StudentStatus) (bool, error)
 }
 
+// CareExitEffector performs the effect-day housekeeping for children whose
+// care has ended (#2487): closing what is still open, freeing the bracelet,
+// closing the open parent requests. Narrow contract so the scheduler does not
+// import the whole users service package.
+type CareExitEffector interface {
+	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
+}
+
+// SetCareExitEffector wires the effect pass. Nil keeps the tick to its
+// original status transitions, matching the opt-in shape of the setters above.
+func (s *Scheduler) SetCareExitEffector(effector CareExitEffector) {
+	s.careExitEffector = effector
+}
+
 // StudentLifecycleAuditor records scheduler-authored status transitions.
 type StudentLifecycleAuditor interface {
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
@@ -103,18 +117,6 @@ func (s *Scheduler) checkAndRunActivateStudents(task *ScheduledTask) {
 	})
 }
 
-// runActivateStudentsForTenant is the logging wrapper for direct callers.
-// Tenant iteration uses the error-returning variant below so audit failures
-// reach WithTenantTx and force a rollback.
-func (s *Scheduler) runActivateStudentsForTenant(ctx context.Context, tenantID int64, now time.Time) {
-	if err := s.runActivateStudentsForTenantWithError(ctx, tenantID, now); err != nil {
-		s.getLogger().Error("activate-students: tenant transition failed",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-	}
-}
-
 // runActivateStudentsForTenant flips eligible pending students to active and
 // eligible active students to inactive. Idempotent — running twice on the
 // same day is a no-op after the first pass. Status-update failures are logged
@@ -136,7 +138,27 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 		}
 	}
 
-	dueInactive, err := s.studentLifecycleRepo.FindActiveDueForDeactivation(ctx, asOf)
+	// The enrollment interval's upper bound is INCLUSIVE: a child still
+	// belongs to the OGS on their last care day and only leaves the day after
+	// (#2487). The deactivation boundary is therefore YESTERDAY, not today —
+	// matching filterStudentsEligibleOnDate, which every operational reader
+	// already agrees with.
+	careBoundary := asOf.AddDays(-1)
+
+	// The effects run BEFORE the status transition and select on the same
+	// still-'active' rows, which is what keeps them from being re-applied on
+	// every later tick.
+	if s.careExitEffector != nil {
+		if _, err := s.careExitEffector.ApplyDueEffects(ctx, asOf); err != nil {
+			s.getLogger().Error("activate-students: care exit effects failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("apply care exit effects: %w", err)
+		}
+	}
+
+	dueInactive, err := s.studentLifecycleRepo.FindActiveDueForDeactivation(ctx, careBoundary)
 	if err != nil {
 		s.getLogger().Error("activate-students: load active-due failed",
 			slog.Int64("tenant_id", tenantID),

@@ -98,7 +98,7 @@ const STAFF_OPTIONS = [
 
 interface RenderOptions {
   instance?: EnrichedInstance;
-  dayAbsentStaffIds?: ReadonlySet<string>;
+  dayInstances?: EnrichedInstance[];
   canManage?: boolean;
   onApply?: ApplyFn;
   onClose?: () => void;
@@ -108,12 +108,13 @@ interface RenderOptions {
 function renderEditor(opts: RenderOptions = {}) {
   const onApply = opts.onApply ?? applyMock(true);
   const onClose = opts.onClose ?? vi.fn<() => void>();
+  const instance = opts.instance ?? makeInstance();
   render(
     <SubstitutionSlideOver
-      instance={opts.instance ?? makeInstance()}
+      instance={instance}
+      dayInstances={opts.dayInstances ?? [instance]}
       staffOptions={STAFF_OPTIONS}
       staffNames={STAFF_NAMES}
-      dayAbsentStaffIds={opts.dayAbsentStaffIds ?? new Set()}
       canManage={opts.canManage ?? true}
       onClose={onClose}
       onApply={onApply}
@@ -124,7 +125,11 @@ function renderEditor(opts: RenderOptions = {}) {
 }
 
 function markAbsent() {
-  fireEvent.click(screen.getByRole("button", { name: /Abwesend/ }));
+  fireEvent.click(screen.getByRole("button", { name: /als abwesend/ }));
+}
+
+function chooseScope(name: "Alle noch offenen Termine" | "Bestimmte Termine") {
+  fireEvent.click(screen.getByRole("radio", { name: new RegExp(`^${name}`) }));
 }
 
 function pickSubstitute(triggerName: string, optionName: string) {
@@ -170,6 +175,7 @@ describe("SubstitutionSlideOver", () => {
       renderEditor({ onApply });
 
       markAbsent();
+      chooseScope("Alle noch offenen Termine");
       fireEvent.click(screen.getByRole("button", { name: /Grund hinzufügen/ }));
       fireEvent.change(screen.getByPlaceholderText("Grund (optional)"), {
         target: { value: "krank" },
@@ -196,6 +202,7 @@ describe("SubstitutionSlideOver", () => {
       renderEditor({ onApply, onClose });
 
       markAbsent();
+      chooseScope("Alle noch offenen Termine");
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
       await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
@@ -211,21 +218,359 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
-  describe("Ersatz-Ausschluss", () => {
-    it("bietet tagesweit abwesende Personen in keiner Ersatz-Auswahl an", () => {
-      renderEditor({ dayAbsentStaffIds: new Set(["12"]) });
+  describe("Termin-Auswahl", () => {
+    const randstunde = makeInstance({
+      id: "42",
+      title: "Randstunde",
+      startTime: "08:00",
+      endTime: "09:00",
+    });
+    const lernzeit = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      startTime: "11:00",
+      endTime: "12:00",
+    });
+
+    it("verlangt eine Umfang-Auswahl und wählt den geöffneten Termin vor", () => {
+      renderEditor({
+        instance: randstunde,
+        dayInstances: [randstunde, lernzeit],
+      });
 
       markAbsent();
-      fireEvent.click(
-        screen.getByRole("combobox", { name: "Vertretung für Anna Alt" }),
-      );
+      expect(
+        screen.getByRole("radio", { name: /^Alle noch offenen Termine/ }),
+      ).not.toBeChecked();
+      expect(
+        screen.getByRole("radio", { name: /^Bestimmte Termine/ }),
+      ).not.toBeChecked();
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
 
+      chooseScope("Bestimmte Termine");
       expect(
-        screen.getByRole("option", { name: "Carla Klar" }),
-      ).toBeInTheDocument();
+        screen.getByRole("checkbox", { name: /08:00.*Randstunde/ }),
+      ).toBeChecked();
       expect(
-        screen.queryByRole("option", { name: "Bernd Neu" }),
-      ).not.toBeInTheDocument();
+        screen.getByRole("checkbox", { name: /11:00.*Lernzeit/ }),
+      ).not.toBeChecked();
+    });
+
+    it("überträgt nur die ausgewählten Termine", async () => {
+      const onApply = applyMock(true);
+      renderEditor({
+        instance: randstunde,
+        dayInstances: [randstunde, lernzeit],
+        onApply,
+      });
+
+      markAbsent();
+      chooseScope("Bestimmte Termine");
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /11:00.*Lernzeit/ }),
+      );
+      pickSubstitute("Vertretung für Anna Alt", "Bernd Neu");
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      expect(onApply).toHaveBeenCalledWith({
+        substitutions: [
+          {
+            absentStaffId: "11",
+            substituteStaffId: "12",
+            instanceIds: ["42", "43"],
+          },
+        ],
+      });
+    });
+
+    it("kann nur ausgewählte Termine vertreten und die Person trotzdem für alle Termine abmelden", async () => {
+      const onApply = applyMock(true);
+      renderEditor({
+        instance: randstunde,
+        dayInstances: [randstunde, lernzeit],
+        onApply,
+      });
+
+      markAbsent();
+      chooseScope("Bestimmte Termine");
+      fireEvent.click(
+        screen.getByRole("checkbox", {
+          name: "Auch in allen anderen Terminen als abwesend markieren",
+        }),
+      );
+      pickSubstitute("Vertretung für Anna Alt", "Bernd Neu");
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      expect(onApply).toHaveBeenCalledWith({
+        absences: [{ staffId: "11" }],
+        substitutions: [
+          {
+            absentStaffId: "11",
+            substituteStaffId: "12",
+            instanceIds: ["42"],
+          },
+        ],
+      });
+    });
+
+    it("zeigt abgeschlossene Termine deaktiviert und schließt sie aus", () => {
+      const completed = makeInstance({
+        id: "44",
+        title: "Spätbetreuung",
+        startTime: "16:00",
+        endTime: "17:00",
+        status: "completed",
+      });
+      renderEditor({
+        instance: randstunde,
+        dayInstances: [randstunde, completed],
+      });
+
+      markAbsent();
+      chooseScope("Bestimmte Termine");
+      expect(
+        screen.getByRole("checkbox", {
+          name: /16:00.*Spätbetreuung.*Abgeschlossen/,
+        }),
+      ).toBeDisabled();
+    });
+
+    it("speichert für mehrere Personen unabhängige Umfänge", async () => {
+      const onApply = applyMock(true);
+      const twoPeople = [
+        plannedPerson(),
+        plannedPerson({ staffId: "13", isPrimary: false }),
+      ];
+      const selected = makeInstance({
+        id: "42",
+        title: "Randstunde",
+        startTime: "08:00",
+        endTime: "09:00",
+        staff: twoPeople,
+      });
+      const other = makeInstance({
+        id: "43",
+        title: "Lernzeit",
+        startTime: "11:00",
+        endTime: "12:00",
+        staff: twoPeople,
+      });
+      renderEditor({
+        instance: selected,
+        dayInstances: [selected, other],
+        onApply,
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anna Alt als abwesend markieren" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Carla Klar als abwesend markieren",
+        }),
+      );
+      fireEvent.click(document.getElementById("vp-scope-all-11")!);
+      fireEvent.click(document.getElementById("vp-scope-selected-13")!);
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+      expect(onApply).toHaveBeenCalledWith({
+        absences: [{ staffId: "11" }, { staffId: "13", instanceIds: ["42"] }],
+      });
+    });
+
+    it("lässt eine Abwesenheit in einem anderen Termin unverändert", () => {
+      const present = makeInstance({ id: "42", title: "Randstunde" });
+      const absentElsewhere = makeInstance({
+        id: "43",
+        title: "Lernzeit",
+        staff: [plannedPerson({ isAbsent: true })],
+      });
+
+      renderEditor({
+        instance: present,
+        dayInstances: [present, absentElsewhere],
+      });
+
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    });
+  });
+
+  it("sperrt die Krankmeldung, lässt aber den Umfang der Vertretung wählen", async () => {
+    const onApply = applyMock(true);
+    const sick = makeInstance({
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    const otherSick = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      startTime: "11:00",
+      endTime: "12:00",
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    renderEditor({ instance: sick, dayInstances: [sick, otherSick], onApply });
+
+    expect(
+      screen.getByText(
+        "Diese Abwesenheit kommt aus einer Krankmeldung. Sie können hier nur die Vertretung ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anwesend melden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Vertretung für Anna Alt" }),
+    ).toBeDisabled();
+
+    chooseScope("Bestimmte Termine");
+    expect(
+      screen.getByRole("checkbox", { name: /14:00.*Malen-AG/ }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: /11:00.*Lernzeit/ }),
+    ).not.toBeChecked();
+    expect(
+      screen.getByRole("combobox", { name: "Vertretung für Anna Alt" }),
+    ).toBeEnabled();
+    pickSubstitute("Vertretung für Anna Alt", "Bernd Neu");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      substitutions: [
+        {
+          absentStaffId: "11",
+          substituteStaffId: "12",
+          instanceIds: ["42"],
+        },
+      ],
+    });
+  });
+
+  it("begrenzt die ganztägige Vertretung einer Krankmeldung auf deren Abwesenheiten", async () => {
+    const onApply = applyMock(true);
+    const sick = makeInstance({
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    const otherSick = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      startTime: "11:00",
+      endTime: "12:00",
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    renderEditor({ instance: sick, dayInstances: [sick, otherSick], onApply });
+
+    chooseScope("Alle noch offenen Termine");
+    pickSubstitute("Vertretung für Anna Alt", "Bernd Neu");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      substitutions: [
+        {
+          absentStaffId: "11",
+          substituteStaffId: "12",
+          reason: undefined,
+          instanceIds: ["43", "42"],
+        },
+      ],
+    });
+  });
+
+  it("lässt eine manuelle Abwesenheit ändern und behält die Krankmeldung", async () => {
+    const onApply = applyMock(true);
+    const manual = makeInstance({
+      staff: [plannedPerson({ isAbsent: true })],
+    });
+    const sick = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    renderEditor({ instance: manual, dayInstances: [manual, sick], onApply });
+
+    fireEvent.click(screen.getByRole("button", { name: /anwesend melden/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      presences: [{ staffId: "11", instanceIds: ["42"] }],
+    });
+  });
+
+  it("behält eine andere manuelle Abwesenheit neben der geöffneten Krankmeldung", () => {
+    const onApply = applyMock(true);
+    const sick = makeInstance({
+      staff: [plannedPerson({ isAbsent: true, isSickAbsence: true })],
+    });
+    const manual = makeInstance({
+      id: "43",
+      title: "Lernzeit",
+      startTime: "11:00",
+      endTime: "12:00",
+      staff: [plannedPerson({ isAbsent: true })],
+    });
+    renderEditor({ instance: sick, dayInstances: [sick, manual], onApply });
+
+    chooseScope("Bestimmte Termine");
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(onApply).not.toHaveBeenCalled();
+  });
+
+  it("entfernt eine Vertretung nur im geöffneten Termin, ohne sie abwesend zu melden", async () => {
+    const onApply = applyMock(true);
+    const instance = makeInstance({
+      staff: [
+        plannedPerson({ isAbsent: true }),
+        plannedPerson({
+          staffId: "12",
+          isPrimary: false,
+          isSubstitute: true,
+        }),
+      ],
+    });
+    renderEditor({ instance, dayInstances: [instance], onApply });
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      substitutionRemovals: [{ staffId: "12", instanceIds: ["42"] }],
+    });
+  });
+
+  it("tauscht eine Vertretung in einem Speichervorgang", async () => {
+    const onApply = applyMock(true);
+    const instance = makeInstance({
+      staff: [
+        plannedPerson({ isAbsent: true }),
+        plannedPerson({
+          staffId: "12",
+          isPrimary: false,
+          isSubstitute: true,
+        }),
+      ],
+    });
+    renderEditor({ instance, dayInstances: [instance], onApply });
+
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    pickSubstitute("Vertretung für Anna Alt", "Carla Klar");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      substitutionRemovals: [{ staffId: "12", instanceIds: ["42"] }],
+      substitutions: [
+        {
+          absentStaffId: "11",
+          substituteStaffId: "13",
+          instanceIds: undefined,
+        },
+      ],
     });
   });
 
@@ -241,6 +586,7 @@ describe("SubstitutionSlideOver", () => {
 
       // Anna abwesend, kein Ersatz → unterbesetzt → aktivierbar.
       markAbsent();
+      chooseScope("Alle noch offenen Termine");
       expect(
         screen.getByRole("checkbox", { name: /Bewusst unbesetzt/ }),
       ).toBeEnabled();
@@ -322,9 +668,9 @@ describe("SubstitutionSlideOver", () => {
       ]);
       const props = {
         instance: makeInstance(),
+        dayInstances: [makeInstance()],
         staffOptions: STAFF_OPTIONS,
         staffNames: STAFF_NAMES,
-        dayAbsentStaffIds: new Set<string>(),
         canManage: true,
         onClose: vi.fn<() => void>(),
         onApply: applyMock(true),

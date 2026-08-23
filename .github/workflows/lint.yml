@@ -55,32 +55,7 @@ jobs:
         run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
 
       - name: Run dead code detection
-        working-directory: backend
-        run: |
-          echo "🔍 Running dead code detection..."
-
-          # Run deadcode (a go.mod tool directive, locked via go.sum) and
-          # capture output. On a cold module cache the go toolchain prints
-          # "go: downloading ..." progress to stderr — strip it, or it gets
-          # mistaken for findings.
-          DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
-
-          # Check if any dead code remains
-          if [[ -n "$DEADCODE_OUTPUT" ]]; then
-            echo ""
-            echo "❌ Dead code detected:"
-            echo ""
-            echo "$DEADCODE_OUTPUT" | while IFS= read -r line; do
-              if [[ -n "$line" ]]; then
-                echo "  $line"
-              fi
-            done
-            echo ""
-            echo "Please remove dead code or document why it should be kept."
-            exit 1
-          else
-            echo "No dead code detected"
-          fi
+        run: scripts/check-deadcode.sh
 
       - name: Check Go dependency licenses
         working-directory: backend
@@ -169,6 +144,10 @@ jobs:
       - name: Check for unused code
         working-directory: frontend
         run: pnpm knip
+
+      - name: Check for production files used only by tests or stories
+        working-directory: frontend
+        run: pnpm knip:production
 
       - name: Check npm dependency licenses
         working-directory: frontend

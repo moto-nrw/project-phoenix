@@ -58,6 +58,19 @@ func TestSubmitMasterDataChangeRequest_CreatesPending(t *testing.T) {
 	assert.Equal(t, "Felix", person.FirstName)
 }
 
+func TestSubmitMasterDataChangeRequest_CareEndedChildIsRejected(t *testing.T) {
+	t.Parallel()
+
+	svc, db := buildRequestService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	endCareFor(t, db, chain.StudentID)
+
+	_, err := svc.SubmitMasterDataChangeRequest(context.Background(), chain.AccountID, chain.StudentID, []parentService.MasterDataFieldChange{
+		{Target: usersModels.DataChangeTargetPerson, FieldKey: "first_name", Value: json.RawMessage(`"Maximilian"`)},
+	})
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+}
+
 func TestSubmitMasterDataChangeRequest_SchoolClassRemainsPending(t *testing.T) {
 	t.Parallel()
 

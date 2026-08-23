@@ -11,6 +11,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -752,7 +753,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 		},
 		RoleRepo: &mockRoleRepo{roles: []*authModels.Role{
 			{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true},
-			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: base.Int64Ptr(9)},
+			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: ptrtest.Ptr(int64(9))},
 		}},
 		InvitationService: invitations,
 		AuditLogRepo:      &mockAuditLogRepoShared{},
@@ -1352,7 +1353,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_AdminRoleMissing(t *testi
 			},
 		},
 		RoleRepo: &mockRoleRepo{roles: []*authModels.Role{
-			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: base.Int64Ptr(9)},
+			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: ptrtest.Ptr(int64(9))},
 		}},
 	})
 

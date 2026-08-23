@@ -26,6 +26,9 @@ const (
 	ExcusedRequestStatusApproved  = "approved"
 	ExcusedRequestStatusRejected  = "rejected"
 	ExcusedRequestStatusWithdrawn = "withdrawn"
+	// ExcusedRequestStatusCareEnded closes an open request whose child left
+	// the OGS before anybody decided it (#2487).
+	ExcusedRequestStatusCareEnded = "care_ended"
 )
 
 // ExcusedAbsenceRequest is the legacy-named store for one parent-initiated
@@ -51,7 +54,7 @@ type ExcusedAbsenceRequest struct {
 // accept a staff decision or a guardian withdrawal.
 func (e *ExcusedAbsenceRequest) IsTerminal() bool {
 	switch e.Status {
-	case ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn:
+	case ExcusedRequestStatusApproved, ExcusedRequestStatusRejected, ExcusedRequestStatusWithdrawn, ExcusedRequestStatusCareEnded:
 		return true
 	default:
 		return false

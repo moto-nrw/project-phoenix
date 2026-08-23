@@ -17,6 +17,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,6 +27,18 @@ type careOfferingsChildRepoStub struct {
 	parentModels.ChildRepository
 	child *parentModels.ChildSummary
 	err   error
+}
+
+// careOfferingsStudentRepoStub supplies the locked, still-active child that
+// CreateOfferingChangeRequest now requires before it delegates the write.
+type careOfferingsStudentRepoStub struct {
+	usersModels.StudentRepository
+}
+
+func (careOfferingsStudentRepoStub) FindByIDForUpdate(
+	context.Context, int64,
+) (*usersModels.Student, error) {
+	return &usersModels.Student{}, nil
 }
 
 func (s careOfferingsChildRepoStub) FindForAccount(
@@ -215,9 +228,10 @@ func careOfferingsService(
 	changes *offeringChangesStub,
 ) *service {
 	svc := &service{ServiceConfig: ServiceConfig{
-		ChildRepo: careOfferingsChildRepoStub{child: child},
-		DB:        db,
-		Logger:    slog.Default(),
+		ChildRepo:   careOfferingsChildRepoStub{child: child},
+		StudentRepo: careOfferingsStudentRepoStub{},
+		DB:          db,
+		Logger:      slog.Default(),
 	}}
 	if changes != nil {
 		svc.OfferingChanges = changes
@@ -568,9 +582,10 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &service{ServiceConfig: ServiceConfig{Settings: tt.settings, Logger: slog.Default()}}
-			got, reason := svc.resolveOfferingChangeAvailability(
+			got, reason := svc.resolveOfferingChangeAvailabilityForStudent(
 				context.Background(),
 				tt.child,
+				0,
 				tt.period,
 				today,
 			)

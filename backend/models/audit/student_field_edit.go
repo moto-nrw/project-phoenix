@@ -33,11 +33,17 @@ type StudentFieldEdit struct {
 // Attendance/check-in changes are intentionally out of scope for the first
 // stage (they originate from devices/parents and have their own history).
 const (
-	StudentFieldStatus                 = "status"
-	StudentFieldSupervisorNotes        = "supervisor_notes"
-	StudentFieldExtraInfo              = "extra_info"
-	StudentFieldHealthInfo             = "health_info"
-	StudentFieldPickupStatus           = "pickup_status"
+	StudentFieldStatus          = "status"
+	StudentFieldSupervisorNotes = "supervisor_notes"
+	StudentFieldExtraInfo       = "extra_info"
+	StudentFieldHealthInfo      = "health_info"
+	StudentFieldPickupStatus    = "pickup_status"
+	// StudentFieldCareEnd records the last care day — the inclusive upper
+	// bound of the enrollment interval (#2487). Values are German dates, or
+	// empty when no end of care is recorded. The categorised exit REASON is
+	// deliberately not part of this trail: the change history is readable with
+	// users:read, the reason only with users:delete.
+	StudentFieldCareEnd                = "care_end"
 	StudentFieldDepartureDays          = "departure_days"
 	StudentFieldDepartureCompanionNote = "departure_companion_note"
 
@@ -104,7 +110,7 @@ func (e *StudentFieldEdit) Validate() error {
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
 		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
-		StudentFieldDepartureCompanionNote, StudentFieldDocument:
+		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument:
 		// Valid field names
 	default:
 		// Document fields carry their category in the name. The vocabulary of

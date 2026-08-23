@@ -1466,6 +1466,10 @@
     "overviewKicker": "Children at a glance",
     "overviewDescription": "Choose a child to view care, details and contacts.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Care has ended",
+      "body": "Your child is no longer in care at this school. You can still view everything from before. New reports are no longer possible."
+    },
     "loadError": "Your child's details could not be loaded right now. Please try again later.",
     "notFound": "There is no child at this address in your account.",
     "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",

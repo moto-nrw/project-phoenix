@@ -6,14 +6,12 @@ import {
   Clock,
   AlertTriangle,
   Check,
-  CheckSquare,
   ChevronRight,
   Loader2,
   LogIn,
   Minus,
   Plus,
   Route,
-  Square,
 } from "lucide-react";
 import {
   CalendarXIcon,
@@ -123,22 +121,6 @@ const TAP_STRIP_STYLES: Record<
   },
 };
 
-// Strip presets for the selection sub-mode (#2359). The selection state — not
-// the presence-derived action — is the strip's signal here: presence stays
-// readable on the badge, the strip answers "ist dieses Kind markiert?".
-const SELECT_STRIP_STYLES = {
-  selected: {
-    background: MOTO_COLOR_PALETTE.green.soft,
-    text: MOTO_COLOR_PALETTE.green.strong,
-    copy: "Ausgewählt",
-  },
-  unselected: {
-    background: `${LOCATION_COLORS.UNKNOWN}26`,
-    text: MOTO_COLOR_PALETTE.neutral.strong,
-    copy: "Tippen zum Auswählen",
-  },
-} as const;
-
 /**
  * Reusable student card component with modern styling.
  * Used in OGS groups and active supervisions pages.
@@ -175,10 +157,6 @@ export function StudentCard({
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
   const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
-  const selectStrip = selectMode
-    ? SELECT_STRIP_STYLES[isCheckinSelected ? "selected" : "unselected"]
-    : null;
-
   const ariaLabel = selectMode
     ? `${firstName} ${lastName} - ${isCheckinSelected ? "Auswahl entfernen" : "Auswählen"}`
     : checkinMode
@@ -191,7 +169,7 @@ export function StudentCard({
   const selectedRingStyle: React.CSSProperties | undefined =
     selectMode && isCheckinSelected
       ? {
-          boxShadow: `0 0 0 2px ${LOCATION_COLORS.GROUP_ROOM}, 0 1px 2px rgba(15,23,42,0.04)`,
+          boxShadow: `0 0 0 1px ${LOCATION_COLORS.GROUP_ROOM}`,
           borderColor: "transparent",
         }
       : undefined;
@@ -216,7 +194,9 @@ export function StudentCard({
         checkinMode ? "" : "active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
       }`}
     >
-      <div className={`relative ${checkinMode ? "p-6 pb-0" : "p-6 pb-5"}`}>
+      <div
+        className={`relative ${checkinMode && !selectMode ? "p-6 pb-0" : "p-6 pb-5"}`}
+      >
         {!checkinMode && (
           <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
         )}
@@ -230,7 +210,25 @@ export function StudentCard({
               {/* Avatar moved to top-left, inline with first/last name so only
                   the name gets pushed aside. extraContent below stays full
                   width. */}
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-2.5">
+                {selectMode ? (
+                  <span
+                    className={`mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border transition-[background-color,border-color,color] duration-150 ${
+                      isCheckinSelected
+                        ? "border-transparent text-white"
+                        : "border-gray-300 bg-white text-transparent"
+                    }`}
+                    style={
+                      isCheckinSelected
+                        ? { backgroundColor: LOCATION_COLORS.GROUP_ROOM }
+                        : undefined
+                    }
+                    data-checkin-selection-indicator="true"
+                    aria-hidden="true"
+                  >
+                    <Check className="size-3.5" strokeWidth={3} />
+                  </span>
+                ) : null}
                 {photosEnabled && (
                   <Avatar
                     imageUrl={photoUrl ?? null}
@@ -289,12 +287,12 @@ export function StudentCard({
           text stays) so the strip's height never changes — otherwise the
           card resizes mid-toggle and a 1px white seam flashes at the
           body→strip boundary. */}
-      {selectMode && selectStrip ? (
+      {checkinMode && !selectMode && tapStrip ? (
         <div
           className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
           style={{
-            backgroundColor: selectStrip.background,
-            color: selectStrip.text,
+            backgroundColor: tapStrip.background,
+            color: tapStrip.text,
           }}
           data-checkin-tap-strip="true"
         >
@@ -303,38 +301,14 @@ export function StudentCard({
               className="h-4 w-4 flex-shrink-0 animate-spin"
               aria-hidden="true"
             />
-          ) : isCheckinSelected ? (
-            <CheckSquare className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+          ) : tapStrip.action === "anmelden" ? (
+            <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           ) : (
-            <Square className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+            <Minus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
           )}
-          <span>{selectStrip.copy}</span>
+          <span>{tapStrip.copy}</span>
         </div>
-      ) : (
-        checkinMode &&
-        tapStrip && (
-          <div
-            className="relative mt-auto flex min-h-[44px] items-center justify-center gap-2 px-4 py-3 text-sm font-semibold transition-colors duration-150"
-            style={{
-              backgroundColor: tapStrip.background,
-              color: tapStrip.text,
-            }}
-            data-checkin-tap-strip="true"
-          >
-            {isCheckinPending ? (
-              <Loader2
-                className="h-4 w-4 flex-shrink-0 animate-spin"
-                aria-hidden="true"
-              />
-            ) : tapStrip.action === "anmelden" ? (
-              <Plus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-            ) : (
-              <Minus className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-            )}
-            <span>{tapStrip.copy}</span>
-          </div>
-        )
-      )}
+      ) : null}
     </button>
   );
 }

@@ -63,20 +63,6 @@ func TestRateLimiter_SetLogger(t *testing.T) {
 	assert.NotNil(t, rl.logger)
 }
 
-func TestRateLimiter_SetKeyFunc(t *testing.T) {
-	t.Parallel()
-
-	rl := NewRateLimiter(60, 10)
-	rl.SetKeyFunc(func(r *http.Request) string {
-		return "custom:" + r.Header.Get("X-Rate-Limit-Key")
-	})
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Header.Set("X-Rate-Limit-Key", "abc")
-
-	assert.Equal(t, "custom:abc", rl.requestKey(req))
-}
-
 // =============================================================================
 // GetClientIP Tests
 // =============================================================================

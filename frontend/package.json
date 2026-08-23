@@ -25,7 +25,8 @@
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
     "validate:build-env": "node scripts/validate-build-env.mjs",
-    "knip": "knip"
+    "knip": "knip",
+    "knip:production": "knip --production --include files"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.0",
@@ -102,10 +103,15 @@
   },
   "knip": {
     "includeEntryExports": true,
+    "project": [
+      "src/**/*.{js,jsx,ts,tsx}!",
+      "src/**/*.css!",
+      "scripts/**/*.{js,mjs,ts}",
+      "!src/test/**!",
+      "!src/**/*.{test,spec,stories}.{js,jsx,ts,tsx}!"
+    ],
     "ignore": [
-      ".storybook/mocks/**",
-      "doctor.config.js",
-      "public/sw.js"
+      ".storybook/mocks/**"
     ],
     "ignoreDependencies": [
       "sharp",

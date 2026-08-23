@@ -1288,6 +1288,17 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 	// and bracelet-assignment despite the documented promise (#405).
 	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
+	// A child whose care has ended disappears from the same rosters for the
+	// same reason (#2487): the tablet list, the bracelet assignment and the
+	// calendar student picker all answer "which children does this school care
+	// for", and from the day after their last care day they do not. Filtered
+	// on the enrollment interval rather than the lifecycle status, because the
+	// status only follows once the scheduler ticks.
+	query = query.Where(
+		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`,
+		timezone.TodayDate(),
+	)
+
 	return query
 }
 
@@ -1924,4 +1935,83 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 	}
 
 	return students, nil
+}
+
+// SetEnrolledUntilByIDs writes the enrollment interval's inclusive upper bound
+// for a batch of children in one statement (#2487).
+func (r *StudentRepository) SetEnrolledUntilByIDs(
+	ctx context.Context, ids []int64, until *timezone.Date,
+) (int64, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Set("enrolled_until = ?", until).
+		Set("updated_at = NOW()").
+		Where(`"student".id IN (?)`, bun.List(ids))
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: err}
+	}
+	return affected, nil
+}
+
+// SetEnrollmentWindowByID reopens one child's care: a new start day, no end
+// day, and the lifecycle status the caller derived for today (#2487).
+func (r *StudentRepository) SetEnrollmentWindowByID(
+	ctx context.Context, id int64, from timezone.Date, status users.StudentStatus,
+) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		Set("enrolled_from = ?", from).
+		Set("enrolled_until = NULL").
+		Set("status = ?", string(status)).
+		Set("updated_at = NOW()").
+		Where(`"student".id = ?`, id)
+	query = base.WithTenantFilter(ctx, query, "student")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set enrollment window", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "set enrollment window")
+}
+
+// FindCareBoundsByIDs projects the enrollment interval's upper bound for the
+// given children (#2487).
+func (r *StudentRepository) FindCareBoundsByIDs(
+	ctx context.Context, ids []int64,
+) (map[int64]timezone.Date, error) {
+	bounds := make(map[int64]timezone.Date, len(ids))
+	if len(ids) == 0 {
+		return bounds, nil
+	}
+	var rows []struct {
+		ID            int64         `bun:"id"`
+		EnrolledUntil timezone.Date `bun:"enrolled_until"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model((*users.Student)(nil)).
+		ModelTableExpr(tableExprUsersStudentsAsStudent).
+		ColumnExpr(`"student".id AS id`).
+		ColumnExpr(`"student".enrolled_until AS enrolled_until`).
+		Where(`"student".id IN (?)`, bun.List(ids)).
+		Where(`"student".enrolled_until IS NOT NULL`)
+	query = base.WithTenantFilter(ctx, query, "student")
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find care bounds by ids", Err: err}
+	}
+	for _, row := range rows {
+		bounds[row.ID] = row.EnrolledUntil
+	}
+	return bounds, nil
 }

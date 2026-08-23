@@ -31,6 +31,7 @@ const (
 	SubstituteActionMarkedAbsent      = "marked_absent"
 	SubstituteActionAlreadyAbsent     = "already_absent"
 	SubstituteActionMarkedPresent     = "marked_present"
+	SubstituteActionRemoved           = "substitute_removed"
 )
 
 // SubstituteWriteOp is one classified substitution target crossing the
@@ -273,6 +274,34 @@ func (s *instanceService) ApplySubstitute(
 		return s.logSubstitutionEvent(ctx, op, subID, reason, actorAccountID, true)
 	}
 	return nil
+}
+
+// RemoveSubstitute deletes one active substitute assignment from one
+// appointment without turning the substitute into another absent person.
+func (s *instanceService) RemoveSubstitute(
+	ctx context.Context,
+	row *scheduleModel.InstanceStaff,
+	instance *scheduleModel.ActivityInstance,
+	actorAccountID *int64,
+	activeTouched map[int64]*scheduleModel.ActivityInstance,
+) error {
+	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+		if _, err := s.deps.SupervisorRepo.EndByActiveGroupAndStaffID(ctx, *instance.ActiveGroupID, row.StaffID); err != nil {
+			return err
+		}
+		activeTouched[*instance.ActiveGroupID] = instance
+	}
+	if err := s.deps.InstanceStaffRepo.Delete(ctx, row.ID); err != nil {
+		return err
+	}
+	return s.logDeviationEvent(ctx, deviationEventInput{
+		instance:       instance,
+		eventType:      auditModel.DeviationEventSubstituteRemoved,
+		subjectStaffID: &row.StaffID,
+		oldValue:       map[string]any{"is_substitute": true, "is_absent": false},
+		newValue:       map[string]any{"removed": true},
+		actorAccountID: actorAccountID,
+	})
 }
 
 // logSubstitutionEvent writes the protocol entry for a substitution write.

@@ -21,7 +21,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
@@ -66,7 +66,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
@@ -138,7 +138,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")

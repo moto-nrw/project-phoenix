@@ -154,6 +154,11 @@ export interface SickNoteSubmitResult {
 
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
+  // Zustand, keine Fähigkeit: Das Kind ist nicht mehr in Betreuung (#2487).
+  // Ist es true, sind alle Schreib-Flags unten false — das Portal zeigt dann
+  // ein Nur-Lesen-Profil mit einem Satz dazu statt Knöpfe, die alle gleich
+  // scheitern würden.
+  readonly care_ended?: boolean;
   readonly sick_note_enabled: boolean;
   // Whether a Krankmeldung stays pending until the OGS confirms it.
   readonly sick_requires_approval?: boolean;

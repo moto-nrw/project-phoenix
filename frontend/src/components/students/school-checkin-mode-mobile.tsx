@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
-import { CheckSquare, Loader2 } from "lucide-react";
+import { CheckSquare, Loader2, LogIn, LogOut, X } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 const CHECKIN_BAR_OFFSET_VAR = "--moto-checkin-bar-offset";
 const CHECKIN_BAR_OFFSET = "4.5rem";
+const CHECKIN_SELECTION_BAR_OFFSET = "6.75rem";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -19,8 +22,12 @@ interface SchoolCheckinModeMobileProps {
   readonly pendingCount: number;
   /** Selection sub-mode on (#2359) — the sticky bar then counts marks, not writes. */
   readonly selectionActive?: boolean;
+  readonly onSelectionActiveChange?: (active: boolean) => void;
   /** Currently marked students while the selection sub-mode is on. */
   readonly selectedCount?: number;
+  readonly onClearSelection?: () => void;
+  readonly onBulkAction?: (action: "in" | "out") => void;
+  readonly runningAction?: "in" | "out" | null;
   /**
    * Locks the trigger, e.g. while a bulk request is in flight (#2359): the
    * hook ignores mode exits during a run, so "Fertig" mirrors that as a
@@ -49,7 +56,11 @@ export function SchoolCheckinModeMobile({
   successCount,
   pendingCount,
   selectionActive = false,
+  onSelectionActiveChange,
   selectedCount = 0,
+  onClearSelection,
+  onBulkAction,
+  runningAction = null,
   disabled = false,
 }: SchoolCheckinModeMobileProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
@@ -60,7 +71,10 @@ export function SchoolCheckinModeMobile({
     const mediaQuery = window.matchMedia("(max-width: 767px)");
     const publishOffset = () => {
       if (mediaQuery.matches) {
-        root.style.setProperty(CHECKIN_BAR_OFFSET_VAR, CHECKIN_BAR_OFFSET);
+        root.style.setProperty(
+          CHECKIN_BAR_OFFSET_VAR,
+          selectionActive ? CHECKIN_SELECTION_BAR_OFFSET : CHECKIN_BAR_OFFSET,
+        );
       } else {
         root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
       }
@@ -71,7 +85,7 @@ export function SchoolCheckinModeMobile({
       mediaQuery.removeEventListener("change", publishOffset);
       root.style.removeProperty(CHECKIN_BAR_OFFSET_VAR);
     };
-  }, [attendanceWebEnabled, isActive]);
+  }, [attendanceWebEnabled, isActive, selectionActive]);
 
   if (!attendanceWebEnabled) return null;
   if (!isActive) {
@@ -112,56 +126,120 @@ export function SchoolCheckinModeMobile({
       data-checkin-mode-mobile="active"
     >
       <div
-        className="flex items-center gap-3 rounded-2xl px-3 py-2.5"
-        style={{
-          backgroundColor: GROUP_ROOM_SHADES.base,
-          color: "var(--color-white)",
-          boxShadow:
-            "0 -4px 20px rgb(0 0 0 / 0.10), 0 8px 24px rgb(0 0 0 / 0.08)",
-        }}
+        className="moto-content-surface rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-sm backdrop-blur"
+        role="region"
+        aria-label="An- und Abmelde-Modus"
+        aria-busy={disabled && runningAction !== null}
       >
-        <span
-          className="flex size-9 flex-shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: "rgb(255 255 255 / 0.20)" }}
-        >
-          <CheckSquare className="size-4" strokeWidth={2.5} aria-hidden />
-        </span>
+        <div className="flex items-center gap-2">
+          {onSelectionActiveChange ? (
+            <SegmentedControl
+              ariaLabel="Tipp-Verhalten"
+              items={[
+                { value: "immediate", label: "Direkt", disabled },
+                { value: "select", label: "Mehrere", disabled },
+              ]}
+              value={selectionActive ? "select" : "immediate"}
+              onChange={(next) => onSelectionActiveChange(next === "select")}
+              className="shrink-0"
+            />
+          ) : (
+            <CheckSquare
+              className="text-moto-green size-4 shrink-0"
+              aria-hidden
+            />
+          )}
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="text-sm leading-tight font-bold">
-            An- &amp; Abmelde-Modus aktiv
+          <span className="min-w-0 flex-1 truncate text-xs font-medium text-gray-500 tabular-nums">
+            {selectionActive
+              ? null
+              : successCount === 0
+                ? "Bereit"
+                : `${successCount} bearbeitet`}
+            {!selectionActive && pendingCount > 0
+              ? ` · ${pendingCount} laufen`
+              : ""}
           </span>
-          <span className="text-xs leading-tight opacity-90">
-            <span className="tabular-nums">
-              {selectionActive
-                ? `${selectedCount} ausgewählt`
-                : successCount === 0
-                  ? "Tippe auf ein Kind"
-                  : `${successCount} bearbeitet`}
-            </span>
-            {pendingCount > 0 ? (
-              <span className="tabular-nums"> · {pendingCount} laufen</span>
-            ) : null}
-          </span>
+
+          {pendingCount > 0 ? (
+            <Loader2
+              className="size-3.5 shrink-0 animate-spin text-gray-500"
+              aria-hidden
+            />
+          ) : null}
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={onToggle}
+            disabled={disabled}
+            aria-label="Fertig, An- und Abmelde-Modus beenden"
+            className="shrink-0 rounded-full shadow-none"
+          >
+            Fertig
+          </Button>
         </div>
 
-        {pendingCount > 0 ? (
-          <Loader2
-            className="size-4 flex-shrink-0 animate-spin opacity-90"
-            aria-hidden
-          />
+        {selectionActive ? (
+          <div className="mt-1.5 flex items-center justify-end gap-1.5 border-t border-gray-100 pt-1.5 max-[359px]:grid max-[359px]:grid-cols-2">
+            <span
+              className="mr-auto text-xs font-semibold text-gray-700 tabular-nums"
+              aria-live="polite"
+            >
+              {selectedCount} ausgewählt
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="shadow-none max-[359px]:justify-self-end"
+              onClick={onClearSelection}
+              disabled={
+                selectedCount === 0 ||
+                disabled ||
+                onClearSelection === undefined
+              }
+              aria-label="Auswahl aufheben"
+            >
+              <X className="size-3.5" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              variant="success"
+              size="compact"
+              className="rounded-lg text-white shadow-none hover:shadow-none max-[359px]:w-full"
+              onClick={() => onBulkAction?.("in")}
+              disabled={
+                selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+            >
+              {runningAction === "in" ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <LogIn className="size-3.5" aria-hidden />
+              )}
+              Anmelden
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="compact"
+              className="rounded-lg shadow-none hover:shadow-none max-[359px]:w-full"
+              onClick={() => onBulkAction?.("out")}
+              disabled={
+                selectedCount === 0 || disabled || onBulkAction === undefined
+              }
+            >
+              {runningAction === "out" ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden />
+              ) : (
+                <LogOut className="size-3.5" aria-hidden />
+              )}
+              Abmelden
+            </Button>
+          </div>
         ) : null}
-
-        <button
-          type="button"
-          onClick={onToggle}
-          disabled={disabled}
-          aria-label="An- und Abmelde-Modus beenden"
-          className="flex h-9 flex-shrink-0 items-center rounded-full bg-white px-4 text-sm font-semibold transition-colors duration-150 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:active:scale-100"
-          style={{ color: GROUP_ROOM_SHADES.text }}
-        >
-          Fertig
-        </button>
       </div>
     </div>
   );

@@ -70,9 +70,10 @@ const (
 
 // Checkout button settings (devices tab).
 const (
-	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"
-	KeyCheckoutSchulhofEnabled    = "checkout.schulhof_enabled"
-	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
+	KeyCheckoutRaumwechselEnabled       = "checkout.raumwechsel_enabled"
+	KeyCheckoutSchulhofEnabled          = "checkout.schulhof_enabled"
+	KeyCheckoutWCEnabled                = "checkout.wc_enabled"
+	KeyCheckoutDailyFromAllRoomsEnabled = "checkout.daily_checkout_from_all_rooms_enabled"
 )
 
 // Checkin capacity-detail disclosure settings (issue #1879, devices tab).

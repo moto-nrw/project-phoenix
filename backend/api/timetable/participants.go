@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -145,9 +146,12 @@ func (rs *Resource) visibleParticipants(r *http.Request, rows []*scheduleModel.I
 	perms := jwt.PermissionsFromCtx(ctx)
 	visible := make([]*usersModel.Student, 0, len(students))
 	personIDs := make([]int64, 0, len(students))
+	today := timezone.TodayDate()
 	for _, id := range studentIDs {
 		student := students[id]
-		if student == nil || student.Status == usersModel.StudentStatusAlumnus {
+		// Graduated children and children whose care has ended are not
+		// selectable participants any more (#2487).
+		if student == nil || student.Status == usersModel.StudentStatusAlumnus || student.CareEndedOn(today) {
 			continue
 		}
 		if !authorize.CanReadStudent(ctx, perms, student, rs.UserContextService) {

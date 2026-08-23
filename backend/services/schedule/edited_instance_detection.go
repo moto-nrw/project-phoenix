@@ -150,6 +150,17 @@ func (s *materializationService) DetectEditedInWindow(
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load enrollments", Err: err}
 		}
+		targetStudentIDs := make([]int64, 0)
+		if targetRepo, ok := s.groupRepo.(activities.GroupTargetRepository); ok {
+			targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, activityGroupID)
+			if err != nil {
+				return nil, &ScheduleError{Op: "detect edited: load target students", Err: err}
+			}
+		}
+		careBounds, err := s.loadCareBounds(ctx, targetStudentIDs, enrollments)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load care bounds", Err: err}
+		}
 		supervisors, err := s.supervisorRepo.FindByGroupID(ctx, activityGroupID)
 		if err != nil {
 			return nil, &ScheduleError{Op: "detect edited: load supervisors", Err: err}
@@ -172,10 +183,17 @@ func (s *materializationService) DetectEditedInWindow(
 				exceptionIdx[exceptionKey{tmpl.ID, inst.Date}],
 				inst.Date,
 			)
-			changes := diffOccurrence(
+			expectedStudentIDs := expectedStudentIDsOn(
+				enrollments,
+				targetStudentIDs,
+				careBounds,
+				inst.Date,
+				calendarPeriodID(inst),
+			)
+			changes := diffOccurrenceWithExpectedStudents(
 				inst,
 				tmpl.Name,
-				enrollments,
+				expectedStudentIDs,
 				supervisors,
 				staffByInstance[inst.ID],
 				studentsByInstance[inst.ID],
@@ -323,44 +341,43 @@ func (s *materializationService) studentRosterByInstance(ctx context.Context, id
 	return byInstance, nil
 }
 
-// diffOccurrence returns the field categories on which one planned occurrence
-// diverges from its template projection. Pure (no DB) so the truth table is
-// unit-testable. `expected` is what the template would materialize on the
-// occurrence's date (see expectedSlotsOn) — already date- and exception-aware.
-func diffOccurrence(
+// diffOccurrenceWithExpectedStudents returns the field categories on which
+// one planned occurrence diverges from its template projection. Both slot and
+// student inputs already contain the exact values materialization would write.
+func diffOccurrenceWithExpectedStudents(
 	inst *schedule.ActivityInstance,
 	templateTitle string,
-	enrollments []*activities.StudentEnrollment,
+	expectedStudentIDs []int64,
 	supervisors []*activities.SupervisorPlanned,
 	staffRows []*schedule.InstanceStaff,
 	studentRows []*schedule.InstanceStudent,
 	expected []materialParams,
 ) []string {
-	var changes []string
+	changes := diffOccurrenceText(inst, templateTitle)
+	changes = append(changes, diffOccurrenceSlot(inst, expected)...)
+	if staffRosterChanged(inst, supervisors, staffRows) {
+		changes = append(changes, EditedChangeStaff)
+	}
+	changes = append(changes, diffOccurrenceStudents(expectedStudentIDs, studentRows)...)
+	sort.Strings(changes)
+	return changes
+}
 
-	// Title — materialization copies the template name verbatim.
+func diffOccurrenceText(inst *schedule.ActivityInstance, templateTitle string) []string {
+	var changes []string
 	if inst.Title != templateTitle {
 		changes = append(changes, EditedChangeTitle)
 	}
-	// Description & notes — materialization writes neither, so any non-empty
-	// value is a deliberate per-occurrence edit (description is settable via the
-	// instance PUT and would otherwise be discarded silently on re-plan).
 	if inst.Description != nil && strings.TrimSpace(*inst.Description) != "" {
 		changes = append(changes, EditedChangeDescription)
 	}
 	if inst.Notes != nil && strings.TrimSpace(*inst.Notes) != "" {
 		changes = append(changes, EditedChangeNotes)
 	}
+	return changes
+}
 
-	periodID := int64(0)
-	if inst.CalendarPeriodID != nil {
-		periodID = *inst.CalendarPeriodID
-	}
-
-	// Room + time. Match the occurrence to the template slot the materializer
-	// would produce on THIS date at the occurrence's start time. No match means
-	// the day/start was moved (or the date is off-cycle/out-of-range) and
-	// ReplanWeek would delete it without recreating it → a lost `time` edit.
+func diffOccurrenceSlot(inst *schedule.ActivityInstance, expected []materialParams) []string {
 	var match *materialParams
 	instStart := formatTimeOfDay(inst.StartTime)
 	for i := range expected {
@@ -370,21 +387,24 @@ func diffOccurrence(
 		}
 	}
 	if match == nil {
-		changes = append(changes, EditedChangeTime)
-	} else {
-		if match.RoomID > 0 && inst.RoomID != match.RoomID {
-			changes = append(changes, EditedChangeRoom)
-		}
-		if !sameClock(inst.EndTime, match.EndTime) {
-			changes = append(changes, EditedChangeTime)
-		}
+		return []string{EditedChangeTime}
 	}
+	var changes []string
+	if match.RoomID > 0 && inst.RoomID != match.RoomID {
+		changes = append(changes, EditedChangeRoom)
+	}
+	if !sameClock(inst.EndTime, match.EndTime) {
+		changes = append(changes, EditedChangeTime)
+	}
+	return changes
+}
 
-	// Staff. Expected = template supervisors valid on this date (with their
-	// primary flag). Actual = planned (non-substitute) instance_staff rows.
-	// Substitutes and is_absent flags are Vertretungsplan deviations ReplanWeek
-	// preserves, so they must not count as edits (an absent planned staff still
-	// counts as planned).
+func staffRosterChanged(
+	inst *schedule.ActivityInstance,
+	supervisors []*activities.SupervisorPlanned,
+	staffRows []*schedule.InstanceStaff,
+) bool {
+	periodID := calendarPeriodID(inst)
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, inst.Date, periodID)
 	expectedStaff := make(map[int64]bool)
 	for _, sup := range supervisors {
@@ -394,27 +414,20 @@ func diffOccurrence(
 	}
 	actualStaff := make(map[int64]bool)
 	for _, row := range staffRows {
-		if row.IsSubstitute {
-			continue
+		if !row.IsSubstitute {
+			actualStaff[row.StaffID] = row.IsPrimary
 		}
-		actualStaff[row.StaffID] = row.IsPrimary
 	}
-	if !sameStaffSet(expectedStaff, actualStaff) {
-		changes = append(changes, EditedChangeStaff)
-	}
+	return !sameStaffSet(expectedStaff, actualStaff)
+}
 
-	// Students. Expected = template enrollments valid on this date; actual =
-	// instance_students membership. Graduated (alumnus) students are excluded to
-	// mirror copyEnrollments — materialization no longer copies them, so counting
-	// their enrollment here would flag a phantom "students changed" edit (#405).
-	// Attendance status is not membership: a status-day absence keeps the child
-	// on the roster (#2225). Manual/observed states that rematerialization
-	// would discard are a separate attendance category.
-	expectedStudents := make(map[int64]struct{})
-	for _, e := range enrollments {
-		if isEnrollmentValidOn(e, inst.Date, periodID) && !enrollmentStudentIsAlumnus(e) {
-			expectedStudents[e.StudentID] = struct{}{}
-		}
+func diffOccurrenceStudents(
+	expectedStudentIDs []int64,
+	studentRows []*schedule.InstanceStudent,
+) []string {
+	expectedStudents := make(map[int64]struct{}, len(expectedStudentIDs))
+	for _, studentID := range expectedStudentIDs {
+		expectedStudents[studentID] = struct{}{}
 	}
 	studentSet := make(map[int64]struct{}, len(studentRows))
 	attendanceLost := false
@@ -427,6 +440,7 @@ func diffOccurrence(
 			attendanceLost = true
 		}
 	}
+	var changes []string
 	if !sameIDSet(expectedStudents, studentSet) {
 		changes = append(changes, EditedChangeStudents)
 	}
@@ -434,8 +448,14 @@ func diffOccurrence(
 		changes = append(changes, EditedChangeAttendance)
 	}
 
-	sort.Strings(changes)
 	return changes
+}
+
+func calendarPeriodID(inst *schedule.ActivityInstance) int64 {
+	if inst == nil || inst.CalendarPeriodID == nil {
+		return 0
+	}
+	return *inst.CalendarPeriodID
 }
 
 // sameListKind reports whether two optional list_kind values are equivalent,

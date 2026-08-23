@@ -16,6 +16,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -49,12 +50,14 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *
 		AttendanceRepo: repos.Attendance,
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
-		ArrivalSchedules: scheduleSvc.NewArrivalScheduleService(
+		ArrivalSchedules: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
 			repos.StudentArrivalSchedule,
 			repos.StudentArrivalException,
 			repos.StudentArrivalNote,
 			repos.Student,
 			repos.Person,
+			nil,
+			nil,
 			db,
 			slog.Default(),
 		),
@@ -66,7 +69,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *
 			repos.Person,
 			// Auto-excusal (#2360) is not what these cases assert.
 			nil,
-			scheduleSvc.NewPickupBaselineService(
+			scheduletest.NewPickupBaselineService(
 				repos.StudentPickupSchedule,
 				repos.RequestChildOffering,
 				repos.CareOffering,

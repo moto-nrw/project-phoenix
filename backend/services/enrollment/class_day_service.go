@@ -316,7 +316,10 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 	// roster build and the departure rendering below. The view fans out per
 	// class on the teachers' landing page — re-reading identical students
 	// per phase (and again for the departures) was pure query fan-out.
-	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass})
+	// The date matters for more than the offering selection: a child whose
+	// care ended belongs on the sheets of the days they were still there and
+	// on none after that (#2487).
+	students, err := s.classRosterStudents(ctx, ClassRosterFilters{SchoolClass: schoolClass, OfferingDate: &date})
 	if err != nil {
 		return nil, err
 	}

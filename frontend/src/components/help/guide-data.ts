@@ -18,6 +18,7 @@ import {
   KeyRound,
   LayoutDashboard,
   ListChecks,
+  LogOut,
   Megaphone,
   MessageSquare,
   MonitorPlay,
@@ -600,7 +601,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Gruppieren` die Liste nach `Status`, `Raum`, `Ankunftszeit`, `Gehzeit`, `Abholregelung` oder `Laufgemeinschaft` bündeln. `Nach Laufgemeinschaft` zeigt die Kinder blockweise so, wie sie gemeinsam nach Hause gehen; Kinder ohne Verknüpfung stehen gesammelt am Ende unter `Ohne Laufgemeinschaft`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Zur Abholzeit über `An- & Abmelden` (am Handy die Leiste über der Liste) den Sammelmodus starten: Ein Tipp auf eine Kinderkarte meldet das Kind an oder ab, ohne die Karte zu öffnen. Der farbige Streifen unten auf der Karte nennt die nächste Aktion, grün für `Anmelden` und rot für `Abmelden`. So lässt sich eine gefilterte Aufrufliste abarbeiten, ohne zwischen Ansichten zu wechseln. Der Modus gilt immer für heute; `Fertig` beendet ihn.",
-          "In der Leiste unter dem Seitenkopf lässt sich das Tippverhalten von `Sofort` auf `Auswahl` umschalten: Ein Tipp markiert das Kind dann nur (`Ausgewählt`), ohne etwas auszulösen. So sieht man zum Beispiel im Verabschiedungskreis, wer schon dasteht und wer noch fehlt. `Anmelden` oder `Abmelden` in der Leiste führt die Aktion anschließend für alle markierten Kinder gesammelt aus. Kinder, bei denen es nicht klappt, werden namentlich genannt und bleiben markiert, sodass ein zweiter Versuch nur ein Tipp ist.",
+          "In der Leiste unter dem Seitenkopf können Sie von `Direkt` auf `Mehrere` wechseln. Tippen Sie dann alle gewünschten Kinder an. Am Handy erscheinen `Anmelden` und `Abmelden` unten über der Navigation. Auf größeren Bildschirmen stehen die Aktionen rechts in der Leiste. Kinder, bei denen es nicht klappt, bleiben ausgewählt. Sie können die Aktion dann erneut versuchen.",
           "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Bei einer Sammelaktion kommt diese Nachfrage einmal für die ganze Auswahl. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, fehlt dem Konto das Recht zum An- und Abmelden von Kindern; ein Admin kann es über die Rollenverwaltung vergeben.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
@@ -610,7 +611,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Alle Kinder mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+          "Alle Kinder mit Suchfeld, Mehrfachauswahl und den gemeinsamen Aktionen Anmelden und Abmelden.",
         gallery: [
           {
             image: "/help/screens/kindersuche.webp",
@@ -621,6 +622,11 @@ export const appChapters: readonly GuideChapter[] = [
             image: "/help/screens/kindersuche-mehrfachauswahl.webp",
             caption:
               "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+          {
+            image: "/help/screens/kindersuche-sammelauswahl.webp",
+            caption:
+              "Mehrfachauswahl: Drei Kinder sind markiert. Die gemeinsamen Aktionen Anmelden und Abmelden stehen rechts in der Leiste.",
           },
         ],
       },
@@ -633,6 +639,7 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "Unter `Alle Kinder` auf die Karte des Kindes klicken.",
           "Im Kopfbereich den aktuellen Aufenthalt (z. B. `OGS-Raum 1 seit 12:00 Uhr`) sowie `Heutige Ankunft` und `Heutige Abholung` ablesen.",
+          "Wenn Sie die Schaltfläche `Anmelden` oder `Abmelden` sehen, ändern Sie damit die Anwesenheit für heute. Sie brauchen dafür kein NFC-Gerät und wählen keinen Raum aus.",
           "Über `Krank melden` das Kind als krank und über `Entschuldigen` als entschuldigt markieren. Bei einer Entschuldigung zuerst `Ganzer Tag` oder `Ab Uhrzeit` wählen. `Ab Uhrzeit` gilt für genau ein Datum: Die gewählte Uhrzeit wird zugleich als Gehzeit vorgeschlagen, spätere Betreuungsblöcke werden entschuldigt. Überschneidet die Uhrzeit einen laufenden Block, bleibt dieser erwartet und der Dialog weist darauf hin, dass er separat entschieden werden muss. Bei ganztägigen Einträgen zwischen `Einzelne Tage` (auch mehrere nicht zusammenhängende Tage) und `Zeitraum` mit Von- und Bis-Datum wählen; vor dem Speichern werden Zeitraum und Anzahl der Tage angezeigt. Ein Zeitraum darf höchstens 366 Tage umfassen. Die seltene Aktion `Klassenfahrt` liegt im Drei-Punkte-Menü der Aktionsleiste; dort einen Zeitraum und optional einen Hinweis erfassen.",
           "Tab `Stammdaten`: Name, Klasse, Gruppe, Geburtstag, Adresse, Gesundheitsinformationen, Notizen, Foto und Datenschutz ansehen und über `Bearbeiten` ändern. Unter `Erlaubte Heimwege` legen Sie je Wochentag fest, wie das Kind nach Hause kommt. Sobald an einem Tag `Anderes Kind` erlaubt ist, erscheint direkt darunter `Mit welchem Kind?`: dort verknüpfen Sie die Kinder, mit denen es gemeinsam geht (Laufgemeinschaft). Angeboten werden nur die Tage, an denen `Anderes Kind` erlaubt ist. Die Verknüpfung gilt immer für beide Kinder: Wer bei Lina eingetragen ist, hat Lina automatisch auch auf seiner eigenen Karte stehen. Erlaubt der Heimweg des anderen Kindes diese Tage noch nicht, fragt die App nach und ergänzt `Anderes Kind` dort auf Wunsch; bestehende Heimwege bleiben erhalten. Das Textfeld darunter ist nur für Begleitung durch eine Person, die kein Kind der Schule ist. Wenn das Kind über eine Online-Anmeldung übernommen wurde, stehen dort auch kindbezogene Zusatzantworten aus dem Anmeldeformular zur Ansicht.",
           "Tab `Nachrichten`: die Unterhaltung mit einer Bezugsperson zu diesem Kind ansehen und über `Neue Nachricht` der Bezugsperson schreiben. Pro Kind und Bezugsperson gibt es eine fortlaufende Unterhaltung (wie ein Chat, ohne Betreff). Ungelesene Eltern-Nachrichten sind mit einem roten Abzeichen markiert; geschrieben und beantwortet wird im Chat-Fenster.",
@@ -1192,27 +1199,32 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Vertretung",
         icon: Users,
         summary:
-          "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
+          "Zeigt Störungen im Betreuungsplan und erlaubt Abwesenheit und Vertretung für bestimmte Termine oder für alle noch offenen Termine eines Tages (nur für Admins).",
         steps: [
           "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Im Kopfbereich steht links die Zeitnavigation (`Zurück`, `Heute`, `Weiter`) und daneben die angezeigte Kalenderwoche. `Heute` ist ausgegraut, solange bereits der heutige Tag gezeigt wird. Darunter steht die Wochenleiste Montag bis Freitag: ein Klick wechselt den Tag, ein orangefarbener Punkt mit Zahl markiert Tage mit offenen Lücken. Rechts daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` über der Liste zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
           "Für den Blick auf die ganze Woche oben rechts `Woche` wählen. Die Wochenleiste entfällt dann, links stehen die Störungen nach Wochentagen gruppiert und rechts zeigt der Kalender alle fünf Schultage; der Umschalter über der Liste heißt dort `Nur Störungen | Ganze Woche`. Ein Klick auf eine Tageskopfzeile führt zurück in die Tagesansicht dieses Tages, ein Klick auf einen Termin öffnet denselben Editor wie in der Tagesansicht. Mit `Tag` geht es zurück; beim Öffnen der Seite ist immer die Tagesansicht aktiv.",
-          "Bei einer Position `Bearbeiten` anklicken, um den Editor zu öffnen. Unter `Aktion` zwischen zwei Zweigen wählen: `Besetzung bearbeiten` markiert eine Person als abwesend, öffnet dafür eine Ersatzauswahl und erlaubt, den Block als `Bewusst unbesetzt` zu markieren, wenn keine Ersatzperson verfügbar ist; `Block absagen` sagt den Termin ab, optional mit einem Grund. Beide Zweige schließen sich gegenseitig aus.",
-          "Ein einziges `Speichern` überträgt Abwesenheit, Ersatz, `Bewusst unbesetzt` oder Absage gemeinsam als eine Änderung. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
+          "Bei einer Position `Bearbeiten` anklicken. Der Editor öffnet sich für diesen Termin.",
+          "Unter `Aktion` zwischen `Besetzung bearbeiten` und `Block absagen` wählen. `Block absagen` sagt nur den geöffneten Termin ab. Ein Grund ist freiwillig.",
+          "Nach `Abwesend` den Umfang wählen. `Alle noch offenen Termine` gilt für den gewählten Tag. Alle offenen Termine dieser Person werden geändert.",
+          "`Bestimmte Termine` zeigt die Termine der Person. Der geöffnete Termin ist ausgewählt. Weitere Termine können ausgewählt werden. Abgeschlossene und abgesagte Termine können nicht ausgewählt werden.",
+          "Die Ersatzperson übernimmt nur die ausgewählten Termine. `Auch in allen anderen Terminen als abwesend markieren` erweitert die Abwesenheit. Die Vertretung bleibt auf die Auswahl begrenzt.",
+          "Eine Abwesenheit aus einer Krankmeldung kann hier nicht geändert werden. Der Umfang der Vertretung kann weiterhin gewählt werden.",
+          "`Speichern` überträgt alle Änderungen gemeinsam. Die Meldung nennt die Anzahl der geänderten Termine.",
+          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Die Ersatzperson wird nicht als abwesend markiert. Der Regeltermin im Betreuungsplan bleibt unverändert.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
           "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
-          "Fällt eine Person über mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen (sichtbar für Personen mit der Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`): abwesende Person und Zeitraum von–bis angeben, die App listet alle betroffenen Termine nach Tagen gruppiert. Einzelne Tage lassen sich abwählen; optional eine Ersatzperson und einen Grund ergänzen. Ohne Ersatzperson werden die Termine nur als abwesend markiert. Ein `Speichern` trägt alles zusammen ein — schlägt ein Tag fehl (etwa weil die Ersatzperson dort selbst abwesend ist), wird nichts gespeichert und die Meldung nennt den betroffenen Tag.",
+          "Fällt eine Person mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen. Sie brauchen dafür die Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`. Die abwesende Person und den Zeitraum angeben. Jeder ausgewählte Tag verwendet `Alle noch offenen Termine`. Einzelne Tage können abgewählt werden. Eine Ersatzperson und ein Grund sind freiwillig. Ohne Ersatzperson wird die Person nur als abwesend markiert. `Speichern` trägt alle Tage gemeinsam ein. Bei einem Fehler wird nichts gespeichert. Die Meldung nennt den betroffenen Tag.",
         ],
         callout: {
-          title: "Abweichung statt neue Vorlage",
-          body: "Änderungen in der Vertretung gelten nur für den bearbeiteten Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
+          title: "Umfang vor dem Speichern prüfen",
+          body: "`Alle noch offenen Termine` ändert den ganzen gewählten Tag. `Bestimmte Termine` ändert nur die ausgewählten Termine. Dauerhafte Änderungen gehören weiterhin in den Regeltermin im Betreuungsplan.",
           tone: "blue",
         },
         screenshot:
-          "Vertretung-Tagesansicht mit Störungsliste, Wochenleiste und Tageskalender.",
-        image: "/help/screens/vertretungsplan.webp",
+          "Vertretungs-Editor mit Umfangsauswahl, Krankmeldungs-Hinweis und Entfernen einer Ersatzperson.",
       },
       {
         id: "mein-kalender",
@@ -1430,15 +1442,39 @@ export const appChapters: readonly GuideChapter[] = [
           "Verwaltung der Klassenlisteneinträge mit Tabelle nach Klassen, Kennzeichnung Keine Betreuung und Hinweis auf mögliche Dubletten.",
       },
       {
+        id: "betreuung-beenden",
+        title: "Betreuung beenden (Kind verlässt die OGS)",
+        icon: LogOut,
+        summary:
+          "Für Kinder, die außerhalb des Jahrgangswechsels gehen, zum Beispiel nach einem Umzug oder wenn keine Betreuung mehr gebraucht wird. Sie legen einen letzten Betreuungstag fest; die Daten des Kindes bleiben erhalten.",
+        steps: [
+          "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
+          "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
+          "Letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil, ab dem Folgetag ist seine Betreuung beendet. Ein Tag in der Vergangenheit ist nicht möglich.",
+          "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
+          "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert: wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
+          "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
+          "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
+          "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
+        ],
+        callout: {
+          title: "Beenden ist kein Löschen",
+          body: "Beim Beenden bleibt alles erhalten: vergangene Anwesenheiten, Nachrichten, Einwilligungen und die Kontakte der Erziehungsberechtigten. Das Kind steht nur in keiner normalen Liste und in keinem Export mehr, kann sich nicht mehr an- und abmelden und die Familie kann im Elternportal nichts Neues mehr melden. Vergangenes können die Eltern weiter lesen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dialog Betreuung beenden mit letztem Betreuungstag, Grund und der Vorschau, die jedes Kind namentlich mit seinen Auswirkungen zeigt.",
+      },
+      {
         id: "kind-dauerhaft-loeschen",
         title: "Kind dauerhaft löschen",
         summary:
           "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
         steps: [
-          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen.",
+          "`Datenverwaltung` -> `Kinder` öffnen und das betreffende Kind auswählen. Kinder, deren Betreuung schon beendet ist, stehen unter `Beendete Betreuungen` im Menü oben rechts.",
           "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
           "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
-          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen.",
+          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen. Bei Kindern, deren Betreuung beendet ist, steht zusätzlich `Aufbewahrungsfrist abgelaufen` zur Wahl.",
           "Den Namen des Kindes exakt wie angezeigt erneut eingeben und erst dann `Kind endgültig löschen` wählen.",
         ],
         callout: {
@@ -1466,7 +1502,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Abgänge sind kein Löschen",
-          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel. Danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen.",
+          body: "Kinder mit `Abgang` werden nur ausgeblendet, nicht gelöscht. Sie tauchen in Kinderlisten, Gruppen und an den Tablets nicht mehr auf, bleiben aber für ein `Zurücksetzen` erhalten. Wer die Daten endgültig entfernen will, tut das gezielt über `Abgänge` beim angewendeten Jahrgangswechsel. Danach kann `Zurücksetzen` diese Kinder nicht mehr zurückholen. Geht ein Kind mitten im Schuljahr, ist das kein Abgang: dafür gibt es `Betreuung beenden`, und diese Kinder stehen unter `Beendete Betreuungen`.",
           tone: "orange",
         },
         screenshot:
@@ -2511,7 +2547,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Welche Buttons erscheinen",
-          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an. `nach Hause` erscheint beim Auschecken aus dem eigenen Gruppenraum und vom Schulhof; ist eine Checkout-Zeit hinterlegt, erst ab dieser Uhrzeit.",
+          body: "Unter `Geräte` legen Sie die Ziele unter `Wohin geht ...?` fest. Für `Schulhof` und `Toilette` legt moto passende Räume an. `„Nach Hause“ in jedem Raum anzeigen` erweitert die Auswahl. Sie erscheint dann auch in der Mensa. Die `Tägliche Abmeldezeit` gilt weiterhin.",
           tone: "gray",
         },
         screenshot:
@@ -2603,7 +2639,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Im Browser die `Einstellungen` öffnen und den Tab `Geräte` wählen.",
           "Unter `OGS Geräte-PIN` die 4-stellige PIN setzen, mit der sich das Team am Tablet anmeldet.",
-          "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht ...?`) erscheinen.",
+          "Legen Sie fest, welche Ziele beim Auschecken erscheinen. Dafür gibt es `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen`. `„Nach Hause“ in jedem Raum anzeigen` erweitert die Auswahl auf alle Räume.",
           "Mit `Details bei voller Aktivität anzeigen` und `Details bei vollem Raum anzeigen` steuern Sie, ob das Tablet bei erreichten Kapazitäten den Namen und die Belegung nennt oder nur einen allgemeinen Hinweis zeigt.",
           "Änderungen werden automatisch gespeichert und beim nächsten Start vom Tablet übernommen.",
         ],

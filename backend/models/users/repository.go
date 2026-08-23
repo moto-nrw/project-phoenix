@@ -246,6 +246,24 @@ type StudentRepository interface {
 	// overlapping batches serialize instead of deadlocking. Unknown or
 	// foreign ids are absent from the returned map.
 	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*Student, error)
+
+	// FindCareBoundsByIDs returns the last care day of each given child that
+	// has one. Deliberately a projection of a single DATE column rather than
+	// whole rows: the materializer needs it per date for hundreds of children
+	// and must not pay for departure-plan hydration to answer one question
+	// (#2487).
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+
+	// SetEnrolledUntilByIDs writes the enrollment interval's upper bound —
+	// the LAST CARE DAY, inclusive — for a whole batch in one statement, and
+	// returns how many rows changed. A nil `until` clears the bound, which is
+	// what cancelling a planned exit and resuming care both do (#2487).
+	SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *timezone.Date) (int64, error)
+
+	// SetEnrollmentWindowByID reopens one child's care from a new start day:
+	// enrolled_from moves to `from`, enrolled_until is cleared and the
+	// lifecycle status is recomputed against `today` (#2487).
+	SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status StudentStatus) error
 }
 
 // ClassListEntryRepository defines operations for the class-list-only entries

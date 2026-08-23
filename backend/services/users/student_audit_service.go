@@ -154,6 +154,7 @@ func diffStudentFields(before, after *userModels.Student) []*auditModels.Student
 	add(auditModels.StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
 	add(auditModels.StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
 	add(auditModels.StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
+	add(auditModels.StudentFieldCareEnd, careEndLabel(before), careEndLabel(after))
 	add(auditModels.StudentFieldDepartureDays, departureLabel(before), departureLabel(after))
 	add(
 		auditModels.StudentFieldDepartureCompanionNote,
@@ -226,4 +227,14 @@ func departureLabel(student *userModels.Student) string {
 		parts = append(parts, weekdayLabels[day]+": "+strings.Join(labels, " / "))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// careEndLabel renders the last care day as a German date, or "" when the
+// child has no end of care recorded. Empty on both sides is a no-op for `add`,
+// so untouched children never grow a history row (#2487).
+func careEndLabel(student *userModels.Student) string {
+	if student == nil || student.EnrolledUntil == nil {
+		return ""
+	}
+	return student.EnrolledUntil.Format("02.01.2006")
 }
