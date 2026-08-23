@@ -1089,6 +1089,33 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 	updatedBy int64,
 	authorize func(context.Context, *users.Student) (bool, error),
 ) (*BulkUpsertResult, error) {
+	touched, err := classArrivalTimeChanges(schedules)
+	if err != nil {
+		return nil, err
+	}
+
+	students, err := s.studentRepo.FindBySchoolClass(ctx, schoolClass)
+	if err != nil {
+		return nil, &ScheduleError{
+			Op:  opBulkUpsertArrivalSchedules,
+			Err: fmt.Errorf("failed to find students for school class %s: %w", schoolClass, err),
+		}
+	}
+	students = dropDepartedStudents(students)
+
+	students, err = s.writeClassArrivalTimes(ctx, schoolClass, touched, updatedBy, students, authorize)
+	if err != nil {
+		return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: err}
+	}
+	result := &BulkUpsertResult{OverwrittenStudents: make([]OverwriteWarning, 0)}
+	result.StudentsAffected = len(students)
+	for _, student := range students {
+		result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
+	}
+	return result, nil
+}
+
+func classArrivalTimeChanges(schedules []ArrivalScheduleInput) (map[int]string, error) {
 	touched := make(map[int]string, len(schedules))
 	for _, input := range schedules {
 		if input.Weekday < schedule.WeekdayMonday || input.Weekday > schedule.WeekdayFriday {
@@ -1099,46 +1126,25 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 		}
 		touched[input.Weekday] = strings.TrimSpace(input.ArrivalTime)
 	}
+	return touched, nil
+}
 
-	students, err := s.studentRepo.FindBySchoolClass(ctx, schoolClass)
-	if err != nil {
-		return nil, &ScheduleError{
-			Op:  opBulkUpsertArrivalSchedules,
-			Err: fmt.Errorf("failed to find students for school class %s: %w", schoolClass, err),
+func (s *arrivalScheduleService) writeClassArrivalTimes(
+	ctx context.Context,
+	schoolClass string,
+	touched map[int]string,
+	updatedBy int64,
+	students []*users.Student,
+	authorize func(context.Context, *users.Student) (bool, error),
+) ([]*users.Student, error) {
+	err := tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		var lockErr error
+		students, lockErr = s.lockClassArrivalStudents(txCtx, schoolClass, students, authorize)
+		if lockErr != nil {
+			return lockErr
 		}
-	}
-
-	result := &BulkUpsertResult{OverwrittenStudents: make([]OverwriteWarning, 0)}
-	tenantID := tenant.FromContext(ctx)
-	err = tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		// A class row affects every matched child, so its authorization boundary
-		// is the complete class, not merely the caller's selected filter.
-		sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
-		lockedStudents := make([]*users.Student, 0, len(students))
-		for _, selected := range students {
-			fresh, lockErr := s.studentRepo.FindByIDForUpdate(txCtx, selected.ID)
-			if lockErr != nil {
-				if errors.Is(lockErr, sql.ErrNoRows) {
-					return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
-				}
-				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
-			}
-			if fresh.Status == users.StudentStatusAlumnus || !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
-				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
-			}
-			if authorize != nil {
-				allowed, authorizeErr := authorize(txCtx, fresh)
-				if authorizeErr != nil || !allowed {
-					return fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
-				}
-			}
-			lockedStudents = append(lockedStudents, fresh)
-		}
-		students = lockedStudents
-
-		// The row may not exist yet, so SELECT ... FOR UPDATE cannot serialize
-		// all read-modify-write cases. The repository's transaction advisory lock
-		// covers concurrent first inserts as well.
+		// The row may not exist yet, so its transaction advisory lock covers
+		// concurrent first inserts as well as updates.
 		if lockErr := s.classTimes.LockClass(txCtx, schoolClass); lockErr != nil {
 			return fmt.Errorf("lock class arrival times for %s: %w", schoolClass, lockErr)
 		}
@@ -1151,14 +1157,41 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 		}
 		return nil
 	})
-	if err != nil {
-		return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: err}
+	return students, err
+}
+
+func (s *arrivalScheduleService) lockClassArrivalStudents(
+	ctx context.Context,
+	schoolClass string,
+	students []*users.Student,
+	authorize func(context.Context, *users.Student) (bool, error),
+) ([]*users.Student, error) {
+	// A class row affects every matched child, so authorize the complete class.
+	sort.Slice(students, func(i, j int) bool { return students[i].ID < students[j].ID })
+	locked := make([]*users.Student, 0, len(students))
+	for _, selected := range students {
+		fresh, err := s.studentRepo.FindByIDForUpdate(ctx, selected.ID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, selected.ID)
+			}
+			return nil, fmt.Errorf("lock selected student %d: %w", selected.ID, err)
+		}
+		if fresh.CareEndedOn(timezone.TodayDate()) {
+			continue
+		}
+		if fresh.Status == users.StudentStatusAlumnus || !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
+			return nil, fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
+		}
+		if authorize != nil {
+			allowed, authorizeErr := authorize(ctx, fresh)
+			if authorizeErr != nil || !allowed {
+				return nil, fmt.Errorf("%w: student %d", ErrBulkStudentUnauthorized, fresh.ID)
+			}
+		}
+		locked = append(locked, fresh)
 	}
-	result.StudentsAffected = len(students)
-	for _, student := range students {
-		result.AffectedStudentIDs = append(result.AffectedStudentIDs, student.ID)
-	}
-	return result, nil
+	return locked, nil
 }
 
 // mergedClassRow folds the touched weekdays into whatever the class already
