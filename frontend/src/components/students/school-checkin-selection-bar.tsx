@@ -5,7 +5,7 @@ import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 
 interface SchoolCheckinSelectionBarProps {
-  /** Whether the selection sub-mode is on ("Auswahl") vs. immediate taps ("Sofort"). */
+  /** Whether the selection sub-mode is on ("Mehrere") vs. immediate taps ("Direkt"). */
   readonly selectionActive: boolean;
   readonly onSelectionActiveChange: (active: boolean) => void;
   /** Number of currently marked students. */
@@ -13,16 +13,19 @@ interface SchoolCheckinSelectionBarProps {
   readonly onClearSelection: () => void;
   /** Fires the bulk action for all marked students. */
   readonly onBulkAction: (action: "in" | "out") => void;
+  readonly onFinish: () => void;
   /** True while a bulk API call is in flight — actions are locked then. */
   readonly isRunning: boolean;
+  /** The action currently running, so only its button shows a spinner. */
+  readonly runningAction?: "in" | "out" | null;
 }
 
 /**
  * Sub-mode bar of the check-in/out mode on the student search page (#2359).
  *
  * Rendered only while the An-/Abmelde-Modus is active. Offers the switch
- * between the door-operation "Sofort" behavior (every tap fires immediately,
- * unchanged since #2220) and the "Auswahl" behavior, where taps only mark
+ * between the door-operation "Direkt" behavior (every tap fires immediately,
+ * unchanged since #2220) and the "Mehrere" behavior, where taps only mark
  * children and the explicit Anmelden/Abmelden buttons here execute the batch.
  *
  * Sticky at the viewport top so the actions stay reachable while scrolling
@@ -35,26 +38,29 @@ export function SchoolCheckinSelectionBar({
   selectedCount,
   onClearSelection,
   onBulkAction,
+  onFinish,
   isRunning,
+  runningAction = null,
 }: SchoolCheckinSelectionBarProps) {
   const noneSelected = selectedCount === 0;
 
   return (
     <div
-      className="moto-content-surface sticky top-2 z-30 mb-3 rounded-xl border px-3 py-2 shadow-sm"
+      className="moto-content-surface sticky top-2 z-30 mb-3 hidden rounded-xl border px-3 py-2 shadow-sm md:block"
       role="region"
       aria-label="An- und Abmelde-Modus"
+      aria-busy={isRunning || runningAction !== null}
       data-checkin-selection-bar="true"
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <SegmentedControl
           ariaLabel="Tipp-Verhalten"
           items={[
-            // Locked while a batch is in flight: switching to "Sofort" clears
+            // Locked while a batch is in flight: switching to "Direkt" clears
             // the selection, which would discard the failed IDs the response
             // is about to keep marked for a one-tap retry (review #2372).
-            { value: "immediate", label: "Sofort", disabled: isRunning },
-            { value: "select", label: "Auswahl", disabled: isRunning },
+            { value: "immediate", label: "Direkt", disabled: isRunning },
+            { value: "select", label: "Mehrere", disabled: isRunning },
           ]}
           value={selectionActive ? "select" : "immediate"}
           onChange={(next) => onSelectionActiveChange(next === "select")}
@@ -63,7 +69,7 @@ export function SchoolCheckinSelectionBar({
         {selectionActive ? (
           <>
             <span
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900 tabular-nums"
+              className="hidden items-center gap-1.5 text-sm font-semibold text-gray-900 tabular-nums md:inline-flex"
               aria-live="polite"
             >
               <CheckSquare
@@ -72,11 +78,12 @@ export function SchoolCheckinSelectionBar({
               />
               {selectedCount} ausgewählt
             </span>
-            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1.5">
               <Button
                 type="button"
                 variant="ghost"
                 size="compact"
+                className="shadow-none"
                 onClick={onClearSelection}
                 disabled={noneSelected || isRunning}
               >
@@ -86,10 +93,11 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="success"
                 size="compact"
+                className="rounded-lg text-white shadow-none hover:shadow-none"
                 onClick={() => onBulkAction("in")}
                 disabled={noneSelected || isRunning}
               >
-                {isRunning ? (
+                {runningAction === "in" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 ) : (
                   <LogIn className="h-3.5 w-3.5" aria-hidden />
@@ -100,30 +108,47 @@ export function SchoolCheckinSelectionBar({
                 type="button"
                 variant="danger"
                 size="compact"
+                className="rounded-lg shadow-none hover:shadow-none"
                 onClick={() => onBulkAction("out")}
                 disabled={noneSelected || isRunning}
               >
-                {isRunning ? (
+                {runningAction === "out" ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
                 ) : (
                   <LogOut className="h-3.5 w-3.5" aria-hidden />
                 )}
                 Abmelden
               </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                className="ml-1 rounded-full shadow-none"
+                onClick={onFinish}
+                disabled={isRunning}
+              >
+                Fertig
+              </Button>
             </div>
           </>
         ) : (
-          <span className="text-xs text-gray-500">
-            Jeder Tipp meldet sofort an oder ab.
-          </span>
+          <>
+            <span className="hidden text-xs text-gray-500 sm:inline">
+              Jeder Tipp meldet sofort an oder ab.
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              className="ml-auto rounded-full shadow-none"
+              onClick={onFinish}
+              disabled={isRunning}
+            >
+              Fertig
+            </Button>
+          </>
         )}
       </div>
-      {selectionActive && noneSelected ? (
-        <p className="mt-1.5 text-xs text-gray-500">
-          Tippe auf Kinder, um sie auszuwählen. Erst „Anmelden“ oder „Abmelden“
-          führt die Aktion für alle markierten Kinder aus.
-        </p>
-      ) : null}
     </div>
   );
 }

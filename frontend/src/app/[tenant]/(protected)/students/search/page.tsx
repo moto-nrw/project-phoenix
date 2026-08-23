@@ -1352,6 +1352,8 @@ function SearchPageContent() {
     succeeded: number;
     students: BulkStudentRef[];
   } | null>(null);
+  const [runningBulkAction, setRunningBulkAction] =
+    useState<SchoolCheckinAction | null>(null);
   const {
     enabled: studentPhotosEnabled,
     isLoading: studentPhotosSettingLoading,
@@ -2660,24 +2662,30 @@ function SearchPageContent() {
         targets.map((target) => [target.id, target.name]),
       );
 
-      const outcome = await schoolCheckin.runBulk(
-        action,
-        targets.map((target) => target.id),
-      );
-      // null: nothing selected or whole request failed (hook toasted the
-      // error). failed === 0: the hook toasted the success summary.
-      if (!outcome || outcome.failed === 0) return;
+      setRunningBulkAction(action);
+      try {
+        const outcome = await schoolCheckin.runBulk(
+          action,
+          targets.map((target) => target.id),
+        );
+        // null: nothing selected or whole request failed (hook toasted the
+        // error). failed === 0: the hook toasted the success summary.
+        if (!outcome || outcome.failed === 0) return;
 
-      setBulkFailures({
-        action,
-        succeeded: outcome.succeeded,
-        students: outcome.results
-          .filter((result) => !result.ok)
-          .map((result) => ({
-            id: result.studentId,
-            name: nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
-          })),
-      });
+        setBulkFailures({
+          action,
+          succeeded: outcome.succeeded,
+          students: outcome.results
+            .filter((result) => !result.ok)
+            .map((result) => ({
+              id: result.studentId,
+              name:
+                nameById.get(result.studentId) ?? `Kind #${result.studentId}`,
+            })),
+        });
+      } finally {
+        setRunningBulkAction(null);
+      }
     },
     [schoolCheckin],
   );
@@ -2733,12 +2741,16 @@ function SearchPageContent() {
             count: filteredStudents.length,
           }}
           primaryAction={
-            checkinModeAvailable ? (
+            checkinModeAvailable && !schoolCheckin.isActive ? (
               <SchoolCheckinFab
                 variant="inline"
                 isActive={schoolCheckin.isActive}
                 onToggle={schoolCheckin.toggleActive}
-                successCount={schoolCheckin.successCount}
+                successCount={
+                  schoolCheckin.selectionActive
+                    ? selectedStudentsForBulk.length
+                    : schoolCheckin.successCount
+                }
                 pendingCount={schoolCheckin.pendingIds.size}
                 disabled={schoolCheckin.isBulkRunning}
               />
@@ -2829,7 +2841,11 @@ function SearchPageContent() {
             successCount={schoolCheckin.successCount}
             pendingCount={schoolCheckin.pendingIds.size}
             selectionActive={schoolCheckin.selectionActive}
+            onSelectionActiveChange={schoolCheckin.setSelectionActive}
             selectedCount={selectedStudentsForBulk.length}
+            onClearSelection={schoolCheckin.clearSelection}
+            onBulkAction={handleBulkAction}
+            runningAction={runningBulkAction}
             disabled={schoolCheckin.isBulkRunning}
           />
         </div>
@@ -2845,13 +2861,23 @@ function SearchPageContent() {
           selectedCount={selectedStudentsForBulk.length}
           onClearSelection={schoolCheckin.clearSelection}
           onBulkAction={handleBulkAction}
+          onFinish={schoolCheckin.toggleActive}
           isRunning={schoolCheckin.isBulkRunning}
+          runningAction={runningBulkAction}
         />
       )}
 
       {/* Student Grid. Bottom padding reserves room for the mobile sticky
           bar / tablet floating FAB; desktop has neither. */}
-      <div className={checkinModeAvailable ? "pb-24 lg:pb-0" : undefined}>
+      <div
+        className={
+          checkinModeAvailable
+            ? schoolCheckin.isActive && schoolCheckin.selectionActive
+              ? "pb-32 md:pb-24 lg:pb-0"
+              : "pb-24 lg:pb-0"
+            : undefined
+        }
+      >
         {(() => {
           // Fix P2: Show loading while the session is still resolving, while
           // the first fetch is in progress (not yet hasFetchedOnce), or while
@@ -3175,14 +3201,18 @@ function SearchPageContent() {
           desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
-      {checkinModeAvailable && (
+      {checkinModeAvailable && !schoolCheckin.isActive && (
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"
             floatingUntil="xl"
             isActive={schoolCheckin.isActive}
             onToggle={schoolCheckin.toggleActive}
-            successCount={schoolCheckin.successCount}
+            successCount={
+              schoolCheckin.selectionActive
+                ? selectedStudentsForBulk.length
+                : schoolCheckin.successCount
+            }
             pendingCount={schoolCheckin.pendingIds.size}
             disabled={schoolCheckin.isBulkRunning}
           />
