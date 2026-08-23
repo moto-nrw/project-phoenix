@@ -58,9 +58,11 @@ import {
   StudentStatusActionsMenu,
 } from "~/components/students/student-checkout-section";
 import { createLogger } from "~/lib/logger";
+import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { CareWithdrawalWarning } from "~/components/students/care-withdrawal-warning";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
@@ -406,6 +408,8 @@ function StudentDetailPageContent() {
   const canCheckin =
     sessionStatus === "authenticated" &&
     hasPermission(session, "users:checkin");
+  const canCompleteCareWithdrawal =
+    sessionStatus === "authenticated" && canReviewCareWithdrawals(session);
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -1093,6 +1097,11 @@ function StudentDetailPageContent() {
           todayArrivalNote={todayArrival.note}
           isArrivalAbsent={todayArrival.isAbsent}
           sickReason={currentSickReason}
+        />
+
+        <CareWithdrawalWarning
+          enabled={canCompleteCareWithdrawal}
+          studentId={studentId}
         />
 
         {hasFullAccess ? (

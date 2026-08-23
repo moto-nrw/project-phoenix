@@ -1320,6 +1320,18 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 	selectionMode string,
 	grandfathered GrandfatheredOfferings,
 ) ([][]materializedOfferingSelection, error) {
+	return materializeAndValidateChildrenOfferingSelectionsForAdjustment(
+		children, openByID, selectionMode, grandfathered, false,
+	)
+}
+
+func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered GrandfatheredOfferings,
+	allowCompleteWithdrawal bool,
+) ([][]materializedOfferingSelection, error) {
 	out := make([][]materializedOfferingSelection, len(children))
 	for i := range children {
 		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
@@ -1355,8 +1367,22 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
 		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
-		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, availableByID); err != nil {
+		completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(selections, materializeByID)
+		if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
+			[]SubmitChild{children[i]}, availableByID, completeWithdrawal,
+		); err != nil {
 			return nil, err
+		}
+		if (len(openByID) == 0 || hasChoosableCareOffering(availableByID)) && completeWithdrawal {
+			if err := validateCareOfferingSelectionModeAllowingMissing(
+				[]SubmitChild{manualChild}, availableByID, selectionMode,
+			); err != nil {
+				return nil, err
+			}
+		}
+		if completeWithdrawal {
+			out[i] = selections
+			continue
 		}
 		if err := validateRequiredOfferings([]SubmitChild{children[i]}, availableByID); err != nil {
 			return nil, err
@@ -1369,6 +1395,19 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		out[i] = selections
 	}
 	return out, nil
+}
+
+func materializedSelectionsHaveCareDays(
+	selections []materializedOfferingSelection,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) bool {
+	for _, selection := range selections {
+		offering := offerings[selection.OfferingID]
+		if offering != nil && offering.CountsAsCare && len(selection.SelectedDays) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // GrandfatheredOfferings splits the bookings a child already holds by how an
@@ -1778,6 +1817,17 @@ func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrol
 // package plus a choose-one-time-slot rule): the contradiction this
 // function is designed to avoid.
 func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
+	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, false)
+}
+
+// validateCareOfferingSelectionModeAllowingMissing waives only the lower
+// bound for a confirmed complete withdrawal. The exactly-one upper bound
+// remains binding for non-care offerings that stay selected.
+func validateCareOfferingSelectionModeAllowingMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
+	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, true)
+}
+
+func validateCareOfferingSelectionModeWithMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string, allowMissing bool) error {
 	if mode == "" || mode == enrollmentModels.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
@@ -1807,11 +1857,11 @@ func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int6
 		}
 		switch mode {
 		case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
-			if choosableCount == 0 {
+			if choosableCount == 0 && !allowMissing {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
 			}
 		case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
-			if choosableCount != 1 {
+			if choosableCount > 1 || (choosableCount == 0 && !allowMissing) {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, i)
 			}
 		}

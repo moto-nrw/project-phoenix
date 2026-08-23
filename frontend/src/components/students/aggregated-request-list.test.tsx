@@ -16,11 +16,30 @@ import {
   listAggregatedRequestHistory,
   listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
+import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 
 vi.mock("~/lib/change-request-list-api", () => ({
   listAggregatedOpenRequests: vi.fn(),
   listAggregatedRequestHistory: vi.fn(),
   listEnrollmentChangeRequests: vi.fn(),
+}));
+
+vi.mock("~/lib/care-exit-api", () => ({
+  fetchCareWithdrawals: vi.fn(),
+}));
+
+vi.mock("~/components/students/care-withdrawal-task-item", () => ({
+  CareWithdrawalTaskItem: ({
+    row,
+    onFinished,
+  }: {
+    row: { id: string };
+    onFinished: () => void;
+  }) => (
+    <button type="button" onClick={onFinished}>
+      withdrawal-item-{row.id}
+    </button>
+  ),
 }));
 
 vi.mock("~/components/students/enrollment-request-item", () => ({
@@ -74,6 +93,7 @@ vi.mock("~/components/students/request-history-item", () => ({
 const mockListOpen = vi.mocked(listAggregatedOpenRequests);
 const mockListHistory = vi.mocked(listAggregatedRequestHistory);
 const mockListEnrollment = vi.mocked(listEnrollmentChangeRequests);
+const mockListWithdrawals = vi.mocked(fetchCareWithdrawals);
 
 const NO_FILTERS: AggregatedRequestFilters = {
   search: "",
@@ -96,6 +116,125 @@ describe("AggregatedRequestList", () => {
     mockListOpen.mockResolvedValue({ items: [] });
     mockListHistory.mockResolvedValue({ items: [] });
     mockListEnrollment.mockResolvedValue({ items: [] });
+    mockListWithdrawals.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      pageSize: 25,
+    });
+  });
+
+  it("loads complete withdrawals into the shared open task list", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-1",
+          studentId: "10",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "planned",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    const task = await screen.findByText("withdrawal-item-withdrawal-1");
+    expect(mockListWithdrawals).toHaveBeenCalledWith({
+      search: "",
+      page: 1,
+      pageSize: 100,
+    });
+    fireEvent.click(task);
+    expect(screen.queryByText("withdrawal-item-withdrawal-1")).toBeNull();
+    expect(screen.getByText("Die Betreuung wurde beendet.")).toBeVisible();
+  });
+
+  it("loads every withdrawal page so no task is hidden", async () => {
+    const firstPage = Array.from({ length: 100 }, (_, index) => ({
+      id: `withdrawal-${index + 1}`,
+      studentId: `${index + 1}`,
+      firstName: "Mia",
+      lastName: "Muster",
+      schoolClass: "2a",
+      firstBookinglessDay: "2026-09-01",
+      urgency: "planned" as const,
+    }));
+    mockListWithdrawals
+      .mockResolvedValueOnce({
+        items: firstPage,
+        total: 101,
+        page: 1,
+        pageSize: 100,
+      })
+      .mockResolvedValueOnce({
+        items: [{ ...firstPage[0]!, id: "withdrawal-101" }],
+        total: 101,
+        page: 2,
+        pageSize: 100,
+      });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    expect(
+      await screen.findByText("withdrawal-item-withdrawal-101"),
+    ).toBeVisible();
+    expect(mockListWithdrawals).toHaveBeenNthCalledWith(2, {
+      search: "",
+      page: 2,
+      pageSize: 100,
+    });
+  });
+
+  it("does not show withdrawals when another request type is selected", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-filtered",
+          studentId: "10",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "planned",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{
+          ...NO_FILTERS,
+          includeCareWithdrawals: true,
+          types: ["excused"],
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(mockListOpen).toHaveBeenCalled());
+    expect(mockListWithdrawals).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText("withdrawal-item-withdrawal-filtered"),
+    ).toBeNull();
   });
 
   it("verschränkt Anmeldungsänderungen nach Zeitpunkt in die Liste", async () => {

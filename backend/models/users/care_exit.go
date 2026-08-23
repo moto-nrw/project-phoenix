@@ -51,11 +51,12 @@ var (
 type CareExit struct {
 	base.Model `bun:"schema:users,table:student_care_exits"`
 	base.TenantModel
-	StudentID             int64          `bun:"student_id,notnull" json:"student_id"`
-	PreviousEnrolledUntil *timezone.Date `bun:"previous_enrolled_until,type:date" json:"-"`
-	Reason                string         `bun:"reason,notnull" json:"reason"`
-	ReasonNote            *string        `bun:"reason_note" json:"reason_note,omitempty"`
-	RecordedBy            *int64         `bun:"recorded_by" json:"recorded_by,omitempty"`
+	StudentID              int64          `bun:"student_id,notnull" json:"student_id"`
+	PreviousEnrolledUntil  *timezone.Date `bun:"previous_enrolled_until,type:date" json:"-"`
+	Reason                 string         `bun:"reason,notnull" json:"reason"`
+	ReasonNote             *string        `bun:"reason_note" json:"reason_note,omitempty"`
+	RecordedBy             *int64         `bun:"recorded_by" json:"recorded_by,omitempty"`
+	WithdrawalCompletionID *int64         `bun:"withdrawal_completion_id" json:"-"`
 }
 
 // Validate normalizes and checks the reason pair.
@@ -126,6 +127,14 @@ type CareExitListFilter struct {
 	PageSize      int
 }
 
+// CareExitSourceOffering is one concrete source booking summarized for the
+// binding preview. Days use the canonical mon..fri codes; the frontend renders
+// the compact German pattern.
+type CareExitSourceOffering struct {
+	Name string   `bun:"name" json:"name"`
+	Days []string `bun:"days,type:jsonb" json:"days"`
+}
+
 // EndedCare is one row of the archive view: a child whose care interval has
 // run out, joined with the reason when one was recorded.
 type EndedCare struct {
@@ -158,6 +167,12 @@ type CareExitCleanupRepository interface {
 	// FindOpenPresence reports which children still hold an open attendance
 	// row or room visit.
 	FindOpenPresence(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
+	// LockImpactRowsForCareExit freezes person/RFID, open presence, and source
+	// offering rows before the binding preview is read.
+	LockImpactRowsForCareExit(ctx context.Context, studentIDs []int64) error
+	// LatestAttendanceDate returns the latest recorded attendance day for one
+	// child. A retroactive exit cannot precede a day that actually happened.
+	LatestAttendanceDate(ctx context.Context, studentID int64) (*timezone.Date, error)
 	// CloseOpenPresence closes those records at `at`.
 	CloseOpenPresence(ctx context.Context, studentIDs []int64, at time.Time) (int, error)
 
@@ -173,8 +188,13 @@ type CareExitCleanupRepository interface {
 	// CountRunningByStudentIDsAfter counts, per student, the offering and
 	// activity bookings still running at validUntil (exclusive bound).
 	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
+	ListSourceOfferingsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64][]CareExitSourceOffering, error)
 	// CapByStudentIDs ends those bookings at validUntil.
 	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
+	// EndSourceBookingsAndSchedules caps/deletes every source booking and
+	// removes recurring/future arrival and pickup plans, recording reversible
+	// snapshots for a planned exit.
+	EndSourceBookingsAndSchedules(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
 
 	// RestoreRemovals puts back what the children's current exit removed from
 	// the plan and clears the ledger. It is what makes a planned exit

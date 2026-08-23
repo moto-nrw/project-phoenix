@@ -5,9 +5,16 @@ import { ModalProvider } from "~/components/dashboard/modal-context";
 import type { CareExitImpact, CareExitPreview } from "~/lib/care-exit-api";
 import { CareExitModal } from "./care-exit-modal";
 
-const { mockPreview, mockConfirm } = vi.hoisted(() => ({
+const {
+  mockPreview,
+  mockConfirm,
+  mockWithdrawalPreview,
+  mockWithdrawalConfirm,
+} = vi.hoisted(() => ({
   mockPreview: vi.fn(),
   mockConfirm: vi.fn(),
+  mockWithdrawalPreview: vi.fn(),
+  mockWithdrawalConfirm: vi.fn(),
 }));
 
 vi.mock("~/lib/care-exit-api", async (importOriginal) => {
@@ -16,6 +23,8 @@ vi.mock("~/lib/care-exit-api", async (importOriginal) => {
     ...actual,
     previewCareExit: mockPreview,
     confirmCareExit: mockConfirm,
+    previewWithdrawalCareEnd: mockWithdrawalPreview,
+    confirmWithdrawalCareEnd: mockWithdrawalConfirm,
   };
 });
 
@@ -30,6 +39,7 @@ function impact(overrides: Partial<CareExitImpact> = {}): CareExitImpact {
     openParentRequests: 0,
     hasRfidTag: false,
     currentlyPresent: false,
+    sourceOfferings: [],
     plannedEndsOn: null,
     blocker: "",
     ...overrides,
@@ -68,6 +78,23 @@ function renderModal(
   return { onClose, onFinished };
 }
 
+function renderWithdrawalModal(onFinished = vi.fn()) {
+  const onClose = vi.fn();
+  render(
+    <ModalProvider>
+      <CareExitModal
+        isOpen
+        studentIds={["1"]}
+        completionId="completion-1"
+        firstBookinglessDay="2026-09-01"
+        onClose={onClose}
+        onFinished={onFinished}
+      />
+    </ModalProvider>,
+  );
+  return { onClose, onFinished };
+}
+
 function pickReason(label: string) {
   fireEvent.click(screen.getByRole("combobox", { name: "Grund" }));
   fireEvent.click(screen.getByRole("option", { name: label }));
@@ -78,6 +105,14 @@ describe("CareExitModal", () => {
     vi.clearAllMocks();
     mockPreview.mockResolvedValue(preview());
     mockConfirm.mockResolvedValue({
+      studentsEnded: 1,
+      rosterRowsRemoved: 0,
+      bookingsEnded: 0,
+    });
+    mockWithdrawalPreview.mockResolvedValue(
+      preview({ lastCareDay: "2026-08-31", reason: "no_care_needed" }),
+    );
+    mockWithdrawalConfirm.mockResolvedValue({
       studentsEnded: 1,
       rosterRowsRemoved: 0,
       bookingsEnded: 0,
@@ -256,6 +291,63 @@ describe("CareExitModal", () => {
     renderModal();
     expect(
       screen.getByRole("heading", { name: "Betreuung beenden" }),
+    ).toBeVisible();
+  });
+
+  it("uses the existing exit flow for an authoritative complete withdrawal", async () => {
+    const { onFinished } = renderWithdrawalModal();
+
+    expect(screen.getByText("31.08.2026")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    await waitFor(() =>
+      expect(mockWithdrawalPreview).toHaveBeenCalledWith("completion-1", {
+        studentIds: ["1"],
+        lastCareDay: "2026-08-31",
+        reason: "no_care_needed",
+        reasonNote: "",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Betreuung beenden/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockWithdrawalConfirm).toHaveBeenCalledWith(
+        "completion-1",
+        "token-1",
+        expect.objectContaining({
+          lastCareDay: "2026-08-31",
+          reason: "no_care_needed",
+        }),
+      ),
+    );
+    expect(mockConfirm).not.toHaveBeenCalled();
+    await waitFor(() => expect(onFinished).toHaveBeenCalled());
+  });
+
+  it("shows source offerings and the full exit consequences", async () => {
+    mockWithdrawalPreview.mockResolvedValue(
+      preview({
+        lastCareDay: "2026-08-31",
+        reason: "no_care_needed",
+        students: [
+          impact({
+            sourceOfferings: [{ name: "OGS", days: ["mon", "wed", "fri"] }],
+          }),
+        ],
+      }),
+    );
+    renderWithdrawalModal();
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(
+      await screen.findByText("Gebuchte Angebote: OGS (Mo, Mi, Fr)"),
+    ).toBeVisible();
+    expect(screen.getByText("Folgen des Austritts")).toBeVisible();
+    expect(
+      screen.getByText(/Vergangene Anwesenheit.*bleiben erhalten/),
     ).toBeVisible();
   });
 });

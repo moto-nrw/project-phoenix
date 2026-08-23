@@ -20,6 +20,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+var ErrCompleteWithdrawalConfirmationRequired = errors.New("Alle Betreuungstage werden entfernt. Bitte bestätigen Sie die Komplett-Abmeldung.") //nolint:staticcheck // user-facing German message
+
 type offeringAdjustmentSnapshot struct {
 	OfferingID            string   `json:"offering_id"`
 	OfferingName          string   `json:"offering_name"`
@@ -94,103 +96,189 @@ func (s *decisionService) updateChildOfferings(
 	input UpdateChildOfferingsInput,
 	source string,
 ) (*appliedOfferingAdjustment, error) {
+	work, err := s.prepareOfferingAdjustment(ctx, input, source)
+	if err != nil {
+		return nil, err
+	}
+	return s.applyPreparedOfferingAdjustment(ctx, work)
+}
+
+func (s *decisionService) prepareOfferingAdjustment(
+	ctx context.Context, input UpdateChildOfferingsInput, source string,
+) (*offeringAdjustmentWork, error) {
+	reason, err := s.validateOfferingAdjustmentInput(ctx, input, source)
+	if err != nil {
+		return nil, err
+	}
+	work := &offeringAdjustmentWork{input: input, source: source, reason: reason}
+	if err := s.loadOfferingAdjustmentSubject(ctx, work); err != nil {
+		return nil, err
+	}
+	if err := s.loadOfferingAdjustmentCatalog(ctx, work); err != nil {
+		return nil, err
+	}
+	if err := s.materializeOfferingAdjustment(ctx, work); err != nil {
+		return nil, err
+	}
+	return work, nil
+}
+
+func (s *decisionService) applyPreparedOfferingAdjustment(
+	ctx context.Context, work *offeringAdjustmentWork,
+) (*appliedOfferingAdjustment, error) {
+	if err := s.persistOfferingAdjustment(ctx, work); err != nil {
+		return nil, err
+	}
+	entry, err := s.recordOfferingAdjustment(ctx, work)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.reconcileOfferingAdjustmentWithdrawal(ctx, work, entry); err != nil {
+		return nil, err
+	}
+	return s.finishOfferingAdjustment(ctx, work)
+}
+
+type offeringAdjustmentWork struct {
+	input                                  UpdateChildOfferingsInput
+	source, reason                         string
+	request                                *enrollmentModels.Request
+	child                                  *enrollmentModels.RequestChild
+	student                                *users.Student
+	phase                                  *enrollmentModels.Phase
+	effectiveFrom                          *timezone.Date
+	selectionDate                          timezone.Date
+	offeringByID                           map[int64]*enrollmentModels.CareOffering
+	activeOfferingByID, beforeOfferingByID map[int64]*enrollmentModels.CareOffering
+	beforeLinks                            []*enrollmentModels.RequestChildOffering
+	beforeJSON, afterJSON                  []byte
+	selections                             []materializedOfferingSelection
+	replacement                            []*enrollmentModels.RequestChildOffering
+	overridden                             []enrollmentModels.OfferingChangeSnapshotOffering
+	authoritative, afterHasCareDays        bool
+	isCompleteWithdrawal                   bool
+}
+
+func (s *decisionService) validateOfferingAdjustmentInput(
+	ctx context.Context, input UpdateChildOfferingsInput, source string,
+) (string, error) {
 	if source == auditModels.OfferingAdjustmentSourceDirect {
 		enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
 		if err != nil {
-			return nil, fmt.Errorf("offering adjustment: resolve care offerings setting: %w", err)
+			return "", fmt.Errorf("offering adjustment: resolve care offerings setting: %w", err)
 		}
 		if !enabled {
-			return nil, ErrCareOfferingsDisabled
+			return "", ErrCareOfferingsDisabled
 		}
 	}
 	if input.RequestID <= 0 || input.ChildID <= 0 {
-		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
+		return "", fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
 	if input.ActorAccountID <= 0 {
-		return nil, fmt.Errorf("%w: actor account id is required", ErrOfferingAdjustmentInvalid)
+		return "", fmt.Errorf("%w: actor account id is required", ErrOfferingAdjustmentInvalid)
 	}
 	reason := strings.TrimSpace(input.Reason)
 	if reason == "" {
-		return nil, fmt.Errorf("%w: reason is required", ErrOfferingAdjustmentInvalid)
+		return "", fmt.Errorf("%w: reason is required", ErrOfferingAdjustmentInvalid)
 	}
 	if s.RequestRepo == nil || s.RequestChildRepo == nil || s.RequestChildOfferingRepo == nil ||
-		s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.OfferingAdjustmentRepo == nil {
-		return nil, fmt.Errorf("decision: offering adjustment dependencies are not configured")
+		s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.OfferingAdjustmentRepo == nil || s.StudentRepo == nil {
+		return "", errors.New("decision: offering adjustment dependencies are not configured")
 	}
+	return reason, nil
+}
 
-	req, err := s.RequestRepo.FindByID(ctx, input.RequestID)
+func (s *decisionService) loadOfferingAdjustmentSubject(ctx context.Context, work *offeringAdjustmentWork) error {
+	req, err := s.RequestRepo.FindByID(ctx, work.input.RequestID)
 	if err != nil {
-		return nil, ErrDecisionRequestNotFound
+		return ErrDecisionRequestNotFound
 	}
-	child, err := s.RequestChildRepo.FindByID(ctx, input.ChildID)
+	child, err := s.RequestChildRepo.FindByID(ctx, work.input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
-		return nil, ErrDecisionChildNotFound
+		return ErrDecisionChildNotFound
 	}
 	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
-		return nil, fmt.Errorf("%w: only approved children with a linked student can be adjusted", ErrOfferingAdjustmentInvalid)
+		return fmt.Errorf("%w: only approved children with a linked student can be adjusted", ErrOfferingAdjustmentInvalid)
 	}
-	// Acquire the shared offering-derived-state gate before changing booking
-	// links. Pickup reset and care-offering updates take the same transaction
-	// lock, so neither can project a source state that another transaction is
-	// in the middle of replacing.
+	work.request, work.child = req, child
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
-		return nil, err
+		return err
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
+	if err != nil {
+		return fmt.Errorf("decision: lock adjustment student: %w", err)
+	}
+	if student == nil {
+		return fmt.Errorf("%w: linked student was not found", ErrOfferingAdjustmentInvalid)
 	}
 	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil {
-		return nil, fmt.Errorf("decision: load adjustment phase: %w", err)
+		return fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
-	effectiveFrom, err := validateAdjustmentEffectiveFrom(input.EffectiveFrom, phase)
+	effectiveFrom, err := validateAdjustmentEffectiveFrom(work.input.EffectiveFrom, phase)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	selectionDate := currentOfferingSelectionDate(phase)
-	if effectiveFrom != nil {
-		selectionDate = *effectiveFrom
-		if selectionDate.Before(phase.ServiceStartDate) {
-			selectionDate = phase.ServiceStartDate
-		}
-	}
+	work.student, work.phase = student, phase
+	work.effectiveFrom = effectiveFrom
+	work.selectionDate = adjustmentSelectionDate(phase, effectiveFrom)
+	return nil
+}
 
-	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
+func adjustmentSelectionDate(phase *enrollmentModels.Phase, effectiveFrom *timezone.Date) timezone.Date {
+	selectionDate := currentOfferingSelectionDate(phase)
+	if effectiveFrom != nil && effectiveFrom.After(selectionDate) {
+		selectionDate = *effectiveFrom
+	}
+	return selectionDate
+}
+
+func (s *decisionService) loadOfferingAdjustmentCatalog(ctx context.Context, work *offeringAdjustmentWork) error {
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, work.request.PhaseID)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list phase offerings for adjustment: %w", err)
+		return fmt.Errorf("decision: list phase offerings for adjustment: %w", err)
 	}
 	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
-	for _, offering := range offerings {
-		offeringByID[offering.ID] = offering
-	}
-	activeOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, req.PhaseID)
+	addCareOfferingsByID(offeringByID, offerings)
+	activeOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, work.request.PhaseID)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list active phase offerings for adjustment: %w", err)
+		return fmt.Errorf("decision: list active phase offerings for adjustment: %w", err)
 	}
 	activeOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferings))
-	for _, offering := range activeOfferings {
-		activeOfferingByID[offering.ID] = offering
-		offeringByID[offering.ID] = offering
-	}
-
-	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, selectionDate)
+	addCareOfferingsByID(activeOfferingByID, activeOfferings)
+	addCareOfferingsByID(offeringByID, activeOfferings)
+	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, work.child.ID, work.selectionDate)
 	if err != nil {
-		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
+		return fmt.Errorf("decision: list current child offerings: %w", err)
 	}
-	beforeOfferingIDs := offeringIDsFromLinks(beforeLinks)
 	beforeOfferingByID := map[int64]*enrollmentModels.CareOffering{}
-	if len(beforeOfferingIDs) > 0 {
-		beforeOfferings, listErr := s.CareOfferingRepo.ListByIDs(ctx, beforeOfferingIDs)
+	if ids := offeringIDsFromLinks(beforeLinks); len(ids) > 0 {
+		beforeOfferings, listErr := s.CareOfferingRepo.ListByIDs(ctx, ids)
 		if listErr != nil {
-			return nil, fmt.Errorf("decision: list existing child offerings for adjustment: %w", listErr)
+			return fmt.Errorf("decision: list existing child offerings for adjustment: %w", listErr)
 		}
-		for _, offering := range beforeOfferings {
-			beforeOfferingByID[offering.ID] = offering
-			offeringByID[offering.ID] = offering
-		}
+		addCareOfferingsByID(beforeOfferingByID, beforeOfferings)
+		addCareOfferingsByID(offeringByID, beforeOfferings)
 	}
-	beforeJSON, beforeSnapshotErr := adjustmentSnapshotJSON(beforeLinks, offeringByID)
-	if beforeSnapshotErr != nil {
-		return nil, beforeSnapshotErr
+	beforeJSON, err := adjustmentSnapshotJSON(beforeLinks, offeringByID)
+	if err != nil {
+		return err
 	}
+	work.offeringByID, work.activeOfferingByID = offeringByID, activeOfferingByID
+	work.beforeOfferingByID, work.beforeLinks, work.beforeJSON = beforeOfferingByID, beforeLinks, beforeJSON
+	return nil
+}
 
+func addCareOfferingsByID(target map[int64]*enrollmentModels.CareOffering, offerings []*enrollmentModels.CareOffering) {
+	for _, offering := range offerings {
+		if offering != nil {
+			target[offering.ID] = offering
+		}
+	}
+}
+
+func buildAdjustmentSubmitChild(work *offeringAdjustmentWork) (SubmitChild, error) {
+	input, child := work.input, work.child
 	submitChild := SubmitChild{
 		FirstName:                child.FirstName,
 		LastName:                 child.LastName,
@@ -204,10 +292,10 @@ func (s *decisionService) updateChildOfferings(
 	seen := make(map[int64]bool, len(input.Offerings))
 	for _, row := range input.Offerings {
 		if row.OfferingID <= 0 {
-			return nil, fmt.Errorf("%w: offering_id is required", ErrOfferingAdjustmentInvalid)
+			return SubmitChild{}, fmt.Errorf("%w: offering_id is required", ErrOfferingAdjustmentInvalid)
 		}
-		if activeOfferingByID[row.OfferingID] == nil && beforeOfferingByID[row.OfferingID] == nil {
-			return nil, fmt.Errorf("%w: care offering %d is not available for this child adjustment", ErrCareOfferingMissing, row.OfferingID)
+		if work.activeOfferingByID[row.OfferingID] == nil && work.beforeOfferingByID[row.OfferingID] == nil {
+			return SubmitChild{}, fmt.Errorf("%w: care offering %d is not available for this child adjustment", ErrCareOfferingMissing, row.OfferingID)
 		}
 		if seen[row.OfferingID] {
 			continue
@@ -221,99 +309,158 @@ func (s *decisionService) updateChildOfferings(
 			})
 		}
 	}
-	sort.SliceStable(submitChild.OfferingIDs, func(i, j int) bool {
-		left := offeringByID[submitChild.OfferingIDs[i]]
-		right := offeringByID[submitChild.OfferingIDs[j]]
+	sortAdjustmentOfferingIDs(submitChild.OfferingIDs, work.offeringByID)
+	return submitChild, nil
+}
+
+func sortAdjustmentOfferingIDs(ids []int64, offerings map[int64]*enrollmentModels.CareOffering) {
+	sort.SliceStable(ids, func(i, j int) bool {
+		left, right := offerings[ids[i]], offerings[ids[j]]
 		if left == nil || right == nil || left.SortOrder == right.SortOrder {
-			return submitChild.OfferingIDs[i] < submitChild.OfferingIDs[j]
+			return ids[i] < ids[j]
 		}
 		return left.SortOrder < right.SortOrder
 	})
-	allowedOfferingByID := make(map[int64]*enrollmentModels.CareOffering, len(activeOfferingByID)+len(beforeOfferingByID))
-	for id, offering := range activeOfferingByID {
-		allowedOfferingByID[id] = offering
-	}
-	for id, offering := range beforeOfferingByID {
-		allowedOfferingByID[id] = offering
-	}
-	children := []SubmitChild{submitChild}
-	grandfathered := grandfatheredOfferingsFromLinks(beforeLinks)
-	overridden, err := validateAppliedOfferingOverrides(
-		input.ExcludedAutoAddTargetIDs, submitChild, allowedOfferingByID,
-		phase.CareOfferingSelectionMode, grandfathered,
-	)
-	if err != nil {
-		return nil, err
-	}
-	reason = adjustmentReasonWithOverrides(reason, overridden)
-	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
-		children, allowedOfferingByID, phase.CareOfferingSelectionMode, grandfathered,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
-	}
-	selections := materialized[0]
+}
 
-	replacement := make([]*enrollmentModels.RequestChildOffering, 0, len(selections))
-	for _, selection := range selections {
+func (s *decisionService) resolveAdjustmentAuthority(ctx context.Context, work *offeringAdjustmentWork) error {
+	if work.source != auditModels.OfferingAdjustmentSourceDirect {
+		return nil
+	}
+	authoritative, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative, false)
+	if err != nil {
+		return fmt.Errorf("offering adjustment: resolve authoritative bookings setting: %w", err)
+	}
+	if authoritative && s.CareWithdrawal == nil {
+		return errors.New("offering adjustment: authoritative booking lifecycle is not configured")
+	}
+	work.authoritative = authoritative
+	return nil
+}
+
+func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, work *offeringAdjustmentWork) error {
+	submitChild, err := buildAdjustmentSubmitChild(work)
+	if err != nil {
+		return err
+	}
+	if err := s.resolveAdjustmentAuthority(ctx, work); err != nil {
+		return err
+	}
+	allowed := make(map[int64]*enrollmentModels.CareOffering, len(work.activeOfferingByID)+len(work.beforeOfferingByID))
+	addCareOfferingMap(allowed, work.activeOfferingByID)
+	addCareOfferingMap(allowed, work.beforeOfferingByID)
+	grandfathered := grandfatheredOfferingsFromLinks(work.beforeLinks)
+	allowWithdrawal := work.authoritative && requestChildOfferingLinksHaveCareDays(work.beforeLinks, work.offeringByID)
+	overridden, err := validateAppliedOfferingOverrides(
+		work.input.ExcludedAutoAddTargetIDs, submitChild, allowed,
+		work.phase.CareOfferingSelectionMode, grandfathered,
+	)
+	if err != nil {
+		return err
+	}
+	work.reason = adjustmentReasonWithOverrides(work.reason, overridden)
+	materialized, err := materializeAndValidateChildrenOfferingSelectionsForAdjustment(
+		[]SubmitChild{submitChild}, allowed, work.phase.CareOfferingSelectionMode, grandfathered, allowWithdrawal,
+	)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrOfferingAdjustmentInvalid, err)
+	}
+	work.selections, work.overridden = materialized[0], overridden
+	work.afterHasCareDays = materializedSelectionsHaveCareDays(work.selections, work.offeringByID)
+	work.isCompleteWithdrawal = allowWithdrawal && !work.afterHasCareDays
+	if work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
+		return ErrCompleteWithdrawalConfirmationRequired
+	}
+	return s.buildOfferingAdjustmentReplacement(work)
+}
+
+func addCareOfferingMap(target, source map[int64]*enrollmentModels.CareOffering) {
+	for id, offering := range source {
+		target[id] = offering
+	}
+}
+
+func (s *decisionService) buildOfferingAdjustmentReplacement(work *offeringAdjustmentWork) error {
+	replacement := make([]*enrollmentModels.RequestChildOffering, 0, len(work.selections))
+	for _, selection := range work.selections {
 		replacement = append(replacement, &enrollmentModels.RequestChildOffering{
-			RequestChildID:        child.ID,
+			RequestChildID:        work.child.ID,
 			CareOfferingID:        selection.OfferingID,
 			SelectedDays:          selection.SelectedDays,
 			ManualSelectedDays:    selection.ManualSelectedDays,
 			AutomaticSelectedDays: selection.AutomaticSelectedDays,
 		})
 	}
-	afterJSON, afterSnapshotErr := adjustmentSnapshotJSON(replacement, offeringByID)
-	if afterSnapshotErr != nil {
-		return nil, afterSnapshotErr
-	}
-
-	scheduled, err := s.scheduledOfferingReplacements(ctx, child.ID, selectionDate, effectiveFrom)
+	replacement = capOfferingReplacementAtCareEnd(replacement, work.student.EnrolledUntil, work.phase, work.effectiveFrom)
+	afterJSON, err := adjustmentSnapshotJSON(replacement, work.offeringByID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if effectiveFrom != nil {
-		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
-			return nil, fmt.Errorf("decision: schedule child offerings: %w", err)
-		}
-	} else if len(scheduled) > 0 {
-		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, selectionDate, replacement); err != nil {
-			return nil, fmt.Errorf("decision: schedule corrected child offerings: %w", err)
-		}
-		for _, future := range scheduled {
-			if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, child.ID, future.EffectiveFrom, future.Rows); err != nil {
-				return nil, fmt.Errorf("decision: restore scheduled child offerings: %w", err)
-			}
-		}
-	} else if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
-		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
+	work.replacement, work.afterJSON = replacement, afterJSON
+	return nil
+}
+
+func (s *decisionService) persistOfferingAdjustment(ctx context.Context, work *offeringAdjustmentWork) error {
+	scheduled, err := s.scheduledOfferingReplacements(ctx, work.child.ID, work.selectionDate, work.effectiveFrom)
+	if err != nil {
+		return err
 	}
-	materializeFrom := effectiveFrom
-	if effectiveFrom == nil && len(scheduled) > 0 {
-		materializeFrom = &selectionDate
+	if err := s.persistOfferingSourceRows(ctx, work, scheduled); err != nil {
+		return err
 	}
-	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, replacement, phase, materializeFrom); err != nil {
-		return nil, err
+	materializeFrom := work.effectiveFrom
+	if materializeFrom == nil && len(scheduled) > 0 {
+		materializeFrom = &work.selectionDate
+	}
+	studentID := *work.child.CreatedStudentID
+	if err := s.rematerializeAdjustedEnrollments(ctx, work.child.ID, studentID, work.beforeLinks, work.replacement, work.phase, materializeFrom); err != nil {
+		return err
 	}
 	for _, future := range scheduled {
-		if err := s.splitAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, future.Rows, phase, future.EffectiveFrom); err != nil {
-			return nil, err
+		if err := s.splitAdjustedEnrollments(ctx, work.child.ID, studentID, future.Rows, work.phase, future.EffectiveFrom); err != nil {
+			return err
 		}
 	}
-	actorName, actorEmail := s.actorSnapshot(ctx, input.ActorAccountID)
+	return nil
+}
+
+func (s *decisionService) persistOfferingSourceRows(
+	ctx context.Context, work *offeringAdjustmentWork, scheduled []scheduledOfferingReplacement,
+) error {
+	if work.effectiveFrom != nil || len(scheduled) > 0 {
+		if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, work.child.ID, work.selectionDate, work.replacement); err != nil {
+			return fmt.Errorf("decision: schedule child offerings: %w", err)
+		}
+		for _, future := range scheduled {
+			if err := s.RequestChildOfferingRepo.ScheduleReplacementForRequestChild(ctx, work.child.ID, future.EffectiveFrom, future.Rows); err != nil {
+				return fmt.Errorf("decision: restore scheduled child offerings: %w", err)
+			}
+		}
+		return nil
+	}
+	if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, work.child.ID, work.replacement); err != nil {
+		return fmt.Errorf("decision: replace child offerings: %w", err)
+	}
+	return nil
+}
+
+func (s *decisionService) recordOfferingAdjustment(
+	ctx context.Context, work *offeringAdjustmentWork,
+) (*auditModels.EnrollmentOfferingAdjustment, error) {
+	actorName, actorEmail := s.actorSnapshot(ctx, work.input.ActorAccountID)
 	entry := &auditModels.EnrollmentOfferingAdjustment{
-		RequestID:          req.ID,
-		RequestChildID:     child.ID,
-		StudentID:          *child.CreatedStudentID,
-		ActorAccountID:     input.ActorAccountID,
-		ActorRole:          strings.TrimSpace(input.ActorRole),
-		ActorNameSnapshot:  actorName,
-		ActorEmailSnapshot: actorEmail,
-		Reason:             reason,
-		Source:             source,
-		Before:             beforeJSON,
-		After:              afterJSON,
+		RequestID:                   work.request.ID,
+		RequestChildID:              work.child.ID,
+		StudentID:                   *work.child.CreatedStudentID,
+		ActorAccountID:              work.input.ActorAccountID,
+		ActorRole:                   strings.TrimSpace(work.input.ActorRole),
+		ActorNameSnapshot:           actorName,
+		ActorEmailSnapshot:          actorEmail,
+		Reason:                      work.reason,
+		Source:                      work.source,
+		Before:                      work.beforeJSON,
+		After:                       work.afterJSON,
+		CompleteWithdrawalConfirmed: work.isCompleteWithdrawal,
 	}
 	if entry.ActorRole == "" {
 		entry.ActorRole = "admin"
@@ -321,18 +468,109 @@ func (s *decisionService) updateChildOfferings(
 	if err := s.OfferingAdjustmentRepo.Create(ctx, entry); err != nil {
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
-	// The booking changed: refresh consumers of the date-aware pickup
-	// projection. Staff-maintained overrides stay untouched.
-	if err := s.ReconcileOfferingPickupForStudents(ctx, []int64{*child.CreatedStudentID}); err != nil {
+	return entry, nil
+}
+
+func (s *decisionService) reconcileOfferingAdjustmentWithdrawal(
+	ctx context.Context, work *offeringAdjustmentWork, entry *auditModels.EnrollmentOfferingAdjustment,
+) error {
+	if s.CareWithdrawal == nil || (!work.authoritative && !work.afterHasCareDays) {
+		return nil
+	}
+	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
+		StudentID: *work.child.CreatedStudentID, FirstBookinglessDay: work.selectionDate,
+		HasCareDays: work.afterHasCareDays, WasCompleteWithdrawal: work.isCompleteWithdrawal,
+		SourceAdjustmentID: entry.ID, ConfirmedBy: work.input.ActorAccountID,
+		ConfirmedRole: entry.ActorRole, SourceOfferings: careExitSourceOfferingsFromLinks(work.beforeLinks, work.offeringByID),
+	})
+	if err != nil {
+		return fmt.Errorf("offering adjustment: reconcile complete withdrawal: %w", err)
+	}
+	return nil
+}
+
+func (s *decisionService) finishOfferingAdjustment(
+	ctx context.Context, work *offeringAdjustmentWork,
+) (*appliedOfferingAdjustment, error) {
+	studentID := *work.child.CreatedStudentID
+	if err := s.ReconcileOfferingPickupForStudents(ctx, []int64{studentID}); err != nil {
 		return nil, fmt.Errorf("decision: reconcile offering pickup times: %w", err)
 	}
-	updated, err := s.RequestChildRepo.FindByID(ctx, child.ID)
+	updated, err := s.RequestChildRepo.FindByID(ctx, work.child.ID)
 	if err != nil {
 		return nil, err
 	}
 	return &appliedOfferingAdjustment{
-		Child: updated, Before: beforeLinks, Selections: selections, Offerings: offeringByID, Overridden: overridden,
+		Child: updated, Before: work.beforeLinks, Selections: work.selections,
+		Offerings: work.offeringByID, Overridden: work.overridden,
 	}, nil
+}
+
+func capOfferingReplacementAtCareEnd(
+	rows []*enrollmentModels.RequestChildOffering,
+	lastCareDay *timezone.Date,
+	phase *enrollmentModels.Phase,
+	effectiveFrom *timezone.Date,
+) []*enrollmentModels.RequestChildOffering {
+	if lastCareDay == nil {
+		return rows
+	}
+	validFrom := phase.ServiceStartDate
+	if effectiveFrom != nil {
+		validFrom = *effectiveFrom
+	}
+	validUntil := lastCareDay.AddDays(1)
+	if !validFrom.Before(validUntil) {
+		return nil
+	}
+	for _, row := range rows {
+		from, until := validFrom, validUntil
+		row.ValidFrom, row.ValidUntil = &from, &until
+	}
+	return rows
+}
+
+func careExitSourceOfferingsFromLinks(
+	links []*enrollmentModels.RequestChildOffering,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) []users.CareExitSourceOffering {
+	result := make([]users.CareExitSourceOffering, 0, len(links))
+	for _, link := range links {
+		if link == nil || len(link.SelectedDays) == 0 {
+			continue
+		}
+		offering := offerings[link.CareOfferingID]
+		if offering == nil {
+			continue
+		}
+		result = append(result, users.CareExitSourceOffering{
+			Name: offering.Name, Days: copyDays(link.SelectedDays),
+		})
+	}
+	return result
+}
+
+func requestChildOfferingLinksHaveCareDays(
+	links []*enrollmentModels.RequestChildOffering,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) bool {
+	for _, link := range links {
+		if link == nil {
+			continue
+		}
+		offering := offerings[link.CareOfferingID]
+		if offering == nil || !offering.CountsAsCare {
+			continue
+		}
+		hasCareDays := len(link.SelectedDays) > 0
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+			hasCareDays = len(offering.AvailableDays) > 0
+		}
+		if hasCareDays {
+			return true
+		}
+	}
+	return false
 }
 
 func validateAppliedOfferingOverrides(

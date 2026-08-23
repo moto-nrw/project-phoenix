@@ -26,6 +26,7 @@ import {
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
+import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
@@ -411,10 +412,13 @@ function SidebarContent({ className = "" }: SidebarProps) {
   // Umzug ins Anfragen-Modul auf dasselbe Badge ein.
   const { unreadCount: enrollmentRequestsPendingCount } =
     useEnrollmentRequestsPending();
+  const { unreadCount: careWithdrawalsPendingCount } =
+    useCareWithdrawalsPending();
   const requestsPendingCount =
     changeRequestsPendingCount +
     staffAbsencesPendingCount +
-    enrollmentRequestsPendingCount;
+    enrollmentRequestsPendingCount +
+    careWithdrawalsPendingCount;
 
   // Accordion state passes `from` param so child pages (e.g. student detail)
   // keep the originating accordion section open

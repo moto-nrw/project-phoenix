@@ -647,8 +647,9 @@ func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChil
 }
 
 type AdminUpdateOfferingsRequest struct {
-	Offerings []AdminUpdateOfferingSelection `json:"offerings"`
-	Reason    string                         `json:"reason"`
+	Offerings                   []AdminUpdateOfferingSelection `json:"offerings"`
+	Reason                      string                         `json:"reason"`
+	CompleteWithdrawalConfirmed bool                           `json:"complete_withdrawal_confirmed"`
 }
 
 type AdminUpdateOfferingSelection struct {
@@ -657,6 +658,22 @@ type AdminUpdateOfferingSelection struct {
 }
 
 func (req *AdminUpdateOfferingsRequest) Bind(_ *http.Request) error { return nil }
+
+var updateAdminOfferingsErrorRenderer = common.RulesRenderer([]common.ErrorRule{
+	{Target: enrollmentService.ErrDecisionChildNotFound, Render: common.ErrorNotFound},
+	{Target: enrollmentService.ErrDecisionRequestNotFound, Render: common.ErrorNotFound},
+	{Target: enrollmentService.ErrOfferingAdjustmentInvalid, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrCareOfferingClosed, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrRequiredCareOfferingMissing, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrCareOfferingMissing, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrCareOfferingExactlyOneRequired, Render: common.ErrorInvalidRequest},
+	{Target: enrollmentService.ErrCareOfferingsDisabled, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled)
+	}},
+	{Target: enrollmentService.ErrCompleteWithdrawalConfirmationRequired, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "enrollment.complete_withdrawal_confirmation_required")
+	}},
+}, common.ErrorInternalServer)
 
 func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Request) {
 	if rs.DecisionService == nil {
@@ -694,32 +711,19 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 	var updated *enrollmentModels.RequestChild
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
-			RequestID:      requestID,
-			ChildID:        childID,
-			Offerings:      selections,
-			Reason:         body.Reason,
-			ActorAccountID: int64(claims.ID),
-			ActorRole:      actorRole,
+			RequestID:                   requestID,
+			ChildID:                     childID,
+			Offerings:                   selections,
+			Reason:                      body.Reason,
+			ActorAccountID:              int64(claims.ID),
+			ActorRole:                   actorRole,
+			CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
 		})
 		updated = child
 		return updateErr
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
-			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, enrollmentService.ErrOfferingAdjustmentInvalid),
-			errors.Is(err, enrollmentService.ErrCareOfferingClosed),
-			errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing),
-			errors.Is(err, enrollmentService.ErrCareOfferingMissing),
-			errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
+		common.RenderError(w, r, updateAdminOfferingsErrorRenderer(err))
 		return
 	}
 	out := AdminRequestChild{

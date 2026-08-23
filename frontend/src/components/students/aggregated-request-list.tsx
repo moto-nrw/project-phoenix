@@ -25,9 +25,14 @@ import { ExcusedRequestReviewItem } from "~/components/students/excused-request-
 import { MasterDataReviewItem } from "~/components/students/master-data-review-item";
 import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
+import { CareWithdrawalTaskItem } from "~/components/students/care-withdrawal-task-item";
 import { RequestHistoryItem } from "~/components/students/request-history-item";
 import { RequestRowHeader } from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
+import {
+  fetchCareWithdrawals,
+  type CareWithdrawalCompletion,
+} from "~/lib/care-exit-api";
 import {
   type AggregatedHistoryRequest,
   type AggregatedOpenRequest,
@@ -45,6 +50,7 @@ import {
 } from "~/lib/request-feed";
 
 const logger = createLogger({ component: "AggregatedRequestList" });
+const WITHDRAWAL_PAGE_SIZE = 100;
 
 export interface AggregatedRequestFilters {
   readonly search: string;
@@ -66,6 +72,8 @@ export interface AggregatedRequestFilters {
    * weg, statt der Seite einen 403 einzuhandeln.
    */
   readonly includeEnrollment?: boolean;
+  /** Offene Komplett-Abmeldungen; verlangt users:delete. */
+  readonly includeCareWithdrawals?: boolean;
   /** Leer = alle Arten. */
   readonly types: readonly AggregatedRequestType[];
   /** Nur Historie; leer = alle Status. */
@@ -98,10 +106,15 @@ export function AggregatedRequestList({
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [withdrawals, setWithdrawals] = useState<CareWithdrawalCompletion[]>(
+    [],
+  );
+  const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
   // Set while THIS list dispatches change-requests-refresh so its own listener
   // (below) doesn't refetch — it already removed the decided row optimistically.
   // dispatchEvent is synchronous, so the flag only has to cover that one call.
   const suppressSelfReloadRef = useRef(false);
+  const withdrawalGenerationRef = useRef(0);
 
   // Die Quellen des Reiters: der Aggregator über die vier users:update-Arten
   // und — mit config:manage — die Anmeldungsänderungen aus ihrem eigenen
@@ -121,7 +134,7 @@ export function AggregatedRequestList({
     // sie, und ist NUR sie gewählt, wird er gar nicht erst gefragt (er würde
     // die unbekannte Art mit 400 abweisen).
     const aggregatedTypes = filters.types.filter(
-      (type) => type !== "enrollment",
+      (type) => type !== "enrollment" && type !== "care_withdrawal",
     );
     const built: FeedSource<AnyItem>[] = [];
     if (
@@ -201,6 +214,55 @@ export function AggregatedRequestList({
     };
   }, [loadFirstPage]);
 
+  const loadWithdrawals = useCallback(async () => {
+    const generation = ++withdrawalGenerationRef.current;
+    const selected = filters.types;
+    const typeMatches =
+      selected.length === 0 || selected.includes("care_withdrawal");
+    if (view !== "open" || !filters.includeCareWithdrawals || !typeMatches) {
+      setWithdrawals([]);
+      return;
+    }
+    try {
+      const items: CareWithdrawalCompletion[] = [];
+      let pageNumber = 1;
+      let total = 0;
+      do {
+        const page = await fetchCareWithdrawals({
+          search: filters.search,
+          page: pageNumber,
+          pageSize: WITHDRAWAL_PAGE_SIZE,
+        });
+        items.push(...page.items);
+        total = page.total;
+        if (page.items.length === 0) break;
+        pageNumber += 1;
+      } while (items.length < total);
+      if (generation === withdrawalGenerationRef.current) {
+        setWithdrawals(items);
+      }
+    } catch (err: unknown) {
+      if (generation !== withdrawalGenerationRef.current) return;
+      logger.warn("care_withdrawal_list_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError("Abmeldungen konnten nicht geladen werden.");
+    }
+  }, [filters.includeCareWithdrawals, filters.search, filters.types, view]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setWithdrawalsLoading(
+      view === "open" && filters.includeCareWithdrawals === true,
+    );
+    void loadWithdrawals().finally(() => {
+      if (!cancelled) setWithdrawalsLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [filters.includeCareWithdrawals, loadWithdrawals, view]);
+
   // Refetch ohne Spinner, wenn eine Entscheidung anderswo fällt: Entscheidungen
   // in diesem Fenster senden change-requests-refresh, Entscheidungen anderswo
   // kommen als SSE-abgeleitetes messages-unread-refresh bzw. beim Fokuswechsel
@@ -227,11 +289,16 @@ export function AggregatedRequestList({
     const handler = () => {
       if (suppressSelfReloadRef.current) return;
       void reloadInPlace();
+      void loadWithdrawals();
     };
-    const onFocus = () => void reloadInPlace();
+    const onFocus = () => {
+      void reloadInPlace();
+      void loadWithdrawals();
+    };
     const onVisibility = () => {
       if (typeof document !== "undefined" && !document.hidden) {
         void reloadInPlace();
+        void loadWithdrawals();
       }
     };
     window.addEventListener("change-requests-refresh", handler);
@@ -244,7 +311,7 @@ export function AggregatedRequestList({
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [view, reloadInPlace]);
+  }, [view, reloadInPlace, loadWithdrawals]);
 
   const loadMore = useCallback(async () => {
     if (!hasMore || feedLoadingRef.current || loadMoreInFlightRef.current)
@@ -283,7 +350,7 @@ export function AggregatedRequestList({
     setNotice(decidedNotice);
   }, []);
 
-  if (loading) {
+  if (loading || withdrawalsLoading) {
     return (
       <SkeletonRegion label="Anfragen werden geladen">
         <ListSkeleton rows={3} avatar={false} />
@@ -305,7 +372,7 @@ export function AggregatedRequestList({
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
       {notice && <Alert type="success" message={notice} />}
-      {items.length === 0 && !error ? (
+      {items.length === 0 && withdrawals.length === 0 && !error ? (
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}
           // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
@@ -332,6 +399,21 @@ export function AggregatedRequestList({
         // richten sich die Zeilen aneinander aus und lesen sich als Tabelle.
         <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
           <RequestRowHeader view={view} />
+          {view === "open"
+            ? withdrawals.map((row) => (
+                <CareWithdrawalTaskItem
+                  key={`care_withdrawal:${row.id}`}
+                  row={row}
+                  onFinished={() => {
+                    setWithdrawals((current) =>
+                      current.filter((item) => item.id !== row.id),
+                    );
+                    setNotice("Die Betreuung wurde beendet.");
+                    window.dispatchEvent(new Event("change-requests-refresh"));
+                  }}
+                />
+              ))
+            : null}
           {items.map((item) => {
             const key = itemKey(item);
             // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:

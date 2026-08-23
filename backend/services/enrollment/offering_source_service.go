@@ -1119,9 +1119,10 @@ func draftMinusLegacyWeekdays(draft *careEnrollmentDraft, coverage *legacyChildC
 		return nil, false
 	}
 	return &careEnrollmentDraft{
-		activityGroupID:  draft.activityGroupID,
-		calendarPeriodID: draft.calendarPeriodID,
-		selectedWeekday:  remaining,
+		activityGroupID:   draft.activityGroupID,
+		calendarPeriodID:  draft.calendarPeriodID,
+		selectedWeekday:   remaining,
+		studentValidUntil: cloneOptionalDraftDate(draft.studentValidUntil),
 	}, true
 }
 

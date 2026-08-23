@@ -304,6 +304,7 @@ describe("enrollment-admin-api", () => {
           child_id: "child-1",
           offerings: [{ offering_id: "offering-1", selected_days: ["mon"] }],
           reason: "Elternwunsch",
+          complete_withdrawal_confirmed: false,
         }),
       },
     );
