@@ -268,19 +268,25 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	}
 
 	arrivalByDay := map[int]string{}
+	arrivalCareDays := map[int]bool{}
 	for _, a := range arrivals {
+		arrivalCareDays[a.Weekday] = true
+		if a.ExpectedArrival.IsZero() {
+			// Care day without a time: the class carries none yet (#2414).
+			continue
+		}
 		arrivalByDay[a.Weekday] = a.ExpectedArrival.Format("15:04")
 	}
 	pickupByDay := map[int]string{}
 	for _, p := range pickups {
 		pickupByDay[p.Weekday] = p.PickupTime.Format("15:04")
 	}
-	hasCarePlan := len(arrivalByDay) > 0 || len(pickupByDay) > 0
+	hasCarePlan := len(arrivals) > 0 || len(pickups) > 0
 
 	weekdays := make([]CareScheduleWeekday, 0, len(usersModels.PickupDayOrder))
 	for i, abbrev := range usersModels.PickupDayOrder {
 		wd := i + 1
-		status := careDayStatus(hasCarePlan, arrivalByDay[wd], pickupByDay[wd])
+		status := careDayStatus(hasCarePlan, arrivalCareDays[wd], arrivalByDay[wd], pickupByDay[wd])
 		modes := student.AllowedDepartureModes[abbrev]
 		keys := make([]string, 0, len(modes))
 		for _, m := range modes {
@@ -317,8 +323,8 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	return nil
 }
 
-func careDayStatus(hasCarePlan bool, arrival, pickup string) scheduleService.CareDayStatus {
-	if arrival != "" || pickup != "" {
+func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) scheduleService.CareDayStatus {
+	if hasArrivalDay || arrival != "" || pickup != "" {
 		return scheduleService.CareDayScheduled
 	}
 	if hasCarePlan {

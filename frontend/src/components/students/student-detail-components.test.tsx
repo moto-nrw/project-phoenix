@@ -177,6 +177,25 @@ describe("StudentDetailHeader", () => {
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
   });
 
+  it("does not reserve desktop header margins on narrow screens", () => {
+    const { container } = render(
+      <StudentDetailHeader
+        student={mockStudent}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+      />,
+    );
+
+    const identitySlot = container.querySelector(".flex.flex-1.items-center");
+    expect(identitySlot).toHaveClass("ml-0", "sm:ml-6");
+    expect(identitySlot).not.toHaveClass("ml-6");
+
+    const badgeSlot = container.querySelector(".flex-shrink-0.pb-3");
+    expect(badgeSlot).toHaveClass("mr-0", "sm:mr-4");
+    expect(badgeSlot).not.toHaveClass("mr-4");
+  });
+
   // ---------------------------------------------------------------------------
   // Per-room color forwarding (Issue #1381) — the header builds a `badgeStudent`
   // object from the incoming student before passing it to LocationBadge. A

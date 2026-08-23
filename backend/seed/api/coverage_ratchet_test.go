@@ -133,9 +133,6 @@ var seedCoverageAllowlist = map[string]string{
 	"schedule.timeframes":                       "GAP: prod has 16 rows",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"suggestions.comment_reads": "GAP: prod has 117 rows",
-	"suggestions.post_reads":    "GAP: prod has 47 rows",
-
 	"users.class_list_entries":            "not in prod yet (migration newer than the deployed image)",
 	"users.guardian_phone_numbers":        "GAP: prod has 3071 rows",
 	"users.guests":                        "empty in prod too",

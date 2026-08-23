@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,9 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -52,6 +55,7 @@ func newOfferingChangeServiceForTestWithCareRepo(
 		RequestChildOfferingRepo: env.repos.RequestChildOffering,
 		StudentRepo:              env.repos.Student,
 		PersonRepo:               env.repos.Person,
+		ImpactRepo:               env.repos.OfferingChangeImpact,
 		Applier:                  changeRequestApplierForTest(t, env),
 		Settings:                 env.settings,
 		Logger:                   slog.Default(),
@@ -1088,6 +1092,235 @@ func TestOfferingChangeRequestService_PreviewDecision_RefusesADateOutOfRange(t *
 	confirmed := timezone.TodayDate().AddDays(-1)
 	_, err = svc.PreviewDecision(ctx, row.ID, nil, &confirmed)
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeDateOutOfRange)
+}
+
+type planningOccurrenceOpts struct {
+	status       string
+	spontaneous  bool
+	materialized bool
+	unplanned    bool
+	notScheduled bool
+}
+
+func createPlanningOccurrence(
+	t *testing.T,
+	env *decisionTestEnv,
+	groupID, studentID, roomID, periodID int64,
+	date timezone.Date,
+	title string,
+	opts planningOccurrenceOpts,
+) {
+	t.Helper()
+	status := opts.status
+	if status == "" {
+		status = scheduleModels.InstanceStatusPlanned
+	}
+	var calendarPeriodID *int64
+	if opts.materialized {
+		calendarPeriodID = &periodID
+	}
+	instance := testpkg.CreateTestActivityInstance(t, env.db, date, roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID:  &groupID,
+		CalendarPeriodID: calendarPeriodID,
+		Title:            title,
+		Status:           status,
+		IsSpontaneous:    opts.spontaneous,
+	})
+	attendance := testpkg.CreateTestInstanceStudent(t, env.db, instance.ID, studentID, "", testpkg.InstanceStudentOpts{
+		NotScheduled: opts.notScheduled,
+	})
+	if opts.unplanned {
+		attendance.IsUnplanned = true
+		require.NoError(t, env.repos.InstanceStudent.Update(testpkg.Ctx(t), attendance))
+	}
+}
+
+func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManualPlanning(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = true
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PreviewManualPlanning")
+	fx.newOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+	fx.newOffering.AvailableDays = []string{"mon"}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+	fx.oldOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+	fx.oldOffering.AvailableDays = []string{"mon", "wed", "thu"}
+	fx.oldOffering.CountsAsCare = true
+	fx.oldOffering.CountsAsCareSet = true
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
+
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID:     fx.studentID,
+		AccountID:     env.creatorID,
+		EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{
+			{OfferingID: fx.newOffering.ID},
+		},
+	})
+	require.NoError(t, err)
+
+	manualGroup := testpkg.CreateTestActivityGroup(t, env.db, "ManualPlanningPreview")
+	manualGroup.Type = activitiesModels.GroupTypeCare
+	manualGroup.IsTemplate = true
+	manualGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
+
+	sourcedGroup := testpkg.CreateTestActivityGroup(t, env.db, "OfferingPlanningPreview")
+	sourcedGroup.Type = activitiesModels.GroupTypeCare
+	sourcedGroup.IsTemplate = true
+	sourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeAngebot
+	sourcedGroup.SourceCareOfferingIDs = []int64{fx.newOffering.ID}
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, sourcedGroup))
+
+	legacySourcedGroup, err := env.repos.ActivityGroup.FindByID(ctx, fx.oldGroupID)
+	require.NoError(t, err)
+	legacySourcedGroup.Type = activitiesModels.GroupTypeCare
+	legacySourcedGroup.IsTemplate = true
+	legacySourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeNone
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, legacySourcedGroup))
+	parentChoiceGroup := testpkg.CreateTestActivityGroup(t, env.db, "EmptyParentChoicePlanning")
+	parentChoiceGroup.Type = activitiesModels.GroupTypeCare
+	parentChoiceGroup.IsTemplate = true
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, parentChoiceGroup))
+	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &parentChoiceGroup.ID
+		o.CountsAsCare, o.CountsAsCareSet = true, true
+	})
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID: fx.childID,
+		CareOfferingID: parentChoiceOffering.ID,
+		SelectedDays:   []string{},
+	}))
+
+	period := testpkg.CreateTestCalendarPeriod(
+		t, env.db, "Manual planning preview "+t.Name(), env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate,
+	)
+	room := testpkg.CreateTestRoom(t, env.db, "Manual planning preview")
+	dateFor := func(weekday time.Weekday) timezone.Date {
+		date := fx.switchDate
+		for date.Weekday() != weekday {
+			date = date.AddDays(1)
+		}
+		return date
+	}
+	_, err = env.db.NewRaw(`
+		UPDATE enrollment.request_child_offerings
+		SET valid_until = ?
+		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?
+	`, dateFor(time.Thursday), testpkg.Tenant(t), fx.childID, fx.oldOffering.ID).Exec(ctx)
+	require.NoError(t, err)
+	materialized := planningOccurrenceOpts{materialized: true}
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Monday), "Montags gedeckt", materialized)
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday), "Dienstags ohne Buchung", materialized)
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday).AddDays(7), "Dienstags erneut", materialized)
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Wednesday), "Mittwochs ohne Buchung", materialized)
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		fx.switchDate.AddDays(-1), "Vor dem Wechsel", materialized)
+	createPlanningOccurrence(t, env, sourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday), "Wird automatisch abgeglichen", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Monday), "Von alter Buchung gedeckt", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday), "Alte Angebots-Verknüpfung", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Wednesday), "Abgelaufene Angebots-Verknüpfung", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Thursday), "Nicht zählendes Angebot", materialized)
+	createPlanningOccurrence(t, env, parentChoiceGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday), "Leere Tagesauswahl", materialized)
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Friday), "Nicht gebucht", planningOccurrenceOpts{materialized: true, notScheduled: true})
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Thursday), "Spontan", planningOccurrenceOpts{materialized: true, spontaneous: true})
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Thursday).AddDays(7), "Nicht materialisiert", planningOccurrenceOpts{})
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Thursday).AddDays(14), "Abgesagt", planningOccurrenceOpts{
+			materialized: true,
+			status:       scheduleModels.InstanceStatusCancelled,
+		})
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Thursday).AddDays(21), "Ungeplant", planningOccurrenceOpts{materialized: true, unplanned: true})
+
+	preview, err := svc.PreviewDecision(ctx, row.ID, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, preview.ManualPlanningConflicts, 3)
+	conflictsByGroupID := make(map[int64]enrollmentService.ManualPlanningConflict, len(preview.ManualPlanningConflicts))
+	for _, item := range preview.ManualPlanningConflicts {
+		conflictsByGroupID[item.ActivityGroupID] = item
+	}
+	conflict := conflictsByGroupID[manualGroup.ID]
+	assert.Equal(t, manualGroup.ID, conflict.ActivityGroupID)
+	assert.Equal(t, manualGroup.Name, conflict.ActivityGroupName)
+	assert.Equal(t, []string{"tue", "wed"}, conflict.Days)
+	assert.Equal(t, dateFor(time.Tuesday), conflict.FirstDate)
+	assert.Equal(t, 3, conflict.OccurrenceCount)
+	legacyConflict := conflictsByGroupID[legacySourcedGroup.ID]
+	assert.Equal(t, legacySourcedGroup.ID, legacyConflict.ActivityGroupID)
+	assert.Equal(t, []string{"tue", "wed", "thu"}, legacyConflict.Days)
+	assert.Equal(t, dateFor(time.Tuesday), legacyConflict.FirstDate)
+	assert.Equal(t, 3, legacyConflict.OccurrenceCount)
+	parentChoiceConflict := conflictsByGroupID[parentChoiceGroup.ID]
+	assert.Equal(t, parentChoiceGroup.ID, parentChoiceConflict.ActivityGroupID)
+	assert.Equal(t, []string{"tue"}, parentChoiceConflict.Days)
+	assert.Equal(t, dateFor(time.Tuesday), parentChoiceConflict.FirstDate)
+	assert.Equal(t, 1, parentChoiceConflict.OccurrenceCount)
+	assert.True(t, preview.ArrivalExpectationsFollowBookings)
+	laterEffectiveFrom := dateFor(time.Thursday).AddDays(22)
+	laterPreview, err := svc.PreviewDecision(ctx, row.ID, nil, &laterEffectiveFrom)
+	require.NoError(t, err)
+	assert.Empty(t, laterPreview.ManualPlanningConflicts,
+		"the chosen effective date must bound the planning consequences")
+	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = false
+	preview, err = svc.PreviewDecision(ctx, row.ID, nil, nil)
+	require.NoError(t, err)
+	assert.False(t, preview.ArrivalExpectationsFollowBookings)
+
+	otherTenantCtx := tenant.WithTenantID(context.Background(), testpkg.Tenant(t)+1)
+	foreignRows, err := env.repos.OfferingChangeImpact.ListManualPlanningOccurrences(
+		otherTenantCtx, fx.studentID, fx.switchDate, env.sourcePhase.ServiceEndDate,
+	)
+	require.NoError(t, err)
+	assert.Empty(t, foreignRows, "the projection must not leak planning rows across tenants")
+}
+
+func TestOfferingChangeRequestService_PreviewDecision_ReportsManualPlanningForFullWithdrawal(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = false
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "PreviewFullWithdrawal")
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+	})
+	require.NoError(t, err)
+
+	manualGroup := testpkg.CreateTestActivityGroup(t, env.db, "ManualFullWithdrawal")
+	manualGroup.Type, manualGroup.IsTemplate = activitiesModels.GroupTypeCare, true
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, manualGroup))
+	period := testpkg.CreateTestCalendarPeriod(
+		t, env.db, "Manual full withdrawal "+t.Name(), env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate,
+	)
+	room := testpkg.CreateTestRoom(t, env.db, "Manual full withdrawal")
+	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
+		fx.switchDate, "Bleibt manuell geplant", planningOccurrenceOpts{materialized: true})
+
+	preview, err := svc.PreviewDecision(ctx, row.ID, nil, nil)
+	require.NoError(t, err)
+	require.Len(t, preview.ManualPlanningConflicts, 1)
+	assert.Equal(t, manualGroup.ID, preview.ManualPlanningConflicts[0].ActivityGroupID)
+	assert.Equal(t, 1, preview.ManualPlanningConflicts[0].OccurrenceCount)
 }
 
 // The confirmed date is checked against the same capacity the parents' date

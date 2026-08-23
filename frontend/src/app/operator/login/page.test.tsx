@@ -202,7 +202,7 @@ describe("OperatorLoginPage", () => {
     });
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/operator/suggestions");
+      expect(mockPush).toHaveBeenCalledWith("/operator/organizations");
     });
   });
 
@@ -214,7 +214,7 @@ describe("OperatorLoginPage", () => {
 
     render(<OperatorLoginPage />);
 
-    expect(mockRedirect).toHaveBeenCalledWith("/operator/suggestions");
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/organizations");
   });
 
   it("clears an errored operator session before redirecting", async () => {

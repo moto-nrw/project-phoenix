@@ -116,11 +116,11 @@ const guardianPickupDay: PickupDayData = {
 };
 
 const weeklyArrival = [
-  { weekday: 1, expected_arrival: "08:00", notes: null },
-  { weekday: 2, expected_arrival: "08:00", notes: null },
-  { weekday: 3, expected_arrival: "08:00", notes: null },
-  { weekday: 4, expected_arrival: "", notes: null },
-  { weekday: 5, expected_arrival: "", notes: null },
+  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: null },
+  { weekday: 2, inCare: true, expected_arrival: "08:00", notes: null },
+  { weekday: 3, inCare: true, expected_arrival: "08:00", notes: null },
+  { weekday: 4, inCare: true, expected_arrival: "", notes: null },
+  { weekday: 5, inCare: true, expected_arrival: "", notes: null },
 ];
 
 const weeklyPickup = [

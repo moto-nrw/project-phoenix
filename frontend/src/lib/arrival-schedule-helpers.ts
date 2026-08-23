@@ -24,6 +24,22 @@ export function formatArrivalTime(time: string): string {
   return time;
 }
 
+export function stripClassPrefix(schoolClass: string): string {
+  return schoolClass.replace(/^klasse\s+/i, "");
+}
+
+export function arrivalScheduleSourceLabel(
+  schedule: Pick<ArrivalSchedule, "source" | "source_class"> | null | undefined,
+): string | null {
+  if (schedule?.source === "class_schedule") {
+    return schedule.source_class
+      ? `aus Klasse ${stripClassPrefix(schedule.source_class)}`
+      : "Klassenzeit";
+  }
+  if (schedule?.source === "staff") return "eigene Zeit";
+  return null;
+}
+
 function getWeekStart(weekOffset = 0): Date {
   const today = new Date();
   const dayOfWeek = today.getDay();
@@ -69,18 +85,33 @@ export { formatDateISO };
 
 export interface ArrivalScheduleFormEntry {
   weekday: number;
+  /** The child is in care on this weekday. */
+  inCare: boolean;
+  /** The child's own time. Empty means the class time applies. */
   expected_arrival: string;
+  /** The class time that applies when the child has none. Read-only. */
+  classTime?: string;
   notes?: string | null;
 }
 
+/**
+ * Splits what the API returns into what the form edits: whether the child is
+ * in care that weekday, its own time if it deviates, and the class time it
+ * would otherwise inherit (#2414). An inherited time must never come back as
+ * the child's own on save.
+ */
 export function mergeSchedulesWithTemplate(
   existing: ArrivalSchedule[],
 ): ArrivalScheduleFormEntry[] {
   return WEEKDAYS.map((w) => {
     const match = existing.find((s) => s.weekday === w.value);
+    const inherited = match?.source === "class_schedule";
+    const time = match ? formatArrivalTime(match.expected_arrival) : "";
     return {
       weekday: w.value,
-      expected_arrival: match ? formatArrivalTime(match.expected_arrival) : "",
+      inCare: Boolean(match),
+      expected_arrival: inherited ? "" : time,
+      classTime: inherited ? time : "",
       notes: match?.notes ?? null,
     };
   });
@@ -169,7 +200,10 @@ export function getDayData(
       isAbsent = true;
     }
   } else if (baseSchedule) {
-    effectiveTime = formatArrivalTime(baseSchedule.expected_arrival);
+    // A care day whose class carries no time yet has no arrival time. It must
+    // stay a care day, so isAbsent is deliberately not set (#2414).
+    effectiveTime =
+      formatArrivalTime(baseSchedule.expected_arrival) || undefined;
   }
 
   const dayNotes = notes.filter((n) => n.note_date === dateStr);

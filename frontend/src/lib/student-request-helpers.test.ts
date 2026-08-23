@@ -303,8 +303,8 @@ describe("buildBackendStudentRequest", () => {
       schoolClass: "1a",
     };
     const arrival_schedules = [
-      { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
-      { weekday: 3, expected_arrival: "08:00", notes: null },
+      { weekday: 1, inCare: true, expected_arrival: "07:30", notes: "Bus" },
+      { weekday: 3, inCare: true, expected_arrival: "08:00", notes: null },
     ];
     const pickup_schedules = [
       { weekday: 1, pickup_time: "15:00", notes: undefined },

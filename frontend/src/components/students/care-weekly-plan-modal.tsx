@@ -2,8 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, Loader2, StickyNote } from "lucide-react";
+import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
+import type { CareDaysSource } from "~/lib/student-arrival-api";
 import {
   type ArrivalScheduleFormEntry,
   WEEKDAYS,
@@ -16,6 +18,7 @@ import type {
 interface CareWeeklyPlanModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
+  readonly careDaysSource: CareDaysSource;
   readonly initialArrivalSchedules: ArrivalScheduleFormEntry[];
   readonly initialPickupSchedules: PickupScheduleFormData[];
   readonly onSubmit: (data: {
@@ -30,6 +33,7 @@ interface CareWeeklyPlanModalProps {
 
 interface CareWeeklyPlanRow {
   readonly weekday: number;
+  readonly arrivalInCare: boolean;
   readonly arrivalTime: string;
   readonly arrivalNotes?: string | null;
   readonly pickupTime: string;
@@ -41,6 +45,7 @@ const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
 export function CareWeeklyPlanModal({
   isOpen,
   onClose,
+  careDaysSource,
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
@@ -66,6 +71,7 @@ export function CareWeeklyPlanModal({
         );
         return {
           weekday: day.value,
+          arrivalInCare: arrival?.inCare ?? false,
           arrivalTime: arrival?.expected_arrival ?? "",
           arrivalNotes: arrival?.notes ?? null,
           pickupTime: pickup?.pickupTime ?? "",
@@ -97,6 +103,21 @@ export function CareWeeklyPlanModal({
     setRows((currentRows) =>
       currentRows.map((row) =>
         row.weekday === weekday ? { ...row, [field]: value } : row,
+      ),
+    );
+  };
+
+  const updateCareDay = (weekday: number, inCare: boolean) => {
+    setRows((currentRows) =>
+      currentRows.map((row) =>
+        row.weekday === weekday
+          ? {
+              ...row,
+              arrivalInCare: inCare,
+              arrivalTime: inCare ? row.arrivalTime : "",
+              arrivalNotes: inCare ? row.arrivalNotes : null,
+            }
+          : row,
       ),
     );
   };
@@ -144,9 +165,10 @@ export function CareWeeklyPlanModal({
     }
 
     const arrivalSchedules = rows
-      .filter((row) => row.arrivalTime.trim() !== "")
+      .filter((row) => row.arrivalInCare)
       .map((row) => ({
         weekday: row.weekday,
+        inCare: true,
         expected_arrival: row.arrivalTime,
         notes: row.arrivalNotes ?? null,
       }));
@@ -215,9 +237,23 @@ export function CareWeeklyPlanModal({
           </div>
         ) : null}
 
+        <p className="mb-4 text-sm leading-6 text-gray-600">
+          {careDaysSource === "bookings" ? (
+            <>
+              Die Betreuungstage kommen aus den Buchungen. Abholzeiten können
+              Sie nur an gebuchten Tagen eintragen.
+            </>
+          ) : (
+            <>
+              Wählen Sie die Betreuungstage. Ohne eigene Zeit gilt die
+              Klassenzeit.
+            </>
+          )}
+        </p>
+
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
           <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
-            <span>Tag</span>
+            <span>Betreuungstag</span>
             <span>Ankunft</span>
             <span>Abholung</span>
           </div>
@@ -230,8 +266,21 @@ export function CareWeeklyPlanModal({
                   className="grid gap-3 px-3 py-4 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] sm:items-center sm:px-4"
                 >
                   <div>
-                    <div className="text-sm font-semibold text-gray-900">
-                      {day.label}
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`weekly-care-${day.value}`}
+                        checked={row?.arrivalInCare ?? false}
+                        disabled={careDaysSource === "bookings"}
+                        onChange={(event) =>
+                          updateCareDay(day.value, event.target.checked)
+                        }
+                      />
+                      <label
+                        htmlFor={`weekly-care-${day.value}`}
+                        className="text-sm font-semibold text-gray-900"
+                      >
+                        {day.label}
+                      </label>
                     </div>
                     <button
                       type="button"
@@ -252,6 +301,7 @@ export function CareWeeklyPlanModal({
                     id={`weekly-arrival-${day.value}`}
                     label="Ankunft"
                     value={row?.arrivalTime ?? ""}
+                    disabled={!row?.arrivalInCare}
                     onChange={(value) =>
                       updateRow(day.value, "arrivalTime", value)
                     }
@@ -260,6 +310,9 @@ export function CareWeeklyPlanModal({
                     id={`weekly-pickup-${day.value}`}
                     label="Abholung"
                     value={row?.pickupTime ?? ""}
+                    disabled={
+                      careDaysSource === "bookings" && !row?.arrivalInCare
+                    }
                     onChange={(value) =>
                       updateRow(day.value, "pickupTime", value)
                     }
@@ -271,6 +324,7 @@ export function CareWeeklyPlanModal({
                         id={`weekly-arrival-notes-${day.value}`}
                         label="Ankunftsnotiz"
                         value={row?.arrivalNotes ?? ""}
+                        disabled={!row?.arrivalInCare}
                         onChange={(value) =>
                           updateNote(day.value, "arrivalNotes", value)
                         }
@@ -279,6 +333,9 @@ export function CareWeeklyPlanModal({
                         id={`weekly-pickup-notes-${day.value}`}
                         label="Abholnotiz"
                         value={row?.pickupNotes ?? ""}
+                        disabled={
+                          careDaysSource === "bookings" && !row?.arrivalInCare
+                        }
                         onChange={(value) =>
                           updateNote(day.value, "pickupNotes", value)
                         }
@@ -299,11 +356,13 @@ function NoteField({
   id,
   label,
   value,
+  disabled,
   onChange,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
   return (
@@ -315,9 +374,10 @@ function NoteField({
         id={id}
         type="text"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         maxLength={500}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
         placeholder="Optional"
       />
     </label>
@@ -328,11 +388,13 @@ function TimeField({
   id,
   label,
   value,
+  disabled,
   onChange,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
+  readonly disabled: boolean;
   readonly onChange: (value: string) => void;
 }) {
   return (
@@ -344,8 +406,9 @@ function TimeField({
         id={id}
         type="time"
         value={value}
+        disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
+        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
       />
     </label>
   );

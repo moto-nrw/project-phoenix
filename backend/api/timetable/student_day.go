@@ -315,7 +315,7 @@ func resolveArrivalSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date tim
 	exc, hasExc := pre.ArrivalExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
-	sched, hasSched := pre.ArrivalSchedByWeekly[wd]
+	sched, hasSched := pre.ArrivalSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
 	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {

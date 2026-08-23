@@ -414,8 +414,8 @@ func TestOfferingChangeRequestService_PreviewDecision_RecomputesPartialExclusion
 
 	preview, err := svc.PreviewDecision(ctx, row.ID, []int64{mixed.ID}, nil)
 	require.NoError(t, err)
-	byID := make(map[int64][]string, len(preview))
-	for _, selection := range preview {
+	byID := make(map[int64][]string, len(preview.Selections))
+	for _, selection := range preview.Selections {
 		byID[selection.OfferingID] = selection.Days
 	}
 	assert.Equal(t, []string{"mon", "wed"}, byID[mixed.ID])

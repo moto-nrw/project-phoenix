@@ -79,7 +79,6 @@ const mainRoutes: Record<string, string> = {
   // wörtlich mit dem Seitentitel übereinstimmen, sonst blitzt beim Laden
   // kurz ein anderes Wort auf. `operator_page_titles` in
   // navigation-sync.test.ts hält beide Seiten zusammen.
-  "/operator/suggestions": "Feedback",
   "/operator/announcements": "Ankündigungen",
   "/operator/organizations": "Träger",
   "/operator/schools": "Schulen",
@@ -93,7 +92,6 @@ const mainRoutes: Record<string, string> = {
   "/parents/messages": "Nachrichten",
   "/parents/news": "Neuigkeiten",
   "/parents/meal-plan": "Essensplan",
-  "/parents/feedback": "Feedback",
 };
 
 const subPageLabels: Record<string, string> = {

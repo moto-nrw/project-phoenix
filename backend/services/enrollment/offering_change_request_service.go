@@ -253,6 +253,23 @@ type OfferingChangePreviewSelection struct {
 	Days       []string
 }
 
+// ManualPlanningConflict groups future occurrences from one recurring roster
+// that the proposed care bookings no longer cover.
+type ManualPlanningConflict struct {
+	ActivityGroupID   int64
+	ActivityGroupName string
+	Days              []string
+	FirstDate         timezone.Date
+	OccurrenceCount   int
+}
+
+// OfferingChangePreview is the complete, non-writing approval projection.
+type OfferingChangePreview struct {
+	Selections                        []OfferingChangePreviewSelection
+	ManualPlanningConflicts           []ManualPlanningConflict
+	ArrivalExpectationsFollowBookings bool
+}
+
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
 // reported. Same window the excused-absence requests use for the same purpose:
 // long enough that a guardian sees the outcome on their next visit, short
@@ -328,7 +345,7 @@ type OfferingChangeRequestService interface {
 		requestID int64,
 		excludedIDs []int64,
 		effectiveFrom *timezone.Date,
-	) ([]OfferingChangePreviewSelection, error)
+	) (*OfferingChangePreview, error)
 
 	// Decide approves (and applies) or rejects a pending request.
 	Decide(ctx context.Context, input DecideOfferingChangeInput) error
@@ -345,6 +362,7 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
 	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	ImpactRepo               enrollmentModels.OfferingChangeImpactRepository
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
@@ -1503,7 +1521,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	requestID int64,
 	excludedIDs []int64,
 	effectiveFrom *timezone.Date,
-) ([]OfferingChangePreviewSelection, error) {
+) (*OfferingChangePreview, error) {
 	if requestID <= 0 {
 		return nil, fmt.Errorf("%w: request is required", ErrOfferingChangeInvalid)
 	}
@@ -1553,7 +1571,128 @@ func (s *offeringChangeRequestService) PreviewDecision(
 			Days:       append([]string(nil), selection.SelectedDays...),
 		})
 	}
-	return preview, nil
+	conflicts, err := s.manualPlanningConflicts(ctx, row.StudentID, diff)
+	if err != nil {
+		return nil, err
+	}
+	if s.Settings == nil {
+		return nil, fmt.Errorf("offering change: settings are required for preview")
+	}
+	arrivalExpectationsFollowBookings, err := s.Settings.ResolveBool(
+		ctx, configModel.KeyEnrollmentBookingsAuthoritative,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: resolve booking authority for preview: %w", err)
+	}
+	return &OfferingChangePreview{
+		Selections:                        preview,
+		ManualPlanningConflicts:           conflicts,
+		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,
+	}, nil
+}
+
+func (s *offeringChangeRequestService) manualPlanningConflicts(
+	ctx context.Context,
+	studentID int64,
+	diff *offeringDecisionDiff,
+) ([]ManualPlanningConflict, error) {
+	if s.ImpactRepo == nil {
+		return nil, fmt.Errorf("offering change: impact repository is required for preview")
+	}
+	occurrences, err := s.ImpactRepo.ListManualPlanningOccurrences(
+		ctx, studentID, diff.effectiveFrom, diff.phase.ServiceEndDate,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list manual planning conflicts: %w", err)
+	}
+	return aggregateManualPlanningConflicts(occurrences, diff), nil
+}
+
+func proposedCareCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
+	for _, selection := range diff.selected {
+		if proposedSelectionCoversOccurrence(diff, selection, occurrence) {
+			return true
+		}
+	}
+	return false
+}
+
+func proposedSelectionCoversOccurrence(
+	diff *offeringDecisionDiff,
+	selection materializedOfferingSelection,
+	occurrence enrollmentModels.ManualPlanningOccurrence,
+) bool {
+	if diff == nil || diff.phase == nil || occurrence.Date.Before(diff.effectiveFrom) || occurrence.Date.After(diff.phase.ServiceEndDate) {
+		return false
+	}
+	offering := diff.offeringByID[selection.OfferingID]
+	if offering == nil || !offering.CountsAsCare {
+		return false
+	}
+	days := selection.SelectedDays
+	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+		days = offering.AvailableDays
+	}
+	return slices.Contains(days, canonicalDayForWeekday(occurrence.Date.Weekday()))
+}
+
+func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
+	if diff == nil {
+		return false
+	}
+	for _, selection := range diff.selected {
+		offering := diff.offeringByID[selection.OfferingID]
+		if offering == nil || offering.ActivityGroupID == nil || *offering.ActivityGroupID != occurrence.ActivityGroupID {
+			continue
+		}
+		if proposedSelectionCoversOccurrence(diff, selection, occurrence) {
+			return true
+		}
+	}
+	return false
+}
+
+func aggregateManualPlanningConflicts(
+	occurrences []enrollmentModels.ManualPlanningOccurrence,
+	diff *offeringDecisionDiff,
+) []ManualPlanningConflict {
+	conflicts := make([]ManualPlanningConflict, 0)
+	groupIndexes := make(map[int64]int)
+	seenDays := make(map[int64]map[string]bool)
+	for _, occurrence := range occurrences {
+		day := canonicalDayForWeekday(occurrence.Date.Weekday())
+		if proposedLegacyPlanningCoversOccurrence(diff, occurrence) || proposedCareCoversOccurrence(diff, occurrence) {
+			continue
+		}
+		groupIndex, exists := groupIndexes[occurrence.ActivityGroupID]
+		if !exists {
+			conflicts = append(conflicts, ManualPlanningConflict{
+				ActivityGroupID:   occurrence.ActivityGroupID,
+				ActivityGroupName: occurrence.ActivityGroupName,
+				FirstDate:         occurrence.Date,
+			})
+			groupIndex = len(conflicts) - 1
+			groupIndexes[occurrence.ActivityGroupID] = groupIndex
+			seenDays[occurrence.ActivityGroupID] = make(map[string]bool)
+		}
+		conflict := &conflicts[groupIndex]
+		conflict.OccurrenceCount++
+		if occurrence.Date.Before(conflict.FirstDate) {
+			conflict.FirstDate = occurrence.Date
+		}
+		if !seenDays[occurrence.ActivityGroupID][day] {
+			seenDays[occurrence.ActivityGroupID][day] = true
+			conflict.Days = append(conflict.Days, day)
+		}
+	}
+	for i := range conflicts {
+		conflicts[i].Days = canonicalDays(conflicts[i].Days)
+	}
+	return conflicts
+}
+
+func canonicalDayForWeekday(weekday time.Weekday) string {
+	return [...]string{"sun", "mon", "tue", "wed", "thu", "fri", "sat"}[weekday]
 }
 
 func (s *offeringChangeRequestService) rejectionDecisionDiff(
@@ -2163,11 +2302,12 @@ func (s *offeringChangeRequestService) diffForRequest(
 // offeringDecisionDiff is a request's review diff plus the override bookkeeping
 // a staff approval with exclusions needs.
 type offeringDecisionDiff struct {
-	entries    []OfferingChangeDiffEntry
-	overridden []enrollmentModels.OfferingChangeSnapshotOffering
-	current    []*enrollmentModels.RequestChildOffering
-	base       []materializedOfferingSelection
-	selected   []materializedOfferingSelection
+	entries      []OfferingChangeDiffEntry
+	overridden   []enrollmentModels.OfferingChangeSnapshotOffering
+	current      []*enrollmentModels.RequestChildOffering
+	base         []materializedOfferingSelection
+	selected     []materializedOfferingSelection
+	offeringByID map[int64]*enrollmentModels.CareOffering
 	// phase, requested and effectiveFrom are the context the materialization
 	// ran against, so a caller can re-check applicability without resolving the
 	// same aggregate twice.
@@ -2346,7 +2486,7 @@ func materializedDecisionDiffFromSides(
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 	return &offeringDecisionDiff{
 		entries: entries, overridden: overridden, current: current, base: base,
-		selected: materialized,
+		selected: materialized, offeringByID: offeringByID,
 	}
 }
 

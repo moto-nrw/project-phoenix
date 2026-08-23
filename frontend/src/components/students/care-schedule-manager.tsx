@@ -26,9 +26,11 @@ import {
   deleteArrivalException,
   deleteArrivalNote,
   fetchArrivalData,
+  fetchArrivalSettings,
   updateArrivalException,
   updateArrivalNote,
   updateArrivalSchedules,
+  type CareDaysSource,
 } from "~/lib/student-arrival-api";
 import {
   type ArrivalDayData,
@@ -38,6 +40,7 @@ import {
   getDayData as getArrivalDayData,
   getWeekDays,
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
+  arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
 import {
   createStudentPickupException,
@@ -192,6 +195,9 @@ export function CareScheduleManager({
     notes: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [careDaysSource, setCareDaysSource] = useState<CareDaysSource | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
   const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
@@ -340,12 +346,17 @@ export function CareScheduleManager({
       const firstDay = weekDays[0];
       const lastDay = weekDays[weekDays.length - 1];
       if (!firstDay || !lastDay) throw new Error("Ungültige Wochenansicht");
-      const [arrival, pickup] = await Promise.all([
-        fetchArrivalData(studentId),
+      const [arrival, pickup, settings] = await Promise.all([
+        fetchArrivalData(
+          studentId,
+          formatDateISO(firstDay),
+          formatDateISO(lastDay),
+        ),
         fetchStudentPickupData(studentId, {
           from: formatDateISO(firstDay),
           to: formatDateISO(lastDay),
         }),
+        fetchArrivalSettings(),
       ]);
       // Older than what is on screen — drop it rather than clobber newer state.
       // A result is never dropped merely because a newer fetch is still running:
@@ -355,6 +366,7 @@ export function CareScheduleManager({
       renderedCareDataRequestId.current = requestId;
       setArrivalData(arrival);
       setPickupData(pickup);
+      setCareDaysSource(settings.care_days_source);
       // A newer read succeeded, so any banner or spinner an older attempt is
       // still going to leave behind is already obsolete. Clearing here (rather
       // than only in loadCareData) is what lets the failure path below bail out
@@ -848,26 +860,31 @@ export function CareScheduleManager({
         </div>
       </div>
 
-      <CarePlanEditorModal
-        isOpen={editorTarget !== null}
-        onClose={() => setEditorTarget(null)}
-        date={editingDayDate}
-        arrivalDay={currentEditingArrivalDay}
-        pickupDay={currentEditingPickupDay}
-        weeklyArrival={mergeArrivalSchedulesWithTemplate(arrivalData.schedules)}
-        weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
-        onSubmitException={handleSubmitException}
-        onSubmitWeekly={handleUpdateWeeklyPlan}
-        onCreateArrivalNote={handleCreateArrivalNote}
-        onUpdateArrivalNote={handleUpdateArrivalNote}
-        onDeleteArrivalNote={handleDeleteArrivalNote}
-        onCreatePickupNote={handleCreatePickupNote}
-        onUpdatePickupNote={handleUpdatePickupNote}
-        onDeletePickupNote={handleDeletePickupNote}
-        onResetPickupToOffering={
-          readOnly ? undefined : handleResetPickupToOffering
-        }
-      />
+      {careDaysSource ? (
+        <CarePlanEditorModal
+          isOpen={editorTarget !== null}
+          careDaysSource={careDaysSource}
+          onClose={() => setEditorTarget(null)}
+          date={editingDayDate}
+          arrivalDay={currentEditingArrivalDay}
+          pickupDay={currentEditingPickupDay}
+          weeklyArrival={mergeArrivalSchedulesWithTemplate(
+            arrivalData.schedules,
+          )}
+          weeklyPickup={mergePickupSchedulesWithTemplate(pickupData.schedules)}
+          onSubmitException={handleSubmitException}
+          onSubmitWeekly={handleUpdateWeeklyPlan}
+          onCreateArrivalNote={handleCreateArrivalNote}
+          onUpdateArrivalNote={handleUpdateArrivalNote}
+          onDeleteArrivalNote={handleDeleteArrivalNote}
+          onCreatePickupNote={handleCreatePickupNote}
+          onUpdatePickupNote={handleUpdatePickupNote}
+          onDeletePickupNote={handleDeletePickupNote}
+          onResetPickupToOffering={
+            readOnly ? undefined : handleResetPickupToOffering
+          }
+        />
+      ) : null}
       <ConfirmationModal
         isOpen={statusDayToDelete !== null}
         onClose={() => setStatusDayToDelete(null)}
@@ -1382,7 +1399,7 @@ function getPickupValue(day: PickupDayData): string {
 
 function getArrivalMarker(day: ArrivalDayData): string | null {
   if (day.isException) return "Ausnahme";
-  return null;
+  return arrivalScheduleSourceLabel(day.baseSchedule);
 }
 
 function getPickupMarker(day: PickupDayData): string | null {

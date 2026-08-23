@@ -6,12 +6,14 @@ import { WEEKDAYS } from "~/lib/arrival-schedule-helpers";
 
 const emptySchedules: ArrivalScheduleFormEntry[] = WEEKDAYS.map((day) => ({
   weekday: day.value,
+  inCare: true,
   expected_arrival: "",
   notes: null,
 }));
 
 const filledSchedules: ArrivalScheduleFormEntry[] = WEEKDAYS.map((day) => ({
   weekday: day.value,
+  inCare: true,
   expected_arrival: day.value === 5 ? "" : "08:00",
   notes: day.value === 1 ? "Kommt mit dem Bus" : null,
 }));
@@ -24,6 +26,7 @@ const meta = {
   },
   args: {
     isOpen: true,
+    careDaysSource: "weekly_plan",
     onClose: fn(),
     onSubmit: fn(async () => {}),
     initialSchedules: emptySchedules,

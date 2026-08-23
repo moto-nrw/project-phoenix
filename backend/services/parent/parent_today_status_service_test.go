@@ -309,6 +309,24 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 	assert.Equal(t, "08:00", status.ExpectedFrom, "die erwartete Ankunft kommt aus dem Wochenplan")
 }
 
+func TestGetChildTodayStatusCareDayWithoutArrivalTime(t *testing.T) {
+	t.Parallel()
+
+	svc, db := buildTodayStatusServiceWithSchedule(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, time.Time{})
+	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, timezone.TodayDate().AddDays(-3))
+
+	status, err := svc.GetChildTodayStatus(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	if !seeded {
+		assert.Equal(t, parentService.DayStateNoCare, status.State)
+		return
+	}
+	assert.Equal(t, parentService.DayStateUnknown, status.State)
+	assert.Empty(t, status.ExpectedFrom, "a missing class time must not appear as 00:00")
+}
+
 // TestGetChildTodayStatusPresentOnCareDay: sobald das Kind da ist, zaehlt die
 // Anwesenheit und nicht mehr der Plan. Die erwartete Ankunft verschwindet dann
 // aus der Antwort, sie wuerde neben "ist da seit ..." nur verwirren.

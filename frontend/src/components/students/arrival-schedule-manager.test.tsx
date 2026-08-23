@@ -8,9 +8,11 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { toISODate } from "~/lib/date-helpers";
+import { formatDateISO, getWeekDays } from "~/lib/arrival-schedule-helpers";
 
 const {
   mockFetch,
+  mockFetchSettings,
   mockUpdateSchedules,
   mockCreateException,
   mockUpdateException,
@@ -20,6 +22,7 @@ const {
   mockDeleteNote,
 } = vi.hoisted(() => ({
   mockFetch: vi.fn(),
+  mockFetchSettings: vi.fn(),
   mockUpdateSchedules: vi.fn(),
   mockCreateException: vi.fn(),
   mockUpdateException: vi.fn(),
@@ -36,6 +39,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
   return {
     ...actual,
     fetchArrivalData: mockFetch,
+    fetchArrivalSettings: mockFetchSettings,
     updateArrivalSchedules: mockUpdateSchedules,
     createArrivalException: mockCreateException,
     updateArrivalException: mockUpdateException,
@@ -49,6 +53,7 @@ vi.mock("~/lib/student-arrival-api", async () => {
 vi.mock("./arrival-schedule-form-modal", () => ({
   ArrivalScheduleFormModal: (props: {
     isOpen: boolean;
+    careDaysSource: string;
     onClose: () => void;
     onSubmit: (
       schedules: {
@@ -60,6 +65,7 @@ vi.mock("./arrival-schedule-form-modal", () => ({
   }) =>
     props.isOpen ? (
       <div data-testid="schedule-form-modal">
+        <span data-testid="care-days-source">{props.careDaysSource}</span>
         <button
           type="button"
           data-testid="schedule-submit"
@@ -157,6 +163,7 @@ describe("ArrivalScheduleManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockResolvedValue(emptyData);
+    mockFetchSettings.mockResolvedValue({ care_days_source: "weekly_plan" });
   });
 
   it("shows loader while loading initial data", () => {
@@ -202,6 +209,41 @@ describe("ArrivalScheduleManager", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
     expect(screen.getByTestId("schedule-form-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "weekly_plan",
+    );
+  });
+
+  it("passes booking care days to the schedule form", async () => {
+    mockFetchSettings.mockResolvedValueOnce({ care_days_source: "bookings" });
+    render(<ArrivalScheduleManager studentId="1" />);
+    await waitFor(() => expect(mockFetchSettings).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "bookings",
+    );
+  });
+
+  it("shows the arrival source on mobile and desktop", async () => {
+    mockFetch.mockResolvedValue({
+      schedules: [
+        {
+          id: 1,
+          weekday: 1,
+          expected_arrival: "08:00",
+          source: "class_schedule",
+          source_class: "Klasse 1b",
+        },
+      ],
+      exceptions: [],
+      notes: [],
+    });
+
+    render(<ArrivalScheduleManager studentId="1" />);
+    await screen.findByText(/Ankunftsplan & Notizen/);
+
+    expect(screen.getAllByText("aus Klasse 1b")).toHaveLength(2);
   });
 
   it("submits schedules and reloads", async () => {
@@ -220,7 +262,7 @@ describe("ArrivalScheduleManager", () => {
     expect(onUpdate).toHaveBeenCalled();
   });
 
-  it("week navigation advances week offset", async () => {
+  it("loads the selected week after week navigation", async () => {
     render(<ArrivalScheduleManager studentId="1" />);
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
 
@@ -229,6 +271,14 @@ describe("ArrivalScheduleManager", () => {
     const nextButtons = screen.getAllByTitle("Nächste Woche");
 
     fireEvent.click(prevButtons[0]!);
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        "1",
+        formatDateISO(getWeekDays(-1)[0]!),
+        formatDateISO(getWeekDays(-1)[4]!),
+      ),
+    );
     fireEvent.click(nextButtons[0]!);
 
     expect(prevButtons).toHaveLength(2);

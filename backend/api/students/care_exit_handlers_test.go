@@ -239,7 +239,17 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	})
 
 	t.Run("a future planning day hides a child after its last care day", func(t *testing.T) {
-		rows := listed(fmt.Sprintf("?page_size=500&date=%s", today.AddDays(1)))
+		// Day planning stops at the Sunday closing the current week (#1939) —
+		// past it the timetable signal has no materialized rows. On a Sunday
+		// there is therefore no future planning day to ask for, and the
+		// today-scoped subtests above already carry the boundary.
+		horizon := today.AddDays((7 - int(today.Weekday())) % 7)
+		planningDay := today.AddDays(1)
+		if planningDay.After(horizon) {
+			t.Skip("today closes the planning horizon; no future planning day to ask for")
+		}
+		rows := listed(fmt.Sprintf("?page_size=500&date=%s", planningDay))
+		assert.Contains(t, rows, running.ID, "a child still in care stays listed on the planning day")
 		assert.NotContains(t, rows, endsToday.ID)
 	})
 

@@ -475,9 +475,6 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 	date timezone.Date,
 	rows []*schedule.StudentPickupSchedule,
 ) ([]*schedule.StudentPickupSchedule, error) {
-	if len(rows) == 0 {
-		return nil, nil
-	}
 	existing, err := s.scheduleRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "prepare pickup schedule replacement", Err: err}
@@ -495,12 +492,44 @@ func (s *pickupScheduleService) manualRowsForReplacement(
 		}
 		row.Source = schedule.PickupScheduleSourceStaff
 		row.CareOfferingID = nil
+		row.PickupTime = timezone.WallClock(row.PickupTime)
 		rowDate := weekStart.AddDays(row.Weekday - schedule.WeekdayMonday)
+		if !projection.AllowsPickupForDate(studentID, rowDate) {
+			continue
+		}
 		if shouldStoreManualPickup(row, staffByWeekday[row.Weekday], projection.OfferingForDate(studentID, rowDate)) {
 			manual = append(manual, row)
 		}
 	}
-	return manual, nil
+	return preserveInactivePickupRows(studentID, weekStart, manual, staffByWeekday, projection), nil
+}
+
+func preserveInactivePickupRows(
+	studentID int64,
+	weekStart timezone.Date,
+	manual []*schedule.StudentPickupSchedule,
+	staffByWeekday map[int]*schedule.StudentPickupSchedule,
+	projection *PickupBaselineProjection,
+) []*schedule.StudentPickupSchedule {
+	for weekday, row := range staffByWeekday {
+		rowDate := weekStart.AddDays(weekday - schedule.WeekdayMonday)
+		if !projection.AllowsPickupForDate(studentID, rowDate) && !containsPickupWeekday(manual, weekday) {
+			manual = append(manual, pickupRowForRewrite(row))
+		}
+	}
+	return manual
+}
+
+func pickupRowForRewrite(row *schedule.StudentPickupSchedule) *schedule.StudentPickupSchedule {
+	return &schedule.StudentPickupSchedule{
+		StudentID:      row.StudentID,
+		Weekday:        row.Weekday,
+		PickupTime:     timezone.WallClock(row.PickupTime),
+		Notes:          row.Notes,
+		CreatedBy:      row.CreatedBy,
+		Source:         row.Source,
+		CareOfferingID: row.CareOfferingID,
+	}
 }
 
 func staffPickupRowsByWeekday(rows []*schedule.StudentPickupSchedule) map[int]*schedule.StudentPickupSchedule {
@@ -946,6 +975,9 @@ func (s *pickupScheduleService) GetEffectivePickupTimeForDate(
 	if err != nil {
 		return nil, &ScheduleError{Op: "get effective pickup time", Err: err}
 	}
+	if !projection.AllowsPickupForDate(studentID, date) {
+		return nil, nil
+	}
 	result, err := s.core.EffectiveTimeForDateWithSchedule(ctx, studentID, date, projection.ForDate(studentID, date))
 	if err != nil {
 		return nil, err
@@ -964,6 +996,9 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 	}
 	schedules := make(map[int64]*schedule.StudentPickupSchedule, len(studentIDs))
 	for _, studentID := range studentIDs {
+		if !projection.AllowsPickupForDate(studentID, date) {
+			continue
+		}
 		if row := projection.ForDate(studentID, date); row != nil {
 			schedules[studentID] = row
 		}
@@ -974,6 +1009,9 @@ func (s *pickupScheduleService) GetBulkEffectivePickupTimesForDate(
 	}
 	mapped := make(map[int64]*EffectivePickupTime, len(results))
 	for studentID, result := range results {
+		if !projection.AllowsPickupForDate(studentID, date) {
+			continue
+		}
 		mapped[studentID] = pickupEffectiveTime(result)
 	}
 	return mapped, nil

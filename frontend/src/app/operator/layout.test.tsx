@@ -82,7 +82,7 @@ describe("OperatorAuthGuard", () => {
   });
 
   it("wraps children in shell and breadcrumb providers when not on login page", () => {
-    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUsePathname.mockReturnValue("/operator/organizations");
     mockUseSession.mockReturnValue({
       data: { user: { scope: "platform", name: "Op" } },
       status: "authenticated",
@@ -135,7 +135,7 @@ describe("OperatorAuthGuard", () => {
   });
 
   it("shows loading state while session is loading", () => {
-    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUsePathname.mockReturnValue("/operator/organizations");
     mockUseSession.mockReturnValue({
       data: null,
       status: "loading",
@@ -152,7 +152,7 @@ describe("OperatorAuthGuard", () => {
   });
 
   it("redirects to login when unauthenticated", () => {
-    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUsePathname.mockReturnValue("/operator/organizations");
     mockUseSession.mockReturnValue({
       data: null,
       status: "unauthenticated",
@@ -168,7 +168,7 @@ describe("OperatorAuthGuard", () => {
   });
 
   it("redirects when authenticated but using the wrong scope", () => {
-    mockUsePathname.mockReturnValue("/operator/suggestions");
+    mockUsePathname.mockReturnValue("/operator/organizations");
     mockUseSession.mockReturnValue({
       data: { user: { scope: "teacher", name: "Teacher" } },
       status: "authenticated",
