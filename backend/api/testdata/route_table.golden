@@ -154,8 +154,6 @@ GET /api/calendar/appointments/{appointmentId}/ics
 GET /api/calendar/appointments/{appointmentId}/overview
 GET /api/calendar/my
 GET /api/calendar/recipient-options
-GET /api/class-day/
-GET /api/class-day/classes
 GET /api/class-list-entries/
 GET /api/database/stats
 GET /api/display/

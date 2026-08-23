@@ -23,6 +23,33 @@ func isSchoolPortalRole(role *authModels.Role) bool {
 	return IsLehrkraftSystemRole(role)
 }
 
+// IsSchoolPortalOnlyForTenant reports whether EVERY role the account holds at
+// this school is a school-portal role. Such an account has no reachable
+// surface in the OGS tenant portal since the cutover (#2207 PR 3) removed the
+// tenant-side class-day mount, so the tenant login refuses it and points at
+// moto schule.
+//
+// Mirrors IsGuardianOnlyForTenant, with one deliberate difference: it works on
+// the loaded role objects rather than on names, because isSchoolPortalRole
+// requires the SYSTEM lehrkraft role. A tenant-scoped custom role that merely
+// happens to be called "Lehrkraft" carries arbitrary permissions and must keep
+// its tenant-portal access — a name match would lock such an account out of
+// both portals at once (the school login requires the system role too).
+//
+// An empty role set is NOT school-portal-only: an account with no roles at all
+// is a different problem and stays on the existing path.
+func IsSchoolPortalOnlyForTenant(roles []*authModels.Role) bool {
+	if len(roles) == 0 {
+		return false
+	}
+	for _, role := range roles {
+		if !isSchoolPortalRole(role) {
+			return false
+		}
+	}
+	return true
+}
+
 // LoginSchoolWithMFAGate authenticates a school-portal user (Lehrkraft) and
 // issues a school-scope JWT bound to the first school where the account
 // holds a school-portal role. Refuses accounts without such a role on any

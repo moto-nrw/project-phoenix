@@ -57,6 +57,14 @@ func (s *Service) LoginWithAudit(ctx context.Context, email, password, ipAddress
 		return "", "", &AuthError{Op: "login", Err: ErrParentMustUseParentPortal}
 	}
 
+	// Same split for the school portal (#2207): an account whose only role
+	// here is a school-portal role belongs at moto schule. account.Roles was
+	// hydrated by loadAccountMetadata above.
+	if IsSchoolPortalOnlyForTenant(account.Roles) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
+		return "", "", &AuthError{Op: "login", Err: ErrMustUseSchoolPortal}
+	}
+
 	// Create refresh token with resolved tenant ID
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
 	if err != nil {
@@ -138,6 +146,14 @@ func (s *Service) LoginWithMFAGate(
 	if IsGuardianOnlyForTenant(metadata.roleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant login")
 		return nil, &AuthError{Op: "login", Err: ErrParentMustUseParentPortal}
+	}
+
+	// School-portal split (#2207). Checked BEFORE the role hydration below,
+	// which replaces account.Roles with name-only stand-ins and would drop
+	// the IsSystem flag this predicate needs.
+	if IsSchoolPortalOnlyForTenant(account.Roles) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant login")
+		return nil, &AuthError{Op: "login", Err: ErrMustUseSchoolPortal}
 	}
 
 	// Hydrate roles on the account so MFAService.IsRequired can use
@@ -300,6 +316,10 @@ func (s *Service) IssueTokensForAuthenticatedAccount(
 	if IsGuardianOnlyForTenant(metadata.roleNames) {
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Guardian-only account at tenant token issue")
 		return "", "", &AuthError{Op: "issue tokens", Err: ErrParentMustUseParentPortal}
+	}
+	if IsSchoolPortalOnlyForTenant(account.Roles) {
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "School-portal-only account at tenant token issue")
+		return "", "", &AuthError{Op: "issue tokens", Err: ErrMustUseSchoolPortal}
 	}
 
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)
@@ -1933,6 +1953,17 @@ func (s *Service) refreshClaimsGuard(scope string, tenantID int64, out **account
 		if err != nil {
 			return err
 		}
+
+		// School-portal split (#2207). A tenant refresh must not outlive the
+		// role change that turned the account into a school-portal-only one:
+		// without this, an account that lost its caregiver role would keep
+		// renewing its tenant session for as long as the browser stayed open.
+		// The load above re-hydrated account.Roles from the DB, so the verdict
+		// is current, not a snapshot from login time.
+		if IsSchoolPortalOnlyForTenant(account.Roles) {
+			return &AuthError{Op: "refresh token", Err: ErrMustUseSchoolPortal}
+		}
+
 		*out = metadata
 		return nil
 	}

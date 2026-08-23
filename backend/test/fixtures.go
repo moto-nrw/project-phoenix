@@ -1648,6 +1648,15 @@ func CreateTestSystemRole(tb testing.TB, db *bun.DB, name string) *auth.Role {
 // account_id.
 func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID int64) {
 	tb.Helper()
+	AssignSystemRoleByName(tb, db, accountID, tenantID, "lehrkraft")
+}
+
+// AssignSystemRoleByName assigns a seeded SYSTEM role (tenant_id IS NULL) to
+// the account, scoped to the given tenant. Every system role the tests use is
+// created by migration, so the lookup must succeed. Cleanup:
+// CleanupAuthFixtures removes auth.account_roles rows by account_id.
+func AssignSystemRoleByName(tb testing.TB, db *bun.DB, accountID, tenantID int64, roleName string) {
+	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -1656,10 +1665,10 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 	err := db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
-		Where("name = ?", "lehrkraft").
+		Where("name = ?", roleName).
 		Where("is_system = TRUE").
 		Scan(ctx, &roleID)
-	require.NoError(tb, err, "seeded lehrkraft system role must exist")
+	require.NoError(tb, err, "seeded %s system role must exist", roleName)
 
 	roleAssignment := &auth.AccountRole{AccountID: accountID, RoleID: roleID}
 	roleAssignment.SetTenantID(tenantID)
@@ -1667,7 +1676,26 @@ func AssignLehrkraftSystemRole(tb testing.TB, db *bun.DB, accountID, tenantID in
 		Model(roleAssignment).
 		ModelTableExpr(`auth.account_roles`).
 		Exec(ctx)
-	require.NoError(tb, err, "Failed to assign lehrkraft system role")
+	require.NoError(tb, err, "Failed to assign %s system role", roleName)
+}
+
+// RemoveSystemRoleByName drops a previously assigned system role from the
+// account at that tenant. Used by tests that need a role change to happen
+// BETWEEN two calls (e.g. a session that must not survive losing its
+// caregiver role).
+func RemoveSystemRoleByName(tb testing.TB, db *bun.DB, accountID, tenantID int64, roleName string) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_, err := db.NewDelete().
+		TableExpr("auth.account_roles AS ar").
+		Where("ar.account_id = ?", accountID).
+		Where("ar.tenant_id = ?", tenantID).
+		Where("ar.role_id IN (SELECT id FROM auth.roles WHERE name = ? AND is_system = TRUE)", roleName).
+		Exec(ctx)
+	require.NoError(tb, err, "Failed to remove %s system role", roleName)
 }
 
 // CreateTestPermission creates a permission in the database.
