@@ -562,9 +562,11 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 			}
 			return query.
 				Join(`INNER JOIN platform.schools AS "role_school" ON "role_school".id = "account_role".tenant_id`).
+				Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
 				Where(`"role_school".organization_id = ?`, organizationID).
 				Where(`"role_school".active = TRUE`).
-				Where(`"role_school".deleted_at IS NULL`)
+				Where(`"role_school".deleted_at IS NULL`).
+				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
 		}
 		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 			return query.Where(`"account_role".tenant_id = ?`, tenantID)

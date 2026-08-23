@@ -164,6 +164,31 @@ func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) 
 	assert.Equal(t, 1, len(ids))
 }
 
+func TestAccountManagementRoleFilterExcludesStaleOrganizationRoleAssignment(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	account := testpkg.CreateTestAccount(t, e.tc.db, "account-scope-role-stale")
+	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role-stale", e.tenantID)
+	organizationID, staleSchoolID := e.createSchoolInOwnOrganization(t)
+
+	_, err := e.tc.db.ExecContext(context.Background(),
+		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		account.ID, role.ID, staleSchoolID)
+	require.NoError(t, err)
+
+	claims := e.claims
+	claims.Scope = tenant.ScopeOrg
+	claims.OrgID = organizationID
+	rr := e.execute(t, claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var response struct {
+		Data []authAPI.AccountResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+
+	assert.NotContains(t, accountIDs(response.Data), account.ID)
+}
+
 func TestAccountManagementDirectPermissionsStayWithinTenant(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)
