@@ -622,7 +622,7 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 
 	w := doAck(t, router, inst.ID, map[string]any{"ack": true})
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "past")
+	assert.Contains(t, w.Body.String(), "Vergangenheit")
 	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
 		"a past block's acknowledgement must not be written")
 }

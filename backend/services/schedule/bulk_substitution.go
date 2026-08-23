@@ -151,7 +151,10 @@ func (s *instanceService) planBulkDays(ctx context.Context, in BulkSubstitutionI
 	plans := make([]bulkDayPlan, 0, len(dates))
 	for _, date := range dates {
 		if in.SubstituteStaffID == nil {
-			absencePlan, err := s.planAbsences(ctx, []int64{in.AbsentStaffID}, map[int64]*string{in.AbsentStaffID: reason}, date)
+			absencePlan, err := s.planAbsences(ctx, []DeviationAbsenceInput{{
+				StaffID: in.AbsentStaffID,
+				Reason:  reason,
+			}}, date)
 			if err != nil {
 				return nil, bulkDayError(date, err)
 			}
@@ -177,7 +180,7 @@ func (s *instanceService) planBulkDays(ctx context.Context, in BulkSubstitutionI
 			SubstituteStaffID: *in.SubstituteStaffID,
 			Reason:            in.Reason,
 		}}
-		subPlan, _, err := s.planSubstitutions(ctx, subs, map[int64]bool{}, date)
+		subPlan, _, err := s.planSubstitutions(ctx, subs, nil, nil, date)
 		if err != nil {
 			return nil, bulkDayError(date, err)
 		}

@@ -84,7 +84,10 @@ import {
   getWeekdays,
   nextWorkdayISO,
 } from "~/lib/timetable-helpers";
-import type { ApplyDeviationsInput } from "~/lib/timetable-types";
+import type {
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
+} from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "Vertretung" });
 const HOUR_HEIGHT_PX = 90;
@@ -109,6 +112,41 @@ function dayChipLabel(d: Date): string {
   return `${String(d.getDate()).padStart(2, "0")}.${String(
     d.getMonth() + 1,
   ).padStart(2, "0")}.`;
+}
+
+function deviationSuccessMessage(
+  input: ApplyDeviationsInput,
+  result: ApplyDeviationsResponse,
+  staffNames: ReadonlyMap<string, string>,
+): string {
+  const appointmentCount = new Set(
+    result.affectedInstances.map((affected) => affected.instanceId),
+  ).size;
+  if (appointmentCount === 0) return "Vertretung aktualisiert";
+
+  const staffIds = new Set<string>();
+  input.absences?.forEach((absence) => staffIds.add(absence.staffId));
+  input.substitutions?.forEach((substitution) =>
+    staffIds.add(substitution.absentStaffId),
+  );
+  input.presences?.forEach((presence) => staffIds.add(presence.staffId));
+  input.substitutionRemovals?.forEach((removal) =>
+    staffIds.add(removal.staffId),
+  );
+
+  const appointmentText =
+    appointmentCount === 1
+      ? "1 Termin wurde"
+      : `${appointmentCount} Termine wurden`;
+  if (staffIds.size === 1) {
+    const staffId = [...staffIds][0]!;
+    const name = staffNames.get(staffId);
+    if (name) return `${appointmentText} für ${name} angepasst.`;
+  }
+  if (staffIds.size > 1) {
+    return `${appointmentText} für ${staffIds.size} Personen angepasst.`;
+  }
+  return `${appointmentText} angepasst.`;
 }
 
 function VertretungContent() {
@@ -315,21 +353,13 @@ function VertretungContent() {
     () => instances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [instances, selectedInstanceId],
   );
-  // Personen, die irgendwo am Tag der selektierten Instanz abwesend sind.
-  // Abwesenheit ist tagesweit, daher sind diese Personen aus jeder
-  // Ersatz-Auswahl auszuschließen (Abschnitt 3, Muster der alten View).
-  const dayAbsentStaffIds = useMemo(() => {
-    const ids = new Set<string>();
-    const date = selectedInstance?.date;
-    if (!date) return ids;
-    for (const inst of instances) {
-      if (inst.date !== date) continue;
-      for (const row of inst.staff) {
-        if (row.isAbsent) ids.add(row.staffId);
-      }
-    }
-    return ids;
-  }, [instances, selectedInstance?.date]);
+  const editorDayInstances = useMemo(
+    () =>
+      selectedInstance
+        ? instances.filter((inst) => inst.date === selectedInstance.date)
+        : dayInstances,
+    [dayInstances, instances, selectedInstance],
+  );
 
   // Wochenweite Lücken (das geladene Fenster) — Basis für die Wochenansicht
   // und für die Tagesfilterung darunter.
@@ -534,12 +564,7 @@ function VertretungContent() {
           toast.success("Block abgesagt");
           updateUrlParams({ block: null, verlauf: null });
         } else {
-          const count = result.affectedInstances.length;
-          toast.success(
-            count > 0
-              ? `Vertretung aktualisiert: ${count} Termin(e)`
-              : "Vertretung aktualisiert",
-          );
+          toast.success(deviationSuccessMessage(input, result, staffNames));
           if (result.warnings.length > 0) {
             toast.error(
               `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
@@ -561,7 +586,7 @@ function VertretungContent() {
         await revalidate();
       }
     },
-    [selectedInstance, revalidate, toast, updateUrlParams],
+    [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
   );
 
   // Solange das Settings-Schema lädt, ist noch nicht entscheidbar, ob das
@@ -804,9 +829,9 @@ function VertretungContent() {
 
       <SubstitutionSlideOver
         instance={selectedInstance}
+        dayInstances={editorDayInstances}
         staffOptions={staffOptions}
         staffNames={staffNames}
-        dayAbsentStaffIds={dayAbsentStaffIds}
         staffLoadError={staffErrorMessage !== null}
         canManage={canManageSchedules}
         onClose={closeEditor}

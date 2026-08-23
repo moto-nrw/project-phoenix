@@ -389,6 +389,13 @@ export function BulkSubstitutionModal({
               Betroffene Termine
               {absentName ? ` von ${absentName}` : ""}
             </span>
+            <div className="mb-2">
+              <Alert
+                type="info"
+                announce="off"
+                message="Alle noch offenen Termine. Die Änderung gilt an jedem ausgewählten Tag. Sie gilt für alle Termine dieser Person."
+              />
+            </div>
             {rangeError ? (
               <Alert
                 type="error"
