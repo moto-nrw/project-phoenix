@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{core,consumer,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email}
+mkdir -p "$fixture/backend"/{core,consumer,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
@@ -34,6 +34,7 @@ printf 'package corex\n' >"$fixture/backend/corex/corex_test.go"
 printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/localization/locales.go"
 printf 'package listexport\n\nconst Value = 1\n' >"$fixture/backend/services/listexport/export.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
+printf 'package test\n' >"$fixture/backend/test/test.go"
 cat >"$fixture/backend/localeconsumer/consumer.go" <<'EOF'
 package localeconsumer
 
@@ -90,29 +91,29 @@ assert_workflow_filter() {
 }
 
 printf '\n// changed\n' >>"$fixture/backend/core/core_test.go"
-assert_output 'example.test/project/core'
+assert_output $'example.test/project/core\nexample.test/project/test'
 git -C "$fixture" restore backend/core/core_test.go
 
 printf '\n// changed\n' >>"$fixture/backend/core/core.go"
-assert_output $'example.test/project/consumer\nexample.test/project/core'
-assert_output $'example.test/project/consumer\nexample.test/project/core' "$fixture/backend"
+assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test'
+assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test' "$fixture/backend"
 git -C "$fixture" restore backend/core/core.go
 
 mkdir -p "$fixture/backend/consumer/testdata"
 printf 'fixture\n' >"$fixture/backend/consumer/testdata/input.golden"
-assert_output 'example.test/project/consumer'
+assert_output $'example.test/project/consumer\nexample.test/project/test'
 rm "$fixture/backend/consumer/testdata/input.golden"
 
 printf 'template\n' >"$fixture/backend/templates/email/probe.html"
-assert_output 'example.test/project/templates/email'
+assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
 printf '{}\n' >"$fixture/backend/localization/locales.json"
-assert_output $'example.test/project/localeconsumer\nexample.test/project/localization'
+assert_output $'example.test/project/localeconsumer\nexample.test/project/localization\nexample.test/project/test'
 rm "$fixture/backend/localization/locales.json"
 
 printf 'asset\n' >"$fixture/backend/services/listexport/assets/probe.txt"
-assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport'
+assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport\nexample.test/project/test'
 rm "$fixture/backend/services/listexport/assets/probe.txt"
 
 printf '\n// changed\n' >>"$fixture/backend/go.mod"

@@ -105,21 +105,22 @@ production_changed=$(printf '%s\n' "$changed_dirs" | awk -v module="$module" '
   }
 ')
 
-if [ -z "$production_changed" ]; then
-  printf '%s\n' "$changed" | sort -u
-  exit 0
-fi
-
 {
   printf '%s\n' "$changed"
-  go list -test -f '{{if .ForTest}}{{.ForTest}}{{range .Deps}} {{.}}{{end}}{{end}}' ./... |
-    awk 'NR == FNR { changed[$0] = 1; next }
-      {
-        for (field = 2; field <= NF; field++) {
-          if ($field in changed) {
-            print $1
-            next
+  # The test package contains repository-wide source scanners and ratchets.
+  # Import-graph selection cannot discover that dependency, so every non-empty
+  # backend selection must include it explicitly.
+  printf '%s/test\n' "$module"
+  if [ -n "$production_changed" ]; then
+    go list -test -f '{{if .ForTest}}{{.ForTest}}{{range .Deps}} {{.}}{{end}}{{end}}' ./... |
+      awk 'NR == FNR { changed[$0] = 1; next }
+        {
+          for (field = 2; field <= NF; field++) {
+            if ($field in changed) {
+              print $1
+              next
+            }
           }
-        }
-      }' <(printf '%s\n' "$production_changed") -
+        }' <(printf '%s\n' "$production_changed") -
+  fi
 } | sort -u
