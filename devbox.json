@@ -34,7 +34,8 @@
     "golangci-lint@2.8.0",
     "fzf@latest",
     "sops@latest",
-    "age@latest"
+    "age@latest",
+    "graphviz@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",

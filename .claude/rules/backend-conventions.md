@@ -39,12 +39,19 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 
 ### Enforcement — CI ratchet, currently at ZERO violations
 
-`backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of four patterns, all with empty allowlists since PR #1631:
+`backend/test/handler_layer_ratchet_test.go` (`TestHandlerLayerRatchet`) fails any PR that reintroduces one of five patterns, all with empty allowlists:
 
 1. Repo-typed declarations in `api/`
 2. `.XxxRepository()` getter calls (backend-wide except `database/` and `test/`)
 3. Query construction (`NewSelect` etc.) in `api/`
 4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
+5. Test-only handler accessor wrappers in `api/`
+
+`scripts/backend-architecture.sh check` also checks direct imports across the
+whole production backend. Every non-test Go package must match a component in
+`backend/.go-arch-lint.yml`; unmatched packages and forbidden component edges
+fail CI. `_test.go` imports stay outside this gate because integration tests
+deliberately compose multiple layers.
 
 ### Why
 

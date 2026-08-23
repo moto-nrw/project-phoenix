@@ -72,6 +72,10 @@ pre-push:
       glob: "backend/**/*.go"
       run: cd backend && golangci-lint run --timeout 5m
 
+    backend-architecture:
+      glob: "{backend/**/*.go,backend/.go-arch-lint.yml,backend/tools/go.{mod,sum},scripts/backend-architecture.sh}"
+      run: scripts/backend-architecture.sh check
+
     # Dead code detection (matches CI)
     go-deadcode:
       glob: "backend/**/*.go"
