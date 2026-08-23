@@ -358,6 +358,8 @@ func renderPickupAdjustmentError(w http.ResponseWriter, r *http.Request, err err
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.future_manual_reset"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeCapacityFull):
 		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offering_capacity_full"))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		renderError(w, r, common.ErrorConflictWithCode(err, "pickup.offerings_disabled"))
 	case errors.Is(err, enrollmentService.ErrOfferingChangeDateOutOfRange),
 		errors.Is(err, enrollmentService.ErrOfferingChangeInvalid),
 		errors.Is(err, enrollmentService.ErrPickupAdjustmentInvalid):

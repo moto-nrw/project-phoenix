@@ -396,7 +396,9 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	if err := s.applyPickupResolution(ctx, input, preview, resolution); err != nil {
 		return nil, err
 	}
-	if input.ArrivalSchedules != nil {
+	// Arrival schedules have no effective date. A future offering change must
+	// therefore leave the current arrival plan untouched.
+	if input.ArrivalSchedules != nil && appliesArrivalSchedulesImmediately(input.EffectiveFrom) {
 		if s.ArrivalSchedules == nil {
 			return nil, errors.New("pickup adjustment: arrival schedule service is not configured")
 		}
@@ -413,6 +415,10 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 		}
 	}
 	return &PickupAdjustmentResult{Resolution: resolution}, nil
+}
+
+func appliesArrivalSchedulesImmediately(effectiveFrom timezone.Date) bool {
+	return !effectiveFrom.After(timezone.TodayDate())
 }
 
 func (s *pickupAdjustmentService) preparePickupAdjustment(
