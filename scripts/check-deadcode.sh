@@ -32,8 +32,17 @@ if [[ -n "$test_findings" ]]; then
   exit 1
 fi
 
-production_findings=$(run_deadcode production | grep -Ev \
-  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$' || true)
+production_output=$(run_deadcode production)
+if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
+  '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|_test_helpers\.go|models/config/registry\.go:.*unreachable func: ResetRegistry$'); then
+  :
+else
+  production_filter_status=$?
+  if ((production_filter_status != 1)); then
+    exit "$production_filter_status"
+  fi
+  production_findings=
+fi
 if [[ -n "$production_findings" ]]; then
   echo "Production code reachable only from tests or from no entry point:"
   printf '%s\n' "$production_findings"
