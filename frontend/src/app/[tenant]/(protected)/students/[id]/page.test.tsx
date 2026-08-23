@@ -274,9 +274,6 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     ) : null,
 }));
 
-// Track which action type getStudentActionType returns
-let mockActionType: "checkout" | "checkin" | "none" = "none";
-
 // Mock checkout section
 vi.mock("~/components/students/student-checkout-section", () => ({
   StudentCheckoutSection: ({
@@ -369,7 +366,6 @@ vi.mock("~/components/students/student-checkout-section", () => ({
       </button>
     </div>
   ),
-  getStudentActionType: vi.fn(() => mockActionType),
 }));
 
 // Mock guardian manager
@@ -576,9 +572,13 @@ describe("StudentDetailPage", () => {
     vi.clearAllMocks();
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
-    mockActionType = "none";
     vi.mocked(useSession).mockReturnValue({
-      data: { user: { token: "test-token", permissions: ["config:manage"] } },
+      data: {
+        user: {
+          token: "test-token",
+          permissions: ["config:manage", "users:checkin"],
+        },
+      },
       status: "authenticated",
     } as ReturnType<typeof useSession>);
 
@@ -963,10 +963,6 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Checkout Functionality", () => {
-    beforeEach(() => {
-      mockActionType = "checkout";
-    });
-
     it("shows checkout modal when checkout button is clicked", async () => {
       render(<StudentDetailPage />);
 
@@ -1047,7 +1043,6 @@ describe("StudentDetailPage", () => {
 
   describe("Checkin Functionality", () => {
     beforeEach(() => {
-      mockActionType = "checkin";
       // Mock student at home
       mockUseStudentData.mockReturnValue({
         student: mockStudentAtHome,
@@ -1792,8 +1787,11 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Action Card Visibility", () => {
-    it("hides checkout and checkin when action type is none", () => {
-      mockActionType = "none";
+    it("hides check-in actions without users:checkin", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { token: "test-token", permissions: ["config:manage"] } },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
 
       render(<StudentDetailPage />);
 
@@ -1801,8 +1799,20 @@ describe("StudentDetailPage", () => {
       expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
     });
 
-    it("shows checkout section when action type is checkout", () => {
-      mockActionType = "checkout";
+    it("shows checkout with users:checkin without group or room access", () => {
+      mockUseStudentData.mockReturnValue({
+        student: mockStudent,
+        loading: false,
+        error: null,
+        hasFullAccess: true,
+        hasWriteAccess: true,
+        hasAbsenceWriteAccess: true,
+        supervisors: [],
+        myGroups: [],
+        myGroupRooms: [],
+        mySupervisedRooms: [],
+        refreshData: mockRefreshData,
+      });
 
       render(<StudentDetailPage />);
 
@@ -1810,8 +1820,7 @@ describe("StudentDetailPage", () => {
       expect(screen.queryByTestId("checkin-section")).not.toBeInTheDocument();
     });
 
-    it("shows checkin section when action type is checkin", () => {
-      mockActionType = "checkin";
+    it("shows checkin with users:checkin without group or room access", () => {
       mockUseStudentData.mockReturnValue({
         student: mockStudentAtHome,
         loading: false,

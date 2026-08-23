@@ -56,7 +56,6 @@ import {
   StudentSickReportSection,
   StudentExcusedReportSection,
   StudentStatusActionsMenu,
-  getStudentActionType,
 } from "~/components/students/student-checkout-section";
 import { createLogger } from "~/lib/logger";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
@@ -403,6 +402,10 @@ function StudentDetailPageContent() {
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
       hasPermission(session, "users:absence"));
+  // Mirrors the backend gate on POST /students/{id}/school-checkin exactly.
+  const canCheckin =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "users:checkin");
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -1061,14 +1064,10 @@ function StudentDetailPageContent() {
   // COMPUTED VALUES
   // =============================================================================
 
-  // Determine what action is available based on access (group membership / room supervision)
-  const studentActionType = getStudentActionType(
-    { group_id: student.group_id, current_location: student.current_location },
-    myGroups,
-    mySupervisedRooms,
-  );
-  const showCheckout = studentActionType === "checkout";
-  const showCheckin = studentActionType === "checkin";
+  const isAtHome =
+    !student.current_location || student.current_location.startsWith("Zuhause");
+  const showCheckout = canCheckin && !isAtHome;
+  const showCheckin = canCheckin && isAtHome;
 
   // =============================================================================
   // RENDER
