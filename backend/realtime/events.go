@@ -77,9 +77,9 @@ const (
 	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
 
 	// Tenant-wide refresh event — tells every client of the tenant to re-fetch
-	// dashboard counts. Attendance/activity emitters also use this legacy wire
-	// type for their combined supervision refresh during rolling deploys; those
-	// events carry ActiveGroupID and Reason in addition to GroupIDs (#2115).
+	// dashboard counts. Attendance/activity emitters use this wire type for their
+	// combined dashboard and supervision refresh; those events carry
+	// ActiveGroupID and Reason in addition to GroupIDs (#2115).
 	// Broadcast via BroadcastToTenant (issue #2057; it was
 	// BroadcastToAll before, which fanned every school's check-in traffic out to
 	// every OTHER school's clients). Carries GroupIDs (educational group ids,
@@ -119,11 +119,10 @@ const (
 	// clients re-fetch their permission-scoped time-tracking views.
 	EventStaffTimeTrackingChanged EventType = "staff_time_tracking_changed"
 
-	// Active supervision refresh event — normally a tenant-wide signal that the
-	// active supervision view is stale regardless of whether the cause was IoT,
-	// NFC, timetable operations, or another lifecycle action. Attendance hot
-	// paths also send a group-scoped copy during rolling deploys so the previous
-	// frontend release keeps its timetable roster live (#2115).
+	// Active supervision refresh event — a tenant-wide signal emitted by
+	// timetable operations, schedule instance lifecycle changes, and the overdue
+	// scheduler. Attendance hot paths fold the same invalidation into
+	// dashboard_counts_changed instead (#2115).
 	//
 	// Carries NO child identity (#2085), for the same reason
 	// arrival_schedule_changed and pickup_schedule_changed are id-less: it
@@ -133,10 +132,9 @@ const (
 	// API responses redact for that person. It may carry the active_group_id,
 	// instance_id and a reason: room/session/instance scope, never who.
 	//
-	// The per-child detail-cache invalidation rides the group-scoped
-	// student_checkin / student_checkout events instead, which are emitted
-	// alongside it to the active-group and edu:{id} topics and therefore reach
-	// exactly the supervisors entitled to that child's data.
+	// Attendance invalidates per-child detail caches through the separate
+	// group-scoped student_checkin / student_checkout events, which reach exactly
+	// the supervisors entitled to that child's data.
 	EventActiveSupervisionChanged EventType = "active_supervision_changed"
 
 	// Arrival schedule events affect derived "not arriving today" badges and

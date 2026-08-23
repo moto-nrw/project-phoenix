@@ -872,8 +872,8 @@ export function useGlobalSSE(): SSEHookState {
       if (event.data.group_ids && event.data.group_ids.length > 0) {
         collectEduGroupScope(event.data.group_ids);
       } else {
-        // During a frontend-first rolling deploy, the legacy dashboard
-        // companion may still supply the precise group scope before flush.
+        // Unpaired supervision emitters carry no educational-group scope, so
+        // their invalidation must stay broad.
         hasPendingUnscopedActiveEvent.current = true;
       }
       if (
@@ -985,17 +985,16 @@ export function useGlobalSSE(): SSEHookState {
         }
 
         case "active_supervision_changed": {
-          // Kept for unpaired emitters and a frontend-first rolling deploy.
+          // Kept for the schedule and scheduler emitters that have no paired
+          // dashboard-count change.
           collectActiveSupervisionChange(event);
           scheduleFlush();
           break;
         }
 
         case "dashboard_counts_changed": {
-          // The current backend folds the former paired supervision signal
-          // into this legacy event type. Old frontends still refresh their
-          // dashboard/OGS caches; current frontends recognize `reason` and
-          // apply the union of both former invalidation sets (#2115).
+          // A reason marks the combined dashboard/supervision signal. Apply
+          // the union of both former invalidation sets (#2115).
           hasPendingDashboardEvent.current = true;
           collectEduGroupScope(event.data.group_ids);
           if (event.data.reason) {
