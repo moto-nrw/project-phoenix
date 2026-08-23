@@ -3,7 +3,6 @@ package students_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -26,18 +25,6 @@ import (
 
 type failAfterOfferingWriteCoordinator struct {
 	enrollmentService.DirectOfferingAdjustmentCoordinator
-}
-
-type failingArrivalScheduleService struct {
-	scheduleService.ArrivalScheduleService
-}
-
-func (failingArrivalScheduleService) UpsertBulkStudentArrivalSchedules(
-	context.Context,
-	int64,
-	[]*scheduleModels.StudentArrivalSchedule,
-) error {
-	return errors.New("arrival write failed")
 }
 
 func (c failAfterOfferingWriteCoordinator) ApplyDirectOfferingAdjustment(
@@ -328,6 +315,10 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Equal(t, http.StatusConflict, staleArrivalRec.Code, staleArrivalRec.Body.String())
 	assert.Contains(t, staleArrivalRec.Body.String(), `"code":"pickup.preview_stale"`)
 	confirmedPreview = postPickupAdjustmentPreview(t, tc, student.ID, account.ID, offeringBody)
+	arrivalRowsBefore, err := repositories.NewFactory(tc.db).StudentArrivalSchedule.FindByStudentID(
+		testpkg.Ctx(t), student.ID,
+	)
+	require.NoError(t, err)
 
 	applyBody := cloneMap(offeringBody)
 	applyBody["preview_token"] = confirmedPreview.PreviewToken
@@ -353,10 +344,8 @@ func TestPickupAdjustmentProtectedRouterChangesMatchingOfferingThroughSharedPath
 	assert.Empty(t, manualRows, "the selected offering must replace every lasting manual pickup time")
 	arrivalRows, err := repositories.NewFactory(tc.db).StudentArrivalSchedule.FindByStudentID(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
-	require.Len(t, arrivalRows, 5)
-	assert.Equal(t, "08:20", arrivalRows[0].ExpectedArrival.Format("15:04"))
-	require.NotNil(t, arrivalRows[0].Notes)
-	assert.Equal(t, "Haupteingang", *arrivalRows[0].Notes)
+	assert.Equal(t, arrivalRowsBefore, arrivalRows,
+		"an offering change must leave the existing arrival plan unchanged")
 
 	history, err := tc.services.StudentAudit.GetChangeHistory(testpkg.Ctx(t), student.ID)
 	require.NoError(t, err)
@@ -415,25 +404,6 @@ func TestPickupAdjustmentProtectedRouterRollsBackKnownErrorAfterOfferingWrite(t 
 	require.NoError(t, err)
 	assert.Zero(t, adjustments, "the failed 400 response must roll back its offering audit")
 
-	// The arrival plan is part of the same request. A failure in that final
-	// write must roll back the offering change that happened before it.
-	tc.resource.PickupAdjustmentService = pickupAdjustmentServiceWithCoordinatorAndArrival(
-		tc, realCoordinator, failingArrivalScheduleService{tc.services.ArrivalSchedule},
-	)
-	body["arrival_schedules"] = fiveDayArrivalBody("08:15", "")
-	arrivalPreview := postPickupAdjustmentPreview(t, tc, student.ID, account.ID, body)
-	body["preview_token"] = arrivalPreview.PreviewToken
-	arrivalFailureReq := testutil.NewAuthenticatedRequest(
-		t, http.MethodPost, fmt.Sprintf("/%d/pickup-schedules/apply", student.ID), body,
-	)
-	arrivalFailureRec := authExec(
-		t, tc, arrivalFailureReq, testutil.AdminTestClaims(int(account.ID)), []string{"users:update"},
-	)
-	assert.Equal(t, http.StatusInternalServerError, arrivalFailureRec.Code, arrivalFailureRec.Body.String())
-	links, err = tc.services.EnrollmentDecision.ListChildOfferings(t.Context(), fixture.child.RequestID)
-	require.NoError(t, err)
-	require.Len(t, links[fixture.child.ID].Current, 1)
-	assert.Equal(t, fixture.ganztag.ID, links[fixture.child.ID].Current[0].OfferingID)
 }
 
 func TestBulkPickupAdjustmentRequiresAndAuditsExplicitExceptions(t *testing.T) {
@@ -502,22 +472,12 @@ func pickupAdjustmentServiceWithCoordinator(
 	tc *testContext,
 	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
 ) enrollmentService.PickupAdjustmentService {
-	return pickupAdjustmentServiceWithCoordinatorAndArrival(
-		tc, coordinator, tc.services.ArrivalSchedule,
-	)
-}
-
-func pickupAdjustmentServiceWithCoordinatorAndArrival(
-	tc *testContext,
-	coordinator enrollmentService.DirectOfferingAdjustmentCoordinator,
-	arrivalSchedules scheduleService.ArrivalScheduleService,
-) enrollmentService.PickupAdjustmentService {
 	repos := repositories.NewFactory(tc.db)
 	baselines := scheduleService.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering, tc.services.Settings,
 	)
 	return enrollmentService.NewPickupAdjustmentService(enrollmentService.PickupAdjustmentServiceConfig{
-		PickupSchedules: tc.services.PickupSchedule, ArrivalSchedules: arrivalSchedules,
+		PickupSchedules: tc.services.PickupSchedule, ArrivalSchedules: tc.services.ArrivalSchedule,
 		PickupScheduleRepo:  repos.StudentPickupSchedule,
 		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
 		PickupBaselines:     baselines, Offerings: coordinator, Settings: tc.services.Settings,
