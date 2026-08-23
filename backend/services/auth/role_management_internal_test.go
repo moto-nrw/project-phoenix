@@ -85,6 +85,16 @@ func (r roleManagementAccountRepo) FindByID(ctx context.Context, id interface{})
 }
 
 func (r roleManagementAccountRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Account, error) {
+	if r.findByIDFn == nil {
+		return &authModel.Account{Model: base.Model{ID: id}}, nil
+	}
+	return r.FindByID(ctx, id)
+}
+
+func (r roleManagementAccountRepo) FindManageableByID(ctx context.Context, id int64) (*authModel.Account, error) {
+	if r.findByIDFn == nil {
+		return &authModel.Account{Model: base.Model{ID: id}}, nil
+	}
 	return r.FindByID(ctx, id)
 }
 

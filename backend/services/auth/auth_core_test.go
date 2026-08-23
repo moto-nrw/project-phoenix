@@ -1175,6 +1175,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "for assignment", testpkg.StrPtr("user"))
@@ -1271,6 +1272,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "for removal", testpkg.StrPtr("user"))
@@ -1409,6 +1411,7 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		permName := fmt.Sprintf("grant-perm-%s", uniqueID)
 		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
@@ -1641,6 +1644,7 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("acctperm-%s", uniqueID)
@@ -1674,6 +1678,7 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("directperm-%s", uniqueID)
@@ -1707,6 +1712,7 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("removeperm-%s", uniqueID)

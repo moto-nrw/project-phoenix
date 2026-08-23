@@ -81,52 +81,54 @@ func (s *Service) ListPermissions(ctx context.Context, filters map[string]interf
 
 // GrantPermissionToAccount grants a permission directly to an account
 func (s *Service) GrantPermissionToAccount(ctx context.Context, accountID, permissionID int) error {
-	// Verify account exists
-	if _, err := s.repos.Account.FindByID(ctx, int64(accountID)); err != nil {
-		return &AuthError{Op: "grant permission", Err: ErrAccountNotFound}
-	}
-
-	// Verify permission exists
-	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: "grant permission", Err: ErrPermissionNotFound}
-	}
-
-	if err := s.repos.AccountPermission.GrantPermission(ctx, int64(accountID), int64(permissionID)); err != nil {
-		return &AuthError{Op: "grant permission to account", Err: err}
-	}
-
-	return nil
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockManageableAccount(txCtx, accountID, "grant permission"); err != nil {
+			return err
+		}
+		if _, err := s.repos.Permission.FindByID(txCtx, int64(permissionID)); err != nil {
+			return &AuthError{Op: "grant permission", Err: ErrPermissionNotFound}
+		}
+		if err := s.repos.AccountPermission.GrantPermission(txCtx, int64(accountID), int64(permissionID)); err != nil {
+			return &AuthError{Op: "grant permission to account", Err: err}
+		}
+		return nil
+	})
 }
 
 // DenyPermissionToAccount explicitly denies a permission to an account
 func (s *Service) DenyPermissionToAccount(ctx context.Context, accountID, permissionID int) error {
-	// Verify account exists
-	if _, err := s.repos.Account.FindByID(ctx, int64(accountID)); err != nil {
-		return &AuthError{Op: "deny permission", Err: ErrAccountNotFound}
-	}
-
-	// Verify permission exists
-	if _, err := s.repos.Permission.FindByID(ctx, int64(permissionID)); err != nil {
-		return &AuthError{Op: "deny permission", Err: ErrPermissionNotFound}
-	}
-
-	if err := s.repos.AccountPermission.DenyPermission(ctx, int64(accountID), int64(permissionID)); err != nil {
-		return &AuthError{Op: "deny permission to account", Err: err}
-	}
-
-	return nil
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockManageableAccount(txCtx, accountID, "deny permission"); err != nil {
+			return err
+		}
+		if _, err := s.repos.Permission.FindByID(txCtx, int64(permissionID)); err != nil {
+			return &AuthError{Op: "deny permission", Err: ErrPermissionNotFound}
+		}
+		if err := s.repos.AccountPermission.DenyPermission(txCtx, int64(accountID), int64(permissionID)); err != nil {
+			return &AuthError{Op: "deny permission to account", Err: err}
+		}
+		return nil
+	})
 }
 
 // RemovePermissionFromAccount removes a permission from an account
 func (s *Service) RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int) error {
-	if err := s.repos.AccountPermission.RemovePermission(ctx, int64(accountID), int64(permissionID)); err != nil {
-		return &AuthError{Op: "remove permission from account", Err: err}
-	}
-	return nil
+	return s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockManageableAccount(txCtx, accountID, "remove permission"); err != nil {
+			return err
+		}
+		if err := s.repos.AccountPermission.RemovePermission(txCtx, int64(accountID), int64(permissionID)); err != nil {
+			return &AuthError{Op: "remove permission from account", Err: err}
+		}
+		return nil
+	})
 }
 
 // GetAccountPermissions retrieves all permissions for an account (direct and role-based)
 func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error) {
+	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return nil, &AuthError{Op: "get account permissions", Err: ErrAccountNotFound}
+	}
 	permissions, err := s.getAccountPermissions(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account permissions", Err: err}
@@ -136,11 +138,27 @@ func (s *Service) GetAccountPermissions(ctx context.Context, accountID int) ([]*
 
 // GetAccountDirectPermissions retrieves only direct permissions for an account (not role-based)
 func (s *Service) GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error) {
+	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return nil, &AuthError{Op: "get account direct permissions", Err: ErrAccountNotFound}
+	}
 	permissions, err := s.repos.Permission.FindDirectByAccountID(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account direct permissions", Err: err}
 	}
 	return permissions, nil
+}
+
+func (s *Service) lockManageableAccount(ctx context.Context, accountID int, op string) error {
+	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	if _, err := s.repos.Account.FindByIDForUpdate(ctx, int64(accountID)); err != nil {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	return nil
 }
 
 // AssignPermissionToRole assigns a permission to a role. System roles cannot be modified.

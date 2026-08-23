@@ -107,7 +107,7 @@ func (s *Service) ListAccounts(ctx context.Context, filters map[string]interface
 
 // GetAccountsByRole retrieves all accounts with a specific role
 func (s *Service) GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error) {
-	accounts, err := s.repos.Account.FindByRole(ctx, roleName)
+	accounts, err := s.repos.Account.ListManageable(ctx, map[string]interface{}{"role": roleName})
 	if err != nil {
 		return nil, &AuthError{Op: "get accounts by role", Err: err}
 	}
