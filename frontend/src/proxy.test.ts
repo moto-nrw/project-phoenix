@@ -505,10 +505,15 @@ describe("proxy", () => {
       expect(redirect).not.toContain("/school/login");
     });
 
-    it("sends the old /klassen bookmark to the school host (#2207)", () => {
+    it.each([
+      "/klassen",
+      "/klassen/",
+      "/school-a/klassen",
+      "/school-a/klassen/",
+    ])("sends the old %s bookmark to the school host (#2207)", (path) => {
       const res = proxy(
         makeRequest(
-          "http://school-a.localhost:3000/klassen",
+          `http://school-a.localhost:3000${path}`,
           "school-a.localhost:3000",
         ),
       );

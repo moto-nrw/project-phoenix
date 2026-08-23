@@ -89,6 +89,22 @@ func TestTenantLogin_DualRoleLehrkraftPassesThrough(t *testing.T) {
 	assert.NotEmpty(t, refreshToken)
 }
 
+func TestSwitchTenant_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	service := setupAuthService(t, db)
+
+	_, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "switch-school-only")
+	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
+
+	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, auth.ErrMustUseSchoolPortal)
+	assert.Empty(t, accessToken)
+	assert.Empty(t, refreshToken)
+}
+
 func TestRefreshToken_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

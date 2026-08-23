@@ -300,6 +300,29 @@ function LoginForm() {
     return () => clearTimeout(timer);
   }, [wrongPortalHint]);
 
+  const showWrongPortalHint = (code: string | undefined): boolean => {
+    if (code !== "use_parent_portal" && code !== "use_school_portal") {
+      return false;
+    }
+
+    const portal = code === "use_parent_portal" ? "parents" : "school";
+    let redirectUrl: string | null = null;
+    try {
+      redirectUrl =
+        portal === "parents"
+          ? parentsPortalLoginUrl("?from=staff")
+          : schoolPortalLoginUrl("?from=staff");
+    } catch (urlErr) {
+      logger.error("portal_url_unavailable", {
+        portal,
+        error: urlErr instanceof Error ? urlErr.message : String(urlErr),
+      });
+    }
+    setWrongPortalHint({ portal, redirectUrl });
+    trackLoginEvent("login_failed", { reason: code });
+    return true;
+  };
+
   const handleMFASuccess = async (tokens: MFATokenResponse) => {
     await seedSessionWithTokens(tokens);
     setMfaStep(null);
@@ -348,25 +371,7 @@ function LoginForm() {
       // and refused on role, so being specific leaks nothing — and the
       // generic "Anmeldung fehlgeschlagen" reads like a password problem,
       // which is what sent parents into repeated reset loops.
-      if (
-        err instanceof MFAApiError &&
-        (err.code === "use_parent_portal" || err.code === "use_school_portal")
-      ) {
-        const portal = err.code === "use_parent_portal" ? "parents" : "school";
-        let redirectUrl: string | null = null;
-        try {
-          redirectUrl =
-            portal === "parents"
-              ? parentsPortalLoginUrl("?from=staff")
-              : schoolPortalLoginUrl("?from=staff");
-        } catch (urlErr) {
-          logger.error("portal_url_unavailable", {
-            portal,
-            error: urlErr instanceof Error ? urlErr.message : String(urlErr),
-          });
-        }
-        setWrongPortalHint({ portal, redirectUrl });
-        trackLoginEvent("login_failed", { reason: err.code });
+      if (err instanceof MFAApiError && showWrongPortalHint(err.code)) {
         return;
       }
 
@@ -388,6 +393,7 @@ function LoginForm() {
   const handlePasskeyLogin = async () => {
     setIsLoading(true);
     setError("");
+    setWrongPortalHint(null);
     try {
       const response = await loginWithPasskey("tenant", { tenantSlug });
       await seedSessionWithTokens({
@@ -399,6 +405,9 @@ function LoginForm() {
         logger.info("passkey login not completed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        return;
+      }
+      if (err instanceof PasskeyApiError && showWrongPortalHint(err.code)) {
         return;
       }
       if (err instanceof PasskeyApiError && err.status === 401) {

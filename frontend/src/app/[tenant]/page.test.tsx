@@ -12,6 +12,25 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockTrackTenantEvent = vi.fn();
+const { mockLoginWithPasskey, mockIsPasskeySupported, MockPasskeyApiError } =
+  vi.hoisted(() => {
+    class MockPasskeyApiError extends Error {
+      constructor(
+        public status: number,
+        message: string,
+        public code?: string,
+      ) {
+        super(message);
+      }
+    }
+
+    return {
+      mockLoginWithPasskey: vi.fn(),
+      mockIsPasskeySupported: vi.fn(() => false),
+      MockPasskeyApiError,
+    };
+  });
+
 vi.mock("~/lib/analytics", () => ({
   trackTenantEvent: (...args: unknown[]) => mockTrackTenantEvent(...args),
 }));
@@ -117,6 +136,13 @@ vi.mock("~/lib/parent-url", () => ({
 vi.mock("~/lib/school-url", () => ({
   schoolPortalLoginUrl: (search?: string) =>
     `https://schule.example.test/login${search ?? ""}`,
+}));
+
+vi.mock("~/lib/passkey-api", () => ({
+  isPasskeySupported: () => mockIsPasskeySupported(),
+  isPasskeyCeremonyIncompleteError: () => false,
+  loginWithPasskey: (...args: unknown[]) => mockLoginWithPasskey(...args),
+  PasskeyApiError: MockPasskeyApiError,
 }));
 
 // Mock next/image
@@ -617,6 +643,31 @@ describe("HomePage (Login)", () => {
         "href",
         "https://schule.example.test/login?from=staff",
       );
+    });
+  });
+
+  it("sends a Lehrkraft-only passkey login to moto schule", async () => {
+    mockIsPasskeySupported.mockReturnValueOnce(true);
+    mockLoginWithPasskey.mockRejectedValueOnce(
+      new MockPasskeyApiError(
+        403,
+        "school portal accounts must log in at the school portal",
+        "use_school_portal",
+      ),
+    );
+    render(<HomePage />);
+
+    await act(async () => {
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Mit Passkey anmelden" }),
+      );
+    });
+
+    expect(
+      await screen.findByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+    ).toBeInTheDocument();
+    expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
+      reason: "use_school_portal",
     });
   });
 

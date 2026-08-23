@@ -575,7 +575,8 @@ export function proxy(request: NextRequest): NextResponse {
   // page is gone and a Lehrkraft-only account can no longer log in here at
   // all. A 404 would look like the school lost its access, so send the
   // bookmark to moto schule instead. Remove once the schools have settled in.
-  if (pathname === "/klassen") {
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  if (normalizedPathname === "/klassen") {
     const protocol = request.nextUrl.protocol;
     const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
@@ -599,6 +600,15 @@ export function proxy(request: NextRequest): NextResponse {
   const appPath = pathname.startsWith(`/${tenantSlug}`)
     ? pathname.slice(tenantSlug.length + 1) || "/"
     : pathname;
+
+  // Path-prefixed tenant URLs are an internal routing representation, but
+  // users may have bookmarked them directly. Normalize its trailing slash
+  // too before recognizing the retired Klassenansicht.
+  if ((appPath.replace(/\/+$/, "") || "/") === "/klassen") {
+    const protocol = request.nextUrl.protocol;
+    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
   const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
   const isEnroll = isEnrollPath(normalizedAppPath);
 
