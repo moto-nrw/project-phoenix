@@ -33,8 +33,9 @@ func registerAccountAtTenant(t *testing.T, db *bun.DB, service auth.AuthService,
 	email, username := uniqueTestCredentials(prefix)
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
 	require.NoError(t, err)
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
 
+	// No per-row cleanup: since #2419 every test binary runs against its own
+	// database clone, which is dropped afterwards.
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	return email, account.ID, tenantID, fmt.Sprintf("t%d", tenantID)
 }

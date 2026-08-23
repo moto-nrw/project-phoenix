@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/classlistentries"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -107,8 +108,12 @@ func TestClassListEntriesAppearInClassDay(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	classDayRouter := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil).Router()
-	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t)}
+	// Since the cutover (#2207 PR 3) the class-day sheet is reachable only
+	// through the school portal, so this drives SchoolRouter with school-scope
+	// claims. What is under test is unchanged: a list-only entry appears on the
+	// sheet, flagged and never staying.
+	classDayRouter := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil).SchoolRouter()
+	claims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: testpkg.Tenant(t), Scope: tenant.ScopeSchool}
 
 	req := httptest.NewRequest(http.MethodGet, "/?date=2026-08-05", nil)
 	rec := testutil.ExecuteWithAuthPermissions(t, classDayRouter, req, claims, []string{"class_day:read"})
