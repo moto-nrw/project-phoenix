@@ -5,6 +5,7 @@ import {
   hasAnyRole,
   hasPermission,
   isAdmin,
+  hasEffectiveAdminScope,
   isCaregiver,
   isAuthenticated,
   getUserDisplayName,
@@ -257,6 +258,39 @@ describe("auth-utils", () => {
       };
 
       expect(isAdmin(session)).toBe(false);
+    });
+  });
+
+  describe("hasEffectiveAdminScope", () => {
+    it.each(["admin:*", "*:*"])(
+      "recognizes the %s wildcard without an admin role",
+      (permission) => {
+        expect(
+          hasEffectiveAdminScope({
+            user: {
+              id: "1",
+              email: "admin@example.com",
+              permissions: [permission],
+              token: "token",
+            },
+            expires: "2024-12-31",
+          }),
+        ).toBe(true);
+      },
+    );
+
+    it("does not treat a resource-specific wildcard as admin scope", () => {
+      expect(
+        hasEffectiveAdminScope({
+          user: {
+            id: "1",
+            email: "user@example.com",
+            permissions: ["groups:*"],
+            token: "token",
+          },
+          expires: "2024-12-31",
+        }),
+      ).toBe(false);
     });
   });
 

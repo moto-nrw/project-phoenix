@@ -80,6 +80,19 @@ export function isAdmin(session: Session | null): boolean {
 }
 
 /**
+ * Check whether the session has the effective admin scope used by backend
+ * authorization: the literal admin role or a system-wide admin wildcard.
+ */
+export function hasEffectiveAdminScope(session: Session | null): boolean {
+  return (
+    isAdmin(session) ||
+    session?.user?.permissions?.some(
+      (permission) => permission === "admin:*" || permission === "*:*",
+    ) === true
+  );
+}
+
+/**
  * Check if the user can access caregiver workflows.
  */
 export function isCaregiver(session: Session | null): boolean {

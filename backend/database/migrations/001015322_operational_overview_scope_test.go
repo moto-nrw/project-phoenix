@@ -26,18 +26,6 @@ func TestOperationalOverviewScopeDerivesFromExistingRules(t *testing.T) {
 	untouchedTenant, _ := testpkg.CreateTestTenant(t, db)
 	tenants := []int64{openCareTenant, adminOverviewTenant, bothTenant, untouchedTenant}
 
-	t.Cleanup(func() {
-		_, _ = db.NewRaw(`
-			DELETE FROM config.setting_audit
-			WHERE tenant_id IN (?, ?, ?, ?)
-				AND setting_key IN ('operations.operational_overview_scope', 'operations.group_mode');
-			DELETE FROM config.setting_values
-			WHERE tenant_id IN (?, ?, ?, ?)
-				AND setting_key IN ('operations.operational_overview_scope', 'operations.group_mode');
-		`, tenants[0], tenants[1], tenants[2], tenants[3],
-			tenants[0], tenants[1], tenants[2], tenants[3]).Exec(context.Background())
-	})
-
 	_, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value) VALUES
 			(?, 'operations.group_mode', '"open_care"'::jsonb),

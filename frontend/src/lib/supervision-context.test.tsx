@@ -702,6 +702,26 @@ describe("SupervisionProvider school-wide overview paths", () => {
     expect(result.current.overviewEnabled).toBe(false);
   });
 
+  it.each(["admin:*", "*:*"])(
+    "fetches the overview endpoint for the %s effective admin scope",
+    async (permission) => {
+      setOverviewScope("admins");
+      setupFetchMock();
+
+      const { result } = renderHook(() => useSupervision(), {
+        wrapper: createWrapper("test-token", ["custom"], [permission]),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoadingSupervision).toBe(false);
+      });
+
+      expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+        "/api/active/supervisors/all",
+      );
+    },
+  );
+
   // #2380: with the all_staff scope a plain caregiver gets the school-wide
   // list — the very case the admin-only rule could not express.
   it("fetches the overview endpoint for caregivers under the all_staff scope", async () => {
@@ -763,6 +783,39 @@ describe("SupervisionProvider school-wide overview paths", () => {
     expect(result.current.overviewEnabled).toBe(false);
     const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
     expect(fetchCalls).not.toContain("/api/active/supervisors/all");
+  });
+
+  it("refreshes supervision after the resolved overview scope changes", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 12,
+            room_id: 120,
+            group_id: 60,
+            room: { id: 120, name: "Eigener Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["user"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+    mockFetch.mockClear();
+
+    setOverviewScope("all_staff");
+    rerender();
+
+    await waitFor(() => {
+      expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+        "/api/active/supervisors/all",
+      );
+    });
   });
 
   it("should use staff endpoint directly for non-admin users under the admins scope", async () => {

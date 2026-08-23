@@ -971,6 +971,32 @@ describe("RoleGuard integration", () => {
     expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
   });
 
+  it("renders content for a non-caregiver confirmed by the overview", async () => {
+    const { useSession } = await import("next-auth/react");
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { token: "test-token", isAdmin: false, isCaregiver: false },
+      },
+      status: "authenticated",
+    } as never);
+
+    vi.mocked(useOptionalSupervision).mockReturnValue({
+      supervisedRooms: [{ id: "10", name: "Raum", groupId: "1" }],
+      isLoadingSupervision: false,
+      overviewEnabled: true,
+      hasGroups: false,
+      isLoadingGroups: false,
+      groups: [],
+      isSupervising: true,
+      refresh: vi.fn(),
+    });
+
+    render(<MeinRaumPage />);
+
+    expect(screen.queryByText("Kein Zugriff")).not.toBeInTheDocument();
+    expect(screen.getByTestId("sse-boundary")).toBeInTheDocument();
+  });
+
   it("blocks admin when only a synthetic Schulhof room exists (setting off)", async () => {
     // P1-A regression guard — the gate must consult overviewEnabled,
     // not supervisedRooms.length. A synthetic Schulhof entry is always

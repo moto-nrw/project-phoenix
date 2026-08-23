@@ -598,11 +598,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           : hasRole(session, "admin")
             ? ADMIN_MAIN_ITEMS
             : STAFF_MAIN_ITEMS;
-  // Admins covered by the school-wide overview (#2380): inject the
-  // "Aufsicht" tab dynamically. Gate on overviewEnabled (confirmed via
+  // Callers covered by the school-wide overview (#2380): inject the
+  // "Aufsicht" tab dynamically. This includes effective admins and verified
+  // staff under all_staff. Gate on overviewEnabled (confirmed via
   // /supervisors/all 200) rather than just isSupervising so a synthetic
   // Schulhof entry does not surface the tab when the school keeps everyone
-  // on their own supervisions. Dual-role teacher-admins see the tab too.
+  // on their own supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
@@ -610,10 +611,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
-    hasRole(session, "admin") &&
-    !isLoadingSupervision &&
-    overviewEnabled &&
-    !alreadyHasSupervisionTab
+    !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
           ...baseMain.slice(0, 1),
           {

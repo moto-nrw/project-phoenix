@@ -9,7 +9,11 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
-import { hasPermission, isAdmin, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { useOperationalOverviewScope } from "~/lib/tenant-context";
@@ -117,7 +121,7 @@ export function SupervisionProvider({
   // a 403 means this school keeps the caller on their own supervisions, and
   // the staff endpoint answers instead.
   const tokenRef = useLatest(session?.user?.token);
-  const sessionIsAdmin = isAdmin(session);
+  const sessionHasEffectiveAdminScope = hasEffectiveAdminScope(session);
 
   // The tenant's configured scope tells us whether asking for the school-wide
   // list can succeed at all. It is a hint that saves a guaranteed 403 per
@@ -126,7 +130,7 @@ export function SupervisionProvider({
   const overviewScope = useOperationalOverviewScope();
   const mayHaveOverview =
     overviewScope === "all_staff" ||
-    (overviewScope === "admins" && sessionIsAdmin);
+    (overviewScope === "admins" && sessionHasEffectiveAdminScope);
   const mayHaveOverviewRef = useLatest(mayHaveOverview);
 
   // Whether the user may read group/supervision data. The Schulhof status
@@ -139,7 +143,7 @@ export function SupervisionProvider({
   const sessionPermissions = session?.user?.permissions;
   const hasExplicitPermissions = Array.isArray(sessionPermissions);
   const canReadGroups =
-    sessionIsAdmin ||
+    sessionHasEffectiveAdminScope ||
     hasPermission(session, "groups:read") ||
     (!hasExplicitPermissions && isCaregiver(session));
   const canReadGroupsRef = useLatest(canReadGroups);
@@ -580,6 +584,17 @@ export function SupervisionProvider({
   useEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
+
+  const previousOverviewScopeRef = React.useRef(overviewScope);
+
+  // Saving the setting refreshes supervision before tenant metadata has
+  // necessarily revalidated. Refresh once more after the resolved scope
+  // changes so the room list cannot remain widened or restricted until SSE.
+  useEffect(() => {
+    if (previousOverviewScopeRef.current === overviewScope) return;
+    previousOverviewScopeRef.current = overviewScope;
+    void refreshRef.current?.({ silent: true, force: true });
+  }, [overviewScope]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {

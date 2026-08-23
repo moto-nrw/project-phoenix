@@ -70,7 +70,7 @@ import type {
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
-import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
@@ -2789,8 +2789,7 @@ function ActiveSupervisionGate({
       redirect("/");
     },
   });
-  const { overviewEnabled, isLoadingSupervision } =
-    useOptionalSupervision();
+  const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
     return <ActiveSupervisionLoadingView />;
@@ -2801,11 +2800,11 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  // Admins only when /api/active/supervisors/all returned OK, i.e. the
-  // school-wide overview covers them. Checking supervisedRooms.length would
-  // incorrectly let admins through when the scope is "own" but a synthetic
-  // Schulhof entry is present.
-  if (isAdmin(session) && overviewEnabled) {
+  // The overview endpoint confirms the backend granted this caller access.
+  // That includes effective admins and verified staff under all_staff.
+  // Checking supervisedRooms.length would incorrectly let callers through
+  // when the scope is "own" but a synthetic Schulhof entry is present.
+  if (overviewEnabled) {
     return <>{children}</>;
   }
 
