@@ -27,6 +27,10 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   "enrollment.care_offerings_enabled",
   "attendance.web_enabled",
   "operations.group_mode",
+  // The school-wide operational overview scope (#2380) travels in tenant
+  // shell metadata: it decides which supervision endpoint the client asks
+  // for, so a stale value costs every caregiver a guaranteed 403 per refresh.
+  "operations.operational_overview_scope",
   "timetable.show_expected_children_count",
   "enrollment.waitlist_enabled",
   // grade_level_max is exposed by tenant resolve and drives every enrollment

@@ -510,7 +510,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isSupervising,
     isLoadingGroups,
     isLoadingSupervision,
-    adminOverviewEnabled,
+    overviewEnabled,
   } = useOptionalSupervision();
 
   // Get shell auth mode
@@ -598,11 +598,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           : hasRole(session, "admin")
             ? ADMIN_MAIN_ITEMS
             : STAFF_MAIN_ITEMS;
-  // Admins with supervision overview: inject "Aufsicht" tab dynamically.
-  // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
-  // than just isSupervising so a synthetic Schulhof entry does not surface
-  // the admin tab when the setting is off. Dual-role teacher-admins see the
-  // tab too, the tenant setting is the explicit opt-in signal.
+  // Admins covered by the school-wide overview (#2380): inject the
+  // "Aufsicht" tab dynamically. Gate on overviewEnabled (confirmed via
+  // /supervisors/all 200) rather than just isSupervising so a synthetic
+  // Schulhof entry does not surface the tab when the school keeps everyone
+  // on their own supervisions. Dual-role teacher-admins see the tab too.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
@@ -612,7 +612,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const filteredMainItems =
     hasRole(session, "admin") &&
     !isLoadingSupervision &&
-    adminOverviewEnabled &&
+    overviewEnabled &&
     !alreadyHasSupervisionTab
       ? [
           ...baseMain.slice(0, 1),

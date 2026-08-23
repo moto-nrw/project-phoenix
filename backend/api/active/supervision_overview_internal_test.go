@@ -16,28 +16,56 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockSettingsSvc builds a configtest.Mock backed by a boolValues map,
-// mirroring the previous hand-rolled stub's ResolveBool/ResolveBoolForTenant
-// behavior: missing keys return an error.
-func mockSettingsSvc(boolValues map[string]bool) *configtest.Mock {
-	resolveBool := func(_ context.Context, key string) (bool, error) {
-		if v, ok := boolValues[key]; ok {
-			return v, nil
-		}
-		return false, fmt.Errorf("not found: %s", key)
-	}
+// scopeSettings resolves operations.operational_overview_scope to the given
+// value and errors on every other key, so a handler reaching for a second
+// access setting fails the test loudly (#2380: there is only one rule).
+func scopeSettings(scope string) *configtest.Mock {
 	return &configtest.Mock{
-		ResolveBoolFn: resolveBool,
-		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
-			return resolveBool(ctx, key)
+		ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			if key != configModel.KeyOperationalOverviewScope {
+				return "", fmt.Errorf("unexpected settings key: %s", key)
+			}
+			return scope, nil
 		},
 	}
+}
+
+// failingScopeSettings makes the scope lookup fail, standing in for a
+// database fault. The gate must fail closed.
+func failingScopeSettings() *configtest.Mock {
+	return &configtest.Mock{
+		ResolveStringFn: func(_ context.Context, _ string) (string, error) {
+			return "", fmt.Errorf("settings unavailable")
+		},
+	}
+}
+
+// stubUserContext answers only the staff lookup the overview gate performs;
+// every other method of the embedded interface is nil and would panic, which
+// is the point — the gate must not reach for anything else.
+type stubUserContext struct {
+	usercontext.UserContextService
+	staff *usersModel.Staff
+}
+
+func (s *stubUserContext) GetCurrentStaff(_ context.Context) (*usersModel.Staff, error) {
+	if s.staff == nil {
+		return nil, nil
+	}
+	return s.staff, nil
+}
+
+// verifiedStaffContext is a caller with a staff record in the current tenant.
+func verifiedStaffContext() *stubUserContext {
+	return &stubUserContext{staff: &usersModel.Staff{Model: base.Model{ID: 7}}}
 }
 
 // =============================================================================
@@ -294,8 +322,11 @@ func (s *stubActiveService) GetCrossTenantStudents(_ context.Context, _ int64) (
 
 func newRequestWithClaims(method, path string, claims jwt.AppClaims) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
-	return req.WithContext(ctx)
+	return req.WithContext(claimsCtx(claims))
+}
+
+func claimsCtx(claims jwt.AppClaims) context.Context {
+	return context.WithValue(context.Background(), jwt.CtxClaims, claims)
 }
 
 func adminClaims() jwt.AppClaims {
@@ -317,67 +348,86 @@ func staffClaims() jwt.AppClaims {
 }
 
 // =============================================================================
-// TESTS: isAdminWithSupervisionOverview
+// TESTS: operationalOverview — the single school-wide access rule (#2380)
 // =============================================================================
 
-func TestIsAdminWithSupervisionOverview_NonAdmin(t *testing.T) {
+func TestOperationalOverview_ScopeOwnDeniesEveryone(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeOwn),
+		UserContextService: verifiedStaffContext(),
 	}
-	r := newRequestWithClaims("GET", "/", staffClaims())
 
-	assert.False(t, rs.isAdminWithSupervisionOverview(r))
+	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())), "admins stay on their own supervisions")
+	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())), "staff stay on their own supervisions")
 }
 
-func TestIsAdminWithSupervisionOverview_NilSettings(t *testing.T) {
-	t.Parallel()
-
-	rs := &Resource{SettingsService: nil}
-	r := newRequestWithClaims("GET", "/", adminClaims())
-
-	assert.False(t, rs.isAdminWithSupervisionOverview(r))
-}
-
-func TestIsAdminWithSupervisionOverview_SettingDisabled(t *testing.T) {
+func TestOperationalOverview_ScopeAdmins(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: false,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		UserContextService: verifiedStaffContext(),
 	}
-	r := newRequestWithClaims("GET", "/", adminClaims())
 
-	assert.False(t, rs.isAdminWithSupervisionOverview(r))
+	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())), "the admins scope must not leak to staff")
 }
 
-func TestIsAdminWithSupervisionOverview_SettingEnabled(t *testing.T) {
+func TestOperationalOverview_ScopeAllStaff(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		UserContextService: verifiedStaffContext(),
 	}
-	r := newRequestWithClaims("GET", "/", adminClaims())
 
-	assert.True(t, rs.isAdminWithSupervisionOverview(r))
+	assert.True(t, rs.operationalOverview(claimsCtx(adminClaims())))
+	assert.True(t, rs.operationalOverview(claimsCtx(staffClaims())))
 }
 
-func TestIsAdminWithSupervisionOverview_SettingError(t *testing.T) {
+func TestOperationalOverview_ScopeAllStaffDeniesNonStaffAccounts(t *testing.T) {
 	t.Parallel()
 
-	// Key not in map → ResolveBool returns error
+	// A guardian or guest account authenticates against the same portal but
+	// has no staff record — the broadest scope must not reach them.
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		UserContextService: &stubUserContext{},
 	}
-	r := newRequestWithClaims("GET", "/", adminClaims())
 
-	assert.False(t, rs.isAdminWithSupervisionOverview(r))
+	assert.False(t, rs.operationalOverview(claimsCtx(staffClaims())))
+}
+
+func TestOperationalOverview_UnknownScopeFallsBackToOwn(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{
+		SettingsService:    scopeSettings("everyone_on_the_internet"),
+		UserContextService: verifiedStaffContext(),
+	}
+
+	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
+}
+
+func TestOperationalOverview_SettingsFaultFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{
+		SettingsService:    failingScopeSettings(),
+		UserContextService: verifiedStaffContext(),
+	}
+
+	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
+}
+
+func TestOperationalOverview_NilSettings(t *testing.T) {
+	t.Parallel()
+
+	rs := &Resource{SettingsService: nil, UserContextService: verifiedStaffContext()}
+
+	assert.False(t, rs.operationalOverview(claimsCtx(adminClaims())))
 }
 
 // =============================================================================
@@ -388,9 +438,8 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		UserContextService: verifiedStaffContext(),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
 	w := httptest.NewRecorder()
@@ -400,21 +449,50 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
-func TestGetAllActiveSupervisions_OpenCareAllowsPermissionBearingStaff(t *testing.T) {
+func TestGetAllActiveSupervisions_AllStaffScopeAllowsPermissionBearingStaff(t *testing.T) {
 	t.Parallel()
 
-	settings := mockSettingsSvc(map[string]bool{})
-	settings.ResolveStringFn = func(_ context.Context, key string) (string, error) {
-		assert.Equal(t, configModel.KeyGroupMode, key)
-		return configModel.GroupModeOpenCare, nil
+	rs := &Resource{
+		SettingsService:    scopeSettings(configModel.OverviewScopeAllStaff),
+		UserContextService: verifiedStaffContext(),
+		ActiveService:      &stubActiveService{},
 	}
-	rs := &Resource{SettingsService: settings, ActiveService: &stubActiveService{}}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
 	w := httptest.NewRecorder()
 
 	rs.getAllActiveSupervisions(w, r)
 
 	assert.Equal(t, http.StatusOK, w.Code)
+}
+
+// The organisational group mode must no longer decide operational access
+// (#2380): open care alone leaves the school on the restrictive default.
+func TestGetAllActiveSupervisions_GroupModeAloneGrantsNothing(t *testing.T) {
+	t.Parallel()
+
+	settings := &configtest.Mock{
+		ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			switch key {
+			case configModel.KeyGroupMode:
+				return configModel.GroupModeOpenCare, nil
+			case configModel.KeyOperationalOverviewScope:
+				return configModel.OverviewScopeOwn, nil
+			default:
+				return "", fmt.Errorf("unexpected settings key: %s", key)
+			}
+		},
+	}
+	rs := &Resource{
+		SettingsService:    settings,
+		UserContextService: verifiedStaffContext(),
+		ActiveService:      &stubActiveService{},
+	}
+	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
+	w := httptest.NewRecorder()
+
+	rs.getAllActiveSupervisions(w, r)
+
+	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
@@ -433,9 +511,8 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: false,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeOwn),
+		UserContextService: verifiedStaffContext(),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -448,9 +525,9 @@ func TestGetAllActiveSupervisions_ForbiddenWhenSettingDisabled(t *testing.T) {
 func TestGetAllActiveSupervisions_ForbiddenOnSettingError(t *testing.T) {
 	t.Parallel()
 
-	// Empty boolValues → ResolveBool returns error for the key
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{}),
+		SettingsService:    failingScopeSettings(),
+		UserContextService: verifiedStaffContext(),
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -464,10 +541,9 @@ func TestGetAllActiveSupervisions_SuccessEmptyGroups(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
-		ActiveService: &stubActiveService{},
+		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		UserContextService: verifiedStaffContext(),
+		ActiveService:      &stubActiveService{},
 	}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())
 	w := httptest.NewRecorder()
@@ -490,9 +566,8 @@ func TestGetAllActiveSupervisions_SuccessWithActiveGroups(t *testing.T) {
 	endedTime := now.Add(-1 * time.Hour)
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		UserContextService: verifiedStaffContext(),
 		ActiveService: &stubActiveService{
 			listActiveGroupsFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return []*activeModel.Group{
@@ -533,9 +608,8 @@ func TestGetAllActiveSupervisions_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		SettingsService: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		SettingsService:    scopeSettings(configModel.OverviewScopeAdmins),
+		UserContextService: verifiedStaffContext(),
 		ActiveService: &stubActiveService{
 			listActiveGroupsFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")

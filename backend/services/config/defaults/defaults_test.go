@@ -30,7 +30,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_abandoned_threshold_minutes",
 		// Default active-session inactivity timeout (issue #586, Rule 12).
 		"operations.session_inactivity_timeout_minutes",
-		"operations.admin_supervision_overview",
+		"operations.operational_overview_scope",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
@@ -339,6 +339,35 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
 }
 
+// TestOperationalOverviewScopeSetting pins the one setting that decides who
+// may see and operate every running module (#2380). The three option values
+// are a wire contract with the backend gate, so a rename must fail here.
+func TestOperationalOverviewScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyOperationalOverviewScope)
+	require.NotNil(t, def, "operations.operational_overview_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.OverviewScopeOwn, def.Default, "the restrictive scope is the default")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 3)
+	values := make([]any, 0, 3)
+	for _, opt := range def.Options.Static {
+		values = append(values, opt.Value)
+	}
+	assert.Contains(t, values, config.OverviewScopeOwn)
+	assert.Contains(t, values, config.OverviewScopeAdmins)
+	assert.Contains(t, values, config.OverviewScopeAllStaff)
+
+	// The retired flag must not come back: two settings answering the same
+	// question is exactly what #2380 removed.
+	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
+}
+
 func TestOrganizationSetupSettings(t *testing.T) {
 	t.Parallel()
 
@@ -639,7 +668,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
-		{"operations.admin_supervision_overview", config.FieldBoolean},
+		{"operations.operational_overview_scope", config.FieldSelect},
 		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
@@ -1440,7 +1469,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
-		{"operations.admin_supervision_overview", false},
+		{"operations.operational_overview_scope", config.OverviewScopeOwn},
 		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},

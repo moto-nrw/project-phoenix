@@ -12,16 +12,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// SSESettingsResolver resolves the tenant-scoped boolean settings the SSE
+// SSESettingsResolver resolves the tenant-scoped settings the SSE
 // subscription policy depends on. Implemented by config.SettingsService.
-// Optional — when nil, the admin-supervision-overview path is skipped and the
+// Optional — when nil, the school-wide overview path is skipped and the
 // resolver falls back to the staff member's own supervised groups.
 type SSESettingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 // SSESubscription is the resolved topic set for an SSE client: the staff
@@ -46,8 +46,8 @@ func (e *SSESetupError) Error() string { return fmt.Sprintf("SSE setup: %s", e.M
 
 // ResolveSSESubscription resolves the full topic subscription for the
 // authenticated caller. Effective admins may not have a staff record — that's
-// OK, they still receive BroadcastToAll events and (when
-// admin_supervision_overview is enabled) every active group's events.
+// OK, they still receive BroadcastToAll events and (when the school-wide
+// overview scope covers them) every active group's events.
 // Non-admins without a staff record are rejected with an SSESetupError.
 func (s *userContextService) ResolveSSESubscription(ctx context.Context) (*SSESubscription, error) {
 	isAdmin := authorize.HasEffectiveAdminScope(ctx)
@@ -143,36 +143,37 @@ func (s *userContextService) buildSSESubscription(ctx context.Context, staffID i
 	}, nil
 }
 
-// resolveSSESupervisions returns the supervisions to subscribe to. For admins
-// with admin_supervision_overview enabled, returns a synthetic entry for every
-// currently active group — aligned with the HTTP endpoint
-// /api/active/supervisors/all which also enumerates active.groups directly.
-// Using ListActiveGroups (rather than the supervisor rows) ensures unclaimed
-// active groups (e.g. Schulhof without a current supervisor) still receive
-// live events. For regular staff, returns only their own supervised groups.
+// resolveSSESupervisions returns the supervisions to subscribe to. Callers
+// covered by the school-wide overview scope (#2380) get a synthetic entry for
+// every currently active group — the exact same rule the HTTP endpoints use,
+// so a client never sees a block in a list whose live updates it is not
+// subscribed to. Using ListActiveGroups (rather than the supervisor rows)
+// ensures unclaimed active groups (e.g. Schulhof without a current
+// supervisor) still receive live events. Everyone else keeps their own
+// supervised groups.
 func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
 	if s.sseActiveSvc == nil {
 		return nil, errors.New("SSE active service is not configured")
 	}
 
-	if authorize.HasEffectiveAdminScope(ctx) && s.sseSettings != nil {
-		enabled, err := s.sseSettings.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+	if s.sseSettings != nil {
+		broad, err := authorize.HasOperationalOverview(ctx, s.sseSettings, s)
 		if err != nil {
-			s.getLogger().Warn("admin_supervision_overview setting check failed for SSE, falling back to staff supervisions",
+			s.getLogger().Warn("operational overview scope check failed for SSE, falling back to staff supervisions",
 				slog.String("error", err.Error()),
 				slog.Int64("staff_id", staffID),
 			)
-		} else if enabled {
+		} else if broad {
 			groups, err := s.sseActiveSvc.ListActiveGroups(ctx, base.NewQueryOptions())
 			if err != nil {
-				s.getLogger().Error("failed to list active groups for admin SSE",
+				s.getLogger().Error("failed to list active groups for school-wide SSE",
 					slog.String("error", err.Error()),
 					slog.Int64("staff_id", staffID),
 				)
 				return nil, err
 			}
 			// Synthesise GroupSupervisor records so the topic-building loop can
-			// reuse GroupID without special-casing admin paths.
+			// reuse GroupID without special-casing the broad path.
 			synthetic := make([]*active.GroupSupervisor, 0, len(groups))
 			for _, g := range groups {
 				if g.IsActive() {

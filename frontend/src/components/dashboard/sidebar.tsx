@@ -393,7 +393,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     isLoadingSupervision,
     groups,
     supervisedRooms,
-    adminOverviewEnabled,
+    overviewEnabled,
   } = useOptionalSupervision();
 
   // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
@@ -991,11 +991,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
 
   // Caregiver accordions are driven by the explicit caregiver role.
   // Show staff accordions for caregivers (user/teacher role) and for admins
-  // only when the admin_supervision_overview setting is confirmed enabled
-  // (adminOverviewEnabled avoids the synthetic Schulhof entry triggering the
-  // accordion when the setting is off).
+  // only when the school-wide overview covers them, confirmed by the server
+  // (#2380). overviewEnabled avoids the synthetic Schulhof entry triggering
+  // the accordion when the school keeps everyone on their own supervisions.
   const showStaffAccordions =
-    userIsCaregiver || (userIsAdmin && adminOverviewEnabled);
+    userIsCaregiver || (userIsAdmin && overviewEnabled);
 
   // Resolve operator nav hrefs once (operatorPath is deterministic for the page lifetime)
   const resolvedOperatorSections = useMemo(

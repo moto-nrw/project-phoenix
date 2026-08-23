@@ -100,7 +100,7 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		instanceWithTimes(330, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
 	}
@@ -121,7 +121,7 @@ func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	const schulhofRoomID int64 = 811
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
 		Model: modelBase.Model{ID: schulhofRoomID},
 		Name:  constants.SchulhofRoomName,
@@ -148,7 +148,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 		tomorrowStart := time.Date(2026, time.May, 11, 8, 0, 0, 0, time.UTC)
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 			instanceWithTimes(334, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour)),
 		}
@@ -189,7 +189,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 	t.Run("admin overview allows missing person profile", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 		deps.personService.accountErr = usersSvc.ErrPersonNotFound
 		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 			instanceWithTimes(336, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
@@ -374,7 +374,7 @@ func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T
 	require.Len(t, result, 1)
 	assert.Equal(t, int64(370), result[0].ID)
 
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	result, err = deps.service.PlannedNow(context.Background(), 633, true, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
 	require.NoError(t, err)
 	require.Len(t, result, 2)
@@ -384,7 +384,7 @@ func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
 	t.Parallel()
 
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 430
 
@@ -1265,9 +1265,9 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("open care allows staff without instance assignment or supervision", func(t *testing.T) {
+	t.Run("all_staff scope allows staff without instance assignment or supervision", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.mode = configModel.GroupModeOpenCare
+		deps.settings.scope = configModel.OverviewScopeAllStaff
 		wireAssignedStaff(deps, 693, 515, 274, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
 
@@ -1277,7 +1277,21 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
 	})
 
-	t.Run("group mode resolution failure keeps fixed-group checks", func(t *testing.T) {
+	// The organisational group mode no longer opens running modules (#2380):
+	// on its own it leaves the school on the restrictive default.
+	t.Run("open care alone does not open foreign modules", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+		wireAssignedStaff(deps, 698, 518, 277, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 279}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Roster(context.Background(), 698, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("overview scope resolution failure keeps fixed-group checks", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.stringErr = errors.New("settings unavailable")
 		wireAssignedStaff(deps, 694, 516, 275, instanceID)
@@ -1303,18 +1317,18 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Empty(t, deps.instanceService.completed)
 	})
 
-	t.Run("open care still requires a staff identity", func(t *testing.T) {
+	t.Run("all_staff scope still requires a staff identity", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.mode = configModel.GroupModeOpenCare
+		deps.settings.scope = configModel.OverviewScopeAllStaff
 
 		_, err := deps.service.Roster(context.Background(), 695, false, instanceID)
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("admin overview allows an admin without a staff identity", func(t *testing.T) {
+	t.Run("admins scope allows an admin without a staff identity", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 
 		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
 
@@ -1641,9 +1655,11 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 	})
 
 	deps := newTimetableOpsDeps()
+	// A settings fault must fail closed for every caller shape (#2380).
 	deps.settings.err = errors.New("settings down")
-	assert.False(t, deps.service.(*timetableOperationsService).adminOverviewEnabled(context.Background(), true))
-	assert.False(t, deps.service.(*timetableOperationsService).adminOverviewEnabled(context.Background(), false))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))
 
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 505
@@ -2222,20 +2238,23 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled     bool
 	err         error
 	mode        string
+	scope       string
 	stringErr   error
 	leadMinutes int
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
-	return s.enabled, s.err
+	return false, s.err
 }
 
-func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, error) {
+func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if s.stringErr != nil {
 		return "", s.stringErr
+	}
+	if key == configModel.KeyOperationalOverviewScope {
+		return s.scope, nil
 	}
 	return s.mode, nil
 }

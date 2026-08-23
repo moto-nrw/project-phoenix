@@ -2778,8 +2778,8 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, admins only when they have supervised rooms
-// (i.e., admin_supervision_overview setting is active and there are active groups)
+// Gate component: allows caregivers always, everyone else only when the
+// server confirmed the school-wide overview covers them (#2380).
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -2789,7 +2789,7 @@ function ActiveSupervisionGate({
       redirect("/");
     },
   });
-  const { adminOverviewEnabled, isLoadingSupervision } =
+  const { overviewEnabled, isLoadingSupervision } =
     useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
@@ -2801,11 +2801,11 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  // Admins only when the admin_supervision_overview setting is confirmed
-  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
-  // supervisedRooms.length would incorrectly let admins through when the
-  // setting is OFF but a synthetic Schulhof entry is present.
-  if (isAdmin(session) && adminOverviewEnabled) {
+  // Admins only when /api/active/supervisors/all returned OK, i.e. the
+  // school-wide overview covers them. Checking supervisedRooms.length would
+  // incorrectly let admins through when the scope is "own" but a synthetic
+  // Schulhof entry is present.
+  if (isAdmin(session) && overviewEnabled) {
     return <>{children}</>;
   }
 

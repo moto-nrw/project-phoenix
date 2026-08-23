@@ -12,6 +12,7 @@ import { useSession } from "next-auth/react";
 import { hasPermission, isAdmin, isCaregiver } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
+import { useOperationalOverviewScope } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "SupervisionContext" });
 
@@ -59,11 +60,13 @@ interface SupervisionState {
   supervisedRooms: SupervisedRoom[];
   isLoadingSupervision: boolean;
 
-  // True when the caller fetched supervision rooms via the admin overview
-  // endpoint (/api/active/supervisors/all). False for regular staff or when
-  // the setting is disabled. Used by pages to gate admin-only views so that
-  // a synthetic Schulhof entry does not count as an enabled overview.
-  adminOverviewEnabled: boolean;
+  // True when the caller fetched supervision rooms via the school-wide
+  // overview endpoint (/api/active/supervisors/all), i.e. the server confirmed
+  // this person may see and operate every running module (#2380). False when
+  // the school keeps everyone on their own supervisions. Pages gate on this
+  // rather than on room count, so a synthetic Schulhof entry never counts as
+  // an enabled overview.
+  overviewEnabled: boolean;
 }
 
 interface SupervisionContextType extends SupervisionState {
@@ -98,7 +101,7 @@ export function SupervisionProvider({
     supervisedRoomName: undefined,
     supervisedRooms: [],
     isLoadingSupervision: true,
-    adminOverviewEnabled: false,
+    overviewEnabled: false,
   });
 
   // Debounce mechanism to prevent rapid successive calls
@@ -108,13 +111,23 @@ export function SupervisionProvider({
   const pendingFullRefreshRef = React.useRef(false);
 
   // Store token and admin status in refs to avoid dependency loops.
-  // Any admin (including dual-role teacher-admins) tries the admin-overview
-  // endpoint first. The server-side setting is the single source of truth for
-  // whether all rooms are visible; users without opt-in fall back to their
-  // own scope via the staff endpoint.
+  // EVERY caller with `groups:read` tries the school-wide overview endpoint
+  // first — admins and caregivers alike (#2380). The server-side scope
+  // setting is the single source of truth for whether all rooms are visible;
+  // a 403 means this school keeps the caller on their own supervisions, and
+  // the staff endpoint answers instead.
   const tokenRef = useLatest(session?.user?.token);
   const sessionIsAdmin = isAdmin(session);
-  const isAdminRef = useLatest(sessionIsAdmin);
+
+  // The tenant's configured scope tells us whether asking for the school-wide
+  // list can succeed at all. It is a hint that saves a guaranteed 403 per
+  // refresh, never the decision: the server answers every request itself, and
+  // a 403 still falls back to the caller's own supervisions below.
+  const overviewScope = useOperationalOverviewScope();
+  const mayHaveOverview =
+    overviewScope === "all_staff" ||
+    (overviewScope === "admins" && sessionIsAdmin);
+  const mayHaveOverviewRef = useLatest(mayHaveOverview);
 
   // Whether the user may read group/supervision data. The Schulhof status
   // endpoint is gated by `groups:read` on the backend, so accounts with an
@@ -241,40 +254,42 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
       }));
       return;
     }
 
-    // Tracks whether the admin overview endpoint actually responded with data
-    // (i.e. the setting is enabled). Only set to true on a successful response.
-    let adminOverviewOk = false;
+    // Tracks whether the school-wide overview endpoint actually responded
+    // with data. Only set to true on a successful response.
+    let overviewOk = false;
 
     try {
-      // Admins: try the admin overview endpoint first. On any non-OK
-      // response (403 = setting disabled; 5xx/network = transient), fall
+      // Try the school-wide overview endpoint first for every caller who may
+      // read groups at all. On any non-OK response (403 = this school keeps
+      // the caller on their own supervisions; 5xx/network = transient), fall
       // back to the regular staff endpoint so the user at least keeps their
       // own supervisions instead of an empty sidebar.
-      // Regular staff: fetch own supervised groups directly.
+      // The endpoint is gated on `groups:read`, so accounts without it skip
+      // straight to the permission-less /me endpoint.
       const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!isAdminRef.current) {
+        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
           });
         }
-        const adminResponse = await fetch("/api/active/supervisors/all", {
+        const overviewResponse = await fetch("/api/active/supervisors/all", {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-        if (!adminResponse.ok) {
+        if (!overviewResponse.ok) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
           });
         }
-        adminOverviewOk = true;
-        return adminResponse;
+        overviewOk = true;
+        return overviewResponse;
       };
 
       // Fetch supervised groups and Schulhof status in parallel.
@@ -407,7 +422,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: newSupervisedRooms,
               isLoadingSupervision: false,
-              adminOverviewEnabled: adminOverviewOk,
+              overviewEnabled: overviewOk,
             };
           });
         } else {
@@ -441,7 +456,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: roomsWithSchulhof,
               isLoadingSupervision: false,
-              adminOverviewEnabled: adminOverviewOk,
+              overviewEnabled: overviewOk,
             };
           });
         }
@@ -473,7 +488,7 @@ export function SupervisionProvider({
             supervisedRoomName: newRoomName,
             supervisedRooms: roomsOnError,
             isLoadingSupervision: false,
-            adminOverviewEnabled: false,
+            overviewEnabled: false,
           };
         });
       }
@@ -497,11 +512,11 @@ export function SupervisionProvider({
           supervisedRoomName: undefined,
           supervisedRooms: [],
           isLoadingSupervision: false,
-          adminOverviewEnabled: false,
+          overviewEnabled: false,
         };
       });
     }
-  }, [canReadGroupsRef, isAdminRef, tokenRef]);
+  }, [canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
 
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
@@ -586,7 +601,7 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
       });
     }
   }, [session?.user?.token]); // Only depend on token
@@ -670,7 +685,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isSupervising: false,
   supervisedRooms: [],
   isLoadingSupervision: false,
-  adminOverviewEnabled: false,
+  overviewEnabled: false,
   // eslint-disable-next-line no-empty-function -- safe no-op default for operator context
   refresh: async () => {},
 };

@@ -25,7 +25,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 // and therefore require an immediate re-fetch after save/reset instead of
 // waiting for the next navigation or re-login.
 const SUPERVISION_AFFECTING_KEYS = new Set<string>([
-  "operations.admin_supervision_overview",
+  "operations.operational_overview_scope",
 ]);
 
 const logger = createLogger({ component: "SettingsPage" });
