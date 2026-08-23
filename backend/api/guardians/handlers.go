@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -1201,9 +1202,9 @@ func toPhoneCreateRequests(phones []GuardianPhoneInput) []guardianSvc.PhoneNumbe
 // authorize (which a non-admin supervisor could not perform once the guardian
 // had no remaining links). See #819.
 //
-// Auth mirrors the single-link endpoint (linkGuardianToStudent): the router
-// requires users:update, and canModifyStudent adds the active-student and
-// verified-staff/admin check.
+// Existing-profile links require users:update. A batch that creates any profile
+// additionally requires users:create; canModifyStudent adds the active-student
+// and verified-staff/admin check.
 func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Request) {
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
@@ -1220,6 +1221,10 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 	req := &CreateStudentGuardiansRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if batchCreatesGuardian(req.Guardians) && !authorize.HasPermission(permissions.UsersCreate, jwt.PermissionsFromCtx(r.Context())) {
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
 		return
 	}
 
@@ -1242,6 +1247,15 @@ func (rs *Resource) createStudentGuardians(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusCreated, nil, "Guardians added successfully")
+}
+
+func batchCreatesGuardian(guardians []GuardianWithRelationshipInput) bool {
+	for _, guardian := range guardians {
+		if guardian.GuardianProfileID == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // updateStudentGuardianRelationship handles updating a student-guardian relationship.

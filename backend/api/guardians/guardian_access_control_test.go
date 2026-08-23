@@ -97,6 +97,14 @@ func TestGuardianCreateRoutesRejectStaffWithoutPermissionsAndPreserveState(t *te
 		requireNoGuardians(t, ctx, unlinkedStudent.ID)
 		requireGuardianEmailCount(t, ctx, batchEmail, 0)
 	})
+
+	t.Run("batch create requires create permission", func(t *testing.T) {
+		status := executeGuardianWrite(t, ctx, guardianStaffClaims(account.ID, permissions.UsersUpdate), http.MethodPost,
+			fmt.Sprintf("/students/%d/guardians/batch", unlinkedStudent.ID), batchBody(batchEmail))
+		require.Equal(t, http.StatusForbidden, status)
+		requireNoGuardians(t, ctx, unlinkedStudent.ID)
+		requireGuardianEmailCount(t, ctx, batchEmail, 0)
+	})
 }
 
 func TestGuardianRelationshipRoutesRejectStaffWithoutPermissionsAndPreserveState(t *testing.T) {
@@ -161,6 +169,7 @@ func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Authorised", "Staff")
 	createClaims := guardianStaffClaims(account.ID, permissions.UsersCreate)
 	updateClaims := guardianStaffClaims(account.ID, permissions.UsersUpdate)
+	createAndUpdateClaims := guardianStaffClaims(account.ID, permissions.UsersCreate, permissions.UsersUpdate)
 	student := testpkg.CreateTestStudent(t, ctx.db, "Authorised", "Child", "1a")
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "authorised-access")
 
@@ -185,8 +194,21 @@ func TestGuardianWriteRoutesAllowStaffWithRequiredPermissions(t *testing.T) {
 		fmt.Sprintf("/students/%d/guardians/%d", student.ID, guardian.ID), nil))
 	requireNoGuardians(t, ctx, student.ID)
 
-	batchStudent := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Allowed", "1b")
+	existingBatchStudent := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Existing", "1b")
+	existingBatchGuardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "allowed-batch-existing")
 	require.Equal(t, http.StatusCreated, executeGuardianWrite(t, ctx, updateClaims, http.MethodPost,
+		fmt.Sprintf("/students/%d/guardians/batch", existingBatchStudent.ID), map[string]any{"guardians": []map[string]any{{
+			"guardian_profile_id": existingBatchGuardian.ID,
+			"relationship_type":   "parent",
+			"guardian_role":       authorize.GuardianRolePickupOnly,
+			"emergency_priority":  1,
+		}}}))
+	existingLinked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), existingBatchStudent.ID)
+	require.NoError(t, err)
+	require.Len(t, existingLinked, 1)
+
+	batchStudent := testpkg.CreateTestStudent(t, ctx.db, "Batch", "Allowed", "1b")
+	require.Equal(t, http.StatusCreated, executeGuardianWrite(t, ctx, createAndUpdateClaims, http.MethodPost,
 		fmt.Sprintf("/students/%d/guardians/batch", batchStudent.ID), batchBody(fmt.Sprintf("allowed-batch-%d@example.test", time.Now().UnixNano()))))
 	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), batchStudent.ID)
 	require.NoError(t, err)
