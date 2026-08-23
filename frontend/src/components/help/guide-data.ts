@@ -1223,8 +1223,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Vertretung-Tagesansicht mit Störungsliste, Wochenleiste und Tageskalender.",
-        image: "/help/screens/vertretungsplan.webp",
+          "Vertretungs-Editor mit Umfangsauswahl, Krankmeldungs-Hinweis und Entfernen einer Ersatzperson.",
       },
       {
         id: "mein-kalender",

@@ -682,6 +682,9 @@ func (s *instanceService) planAbsences(ctx context.Context, absences []Deviation
 	plan := make([]deviationAbsenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, absence := range absences {
+		if err := s.validateExplicitScopeInstances(ctx, date, absence.InstanceIDs); err != nil {
+			return nil, err
+		}
 		rows, err := s.scopedStaffRows(ctx, absence.StaffID, date, absence.InstanceIDs)
 		if err != nil {
 			return nil, err
@@ -713,20 +716,14 @@ func (s *instanceService) planPresences(ctx context.Context, presences []Deviati
 	plan := make([]deviationPresenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, presence := range presences {
+		if err := s.validateExplicitScopeInstances(ctx, date, presence.InstanceIDs); err != nil {
+			return nil, err
+		}
 		rows, err := s.scopedStaffRows(ctx, presence.StaffID, date, presence.InstanceIDs)
 		if err != nil {
 			return nil, err
 		}
 		for _, row := range rows {
-			if seenRows[row.ID] || !row.IsAbsent {
-				continue // only a persisted absence can be cleared
-			}
-			if row.SickAbsenceID != nil {
-				return nil, devErrConflict(
-					"sick_absence_scope_locked",
-					"diese Abwesenheit kommt aus einer Krankmeldung und kann hier nicht geändert werden",
-				)
-			}
 			instance, err := s.loadPlannableInstance(ctx, row)
 			if err != nil {
 				return nil, err
@@ -736,6 +733,15 @@ func (s *instanceService) planPresences(ctx context.Context, presences []Deviati
 					return nil, devErrConflict("instance_not_editable", "dieser Termin kann nicht mehr geändert werden")
 				}
 				continue // terminal instance, skip
+			}
+			if seenRows[row.ID] || !row.IsAbsent {
+				continue // only a persisted absence can be cleared
+			}
+			if row.SickAbsenceID != nil {
+				return nil, devErrConflict(
+					"sick_absence_scope_locked",
+					"diese Abwesenheit kommt aus einer Krankmeldung und kann hier nicht geändert werden",
+				)
 			}
 			seenRows[row.ID] = true
 			plan = append(plan, deviationPresenceOp{row: row, instance: instance})

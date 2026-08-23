@@ -44,10 +44,9 @@ export function desiredAbsenceIds(
   person: PersonForm,
   openIds: string[],
 ): string[] {
+  if (person.sickLocked) return person.existingAbsentIds;
   let desired = person.existingAbsentIds;
-  if (person.sickLocked && person.scope !== "selected") {
-    desired = person.existingAbsentIds;
-  } else if (!person.absent)
+  if (!person.absent)
     desired = person.wasAbsent ? [] : person.existingAbsentIds;
   else if (person.scope === "all" || person.allDayAbsence) desired = openIds;
   else if (person.scope === "selected") desired = person.selectedInstanceIds;

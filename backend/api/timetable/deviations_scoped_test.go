@@ -529,6 +529,75 @@ func TestApplyDeviations_RejectsTerminalAppointmentInExplicitScope(t *testing.T)
 	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
 }
 
+func TestApplyDeviations_RejectsAlreadyAbsentTerminalAppointmentInExplicitScope(t *testing.T) {
+	t.Parallel()
+
+	s := buildScopedDevSetup(t)
+	date := timezone.TodayDate().AddDays(1)
+	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
+	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Status: scheduleModel.InstanceStatusCompleted,
+	})
+	selectedRow := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+
+	w := doScopedDev(t, s, selected.ID, map[string]any{
+		"absences": []map[string]any{{
+			"staff_id":     s.staffA,
+			"instance_ids": []int64{selected.ID, terminal.ID},
+		}},
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "instance_not_editable")
+	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
+}
+
+func TestApplyDeviations_RejectsAlreadyPresentTerminalAppointmentInExplicitScope(t *testing.T) {
+	t.Parallel()
+
+	s := buildScopedDevSetup(t)
+	date := timezone.TodayDate().AddDays(1)
+	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
+	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Status: scheduleModel.InstanceStatusCancelled,
+	})
+	selectedRow := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{})
+
+	w := doScopedDev(t, s, selected.ID, map[string]any{
+		"presences": []map[string]any{{
+			"staff_id":     s.staffA,
+			"instance_ids": []int64{selected.ID, terminal.ID},
+		}},
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "instance_not_editable")
+	assert.True(t, readScopedInstanceStaff(t, s.db, s.ctx, selectedRow.ID).IsAbsent)
+}
+
+func TestApplyDeviations_DayWidePresenceSkipsTerminalSickAbsence(t *testing.T) {
+	t.Parallel()
+
+	s := buildScopedDevSetup(t)
+	date := timezone.TodayDate().AddDays(1)
+	planned := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
+	terminal := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Status: scheduleModel.InstanceStatusCompleted,
+	})
+	plannedRow := testpkg.CreateTestInstanceStaff(t, s.db, planned.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	terminalRow := testpkg.CreateTestInstanceStaff(t, s.db, terminal.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	sickAbsenceID := terminalRow.ID
+	terminalRow.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, scheduleRepo.NewInstanceStaffRepository(s.db).Update(s.ctx, terminalRow))
+
+	w := doScopedDev(t, s, planned.ID, map[string]any{
+		"presences": []map[string]any{{"staff_id": s.staffA}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	assert.False(t, readScopedInstanceStaff(t, s.db, s.ctx, plannedRow.ID).IsAbsent)
+	assert.True(t, readScopedInstanceStaff(t, s.db, s.ctx, terminalRow.ID).IsAbsent)
+}
+
 func assertStaffState(t *testing.T, rows []*scheduleModel.InstanceStaff, staffID int64, absent, substitute bool) {
 	t.Helper()
 	for _, row := range rows {
