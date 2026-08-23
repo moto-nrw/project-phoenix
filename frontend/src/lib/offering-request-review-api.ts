@@ -82,6 +82,16 @@ export interface OfferingRequestPreviewSelection {
 
 export interface OfferingRequestPreview {
   readonly selections: readonly OfferingRequestPreviewSelection[];
+  readonly manual_planning_conflicts: readonly ManualPlanningConflict[];
+  readonly arrival_expectations_follow_bookings: boolean;
+}
+
+interface ManualPlanningConflict {
+  readonly activity_group_id: string;
+  readonly activity_group_name: string;
+  readonly days: readonly string[];
+  readonly first_date: string;
+  readonly occurrence_count: number;
 }
 
 interface Envelope<T> {
