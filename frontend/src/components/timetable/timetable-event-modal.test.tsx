@@ -2866,6 +2866,34 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("continues 'Ab jetzt dauerhaft' when dynamic target children produce no lost edits (#2526)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() => expect(screen.getByLabelText("Raum*")).toBeEnabled());
+    await clickSave();
+
+    // The backend integration test establishes the dynamic-target cause. This
+    // test pins the UI contract for its zero-lost-edits response.
+    await waitFor(() =>
+      expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+        "7",
+        expect.any(String),
+        expect.any(String),
+        true,
+      ),
+    );
+    await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+    expect(
+      screen.queryByText("Einzelanpassungen gehen verloren"),
+    ).not.toBeInTheDocument();
+  });
+
   it("preserves the fetched staffing override for an untouched following edit", async () => {
     mockGetTemplate.mockResolvedValue({
       ...template,
