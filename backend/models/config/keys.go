@@ -133,6 +133,7 @@ const (
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
+	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
 	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"

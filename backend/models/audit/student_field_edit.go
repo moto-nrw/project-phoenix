@@ -38,6 +38,10 @@ const (
 	StudentFieldExtraInfo       = "extra_info"
 	StudentFieldHealthInfo      = "health_info"
 	StudentFieldPickupStatus    = "pickup_status"
+	// StudentFieldPickupSchedule records a complete permanent weekly pickup
+	// plan change, including whether staff selected an offering or kept a
+	// lasting individual exception.
+	StudentFieldPickupSchedule = "pickup_schedule"
 	// StudentFieldCareEnd records the last care day — the inclusive upper
 	// bound of the enrollment interval (#2487). Values are German dates, or
 	// empty when no end of care is recorded. The categorised exit REASON is
@@ -109,7 +113,7 @@ func (e *StudentFieldEdit) Validate() error {
 
 	switch e.FieldName {
 	case StudentFieldStatus, StudentFieldSupervisorNotes, StudentFieldExtraInfo,
-		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldDepartureDays,
+		StudentFieldHealthInfo, StudentFieldPickupStatus, StudentFieldPickupSchedule, StudentFieldDepartureDays,
 		StudentFieldDepartureCompanionNote, StudentFieldCareEnd, StudentFieldDocument:
 		// Valid field names
 	default:

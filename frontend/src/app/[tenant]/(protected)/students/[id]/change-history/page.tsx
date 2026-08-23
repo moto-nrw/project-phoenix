@@ -56,6 +56,7 @@ const FIELD_LABELS: Record<string, string> = {
   extra_info: "Zusatzinformationen",
   health_info: "Gesundheitsinformationen",
   pickup_status: "Abholung",
+  pickup_schedule: "Dauerhafte Gehzeiten",
   departure_days: "Wochenplan (Abholung)",
   departure_companion_note: "Geht außerdem mit",
   document: "Dokument",

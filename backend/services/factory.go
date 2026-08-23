@@ -171,6 +171,7 @@ type Factory struct {
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges         enrollment.OfferingChangeRequestService
+	PickupAdjustments       enrollment.PickupAdjustmentService
 	ExcusedRequests         absence.ExcusedAbsenceRequestService
 	StudentStatusDays       *active.StudentStatusDayService
 	AbsenceOverview         *active.StudentStatusDayOverviewService
@@ -1922,6 +1923,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Post-enrollment offering changes (#1665): the parents portal submits them,
 	// staff decide them on the same review page, and an approval applies the
 	// switch through the decision service's dated adjustment path.
+	directOfferingApplier, ok := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
+	}
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestService(enrollment.OfferingChangeRequestServiceConfig{
 		ChangeRepo:               repos.OfferingChangeRequest,
 		RequestChildRepo:         repos.RequestChild,
@@ -1935,9 +1940,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,
+		DirectApplier:            directOfferingApplier,
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
+	})
+	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
+	if !ok {
+		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
+	}
+	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
+		PickupSchedules:    pickupScheduleService,
+		PickupScheduleRepo: repos.StudentPickupSchedule,
+		PickupBaselines:    pickupBaselines,
+		Offerings:          pickupOfferingCoordinator,
+		Settings:           settingsService,
+		Audit:              studentAuditService,
+		Students:           repos.Student,
+		DB:                 db,
 	})
 
 	// Excused-absence approval requests (#1845): the optional office-approval
@@ -2415,6 +2435,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:            careRequestService,
 		OfferingChanges:         offeringChangeRequestService,
+		PickupAdjustments:       pickupAdjustmentService,
 		ExcusedRequests:         excusedRequestService,
 		StudentStatusDays:       studentStatusDayService,
 		AbsenceOverview:         studentStatusDayOverviewService,

@@ -15,6 +15,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type CareExceptionSubmit,
+  type CarePlanWeeklyAdjustment,
   type CarePlanWeeklySubmit,
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
@@ -48,14 +49,17 @@ import {
   deleteStudentPickupException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
+  applyStudentPickupAdjustment,
+  previewStudentPickupAdjustment,
   resetStudentPickupToOffering,
   updateStudentPickupException,
   updateStudentPickupNote,
-  updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
   type DayData as PickupDayData,
   type PickupData,
+  type PickupSchedule,
+  type PickupScheduleFormData,
   formatPickupTime,
   formatWeekRange,
   getDayData as getPickupDayData,
@@ -478,50 +482,83 @@ export function CareScheduleManager({
   }, [isEditorOpen, refreshFromRemote]);
 
   const handleUpdateWeeklyPlan = useCallback(
-    async (data: CarePlanWeeklySubmit) => {
-      // Arrival and pickup are separate endpoints, so one leg can persist while
-      // the other fails. Wait for both, refresh whenever anything landed, and
-      // only then report the failure. Retrying on stale rows would otherwise
-      // resubmit values the server already replaced.
-      const results = await Promise.allSettled([
-        updateArrivalSchedules(
+    async (
+      data: CarePlanWeeklySubmit,
+      adjustment?: CarePlanWeeklyAdjustment,
+    ) => {
+      const pickupChanged = !sameWeeklyPickupSchedules(
+        data.pickupSchedules,
+        pickupData.schedules,
+      );
+      const careDaysChanged = !sameWeekdays(
+        data.arrivalSchedules.map((schedule) => schedule.weekday),
+        arrivalData.schedules.map((schedule) => schedule.weekday),
+      );
+      if (!pickupChanged && !careDaysChanged && !adjustment) {
+        try {
+          await updateArrivalSchedules(
+            studentId,
+            data.arrivalSchedules.map((schedule) => ({
+              weekday: schedule.weekday,
+              expected_arrival: schedule.expected_arrival,
+              notes: schedule.notes ?? null,
+            })),
+          );
+        } finally {
+          await refreshCareData();
+        }
+        return;
+      }
+      const basePayload = {
+        schedules: data.pickupSchedules.map((schedule) => ({
+          weekday: schedule.weekday,
+          pickup_time: schedule.pickupTime,
+          ...(schedule.notes ? { notes: schedule.notes } : {}),
+        })),
+        care_days: data.arrivalSchedules.map((schedule) => schedule.weekday),
+        effective_from: adjustment?.effectiveFrom ?? formatDateISO(new Date()),
+        ...(adjustment?.selections
+          ? { selections: adjustment.selections }
+          : {}),
+      };
+
+      if (adjustment?.resolution === "offering" && !adjustment.confirm) {
+        return previewStudentPickupAdjustment(studentId, basePayload);
+      }
+
+      let preview = adjustment?.preview;
+      if (!preview) {
+        preview = await previewStudentPickupAdjustment(studentId, basePayload);
+        if (preview.resolution_required) {
+          return preview;
+        }
+      }
+
+      await applyStudentPickupAdjustment(studentId, {
+        ...basePayload,
+        preview_token: preview.preview_token,
+        resolution: adjustment?.resolution ?? "exception",
+        ...(adjustment?.reason ? { reason: adjustment.reason } : {}),
+      });
+
+      // The pickup decision happens first. A required offering/exception choice
+      // therefore cannot leave only the arrival half saved. Arrival remains its
+      // established endpoint and is refreshed if that second write fails.
+      try {
+        await updateArrivalSchedules(
           studentId,
           data.arrivalSchedules.map((schedule) => ({
             weekday: schedule.weekday,
             expected_arrival: schedule.expected_arrival,
             notes: schedule.notes ?? null,
           })),
-        ),
-        updateStudentPickupSchedules(studentId, {
-          schedules: data.pickupSchedules,
-          effectiveDate: formatDateISO(weekDays[0]!),
-        }),
-      ]);
-
-      const failure = results.find(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
-      );
-
-      if (results.some((result) => result.status === "fulfilled")) {
-        try {
-          await refreshCareData();
-          invalidatePickupCaches();
-        } catch (refreshErr) {
-          if (!failure) throw refreshErr;
-          logger.error("care_schedule_partial_weekly_refresh_failed", {
-            error:
-              refreshErr instanceof Error
-                ? refreshErr.message
-                : String(refreshErr),
-            student_id: studentId,
-          });
-        }
+        );
+      } finally {
+        await refreshCareData();
+        invalidatePickupCaches();
       }
-
-      if (failure) throw failure.reason;
     },
-    [studentId, refreshCareData, weekDays],
+    [studentId, refreshCareData, pickupData.schedules, arrivalData.schedules],
   );
 
   const editingDayDate = editorTarget?.date ?? null;
@@ -1404,7 +1441,47 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
+  if (
+    day.baseSchedule?.source !== "care_offering" &&
+    day.offeringSchedule &&
+    day.baseSchedule?.pickupTime !== day.offeringSchedule.pickupTime
+  ) {
+    return day.offeringSchedule.careOfferingName
+      ? `Andere Zeit als im Angebot „${day.offeringSchedule.careOfferingName}“`
+      : "Andere Zeit als im Angebot";
+  }
   return pickupScheduleSourceLabel(day.baseSchedule);
+}
+
+function sameWeekdays(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
+  const normalize = (values: readonly number[]) =>
+    [...new Set(values)].sort((a, b) => a - b).join(",");
+  return normalize(left) === normalize(right);
+}
+
+function sameWeeklyPickupSchedules(
+  next: readonly PickupScheduleFormData[],
+  current: readonly PickupSchedule[],
+): boolean {
+  const normalize = (
+    rows: ReadonlyArray<{
+      weekday: number;
+      pickupTime: string;
+      notes?: string;
+    }>,
+  ) =>
+    rows
+      .filter((row) => row.pickupTime.trim() !== "")
+      .map((row) => ({
+        weekday: row.weekday,
+        pickupTime: formatPickupTime(row.pickupTime),
+        notes: row.notes?.trim() ?? "",
+      }))
+      .sort((a, b) => a.weekday - b.weekday);
+  return JSON.stringify(normalize(next)) === JSON.stringify(normalize(current));
 }
 
 function getArrivalDescription(day: ArrivalDayData): string | undefined {

@@ -471,6 +471,20 @@ func init() {
 		SortOrder: 50,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyRequirePickupOfferingReview,
+		Label:           "Angebotsabgleich für dauerhafte Gehzeiten",
+		Description:     "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "betreuungszeiten",
+		SortOrder:       1,
+		AccessPolicy:    config.AccessShared,
+	})
+
 	// --- Geburtstage (#1542) ---
 	//
 	// Two switches, not one, because the two populations are not comparable.

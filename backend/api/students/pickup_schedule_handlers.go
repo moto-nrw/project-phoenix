@@ -97,8 +97,9 @@ type BulkPickupScheduleRequest struct {
 }
 
 type BulkPickupSchedulePatchRequest struct {
-	StudentIDs []int64                               `json:"student_ids"`
-	Schedules  []scheduleService.PickupScheduleInput `json:"schedules"`
+	StudentIDs         []int64                               `json:"student_ids"`
+	Schedules          []scheduleService.PickupScheduleInput `json:"schedules"`
+	ConfirmedException bool                                  `json:"confirmed_exception"`
 }
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
@@ -504,6 +505,18 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	reviewRequired, err := rs.legacyPickupReviewRequired(r.Context(), student.ID, req)
+	if err != nil {
+		renderPickupAdjustmentError(w, r, err)
+		return
+	}
+	if reviewRequired {
+		renderError(w, r, common.ErrorInvalidRequestWithCode(
+			enrollmentService.ErrPickupAdjustmentResolutionRequired,
+			"pickup.resolution_required",
+		))
+		return
+	}
 
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
@@ -551,6 +564,31 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules updated successfully")
 }
 
+func (rs *Resource) legacyPickupReviewRequired(
+	ctx context.Context,
+	studentID int64,
+	req *BulkPickupScheduleRequest,
+) (bool, error) {
+	if rs.PickupAdjustmentService == nil {
+		return false, nil
+	}
+	careDays := make([]int, 0, len(req.Schedules))
+	for _, row := range req.Schedules {
+		careDays = append(careDays, row.Weekday)
+	}
+	input, err := pickupAdjustmentPreviewInput(studentID, pickupAdjustmentRequest{
+		Schedules: req.Schedules, CareDays: careDays, EffectiveFrom: req.EffectiveDate,
+	})
+	if err != nil {
+		return false, fmt.Errorf("%w: %v", enrollmentService.ErrPickupAdjustmentInvalid, err)
+	}
+	preview, err := rs.PickupAdjustmentService.Preview(ctx, input)
+	if err != nil {
+		return false, err
+	}
+	return preview.ResolutionRequired, nil
+}
+
 func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Request) {
 	req := &BulkPickupSchedulePatchRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -562,19 +600,29 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
+	if rs.PickupAdjustmentService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("pickup adjustment service not configured")))
+		return
+	}
 	permissions := jwt.PermissionsFromCtx(r.Context())
-	result, err := rs.PickupScheduleService.BulkUpsertPickupSchedules(
-		r.Context(),
-		scheduleService.ArrivalScheduleBulkFilter{
-			StudentIDs: req.StudentIDs,
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.PickupAdjustmentService.ApplyBulkExceptions(
+		r.Context(), enrollmentService.PickupAdjustmentBulkInput{
+			StudentIDs: req.StudentIDs, Schedules: req.Schedules,
+			ConfirmedException: req.ConfirmedException, CreatedByStaffID: staffID,
+			ActorAccountID: int64(claims.ID),
 			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
 				return canUpdateStudent(ctx, permissions, student, rs.UserContextService)
 			},
 		},
-		req.Schedules,
-		staffID,
 	)
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPickupAdjustmentBulkConfirmation) {
+			renderError(w, r, common.ErrorInvalidRequestWithCode(
+				err, "pickup.bulk_exception_confirmation_required",
+			))
+			return
+		}
 		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
