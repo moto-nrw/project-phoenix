@@ -1127,7 +1127,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
 	fx.oldOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
 	fx.oldOffering.AvailableDays = []string{"mon", "wed", "thu"}
-	fx.oldOffering.CountsAsCare = false
+	fx.oldOffering.CountsAsCare = true
 	fx.oldOffering.CountsAsCareSet = true
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
 

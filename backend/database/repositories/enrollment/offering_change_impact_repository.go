@@ -55,52 +55,6 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
 		Where(`"activity_group".is_template = TRUE`).
 		Where(`"activity_group".type = ?`, activitiesModels.GroupTypeCare).
 		Where(`COALESCE(jsonb_array_length("activity_group".source_care_offering_ids), 0) = 0`).
-		// A legacy ActivityGroupID link only owns the part of a student's
-		// roster covered by that child's approved offering: its phase, validity
-		// window, and selected weekdays. Rows outside that footprint remain
-		// manual planning and must be shown before approval.
-		Where(`NOT EXISTS (
-			SELECT 1
-			FROM enrollment.care_offerings AS "source_offering"
-			INNER JOIN enrollment.request_child_offerings AS "source_link"
-				ON "source_link".tenant_id = "source_offering".tenant_id
-				AND "source_link".care_offering_id = "source_offering".id
-			INNER JOIN enrollment.request_children AS "source_child"
-				ON "source_child".tenant_id = "source_link".tenant_id
-				AND "source_child".id = "source_link".request_child_id
-			INNER JOIN enrollment.phases AS "source_phase"
-				ON "source_phase".tenant_id = "source_offering".tenant_id
-				AND "source_phase".id = "source_offering".phase_id
-			WHERE "source_offering".tenant_id = "activity_group".tenant_id
-			  AND "source_offering".activity_group_id = "activity_group".id
-			  AND "source_offering".counts_as_care = TRUE
-			  AND "source_child".status = 'approved'
-			  AND COALESCE("source_child".created_student_id, "source_child".matched_student_id) = "instance_student".student_id
-			  AND ("source_link".valid_from IS NULL OR "source_link".valid_from <= "activity_instance".date)
-			  AND ("source_link".valid_until IS NULL OR "source_link".valid_until > "activity_instance".date)
-			  AND "source_phase".service_start_date <= "activity_instance".date
-			  AND "source_phase".service_end_date >= "activity_instance".date
-			  AND (
-				"source_link".selected_days @> jsonb_build_array(
-					CASE EXTRACT(ISODOW FROM "activity_instance".date)
-						WHEN 1 THEN 'mon' WHEN 2 THEN 'tue' WHEN 3 THEN 'wed'
-						WHEN 4 THEN 'thu' WHEN 5 THEN 'fri' WHEN 6 THEN 'sat'
-						WHEN 7 THEN 'sun'
-					END
-				)
-				OR (
-					COALESCE(jsonb_array_length("source_link".selected_days), 0) = 0
-					AND "source_offering".days_of_week_mode = 'fixed'
-					AND "source_offering".available_days @> jsonb_build_array(
-						CASE EXTRACT(ISODOW FROM "activity_instance".date)
-							WHEN 1 THEN 'mon' WHEN 2 THEN 'tue' WHEN 3 THEN 'wed'
-							WHEN 4 THEN 'thu' WHEN 5 THEN 'fri' WHEN 6 THEN 'sat'
-							WHEN 7 THEN 'sun'
-						END
-					)
-				)
-			  )
-		)`).
 		OrderExpr(`"activity_group".name, "activity_group".id, "activity_instance".date, "activity_instance".id`)
 	query = base.WithTenantFilter(ctx, query, "instance_student")
 

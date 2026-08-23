@@ -1595,37 +1595,63 @@ func (s *offeringChangeRequestService) manualPlanningConflicts(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list manual planning conflicts: %w", err)
 	}
-	return aggregateManualPlanningConflicts(occurrences, coveredCareDays(diff)), nil
+	return aggregateManualPlanningConflicts(occurrences, diff), nil
 }
 
-func coveredCareDays(diff *offeringDecisionDiff) map[string]bool {
-	covered := make(map[string]bool, 7)
+func proposedCareCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
 	for _, selection := range diff.selected {
-		offering := diff.offeringByID[selection.OfferingID]
-		if offering == nil || !offering.CountsAsCare {
-			continue
-		}
-		days := selection.SelectedDays
-		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
-			days = offering.AvailableDays
-		}
-		for _, day := range days {
-			covered[day] = true
+		if proposedSelectionCoversOccurrence(diff, selection, occurrence) {
+			return true
 		}
 	}
-	return covered
+	return false
+}
+
+func proposedSelectionCoversOccurrence(
+	diff *offeringDecisionDiff,
+	selection materializedOfferingSelection,
+	occurrence enrollmentModels.ManualPlanningOccurrence,
+) bool {
+	if diff == nil || diff.phase == nil || occurrence.Date.Before(diff.effectiveFrom) || occurrence.Date.After(diff.phase.ServiceEndDate) {
+		return false
+	}
+	offering := diff.offeringByID[selection.OfferingID]
+	if offering == nil || !offering.CountsAsCare {
+		return false
+	}
+	days := selection.SelectedDays
+	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+		days = offering.AvailableDays
+	}
+	return slices.Contains(days, canonicalDayForWeekday(occurrence.Date.Weekday()))
+}
+
+func proposedLegacyPlanningCoversOccurrence(diff *offeringDecisionDiff, occurrence enrollmentModels.ManualPlanningOccurrence) bool {
+	if diff == nil {
+		return false
+	}
+	for _, selection := range diff.selected {
+		offering := diff.offeringByID[selection.OfferingID]
+		if offering == nil || offering.ActivityGroupID == nil || *offering.ActivityGroupID != occurrence.ActivityGroupID {
+			continue
+		}
+		if proposedSelectionCoversOccurrence(diff, selection, occurrence) {
+			return true
+		}
+	}
+	return false
 }
 
 func aggregateManualPlanningConflicts(
 	occurrences []enrollmentModels.ManualPlanningOccurrence,
-	coveredDays map[string]bool,
+	diff *offeringDecisionDiff,
 ) []ManualPlanningConflict {
 	conflicts := make([]ManualPlanningConflict, 0)
 	groupIndexes := make(map[int64]int)
 	seenDays := make(map[int64]map[string]bool)
 	for _, occurrence := range occurrences {
 		day := canonicalDayForWeekday(occurrence.Date.Weekday())
-		if coveredDays[day] {
+		if proposedLegacyPlanningCoversOccurrence(diff, occurrence) || proposedCareCoversOccurrence(diff, occurrence) {
 			continue
 		}
 		groupIndex, exists := groupIndexes[occurrence.ActivityGroupID]
