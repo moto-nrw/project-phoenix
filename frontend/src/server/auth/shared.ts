@@ -706,6 +706,33 @@ export const operatorRedirectCallback: NonNullable<
   return baseUrl;
 };
 
+/**
+ * School sessions are host-only, so their redirects must stay on that exact
+ * origin. Parsing relative URLs before comparing origins also rejects
+ * protocol-relative paths such as "//other-host.example".
+ */
+export const schoolRedirectCallback: NonNullable<
+  NonNullable<NextAuthConfig["callbacks"]>["redirect"]
+> = ({ url, baseUrl }) => {
+  try {
+    const redirectUrl = url.startsWith("/")
+      ? new URL(url, baseUrl)
+      : new URL(url);
+    const baseUrlObject = new URL(baseUrl);
+
+    if (redirectUrl.origin === baseUrlObject.origin) return redirectUrl.href;
+  } catch {
+    // An invalid callback target is handled like any other foreign origin.
+  }
+
+  logger.warn("school_redirect_blocked", {
+    url,
+    baseUrl,
+    reason: "origin mismatch",
+  });
+  return baseUrl;
+};
+
 export const sharedJwtCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["jwt"]
 > = async ({ token, user, trigger, session }) => {

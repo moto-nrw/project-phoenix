@@ -26,7 +26,7 @@ import {
   performSchoolLogin,
   createOperatorLoginError, // generic CredentialsSignin wrapper — reused
   refreshTokenExpiry,
-  operatorRedirectCallback, // generic origin/subdomain check — reused
+  schoolRedirectCallback,
   sharedJwtCallback,
   sharedSessionCallback,
   _resetRefreshState,
@@ -128,7 +128,7 @@ export const schoolAuthConfig = {
   ],
   basePath: "/api/school/auth",
   callbacks: {
-    redirect: operatorRedirectCallback,
+    redirect: schoolRedirectCallback,
     jwt: sharedJwtCallback,
     session: sharedSessionCallback,
   },
