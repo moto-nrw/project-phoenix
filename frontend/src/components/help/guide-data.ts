@@ -601,7 +601,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Über `Gruppieren` die Liste nach `Status`, `Raum`, `Ankunftszeit`, `Gehzeit`, `Abholregelung` oder `Laufgemeinschaft` bündeln. `Nach Laufgemeinschaft` zeigt die Kinder blockweise so, wie sie gemeinsam nach Hause gehen; Kinder ohne Verknüpfung stehen gesammelt am Ende unter `Ohne Laufgemeinschaft`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Zur Abholzeit über `An- & Abmelden` (am Handy die Leiste über der Liste) den Sammelmodus starten: Ein Tipp auf eine Kinderkarte meldet das Kind an oder ab, ohne die Karte zu öffnen. Der farbige Streifen unten auf der Karte nennt die nächste Aktion, grün für `Anmelden` und rot für `Abmelden`. So lässt sich eine gefilterte Aufrufliste abarbeiten, ohne zwischen Ansichten zu wechseln. Der Modus gilt immer für heute; `Fertig` beendet ihn.",
-          "In der Leiste unter dem Seitenkopf lässt sich das Tippverhalten von `Sofort` auf `Auswahl` umschalten: Ein Tipp markiert das Kind dann nur (`Ausgewählt`), ohne etwas auszulösen. So sieht man zum Beispiel im Verabschiedungskreis, wer schon dasteht und wer noch fehlt. `Anmelden` oder `Abmelden` in der Leiste führt die Aktion anschließend für alle markierten Kinder gesammelt aus. Kinder, bei denen es nicht klappt, werden namentlich genannt und bleiben markiert, sodass ein zweiter Versuch nur ein Tipp ist.",
+          "In der Leiste unter dem Seitenkopf können Sie von `Direkt` auf `Mehrere` wechseln. Tippen Sie dann alle gewünschten Kinder an. Am Handy erscheinen `Anmelden` und `Abmelden` unten über der Navigation. Auf größeren Bildschirmen stehen die Aktionen rechts in der Leiste. Kinder, bei denen es nicht klappt, bleiben ausgewählt. Sie können die Aktion dann erneut versuchen.",
           "Ist ein Kind gerade in einem Raum, fragt die App vor dem Abmelden nach und beendet den laufenden Raumbesuch mit; danach ist das Kind für heute abgemeldet. Bei einer Sammelaktion kommt diese Nachfrage einmal für die ganze Auswahl. Ein Kind, das über die Web-App angemeldet wird, hat noch keinen Raum und erscheint als `Unterwegs`, bis das Tablet oder eine Aktivität es einem Raum zuordnet. Erscheint `Keine Berechtigung`, fehlt dem Konto das Recht zum An- und Abmelden von Kindern; ein Admin kann es über die Rollenverwaltung vergeben.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
@@ -611,7 +611,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Alle Kinder mit Suchfeld, Status-Badges und Aktivitäts-Indikatoren sowie das Filterfenster mit der Mehrfachauswahl bei Klasse.",
+          "Alle Kinder mit Suchfeld, Mehrfachauswahl und den gemeinsamen Aktionen Anmelden und Abmelden.",
         gallery: [
           {
             image: "/help/screens/kindersuche.webp",
@@ -622,6 +622,11 @@ export const appChapters: readonly GuideChapter[] = [
             image: "/help/screens/kindersuche-mehrfachauswahl.webp",
             caption:
               "Filterfenster: „Klasse“ ist aufgeklappt, „Klasse 3a“ und „Klasse 4b“ sind angehakt, das Feld zeigt „2 Klassen“. „Stufe“ und „Gruppe“ funktionieren genauso.",
+          },
+          {
+            image: "/help/screens/kindersuche-sammelauswahl.webp",
+            caption:
+              "Mehrfachauswahl: Drei Kinder sind markiert. Die gemeinsamen Aktionen Anmelden und Abmelden stehen rechts in der Leiste.",
           },
         ],
       },
