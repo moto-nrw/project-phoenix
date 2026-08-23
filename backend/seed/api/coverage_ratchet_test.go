@@ -140,8 +140,6 @@ var seedCoverageAllowlist = map[string]string{
 	"users.parent_announcement_options":   "empty in prod too",
 	"users.parent_announcement_reads":     "GAP: prod has 31 rows",
 	"users.parent_announcement_responses": "empty in prod too",
-	"users.parent_announcement_targets":   "GAP: prod has 4 rows",
-	"users.parent_announcements":          "GAP: prod has 1 rows",
 	"users.parent_message_reads":          "GAP: prod has 352 rows",
 	"users.persons_guardians":             "empty in prod too",
 	"users.profiles":                      "GAP: prod has 1 rows",
