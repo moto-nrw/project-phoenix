@@ -853,6 +853,15 @@ func (r *AccountRepository) update(ctx context.Context, account *auth.Account, m
 			Err: err,
 		}
 	}
+	if manageable {
+		affected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return &modelBase.DatabaseError{Op: "update account", Err: rowsErr}
+		}
+		if affected == 0 {
+			return &modelBase.DatabaseError{Op: "update account", Err: sql.ErrNoRows}
+		}
+	}
 	return base.AssertRowsAffected(result, 1, "update account")
 }
 

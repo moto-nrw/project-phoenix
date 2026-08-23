@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -19,7 +20,7 @@ func (s *Service) ActivateAccount(ctx context.Context, accountID int) error {
 
 	account.Active = true
 	if err := s.repos.Account.UpdateManageable(ctx, account); err != nil {
-		return &AuthError{Op: "activate account", Err: err}
+		return accountWriteError("activate account", err)
 	}
 
 	s.clearPendingAccountWideWipes(ctx, int64(accountID))
@@ -63,7 +64,7 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 		}
 		account.Active = false
 		if err := s.repos.Account.UpdateManageable(txCtx, account); err != nil {
-			return &AuthError{Op: "deactivate account", Err: err}
+			return accountWriteError("deactivate account", err)
 		}
 		return nil
 	})
@@ -90,10 +91,17 @@ func (s *Service) UpdateAccount(ctx context.Context, account *auth.Account) erro
 	}
 
 	if err := s.repos.Account.UpdateManageable(ctx, account); err != nil {
-		return &AuthError{Op: opUpdateAccount, Err: err}
+		return accountWriteError(opUpdateAccount, err)
 	}
 
 	return nil
+}
+
+func accountWriteError(op string, err error) error {
+	if modelBase.IsNoRows(err) {
+		return &AuthError{Op: op, Err: ErrAccountNotFound}
+	}
+	return &AuthError{Op: op, Err: err}
 }
 
 // ListAccounts retrieves accounts matching the provided filters
