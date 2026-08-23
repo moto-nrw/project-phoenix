@@ -44,7 +44,7 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Activity reads include creator and supervisor names.
-		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/", rs.listActivities)
+		r.With(authorize.RequiresAnyPermission(permissions.ActivitiesList, permissions.ActivitiesRead), withTx).Get("/", rs.listActivities)
 		r.With(authorize.RequiresPermission(permissions.ActivitiesRead), withTx).Get("/{id}", rs.getActivity)
 		r.With(withTx).Get("/categories", rs.listCategories)
 

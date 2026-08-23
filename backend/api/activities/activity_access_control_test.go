@@ -86,6 +86,18 @@ func TestActivityRosterReadAllowsAuthorisedStaff(t *testing.T) {
 	assert.Contains(t, rr.Body.String(), studentLastName)
 }
 
+func TestActivityListAllowsListPermission(t *testing.T) {
+	t.Parallel()
+	ctx := setupTestContext(t)
+	testpkg.CreateTestActivityGroup(t, ctx.db, "List permission")
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "List", "Reader")
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/activities/", nil)
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, activityStaffClaims(account, permissions.ActivitiesList))
+
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+}
+
 func TestActivityRosterReadFiltersNonStaffPersonalData(t *testing.T) {
 	t.Parallel()
 	ctx := setupTestContext(t)
