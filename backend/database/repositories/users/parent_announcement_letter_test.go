@@ -17,13 +17,12 @@ import (
 // counts as fulfilled the moment ANY guardian with portal access acknowledges
 // the announcement, and the query reports who that was.
 func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
@@ -67,13 +66,12 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 // Isolation serverseitig getestet": another tenant's id must never surface a
 // foreign school's children, even for a real announcement id.
 func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
@@ -98,13 +96,12 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 // this resolution keeps the people who get nothing, so the school can see and
 // repair the gap instead of wondering why a family never heard back.
 func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
@@ -167,13 +164,12 @@ func recipientByProfile(recipients []*usersModels.AnnouncementDeliveryRecipient,
 // made a letter to 116 children report "6 Kinder" — which a school reads as
 // "almost everyone confirmed" rather than "110 children have no portal contact".
 func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	repo := usersRepo.NewParentAnnouncementRepository(db)
-	ctx := tenantCtx()
+	ctx := tenantCtx(t)
 
 	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{

@@ -41,9 +41,9 @@ const EMAIL_LABELS: Record<
     label: "Versendet",
     tone: "green",
     title:
-      "An den Mailserver übergeben. Ob die E-Mail im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",
+      "Die E-Mail ist raus. Ob sie im Postfach angekommen ist, weiß moto nicht.",
   },
-  pending: { label: "In Warteschlange", tone: "blue" },
+  pending: { label: "Wird gesendet", tone: "blue" },
   failed: { label: "Fehlgeschlagen", tone: "red" },
   not_sent: { label: "Nicht versendet", tone: "gray" },
 };
@@ -132,11 +132,11 @@ export function LetterStatusPanel({
       setNotice(
         action === "remind"
           ? count === 0
-            ? "Alle Kinder sind bestätigt — es wurde niemand erinnert."
+            ? "Alle Kinder sind bestätigt. Es wurde niemand erinnert."
             : `${count} Bezugspersonen erinnert.`
           : count === 0
             ? "Es gab keine fehlgeschlagenen E-Mails."
-            : `${count} E-Mails erneut in die Warteschlange gestellt.`,
+            : `${count} E-Mails werden erneut gesendet.`,
       );
       await load();
     } catch (error) {
@@ -186,7 +186,7 @@ export function LetterStatusPanel({
         </div>
         <p className="mt-1 text-sm text-gray-600">
           {s.children_open === 0
-            ? "Alle bestätigungsfähigen Kinder sind bestätigt."
+            ? "Alle Kinder sind bestätigt, bei denen das möglich ist."
             : `${s.children_open} ${s.children_open === 1 ? "Kind wartet" : "Kinder warten"} noch auf eine Bestätigung.`}
         </p>
         {/* The denominator is the CONFIRMABLE children, not the reach. Without
@@ -211,7 +211,7 @@ export function LetterStatusPanel({
           </div>
           {s.emails_pending > 0 && (
             <div>
-              <dt className="text-xs text-gray-500">In Warteschlange</dt>
+              <dt className="text-xs text-gray-500">Wird gesendet</dt>
               <dd className="text-gray-900 tabular-nums">{s.emails_pending}</dd>
             </div>
           )}
@@ -243,9 +243,9 @@ export function LetterStatusPanel({
               aria-hidden
             />
             <span>
-              Fehlende Adressen und fehlende Portalzugänge sind keine
-              Zustellfehler, sondern fehlende Daten. Pflegen Sie sie bei der
-              Bezugsperson nach und senden Sie danach erneut.
+              Hier fehlt keine E-Mail, hier fehlen Daten. Tragen Sie die
+              E-Mail-Adresse oder den Portal-Zugang bei der Bezugsperson ein.
+              Senden Sie den Brief danach noch einmal.
             </span>
           </p>
         )}
@@ -304,7 +304,7 @@ export function LetterStatusPanel({
         {children.length === 0 ? (
           <p className="text-sm text-gray-500">
             {childFilter === "open"
-              ? "Alle bestätigungsfähigen Kinder sind bestätigt."
+              ? "Alle Kinder sind bestätigt, bei denen das möglich ist."
               : "Dieser Brief erreicht derzeit kein Kind."}
           </p>
         ) : (

@@ -160,7 +160,7 @@
     "newsExternalLink": "Open more information",
     "newsClose": "Close",
     "newsLetterBadge": "Confirmation required",
-    "newsLetterBindingHint": "The e-mail is for your information only. The binding confirmation is the one here in the parent portal. One guardian per child is enough."
+    "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough."
   },
   "parentNotificationSetup": {
     "title": "Do not miss an important message",

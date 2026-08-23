@@ -1395,8 +1395,7 @@ function AnnouncementFormModal({
                   <ul className="mt-2 space-y-1 text-sm text-gray-700">
                     <li>Der Brief erscheint vollständig im Elternportal.</li>
                     <li>
-                      Alle adressierten Bezugspersonen erhalten den Brieftext
-                      per E-Mail.
+                      Die Bezugspersonen bekommen den Brieftext per E-Mail.
                     </li>
                     <li>
                       Eltern bestätigen den Brief im Elternportal. Eine
@@ -1464,8 +1463,8 @@ function AnnouncementFormModal({
                   />
                   <p className="mt-2 text-xs text-gray-500">
                     {emailAudience === "all_contacts"
-                      ? "Auch Bezugspersonen ohne Elternportal-Zugang erhalten die E-Mail. Sie können den Brief nicht in moto bestätigen. Nicht für Gesundheitsdaten oder andere sensible Angaben zu einzelnen Kindern verwenden."
-                      : "Nur Bezugspersonen mit Elternportal-Zugang erhalten die E-Mail. Alle anderen erscheinen nach dem Versand in der Empfängerliste als „kein Portalzugang“."}
+                      ? "Auch Bezugspersonen ohne Portal-Zugang bekommen die E-Mail. Sie können den Brief nicht in moto bestätigen. Geht es um Gesundheit oder andere sensible Angaben zu einem Kind? Dann wählen Sie die andere Option."
+                      : "Nur Bezugspersonen mit Portal-Zugang bekommen die E-Mail. Alle anderen sehen Sie danach in der Empfängerliste."}
                   </p>
                 </div>
               )}
