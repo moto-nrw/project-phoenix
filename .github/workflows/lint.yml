@@ -27,7 +27,9 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
 
       - name: Check Go formatting
         working-directory: backend
@@ -45,6 +47,13 @@ jobs:
           else
             echo "All Go files are properly formatted"
           fi
+
+      - name: Check backend package architecture
+        run: scripts/backend-architecture.sh check
+
+      - name: Run backend source ratchets
+        working-directory: backend
+        run: go test ./test -run Ratchet -count=1
 
       - name: Validate migration dependencies
         working-directory: backend
