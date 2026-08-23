@@ -9,8 +9,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	enrollmentRepo "github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -38,6 +40,11 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		return requestRepo.Create(ctx, sourceRequest)
 	}))
 	student := testpkg.CreateTestStudent(t, db, "Expiry", "Successor", "2a")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return usersRepo.NewStudentRepository(db).SetEnrollmentWindowByID(
+			ctx, student.ID, source.ServiceStartDate, usersModels.StudentStatusActive,
+		)
+	}))
 	sourceChild := makeChild(sourceRequest.ID, "Expiry", "Successor")
 	sourceChild.Status = enrollmentModels.ChildStatusApproved
 	sourceChild.CreatedStudentID = &student.ID
@@ -195,8 +202,17 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		if updateErr := childRepo.UpdateStatus(
 			ctx,
-			unrelatedRejectedChild.ID,
+			targetChild.ID,
 			enrollmentModels.ChildStatusPendingRenewal,
+			nil,
+			0,
+		); updateErr != nil {
+			return updateErr
+		}
+		if updateErr := childRepo.UpdateStatus(
+			ctx,
+			unrelatedRejectedChild.ID,
+			enrollmentModels.ChildStatusRejected,
 			nil,
 			0,
 		); updateErr != nil {
@@ -219,6 +235,14 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	}))
 
 	temporalFallback := listSnapshots()
+	require.Len(t, temporalFallback, 1)
+	assert.Equal(t, 1, temporalFallback[0].UnresolvedChildren,
+		"a pending legacy successor must take precedence over an unrelated rejection")
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return childRepo.UpdateStatus(ctx, targetChild.ID, enrollmentModels.ChildStatusApproved, nil, 0)
+	}))
+	temporalFallback = listSnapshots()
 	require.Len(t, temporalFallback, 1)
 	require.NotNil(t, temporalFallback[0].SuccessorPhaseID)
 	assert.Equal(t, successor.ID, *temporalFallback[0].SuccessorPhaseID,

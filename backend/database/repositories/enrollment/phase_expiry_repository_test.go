@@ -39,6 +39,14 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	fridayStudent := testpkg.CreateTestStudent(t, db, "Friday", "Child", "2a")
 	validUntil := phase.ServiceEndDate.AddDays(1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		studentRepo := usersRepo.NewStudentRepository(db)
+		for _, student := range []*usersModels.Student{mondayStudent, fridayStudent} {
+			if err := studentRepo.SetEnrollmentWindowByID(
+				ctx, student.ID, phase.ServiceStartDate, usersModels.StudentStatusActive,
+			); err != nil {
+				return err
+			}
+		}
 		childRepo := enrollmentRepo.NewRequestChildRepository(db)
 		offeringRepo := enrollmentRepo.NewCareOfferingRepository(db)
 		linkRepo := enrollmentRepo.NewRequestChildOfferingRepository(db)
@@ -86,6 +94,31 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	assert.Equal(t, 2, snapshots[0].AffectedChildren,
 		"the Monday warning must immediately count children booked later in the same week")
 	assert.Equal(t, 2, snapshots[0].UnresolvedChildren)
+
+	futureStart := phase.ServiceEndDate.AddDays(1)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		studentRepo := usersRepo.NewStudentRepository(db)
+		if err := studentRepo.SetEnrollmentWindowByID(
+			ctx, mondayStudent.ID, phase.ServiceEndDate, usersModels.StudentStatusPending,
+		); err != nil {
+			return err
+		}
+		return studentRepo.SetEnrollmentWindowByID(
+			ctx, fridayStudent.ID, futureStart, usersModels.StudentStatusActive,
+		)
+	}))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		snapshots, err = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+			ctx,
+			timezone.NewDate(2027, 1, 2),
+			timezone.NewDate(2027, 2, 1),
+		)
+		return err
+	}))
+	require.Len(t, snapshots, 1)
+	assert.Equal(t, 1, snapshots[0].AffectedChildren,
+		"students must cover the source phase end, including pending students starting that day")
 }
 
 func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOffering(t *testing.T) {
@@ -110,7 +143,13 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	student := testpkg.CreateTestStudent(t, db, "Expiry", "Student", "2a")
 	lastCareDay := phase.ServiceEndDate
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		_, err := usersRepo.NewStudentRepository(db).SetEnrolledUntilByIDs(ctx, []int64{student.ID}, &lastCareDay)
+		studentRepo := usersRepo.NewStudentRepository(db)
+		if err := studentRepo.SetEnrollmentWindowByID(
+			ctx, student.ID, phase.ServiceStartDate, usersModels.StudentStatusActive,
+		); err != nil {
+			return err
+		}
+		_, err := studentRepo.SetEnrolledUntilByIDs(ctx, []int64{student.ID}, &lastCareDay)
 		return err
 	}))
 	child := makeChild(request.ID, "Expiry", "Student")
@@ -186,7 +225,8 @@ func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 		return listErr
 	})
 	require.NoError(t, err)
-	assert.Empty(t, snapshots, "a child that is still pending must not increase the future warning")
+	require.Len(t, snapshots, 1,
+		"a pending child whose enrollment already covers the phase end still needs a successor booking")
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return studentRepo.UpdateStatus(ctx, student.ID, usersModels.StudentStatusActive)
 	}))

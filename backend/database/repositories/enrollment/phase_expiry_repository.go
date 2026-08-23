@@ -111,10 +111,14 @@ effective_source_bookings AS (
       AND (child_offering.valid_until IS NULL OR child_offering.valid_until > source_phase.service_end_date)
       AND expiry.first_affected_date IS NOT NULL
       AND (
-          student.status = 'active'
-          OR (
-              student.status = 'pending'
-              AND student.enrolled_from > source_phase.service_end_date
+          (
+              student.status IN ('active', 'pending')
+              AND student.enrolled_from IS NOT NULL
+              AND student.enrolled_from <= source_phase.service_end_date
+              AND (
+                  student.enrolled_until IS NULL
+                  OR student.enrolled_until >= source_phase.service_end_date
+              )
           )
           OR (
               student.status = 'inactive'
@@ -215,6 +219,32 @@ SELECT
                     )
                     AND (
                         target_child.status IN ('rejected', 'withdrawn')
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM enrollment.requests AS competing_request
+                            JOIN enrollment.request_children AS competing_child
+                              ON competing_child.tenant_id = competing_request.tenant_id
+                             AND competing_child.request_id = competing_request.id
+                            WHERE competing_request.tenant_id = (SELECT tenant_id FROM report_parameters)
+                              AND competing_request.phase_id = phase.successor_phase_id
+                              AND (
+                                  competing_child.rollover_source_child_id = ANY(source_student.source_child_ids)
+                                  OR (
+                                      COALESCE(competing_child.created_student_id, competing_child.matched_student_id) = source_student.student_id
+                                      AND NOT EXISTS (
+                                          SELECT 1
+                                          FROM enrollment.requests AS lineage_request
+                                          JOIN enrollment.request_children AS lineage_child
+                                            ON lineage_child.tenant_id = lineage_request.tenant_id
+                                           AND lineage_child.request_id = lineage_request.id
+                                          WHERE lineage_request.tenant_id = (SELECT tenant_id FROM report_parameters)
+                                            AND lineage_request.phase_id = phase.successor_phase_id
+                                            AND lineage_child.rollover_source_child_id = ANY(source_student.source_child_ids)
+                                      )
+                                  )
+                              )
+                              AND competing_child.status NOT IN ('rejected', 'withdrawn')
+                        )
                         OR (
                             target_child.status = 'approved'
                             AND COALESCE(target_child.created_student_id, target_child.matched_student_id) = source_student.student_id
