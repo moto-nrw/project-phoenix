@@ -777,7 +777,9 @@ describe("OfferingRequestReviewItem — Gültig ab", () => {
       expect(mockPreview).toHaveBeenCalledWith("77", [], "2027-03-01"),
     );
 
-    fireEvent.click(screen.getByLabelText("Anderes Datum wählen"));
+    const editDateCheckbox = screen.getByLabelText("Anderes Datum wählen");
+    await waitFor(() => expect(editDateCheckbox).toBeEnabled());
+    fireEvent.click(editDateCheckbox);
 
     await waitFor(() =>
       expect(screen.getByText("01.02.2027")).toBeInTheDocument(),

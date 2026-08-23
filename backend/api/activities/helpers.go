@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
 // =============================================================================
@@ -34,6 +35,36 @@ func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool,
 	}
 
 	return staff.ID, hasAdminPermission, nil
+}
+
+// requireActivityModification applies the same owner/supervisor/admin policy
+// used by the activity update and delete handlers.
+func (rs *Resource) requireActivityModification(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		activityID, err := common.ParseID(r)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
+			return
+		}
+
+		staffID, hasAdminPermission, err := rs.getStaffIDAndManagePermission(r)
+		if err != nil && !hasAdminPermission {
+			common.RenderError(w, r, common.ErrorForbidden(activitiesSvc.ErrNotOwner))
+			return
+		}
+
+		allowed, err := rs.ActivityService.CanModifyActivity(r.Context(), activityID, staffID, hasAdminPermission)
+		if err != nil {
+			common.RenderError(w, r, ErrorRenderer(err))
+			return
+		}
+		if !allowed {
+			common.RenderError(w, r, common.ErrorForbidden(activitiesSvc.ErrNotOwner))
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
 }
 
 // parseAndGetActivity parses activity ID from URL and returns the activity if it exists.

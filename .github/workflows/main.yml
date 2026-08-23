@@ -31,10 +31,11 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
-      # Test jobs cross-run after merge to produce complete Sonar coverage.
+      # Every protected-branch push rechecks both full suites. A docs-only push
+      # must not report green while inheriting a broken development head.
       # Lint/build jobs stay scoped to the side that changed.
-      run-backend: ${{ steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.frontend == 'true') }}
-      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && (steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true')) }}
+      run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-backend-lint: ${{ steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits and
