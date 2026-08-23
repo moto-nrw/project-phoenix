@@ -1122,6 +1122,9 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	fx.newOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
 	fx.newOffering.AvailableDays = []string{"mon"}
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.newOffering))
+	fx.oldOffering.DaysOfWeekMode = enrollmentModels.DaysOfWeekModeFixed
+	fx.oldOffering.AvailableDays = []string{"mon", "wed"}
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
 
 	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
 		StudentID:     fx.studentID,
@@ -1164,6 +1167,12 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		}
 		return date
 	}
+	_, err = env.db.NewRaw(`
+		UPDATE enrollment.request_child_offerings
+		SET valid_until = ?
+		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?
+	`, dateFor(time.Wednesday), testpkg.Tenant(t), fx.childID, fx.oldOffering.ID).Exec(ctx)
+	require.NoError(t, err)
 	materialized := planningOccurrenceOpts{materialized: true}
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Monday), "Montags gedeckt", materialized)
@@ -1178,7 +1187,11 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	createPlanningOccurrence(t, env, sourcedGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Tuesday), "Wird automatisch abgeglichen", materialized)
 	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Monday), "Von alter Buchung gedeckt", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Tuesday), "Alte Angebots-Verknüpfung", materialized)
+	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Wednesday), "Abgelaufene Angebots-Verknüpfung", materialized)
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Thursday), "Spontan", planningOccurrenceOpts{materialized: true, spontaneous: true})
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
@@ -1193,13 +1206,22 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 
 	preview, err := svc.PreviewDecision(ctx, row.ID, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, preview.ManualPlanningConflicts, 1)
-	conflict := preview.ManualPlanningConflicts[0]
+	require.Len(t, preview.ManualPlanningConflicts, 2)
+	conflictsByGroupID := make(map[int64]enrollmentService.ManualPlanningConflict, len(preview.ManualPlanningConflicts))
+	for _, item := range preview.ManualPlanningConflicts {
+		conflictsByGroupID[item.ActivityGroupID] = item
+	}
+	conflict := conflictsByGroupID[manualGroup.ID]
 	assert.Equal(t, manualGroup.ID, conflict.ActivityGroupID)
 	assert.Equal(t, manualGroup.Name, conflict.ActivityGroupName)
 	assert.Equal(t, []string{"tue", "wed"}, conflict.Days)
 	assert.Equal(t, dateFor(time.Tuesday), conflict.FirstDate)
 	assert.Equal(t, 3, conflict.OccurrenceCount)
+	legacyConflict := conflictsByGroupID[legacySourcedGroup.ID]
+	assert.Equal(t, legacySourcedGroup.ID, legacyConflict.ActivityGroupID)
+	assert.Equal(t, []string{"tue", "wed"}, legacyConflict.Days)
+	assert.Equal(t, dateFor(time.Tuesday), legacyConflict.FirstDate)
+	assert.Equal(t, 2, legacyConflict.OccurrenceCount)
 	assert.True(t, preview.ArrivalExpectationsFollowBookings)
 	laterEffectiveFrom := dateFor(time.Thursday).AddDays(22)
 	laterPreview, err := svc.PreviewDecision(ctx, row.ID, nil, &laterEffectiveFrom)
