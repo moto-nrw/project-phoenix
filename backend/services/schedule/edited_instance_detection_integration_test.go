@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -69,6 +70,56 @@ func TestDetectEditedInWindow_Pristine(t *testing.T) {
 	materializeSingleInstance(t, s)
 
 	assert.Empty(t, detect(t, s), "a freshly materialized occurrence matches its template")
+}
+
+func TestDetectEditedInWindow_DynamicTargetRosterMatchesMaterialization(t *testing.T) {
+	t.Parallel()
+
+	for _, targetType := range []string{
+		activitiesModels.TargetGroupTypeKlasse,
+		activitiesModels.TargetGroupTypeJahrgang,
+		activitiesModels.TargetGroupTypeGruppe,
+	} {
+		t.Run(targetType, func(t *testing.T) {
+			s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+			replaceScenarioTarget(t, s, targetType)
+
+			result, err := s.svc.MaterializeForTenant(
+				s.ctx, editWindowStart, editWindowStart.AddDays(6), scheduleSvc.MaterializationSourceManual,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, 3, result.InstanceStudentsCreated,
+				"manual and dynamic memberships form one deduplicated roster")
+			assert.Empty(t, detect(t, s),
+				"automatically targeted students are not single-occurrence edits")
+		})
+	}
+}
+
+func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
+	t.Helper()
+	target := &activitiesModels.GroupTarget{TargetGroupType: targetType}
+	switch targetType {
+	case activitiesModels.TargetGroupTypeKlasse:
+		schoolClass := "3a"
+		target.TargetSchoolClass = &schoolClass
+	case activitiesModels.TargetGroupTypeJahrgang:
+		grade := int16(3)
+		target.TargetGradeLevel = &grade
+	case activitiesModels.TargetGroupTypeGruppe:
+		group := testpkg.CreateTestEducationGroupForTenant(t, s.db, s.tenantID, "Zielgruppe-2526")
+		target.EducationGroupID = &group.ID
+		_, err := s.db.NewUpdate().
+			Table("users.students").
+			Set("group_id = ?", group.ID).
+			Where("tenant_id = ?", s.tenantID).
+			Where("id = ?", s.students[2]).
+			Exec(s.ctx)
+		require.NoError(t, err)
+	}
+	targetRepo, ok := activitiesRepo.NewGroupRepository(s.db).(activitiesModels.GroupTargetRepository)
+	require.True(t, ok)
+	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{target}))
 }
 
 func TestDetectEditedInWindow_TitleEdit(t *testing.T) {
