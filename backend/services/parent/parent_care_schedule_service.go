@@ -139,6 +139,11 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
 	if err != nil {
 		return nil, err
@@ -155,6 +160,13 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
 			return err
 		}
@@ -172,17 +184,20 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 }
 
 // WithdrawCareScheduleRequest flips the caller's own pending request to
-// withdrawn and returns the refreshed view. Deliberately gated ONLY on portal
-// access (not the messaging flag, nor parent_portal.request.submit): a parent
+// withdrawn and returns the refreshed view. It does not require the messaging
+// flag or parent_portal.request.submit: a parent
 // must be able to wind down their OWN outstanding request even after the school
 // disables the feature or revokes their submit permission — GetChildCareSchedule
 // still surfaces such a request as submitted_by_self and renders a withdraw
-// button, so the write path must match that read gate. Ownership and the
+// button, so the write path must match that read gate while care is running. Ownership and the
 // pending-status check are enforced inside careRequests.WithdrawRequest, which
 // binds the request to this accountID and studentID.
 func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, studentID, requestID int64) (*ChildCareSchedule, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
+		return nil, err
+	}
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 	capabilities, err := s.resolveCareScheduleRequestCapabilities(ctx, child.tenantID)
@@ -191,6 +206,13 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	}
 	view := &ChildCareSchedule{CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any(), RequestCapabilities: capabilities}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if _, err := s.CareRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
 			return err
 		}

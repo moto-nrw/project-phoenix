@@ -702,7 +702,10 @@ func (s *careScheduleRequestService) buildPendingItems(ctx context.Context, rows
 	sources := map[int64]*careDiffSource{}
 	for _, r := range rows {
 		student := students[r.StudentID]
-		if !writable(student) || student.IsAlumnus() {
+		// A child whose care has ended leaves the pending queue: the
+		// effect-day pass closes their open requests, and until it runs the
+		// queue must not offer a decision on a departed child (#2487).
+		if !writable(student) || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
 		items = append(items, s.buildPendingItem(ctx, r, student, persons, sources))
@@ -885,6 +888,11 @@ func (s *careScheduleRequestService) loadAuthorizedCareDecision(ctx context.Cont
 		return nil, fmt.Errorf("schedule: load student for care request decision: %w", err)
 	}
 	if student.IsAlumnus() {
+		return nil, scheduleModels.ErrCareRequestNotFound
+	}
+	// The child left the OGS after filing this request; approving it would
+	// write a weekly plan nobody will follow (#2487).
+	if student.CareEndedOn(timezone.TodayDate()) {
 		return nil, scheduleModels.ErrCareRequestNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {

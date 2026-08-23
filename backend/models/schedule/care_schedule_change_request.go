@@ -24,6 +24,9 @@ const (
 	CareRequestStatusApproved  = "approved"
 	CareRequestStatusRejected  = "rejected"
 	CareRequestStatusWithdrawn = "withdrawn"
+	// CareRequestStatusCareEnded closes an open request whose child left the
+	// OGS before anybody decided it (#2487).
+	CareRequestStatusCareEnded = "care_ended"
 )
 
 const (
@@ -80,7 +83,7 @@ type CareRequestSnapshotEntry struct {
 // accept a staff decision or a guardian withdrawal.
 func (c *CareScheduleChangeRequest) IsTerminal() bool {
 	switch c.Status {
-	case CareRequestStatusApproved, CareRequestStatusRejected, CareRequestStatusWithdrawn:
+	case CareRequestStatusApproved, CareRequestStatusRejected, CareRequestStatusWithdrawn, CareRequestStatusCareEnded:
 		return true
 	default:
 		return false

@@ -196,6 +196,11 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
 		return nil, err
 	}
@@ -205,6 +210,9 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		if input.Contact.Email != nil {
 			email := strings.TrimSpace(*input.Contact.Email)
 			if email != "" {
@@ -381,11 +389,19 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
 		return nil, err
 	}
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		// Lock the profile row so concurrent contact edits of the same guardian
 		// serialize: the read-modify-write below plus the wholesale phone-list
 		// replace (delete-all then re-insert) would otherwise race under
@@ -583,6 +599,11 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
 		return nil, err
 	}
@@ -594,6 +615,9 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	}
 	var result *ChildGuardian
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		// Lock the guardian profile row for the duration of the tx. The link
 		// update below is a read-modify-write on the students_guardians row, and
 		// the same profile lock guards the contact path; taking it here serializes

@@ -65,6 +65,7 @@ var errorRules = []common.ErrorRule{
 	// (404), matching the IoT check-in mapper — a stale web/timetable request or
 	// a graduation race must not fall through to a 500 (#405).
 	{Target: activeSvc.ErrStudentGraduated, Render: statusText(http.StatusNotFound, "Student Graduated")},
+	{Target: activeSvc.ErrStudentCareEnded, Render: statusText(http.StatusNotFound, "Student Care Ended")},
 }
 
 // ErrorRenderer returns a render.Renderer for the given error

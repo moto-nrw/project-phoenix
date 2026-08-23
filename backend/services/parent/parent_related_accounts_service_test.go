@@ -274,6 +274,37 @@ func TestInviteRelatedAccount_UnownedChildIsRejected(t *testing.T) {
 	assert.Nil(t, invites.lastInvite, "invite must not fire for an unowned child")
 }
 
+// After the child has left the OGS the family keeps read access and can change
+// nothing (#2487). The feature flags already hide both buttons; these two pin
+// the half that also holds for a direct API call.
+func TestInviteRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
+	t.Parallel()
+
+	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, false)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	endCareFor(t, db, chain.StudentID)
+
+	_, err := svc.InviteRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, "new@example.test", "", "", false)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, parentService.ErrChildCareEnded))
+	assert.Nil(t, invites.lastInvite, "no invite may go out for a departed child")
+}
+
+func TestRemoveRelatedAccount_AfterCareEndedIsRejected(t *testing.T) {
+	t.Parallel()
+
+	svc, invites, db := buildRelAcctService(t, configModels.ParentInviteModeDirect, true)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	endCareFor(t, db, chain.StudentID)
+
+	err := svc.RemoveRelatedAccount(context.Background(), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, parentService.ErrChildCareEnded))
+	assert.Nil(t, invites.lastRevoke, "no access may be revoked for a departed child")
+}
+
 func TestRemoveRelatedAccount_DisabledIsRejected(t *testing.T) {
 	t.Parallel()
 

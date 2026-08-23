@@ -26,6 +26,11 @@ const (
 	DataChangeStatusPending     = "pending"
 	DataChangeStatusApproved    = "approved"
 	DataChangeStatusRejected    = "rejected"
+	// DataChangeStatusCareEnded closes an open request whose child left the
+	// OGS before anybody decided it (#2487). Deliberately its own value:
+	// "abgelehnt" would tell the family the office looked at the change and
+	// said no, which is not what happened.
+	DataChangeStatusCareEnded = "care_ended"
 )
 
 // Target identifies which underlying record a change applies to. For person /
@@ -65,7 +70,7 @@ type StudentDataChangeRequest struct {
 // rows accept a staff decision.
 func (c *StudentDataChangeRequest) IsTerminal() bool {
 	switch c.Status {
-	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected:
+	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected, DataChangeStatusCareEnded:
 		return true
 	default:
 		return false

@@ -267,6 +267,9 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // ChildFeaturesResponse tells the parent UI which write actions the child's
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
+	// CareEnded is state, not a capability: the child has left the OGS, so
+	// every write flag below is false (#2487).
+	CareEnded                    bool `json:"care_ended"`
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
 	SickRequiresApproval         bool `json:"sick_requires_approval"`
 	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
@@ -306,6 +309,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
+		CareEnded:                    flags.CareEnded,
 		SickNoteEnabled:              flags.SickNoteEnabled,
 		SickRequiresApproval:         flags.SickRequiresApproval,
 		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
@@ -421,6 +425,11 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "child_not_linked"))
 	case errors.Is(err, parentService.ErrGuardianPermissionDenied):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_permission_denied"))
+	case errors.Is(err, parentService.ErrChildCareEnded):
+		// The child left the OGS. Reading stays open; every submit is refused
+		// with its own code so the portal can say why instead of showing a
+		// generic "keine Berechtigung" (#2487).
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "child_care_ended"))
 	case errors.Is(err, parentService.ErrSickNoteDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "sick_note_disabled"))
 	case errors.Is(err, parentService.ErrNotesDisabled):

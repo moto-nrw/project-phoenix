@@ -92,6 +92,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := exportRequestToListParams(req)
+	params.careStatusOn = planningDate
 	students, errResp := rs.fetchStudentsForExport(r, params)
 	if errResp != nil {
 		renderError(w, r, errResp)
@@ -336,6 +337,7 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
+		careStatusOn:        timezone.TodayDate(),
 		// Class and group travel comma-separated so an export mirrors a
 		// multi-selection made in the Kindersuche (#2218).
 		schoolClasses: parseMultiValueParam([]string{req.Filters.SchoolClass}),

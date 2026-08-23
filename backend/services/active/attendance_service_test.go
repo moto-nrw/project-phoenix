@@ -357,6 +357,35 @@ func TestToggleStudentAttendance_CheckOut(t *testing.T) {
 	assert.NotZero(t, result.AttendanceID)
 }
 
+func TestToggleStudentAttendance_CareEndedChildCanOnlyCheckOut(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "Toggle", "CareEnded", "4c")
+	staff := testpkg.CreateTestStaff(t, db, "Toggle", "CareEndedStaff")
+	device := testpkg.CreateTestDevice(t, db, "toggle-care-ended")
+
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// A new attendance row remains forbidden once care has ended.
+	_, err = service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	require.ErrorIs(t, err, activeService.ErrStudentCareEnded)
+
+	// An already-open presence must still be closable; otherwise the child is
+	// stranded as present until asynchronous cleanup catches up.
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
+	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, device.ID, true)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_out", result.Action)
+}
+
 // TestToggleStudentAttendance_CheckOutWithZeroStaffID tests checking out when staffID is 0.
 // This exercises the `if staffID > 0` guard in performCheckOut.
 func TestToggleStudentAttendance_CheckOutWithZeroStaffID(t *testing.T) {

@@ -42,6 +42,11 @@ var (
 	// student. Their enrollments are hidden from every staff-facing read, so a
 	// new one could neither be seen nor removed (#405 review).
 	ErrStudentIsAlumnus = errors.New("student has graduated and cannot be enrolled")
+	// ErrStudentCareEnded is returned when an enrollment write targets a child
+	// whose care at the OGS has ended (#2487). Separate from the alumnus case:
+	// a departed child is not a graduate, and the two lead to different places
+	// in the UI (Abgänge vs "Beendete Betreuungen").
+	ErrStudentCareEnded = errors.New("student care has ended and cannot be enrolled")
 
 	// errStudentRepoMissing marks the internal "cannot check graduation status"
 	// condition: the service was built without a student repository. An

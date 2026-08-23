@@ -1466,6 +1466,10 @@
     "overviewKicker": "Fëmijët me një vështrim",
     "overviewDescription": "Zgjidhni një fëmijë për të parë kujdesin, të dhënat dhe kontaktet.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Kujdesi ka përfunduar",
+      "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
+    },
     "loadError": "Të dhënat e fëmijës suaj nuk u ngarkuan dot për momentin. Ju lutemi provoni më vonë.",
     "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj.",
     "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",

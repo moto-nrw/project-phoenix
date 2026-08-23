@@ -811,6 +811,23 @@ func arrivalEffectiveTime(result *effectiveTimeResult) *EffectiveArrivalTime {
 	return mapped
 }
 
+// dropDepartedStudents removes the children whose care has already ended
+// (#2487). The class- and group-wide selectors mean "everyone in it", and the
+// repository queries behind them only filter graduates — without this a single
+// departed child in the class would abort the whole bulk write at the locked
+// re-check, naming a child the office cannot even see any more.
+func dropDepartedStudents(students []*users.Student) []*users.Student {
+	today := timezone.TodayDate()
+	kept := make([]*users.Student, 0, len(students))
+	for _, student := range students {
+		if student == nil || student.CareEndedOn(today) {
+			continue
+		}
+		kept = append(kept, student)
+	}
+	return kept
+}
+
 func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 	ctx context.Context,
 	filter ArrivalScheduleBulkFilter,
@@ -870,10 +887,12 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 		filterType = "school_class"
 		filterValue = schoolClass
 		students, err = s.studentRepo.FindBySchoolClass(ctx, schoolClass)
+		students = dropDepartedStudents(students)
 	} else if hasGroup {
 		filterType = "group_id"
 		filterValue = strconv.FormatInt(filter.GroupID, 10)
 		students, err = s.studentRepo.FindByGroupID(ctx, filter.GroupID)
+		students = dropDepartedStudents(students)
 	} else {
 		filterType = "student_ids"
 		filterValue = strconv.Itoa(len(filter.StudentIDs))
@@ -883,7 +902,8 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 			students = make([]*users.Student, 0, len(filter.StudentIDs))
 			for _, id := range filter.StudentIDs {
 				student, ok := byID[id]
-				if !ok || student.Status == users.StudentStatusAlumnus {
+				// A departed child has no weekly plan to write any more (#2487).
+				if !ok || student.Status == users.StudentStatusAlumnus || student.CareEndedOn(timezone.TodayDate()) {
 					return nil, &ScheduleError{Op: opBulkUpsertArrivalSchedules, Err: fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, id)}
 				}
 				students = append(students, student)
@@ -939,7 +959,15 @@ func (s *arrivalScheduleService) BulkUpsertArrivalSchedules(
 				}
 				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
 			}
-			if fresh.Status == users.StudentStatusAlumnus {
+			if fresh.Status == users.StudentStatusAlumnus || fresh.CareEndedOn(timezone.TodayDate()) {
+				// Naming a class or a group means "everyone who is in it", so a
+				// departed child is silently left out — exactly what the
+				// repository already does for an alumnus. Only an explicitly
+				// listed id is an error, because there the caller asked for
+				// that child by name (#2487).
+				if !hasStudents {
+					continue
+				}
 				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
 			}
 			if hasSchoolClass && !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {

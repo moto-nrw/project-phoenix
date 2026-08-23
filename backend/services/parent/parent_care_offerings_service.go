@@ -206,6 +206,9 @@ func (s *service) GetChildOfferingCatalogAt(
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
@@ -237,10 +240,22 @@ func (s *service) CreateOfferingChangeRequest(
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		_, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
 			StudentID:     studentID,
 			AccountID:     accountID,
@@ -262,8 +277,8 @@ func (s *service) CreateOfferingChangeRequest(
 }
 
 // WithdrawOfferingChangeRequest flips the caller's own pending request to
-// withdrawn. Stays available even after the school switches the feature off, so
-// an outstanding request can always be wound down.
+// withdrawn. It stays available after the school switches the feature off, but
+// not after the child's care has ended.
 func (s *service) WithdrawOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
@@ -272,10 +287,20 @@ func (s *service) WithdrawOfferingChangeRequest(
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.OfferingChanges == nil {
 		return nil, enrollmentSvc.ErrOfferingChangeDisabled
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		return s.OfferingChanges.Withdraw(txCtx, requestID, accountID, studentID)
 	})
 	if txErr != nil {

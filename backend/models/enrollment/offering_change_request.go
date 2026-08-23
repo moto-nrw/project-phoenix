@@ -17,6 +17,9 @@ const (
 	OfferingChangeStatusApproved  = "approved"
 	OfferingChangeStatusRejected  = "rejected"
 	OfferingChangeStatusWithdrawn = "withdrawn"
+	// OfferingChangeStatusCareEnded closes an open request whose child left
+	// the OGS before anybody decided it (#2487).
+	OfferingChangeStatusCareEnded = "care_ended"
 )
 
 var (
@@ -65,7 +68,7 @@ type OfferingChangeRequest struct {
 // IsTerminal reports whether the row can still be decided or withdrawn.
 func (r *OfferingChangeRequest) IsTerminal() bool {
 	switch r.Status {
-	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn:
+	case OfferingChangeStatusApproved, OfferingChangeStatusRejected, OfferingChangeStatusWithdrawn, OfferingChangeStatusCareEnded:
 		return true
 	default:
 		return false

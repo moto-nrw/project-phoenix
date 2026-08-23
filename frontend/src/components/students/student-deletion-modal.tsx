@@ -53,12 +53,23 @@ const REASON_OPTIONS: ReadonlyArray<{
   { value: "privacy_request", label: "Datenschutz-/Löschanfrage" },
 ];
 
+// Zusätzlicher Grund für Kinder, deren Betreuung beendet ist (#2487). Er
+// steht nur dort zur Wahl: bei einem Kind, das noch betreut wird, läuft keine
+// Aufbewahrungsfrist, und der Grund wäre eine falsche Angabe im Protokoll.
+const RETENTION_REASON_OPTION = {
+  value: "retention_expired" as StudentDeletionReason,
+  label: "Aufbewahrungsfrist abgelaufen",
+};
+
 const DELETION_STEPS = ["Daten prüfen", "Name bestätigen"] as const;
 
 interface StudentDeletionModalProps {
   readonly isOpen: boolean;
   readonly studentId: string;
   readonly displayName: string;
+  /** Die Betreuung dieses Kindes ist beendet — nur dann gibt es den Grund
+   *  "Aufbewahrungsfrist abgelaufen" (#2487). */
+  readonly careEnded?: boolean;
   readonly onClose: () => void;
   readonly onDeleted: () => Promise<void> | void;
 }
@@ -67,6 +78,7 @@ export function StudentDeletionModal({
   isOpen,
   studentId,
   displayName,
+  careEnded = false,
   onClose,
   onDeleted,
 }: StudentDeletionModalProps) {
@@ -127,6 +139,12 @@ export function StudentDeletionModal({
       }))
       .filter((row) => row.value > 0);
   }, [impact]);
+
+  const reasonOptions = useMemo(
+    () =>
+      careEnded ? [...REASON_OPTIONS, RETENTION_REASON_OPTION] : REASON_OPTIONS,
+    [careEnded],
+  );
 
   const firstStepComplete = Boolean(impact && reason && acknowledged);
   const nameMatches = confirmationName === impact?.confirmation_name;
@@ -325,7 +343,7 @@ export function StudentDeletionModal({
               <CustomSelect
                 id="student-deletion-reason"
                 value={reason}
-                options={REASON_OPTIONS}
+                options={reasonOptions}
                 onChange={(value) =>
                   setReason(value as StudentDeletionReason | "")
                 }

@@ -462,6 +462,14 @@ export interface BackendStudent {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Letzter Betreuungstag (#2487) als "YYYY-MM-DD", leer wenn kein Ende
+  // hinterlegt ist. care_ended sagt, ob dieser Tag schon vorbei ist.
+  care_ends_on?: string;
+  care_ended?: boolean;
+  // Das Ende wurde von der Schule eingetragen ("Betreuung beenden"), es ist
+  // also kein bloßes Ende der Anmeldephase. Nur ein solcher Austritt
+  // lässt sich ändern oder stornieren (#2487).
+  care_exit_recorded?: boolean;
   // Parent's note for a still-pending absence request covering today.
   // Informational only — it does
   // NOT change day_planning_status; the child stays "expected" until the OGS
@@ -662,6 +670,14 @@ export interface Student {
   day_planning_status?: "comes_today" | "not_coming_today";
   day_planning_reason?: string;
   day_planning_label?: string;
+  // Letzter Betreuungstag (#2487) als "YYYY-MM-DD", leer wenn kein Ende
+  // hinterlegt ist. care_ended sagt, ob dieser Tag schon vorbei ist.
+  care_ends_on?: string;
+  care_ended?: boolean;
+  // Das Ende wurde von der Schule eingetragen ("Betreuung beenden"), es ist
+  // also kein bloßes Ende der Anmeldephase. Nur ein solcher Austritt
+  // lässt sich ändern oder stornieren (#2487).
+  care_exit_recorded?: boolean;
   // Parent's note for a still-pending "entschuldigt" request covering today.
   // Informational only — the child stays "expected" (day_planning_status
   // unchanged) until an office/admin confirms the request.
@@ -794,6 +810,9 @@ export function mapStudentResponse(
     day_planning_status: backendStudent.day_planning_status,
     day_planning_reason: backendStudent.day_planning_reason,
     day_planning_label: backendStudent.day_planning_label,
+    care_ends_on: backendStudent.care_ends_on,
+    care_ended: backendStudent.care_ended ?? false,
+    care_exit_recorded: backendStudent.care_exit_recorded ?? false,
     pending_excused_note: backendStudent.pending_excused_note,
     name_lg: backendStudent.guardian_name ?? undefined,
     contact_lg: backendStudent.guardian_contact ?? undefined,

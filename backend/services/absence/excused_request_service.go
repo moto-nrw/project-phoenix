@@ -546,7 +546,10 @@ func (s *excusedAbsenceRequestService) ListPending(ctx context.Context, filters 
 		// graduation (the hard delete it replaced cascaded them away), so without
 		// this they would sit in the staff queue and the sidebar badge and could
 		// still be approved onto an alumnus. A revert brings them back (#405 review).
-		if students[r.StudentID].IsAlumnus() {
+		// A child whose care has ended leaves the queue the same way: the
+		// effect-day pass closes their open requests, and until it runs the
+		// queue must not offer a decision on a departed child (#2487).
+		if students[r.StudentID].IsAlumnus() || students[r.StudentID].CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
 		item := &ExcusedRequestReviewItem{Request: r}
@@ -596,7 +599,8 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 		// Alumni are excluded for the same reason as in the review queue: a
 		// graduated child must not raise a pending-approval marker anywhere on the
 		// staff surface (#405 review).
-		if writable(students[studentID]) && !students[studentID].IsAlumnus() {
+		if writable(students[studentID]) && !students[studentID].IsAlumnus() &&
+			!students[studentID].CareEndedOn(timezone.TodayDate()) {
 			out[studentID] = req
 		}
 	}
@@ -646,6 +650,11 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	// alumnus. Same 404 the rest of the child surface returns for graduates
 	// (#405 review).
 	if student.IsAlumnus() {
+		return nil, activeModels.ErrExcusedRequestNotFound
+	}
+	// The child left the OGS after filing this request; approving it would
+	// write absence status days for a day they are no longer in care (#2487).
+	if student.CareEndedOn(timezone.TodayDate()) {
 		return nil, activeModels.ErrExcusedRequestNotFound
 	}
 	if ok, _ := authorize.CanManageStudentAbsence(ctx, jwt.PermissionsFromCtx(ctx), student, s.userContext); !ok {

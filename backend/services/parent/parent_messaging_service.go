@@ -10,6 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
@@ -296,6 +297,11 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	// Fail OPEN on a transient resolve error (via the shared helper) so a config-DB
 	// blip does not 500 a guardian's reply while the badge and thread list keep
 	// rendering unread — the write side agrees with the read side. A genuine
@@ -314,6 +320,13 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		SchoolName:  child.schoolName,
 	}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)
 		if err != nil {
 			return err

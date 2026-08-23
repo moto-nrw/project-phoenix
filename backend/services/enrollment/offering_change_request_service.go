@@ -1013,7 +1013,11 @@ func (s *offeringChangeRequestService) ListPending(ctx context.Context, filters 
 			continue
 		}
 		student := students[row.StudentID]
-		if student == nil || !writable(student) || student.IsAlumnus() {
+		// A child whose care has ended leaves the pending queue: the
+		// effect-day pass closes their open requests, and until it runs the
+		// queue must not offer a decision on a departed child (#2487).
+		if student == nil || !writable(student) || student.IsAlumnus() ||
+			student.CareEndedOn(timezone.TodayDate()) {
 			continue
 		}
 		visibleRows = append(visibleRows, row)
@@ -1171,7 +1175,8 @@ func (s *offeringChangeRequestService) PendingCount(ctx context.Context) (int, e
 			continue
 		}
 		student := students[row.StudentID]
-		if student != nil && writable(student) && !student.IsAlumnus() {
+		if student != nil && writable(student) && !student.IsAlumnus() &&
+			!student.CareEndedOn(timezone.TodayDate()) {
 			count++
 		}
 	}
@@ -1454,6 +1459,11 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	if student.IsAlumnus() {
 		return enrollmentModels.ErrOfferingChangeNotFound
 	}
+	// The child left the OGS after filing this request; approving it would
+	// book offerings for days they are no longer in care (#2487).
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return enrollmentModels.ErrOfferingChangeNotFound
+	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
 		return ErrOfferingChangeForbidden
 	}
@@ -1526,7 +1536,7 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: load student for preview: %w", err)
 	}
-	if student == nil || student.IsAlumnus() {
+	if student == nil || student.IsAlumnus() || student.CareEndedOn(timezone.TodayDate()) {
 		return nil, enrollmentModels.ErrOfferingChangeNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.UserContext); !ok {
@@ -1845,6 +1855,13 @@ func (s *offeringChangeRequestService) applyApproved(
 	}
 	if effectiveFrom.After(phase.ServiceEndDate) {
 		return nil, fmt.Errorf("%w: the care period ended before this request was decided", ErrOfferingChangeInvalid)
+	}
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, row.StudentID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: load student for effective date: %w", err)
+	}
+	if student.EnrolledUntil != nil && effectiveFrom.After(*student.EnrolledUntil) {
+		return nil, fmt.Errorf("%w: care ends before the approved effective date", ErrOfferingChangeInvalid)
 	}
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {

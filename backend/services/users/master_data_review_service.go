@@ -202,6 +202,17 @@ func (sc *reviewStudentScope) includes(studentID int64) bool {
 	return sc.writable(st) && !st.IsAlumnus()
 }
 
+// includesPending narrows the queue further than the history: a child whose
+// care has ended must not be offered for a decision (#2487). Their closed
+// requests deliberately stay readable in the history — the acceptance criteria
+// require the trail to survive the departure.
+func (sc *reviewStudentScope) includesPending(studentID int64) bool {
+	if !sc.includes(studentID) {
+		return false
+	}
+	return !sc.students[studentID].CareEndedOn(timezone.TodayDate())
+}
+
 func (sc *reviewStudentScope) name(studentID int64) (string, string) {
 	if st, ok := sc.students[studentID]; ok {
 		if p, ok := sc.persons[st.PersonID]; ok {
@@ -269,7 +280,7 @@ func (s *masterDataReviewService) ListPending(ctx context.Context, filters model
 
 	items := make([]*MasterDataReviewItem, 0, len(rows))
 	for _, r := range rows {
-		if !scope.includes(r.StudentID) {
+		if !scope.includesPending(r.StudentID) {
 			continue
 		}
 		item := &MasterDataReviewItem{Request: r}
@@ -390,6 +401,11 @@ func (s *masterDataReviewService) Decide(ctx context.Context, input MasterDataRe
 	// (name, departure modes, companion links). Same 404 the rest of the child
 	// surface returns for graduates (#405 review).
 	if student.IsAlumnus() {
+		return nil, ErrReviewNotFound
+	}
+	// The child left the OGS after filing this request; approving it would
+	// rewrite the master data of a child the school no longer cares for (#2487).
+	if student.CareEndedOn(timezone.TodayDate()) {
 		return nil, ErrReviewNotFound
 	}
 	if ok, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx), student, s.userCtx); !ok {

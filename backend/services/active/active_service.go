@@ -663,6 +663,13 @@ func (s *service) ensureStudentCheckinAllowed(ctx context.Context, studentID int
 	if student.Status == userModels.StudentStatusAlumnus {
 		return ErrStudentGraduated
 	}
+	// A child whose care ended yesterday cannot start a new day here (#2487).
+	// Checked against the enrollment interval rather than the lifecycle
+	// status: the status only follows once the scheduler ticks, and the kiosk
+	// must not let a departed child in during that window.
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return ErrStudentCareEnded
+	}
 	return nil
 }
 

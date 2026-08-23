@@ -27,6 +27,7 @@ var errorRules = []common.ErrorRule{
 	{Target: activities.ErrOnlySupervisorRequiresReplacement, Render: onlySupervisorConflict},
 	{Target: activities.ErrNotEnrolled, Render: common.ErrorNotFound},
 	{Target: activities.ErrStudentIsAlumnus, Render: common.ErrorInvalidRequest},
+	{Target: activities.ErrStudentCareEnded, Render: common.ErrorInvalidRequest},
 	{Target: activities.ErrSystemActivityProtected, Render: common.ErrorForbidden},
 	{Target: activities.ErrSystemCategoryProtected, Render: common.ErrorForbidden},
 	{Target: activities.ErrSystemCategoryNameReserved, Render: common.ErrorConflict},

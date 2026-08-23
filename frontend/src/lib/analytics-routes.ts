@@ -37,6 +37,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/students",
   "/database/students/class-list",
   "/database/students/class-list/import",
+  "/database/students/ended-care",
   "/database/students/import",
   "/day-log",
   "/dienstplan",

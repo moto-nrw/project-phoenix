@@ -119,7 +119,7 @@ func (s *service) ProcessSchoolCheckinBatch(
 	// revalidation: rows are locked before any state is read or written, so a
 	// concurrent grade-transition apply (#405) blocks here instead of racing
 	// the writes below. Missing ids (unknown, foreign, or deleted) and
-	// alumni become OK=false skips.
+	// alumni and children whose care has ended become OK=false skips.
 	locked, err := s.StudentRepo.FindByIDsForUpdate(ctx, writeOrder)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSchoolCheckinBatch", Err: err}
@@ -128,9 +128,12 @@ func (s *service) ProcessSchoolCheckinBatch(
 	outcomes := make(map[int64]SchoolCheckinBatchItem, len(writeOrder))
 	actionable := make([]int64, 0, len(writeOrder))
 	actionableStudents := make([]*userModels.Student, 0, len(writeOrder))
+	today := timezone.TodayDate()
 	for _, studentID := range writeOrder {
 		student := locked[studentID]
-		if student == nil || student.IsAlumnus() {
+		// A child whose care has ended is skipped exactly like an alumnus:
+		// the batch reports them as not-OK and writes nothing (#2487).
+		if student == nil || student.IsAlumnus() || student.CareEndedOn(today) {
 			outcomes[studentID] = SchoolCheckinBatchItem{StudentID: studentID}
 			continue
 		}
