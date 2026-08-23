@@ -235,6 +235,15 @@ jobs:
             echo "hostname=eltern.moto-app.de" >> $GITHUB_OUTPUT
           fi
 
+      - name: Determine school hostname
+        id: school_hostname
+        run: |
+          if [[ "${{ needs.check-environment.outputs.is_staging }}" == "true" ]]; then
+            echo "hostname=schule.staging.moto-app.de" >> $GITHUB_OUTPUT
+          else
+            echo "hostname=schule.moto-app.de" >> $GITHUB_OUTPUT
+          fi
+
       - name: Determine tenant domain
         id: tenant_domain
         run: |
@@ -309,6 +318,7 @@ jobs:
           NEXT_PUBLIC_API_URL: ${{ steps.api_url.outputs.url }}
           NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
           NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+          NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
           TENANT_DOMAIN: "localhost"
           NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
         run: pnpm run generate:guides
@@ -332,6 +342,7 @@ jobs:
             NEXT_PUBLIC_API_URL=${{ steps.api_url.outputs.url }}
             NEXT_PUBLIC_OPERATOR_HOSTNAME=${{ steps.operator_hostname.outputs.hostname }}
             NEXT_PUBLIC_PARENTS_HOSTNAME=${{ steps.parents_hostname.outputs.hostname }}
+            NEXT_PUBLIC_SCHOOL_HOSTNAME=${{ steps.school_hostname.outputs.hostname }}
             TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_TENANT_DOMAIN=${{ steps.tenant_domain.outputs.domain }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}

@@ -6,6 +6,7 @@ import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread"
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 import { useParentNewsUnread } from "~/lib/hooks/use-parent-news-unread";
 import { Header } from "~/components/dashboard/header";
+import { PortalShell } from "~/components/ui/portal-shell";
 import { listMyChildren } from "~/lib/parent-api";
 import { ParentBottomNav } from "./parent-bottom-nav";
 import { ParentSidebar } from "./parent-sidebar";
@@ -14,7 +15,8 @@ import { useShellAuth } from "~/lib/shell-auth-context";
 /**
  * Die Huelle der Eltern-App.
  *
- * Loest die geteilte AppShell des Personal-Portals ab. Zaehler und
+ * Loest die geteilte AppShell des Personal-Portals ab; den Rahmen liefert
+ * die geteilte `PortalShell`. Zaehler und
  * Sichtbarkeiten werden hier einmal geladen und an beide Navigationen
  * gereicht; die Navigationen selbst holen keine Daten.
  */
@@ -46,30 +48,28 @@ export function ParentShell({
   const childCount = linkedChildren?.length ?? 0;
 
   return (
-    <div className="relative min-h-screen">
-      <div
-        className="moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0"
-        aria-hidden="true"
-      />
-      <div
-        data-parent-safe-area-top
-        className="h-[env(safe-area-inset-top)] bg-white lg:hidden"
-        aria-hidden="true"
-      />
-
-      <div className="sticky top-0 z-50 hidden lg:block">
-        <Header />
-      </div>
-
-      <div className="relative z-10 flex">
+    <PortalShell
+      header={<Header />}
+      headerClassName="sticky top-0 z-50 hidden lg:block"
+      topLayer={
+        <div
+          data-parent-safe-area-top
+          className="h-[env(safe-area-inset-top)] bg-white lg:hidden"
+          aria-hidden="true"
+        />
+      }
+      sidebar={
         <ParentSidebar badges={badges} gates={gates} childCount={childCount} />
-
-        <main className="min-w-0 flex-1 p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
-          <div className="relative z-10">{children}</div>
-        </main>
-      </div>
-
-      <ParentBottomNav badges={badges} gates={gates} childCount={childCount} />
-    </div>
+      }
+      bottomNav={
+        <ParentBottomNav
+          badges={badges}
+          gates={gates}
+          childCount={childCount}
+        />
+      }
+    >
+      {children}
+    </PortalShell>
   );
 }

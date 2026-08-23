@@ -633,6 +633,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
     }
     if (href === "/dashboard") return pathname === "/dashboard";
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
+    // Schul-Portal (#2207): auf dem Schul-Host ist die Klassenansicht die
     // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
     if (href === "/staff") {
       return (

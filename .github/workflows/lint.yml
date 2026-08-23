@@ -110,6 +110,7 @@ jobs:
       API_URL: "http://localhost:8080"
       NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
       NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
       TENANT_DOMAIN: "localhost"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

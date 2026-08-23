@@ -53,6 +53,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const config = {
     operatorHostname: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
     parentsHostname: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
+    schoolHostname: requiredEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME"),
     tenantDomain: requiredEnv("TENANT_DOMAIN"),
   };
   const variant = resolveFaviconVariant(host, config);

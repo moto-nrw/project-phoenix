@@ -205,6 +205,7 @@ func applyStaticViperTestConfig() {
 	viper.Set("auth_jwt_refresh_expiry", "1h")
 	viper.Set("frontend_url", "http://tenant.invalid")
 	viper.Set("parents_url", "http://parents.invalid")
+	viper.Set("school_url", "http://school.invalid")
 	viper.Set("tenant_domain", "tenant.invalid")
 	viper.Set("next_public_operator_hostname", "operator.invalid")
 }

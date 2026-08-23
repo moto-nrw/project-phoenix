@@ -662,6 +662,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
+    // Schul-Portal (#2207): im Overflow bleibt nur die Hilfe — alles andere
+    // sind Tenant-Seiten, die es auf dem Schul-Host nicht gibt.
     // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
     // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
     // als Haupt-Tab.)

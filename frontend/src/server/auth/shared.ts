@@ -364,6 +364,101 @@ export async function performParentLogin(
   }
 }
 
+export async function performSchoolLogin(
+  email: string,
+  password: string,
+  isDev: boolean,
+  forwardHeaders?: Record<string, string>,
+): Promise<{
+  access_token: string;
+  refresh_token: string;
+  status?: number;
+  code?: string;
+} | null> {
+  const apiUrl = getServerApiUrl();
+
+  if (isDev) {
+    logger.debug("attempting school login", {
+      api_url: `${apiUrl}/school/auth/login`,
+    });
+  }
+
+  try {
+    const response = await fetch(`${apiUrl}/school/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...forwardHeaders },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (isDev) {
+      logger.debug("school login response received", {
+        status: response.status,
+      });
+    }
+
+    if (!response.ok) {
+      const text = await response.text();
+      // Backend sends { status, error, code } on failures. The code field
+      // disambiguates invalid_credentials / account_inactive from the
+      // 403 no_school_portal_role (non-Lehrkraft hitting the school
+      // portal).
+      let code: string | undefined;
+      try {
+        const parsed = JSON.parse(text) as { code?: unknown };
+        if (typeof parsed.code === "string") code = parsed.code;
+      } catch {
+        // Non-JSON body (e.g. gateway error page) — leave code undefined.
+      }
+      logger.error("school login failed", {
+        status: response.status,
+        error: text,
+      });
+      return {
+        access_token: "",
+        refresh_token: "",
+        status: response.status,
+        code,
+      };
+    }
+
+    // Top-level LoginResponse (no envelope), same MFA-aware shape as the
+    // tenant login: status "authenticated" carries the token pair; the MFA
+    // branches ("mfa_required" / "mfa_enrollment_required") are driven by
+    // the login page through lib/mfa-api, never through this authorize
+    // path — report them as a coded non-success so authorize rejects.
+    const body = (await response.json()) as {
+      status: string;
+      access_token?: string;
+      refresh_token?: string;
+    };
+
+    if (body.status !== "authenticated" || !body.access_token) {
+      return {
+        access_token: "",
+        refresh_token: "",
+        status: 200,
+        code: body.status,
+      };
+    }
+
+    if (isDev) {
+      logger.debug("school login response parsed", {
+        has_tokens: !!body.access_token,
+      });
+    }
+
+    return {
+      access_token: body.access_token,
+      refresh_token: body.refresh_token ?? "",
+    };
+  } catch (error) {
+    logger.error("school authentication error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
 export async function performLogin(
   email: string,
   password: string,
@@ -536,6 +631,7 @@ export const _testHelpers = {
   performLogin,
   performOperatorLogin,
   performParentLogin,
+  performSchoolLogin,
   parseDurationToMs,
 } as const;
 
@@ -603,6 +699,33 @@ export const operatorRedirectCallback: NonNullable<
   }
 
   logger.warn("operator_redirect_blocked", {
+    url,
+    baseUrl,
+    reason: "origin mismatch",
+  });
+  return baseUrl;
+};
+
+/**
+ * School sessions are host-only, so their redirects must stay on that exact
+ * origin. Parsing relative URLs before comparing origins also rejects
+ * protocol-relative paths such as "//other-host.example".
+ */
+export const schoolRedirectCallback: NonNullable<
+  NonNullable<NextAuthConfig["callbacks"]>["redirect"]
+> = ({ url, baseUrl }) => {
+  try {
+    const redirectUrl = url.startsWith("/")
+      ? new URL(url, baseUrl)
+      : new URL(url);
+    const baseUrlObject = new URL(baseUrl);
+
+    if (redirectUrl.origin === baseUrlObject.origin) return redirectUrl.href;
+  } catch {
+    // An invalid callback target is handled like any other foreign origin.
+  }
+
+  logger.warn("school_redirect_blocked", {
     url,
     baseUrl,
     reason: "origin mismatch",

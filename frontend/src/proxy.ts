@@ -30,6 +30,14 @@ if (!PARENTS_HOSTNAME) {
   );
 }
 
+const SCHOOL_HOSTNAME = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
+if (!SCHOOL_HOSTNAME) {
+  throw new Error(
+    "NEXT_PUBLIC_SCHOOL_HOSTNAME is not set. " +
+      "Add it to your .env.local or docker-compose environment.",
+  );
+}
+
 const TENANT_DOMAIN: string = (() => {
   const val = process.env.TENANT_DOMAIN;
   if (!val) {
@@ -358,6 +366,89 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
   return withSecurityHeaders(NextResponse.redirect(url));
 }
 
+// --- School subdomain handling ("moto schule" teacher portal, #2207) ---
+
+/** Paths the school subdomain serves (without /school prefix).
+ * Mirrors PARENTS_PUBLIC_PATHS in shape: the proxy rewrites these to
+ * /school/* internally so the App Router routes them under app/school/.
+ * The Klassenansicht itself lives at the root ("/" → /school).
+ */
+const SCHOOL_PUBLIC_PATHS = ["/login", "/invite", "/reset-password"];
+const SCHOOL_INVITATION_API_PATHS = [
+  "/api/invitations/validate",
+  "/api/invitations/accept",
+];
+
+function isSchoolHost(hostname: string): boolean {
+  return hostname === SCHOOL_HOSTNAME;
+}
+
+function handleSchoolSubdomain(request: NextRequest): NextResponse {
+  const { pathname } = request.nextUrl;
+
+  if (pathname === "/help" || pathname.startsWith("/help/")) {
+    return secureNext(request);
+  }
+
+  // Block the other portals' auth endpoints on the school host. Their
+  // session cookies are host-only (tenant: domain-scoped), so this is
+  // defense-in-depth against a misconfig ever leaking them here.
+  if (
+    pathname.startsWith("/api/auth/") ||
+    pathname.startsWith("/api/operator/auth/") ||
+    pathname.startsWith("/api/parent/auth/")
+  ) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // Only the school portal's BFF routes may run on this host. In particular,
+  // do not pass tenant API routes through: tenant session cookies are
+  // domain-scoped and would otherwise be sent to this subdomain as well.
+  if (
+    pathname.startsWith("/api/school/") ||
+    SCHOOL_INVITATION_API_PATHS.includes(pathname) ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/monitoring")
+  ) {
+    return secureNext(request);
+  }
+
+  if (pathname.startsWith("/api/")) {
+    return withSecurityHeaders(new NextResponse(null, { status: 404 }));
+  }
+
+  // Root → /school (the Klassenansicht). The staff/school surfaces are
+  // German-only, so no localized rewrite here.
+  if (pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/school";
+    return secureRewrite(request, url);
+  }
+
+  // Known school paths → rewrite to /school/* internally.
+  if (
+    SCHOOL_PUBLIC_PATHS.some(
+      (p) => pathname === p || pathname.startsWith(`${p}/`),
+    )
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = `/school${pathname}`;
+    return secureRewrite(request, url);
+  }
+
+  // Already prefixed with /school → pass through (direct /school/* access
+  // during dev).
+  if (pathname === "/school" || pathname.startsWith("/school/")) {
+    return secureNext(request);
+  }
+
+  // Anything else → redirect to root. Keeps the school host from leaking
+  // access to tenant, operator, or parents paths.
+  const url = request.nextUrl.clone();
+  url.pathname = "/";
+  return withSecurityHeaders(NextResponse.redirect(url));
+}
+
 // --- Tenant subdomain handling (from multi-tenancy) ---
 
 // Alias for use in subdomain extraction below.
@@ -426,6 +517,11 @@ export function proxy(request: NextRequest): NextResponse {
     return handleParentsSubdomain(request);
   }
 
+  // 1d. School subdomain ("moto schule") gets its own routing (#2207)
+  if (isSchoolHost(hostname)) {
+    return handleSchoolSubdomain(request);
+  }
+
   // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
     return secureNext(request);
@@ -459,6 +555,18 @@ export function proxy(request: NextRequest): NextResponse {
     const protocol = request.nextUrl.protocol;
     const search = request.nextUrl.search;
     const redirectUrl = `${protocol}//${PARENTS_HOSTNAME}${cleanPath}${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
+  // 3c. School guard on non-school hosts: /school/* hit on a tenant
+  // subdomain or the bare domain gets redirected to the configured school
+  // host. Exact-segment match — a tenant slug like "school-a" must NOT be
+  // hijacked here ("/school-a/dashboard" is a legitimate tenant path).
+  if (pathname === "/school" || pathname.startsWith("/school/")) {
+    const cleanPath = pathname.replace(/^\/school/, "") || "/";
+    const protocol = request.nextUrl.protocol;
+    const search = request.nextUrl.search;
+    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}${cleanPath}${search}`;
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 

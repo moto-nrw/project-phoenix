@@ -25,7 +25,14 @@ const logger = createLogger({ component: "InvitationPageContent" });
  *
  * Validates the invitation token and renders the accept form.
  */
-export function InvitationPageContent({ token }: { token: string | null }) {
+export function InvitationPageContent({
+  token,
+  redirectToPath,
+}: {
+  token: string | null;
+  /** Post-accept redirect override — see InvitationAcceptForm (#2207). */
+  redirectToPath?: string;
+}) {
   const [invitation, setInvitation] = useState<InvitationValidation | null>(
     null,
   );
@@ -155,7 +162,11 @@ export function InvitationPageContent({ token }: { token: string | null }) {
       )}
 
       {!error && invitation && token && (
-        <InvitationAcceptForm token={token} invitation={invitation} />
+        <InvitationAcceptForm
+          token={token}
+          invitation={invitation}
+          redirectToPath={redirectToPath}
+        />
       )}
     </AuthShell>
   );
