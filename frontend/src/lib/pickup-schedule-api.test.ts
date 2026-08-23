@@ -178,6 +178,27 @@ describe("pickup-schedule-api", () => {
           "Die Daten haben sich geändert. Bitte prüfen Sie die Auswahl noch einmal.",
       });
     });
+
+    it("translates unavailable care offerings", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(false, 409, {
+          error: "care offerings are disabled",
+          code: "pickup.offerings_disabled",
+        }),
+      );
+
+      const error = await applyStudentPickupAdjustment("123", {
+        ...payload,
+        preview_token: "token-1",
+        resolution: "offering",
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: "pickup.offerings_disabled",
+        message:
+          "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
+      });
+    });
   });
 
   describe("bulkUpsertPickupSchedules", () => {

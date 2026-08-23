@@ -196,6 +196,8 @@ const errorTranslations: Record<string, string> = {
     "Die dauerhafte Ausnahme gilt bereits. Wechseln Sie deshalb ab heute zum Angebot.",
   "pickup.offering_capacity_full":
     "Das gewählte Angebot hat keinen freien Platz mehr.",
+  "pickup.offerings_disabled":
+    "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
   "pickup.bulk_exception_confirmation_required":
     "Bitte bestätigen Sie, dass die Gehzeiten als dauerhafte Ausnahmen gespeichert werden.",
   "invalid weekday": "Ungültiger Wochentag",
