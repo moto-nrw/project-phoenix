@@ -47,6 +47,7 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
 		Join(`INNER JOIN activities.groups AS "activity_group" ON "activity_group".id = "activity_instance".activity_group_id AND "activity_group".tenant_id = "activity_instance".tenant_id`).
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"instance_student".is_unplanned = FALSE`).
+		Where(`"instance_student".not_scheduled = FALSE`).
 		Where(`"activity_instance".date BETWEEN ? AND ?`, from, to).
 		Where(`"activity_instance".status = ?`, scheduleModels.InstanceStatusPlanned).
 		Where(`"activity_instance".calendar_period_id IS NOT NULL`).
@@ -72,6 +73,7 @@ func (r *OfferingChangeImpactRepository) ListManualPlanningOccurrences(
 				AND "source_phase".id = "source_offering".phase_id
 			WHERE "source_offering".tenant_id = "activity_group".tenant_id
 			  AND "source_offering".activity_group_id = "activity_group".id
+			  AND "source_offering".counts_as_care = TRUE
 			  AND "source_child".status = 'approved'
 			  AND COALESCE("source_child".created_student_id, "source_child".matched_student_id) = "instance_student".student_id
 			  AND ("source_link".valid_from IS NULL OR "source_link".valid_from <= "activity_instance".date)
