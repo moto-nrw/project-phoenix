@@ -131,7 +131,10 @@ func (r *CareExitRepository) ListEnded(
 		ColumnExpr(`"care_exit".reason AS reason`).
 		ColumnExpr(`"care_exit".reason_note AS reason_note`).
 		ColumnExpr(`"care_exit".recorded_by AS recorded_by`).
-		ColumnExpr(`"care_exit".created_at::date AS recorded_at`).
+		// created_at is a TIMESTAMPTZ: casting it straight to DATE would use
+		// the session timezone, so an exit recorded at 00:30 Berlin would be
+		// archived under the previous day on a UTC session.
+		ColumnExpr(`("care_exit".created_at AT TIME ZONE 'Europe/Berlin')::date AS recorded_at`).
 		OrderExpr(`"student".enrolled_until DESC, "person".last_name ASC, "person".first_name ASC, "student".id ASC`)
 
 	if filter.PageSize > 0 {
