@@ -4,6 +4,7 @@
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
 base=${1:-origin/development}
 merge_base=$(git merge-base HEAD "$base")
 
