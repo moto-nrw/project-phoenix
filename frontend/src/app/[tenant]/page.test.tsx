@@ -111,6 +111,14 @@ vi.mock("~/lib/parent-url", () => ({
     `https://parents.example.test/login${search ?? ""}`,
 }));
 
+// Same reason for the school portal (#2207): schoolPortalLoginUrl() reads
+// NEXT_PUBLIC_SCHOOL_HOSTNAME and throws when it is unset. URL construction
+// itself is covered by school-url.test.ts.
+vi.mock("~/lib/school-url", () => ({
+  schoolPortalLoginUrl: (search?: string) =>
+    `https://schule.example.test/login${search ?? ""}`,
+}));
+
 // Mock next/image
 vi.mock("next/image", () => ({
   default: ({ src, alt }: { src: string; alt: string }) => (
@@ -543,6 +551,72 @@ describe("HomePage (Login)", () => {
           delete (window.location as unknown as Record<string, unknown>).href;
         }
       }
+    });
+  });
+
+  describe("Lehrkraft-only account at the staff login (#2207)", () => {
+    // Since the cutover a school-portal-only account has nothing to reach in
+    // the OGS portal, so the backend answers 403 + code "use_school_portal".
+    // Same failure mode as the guardian split above: a generic error would
+    // read as a password problem and send Lehrkräfte into reset loops.
+    const schoolOnly403 = () =>
+      mockFetchResponse(403, {
+        status: "error",
+        error: "school portal accounts must log in at the school portal",
+        code: "use_school_portal",
+      });
+
+    async function submitLogin() {
+      render(<HomePage />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId("input-email")).toBeInTheDocument();
+      });
+
+      await act(async () => {
+        fireEvent.change(screen.getByTestId("input-email"), {
+          target: { value: "lehrkraft@example.com" },
+        });
+        fireEvent.change(screen.getByTestId("input-password"), {
+          target: { value: "correct-password" },
+        });
+      });
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+      });
+    }
+
+    it("names the portal instead of blaming the password", async () => {
+      global.fetch = schoolOnly403();
+
+      await submitLogin();
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Dieses Konto ist ein Lehrkraft-Konto/),
+        ).toBeInTheDocument();
+      });
+      expect(
+        screen.queryByText("Ungültige E-Mail oder Passwort"),
+      ).not.toBeInTheDocument();
+      expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
+        reason: "use_school_portal",
+      });
+    });
+
+    it("offers a manual link to moto schule", async () => {
+      global.fetch = schoolOnly403();
+
+      await submitLogin();
+
+      const link = await screen.findByRole("link", {
+        name: /Jetzt zu moto schule/,
+      });
+      expect(link).toHaveAttribute(
+        "href",
+        "https://schule.example.test/login?from=staff",
+      );
     });
   });
 

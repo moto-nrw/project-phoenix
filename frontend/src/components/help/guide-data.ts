@@ -1054,17 +1054,18 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Lehrkraft-Zugang mit Klassenansicht",
         icon: GraduationCap,
         summary:
-          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht – wer bleibt heute in der Betreuung, wer geht nach Hause.",
+          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht: wer bleibt heute in der Betreuung, wer geht nach Hause.",
         steps: [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
           "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
+          "moto schule hat eine eigene Adresse: `schule.moto-app.de`. Der Link in der Einladungs-Mail führt schon dorthin. Die Adresse Ihrer OGS (z. B. meine-ogs.moto-app.de) ist für Lehrkräfte nicht der richtige Weg; die Anmeldung dort wird abgewiesen und verweist auf moto schule.",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
         ],
         callout: {
           title: "Passwort vergessen",
-          body: "Auf der Anmeldeseite von moto schule `Passwort vergessen?` wählen. Die Lehrkraft bekommt einen Link zum Setzen eines neuen Passworts.",
+          body: "Auf der Anmeldeseite von moto schule (`schule.moto-app.de`) `Passwort vergessen?` wählen. Die Lehrkraft bekommt einen Link zum Setzen eines neuen Passworts.",
           tone: "blue",
         },
         screenshot:

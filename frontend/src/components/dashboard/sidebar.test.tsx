@@ -40,8 +40,6 @@ vi.mock("~/lib/auth-utils", () => {
     hasPermission: vi.fn((_session: unknown, _permission: string) =>
       isAdminFn(),
     ),
-    // These scenarios model staff/admin accounts, never a pure Lehrkraft.
-    isLehrkraftOnly: vi.fn(() => false),
   };
 });
 

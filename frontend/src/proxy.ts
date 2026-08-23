@@ -570,6 +570,17 @@ export function proxy(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
+  // 3d. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
+  // Until the cutover the view lived at {slug}.{TENANT_DOMAIN}/klassen; the
+  // page is gone and a Lehrkraft-only account can no longer log in here at
+  // all. A 404 would look like the school lost its access, so send the
+  // bookmark to moto schule instead. Remove once the schools have settled in.
+  if (pathname === "/klassen") {
+    const protocol = request.nextUrl.protocol;
+    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
+
   // 4. Tenant subdomain routing
   const host = request.headers.get("host") ?? "";
   const tenantSlug = extractTenantSlug(host);

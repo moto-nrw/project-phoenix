@@ -505,6 +505,19 @@ describe("proxy", () => {
       expect(redirect).not.toContain("/school/login");
     });
 
+    it("sends the old /klassen bookmark to the school host (#2207)", () => {
+      const res = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/klassen",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      const redirect = res.headers.get("location");
+      expect(redirect).toContain(SCHOOL_HOSTNAME);
+      expect(redirect).not.toContain("/klassen");
+    });
+
     it("does NOT hijack tenant slugs that start with 'school'", () => {
       const res = proxy(
         makeRequest(

@@ -70,7 +70,11 @@ describe("redirect-utils", () => {
       expect(result).toBe("/dashboard");
     });
 
-    it("should return /klassen for lehrkraft-only users (#1772)", () => {
+    // Seit dem Cutover (#2207 PR 3) hat ein reines Lehrkraft-Konto im
+    // OGS-Portal kein Ziel mehr: der Tenant-Login weist es ab, /klassen gibt
+    // es nicht mehr. Sollte es doch hier ankommen, darf es NICHT auf einer
+    // Lehrkraft-Sonderseite landen.
+    it("has no Lehrkraft special case any more (#2207)", () => {
       const session = createSession(["lehrkraft"]);
       const supervisionState: SupervisionState = {
         hasGroups: false,
@@ -80,7 +84,7 @@ describe("redirect-utils", () => {
       };
 
       const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/klassen");
+      expect(result).toBe("/dashboard");
     });
 
     it("keeps caregiver flows for dual-role lehrkraft accounts", () => {

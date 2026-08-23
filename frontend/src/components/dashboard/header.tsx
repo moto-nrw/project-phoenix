@@ -17,8 +17,6 @@ import {
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 
-import { rolesIndicateLehrkraftOnly } from "~/lib/auth-utils";
-
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
@@ -115,8 +113,7 @@ export function Header() {
   // Schul-Hosts — getPageTitle kennt nur die Tenant-Pfade und würde den
   // Dashboard-Fallback anzeigen.
   const schoolPageTitle =
-    mode === "school" &&
-    (pathname === "/" || pathname === "/school" || pathname === "/klassen")
+    mode === "school" && (pathname === "/" || pathname === "/school")
       ? "Klassenansicht"
       : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
@@ -134,9 +131,7 @@ export function Header() {
           ? "Lehrkraft"
           : userRoles.includes("admin")
             ? "Admin"
-            : rolesIndicateLehrkraftOnly(userRoles)
-              ? "Lehrkraft"
-              : "Betreuer";
+            : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {
