@@ -176,7 +176,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.GetAccountRoles(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 
@@ -234,7 +234,7 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 
@@ -390,7 +390,7 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 
 	permissions, err := rs.AuthService.GetAccountPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 
@@ -420,7 +420,7 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 
 	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, accountManagementErrorRenderer(err))
 		return
 	}
 

@@ -143,6 +143,18 @@ func (noopAccountRepository) FindByID(context.Context, interface{}) (*authModel.
 	panic("FindByID not implemented")
 }
 
+func (noopAccountRepository) FindManageableByID(context.Context, int64) (*authModel.Account, error) {
+	panic("FindManageableByID not implemented")
+}
+
+func (noopAccountRepository) ListManageable(context.Context, map[string]interface{}) ([]*authModel.Account, error) {
+	panic("ListManageable not implemented")
+}
+
+func (noopAccountRepository) UpdateManageable(context.Context, *authModel.Account) error {
+	panic("UpdateManageable not implemented")
+}
+
 func (noopAccountRepository) FindByIDForUpdate(context.Context, int64) (*authModel.Account, error) {
 	panic("FindByIDForUpdate not implemented")
 }
@@ -318,6 +330,10 @@ func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*au
 	return nil, sql.ErrNoRows
 }
 
+func (r *stubAccountRepository) FindManageableByID(ctx context.Context, id int64) (*authModel.Account, error) {
+	return r.FindByID(ctx, id)
+}
+
 func (r *stubAccountRepository) UpdatePassword(_ context.Context, id int64, hash string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -340,6 +356,10 @@ func (r *stubAccountRepository) Update(_ context.Context, account *authModel.Acc
 		return nil
 	}
 	return sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) UpdateManageable(ctx context.Context, account *authModel.Account) error {
+	return r.Update(ctx, account)
 }
 
 func (r *stubAccountRepository) UpdateAvatar(_ context.Context, id int64, avatar string) error {

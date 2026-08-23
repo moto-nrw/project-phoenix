@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // TestRefactoringPreservesRepositoryAccess verifies that after refactoring,
@@ -67,8 +68,8 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	require.NotNil(t, service.repos.Token, "Should access Token repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")
 
-	// Verify GetAccountByID uses factory (calls s.repos.Account.FindByID)
-	ctx := context.Background()
+	// Verify the platform-scoped account lookup uses the repository factory.
+	ctx := tenant.WithScope(context.Background(), tenant.ScopePlatform)
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 

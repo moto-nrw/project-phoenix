@@ -29,6 +29,7 @@ import (
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1186,6 +1187,7 @@ func TestAccountManagement(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	adminClaims := testutil.AdminTestClaims(1)
+	adminClaims.Scope = tenant.ScopePlatform
 
 	t.Run("list accounts with permission", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "GET", "/auth/accounts", nil)
@@ -1480,7 +1482,9 @@ func TestAccountPermissionManagement(t *testing.T) {
 	t.Run("deny permission endpoint responds", func(t *testing.T) {
 		// Note: Deny permission has a known database schema issue
 		// This test just verifies the endpoint is accessible
-		req := testutil.NewJSONRequest(t, "POST", "/auth/accounts/1/permissions/1/deny", nil)
+		account := testpkg.CreateTestAccount(t, tc.db, fmt.Sprintf("denyperm%d", time.Now().UnixNano()))
+		permission := testpkg.CreateTestPermission(t, tc.db, "DenyToAcc", "test", "read")
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", account.ID, permission.ID), nil)
 		rr := testutil.ExecuteWithAuthPermissions(t, router, req, adminClaims, []string{"users:manage"})
 		// Accept 204 (success) or 500 (known schema issue)
 		assert.True(t, rr.Code == http.StatusNoContent || rr.Code == http.StatusInternalServerError,
