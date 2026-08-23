@@ -29,8 +29,7 @@ import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 import { Button } from "~/components/ui/button";
-import { ArrivalScheduleManager } from "./arrival-schedule-manager";
-import { StudentAbholungTab } from "./student-abholung-tab";
+import { CareScheduleManager } from "./care-schedule-manager";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
 import { StudentEnrollmentsTab } from "./student-enrollments-tab";
@@ -617,19 +616,13 @@ function buildTabs({
       id: "betreuungszeiten",
       label: "Betreuungszeiten",
       content: (
-        <div className="space-y-6">
-          <ArrivalScheduleManager
-            key={studentId}
-            studentId={studentId}
-            onUpdate={onArrivalDataChanged}
-          />
-          <StudentAbholungTab
-            studentId={studentId}
-            isSick={student.sick}
-            isExcused={student.excused}
-            onUpdate={onArrivalDataChanged}
-          />
-        </div>
+        <CareScheduleManager
+          key={studentId}
+          studentId={studentId}
+          isSick={student.sick}
+          isExcused={student.excused}
+          onUpdate={onArrivalDataChanged}
+        />
       ),
     },
     {

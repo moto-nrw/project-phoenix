@@ -32,6 +32,17 @@ Gehzeit. Ein aktives Angebot, das als Betreuungstage zählt, braucht sie für
 jeden angebotenen Wochentag. Für ein Kind gilt sie nur innerhalb des wirksamen
 Buchungsfensters. Eine für ein einzelnes Kind gepflegte Gehzeit geht vor.
 
+Der **Angebotsabgleich** prüft, ob das Gehzeitenprofil eines Kindes zu seinen
+gebuchten oder zu anderen verfügbaren Betreuungsangeboten passt.
+
+Eine **Gehzeiten-Ausnahme** ist eine von der OGS ausdrücklich bestätigte,
+dauerhafte individuelle Gehzeit. Sie darf von den gebuchten Angeboten
+abweichen und bleibt als Ausnahme erkennbar.
+
+Das **Gehzeitenprofil** ist die Zuordnung der Gehzeiten zu allen regelmäßigen
+Betreuungstagen eines Kindes. Zwei Gehzeitenprofile stimmen nur überein, wenn
+die Zeiten an sämtlichen resultierenden Betreuungstagen gleich sind.
+
 ## Abholart
 
 Die **Abholart** beschreibt, wie ein Kind an einem Betreuungstag nach Hause

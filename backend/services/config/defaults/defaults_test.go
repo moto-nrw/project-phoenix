@@ -83,6 +83,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.care_concept",
+		"operations.require_pickup_offering_review",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
 		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
@@ -712,6 +713,22 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
 	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
 	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
+}
+
+func TestPickupOfferingReviewSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyRequirePickupOfferingReview)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "betreuungszeiten", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "Angebotsabgleich für dauerhafte Gehzeiten", def.Label)
+	assert.Equal(t, "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.", def.Description)
 }
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {

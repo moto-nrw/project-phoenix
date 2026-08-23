@@ -85,6 +85,7 @@ func setupTestContext(t *testing.T) *testContext {
 		MasterDataReviewService: svc.MasterDataReview,
 		CareRequestService:      svc.CareRequests,
 		OfferingChangeService:   svc.OfferingChanges,
+		PickupAdjustmentService: svc.PickupAdjustments,
 		Broadcaster:             broadcaster,
 		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,

@@ -11,6 +11,9 @@ import {
   fetchBulkPickupTimes,
   bulkUpsertPickupSchedules,
   resetStudentPickupToOffering,
+  previewStudentPickupAdjustment,
+  applyStudentPickupAdjustment,
+  PickupScheduleApiError,
   type BulkPickupTimeResponse,
 } from "./pickup-schedule-api";
 import type {
@@ -84,6 +87,120 @@ describe("pickup-schedule-api", () => {
     global.fetch = originalFetch;
   });
 
+  describe("pickup adjustment", () => {
+    const payload = {
+      schedules: [{ weekday: 1, pickup_time: "14:30", notes: "Bus" }],
+      care_days: [1],
+      effective_from: "2026-08-24",
+    };
+
+    it("posts and returns the complete preview", async () => {
+      const preview = {
+        preview_token: "token-1",
+        effective_from: "2026-08-24",
+        current_plan: "Mo 16:00 Uhr",
+        proposed_plan: "Mo 14:30 Uhr",
+        deviates_from_offering: true,
+        resolution_required: true,
+        matching_offerings: [
+          {
+            offering_id: "2",
+            name: "Bis 14:30",
+            selected_days: [],
+            selections: [{ offering_id: "2", selected_days: [] }],
+          },
+        ],
+      };
+      global.fetch = vi
+        .fn()
+        .mockResolvedValue(
+          createMockResponse(true, 200, { status: "success", data: preview }),
+        );
+
+      await expect(
+        previewStudentPickupAdjustment("123", payload),
+      ).resolves.toEqual(preview);
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-schedules/preview",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(payload),
+        }),
+      );
+    });
+
+    it("posts the explicit offer resolution", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: { resolution: "offering" },
+        }),
+      );
+      const apply = {
+        ...payload,
+        preview_token: "token-1",
+        resolution: "offering" as const,
+        selections: [{ offering_id: "2", selected_days: [] }],
+      };
+
+      await expect(applyStudentPickupAdjustment("123", apply)).resolves.toEqual(
+        {
+          resolution: "offering",
+        },
+      );
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/123/pickup-schedules/apply",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(apply),
+        }),
+      );
+    });
+
+    it("keeps the stale-preview error code", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(false, 409, {
+          error: "pickup adjustment: preview is stale",
+          code: "pickup.preview_stale",
+        }),
+      );
+
+      const error = await applyStudentPickupAdjustment("123", {
+        ...payload,
+        preview_token: "old-token",
+        resolution: "exception",
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(PickupScheduleApiError);
+      expect(error).toMatchObject({
+        code: "pickup.preview_stale",
+        message:
+          "Die Daten haben sich geändert. Bitte prüfen Sie die Auswahl noch einmal.",
+      });
+    });
+
+    it("translates unavailable care offerings", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(false, 409, {
+          error: "care offerings are disabled",
+          code: "pickup.offerings_disabled",
+        }),
+      );
+
+      const error = await applyStudentPickupAdjustment("123", {
+        ...payload,
+        preview_token: "token-1",
+        resolution: "offering",
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        code: "pickup.offerings_disabled",
+        message:
+          "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
+      });
+    });
+  });
+
   describe("bulkUpsertPickupSchedules", () => {
     it("posts only selected children and filled weekdays", async () => {
       global.fetch = vi.fn().mockResolvedValue(
@@ -109,6 +226,32 @@ describe("pickup-schedule-api", () => {
         }),
       );
       expect(result.students_affected).toBe(2);
+    });
+
+    it("sends the explicit exception confirmation when requested", async () => {
+      global.fetch = vi.fn().mockResolvedValue(
+        createMockResponse(true, 200, {
+          status: "success",
+          data: { students_affected: 1 },
+        }),
+      );
+
+      await bulkUpsertPickupSchedules(
+        ["9"],
+        [{ weekday: 1, pickup_time: "16:10" }],
+        true,
+      );
+
+      expect(global.fetch).toHaveBeenCalledWith(
+        "/api/students/pickup-schedules/bulk",
+        expect.objectContaining({
+          body: JSON.stringify({
+            student_ids: [9],
+            schedules: [{ weekday: 1, pickup_time: "16:10" }],
+            confirmed_exception: true,
+          }),
+        }),
+      );
     });
   });
 

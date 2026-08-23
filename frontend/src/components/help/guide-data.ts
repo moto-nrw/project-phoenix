@@ -473,6 +473,14 @@ export const setupChapters: readonly GuideChapter[] = [
           "Für die Abholung an jedem Betreuungstag eine Uhrzeit eintragen.",
           "Optional eine Ankunfts- oder Abholnotiz ergänzen.",
           "Auf `Speichern` klicken. Vor dem Entfernen fragt die App nach.",
+          "Ist der Angebotsabgleich in den Einstellungen eingeschaltet und weicht der Wochenplan ab? Dann zeigt moto alle passenden Angebote.",
+          "Wählen Sie `Auf … umbuchen` oder `Als dauerhafte Ausnahme speichern`.",
+          "Bei einer Umbuchung prüfen Sie `Gilt ab`. moto zeigt vorher und nachher.",
+          "Mögliche Konflikte stehen direkt darunter. Bestätigen Sie danach die Änderung.",
+          "Passt kein Angebot? Speichern Sie die Zeiten als dauerhafte Ausnahme. Der Grund ist optional.",
+          "Das gebuchte Angebot bleibt bei einer Ausnahme unverändert.",
+          "Weicht die Ausnahme vom Angebot ab, steht am Wochentag `Andere Zeit als im Angebot`. Entspricht die von Hand gepflegte Zeit dem Angebot oder gibt es kein Angebot, steht dort `von Hand`.",
+          "Die Änderung steht zusätzlich unter `Änderungsverlauf`.",
           "`aus Klasse 3b` kennzeichnet eine Klassenzeit.",
           "`eigene Zeit` kennzeichnet eine Abweichung dieses Kindes.",
           "Mit `Klassenzeit nutzen` entfernen Sie die eigene Zeit.",
@@ -2058,6 +2066,26 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Sektion Indikatoren im Reiter Betrieb mit eingeschalteten Aktivitäts-Indikatoren und den Begriffen Mensa und Hausaufgaben.",
         image: "/help/screens/einstellungen.webp",
+      },
+      {
+        id: "einstellungen-angebotsabgleich-gehzeiten",
+        title: "Angebotsabgleich für dauerhafte Gehzeiten einschalten",
+        icon: Clock3,
+        summary:
+          "Diese Einstellung macht Abweichungen vom gebuchten Angebot sichtbar. Sie ist zuerst ausgeschaltet.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Betreuungszeiten` scrollen.",
+          "`Angebotsabgleich für dauerhafte Gehzeiten` einschalten.",
+          "Weicht der Wochenplan ab? Wählen Sie ein Angebot oder eine dauerhafte Ausnahme.",
+          "Änderungen auf einer Tageskarte bleiben davon unberührt. Sie gelten nur am gewählten Datum.",
+        ],
+        callout: {
+          title: "Keine automatische Umbuchung",
+          body: "moto ändert ein Angebot nie automatisch. Sie sehen zuerst die Folgen. Danach bestätigen Sie die Änderung. Sonderzeiten bleiben als dauerhafte Ausnahme möglich.",
+          tone: "blue",
+        },
+        screenshot:
+          "Einstellungen, Tab Betrieb mit dem Schalter Angebotsabgleich für dauerhafte Gehzeiten.",
       },
       {
         id: "einstellungen-benachrichtigungen",

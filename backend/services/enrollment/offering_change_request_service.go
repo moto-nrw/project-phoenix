@@ -15,6 +15,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"sort"
 	"strconv"
@@ -101,6 +102,12 @@ type OfferingChangeCatalogItem struct {
 	PriceCents      *int
 	IncludesLunch   bool
 	IncludesHoliday bool
+	// CountsAsCare and PickupTimes let staff-side care-plan editors compare a
+	// complete proposed weekly plan with the same active catalog that an
+	// offering adjustment validates. Parent responses deliberately omit these
+	// internal matching fields in their response shaper.
+	CountsAsCare bool
+	PickupTimes  map[string]string
 	// Selected marks the child's current booking, so the modal opens prefilled.
 	Selected     bool
 	SelectedDays []string
@@ -270,6 +277,41 @@ type OfferingChangePreview struct {
 	ArrivalExpectationsFollowBookings bool
 }
 
+// DirectOfferingAdjustmentPreview is the non-writing staff projection used
+// by the permanent pickup-time editor. It deliberately reuses the offering
+// change catalog and materializer instead of creating a second booking path.
+type DirectOfferingAdjustmentPreview struct {
+	RequestID               int64
+	RequestChildID          int64
+	Catalog                 *OfferingChangeCatalog
+	Consequences            *OfferingChangePreview
+	MaterializedPickupTimes map[string]string
+}
+
+type DirectOfferingAdjustmentInput struct {
+	StudentID               int64
+	EffectiveFrom           timezone.Date
+	Selections              []OfferingChangeSelection
+	ExcludedAutoOfferingIDs []int64
+	Reason                  string
+	ActorAccountID          int64
+	ActorRole               string
+}
+
+// DirectOfferingAdjustmentCoordinator is the narrow staff-only seam used by
+// permanent pickup-time changes. The parents request feature continues to use
+// OfferingChangeRequestService and its own enablement/notice settings.
+type DirectOfferingAdjustmentCoordinator interface {
+	PrepareDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) error
+	PreviewDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) (*DirectOfferingAdjustmentPreview, error)
+	ApplyDirectOfferingAdjustment(ctx context.Context, input DirectOfferingAdjustmentInput) error
+}
+
+type DirectOfferingAdjustmentApplier interface {
+	LockOfferingDerivedWrites(ctx context.Context) error
+	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+}
+
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
 // reported. Same window the excused-absence requests use for the same purpose:
 // long enough that a guardian sees the outcome on their next visit, short
@@ -373,10 +415,11 @@ type OfferingChangeRequestServiceConfig struct {
 	// Applier performs the dated adjustment on approval. It is the decision
 	// service, reached through the same narrow interface the change-request
 	// service uses.
-	Applier  ChangeRequestDecisionApplier
-	Settings DecisionSettingsResolver
-	Emitter  *parentmessaging.Emitter
-	Logger   *slog.Logger
+	Applier       ChangeRequestDecisionApplier
+	DirectApplier DirectOfferingAdjustmentApplier
+	Settings      DecisionSettingsResolver
+	Emitter       *parentmessaging.Emitter
+	Logger        *slog.Logger
 }
 
 type offeringChangeRequestService struct {
@@ -708,6 +751,8 @@ func (s *offeringChangeRequestService) catalogItem(
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
+		CountsAsCare:    offering.CountsAsCare,
+		PickupTimes:     maps.Clone(offering.PickupTimes),
 	}
 	if offering.Description != nil {
 		item.Description = *offering.Description

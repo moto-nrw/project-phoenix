@@ -690,6 +690,8 @@ POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
+POST /api/students/{id}/pickup-schedules/apply
+POST /api/students/{id}/pickup-schedules/preview
 POST /api/students/{id}/pickup-schedules/reset-offering
 POST /api/students/{id}/rfid
 POST /api/students/{id}/school-checkin
