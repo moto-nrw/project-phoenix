@@ -396,9 +396,11 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	if err := s.applyPickupResolution(ctx, input, preview, resolution); err != nil {
 		return nil, err
 	}
-	// Arrival schedules have no effective date. A future offering change must
-	// therefore leave the current arrival plan untouched.
-	if input.ArrivalSchedules != nil && appliesArrivalSchedulesImmediately(input.EffectiveFrom) {
+	// Arrival schedules are manual overrides without an effective date. Only a
+	// lasting exception owns them; offering changes use the booking projection.
+	if input.ArrivalSchedules != nil && appliesArrivalSchedules(
+		resolution, input.EffectiveFrom,
+	) {
 		if s.ArrivalSchedules == nil {
 			return nil, errors.New("pickup adjustment: arrival schedule service is not configured")
 		}
@@ -417,8 +419,9 @@ func (s *pickupAdjustmentService) applyPickupAdjustment(
 	return &PickupAdjustmentResult{Resolution: resolution}, nil
 }
 
-func appliesArrivalSchedulesImmediately(effectiveFrom timezone.Date) bool {
-	return !effectiveFrom.After(timezone.TodayDate())
+func appliesArrivalSchedules(resolution string, effectiveFrom timezone.Date) bool {
+	return resolution == PickupAdjustmentResolutionException &&
+		!effectiveFrom.After(timezone.TodayDate())
 }
 
 func (s *pickupAdjustmentService) preparePickupAdjustment(

@@ -259,11 +259,14 @@ func TestPickupPlanLabelIncludesNotes(t *testing.T) {
 	assert.Equal(t, "Mo 15:00 Uhr (Notiz: Fährt mit dem Bus)", label)
 }
 
-func TestPickupAdjustmentDoesNotApplyArrivalSchedulesForFutureOfferings(t *testing.T) {
+func TestPickupAdjustmentAppliesArrivalSchedulesOnlyForImmediateExceptions(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, appliesArrivalSchedulesImmediately(timezone.TodayDate()))
-	assert.False(t, appliesArrivalSchedulesImmediately(timezone.TodayDate().AddDays(1)))
+	assert.True(t, appliesArrivalSchedules(PickupAdjustmentResolutionException, timezone.TodayDate()))
+	assert.False(t, appliesArrivalSchedules(PickupAdjustmentResolutionOffering, timezone.TodayDate()))
+	assert.False(t, appliesArrivalSchedules(
+		PickupAdjustmentResolutionException, timezone.TodayDate().AddDays(1),
+	))
 }
 
 func pickupTestTime(t *testing.T, value string) time.Time {
