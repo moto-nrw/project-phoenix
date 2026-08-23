@@ -157,6 +157,41 @@ func TestAccountManagementRoleFilterExcludesForeignRoleAssignment(t *testing.T) 
 	assert.NotContains(t, ids, foreignID)
 }
 
+func TestAccountManagementRBACForeignAccountDoesNotLeakExistence(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	foreignID, _ := e.foreignAccount(t, "account-scope-rbac-foreign")
+	missingID := e.missingAccountID(t)
+	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-rbac", e.tenantID)
+	permission := testpkg.CreateTestPermission(t, e.tc.db, "account-scope-rbac", "account-scope-rbac", "read")
+
+	for _, action := range []struct {
+		method string
+		path   func(int64) string
+	}{
+		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles", accountID) }},
+		{http.MethodPost, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
+		{http.MethodDelete, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/roles/%d", accountID, role.ID) }},
+		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/permissions", accountID) }},
+		{http.MethodGet, func(accountID int64) string { return fmt.Sprintf("/auth/accounts/%d/permissions/direct", accountID) }},
+		{http.MethodPost, func(accountID int64) string {
+			return fmt.Sprintf("/auth/accounts/%d/permissions/%d/grant", accountID, permission.ID)
+		}},
+		{http.MethodPost, func(accountID int64) string {
+			return fmt.Sprintf("/auth/accounts/%d/permissions/%d/deny", accountID, permission.ID)
+		}},
+		{http.MethodDelete, func(accountID int64) string {
+			return fmt.Sprintf("/auth/accounts/%d/permissions/%d", accountID, permission.ID)
+		}},
+	} {
+		foreign := e.execute(t, e.claims, action.method, action.path(foreignID), nil)
+		missing := e.execute(t, e.claims, action.method, action.path(missingID), nil)
+		assert.Equal(t, http.StatusNotFound, foreign.Code, foreign.Body.String())
+		assert.Equal(t, missing.Code, foreign.Code)
+		assert.JSONEq(t, missing.Body.String(), foreign.Body.String())
+	}
+}
+
 func TestAccountManagementForeignGetDoesNotLeakExistence(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)
