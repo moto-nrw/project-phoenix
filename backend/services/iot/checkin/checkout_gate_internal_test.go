@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -636,6 +637,29 @@ func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_NotOffered(t *testing.T) 
 
 	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
 	assert.False(t, result, "an ordinary room must not offer nach Hause")
+}
+
+func TestShouldShowDailyCheckoutWithGroup_OrdinaryRoom_OfferedWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	groupRoomID := int64(42)
+	s := &CheckinService{
+		now: func() time.Time {
+			return time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+		},
+		settings: newMockSettingsService(map[string]string{
+			configModel.KeyStudentDailyCheckoutTime: "00:00",
+		}, map[string]bool{
+			configModel.KeyCheckoutDailyFromAllRoomsEnabled: true,
+		}, nil),
+		education: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &groupRoomID}},
+	}
+	groupID := int64(1)
+	student := &users.Student{Model: base.Model{ID: 1}, GroupID: &groupID}
+	visit := &active.Visit{ActiveGroup: &active.Group{RoomID: 99}}
+
+	result := s.ShouldShowDailyCheckoutWithGroup(context.Background(), student, visit)
+	assert.True(t, result, "an ordinary room must offer nach Hause when the tenant setting is enabled")
 }
 
 // Deliberately NOT parallel: the test reaches process-global state (env

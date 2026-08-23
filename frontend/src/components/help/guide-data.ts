@@ -2536,7 +2536,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Welche Buttons erscheinen",
-          body: "Welche Ziele unter `Wohin geht ...?` angezeigt werden, steuern Sie in den Einstellungen unter `Geräte` (siehe Kapitel „NFC-Einstellungen prüfen“). `Schulhof` und `Toilette` legen automatisch einen passenden Raum an. `nach Hause` erscheint beim Auschecken aus dem eigenen Gruppenraum und vom Schulhof; ist eine Checkout-Zeit hinterlegt, erst ab dieser Uhrzeit.",
+          body: "Unter `Geräte` legen Sie die Ziele unter `Wohin geht ...?` fest. Für `Schulhof` und `Toilette` legt moto passende Räume an. `„Nach Hause“ in jedem Raum anzeigen` erweitert die Auswahl. Sie erscheint dann auch in der Mensa. Die `Tägliche Abmeldezeit` gilt weiterhin.",
           tone: "gray",
         },
         screenshot:
@@ -2628,7 +2628,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Im Browser die `Einstellungen` öffnen und den Tab `Geräte` wählen.",
           "Unter `OGS Geräte-PIN` die 4-stellige PIN setzen, mit der sich das Team am Tablet anmeldet.",
-          "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht ...?`) erscheinen.",
+          "Legen Sie fest, welche Ziele beim Auschecken erscheinen. Dafür gibt es `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen`. `„Nach Hause“ in jedem Raum anzeigen` erweitert die Auswahl auf alle Räume.",
           "Mit `Details bei voller Aktivität anzeigen` und `Details bei vollem Raum anzeigen` steuern Sie, ob das Tablet bei erreichten Kapazitäten den Namen und die Belegung nennt oder nur einen allgemeinen Hinweis zeigt.",
           "Änderungen werden automatisch gespeichert und beim nächsten Start vom Tablet übernommen.",
         ],

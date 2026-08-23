@@ -51,6 +51,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 		// Capacity-detail disclosure toggles (issue #1879, devices tab).
 		"checkin.activity_capacity_details_enabled",
 		"checkin.room_capacity_details_enabled",
@@ -1320,6 +1321,7 @@ func TestDevicesSettings(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		"checkout.daily_checkout_from_all_rooms_enabled",
 	}
 	for _, key := range keys {
 		def := config.GetDefinition(key)
@@ -1343,6 +1345,9 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, schulhof.Default, "schulhof should default to false (opt-in)")
 	wc := config.GetDefinition("checkout.wc_enabled")
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
+
+	allRooms := config.GetDefinition("checkout.daily_checkout_from_all_rooms_enabled")
+	assert.Equal(t, true, allRooms.Default, "new tenants should offer daily checkout from every room")
 }
 
 func TestCheckinCapacityDetailSettings(t *testing.T) {
