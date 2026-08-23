@@ -52,7 +52,10 @@ func TestTenantAndOrganizationAdminsCannotMutateGlobalPermissionCatalog(t *testi
 			if createResp.Code == http.StatusCreated {
 				data := testutil.ParseJSONResponse(t, createResp.Body.Bytes())["data"].(map[string]interface{})
 				permissionID := int64(data["id"].(float64))
-				t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, tc.db, permissionID) })
+				t.Cleanup(func() {
+					_, err := tc.db.NewDelete().TableExpr("auth.permissions").Where("id = ?", permissionID).Exec(testpkg.Ctx(t))
+					require.NoError(t, err)
+				})
 			}
 			assert.Equal(t, http.StatusForbidden, createResp.Code, "Body: %s", createResp.Body.String())
 			createCount, err := tc.db.NewSelect().
@@ -126,7 +129,10 @@ func TestPlatformScopeCanMutateGlobalPermissionCatalog(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createResp.Code, "Body: %s", createResp.Body.String())
 	data := testutil.ParseJSONResponse(t, createResp.Body.Bytes())["data"].(map[string]interface{})
 	permissionID := int64(data["id"].(float64))
-	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, fixtureDB, permissionID) })
+	t.Cleanup(func() {
+		_, err := fixtureDB.NewDelete().TableExpr("auth.permissions").Where("id = ?", permissionID).Exec(testpkg.Ctx(t))
+		require.NoError(t, err)
+	})
 
 	updateReq := testutil.NewJSONRequest(t, http.MethodPut, fmt.Sprintf("/auth/permissions/%d", permissionID), map[string]string{
 		"name":        resource + ":write",
