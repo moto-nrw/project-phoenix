@@ -1501,6 +1501,8 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		className := fmt.Sprintf("BCCARE-%d", time.Now().UnixNano())
 		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
 		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
+		staffID := createArrivalServiceTestStaffID(t, db)
+		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
 		_, err := db.NewUpdate().
 			Table("users.students").
 			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
@@ -1513,7 +1515,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 			ctx,
 			schedule.ArrivalScheduleBulkFilter{SchoolClass: className},
 			schedules,
-			createArrivalServiceTestStaffID(t, db),
+			staffID,
 		)
 
 		require.NoError(t, err, "one departed child must not abort the whole class")
@@ -1521,7 +1523,12 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 
 		kept, err := service.GetStudentArrivalSchedules(ctx, staying.ID)
 		require.NoError(t, err)
-		assert.Len(t, kept, 1)
+		assert.Len(t, kept, 1, "the existing care day remains a class-time marker")
+
+		classTimes, err := service.GetClassArrivalTimes(ctx, className)
+		require.NoError(t, err)
+		require.NotNil(t, classTimes)
+		assert.Equal(t, "07:45", classTimes.Times["mon"])
 
 		none, err := service.GetStudentArrivalSchedules(ctx, departed.ID)
 		require.NoError(t, err)

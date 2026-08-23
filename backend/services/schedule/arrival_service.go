@@ -1107,6 +1107,7 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 			Err: fmt.Errorf("failed to find students for school class %s: %w", schoolClass, err),
 		}
 	}
+	students = dropDepartedStudents(students)
 
 	result := &BulkUpsertResult{OverwrittenStudents: make([]OverwriteWarning, 0)}
 	tenantID := tenant.FromContext(ctx)
@@ -1123,7 +1124,10 @@ func (s *arrivalScheduleService) upsertClassArrivalTimes(
 				}
 				return fmt.Errorf("lock selected student %d: %w", selected.ID, lockErr)
 			}
-			if fresh.Status == users.StudentStatusAlumnus || !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
+			if fresh.Status == users.StudentStatusAlumnus || fresh.CareEndedOn(timezone.TodayDate()) {
+				continue
+			}
+			if !strings.EqualFold(strings.TrimSpace(fresh.SchoolClass), schoolClass) {
 				return fmt.Errorf("%w: student %d", ErrBulkStudentNotFound, fresh.ID)
 			}
 			if authorize != nil {
