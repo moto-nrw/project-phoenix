@@ -182,7 +182,7 @@ export function SchoolCheckinModeMobile({
         </div>
 
         {selectionActive ? (
-          <div className="mt-1.5 flex items-center justify-end gap-1.5 border-t border-gray-100 pt-1.5">
+          <div className="mt-1.5 flex items-center justify-end gap-1.5 border-t border-gray-100 pt-1.5 max-[359px]:grid max-[359px]:grid-cols-2">
             <span
               className="mr-auto text-xs font-semibold text-gray-700 tabular-nums"
               aria-live="polite"
@@ -193,7 +193,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="ghost"
               size="icon"
-              className="shadow-none"
+              className="shadow-none max-[359px]:justify-self-end"
               onClick={onClearSelection}
               disabled={
                 selectedCount === 0 ||
@@ -208,7 +208,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="success"
               size="compact"
-              className="rounded-lg text-white shadow-none hover:shadow-none"
+              className="rounded-lg text-white shadow-none hover:shadow-none max-[359px]:w-full"
               onClick={() => onBulkAction?.("in")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
@@ -225,7 +225,7 @@ export function SchoolCheckinModeMobile({
               type="button"
               variant="danger"
               size="compact"
-              className="rounded-lg shadow-none hover:shadow-none"
+              className="rounded-lg shadow-none hover:shadow-none max-[359px]:w-full"
               onClick={() => onBulkAction?.("out")}
               disabled={
                 selectedCount === 0 || disabled || onBulkAction === undefined
