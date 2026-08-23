@@ -9,8 +9,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // PickupBaselineProjection is the recurring pickup plan applicable on every
@@ -23,6 +25,19 @@ type PickupPlansByStudent map[int64]PickupPlanByDate
 type PickupBaselineProjection struct {
 	WeeklyByStudentDate   PickupPlansByStudent
 	OfferingByStudentDate PickupPlansByStudent
+	bookingsAuthoritative bool
+	careDays              careDayIndex
+}
+
+// AllowsPickupForDate reports whether pickup data may affect the given day.
+// In legacy mode pickup rows remain independent. In booking mode the approved
+// care offering is the boundary, including for date-specific exceptions.
+func (p *PickupBaselineProjection) AllowsPickupForDate(studentID int64, date timezone.Date) bool {
+	return p.allowsPickupForWeekday(studentID, date, effectiveISOWeekday(date))
+}
+
+func (p *PickupBaselineProjection) allowsPickupForWeekday(studentID int64, planDate timezone.Date, weekday int) bool {
+	return p == nil || !p.bookingsAuthoritative || p.careDays.covers(studentID, planDate, weekday)
 }
 
 // ForDate returns the effective recurring row for the date's weekday. Day
@@ -78,6 +93,7 @@ type pickupBaselineService struct {
 	weekly    scheduleModel.StudentPickupScheduleRepository
 	links     enrollmentModel.RequestChildOfferingRepository
 	offerings enrollmentModel.CareOfferingRepository
+	settings  config.SettingsService
 }
 
 // NewPickupBaselineService builds the date-aware regular-pickup projection.
@@ -86,10 +102,34 @@ func NewPickupBaselineService(
 	links enrollmentModel.RequestChildOfferingRepository,
 	offerings enrollmentModel.CareOfferingRepository,
 ) PickupBaselineReader {
+	return newPickupBaselineService(weekly, links, offerings, nil)
+}
+
+// NewPickupBaselineServiceWithSettings applies the tenant's booking authority
+// at the pickup projection boundary. The settings-free constructor keeps CLI
+// and focused tests on the historical weekly-plan behavior.
+func NewPickupBaselineServiceWithSettings(
+	weekly scheduleModel.StudentPickupScheduleRepository,
+	links enrollmentModel.RequestChildOfferingRepository,
+	offerings enrollmentModel.CareOfferingRepository,
+	settings config.SettingsService,
+) PickupBaselineReader {
+	if settings == nil {
+		panic("schedule.NewPickupBaselineServiceWithSettings: settings dependency is nil")
+	}
+	return newPickupBaselineService(weekly, links, offerings, settings)
+}
+
+func newPickupBaselineService(
+	weekly scheduleModel.StudentPickupScheduleRepository,
+	links enrollmentModel.RequestChildOfferingRepository,
+	offerings enrollmentModel.CareOfferingRepository,
+	settings config.SettingsService,
+) PickupBaselineReader {
 	if weekly == nil || links == nil || offerings == nil {
 		panic("schedule.NewPickupBaselineService: required dependency is nil")
 	}
-	return &pickupBaselineService{weekly: weekly, links: links, offerings: offerings}
+	return &pickupBaselineService{weekly: weekly, links: links, offerings: offerings, settings: settings}
 }
 
 func (s *pickupBaselineService) Project(
@@ -105,16 +145,32 @@ func (s *pickupBaselineService) Project(
 	if len(studentIDs) == 0 || to.Before(from) {
 		return projection, nil
 	}
+	authoritative, err := s.bookingsAuthoritative(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	manual, err := s.loadManualRows(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
-	offering, err := s.loadOfferingRows(ctx, studentIDs, from, to)
+	offering, careDays, err := s.loadOfferingRows(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
 	}
+	projection.bookingsAuthoritative = authoritative
+	projection.careDays = careDays
+	mergePickupPlans(projection, studentIDs, manual, offering, from, to)
+	return projection, nil
+}
 
+func mergePickupPlans(
+	projection *PickupBaselineProjection,
+	studentIDs []int64,
+	manual map[int64]map[int]*scheduleModel.StudentPickupSchedule,
+	offering PickupPlansByStudent,
+	from, to timezone.Date,
+) {
 	for _, studentID := range studentIDs {
 		byDate := make(PickupPlanByDate)
 		for date := from; !date.After(to); date = date.AddDays(1) {
@@ -123,6 +179,9 @@ func (s *pickupBaselineService) Project(
 				byWeekday[weekday] = row
 			}
 			for weekday, row := range manual[studentID] {
+				if !projection.allowsPickupForWeekday(studentID, date, weekday) {
+					continue
+				}
 				byWeekday[weekday] = row
 			}
 			byDate[date] = byWeekday
@@ -130,7 +189,6 @@ func (s *pickupBaselineService) Project(
 		projection.WeeklyByStudentDate[studentID] = byDate
 		projection.OfferingByStudentDate[studentID] = offering[studentID]
 	}
-	return projection, nil
 }
 
 func (s *pickupBaselineService) OfferingPickupForDate(
@@ -203,16 +261,31 @@ func (s *pickupBaselineService) loadOfferingRows(
 	ctx context.Context,
 	studentIDs []int64,
 	from, to timezone.Date,
-) (PickupPlansByStudent, error) {
+) (PickupPlansByStudent, careDayIndex, error) {
 	links, err := s.links.ListApprovedByStudentIDsInRange(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("project pickup baselines: load booking links: %w", err)
+		return nil, nil, fmt.Errorf("project pickup baselines: load booking links: %w", err)
 	}
 	offeringByID, err := s.loadOfferingsByID(ctx, links)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return projectOfferingLinks(links, offeringByID, from, to)
+	rows, err := projectOfferingLinks(links, offeringByID, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	return rows, projectCareDayIndex(links, offeringByID, from, to), nil
+}
+
+func (s *pickupBaselineService) bookingsAuthoritative(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	authoritative, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+	if err != nil {
+		return false, fmt.Errorf("project pickup baselines: resolve booking mode: %w", err)
+	}
+	return authoritative, nil
 }
 
 func (s *pickupBaselineService) loadOfferingsByID(

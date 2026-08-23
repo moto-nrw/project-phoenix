@@ -874,9 +874,15 @@ func (c *effectiveTimeCore[S, E, N, D]) applyScheduleAndException(
 	}
 	if !isZeroEntity(schedule) {
 		fields := c.domain.ScheduleFields(schedule)
-		value := fields.Time
-		result.Time = &value
 		result.Notes = trimmed(fields.Notes)
+		// An arrival row may mark a care day without carrying a time (#2414):
+		// the class timetable supplies it, and where no class time exists the
+		// day has no arrival time rather than midnight. Pickup rows always
+		// carry a time, so this branch never fires for them.
+		if !fields.Time.IsZero() {
+			value := fields.Time
+			result.Time = &value
+		}
 	}
 }
 

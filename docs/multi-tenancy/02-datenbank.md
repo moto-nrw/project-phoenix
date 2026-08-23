@@ -2,6 +2,10 @@
 
 Dieses Dokument beschreibt alle Datenbank-Aenderungen: Neue Tabellen, tenant_id Migration, Indexes, RLS-Policies, Drei-Rollen-Architektur und die Production-Migrationsstrategie.
 
+> **Status: historischer Planungsstand (Februar 2026).** Dieses Dokument hält fest, wie das Schema zum Zeitpunkt der Multi-Tenancy-Migration aussah und was diese Migration daran geändert hat. Es wird nicht fortgeschrieben. Alle Tabellenlisten, Zählungen, Constraint- und GRANT-Blöcke sind der Stand von damals und beschreiben nicht das heutige Schema. Maßgeblich für den aktuellen Stand sind die Migrationen unter `backend/database/migrations/` und die Modelle unter `backend/models/`.
+>
+> Seither entfallen: das Schema `suggestions` mit allen Tabellen (`posts`, `votes`, `comments`, `comment_reads`, `post_reads`, `operator_comments`), gelöscht durch Migration 1.15.315 (#2326). Jede Nennung von `suggestions` weiter unten gehört zum historischen Stand.
+
 **Verwandte Dokumente:**
 - [01-architektur.md](01-architektur.md) - Architektur-Entscheidungen (Shared Schema + RLS, Defense-in-Depth)
 - [03-backend.md](03-backend.md) - Backend-Code der diese Tabellen nutzt
@@ -117,6 +121,8 @@ CREATE TABLE platform.operator_organizations (
 ## 2. tenant_id zu bestehenden Tabellen
 
 ### 2.1 Welche Tabellen bekommen tenant_id?
+
+**Stand Februar 2026.** Die folgenden Listen und Zählungen sind seither überholt, siehe Statushinweis oben. Insbesondere existieren die fünf `suggestions`-Tabellen seit Migration 1.15.315 nicht mehr.
 
 **Grundregel:** Tabellen mit OGS-spezifischen Daten bekommen `tenant_id`. Tabellen mit globalen Definitionen oder Account-Daten bleiben OHNE (D15).
 
@@ -494,6 +500,8 @@ CREATE INDEX idx_devices_tenant ON iot.devices(tenant_id, status);
 
 ### 4.1 PostgreSQL-Rollen Setup
 
+**Nicht zum Abtippen.** Die Rollen und Rechte werden von den Migrationen gesetzt (ab 1.14.1), nicht von diesem Block. Er zeigt den Stand von Februar 2026 und nennt unter anderem das Schema `suggestions`, das es nicht mehr gibt; unverändert ausgeführt bricht er deshalb ab.
+
 ```sql
 -- Verbindungs-Rolle: LOGIN, aber KEINE eigenen Rechte (sicherster Default)
 CREATE ROLE phoenix_auth LOGIN NOINHERIT PASSWORD '...';
@@ -698,3 +706,4 @@ Bei Problemen nach Phase 2 (tenant_id NOT NULL):
 | 2026-02-10 | SEQUENCE GRANTs ergaenzt (09-H1): `GRANT USAGE ON ALL SEQUENCES` fuer phoenix_tenant + phoenix_admin. `ALTER DEFAULT PRIVILEGES` fuer zukuenftige Migrationen. Ohne diese schlaegt jeder INSERT fehl (60+ Sequences durch BIGSERIAL PKs). |
 | 2026-02-10 | Composite Foreign Keys (Sektion 2.5, 09-H3): 64 FKs werden zu `FK(tenant_id, col) → target(tenant_id, id)`. 18 Ziel-Tabellen bekommen `UNIQUE(tenant_id, id)`. Vollstaendige Auflistung nach Schema. |
 | 2026-02-10 | Tabellen-Zaehlung korrigiert (06-#2): "~44" → 58 NOT NULL. Gesamtzaehlung gegen Migrations-Dateien verifiziert: 70 bestehende Tabellen in 14 Schemas. `suggestions.operator_comments` und `meta.migration_metadata` als OHNE tenant_id klassifiziert. |
+| 2026-08-22 | Statushinweis ergänzt: Dokument ist der Planungsstand Februar 2026 und wird nicht fortgeschrieben. Das Schema `suggestions` ist durch Migration 1.15.315 (#2326) entfallen, die Tabellenlisten, Zählungen und GRANT-Blöcke sind entsprechend als historisch markiert. |

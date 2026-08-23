@@ -415,6 +415,15 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 			want: "Ankunft: 08:00",
 		},
 		{
+			name: "care day without arrival time",
+			plan: weeklySchedule{
+				ArrivalByWeekday:  map[int]string{},
+				CareDaysByWeekday: map[int]bool{schedule.WeekdayMonday: true},
+				PickupByWeekday:   map[int]string{},
+			},
+			want: "Ankunft: keine Zeit",
+		},
+		{
 			name: "no plan",
 			plan: weeklySchedule{
 				ArrivalByWeekday: map[int]string{},
@@ -431,6 +440,18 @@ func TestWeeklyCellUsesExplicitLabels(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCareDaysIncludesArrivalWithoutTime(t *testing.T) {
+	t.Parallel()
+
+	plan := weeklySchedule{
+		ArrivalByWeekday:  map[int]string{},
+		CareDaysByWeekday: map[int]bool{schedule.WeekdayWednesday: true},
+		PickupByWeekday:   map[int]string{},
+	}
+
+	assert.Equal(t, "Mi", careDays(plan))
 }
 
 func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {

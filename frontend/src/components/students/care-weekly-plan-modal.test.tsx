@@ -34,8 +34,8 @@ vi.mock("~/components/ui/form-modal", () => ({
 }));
 
 const initialArrivalSchedules = [
-  { weekday: 1, expected_arrival: "08:00", notes: "kommt frueh" },
-  { weekday: 2, expected_arrival: "09:00", notes: null },
+  { weekday: 1, inCare: true, expected_arrival: "08:00", notes: "kommt frueh" },
+  { weekday: 2, inCare: true, expected_arrival: "09:00", notes: null },
 ];
 
 const initialPickupSchedules = [
@@ -56,6 +56,7 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={onClose}
+        careDaysSource="weekly_plan"
         initialArrivalSchedules={initialArrivalSchedules}
         initialPickupSchedules={initialPickupSchedules}
         onSubmit={onSubmit}
@@ -66,6 +67,7 @@ describe("CareWeeklyPlanModal", () => {
       screen.getByRole("dialog", { name: "Wochenplan bearbeiten" }),
     ).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("checkbox", { name: "Donnerstag" }));
     fireEvent.change(document.getElementById("weekly-arrival-4")!, {
       target: { value: "10:15" },
     });
@@ -84,10 +86,11 @@ describe("CareWeeklyPlanModal", () => {
         arrivalSchedules: expect.arrayContaining([
           {
             weekday: 1,
+            inCare: true,
             expected_arrival: "08:00",
             notes: "Bitte vorne warten",
           },
-          { weekday: 4, expected_arrival: "10:15", notes: null },
+          { weekday: 4, inCare: true, expected_arrival: "10:15", notes: null },
         ]),
         pickupData: {
           schedules: expect.arrayContaining([
@@ -109,6 +112,7 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={onClose}
+        careDaysSource="weekly_plan"
         initialArrivalSchedules={initialArrivalSchedules}
         initialPickupSchedules={initialPickupSchedules}
         onSubmit={onSubmit}
@@ -135,7 +139,10 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
-        initialArrivalSchedules={[{ weekday: 1, expected_arrival: "99:99" }]}
+        careDaysSource="weekly_plan"
+        initialArrivalSchedules={[
+          { weekday: 1, inCare: true, expected_arrival: "99:99" },
+        ]}
         initialPickupSchedules={[]}
         onSubmit={vi.fn()}
       />,
@@ -155,6 +162,7 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
+        careDaysSource="weekly_plan"
         initialArrivalSchedules={[]}
         initialPickupSchedules={[{ weekday: 2, pickupTime: "99:99" }]}
         onSubmit={vi.fn()}
@@ -175,6 +183,7 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
+        careDaysSource="weekly_plan"
         initialArrivalSchedules={[]}
         initialPickupSchedules={[]}
         onSubmit={vi.fn()}
@@ -199,6 +208,7 @@ describe("CareWeeklyPlanModal", () => {
       <CareWeeklyPlanModal
         isOpen
         onClose={vi.fn()}
+        careDaysSource="weekly_plan"
         initialArrivalSchedules={initialArrivalSchedules}
         initialPickupSchedules={initialPickupSchedules}
         onSubmit={onSubmit}
@@ -213,5 +223,67 @@ describe("CareWeeklyPlanModal", () => {
       expect(screen.getByText("Backend kaputt")).toBeInTheDocument();
     });
     expect(toastError).toHaveBeenCalledWith("Backend kaputt");
+  });
+
+  it("stores a selected care day without an own arrival time", async () => {
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        careDaysSource="weekly_plan"
+        initialArrivalSchedules={[]}
+        initialPickupSchedules={[]}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    const monday = screen.getByRole("checkbox", { name: "Montag" });
+    expect(document.getElementById("weekly-arrival-1")).toBeDisabled();
+    fireEvent.click(monday);
+    expect(document.getElementById("weekly-arrival-1")).toBeEnabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith({
+        arrivalSchedules: [
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "",
+            notes: null,
+          },
+        ],
+        pickupData: { schedules: [] },
+      }),
+    );
+  });
+
+  it("only allows pickup times on booked care days", () => {
+    render(
+      <CareWeeklyPlanModal
+        isOpen
+        onClose={vi.fn()}
+        careDaysSource="bookings"
+        initialArrivalSchedules={initialArrivalSchedules}
+        initialPickupSchedules={[]}
+        onSubmit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        /Die Betreuungstage kommen aus den Buchungen\. Abholzeiten können Sie nur an gebuchten Tagen eintragen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Montag" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Mittwoch" })).toBeDisabled();
+    expect(document.getElementById("weekly-arrival-3")).toBeDisabled();
+    expect(document.getElementById("weekly-pickup-1")).toBeEnabled();
+    expect(document.getElementById("weekly-pickup-3")).toBeDisabled();
   });
 });

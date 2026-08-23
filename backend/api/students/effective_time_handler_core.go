@@ -22,23 +22,32 @@ func parseTimeOnly(timeString string) (time.Time, error) {
 }
 
 type careScheduleItem struct {
-	Weekday int
-	Time    string
-	Notes   *string
+	// TimeOptional allows an empty Time, meaning "take it from the class
+	// timetable" (#2414). Only the arrival side sets it.
+	TimeOptional bool
+	Weekday      int
+	Time         string
+	Notes        *string
 }
 
 func validateCareScheduleItem(item careScheduleItem, timeField string) error {
 	if item.Weekday < schedule.WeekdayMonday || item.Weekday > schedule.WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
+	if item.Notes != nil && len(*item.Notes) > 500 {
+		return errors.New("notes cannot exceed 500 characters")
+	}
 	if item.Time == "" {
+		// An arrival row may omit the time: it then marks the care day and
+		// takes the time from the child's class timetable (#2414). Pickup
+		// rows keep requiring one.
+		if item.TimeOptional {
+			return nil
+		}
 		return fmt.Errorf("%s is required", timeField)
 	}
 	if _, err := time.Parse("15:04", item.Time); err != nil {
 		return fmt.Errorf("invalid %s format, expected HH:MM", timeField)
-	}
-	if item.Notes != nil && len(*item.Notes) > 500 {
-		return errors.New("notes cannot exceed 500 characters")
 	}
 	return nil
 }
@@ -61,18 +70,11 @@ func validateCareScheduleItems[T any](
 			return fmt.Errorf("schedule %d: duplicate weekday %d", index, item.Weekday)
 		}
 		seenWeekdays[item.Weekday] = true
-		if item.Time == "" {
-			return fmt.Errorf("schedule %d: %s is required", index, timeField)
-		}
-		if _, err := time.Parse("15:04", item.Time); err != nil {
-			return fmt.Errorf(
-				"schedule %d: invalid %s format, expected HH:MM",
-				index,
-				timeField,
-			)
-		}
-		if item.Notes != nil && len(*item.Notes) > 500 {
-			return fmt.Errorf("schedule %d: notes cannot exceed 500 characters", index)
+		// Delegate the per-item rules instead of keeping a second copy of
+		// them: the copy silently ignored TimeOptional and rejected every
+		// care day without an own time (#2414).
+		if err := validateCareScheduleItem(item, timeField); err != nil {
+			return fmt.Errorf("schedule %d: %w", index, err)
 		}
 	}
 	return nil

@@ -148,28 +148,28 @@ describe("proxy", () => {
       expect(rewrite).toContain("/operator/login");
     });
 
-    it("rewrites /suggestions to /operator/suggestions", () => {
+    it("rewrites /organizations to /operator/organizations", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/suggestions`,
+          `http://${OPERATOR_HOSTNAME}/organizations`,
           OPERATOR_HOSTNAME,
         ),
       );
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions");
+      expect(rewrite).toContain("/operator/organizations");
     });
 
-    it("rewrites nested operator paths like /suggestions/123", () => {
+    it("rewrites nested operator paths like /organizations/123", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/suggestions/123`,
+          `http://${OPERATOR_HOSTNAME}/organizations/123`,
           OPERATOR_HOSTNAME,
         ),
       );
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions/123");
+      expect(rewrite).toContain("/operator/organizations/123");
     });
 
     it("returns 404 for tenant /api/auth/* routes on operator host", () => {
@@ -207,13 +207,13 @@ describe("proxy", () => {
     // They never reach the proxy function in production.
 
     it("uses x-forwarded-host header when present", () => {
-      const req = new NextRequest(`http://internal-host/suggestions`);
+      const req = new NextRequest(`http://internal-host/organizations`);
       req.headers.set("x-forwarded-host", OPERATOR_HOSTNAME);
 
       const res = proxy(req);
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions");
+      expect(rewrite).toContain("/operator/organizations");
     });
 
     it("rewrites /announcements to /operator/announcements", () => {
@@ -296,7 +296,7 @@ describe("proxy", () => {
     it("passes through paths already prefixed with /operator", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/operator/suggestions`,
+          `http://${OPERATOR_HOSTNAME}/operator/organizations`,
           OPERATOR_HOSTNAME,
         ),
       );
@@ -525,13 +525,16 @@ describe("proxy", () => {
 
     it("redirects /operator/* to operator subdomain with clean path", () => {
       const res = proxy(
-        makeRequest(`http://${TENANT_HOST}/operator/suggestions`, TENANT_HOST),
+        makeRequest(
+          `http://${TENANT_HOST}/operator/organizations`,
+          TENANT_HOST,
+        ),
       );
 
       const redirect = res.headers.get("location");
       expect(redirect).toContain(OPERATOR_HOSTNAME);
-      expect(redirect).toContain("/suggestions");
-      expect(redirect).not.toContain("/operator/suggestions");
+      expect(redirect).toContain("/organizations");
+      expect(redirect).not.toContain("/operator/organizations");
     });
 
     it("redirects /operator to operator subdomain root /", () => {

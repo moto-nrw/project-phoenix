@@ -225,13 +225,6 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     ],
   },
   {
-    href: "/operator/suggestions",
-    label: "Feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
-  },
-  {
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",
@@ -439,13 +432,6 @@ const additionalNavItems: AdditionalNavItem[] = [
     concept: "help",
     alwaysShow: true,
     newTab: true,
-  },
-  {
-    href: "/suggestions",
-    label: "Feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
   },
   {
     href: "/settings",

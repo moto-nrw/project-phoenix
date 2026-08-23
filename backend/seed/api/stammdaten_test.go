@@ -880,3 +880,48 @@ func TestFixedSeeder_SeedPickupSchedules_EmptyStudents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, result.PickupScheduleCount)
 }
+
+func TestFixedSeeder_SeedClassArrivalTimes(t *testing.T) {
+	t.Parallel()
+
+	var requests []struct {
+		SchoolClass string `json:"school_class"`
+		Schedules   []struct {
+			Weekday int    `json:"weekday"`
+			Time    string `json:"expected_arrival"`
+		} `json:"schedules"`
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "POST", r.Method)
+		require.Equal(t, "/api/students/arrival-schedules/bulk", r.URL.Path)
+		request := struct {
+			SchoolClass string `json:"school_class"`
+			Schedules   []struct {
+				Weekday int    `json:"weekday"`
+				Time    string `json:"expected_arrival"`
+			} `json:"schedules"`
+		}{}
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		requests = append(requests, request)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	}))
+	defer srv.Close()
+
+	client := newTestClient(srv.URL, false)
+	client.token = "test-token"
+	fs := NewFixedSeeder(client, true, "")
+	result := &FixedResult{}
+
+	err := fs.seedClassArrivalTimes(context.TODO(), result)
+
+	require.NoError(t, err)
+	assert.Equal(t, 8, result.ClassArrivalTimeCount)
+	require.Len(t, requests, 8)
+	assert.Equal(t, "Klasse 1a", requests[0].SchoolClass)
+	assert.Equal(t, "Klasse 4b", requests[7].SchoolClass)
+	for _, request := range requests {
+		assert.Len(t, request.Schedules, 5)
+		assert.Equal(t, "11:45", request.Schedules[0].Time)
+		assert.Equal(t, "12:45", request.Schedules[2].Time)
+	}
+}

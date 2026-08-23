@@ -184,8 +184,11 @@ type arrivalPreload struct {
 	// exists for this student on this date" (ExpectedArrival may still be nil
 	// inside the row — that flags an explicit absence).
 	byException map[string]map[int64]*scheduleModel.StudentArrivalException
-	// bySchedule[weekday][studentID] — weekly recurring schedule.
-	bySchedule map[int]map[int64]*scheduleModel.StudentArrivalSchedule
+	// bySchedule[dateKey][studentID] — the recurring arrival row applicable on
+	// that date. Keyed by date rather than by weekday because whether a
+	// weekday is a care day at all can change within the window once the
+	// approved bookings decide it (#2414, ADR 0005).
+	bySchedule map[string]map[int64]*scheduleModel.StudentArrivalSchedule
 }
 
 func (s *TimetableDataService) loadArrivalPreload(
@@ -195,7 +198,7 @@ func (s *TimetableDataService) loadArrivalPreload(
 ) (*arrivalPreload, error) {
 	pre := &arrivalPreload{
 		byException: map[string]map[int64]*scheduleModel.StudentArrivalException{},
-		bySchedule:  map[int]map[int64]*scheduleModel.StudentArrivalSchedule{},
+		bySchedule:  map[string]map[int64]*scheduleModel.StudentArrivalSchedule{},
 	}
 
 	// Arrival exceptions: one query per unique date. Range is capped at
@@ -217,9 +220,9 @@ func (s *TimetableDataService) loadArrivalPreload(
 		pre.byException[dk] = byStu
 	}
 
-	// Arrival schedules: one query per unique weekday, and only for students
-	// that don't already have an exception on that date (exceptions win).
-	schedulesNeededByWd := make(map[int]map[int64]struct{})
+	// Arrival schedules, for the students that don't already have an exception
+	// on that date (exceptions win).
+	needed := make(map[string]map[int64]struct{})
 	for dk, stuMap := range dates {
 		wd := isoWeekday(dateObjByKey[dk])
 		if wd < scheduleModel.WeekdayMonday || wd > scheduleModel.WeekdayFriday {
@@ -231,26 +234,102 @@ func (s *TimetableDataService) loadArrivalPreload(
 					continue
 				}
 			}
-			if schedulesNeededByWd[wd] == nil {
-				schedulesNeededByWd[wd] = make(map[int64]struct{})
+			if needed[dk] == nil {
+				needed[dk] = make(map[int64]struct{})
 			}
-			schedulesNeededByWd[wd][stuID] = struct{}{}
+			needed[dk][stuID] = struct{}{}
 		}
 	}
-	for wd, stuMap := range schedulesNeededByWd {
-		ids := slices.Collect(maps.Keys(stuMap))
-		schedules, err := s.deps.ArrivalScheduleRepo.FindByStudentIDsAndWeekday(ctx, ids, wd)
+	if err := s.fillArrivalSchedules(ctx, pre, needed, dateObjByKey); err != nil {
+		return nil, err
+	}
+
+	return pre, nil
+}
+
+// fillArrivalSchedules resolves the recurring arrival row per (date, student)
+// through the baseline projection (#2414): the class timetable supplies the
+// time, and with enrollment.bookings_authoritative on the approved bookings
+// supply the care days — so a stale row on an unbooked weekday no longer
+// produces a conflict warning about a child that is not coming.
+//
+// Without a baseline reader (CLI, partial test facades) the stored rows apply
+// on every date of their weekday, which is the pre-#2414 behaviour.
+func (s *TimetableDataService) fillArrivalSchedules(
+	ctx context.Context,
+	pre *arrivalPreload,
+	needed map[string]map[int64]struct{},
+	dateObjByKey map[string]timezone.Date,
+) error {
+	if len(needed) == 0 {
+		return nil
+	}
+	if s.deps.ArrivalBaselines == nil {
+		return s.fillStoredArrivalSchedules(ctx, pre, needed, dateObjByKey)
+	}
+
+	studentIDs := make(map[int64]struct{})
+	var from, to timezone.Date
+	for dk, stuMap := range needed {
+		date := dateObjByKey[dk]
+		if from.IsZero() || date.Before(from) {
+			from = date
+		}
+		if to.IsZero() || date.After(to) {
+			to = date
+		}
+		for stuID := range stuMap {
+			studentIDs[stuID] = struct{}{}
+		}
+	}
+
+	projection, err := s.deps.ArrivalBaselines.Project(ctx, slices.Collect(maps.Keys(studentIDs)), from, to)
+	if err != nil {
+		return err
+	}
+	for dk, stuMap := range needed {
+		byStu := make(map[int64]*scheduleModel.StudentArrivalSchedule, len(stuMap))
+		for stuID := range stuMap {
+			if row := projection.ForDate(stuID, dateObjByKey[dk]); row != nil {
+				byStu[stuID] = row
+			}
+		}
+		pre.bySchedule[dk] = byStu
+	}
+	return nil
+}
+
+func (s *TimetableDataService) fillStoredArrivalSchedules(
+	ctx context.Context,
+	pre *arrivalPreload,
+	needed map[string]map[int64]struct{},
+	dateObjByKey map[string]timezone.Date,
+) error {
+	// One query per unique weekday, as before the projection existed.
+	byWeekday := make(map[int]map[int64]*scheduleModel.StudentArrivalSchedule)
+	idsByWeekday := make(map[int]map[int64]struct{})
+	for dk, stuMap := range needed {
+		wd := isoWeekday(dateObjByKey[dk])
+		if idsByWeekday[wd] == nil {
+			idsByWeekday[wd] = make(map[int64]struct{})
+		}
+		maps.Copy(idsByWeekday[wd], stuMap)
+	}
+	for wd, stuMap := range idsByWeekday {
+		schedules, err := s.deps.ArrivalScheduleRepo.FindByStudentIDsAndWeekday(ctx, slices.Collect(maps.Keys(stuMap)), wd)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		byStu := make(map[int64]*scheduleModel.StudentArrivalSchedule, len(schedules))
 		for _, sc := range schedules {
 			byStu[sc.StudentID] = sc
 		}
-		pre.bySchedule[wd] = byStu
+		byWeekday[wd] = byStu
 	}
-
-	return pre, nil
+	for dk := range needed {
+		pre.bySchedule[dk] = byWeekday[isoWeekday(dateObjByKey[dk])]
+	}
+	return nil
 }
 
 // resolveArrival returns (arrivalTime, source) for a student on a date using
@@ -261,7 +340,7 @@ func (pre *arrivalPreload) resolveArrival(studentID int64, date timezone.Date) (
 	dk := timetableDateKey(date)
 	exc, hasExc := lookupArrivalException(pre.byException, dk, studentID)
 	wd := isoWeekday(date)
-	sched, hasSched := lookupArrivalSchedule(pre.bySchedule, wd, studentID)
+	sched, hasSched := lookupArrivalSchedule(pre.bySchedule, dk, studentID)
 
 	switch ResolveSlotSource(hasExc, hasSched, wd) {
 	case SlotSourceException:
@@ -285,8 +364,8 @@ func lookupArrivalException(byException map[string]map[int64]*scheduleModel.Stud
 	return nil, false
 }
 
-func lookupArrivalSchedule(bySchedule map[int]map[int64]*scheduleModel.StudentArrivalSchedule, weekday int, studentID int64) (*scheduleModel.StudentArrivalSchedule, bool) {
-	if byStu, ok := bySchedule[weekday]; ok {
+func lookupArrivalSchedule(bySchedule map[string]map[int64]*scheduleModel.StudentArrivalSchedule, dateKey string, studentID int64) (*scheduleModel.StudentArrivalSchedule, bool) {
+	if byStu, ok := bySchedule[dateKey]; ok {
 		if sched, has := byStu[studentID]; has && sched != nil {
 			return sched, true
 		}

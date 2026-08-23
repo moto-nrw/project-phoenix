@@ -54,7 +54,7 @@ func RenderWithRules(err error, rules []ErrorRule, fallback func(error) render.R
 }
 
 // RulesRenderer packages RenderWithRules as an ErrorRenderer-shaped function
-// for the flat-switch packages (active, feedback, suggestions, usercontext).
+// for the flat-switch packages (active, feedback, usercontext).
 func RulesRenderer(rules []ErrorRule, fallback func(error) render.Renderer) func(error) render.Renderer {
 	return func(err error) render.Renderer {
 		return RenderWithRules(err, rules, fallback)

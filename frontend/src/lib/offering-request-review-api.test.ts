@@ -78,6 +78,16 @@ describe("previewOfferingChangeRequest", () => {
   it("posts all current exclusions and returns materialized selections", async () => {
     const preview = {
       selections: [{ offering_id: "11", new: "Mo, Mi" }],
+      manual_planning_conflicts: [
+        {
+          activity_group_id: "17",
+          activity_group_name: "Freie Hausaufgaben-Gruppe",
+          days: ["tue"],
+          first_date: "2027-02-02",
+          occurrence_count: 8,
+        },
+      ],
+      arrival_expectations_follow_bookings: true,
     };
     const fetchMock = vi
       .fn()

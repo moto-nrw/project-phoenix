@@ -219,7 +219,17 @@ type OfferingRequestPreviewSelectionResponse struct {
 }
 
 type OfferingRequestPreviewResponse struct {
-	Selections []OfferingRequestPreviewSelectionResponse `json:"selections"`
+	Selections                        []OfferingRequestPreviewSelectionResponse `json:"selections"`
+	ManualPlanningConflicts           []ManualPlanningConflictResponse          `json:"manual_planning_conflicts"`
+	ArrivalExpectationsFollowBookings bool                                      `json:"arrival_expectations_follow_bookings"`
+}
+
+type ManualPlanningConflictResponse struct {
+	ActivityGroupID   string   `json:"activity_group_id"`
+	ActivityGroupName string   `json:"activity_group_name"`
+	Days              []string `json:"days"`
+	FirstDate         string   `json:"first_date"`
+	OccurrenceCount   int      `json:"occurrence_count"`
 }
 
 func parseExcludedOfferingIDs(rawIDs []string) ([]int64, error) {
@@ -265,15 +275,33 @@ func (rs *Resource) previewOfferingChangeRequest(w http.ResponseWriter, r *http.
 		renderOfferingDecisionError(w, r, err)
 		return
 	}
-	selections := make([]OfferingRequestPreviewSelectionResponse, 0, len(preview))
-	for _, selection := range preview {
+	if preview == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("offering change preview is empty")))
+		return
+	}
+	selections := make([]OfferingRequestPreviewSelectionResponse, 0, len(preview.Selections))
+	for _, selection := range preview.Selections {
 		selections = append(selections, OfferingRequestPreviewSelectionResponse{
 			OfferingID: strconv.FormatInt(selection.OfferingID, 10),
 			New:        germanOfferingDiffLabel(selection.State, selection.Days),
 			Removed:    selection.State == "removed",
 		})
 	}
-	common.Respond(w, r, http.StatusOK, OfferingRequestPreviewResponse{Selections: selections}, "Preview materialized")
+	conflicts := make([]ManualPlanningConflictResponse, 0, len(preview.ManualPlanningConflicts))
+	for _, conflict := range preview.ManualPlanningConflicts {
+		conflicts = append(conflicts, ManualPlanningConflictResponse{
+			ActivityGroupID:   strconv.FormatInt(conflict.ActivityGroupID, 10),
+			ActivityGroupName: conflict.ActivityGroupName,
+			Days:              conflict.Days,
+			FirstDate:         conflict.FirstDate.String(),
+			OccurrenceCount:   conflict.OccurrenceCount,
+		})
+	}
+	common.Respond(w, r, http.StatusOK, OfferingRequestPreviewResponse{
+		Selections:                        selections,
+		ManualPlanningConflicts:           conflicts,
+		ArrivalExpectationsFollowBookings: preview.ArrivalExpectationsFollowBookings,
+	}, "Preview materialized")
 }
 
 // decideOfferingChangeRequest approves (and applies the dated switch) or

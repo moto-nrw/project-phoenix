@@ -30,14 +30,11 @@ import { operatorPath } from "~/lib/operator-url";
 import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
-import { useSuggestionsUnread } from "~/lib/hooks/use-suggestions-unread";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
-import { useOperatorSuggestionsUnread } from "~/lib/hooks/use-operator-suggestions-unread";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
-import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { SidebarSubItem } from "~/components/dashboard/sidebar-sub-item";
 import { navigationIcons } from "~/lib/navigation-icons";
@@ -210,14 +207,6 @@ const NAV_ITEMS: NavItem[] = [
     newTab: true,
   },
   {
-    ...STAFF_FLAT_PAGES.suggestions,
-    icon: "M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.117-1.527-.461a20.845 20.845 0 01-1.44-4.282m3.102.069a18.03 18.03 0 01-.59-4.59c0-1.586.205-3.124.59-4.59m0 9.18a23.848 23.848 0 018.835 2.535M10.34 6.66a23.847 23.847 0 008.835-2.535m0 0A23.74 23.74 0 0018.795 3m.38 1.125a23.91 23.91 0 011.014 5.395m-1.014 8.855c-.118.38-.245.754-.38 1.125m.38-1.125a23.91 23.91 0 001.014-5.395m0-3.46c.495.413.811 1.035.811 1.73 0 .695-.316 1.317-.811 1.73m0-3.46a24.347 24.347 0 010 3.46",
-    concept: "feedback",
-    activeColor: "text-moto-coral",
-    alwaysShow: true,
-    bottomPinned: true,
-  },
-  {
     ...STAFF_FLAT_PAGES.settings,
     concept: "settings",
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
@@ -299,14 +288,6 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
   {
     label: "KOMMUNIKATION",
     items: [
-      {
-        href: "/operator/suggestions",
-        label: "Feedback",
-        icon: navigationIcons.feedback,
-        concept: "feedback",
-        activeColor: "text-moto-coral",
-        alwaysShow: true,
-      },
       {
         href: "/operator/announcements",
         label: "Ankündigungen",
@@ -415,16 +396,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     adminOverviewEnabled,
   } = useOptionalSupervision();
 
-  // Get unread suggestions count for badge (teacher mode)
-  const { unreadCount: suggestionsUnreadCount } = useSuggestionsUnread(
-    mode === "teacher",
-  );
   // Offene Abwesenheitsanträge (vacation:approve, #1419). Sie zählen seit
   // #2433 auf das Anfragen-Modul ein, wo sie auch entschieden werden — der
   // Mitarbeiter-Eintrag trägt kein eigenes Badge mehr.
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
-  // Get unread suggestions count for badge (operator mode)
-  const { unreadCount: operatorUnreadCount } = useOperatorSuggestionsUnread();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
@@ -798,13 +773,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
           {renderNavIcon(item)}
           <span className="flex flex-1 items-center justify-between">
             {item.label}
-            {item.href === "/suggestions" && (
-              <UnreadBadge
-                count={suggestionsUnreadCount}
-                tone="feedback"
-                className="ml-2"
-              />
-            )}
             {item.href === "/anfragen" && (
               <NotificationBadge
                 count={requestsPendingCount}
@@ -1042,11 +1010,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       })),
     [],
   );
-  const operatorSuggestionsHref = useMemo(
-    () => operatorPath("/operator/suggestions"),
-    [],
-  );
-
   // Operator mode: sectioned navigation (static labels, no accordions)
   if (mode === "operator") {
     const renderOperatorItem = (item: NavItem) => (
@@ -1058,13 +1021,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
         {renderNavIcon(item)}
         <span className="flex flex-1 items-center justify-between">
           {item.label}
-          {item.href === operatorSuggestionsHref && (
-            <UnreadBadge
-              count={operatorUnreadCount}
-              tone="feedback"
-              className="ml-2"
-            />
-          )}
         </span>
       </Link>
     );

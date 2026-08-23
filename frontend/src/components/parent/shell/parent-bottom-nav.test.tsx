@@ -210,7 +210,7 @@ describe("ParentBottomNav", () => {
     expect(newsItem!.querySelector("svg")).not.toBeNull();
   });
 
-  // Teilmenge von #2326: Produktfeedback gehoert nicht in eine Eltern-App.
+  // Teilmenge von #2326: Produktfeedback gehört nicht in eine Eltern-App.
   it("bietet kein Produktfeedback mehr an", () => {
     renderNav();
 
