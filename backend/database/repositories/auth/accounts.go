@@ -464,30 +464,6 @@ func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 	return err
 }
 
-// FindByRole retrieves accounts that have a specific role
-func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
-	var accounts []*auth.Account
-
-	// Use a SQL JOIN to retrieve accounts with the specified role
-	// This assumes your account_roles table exists and has the proper foreign keys
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&accounts).
-		ModelTableExpr(accountTableAlias).
-		Join(`JOIN auth.account_roles ar ON ar.account_id = "account".id`).
-		Join(`JOIN auth.roles r ON ar.role_id = r.id`).
-		Where("LOWER(r.name) = LOWER(?)", role).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by role",
-			Err: err,
-		}
-	}
-
-	return accounts, nil
-}
-
 // List retrieves accounts matching the provided filters without applying an
 // account-management boundary. Internal authentication flows remain global.
 func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
