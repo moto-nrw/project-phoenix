@@ -189,6 +189,49 @@ func TestAccountManagementRoleFilterExcludesStaleOrganizationRoleAssignment(t *t
 	assert.NotContains(t, accountIDs(response.Data), account.ID)
 }
 
+func TestAccountManagementOrganizationRoleFilterIncludesSameOrganizationSchool(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
+	accountID, _ := e.accountForTenant(t, "account-scope-role-organization", schoolID)
+	role := testpkg.CreateTestRoleForTenant(t, e.tc.db, "account-scope-role-organization", schoolID)
+
+	_, err := e.tc.db.ExecContext(context.Background(),
+		"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, role.ID, schoolID)
+	require.NoError(t, err)
+
+	claims := e.claims
+	claims.Scope = tenant.ScopeOrg
+	claims.OrgID = organizationID
+	rr := e.execute(t, claims, http.MethodGet, "/auth/accounts/by-role/"+role.Name, nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var response struct {
+		Data []authAPI.AccountResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+
+	assert.Contains(t, accountIDs(response.Data), accountID)
+}
+
+func TestAccountManagementOrganizationScopeReturnsUnmappedOwnAccount(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	testpkg.UnclaimTestAccount(t, e.tc.db, int64(e.claims.ID))
+	organizationID, _ := e.createSchoolInOwnOrganization(t)
+
+	claims := e.claims
+	claims.Scope = tenant.ScopeOrg
+	claims.OrgID = organizationID
+	rr := e.execute(t, claims, http.MethodGet, "/auth/account", nil)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	var response struct {
+		Data authAPI.AccountResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, int64(claims.ID), response.Data.ID)
+}
+
 func TestAccountManagementDirectPermissionsStayWithinTenant(t *testing.T) {
 	t.Parallel()
 	e := newAccountIsolationEnv(t)

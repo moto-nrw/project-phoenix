@@ -20,9 +20,6 @@ const (
 )
 
 func accountMembershipScope(ctx context.Context) (string, []any) {
-	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
-		return "", nil
-	}
 	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
 		organizationID := tenant.OrgFromContext(ctx)
 		if organizationID == 0 {
@@ -38,6 +35,9 @@ func accountMembershipScope(ctx context.Context) (string, []any) {
 			  AND "school".active = TRUE
 			  AND "school".deleted_at IS NULL
 		)`, []any{auth.AccountTenantStatusActive, organizationID}
+	}
+	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+		return "", nil
 	}
 
 	tenantID := tenant.FromContext(ctx)
@@ -478,6 +478,15 @@ func (r *AccountRepository) ListManageable(ctx context.Context, filters map[stri
 // FindByRole retrieves manageable accounts that hold a named role in the
 // caller's tenant or organization.
 func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		var accounts []*auth.Account
+		err := tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
+			var err error
+			accounts, err = r.list(adminCtx, map[string]interface{}{"role": role}, true)
+			return err
+		})
+		return accounts, err
+	}
 	return r.list(ctx, map[string]interface{}{"role": role}, true)
 }
 
@@ -552,9 +561,6 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 			Join(`JOIN auth.roles AS "role" ON "account_role".role_id = "role".id`).
 			Where(`LOWER("role".name) = LOWER(?)`, strValue).
 			Distinct()
-		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
-			return query
-		}
 		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
 			organizationID := tenant.OrgFromContext(ctx)
 			if organizationID == 0 {
@@ -567,6 +573,9 @@ func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.Sele
 				Where(`"role_school".active = TRUE`).
 				Where(`"role_school".deleted_at IS NULL`).
 				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
+		}
+		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+			return query
 		}
 		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 			return query.Where(`"account_role".tenant_id = ?`, tenantID)

@@ -2134,7 +2134,15 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 
 // GetAccountByID retrieves an account by ID
 func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, error) {
-	account, err := s.repos.Account.FindManageableByID(ctx, int64(id))
+	var (
+		account *auth.Account
+		err     error
+	)
+	if claims := jwt.ClaimsFromCtx(ctx); claims.ID == id {
+		account, err = s.repos.Account.FindByID(ctx, int64(id))
+	} else {
+		account, err = s.repos.Account.FindManageableByID(ctx, int64(id))
+	}
 	if err != nil {
 		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}
