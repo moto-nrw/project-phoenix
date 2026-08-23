@@ -248,6 +248,17 @@ func TestPickupAdjustmentTokenChangesWithExistingNotes(t *testing.T) {
 	assert.NotEqual(t, first, second)
 }
 
+func TestPickupPlanLabelIncludesNotes(t *testing.T) {
+	t.Parallel()
+
+	note := "Fährt mit dem Bus"
+	label := pickupPlanLabel(scheduleService.PickupWeek{
+		1: {PickupTime: pickupTestTime(t, "15:00"), Notes: &note},
+	})
+
+	assert.Equal(t, "Mo 15:00 Uhr (Notiz: Fährt mit dem Bus)", label)
+}
+
 func pickupTestTime(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)

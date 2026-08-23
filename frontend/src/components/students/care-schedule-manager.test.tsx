@@ -691,6 +691,7 @@ describe("CareScheduleManager", () => {
         expect.objectContaining({ effective_from: "2026-06-01" }),
       );
     });
+    expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
   });
 
   it("keeps direct saving when review is off even if an offering matches", async () => {

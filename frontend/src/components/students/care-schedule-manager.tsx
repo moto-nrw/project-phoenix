@@ -121,7 +121,12 @@ async function applyWeeklyPickupAdjustment(
   let preview = adjustment?.preview;
   if (!preview) {
     preview = await previewStudentPickupAdjustment(studentId, payload);
-    if (preview.resolution_required) return preview;
+    if (
+      preview.resolution_required ||
+      payload.effective_from > formatDateISO(new Date())
+    ) {
+      return preview;
+    }
   }
   await applyStudentPickupAdjustment(studentId, {
     ...payload,

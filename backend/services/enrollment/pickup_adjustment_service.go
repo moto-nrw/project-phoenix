@@ -1028,7 +1028,9 @@ func pickupPlanLabel(week scheduleService.PickupWeek) string {
 	rows := make([]PickupAdjustmentSchedule, 0, len(week))
 	for weekday, row := range week {
 		if row != nil {
-			rows = append(rows, PickupAdjustmentSchedule{Weekday: weekday, PickupTime: row.PickupTime.Format("15:04")})
+			rows = append(rows, PickupAdjustmentSchedule{
+				Weekday: weekday, PickupTime: row.PickupTime.Format("15:04"), Notes: row.Notes,
+			})
 		}
 	}
 	return proposedPickupPlanLabel(rows)
@@ -1039,7 +1041,11 @@ func proposedPickupPlanLabel(rows []PickupAdjustmentSchedule) string {
 	sort.Slice(rows, func(i, j int) bool { return rows[i].Weekday < rows[j].Weekday })
 	parts := make([]string, 0, len(rows))
 	for _, row := range rows {
-		parts = append(parts, fmt.Sprintf("%s %s Uhr", shortGermanWeekday(row.Weekday), row.PickupTime))
+		label := fmt.Sprintf("%s %s Uhr", shortGermanWeekday(row.Weekday), row.PickupTime)
+		if row.Notes != nil && strings.TrimSpace(*row.Notes) != "" {
+			label += fmt.Sprintf(" (Notiz: %s)", *row.Notes)
+		}
+		parts = append(parts, label)
 	}
 	if len(parts) == 0 {
 		return "Kein Wochenplan"
