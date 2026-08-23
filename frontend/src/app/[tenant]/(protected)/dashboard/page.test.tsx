@@ -35,6 +35,9 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasPermission: vi.fn((session, permission: string) =>
+    permission === "admin:*" ? (session?.user?.isAdmin ?? false) : false,
+  ),
   hasRole: vi.fn(
     (session: { user?: { isAdmin?: boolean } } | null, role: string) => {
       if (role === "admin") return session?.user?.isAdmin ?? false;
@@ -56,6 +59,10 @@ vi.mock("~/lib/usercontext-context", () => ({
   UserContextProvider: ({ children }: { children: React.ReactNode }) => (
     <div data-testid="user-context-provider">{children}</div>
   ),
+}));
+
+vi.mock("~/components/enrollment/phase-expiry-warnings", () => ({
+  PhaseExpiryWarnings: () => <div data-testid="phase-expiry-warnings" />,
 }));
 
 const mockDashboardData = {
@@ -126,6 +133,7 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useNFCEnabled,
@@ -183,6 +191,16 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
+  });
+
+  it("does not load phase expiry warnings without admin permission", () => {
+    vi.mocked(hasPermission).mockReturnValue(false);
+
+    render(<DashboardPage />);
+
+    expect(
+      screen.queryByTestId("phase-expiry-warnings"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows loading state when session is loading", () => {

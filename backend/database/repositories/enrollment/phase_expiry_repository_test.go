@@ -104,7 +104,7 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			return err
 		}
 		return studentRepo.SetEnrollmentWindowByID(
-			ctx, fridayStudent.ID, futureStart, usersModels.StudentStatusActive,
+			ctx, fridayStudent.ID, futureStart, usersModels.StudentStatusPending,
 		)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -118,7 +118,33 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 	}))
 	require.Len(t, snapshots, 1)
 	assert.Equal(t, 1, snapshots[0].AffectedChildren,
-		"students must cover the source phase end, including pending students starting that day")
+		"pending students starting after the source phase end must not trigger a warning")
+
+	enrollmentEndedBeforePhaseEnd := phase.ServiceEndDate.AddDays(-1)
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		studentRepo := usersRepo.NewStudentRepository(db)
+		if err := studentRepo.SetEnrollmentWindowByID(
+			ctx, fridayStudent.ID, phase.ServiceEndDate, usersModels.StudentStatusPending,
+		); err != nil {
+			return err
+		}
+		_, err := studentRepo.SetEnrolledUntilByIDs(
+			ctx, []int64{fridayStudent.ID}, &enrollmentEndedBeforePhaseEnd,
+		)
+		return err
+	}))
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		var err error
+		snapshots, err = enrollmentRepo.NewPhaseExpiryRepository(db).ListSnapshots(
+			ctx,
+			timezone.NewDate(2027, 1, 2),
+			timezone.NewDate(2027, 2, 1),
+		)
+		return err
+	}))
+	require.Len(t, snapshots, 1)
+	assert.Equal(t, 1, snapshots[0].AffectedChildren,
+		"pending students ending before the source phase end must not trigger a warning")
 }
 
 func TestPhaseExpiryRepository_ListSnapshots_FindsMondayAfterFridayForNonCareOffering(t *testing.T) {
