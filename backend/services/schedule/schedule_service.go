@@ -30,27 +30,13 @@ type service struct {
 	validateCareOfferingTimeframeChange func(context.Context, int64, *schedule.Timeframe) error
 }
 
-// ServiceConfig carries the optional cross-domain guard needed by timeframe
-// deletion. NewService remains for focused tests and legacy wiring.
+// ServiceConfig carries the cross-domain guard needed by timeframe deletion.
 type ServiceConfig struct {
 	DateframeRepo                       schedule.DateframeRepository
 	TimeframeRepo                       schedule.TimeframeRepository
 	RecurrenceRuleRepo                  schedule.RecurrenceRuleRepository
 	LockTemplateRecurrence              func(context.Context) error
 	ValidateCareOfferingTimeframeChange func(context.Context, int64, *schedule.Timeframe) error
-}
-
-// NewService creates a new schedule service
-func NewService(
-	dateframeRepo schedule.DateframeRepository,
-	timeframeRepo schedule.TimeframeRepository,
-	recurrenceRuleRepo schedule.RecurrenceRuleRepository,
-) Service {
-	return NewServiceWithConfig(ServiceConfig{
-		DateframeRepo:      dateframeRepo,
-		TimeframeRepo:      timeframeRepo,
-		RecurrenceRuleRepo: recurrenceRuleRepo,
-	})
 }
 
 // NewServiceWithConfig builds the schedule service with recurrence-aware

@@ -38,16 +38,6 @@ var wcSpace = systemSpace{
 	maxParticipants: constants.WCMaxParticipants,
 }
 
-// ensureWCRoom finds or creates the WC room.
-func (s *CheckinService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) {
-	return s.ensureSystemRoom(ctx, wcSpace)
-}
-
-// ensureWCCategory finds or creates the WC activity category.
-func (s *CheckinService) ensureWCCategory(ctx context.Context) (*activities.Category, error) {
-	return s.ensureSystemCategory(ctx, wcSpace)
-}
-
 // wcActivityGroup finds or creates the permanent WC activity group, lazily
 // auto-creating the WC infrastructure (room, category, activity) on first use.
 func (s *CheckinService) wcActivityGroup(ctx context.Context) (*activities.Group, error) {

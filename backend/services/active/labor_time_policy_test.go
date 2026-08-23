@@ -9,55 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNetMinutes(t *testing.T) {
-	t.Parallel()
-
-	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	t.Run("with checkout 8 hours no breaks", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 0,
-		}
-		assert.Equal(t, 480, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("with checkout 8 hours 30min break", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 30,
-		}
-		assert.Equal(t, 450, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("net cannot be negative", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 8, 10, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 60,
-		}
-		assert.Equal(t, 0, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("active session measures against now", func(t *testing.T) {
-		checkIn := fixedNow.Add(-2 * time.Hour)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: nil,
-			BreakMinutes: 0,
-		}
-		assert.Equal(t, 120, netMinutes(ws, fixedNow))
-	})
-}
-
 // runningBreak is a break started `minutesAgo` before `now` and not yet ended.
 func runningBreak(now time.Time, minutesAgo int) *activeModels.WorkSessionBreak {
 	return &activeModels.WorkSessionBreak{
@@ -270,7 +221,7 @@ func TestIsBreakCompliant(t *testing.T) {
 	})
 }
 
-func TestEvaluateDayLaborTime(t *testing.T) {
+func TestEvaluateWorkSessionsLaborTime(t *testing.T) {
 	t.Parallel()
 	fixedNow := time.Date(2026, 8, 17, 17, 0, 0, 0, time.UTC)
 	block := func(id int64, inHour, inMin, outHour, outMin, breakMin int) *activeModels.WorkSession {
@@ -291,7 +242,7 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 			block(1, 8, 0, 12, 0, 0),
 			block(2, 13, 30, 16, 0, 0),
 		}
-		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
 		assert.Equal(t, 240+150, eval.NetMinutes, "the 90-minute gap is not work time")
 		assert.Equal(t, 0, eval.BreakMinutes, "the gap is not a stamped break either")
 		assert.Equal(t, 30, eval.RequiredBreakMinutes, "6.5h summed net work requires 30min")
@@ -303,7 +254,7 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 			block(1, 8, 0, 12, 0, 0),
 			block(2, 12, 0, 16, 0, 0),
 		}
-		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
 		assert.Equal(t, 480, eval.NetMinutes)
 		assert.Equal(t, 30, eval.RequiredBreakMinutes)
 		assert.False(t, eval.IsBreakCompliant, "back-to-back blocks earn no gap credit")
@@ -318,7 +269,7 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 			second.ID: {{StartedAt: breakStart, EndedAt: &breakEnd}},
 		}
 
-		eval := EvaluateDayLaborTime([]*activeModels.WorkSession{first, second}, breaks, fixedNow)
+		eval := EvaluateWorkSessionsLaborTime([]*activeModels.WorkSession{first, second}, breaks, fixedNow)
 		assert.Equal(t, 420, eval.NetMinutes)
 		assert.Equal(t, 25, eval.BreakMinutes)
 		assert.Equal(t, 30, eval.RequiredBreakMinutes)
@@ -334,7 +285,7 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 			block(1, 8, 0, 12, 0, 30),
 			open,
 		}
-		eval := EvaluateDayLaborTime(sessions, nil, fixedNow)
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
 		// Block 1: 240 gross − 30 break = 210. Block 2: 13:30 → 17:00 = 210.
 		assert.Equal(t, 420, eval.NetMinutes)
 		assert.Equal(t, 30, eval.BreakMinutes)
@@ -342,21 +293,9 @@ func TestEvaluateDayLaborTime(t *testing.T) {
 
 	t.Run("single block matches EvaluateLaborTime", func(t *testing.T) {
 		ws := block(1, 8, 0, 15, 0, 45)
-		day := EvaluateDayLaborTime([]*activeModels.WorkSession{ws}, nil, fixedNow)
+		day := EvaluateWorkSessionsLaborTime([]*activeModels.WorkSession{ws}, nil, fixedNow)
 		single := EvaluateLaborTime(ws, nil, fixedNow)
 		assert.Equal(t, single, day)
-	})
-
-	t.Run("clips an overnight block to the requested day", func(t *testing.T) {
-		day := timezone.NewDate(2026, time.August, 18)
-		now := day.BerlinMidnight().Add(15 * time.Hour)
-		previousEnd := day.BerlinMidnight().Add(time.Hour)
-		overnight := &activeModels.WorkSession{CheckInTime: day.AddDays(-1).BerlinMidnight().Add(22 * time.Hour), CheckOutTime: &previousEnd}
-		dayEnd := day.BerlinMidnight().Add(14 * time.Hour)
-		dayBlock := &activeModels.WorkSession{CheckInTime: day.BerlinMidnight().Add(10 * time.Hour), CheckOutTime: &dayEnd}
-
-		eval := EvaluateDayLaborTime([]*activeModels.WorkSession{overnight, dayBlock}, nil, now, day)
-		assert.Equal(t, 300, eval.NetMinutes, "only the hour after midnight belongs to this day")
 	})
 }
 

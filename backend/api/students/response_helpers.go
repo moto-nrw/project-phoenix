@@ -528,23 +528,6 @@ func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []Stud
 	return nil
 }
 
-// enrichWithPickupTimes adds today's effective pickup time to each student response.
-// Uses a single bulk query via PickupScheduleService (handles schedule + exception merging).
-// Only students with HasFullAccess=true receive pickup times (GDPR).
-func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
-	if len(studentIDs) == 0 || rs.PickupScheduleService == nil {
-		return
-	}
-
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
-	if err != nil {
-		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
-		return
-	}
-
-	applyPickupTimesFromMap(responses, pickupTimes)
-}
-
 // applyPickupTimesFromMap writes already-loaded effective pickup times onto the
 // responses without touching the database, so a pipeline stage that has the
 // bulk map in hand does not re-run the three pickup SELECTs (#2098).
@@ -562,23 +545,6 @@ func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]
 			responses[i].PickupNotes = buildPickupNotes(ept)
 		}
 	}
-}
-
-// enrichWithArrivalTimes adds today's effective arrival time to each student response.
-// It mirrors pickup enrichment so student list consumers can render arrival badges
-// from their primary SWR cache instead of maintaining a second cache.
-func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
-	if len(studentIDs) == 0 || rs.ArrivalScheduleService == nil {
-		return
-	}
-
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
-	if err != nil {
-		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
-		return
-	}
-
-	applyArrivalTimesFromMap(responses, arrivalTimes)
 }
 
 // applyArrivalTimesFromMap writes already-loaded effective arrival times onto

@@ -24,6 +24,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -116,7 +117,7 @@ func newDecisionServiceForTest(
 		GuardianProfileRepo:      repoFactory.GuardianProfile,
 		GuardianPhoneRepo:        repoFactory.GuardianPhoneNumber,
 		PickupScheduleRepo:       repoFactory.StudentPickupSchedule,
-		PickupBaselines: scheduleService.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			repoFactory.StudentPickupSchedule,
 			repoFactory.RequestChildOffering,
 			repoFactory.CareOffering,

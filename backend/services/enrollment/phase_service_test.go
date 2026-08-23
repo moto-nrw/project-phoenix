@@ -658,9 +658,11 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
 		FormSchemaRepo:   repoFactory.FormSchema,
-		CalendarPeriods:  scheduleService.NewCalendarPeriodService(repoFactory.CalendarPeriod, slog.Default()),
-		DB:               db,
-		Logger:           slog.Default(),
+		CalendarPeriods: scheduleService.NewCalendarPeriodServiceWithConfig(scheduleService.CalendarPeriodServiceConfig{
+			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
+		}),
+		DB:     db,
+		Logger: slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }

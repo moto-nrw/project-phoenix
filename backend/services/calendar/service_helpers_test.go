@@ -154,14 +154,12 @@ func TestMatchesRuleWeeklyIntervalAnchorsToCalendarWeeks(t *testing.T) {
 	assert.True(t, matchesRule(start, timezone.NewDate(2026, 1, 21), rule))
 }
 
-func TestCalendarRecipientStatusHelpers(t *testing.T) {
+func TestStaffRecipientStatus(t *testing.T) {
 	t.Parallel()
 
 	staffID := int64(10)
-	guardianID := int64(20)
 	recipients := []*calModels.AppointmentRecipient{
 		{Model: base.Model{ID: 101}, RecipientType: calModels.RecipientTypeStaff, StaffID: &staffID, Status: calModels.ResponseStatusAccepted},
-		{Model: base.Model{ID: 102}, RecipientType: calModels.RecipientTypeGuardianProfile, GuardianProfileID: &guardianID, Status: calModels.ResponseStatusDeclined},
 	}
 
 	status, recipientID := staffRecipientStatus(recipients, staffID)
@@ -169,12 +167,6 @@ func TestCalendarRecipientStatusHelpers(t *testing.T) {
 	require.NotNil(t, recipientID)
 	assert.Equal(t, calModels.ResponseStatusAccepted, *status)
 	assert.Equal(t, int64(101), *recipientID)
-
-	status, recipientID = guardianRecipientStatus(recipients, []int64{99, guardianID})
-	require.NotNil(t, status)
-	require.NotNil(t, recipientID)
-	assert.Equal(t, calModels.ResponseStatusDeclined, *status)
-	assert.Equal(t, int64(102), *recipientID)
 
 	status, recipientID = staffRecipientStatus(recipients, 99)
 	assert.Nil(t, status)

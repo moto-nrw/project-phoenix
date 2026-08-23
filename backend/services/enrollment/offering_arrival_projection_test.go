@@ -16,6 +16,7 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -51,7 +52,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
 		ArrivalExceptions: env.repos.StudentArrivalException,
-		PickupBaselines: scheduleService.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			env.repos.RequestChildOffering,
 			env.repos.CareOffering,

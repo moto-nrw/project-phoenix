@@ -119,7 +119,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 
 	// Bulk load all related data
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(
+	dataSnapshot := common.LoadStudentDataSnapshot(
 		r.Context(),
 		rs.PersonService,
 		rs.EducationService,
@@ -128,12 +128,6 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		personIDs,
 		groupIDs,
 	)
-	if err != nil {
-		slog.Default().Error("failed to load student data snapshot", slog.String("error", err.Error()))
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
 	// Resolve once per request. populatePhotoFields runs per student.
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
 

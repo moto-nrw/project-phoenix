@@ -32,6 +32,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -221,7 +222,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 		CareDayService: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
 			ArrivalSchedules:  scheduleRepo.NewStudentArrivalScheduleRepository(db),
 			ArrivalExceptions: scheduleRepo.NewStudentArrivalExceptionRepository(db),
-			PickupBaselines: scheduleSvc.NewPickupBaselineService(
+			PickupBaselines: scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				enrollmentRepo.NewRequestChildOfferingRepository(db),
 				enrollmentRepo.NewCareOfferingRepository(db),
@@ -229,7 +230,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			PickupExceptions: scheduleRepo.NewStudentPickupExceptionRepository(db),
 		}),
 		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
-		PickupBaselines: scheduleSvc.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			scheduleRepo.NewStudentPickupScheduleRepository(db),
 			enrollmentRepo.NewRequestChildOfferingRepository(db),
 			enrollmentRepo.NewCareOfferingRepository(db),
@@ -245,7 +246,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
-			scheduleSvc.NewPickupBaselineService(
+			scheduletest.NewPickupBaselineService(
 				scheduleRepo.NewStudentPickupScheduleRepository(db),
 				enrollmentRepo.NewRequestChildOfferingRepository(db),
 				enrollmentRepo.NewCareOfferingRepository(db),
@@ -253,12 +254,14 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 			db,
 			slog.Default(),
 		),
-		ArrivalService: scheduleSvc.NewArrivalScheduleService(
+		ArrivalService: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
 			scheduleRepo.NewStudentArrivalScheduleRepository(db),
 			scheduleRepo.NewStudentArrivalExceptionRepository(db),
 			scheduleRepo.NewStudentArrivalNoteRepository(db),
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
+			nil,
+			nil,
 			db,
 			nil,
 		),

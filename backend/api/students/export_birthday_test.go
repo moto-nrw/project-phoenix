@@ -333,7 +333,7 @@ func TestBirthdayMonthFilterLabel(t *testing.T) {
 func TestExportFilterLabelsIncludesBirthdayMonths(t *testing.T) {
 	t.Parallel()
 
-	labels := exportFilterLabels(studentExportFilters{Months: []string{"09"}, Bus: "yes"})
+	labels := exportFilterLabelsForDate(studentExportFilters{Months: []string{"09"}, Bus: "yes"}, testExportDate, true)
 
 	assert.Contains(t, labels, "Geburtsmonat: September")
 	assert.Contains(t, labels, "Buskind", "the extracted yes/no label must keep its wording")

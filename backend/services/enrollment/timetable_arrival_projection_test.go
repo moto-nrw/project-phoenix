@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,7 +38,7 @@ func timetableDataWithArrivalBaseline(
 		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalExceptionRepo:  env.repos.StudentArrivalException,
 		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
-		PickupBaselines: scheduleService.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			env.repos.RequestChildOffering,
 			env.repos.CareOffering,

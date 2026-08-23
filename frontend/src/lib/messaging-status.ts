@@ -38,7 +38,7 @@ type RequestStatus = "offen" | "erledigt" | "abgelehnt" | "zurueckgezogen";
 
 /**
  * One field a still-open request would change, rendered "current → requested".
- * Single source of truth for both portals and the shared RequestDiffPanel.
+ * Shared by both portals so their wire types stay aligned.
  */
 export interface RequestDiffEntry {
   readonly label: string;

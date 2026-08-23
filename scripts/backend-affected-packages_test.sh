@@ -59,12 +59,14 @@ git -C "$fixture" add .
 git -C "$fixture" commit -qm baseline
 
 select_packages() {
-  (cd "$fixture" && "$repo_root/scripts/backend-affected-packages.sh" HEAD)
+  working_directory=${1:-$fixture}
+  (cd "$working_directory" && "$repo_root/scripts/backend-affected-packages.sh" HEAD)
 }
 
 assert_output() {
   expected=$1
-  actual=$(select_packages)
+  working_directory=${2:-$fixture}
+  actual=$(select_packages "$working_directory")
   if [ "$actual" != "$expected" ]; then
     printf 'expected:\n%s\nactual:\n%s\n' "$expected" "$actual" >&2
     exit 1
@@ -93,6 +95,7 @@ git -C "$fixture" restore backend/core/core_test.go
 
 printf '\n// changed\n' >>"$fixture/backend/core/core.go"
 assert_output $'example.test/project/consumer\nexample.test/project/core'
+assert_output $'example.test/project/consumer\nexample.test/project/core' "$fixture/backend"
 git -C "$fixture" restore backend/core/core.go
 
 mkdir -p "$fixture/backend/consumer/testdata"

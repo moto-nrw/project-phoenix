@@ -618,6 +618,11 @@ func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
 	require.ErrorIs(t, err, want)
 }
 
+func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+	result, err := DetectShiftCoverage(ctx, deps, query)
+	return result.Warnings, err
+}
+
 func TestDetectShiftCoverageWarnings_EffectiveRosterAndContainingWeek(t *testing.T) {
 	t.Parallel()
 

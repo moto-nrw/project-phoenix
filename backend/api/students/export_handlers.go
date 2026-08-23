@@ -100,11 +100,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
+	dataSnapshot := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
 
 	accessCtx := rs.determineStudentAccess(r)
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)
@@ -638,14 +634,6 @@ func responseRowSources(students []StudentResponse, weekly map[int64]weeklySched
 	return sources
 }
 
-func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	return buildExportRowSources(responseRowSources(students, weekly, enrollmentSummaries, onDate, isToday), true)
-}
-
-func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	return buildExportRowSources(responseRowSources(students, weekly, enrollmentSummaries, onDate, isToday), false)
-}
-
 // birthdayExportCell renders the birth date German-style ("02.09.2018").
 // Children without a stored birthday render empty rather than a fake date.
 func birthdayExportCell(birthday string) string {
@@ -917,12 +905,6 @@ func exportTitle(req studentExportRequest) string {
 	default:
 		return "OGS Wochenliste"
 	}
-}
-
-// exportFilterLabels renders the printed filter header for a today-scoped
-// export; exportFilterLabelsForDate is the date-aware form the handler uses.
-func exportFilterLabels(filters studentExportFilters) []string {
-	return exportFilterLabelsForDate(filters, timezone.Date{}, true)
 }
 
 func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {

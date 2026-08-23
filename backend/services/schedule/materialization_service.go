@@ -246,8 +246,8 @@ func (s *materializationService) MaterializeForTenant(
 		}
 		// Then the grade-transition gate, in that order (see
 		// education.TenantTransitionsLockKey — recurrence first, transitions
-		// second, everywhere). copyEnrollments decides whether to insert a roster
-		// row from the student status this pass read; a grade transition
+		// second, everywhere). expectedStudentIDsOn decides whether to insert a
+		// roster row from the student status this pass read; a grade transition
 		// committing its graduation and its roster-archive pass in between would
 		// leave a departed child on an upcoming roster with nothing left to
 		// remove them (#405 review).
@@ -469,6 +469,40 @@ func careEndedOnDate(bounds map[int64]timezone.Date, studentID int64, date timez
 	return ok && date.After(bound)
 }
 
+// expectedStudentIDsOn projects the deduplicated roster the template would
+// materialize on one date. Both materialization and lost-edit detection use
+// this function so manual enrollments and dynamic targets cannot drift apart.
+func expectedStudentIDsOn(
+	enrollments []*activities.StudentEnrollment,
+	targetStudentIDs []int64,
+	careBounds map[int64]timezone.Date,
+	date timezone.Date,
+	periodID int64,
+) []int64 {
+	seen := make(map[int64]struct{}, len(enrollments)+len(targetStudentIDs))
+	for _, enrollment := range enrollments {
+		if !isEnrollmentValidOn(enrollment, date, periodID) ||
+			enrollmentStudentIsAlumnus(enrollment) ||
+			careEndedOnDate(careBounds, enrollment.StudentID, date) {
+			continue
+		}
+		seen[enrollment.StudentID] = struct{}{}
+	}
+	for _, studentID := range targetStudentIDs {
+		if studentID <= 0 || careEndedOnDate(careBounds, studentID, date) {
+			continue
+		}
+		seen[studentID] = struct{}{}
+	}
+
+	ids := make([]int64, 0, len(seen))
+	for studentID := range seen {
+		ids = append(ids, studentID)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	return ids
+}
+
 // materializeTemplate runs the inner loop for a single template. Extracted so
 // the main entry point stays readable.
 func (s *materializationService) materializeTemplate(
@@ -643,10 +677,17 @@ func (s *materializationService) materializeTemplate(
 			existingIdx[key] = struct{}{}
 			result.InstancesCreated++
 
-			if err := s.copyEnrollments(ctx, instance.ID, enrollments, careBounds, date, period.ID, result); err != nil {
-				return err
-			}
-			if err := s.copyTargetStudents(ctx, instance.ID, targetStudentIDs, enrollments, careBounds, date, period.ID, result); err != nil {
+			if err := s.copyExpectedStudents(
+				ctx,
+				instance.ID,
+				enrollments,
+				targetStudentIDs,
+				careBounds,
+				date,
+				period.ID,
+				result,
+				"materialize template: copy expected student",
+			); err != nil {
 				return err
 			}
 			if err := s.copySupervisors(ctx, instance.ID, supervisors, date, period.ID, result); err != nil {
@@ -658,114 +699,30 @@ func (s *materializationService) materializeTemplate(
 	return nil
 }
 
-func (s *materializationService) copyTargetStudents(
+func (s *materializationService) copyExpectedStudents(
 	ctx context.Context,
 	instanceID int64,
-	studentIDs []int64,
 	enrollments []*activities.StudentEnrollment,
+	targetStudentIDs []int64,
 	careBounds map[int64]timezone.Date,
 	date timezone.Date,
 	periodID int64,
 	result *MaterializationResult,
+	errorOp string,
 ) error {
-	seen := make(map[int64]struct{}, len(enrollments)+len(studentIDs))
-	for _, enrollment := range enrollments {
-		if isEnrollmentValidOn(enrollment, date, periodID) && !enrollmentStudentIsAlumnus(enrollment) {
-			seen[enrollment.StudentID] = struct{}{}
-		}
-	}
-	created := 0
+	studentIDs := expectedStudentIDsOn(enrollments, targetStudentIDs, careBounds, date, periodID)
 	for _, studentID := range studentIDs {
-		if studentID <= 0 {
-			continue
-		}
-		if _, exists := seen[studentID]; exists {
-			continue
-		}
-		// A dynamic source answers "who belongs to this Jahrgang / class /
-		// group", which stays true right up to the child's last care day and
-		// stops being true the day after (#2487).
-		if careEndedOnDate(careBounds, studentID, date) {
-			seen[studentID] = struct{}{}
-			continue
-		}
-		seen[studentID] = struct{}{}
 		row := &schedule.InstanceStudent{
 			InstanceID: instanceID,
 			StudentID:  studentID,
 			Status:     schedule.AttendanceStatusExpected,
 		}
 		if err := s.studentRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "materialize template: copy target student", Err: err}
-		}
-		created++
-		result.InstanceStudentsCreated++
-	}
-	if created == 0 {
-		return nil
-	}
-	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
-		return &ScheduleError{Op: "materialize template: apply target student status days", Err: err}
-	}
-	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date); err != nil {
-		return &ScheduleError{Op: "materialize template: apply target student partial absences", Err: err}
-	}
-	return nil
-}
-
-func (s *materializationService) copyEnrollments(
-	ctx context.Context,
-	instanceID int64,
-	enrollments []*activities.StudentEnrollment,
-	careBounds map[int64]timezone.Date,
-	date timezone.Date,
-	periodID int64,
-	result *MaterializationResult,
-) error {
-	seen := make(map[int64]struct{}, len(enrollments))
-	for _, e := range enrollments {
-		if !isEnrollmentValidOn(e, date, periodID) {
-			continue
-		}
-		// A graduated (alumnus) student is soft-deleted: their enrollment rows
-		// survive for transition reverts, but future planning must never copy
-		// them into a new instance_students row — otherwise upcoming cards,
-		// staffing ratios, slot-list exports and instance completion keep
-		// counting a departed child. Historical rows already materialized before
-		// graduation stay untouched (this service is insert-only). (#405)
-		if enrollmentStudentIsAlumnus(e) {
-			s.getLogger().Debug("skipping graduated student on materialization",
-				slog.Int64("instance_id", instanceID),
-				slog.Int64("student_id", e.StudentID),
-				slog.String("date", date.String()),
-			)
-			continue
-		}
-		// Ending a child's care already caps their enrollments, so this is the
-		// backstop for a row created afterwards by another path (#2487).
-		if careEndedOnDate(careBounds, e.StudentID, date) {
-			continue
-		}
-		if _, dup := seen[e.StudentID]; dup {
-			s.getLogger().Warn("student listed twice on template — skipping duplicate",
-				slog.Int64("instance_id", instanceID),
-				slog.Int64("student_id", e.StudentID),
-				slog.String("date", date.String()),
-			)
-			continue
-		}
-		seen[e.StudentID] = struct{}{}
-		row := &schedule.InstanceStudent{
-			InstanceID: instanceID,
-			StudentID:  e.StudentID,
-			Status:     schedule.AttendanceStatusExpected,
-		}
-		if err := s.studentRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "materialize template: copy enrollment", Err: err}
+			return &ScheduleError{Op: errorOp, Err: err}
 		}
 		result.InstanceStudentsCreated++
 	}
-	if len(seen) == 0 {
+	if len(studentIDs) == 0 {
 		return nil
 	}
 	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {

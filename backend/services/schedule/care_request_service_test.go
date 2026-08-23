@@ -34,6 +34,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,7 +61,7 @@ func newCareFixture(t *testing.T) *careFixture {
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		schedule.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)

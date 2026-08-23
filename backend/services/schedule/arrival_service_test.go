@@ -1499,9 +1499,9 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	// with a message naming a child the office cannot even see any more.
 	t.Run("skips children whose care has ended instead of failing the class", func(t *testing.T) {
 		className := fmt.Sprintf("BCCARE-%d", time.Now().UnixNano())
+		staffID := createArrivalServiceTestStaffID(t, db)
 		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
 		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
-		staffID := createArrivalServiceTestStaffID(t, db)
 		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
 		_, err := db.NewUpdate().
 			Table("users.students").

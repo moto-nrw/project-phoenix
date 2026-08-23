@@ -83,10 +83,6 @@ func defaultRateLimitKey(r *http.Request) string {
 	return "ip:" + GetClientIP(r)
 }
 
-func (rl *RateLimiter) requestKey(r *http.Request) string {
-	return rl.requestKeyForBucket(r, rl.requestBucket(r))
-}
-
 func (rl *RateLimiter) requestBucket(r *http.Request) string {
 	if rl.bucketFunc == nil {
 		return ""

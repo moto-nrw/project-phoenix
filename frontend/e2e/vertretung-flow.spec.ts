@@ -12,9 +12,9 @@ import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 // flow_c_gaps_substitute_test.go / flow_h_replan_deviations_test.go ab).
 //
 // Testdaten sind vollständig selbst angelegt und wieder aufgeräumt: die Spec
-// erzeugt über die API einen spontanen Termin mit genau einer geplanten Person,
-// fährt den Flow (abwesend melden -> Ersatz wählen) und löscht den Termin im
-// finally wieder (plus tagesweites "Anwesend melden" als Sicherheitsnetz). Die
+// erzeugt über die API zwei spontane Termine mit derselben geplanten Person,
+// fährt den terminbezogenen Flow (abwesend melden -> Ersatz wählen) und löscht
+// beide Termine im finally wieder. Die
 // Dev-DB gehört dem Nutzer, daher kein Reset, kein Reseed, keine Fremd-Daten.
 //
 // Login und Tenant-Herkunft: die Nachbar-Specs melden sich über die
@@ -77,7 +77,7 @@ const DATA = { timeout: 15000 } as const;
 // Zeitbudget), damit ein abgebrochener Lauf keine Waisen in der Dev-DB lässt.
 // Playwright-Worker sind eigene Prozesse -> Modul-State ist pro Worker, kein
 // Cross-Test-Rennen.
-let cleanupInstanceId: string | null = null;
+let cleanupInstanceIds: string[] = [];
 let cleanupStaffId: number | null = null;
 
 /**
@@ -126,19 +126,27 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     // Netz für Timeout-Abbrüche: das in-Test-finally kann bei einem harten
     // Timeout abgeschnitten werden, afterEach läuft mit eigenem Budget.
     // Doppeltes Löschen ist harmlos (zweites Mal 404).
-    if (!access || cleanupInstanceId === null) return;
-    if (cleanupStaffId !== null) {
+    if (!access || cleanupInstanceIds.length === 0) return;
+    for (const instanceId of cleanupInstanceIds) {
+      if (cleanupStaffId !== null) {
+        await page.request
+          .post(`${base}/api/timetable/instances/${instanceId}/deviations`, {
+            data: {
+              presences: [
+                {
+                  staff_id: cleanupStaffId,
+                  instance_ids: [Number(instanceId)],
+                },
+              ],
+            },
+          })
+          .catch(() => undefined);
+      }
       await page.request
-        .post(
-          `${base}/api/timetable/instances/${cleanupInstanceId}/deviations`,
-          { data: { presences: [cleanupStaffId] } },
-        )
+        .delete(`${base}/api/timetable/instances/${instanceId}`)
         .catch(() => undefined);
     }
-    await page.request
-      .delete(`${base}/api/timetable/instances/${cleanupInstanceId}`)
-      .catch(() => undefined);
-    cleanupInstanceId = null;
+    cleanupInstanceIds = [];
     cleanupStaffId = null;
   });
 
@@ -151,7 +159,7 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     // des Routen-Erstaufrufs.
     test.setTimeout(90000);
 
-    // --- Testdaten anlegen (spontaner Termin mit genau einer Person) --------
+    // --- Testdaten: zwei Termine derselben Person am selben Tag ------------
     // Die View zeigt nur Mo–Fr und snappt Wochenendtage auf den nächsten
     // Montag — Testdaten also immer auf einen Werktag legen.
     const day = nextWorkdayISO(berlinTodayISO());
@@ -195,9 +203,28 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     ).json()) as { data?: { id: string | number }; id?: string | number };
     const instanceId = String(created.data?.id ?? created.id ?? "");
     expect(instanceId, "Termin-Anlage muss eine ID liefern").not.toEqual("");
+    const otherTitle = `${title} zweiter Termin`;
+    const otherCreated = (await (
+      await page.request.post(`${base}/api/timetable/instances`, {
+        data: {
+          date: day,
+          start_time: "14:00",
+          end_time: "15:00",
+          title: otherTitle,
+          room_id: roomId,
+          staff_ids: [plannedStaffId],
+        },
+      })
+    ).json()) as { data?: { id: string | number }; id?: string | number };
+    const otherInstanceId = String(
+      otherCreated.data?.id ?? otherCreated.id ?? "",
+    );
+    expect(otherInstanceId, "Zweiter Termin muss eine ID liefern").not.toEqual(
+      "",
+    );
     // Aufräum-Anker sofort setzen, damit afterEach auch bei einem Abbruch
     // mitten im Flow den Termin wieder entfernt.
-    cleanupInstanceId = instanceId;
+    cleanupInstanceIds = [instanceId, otherInstanceId];
     cleanupStaffId = plannedStaffId;
 
     // Genau ein POST .../deviations pro Speichern (Akzeptanzkriterium 7): nur
@@ -211,6 +238,9 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     });
 
     const row = page.getByTestId(`vertretung-day-list-row-${instanceId}`);
+    const otherRow = page.getByTestId(
+      `vertretung-day-list-row-${otherInstanceId}`,
+    );
     const dialog = page.getByRole("dialog");
 
     try {
@@ -242,15 +272,28 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
         (res) =>
           res.request().method() === "POST" && DEVIATIONS_RE.test(res.url()),
       );
-      await dialog.getByRole("button", { name: "Abwesend" }).click();
+      await dialog
+        .getByRole("button", { name: /als abwesend markieren/ })
+        .click();
+      // Der sichtbare Label-Text ist das eigentliche Klickziel. Das native
+      // Radio bleibt für Tastatur und Formsemantik sr-only im DOM; ein direkter
+      // Koordinatenklick darauf kann hinter dem Footer landen.
+      await dialog.locator('label[for^="vp-scope-selected-"]').click();
+      await expect(
+        dialog.getByRole("checkbox", { name: new RegExp(title) }).first(),
+      ).toBeChecked();
+      await expect(
+        dialog.getByRole("checkbox", { name: new RegExp(otherTitle) }),
+      ).not.toBeChecked();
       await dialog.getByRole("button", { name: "Speichern" }).click();
       expect((await save1).ok()).toBeTruthy();
       await expect(dialog).toBeHidden({ timeout: 10000 });
       expect(deviationPosts, "Save 1 = genau ein deviations-POST").toBe(1);
 
-      // Ohne Ersatz steht die offene Lücke mit dem "??"-Muster in der Liste.
+      // Ohne Ersatz nennt die Liste die offene Vertretung ausdrücklich.
       await expect(row).toContainText("Abwesend 1", DATA);
-      await expect(row).toContainText("Ersatz: ??", DATA);
+      await expect(row).toContainText("Ersatzkräfte: keine", DATA);
+      await expect(otherRow).toContainText("Abwesend 0", DATA);
 
       // --- Save 2: Ersatz wählen (Ereignis `substitution`) ----------------
       // Zwei Speichervorgänge, weil ein kombiniertes Abwesenheit+Ersatz-Save
@@ -285,7 +328,7 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
       await expect(row).toContainText("Soll 1", DATA);
       await expect(row).toContainText("Ist 1", DATA);
       await expect(row).toContainText("Abwesend 1", DATA);
-      await expect(row).toContainText(`Ersatz: ${substituteName}`, DATA);
+      await expect(row).toContainText(`Ersatzkräfte: ${substituteName}`, DATA);
 
       // --- Deep-Link-Roundtrip: Editor + Verlaufs-Reiter direkt anfahren --
       await page.goto(
@@ -352,19 +395,26 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
         .toBe(target.iso);
       assertUrlVocabulary(page, "nach Tag-Wechsel");
     } finally {
-      // Aufräumen: tagesweite Abwesenheit zurücknehmen und den spontanen
-      // Termin löschen (Status bleibt `planned` -> löschbar). Beides
-      // best-effort, damit ein Flow-Fehler den Cleanup nicht verschluckt.
-      await page.request
-        .post(`${base}/api/timetable/instances/${instanceId}/deviations`, {
-          data: { presences: [plannedStaffId] },
-        })
-        .catch(() => undefined);
-      await page.request
-        .delete(`${base}/api/timetable/instances/${instanceId}`)
-        .catch(() => undefined);
+      // Aufräumen best-effort, damit ein Flow-Fehler keine Termine hinterlässt.
+      for (const cleanupId of [instanceId, otherInstanceId]) {
+        await page.request
+          .post(`${base}/api/timetable/instances/${cleanupId}/deviations`, {
+            data: {
+              presences: [
+                {
+                  staff_id: plannedStaffId,
+                  instance_ids: [Number(cleanupId)],
+                },
+              ],
+            },
+          })
+          .catch(() => undefined);
+        await page.request
+          .delete(`${base}/api/timetable/instances/${cleanupId}`)
+          .catch(() => undefined);
+      }
       // Erledigt -> afterEach zum No-op machen.
-      cleanupInstanceId = null;
+      cleanupInstanceIds = [];
       cleanupStaffId = null;
     }
   });

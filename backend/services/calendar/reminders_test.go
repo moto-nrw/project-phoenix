@@ -158,19 +158,18 @@ func TestAppointmentReminderKey(t *testing.T) {
 		"an updated appointment needs a replacement reminder key")
 }
 
-func TestAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {
+func TestLocalizedAppointmentNotificationCopyCarriesNoAppointmentTitle(t *testing.T) {
 	t.Parallel()
 
-	// The push payload leaves the backend and is rendered on a lock screen. An
-	// appointment title is free text a staff member typed and routinely contains
-	// a family name ("Gespräch Familie Müller").
+	// The push payload reaches a lock screen. Appointment titles are free text
+	// and can contain a family name.
 	for _, kind := range []string{
 		"appointment_published",
 		"appointment_updated",
 		"appointment_cancelled",
 		"appointment_reminder",
 	} {
-		title, body := appointmentNotificationCopy(kind)
+		title, body := localizedAppointmentNotificationCopy(kind, "")
 		assert.NotEmpty(t, title)
 		assert.NotEmpty(t, body)
 		assert.NotContains(t, body, "Planning", "the appointment title must not reach the payload")

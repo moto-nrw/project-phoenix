@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -33,7 +34,7 @@ func TestToken_Validate(t *testing.T) {
 				Token:      "valid-token-string",
 				Expiry:     futureTime,
 				Mobile:     true,
-				Identifier: base.StringPtr("device-123"),
+				Identifier: ptrtest.Ptr("device-123"),
 				FamilyID:   "family-abc",
 				Generation: 1,
 			},

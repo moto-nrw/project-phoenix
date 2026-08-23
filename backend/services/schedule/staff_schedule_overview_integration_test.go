@@ -455,7 +455,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 	countedExceptions, ok := countedRepos.ActivityException.(scheduleSvc.ActivityExceptionRangeReader)
 	require.True(t, ok)
 	pattern := 0
-	warnings, err := scheduleSvc.DetectShiftCoverageWarnings(localCtx, scheduleSvc.ShiftCoverageDependencies{
+	coverage, err := scheduleSvc.DetectShiftCoverage(localCtx, scheduleSvc.ShiftCoverageDependencies{
 		Shifts: countedRepos.StaffShift, Instances: countedInstances, Exceptions: countedExceptions,
 		Schedules:     countedRepos.ActivitySchedule,
 		InstanceStaff: countedRepos.InstanceStaff, Staff: countedRepos.Staff,
@@ -467,6 +467,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		CalendarPeriodID: &period.ID, WeekPattern: &pattern,
 	})
 	require.NoError(t, err)
+	warnings := coverage.Warnings
 	assert.Equal(t, int64(8), queryCounter.count.Load(), "series volume must use eight fixed batch reads")
 	require.Len(t, warnings, 1, "pre-valid_from candidates must not be projected")
 	assert.Equal(t, nextWednesday.String(), warnings[0].Date)

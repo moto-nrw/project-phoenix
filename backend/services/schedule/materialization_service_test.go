@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -239,6 +240,30 @@ func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
 
 	enrollment := &activities.StudentEnrollment{}
 	assert.False(t, enrollmentStudentIsAlumnus(enrollment))
+}
+
+func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
+	t.Parallel()
+
+	date := timezone.NewDate(2026, time.April, 20)
+	periodID := int64(400)
+	otherPeriodID := int64(401)
+	endedBefore := date.AddDays(-1)
+	alumnus := &users.Student{Status: users.StudentStatusAlumnus}
+	enrollments := []*activities.StudentEnrollment{
+		{StudentID: 501, ValidFrom: date.AddDays(-1), CalendarPeriodID: &periodID},
+		{StudentID: 502, ValidFrom: date.AddDays(1)},
+		{StudentID: 503, ValidFrom: date.AddDays(-1), CalendarPeriodID: &otherPeriodID},
+		{StudentID: 504, ValidFrom: date.AddDays(-1), SelectedWeekdays: []int{2}},
+		{StudentID: 505, ValidFrom: date.AddDays(-1), Student: alumnus},
+		{StudentID: 506, ValidFrom: date.AddDays(-1)},
+	}
+	targetStudentIDs := []int64{501, 507, 508, 507}
+	careBounds := map[int64]timezone.Date{506: endedBefore, 507: date, 508: endedBefore}
+
+	assert.Equal(t, []int64{501, 507}, expectedStudentIDsOn(
+		enrollments, targetStudentIDs, careBounds, date, periodID,
+	))
 }
 
 // -----------------------------------------------------------------------------
@@ -978,7 +1003,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		wrongWeekday := &activities.StudentEnrollment{StudentID: 502, ValidFrom: validFrom, SelectedWeekdays: []int{2}}
 		result := &MaterializationResult{}
 
-		err := svc.copyEnrollments(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, date, periodID, result)
+		err := svc.copyExpectedStudents(context.Background(), 601, []*activities.StudentEnrollment{valid, duplicate, wrongWeekday}, nil, nil, date, periodID, result, "materialize template: copy enrollment")
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.InstanceStudentsCreated)
@@ -991,7 +1016,7 @@ func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 		svc := &materializationService{studentRepo: studentRepo, logger: slog.Default()}
 		result := &MaterializationResult{}
 
-		err := svc.copyEnrollments(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, date, periodID, result)
+		err := svc.copyExpectedStudents(context.Background(), 602, []*activities.StudentEnrollment{{StudentID: 503, ValidFrom: validFrom}}, nil, nil, date, periodID, result, "materialize template: copy enrollment")
 
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "copy enrollment")

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,7 +87,7 @@ func TestSettingAuditEntry_GetUpdatedAt_ReturnsChangedAt(t *testing.T) {
 func TestNewAuditEntry(t *testing.T) {
 	t.Parallel()
 
-	changedBy := base.Int64Ptr(42)
+	changedBy := ptrtest.Ptr(int64(42))
 	oldValue := json.RawMessage(`"old"`)
 	newValue := json.RawMessage(`"new"`)
 

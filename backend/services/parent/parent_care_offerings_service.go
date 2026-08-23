@@ -501,19 +501,6 @@ func (s *service) offeringChangesEnabledForTenant(ctx context.Context, tenantID 
 	return careOfferingsEnabled
 }
 
-// resolveOfferingChangeAvailability decides whether the guardian may open a
-// change request, and if not, why. Order matters: the most specific,
-// least-fixable reason wins, so a guardian without permission is not told the
-// school switched the feature off.
-func (s *service) resolveOfferingChangeAvailability(
-	ctx context.Context,
-	child *parentChild,
-	period *enrollmentModels.StudentCarePeriod,
-	today timezone.Date,
-) (bool, string) {
-	return s.resolveOfferingChangeAvailabilityForStudent(ctx, child, 0, period, today)
-}
-
 func (s *service) resolveOfferingChangeAvailabilityForStudent(
 	ctx context.Context,
 	child *parentChild,

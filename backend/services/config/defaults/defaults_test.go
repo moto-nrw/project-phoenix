@@ -214,13 +214,12 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
-	optionValues := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		optionValues = append(optionValues, value)
+		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
 	}
-	assert.ElementsMatch(t, holidays.Regions(), optionValues)
+	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
