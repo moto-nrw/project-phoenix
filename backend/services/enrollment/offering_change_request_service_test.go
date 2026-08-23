@@ -1160,6 +1160,19 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	legacySourcedGroup.IsTemplate = true
 	legacySourcedGroup.TargetGroupType = activitiesModels.TargetGroupTypeNone
 	require.NoError(t, env.repos.ActivityGroup.Update(ctx, legacySourcedGroup))
+	parentChoiceGroup := testpkg.CreateTestActivityGroup(t, env.db, "EmptyParentChoicePlanning")
+	parentChoiceGroup.Type = activitiesModels.GroupTypeCare
+	parentChoiceGroup.IsTemplate = true
+	require.NoError(t, env.repos.ActivityGroup.Update(ctx, parentChoiceGroup))
+	parentChoiceOffering := createAdjustmentCareOfferingWith(t, env, "Leere Tagesauswahl", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &parentChoiceGroup.ID
+		o.CountsAsCare, o.CountsAsCareSet = true, true
+	})
+	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+		RequestChildID: fx.childID,
+		CareOfferingID: parentChoiceOffering.ID,
+		SelectedDays:   []string{},
+	}))
 
 	period := testpkg.CreateTestCalendarPeriod(
 		t, env.db, "Manual planning preview "+t.Name(), env.sourcePhase.ServiceStartDate, env.sourcePhase.ServiceEndDate,
@@ -1199,6 +1212,8 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 		dateFor(time.Wednesday), "Abgelaufene Angebots-Verknüpfung", materialized)
 	createPlanningOccurrence(t, env, legacySourcedGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Thursday), "Nicht zählendes Angebot", materialized)
+	createPlanningOccurrence(t, env, parentChoiceGroup.ID, fx.studentID, room.ID, period.ID,
+		dateFor(time.Tuesday), "Leere Tagesauswahl", materialized)
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
 		dateFor(time.Friday), "Nicht gebucht", planningOccurrenceOpts{materialized: true, notScheduled: true})
 	createPlanningOccurrence(t, env, manualGroup.ID, fx.studentID, room.ID, period.ID,
@@ -1215,7 +1230,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 
 	preview, err := svc.PreviewDecision(ctx, row.ID, nil, nil)
 	require.NoError(t, err)
-	require.Len(t, preview.ManualPlanningConflicts, 2)
+	require.Len(t, preview.ManualPlanningConflicts, 3)
 	conflictsByGroupID := make(map[int64]enrollmentService.ManualPlanningConflict, len(preview.ManualPlanningConflicts))
 	for _, item := range preview.ManualPlanningConflicts {
 		conflictsByGroupID[item.ActivityGroupID] = item
@@ -1231,6 +1246,11 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	assert.Equal(t, []string{"tue", "wed", "thu"}, legacyConflict.Days)
 	assert.Equal(t, dateFor(time.Tuesday), legacyConflict.FirstDate)
 	assert.Equal(t, 3, legacyConflict.OccurrenceCount)
+	parentChoiceConflict := conflictsByGroupID[parentChoiceGroup.ID]
+	assert.Equal(t, parentChoiceGroup.ID, parentChoiceConflict.ActivityGroupID)
+	assert.Equal(t, []string{"tue"}, parentChoiceConflict.Days)
+	assert.Equal(t, dateFor(time.Tuesday), parentChoiceConflict.FirstDate)
+	assert.Equal(t, 1, parentChoiceConflict.OccurrenceCount)
 	assert.True(t, preview.ArrivalExpectationsFollowBookings)
 	laterEffectiveFrom := dateFor(time.Thursday).AddDays(22)
 	laterPreview, err := svc.PreviewDecision(ctx, row.ID, nil, &laterEffectiveFrom)
