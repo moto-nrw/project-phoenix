@@ -412,8 +412,8 @@ describe("student-api", () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({
-            error:
-              'API error (409): {"status":"error","error":"Vorschau veraltet","code":"students.deletion_preview_changed"}',
+            error: "Vorschau veraltet",
+            code: "students.deletion_preview_changed",
           }),
           {
             status: 409,

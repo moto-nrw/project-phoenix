@@ -625,28 +625,6 @@ interface StudentDeletionErrorPayload {
   readonly code?: unknown;
 }
 
-function nestedStudentDeletionError(raw: string) {
-  const jsonStart = raw.indexOf("{");
-  if (jsonStart < 0) return null;
-  try {
-    const nested = JSON.parse(
-      raw.slice(jsonStart),
-    ) as StudentDeletionErrorPayload;
-    const message =
-      typeof nested.error === "string"
-        ? nested.error
-        : typeof nested.message === "string"
-          ? nested.message
-          : raw;
-    return {
-      message,
-      code: typeof nested.code === "string" ? nested.code : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
 function studentDeletionErrorDetails(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") {
     return { message: fallback, code: undefined };
@@ -665,10 +643,6 @@ function studentDeletionErrorDetails(payload: unknown, fallback: string) {
     };
   }
 
-  // The Next.js proxy wraps backend JSON inside "API error (409): {...}".
-  // Preserve the stable code alongside the original domain message.
-  const nested = nestedStudentDeletionError(raw);
-  if (nested) return nested;
   return {
     message: raw,
     code: typeof candidate.code === "string" ? candidate.code : undefined,

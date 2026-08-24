@@ -27,18 +27,77 @@ import (
 func wireCareLifecycle(t *testing.T, tc *testContext) {
 	t.Helper()
 	repos := repositories.NewFactory(tc.db)
+	deletion := userService.NewStudentDeletionService(
+		tc.resource.StudentService,
+		repos.Student,
+		repos.Person,
+		repos.StudentDeletion,
+		repos.GradeTransition,
+		repos.DataDeletion,
+		repos.StudentDeletionAudit,
+		tc.db,
+	)
+	userService.WireStudentDeletionCareWithdrawals(deletion, repos.CareWithdrawal)
 	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
 		userService.CareLifecycleDependencies{
-			StudentRepo:    repos.Student,
-			PersonRepo:     repos.Person,
-			CareExitRepo:   repos.CareExit,
-			CleanupRepo:    repos.CareExitCleanup,
-			WithdrawalRepo: repos.CareWithdrawal,
-			TagReleaser:    repos.GradeTransition,
-			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
-			DB:             tc.db,
-			Logger:         slog.Default(),
+			StudentRepo:     repos.Student,
+			PersonRepo:      repos.Person,
+			CareExitRepo:    repos.CareExit,
+			CleanupRepo:     repos.CareExitCleanup,
+			WithdrawalRepo:  repos.CareWithdrawal,
+			TagReleaser:     repos.GradeTransition,
+			AuditService:    userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+			StudentDeletion: deletion,
+			DB:              tc.db,
+			Logger:          slog.Default(),
 		})
+}
+
+func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
+	repos := repositories.NewFactory(tc.db)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
+	_, actor := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CareWithdrawal", "StaleDelete")
+	studentID := student.ID
+	completion := &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
+		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}
+	require.NoError(t, repos.CareWithdrawal.UpsertPending(testpkg.Ctx(t), completion))
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	previewRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodGet, fmt.Sprintf("/care-withdrawals/%d/deletion-impact", completion.ID), nil,
+	)
+	previewResponse := authExec(t, tc, previewRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusOK, previewResponse.Code, previewResponse.Body.String())
+	var preview struct {
+		Data struct {
+			ConfirmationName string `json:"confirmation_name"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(previewResponse.Body.Bytes(), &preview))
+
+	deleteRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodDelete, fmt.Sprintf("/care-withdrawals/%d", completion.ID), map[string]any{
+			"expected_fingerprint": "stale",
+			"confirmation_name":    preview.Data.ConfirmationName,
+			"reason":               userService.StudentDeletionReasonPrivacyRequest,
+			"acknowledged":         true,
+		},
+	)
+	deleteResponse := authExec(t, tc, deleteRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusConflict, deleteResponse.Code, deleteResponse.Body.String())
+	assert.Contains(t, deleteResponse.Body.String(), `"code":"students.deletion_preview_changed"`)
+
+	stored, err := repos.CareWithdrawal.FindByID(testpkg.Ctx(t), completion.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+	assert.Equal(t, userModels.CareWithdrawalStatePending, stored.State)
+	assert.Equal(t, student.ID, *stored.StudentID)
 }
 
 func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {

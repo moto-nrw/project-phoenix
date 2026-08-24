@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
 import { NextRequest } from "next/server";
 
+import { ApiResponseError } from "~/lib/api-helpers.server";
 import { DELETE } from "./route";
 
 interface ExtendedSession extends Session {
@@ -65,5 +66,36 @@ describe("DELETE /api/students/care-withdrawals/[completionId]", () => {
       body,
     );
     expect(response.status).toBe(204);
+  });
+
+  it("preserves the backend error code as a structured proxy field", async () => {
+    mockApiDelete.mockRejectedValueOnce(
+      new ApiResponseError(
+        409,
+        JSON.stringify({
+          status: "error",
+          error: "Vorschau veraltet",
+          code: "students.deletion_preview_changed",
+        }),
+      ),
+    );
+
+    const response = await DELETE(
+      new NextRequest(
+        "http://localhost:3000/api/students/care-withdrawals/73",
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      ),
+      { params: Promise.resolve({ completionId: "73" }) },
+    );
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({
+      error: "Vorschau veraltet",
+      code: "students.deletion_preview_changed",
+    });
   });
 });
