@@ -221,8 +221,9 @@ export function AccountTenantAccessModal({
   const needsName = !knowsName;
 
   function rolesForSchool(schoolId: string) {
-    // Shared exclusion set (guardian, legacy teacher) — lehrkraft (#1772) is
-    // assignable since the class day view (/klassen) shipped.
+    // Shared exclusion set (guardian, legacy teacher). lehrkraft (#1772) is
+    // assignable since the class day view shipped; it lives in the school
+    // portal since the cutover (#2207).
     return (rolesBySchool[schoolId] ?? []).filter((role) =>
       isAssignableStaffRole(role.name),
     );

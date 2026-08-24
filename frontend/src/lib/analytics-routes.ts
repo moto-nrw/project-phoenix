@@ -49,7 +49,6 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/enrollment-phases/:id/rollover",
   "/info-displays",
   "/invitations",
-  "/klassen",
   "/lists",
   "/meal-plan",
   "/messages",

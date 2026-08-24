@@ -93,6 +93,7 @@ async function requestJson<T>(
       response.status,
       extractErrorMessage(data) ??
         `Passkey-Anfrage fehlgeschlagen (${response.status}).`,
+      extractErrorCode(data) ?? undefined,
     );
   }
 
@@ -108,10 +109,17 @@ function extractErrorMessage(data: unknown): string | null {
   return null;
 }
 
+function extractErrorCode(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const rec = data as Record<string, unknown>;
+  return typeof rec.code === "string" ? rec.code : null;
+}
+
 export class PasskeyApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
     this.name = "PasskeyApiError";

@@ -45,6 +45,10 @@ type AuthService interface {
 	// LoginWithMFAGate; school challenges carry the school challenge scope
 	// and are redeemable only at the school verify endpoint.
 	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
+	// LoginSchoolAtTenantWithMFAGate is the selected-school variant of
+	// LoginSchoolWithMFAGate. It verifies that the account has a school-portal
+	// role at tenantSlug before issuing a school-scope result.
+	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	// IssueSchoolTokensForAuthenticatedAccount is the school-scope sibling of
 	// IssueTokensForAuthenticatedAccount, used by the school MFA verify
 	// endpoint. Re-validates the school-portal role at the tenant.

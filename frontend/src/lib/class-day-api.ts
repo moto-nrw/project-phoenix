@@ -1,8 +1,11 @@
-// Client-side API for the Lehrkraft-Tagesansicht (#1772): read-only per-class
-// day view. The backend scopes every call to the caller's assigned classes
-// (education.class_teachers) and never returns guardian contact data here.
-
-import { authFetch } from "./api-helpers";
+// Report-Vertrag der Klassenansicht (#1772): read-only Tagesansicht einer
+// Klasse. Das Backend scopt jeden Abruf auf die zugewiesenen Klassen der
+// aufrufenden Person (education.class_teachers) und liefert hier nie
+// Kontaktdaten der Sorgeberechtigten.
+//
+// Seit dem Cutover (#2207 PR 3) gibt es nur noch einen Abrufweg: das
+// Schul-Portal über lib/school-class-day-api. Diese Datei trägt deshalb nur
+// noch die Typen, die sich Ansicht und Abruf teilen.
 
 export interface ClassDayRow {
   student_id: number;
@@ -44,27 +47,4 @@ export interface ClassDayReport {
   enrollment_known: boolean;
   totals: ClassDayTotals;
   rows: ClassDayRow[];
-}
-
-interface ProxyResponse<T> {
-  success: boolean;
-  data: T;
-}
-
-export async function fetchMyClasses(): Promise<string[]> {
-  const response = await authFetch<ProxyResponse<{ classes: string[] }>>(
-    "/api/class-day/classes",
-  );
-  return response.data.classes ?? [];
-}
-
-export async function fetchClassDay(
-  schoolClass: string,
-  date: string,
-): Promise<ClassDayReport> {
-  const params = new URLSearchParams({ class: schoolClass, date });
-  const response = await authFetch<ProxyResponse<ClassDayReport>>(
-    `/api/class-day?${params.toString()}`,
-  );
-  return response.data;
 }

@@ -622,6 +622,28 @@ describe("tenant-api", () => {
       } satisfies Partial<TenantSwitchError>);
     });
 
+    it("preserves the school portal handoff code", async () => {
+      mockSessionFetch.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "error",
+            error: "school portal accounts must log in at the school portal",
+            code: "use_school_portal",
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      );
+
+      await expect(switchTenant("school-b")).rejects.toMatchObject({
+        name: "TenantSwitchError",
+        status: 403,
+        code: "use_school_portal",
+      } satisfies Partial<TenantSwitchError>);
+    });
+
     it("throws generic error when response body is empty", async () => {
       mockSessionFetch.mockResolvedValueOnce(new Response("", { status: 500 }));
 
