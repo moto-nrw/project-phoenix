@@ -110,6 +110,14 @@ function schoolApiPut<T, B = unknown>(
   return schoolServerFetch<T>(endpoint, token, { method: "PUT", body });
 }
 
+function schoolApiPatch<T, B = unknown>(
+  endpoint: string,
+  token: string,
+  body?: B,
+): Promise<T> {
+  return schoolServerFetch<T>(endpoint, token, { method: "PATCH", body });
+}
+
 type NoBodyHandler<T> = (
   request: NextRequest,
   token: string,
@@ -214,20 +222,29 @@ function createSchoolPutHandler<T, B = unknown>(
   return createSchoolWithBodyHandler(handler);
 }
 
+function createSchoolPatchHandler<T, B = unknown>(
+  handler: WithBodyHandler<T, B>,
+) {
+  return createSchoolWithBodyHandler(handler);
+}
+
 /**
  * School proxy factories — envelope-wrapping pass-throughs built on the
  * school base handlers (school fetchers already unwrap `data`). Use these
- * for pure pass-through school routes. Only proxyGet is exported so far —
- * the portal is read-only today; export more verbs as routes need them.
+ * for pure pass-through school routes. GET/POST/PATCH are exported: the
+ * supervision surface (#2527) starts and completes blocks and writes
+ * attendance; export more verbs as routes need them.
  */
-export const { proxyGet } = makeProxyFactories({
+export const { proxyGet, proxyPost, proxyPatch } = makeProxyFactories({
   get: createSchoolGetHandler,
   post: createSchoolPostHandler,
   put: createSchoolPutHandler,
+  patch: createSchoolPatchHandler,
   del: createSchoolDeleteHandler,
   apiGet: schoolApiGet,
   apiPost: schoolApiPost,
   apiPut: schoolApiPut,
+  apiPatch: schoolApiPatch,
   apiDelete: schoolApiDelete,
   fetcherUnwrapsData: true,
 });

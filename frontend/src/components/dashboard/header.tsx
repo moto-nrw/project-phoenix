@@ -42,6 +42,19 @@ import {
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
 
+
+// Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
+// selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
+// "/aufsichten", intern laufen die Seiten unter /school und
+// /school/aufsichten.
+function schoolTitleForPath(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/school") return "Klassenansicht";
+  if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
+    return "Meine Aufsichten";
+  }
+  return null;
+}
+
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
   const {
@@ -109,13 +122,11 @@ export function Header() {
       return tParentNav("enroll");
     return null;
   })();
-  // Schul-Portal (#2207): die Klassenansicht ist die Root-Seite des
-  // Schul-Hosts — getPageTitle kennt nur die Tenant-Pfade und würde den
+  // Schul-Portal (#2207): die Seiten des Schul-Hosts laufen ohne
+  // /school-Präfix — getPageTitle kennt nur die Tenant-Pfade und würde den
   // Dashboard-Fallback anzeigen.
   const schoolPageTitle =
-    mode === "school" && (pathname === "/" || pathname === "/school")
-      ? "Klassenansicht"
-      : null;
+    mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
 
   // Derive user info from ShellAuth context

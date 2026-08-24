@@ -374,6 +374,10 @@ function handleParentsSubdomain(request: NextRequest): NextResponse {
  * The Klassenansicht itself lives at the root ("/" → /school).
  */
 const SCHOOL_PUBLIC_PATHS = ["/login", "/invite", "/reset-password"];
+/** Angemeldete Portal-Bereiche neben der Klassenansicht an der Wurzel.
+ * Gleiche Umschreibung wie die öffentlichen Pfade; die Anmeldung prüft
+ * weiterhin der SchoolAuthGuard, nicht der Proxy. */
+const SCHOOL_PROTECTED_PATHS = ["/aufsichten"];
 const SCHOOL_INVITATION_API_PATHS = [
   "/api/invitations/validate",
   "/api/invitations/accept",
@@ -427,7 +431,7 @@ function handleSchoolSubdomain(request: NextRequest): NextResponse {
 
   // Known school paths → rewrite to /school/* internally.
   if (
-    SCHOOL_PUBLIC_PATHS.some(
+    [...SCHOOL_PUBLIC_PATHS, ...SCHOOL_PROTECTED_PATHS].some(
       (p) => pathname === p || pathname.startsWith(`${p}/`),
     )
   ) {

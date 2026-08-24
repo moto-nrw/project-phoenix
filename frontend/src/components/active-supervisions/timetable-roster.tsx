@@ -214,6 +214,12 @@ interface TimetableRosterRowProps {
   readonly instanceIsSpontaneous: boolean;
   readonly row: TimetableRosterRow;
   readonly onAction: RosterRowActionsProps["onAction"];
+  /**
+   * Öffnet die Abhol- und Notfallinformationen des Kindes (#2527). Nur das
+   * Schul-Portal reicht das durch; ohne Callback bleibt der Name Text und
+   * sieht auch nicht antippbar aus.
+   */
+  readonly onOpenStudent?: (row: TimetableRosterRow) => void;
 }
 
 function TimetableRosterStudentRow({
@@ -221,6 +227,7 @@ function TimetableRosterStudentRow({
   instanceIsSpontaneous,
   row,
   onAction,
+  onOpenStudent,
 }: TimetableRosterRowProps) {
   const attendanceDetail = [
     row.substatus ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus] : null,
@@ -232,9 +239,19 @@ function TimetableRosterStudentRow({
   return (
     <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <div className="font-medium text-gray-900">
-          {row.studentName || `Kind ${row.studentId}`}
-        </div>
+        {onOpenStudent ? (
+          <button
+            type="button"
+            onClick={() => onOpenStudent(row)}
+            className="text-left font-medium text-gray-900 underline decoration-gray-300 underline-offset-4 hover:decoration-gray-600"
+          >
+            {row.studentName || `Kind ${row.studentId}`}
+          </button>
+        ) : (
+          <div className="font-medium text-gray-900">
+            {row.studentName || `Kind ${row.studentId}`}
+          </div>
+        )}
         <div className="mt-1 text-sm text-gray-500">
           {rosterStudentMeta(row, instanceIsSpontaneous)}
         </div>
@@ -260,6 +277,7 @@ interface TimetableRosterSectionProps {
   readonly attendanceWebEnabled: boolean;
   readonly instanceIsSpontaneous: boolean;
   readonly onAction: RosterRowActionsProps["onAction"];
+  readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly rows: TimetableRosterRow[];
   readonly showTimetableCounts: boolean;
   readonly title: string;
@@ -269,6 +287,7 @@ function TimetableRosterSection({
   attendanceWebEnabled,
   instanceIsSpontaneous,
   onAction,
+  onOpenStudent,
   rows,
   showTimetableCounts,
   title,
@@ -289,6 +308,7 @@ function TimetableRosterSection({
           instanceIsSpontaneous={instanceIsSpontaneous}
           row={row}
           onAction={onAction}
+          onOpenStudent={onOpenStudent}
         />
       ))}
     </section>
@@ -543,10 +563,18 @@ interface TimetableRosterContentProps {
   readonly isConfirmingExpected: boolean;
   readonly roster: TimetableRoster;
   readonly showTimetableCounts: boolean;
+  /**
+   * Erlaubt das Nachtragen eines Kindes, das nicht auf der Liste steht. Das
+   * Schul-Portal setzt `false` (#2527): eine Lehrkraft darf nur die Kinder
+   * ihrer Aufsicht anfassen und hat keine Kindersuche, hinter der das
+   * Suchfeld etwas finden könnte.
+   */
+  readonly canAddUnplanned?: boolean;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
+  readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
 }
 
@@ -559,10 +587,12 @@ export function TimetableRosterContent({
   isConfirmingExpected,
   roster,
   showTimetableCounts,
+  canAddUnplanned = true,
   onAddStudent,
   onComplete,
   onConfirmExpected,
   onRosterAction,
+  onOpenStudent,
   onSearchChange,
 }: TimetableRosterContentProps) {
   const present = roster.rows.filter(
@@ -613,6 +643,7 @@ export function TimetableRosterContent({
     attendanceWebEnabled,
     instanceIsSpontaneous,
     onAction: onRosterAction,
+    onOpenStudent,
     showTimetableCounts,
   };
 
@@ -635,7 +666,7 @@ export function TimetableRosterContent({
         onComplete={onComplete}
         onConfirmExpected={onConfirmExpected}
       />
-      {attendanceWebEnabled ? (
+      {attendanceWebEnabled && canAddUnplanned ? (
         <AddUnplannedStudentForm
           key={roster.instance.id}
           isAddingStudent={isAddingStudent}

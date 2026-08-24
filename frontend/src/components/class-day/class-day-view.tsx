@@ -36,6 +36,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { useSWRAuth } from "~/lib/swr";
 import { reconcileSelectedClass } from "./selected-class";
 
@@ -57,12 +58,6 @@ const STATUS_COLORS: Record<string, string> = {
   excused: LOCATION_COLORS.EXCUSED,
   cancelled: LOCATION_COLORS.UNKNOWN,
 };
-
-// Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
-// "Klasse 1a". Kein doppeltes Präfix anzeigen.
-function classLabel(klass: string): string {
-  return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
-}
 
 function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
@@ -216,7 +211,7 @@ function ClassCard({
       }`}
     >
       <h3 className="truncate text-sm font-semibold text-gray-900">
-        {classLabel(klass)}
+        {schoolClassLabel(klass)}
       </h3>
       <p
         className={`mt-1 text-xs ${failed ? "text-[var(--class-day-danger)]" : "text-gray-500"}`}
@@ -542,7 +537,7 @@ export function ClassDayView({
               {!weekend && !report && failedClasses.has(selectedClass) && (
                 <EmptyState
                   className="mt-4"
-                  title={`${classLabel(selectedClass)} nicht verfügbar`}
+                  title={`${schoolClassLabel(selectedClass)} nicht verfügbar`}
                   description="Diese Klasse konnte nicht geladen werden. Bitte laden Sie die Seite neu oder wählen Sie eine andere Klasse."
                 />
               )}
@@ -589,7 +584,7 @@ export function ClassDayView({
                   <div className="mt-5 space-y-4 border-t border-gray-100 pt-4">
                     {(classes?.length ?? 0) > 1 && (
                       <h3 className="text-sm font-semibold text-gray-900">
-                        {classLabel(report.school_class)} im Detail
+                        {schoolClassLabel(report.school_class)} im Detail
                       </h3>
                     )}
                     <Section

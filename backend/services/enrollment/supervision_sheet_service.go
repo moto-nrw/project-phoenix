@@ -20,7 +20,10 @@ import (
 // reached NOW, and an inbox is not a way to reach anybody. Everything the sheet
 // does not need is a detail a Lehrkraft has no business seeing.
 type SupervisionContact struct {
-	Name         string `json:"name"`
+	Name string `json:"name"`
+	// Relationship is the stored relationship type ("parent", "guardian", …),
+	// not a display string: the portal renders it through the same table as
+	// every other guardian screen.
 	Relationship string `json:"relationship,omitempty"`
 	Phone        string `json:"phone,omitempty"`
 	// Note is the pickup remark stored on the relationship ("nur mit
@@ -215,7 +218,11 @@ func (s *reportService) supervisionContacts(ctx context.Context, studentID int64
 			entry = &accumulated{order: order}
 			order++
 			entry.contact.Name = strings.TrimSpace(row.FirstName.String + " " + row.LastName.String)
-			entry.contact.Relationship = supervisionRelationshipLabel(row.RelationshipType.String)
+			// Raw wire value ("parent", "guardian", …). The German label is the
+			// frontend's RELATIONSHIP_TYPES table, which every other guardian
+			// screen already renders from — a second translation here would
+			// drift from it the first time somebody adds a type.
+			entry.contact.Relationship = strings.ToLower(strings.TrimSpace(row.RelationshipType.String))
 			entry.contact.Note = strings.TrimSpace(row.PickupNotes.String)
 			byGuardian[row.GuardianProfileID] = entry
 		}
@@ -246,32 +253,6 @@ func (s *reportService) supervisionContacts(ctx context.Context, studentID int64
 		}
 	}
 	return pickup, emergency, nil
-}
-
-// supervisionRelationshipLabels are the German labels for the stored
-// relationship types. An unknown value falls through to the raw string rather
-// than disappearing: a label nobody translated is still more useful than none.
-var supervisionRelationshipLabels = map[string]string{
-	"mother":      "Mutter",
-	"father":      "Vater",
-	"guardian":    "Erziehungsberechtigt",
-	"grandmother": "Großmutter",
-	"grandfather": "Großvater",
-	"sibling":     "Geschwisterkind",
-	"relative":    "Verwandt",
-	"neighbor":    "Nachbarschaft",
-	"other":       "Weitere Person",
-}
-
-func supervisionRelationshipLabel(raw string) string {
-	key := strings.ToLower(strings.TrimSpace(raw))
-	if key == "" {
-		return ""
-	}
-	if label, ok := supervisionRelationshipLabels[key]; ok {
-		return label
-	}
-	return strings.TrimSpace(raw)
 }
 
 // recordSupervisionSheetAudit writes the GDPR access log for one child's

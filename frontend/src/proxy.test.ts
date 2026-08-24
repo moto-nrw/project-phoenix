@@ -438,6 +438,16 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /aufsichten to /school/aufsichten (#2527)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/aufsichten`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/aufsichten",
+      );
+    });
+
     it("returns 404 for tenant, operator, and parent auth endpoints", () => {
       for (const path of [
         "/api/auth/session",

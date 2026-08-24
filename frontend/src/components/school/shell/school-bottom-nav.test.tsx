@@ -14,11 +14,12 @@ vi.mock("~/lib/school-url", () => ({
 }));
 
 describe("SchoolBottomNav", () => {
-  it("beschriftet beide Ziele dauerhaft, nicht nur das aktive", () => {
+  it("beschriftet alle Ziele dauerhaft, nicht nur das aktive", () => {
     mockPathname.value = "/";
     render(<SchoolBottomNav />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
+    expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
     expect(screen.getByText("Hilfe")).toBeInTheDocument();
   });
 
