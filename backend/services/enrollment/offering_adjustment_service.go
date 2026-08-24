@@ -544,9 +544,7 @@ func careExitSourceOfferingsFromLinks(
 		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed && len(days) == 0 {
 			days = offering.AvailableDays
 		}
-		if len(days) > 0 {
-			result = append(result, users.CareExitSourceOffering{Name: offering.Name, Days: copyDays(days)})
-		}
+		result = append(result, users.CareExitSourceOffering{Name: offering.Name, Days: copyDays(days)})
 	}
 	return result
 }

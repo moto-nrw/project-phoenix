@@ -36,9 +36,11 @@ func careWithdrawalWeeklyPlanObsoleteUp(ctx context.Context, db *bun.DB) error {
 
 func careWithdrawalWeeklyPlanObsoleteDown(ctx context.Context, db *bun.DB) error {
 	if _, err := db.NewRaw(`
-		UPDATE users.care_withdrawal_completions
-		SET obsolete_reason = 'rebooked_without_gap'
-		WHERE obsolete_reason = 'weekly_plan_mode';
+		DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM users.care_withdrawal_completions WHERE obsolete_reason = 'weekly_plan_mode') THEN
+				RAISE EXCEPTION 'cannot roll back: weekly-plan completion history exists';
+			END IF;
+		END $$;
 		ALTER TABLE users.care_withdrawal_completions
 			DROP CONSTRAINT IF EXISTS care_withdrawal_completions_obsolete_reason_check;
 		ALTER TABLE users.care_withdrawal_completions
