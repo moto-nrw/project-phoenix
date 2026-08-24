@@ -362,7 +362,7 @@ func TestChangeRequestReviewList_FiltersByNameStatusAndPeriod(t *testing.T) {
 	t.Parallel()
 
 	env := setupReviewListTest(t)
-	base := time.Now().UTC().Add(-2 * time.Hour)
+	base := timezone.NewDate(2026, 8, 19).BerlinMidnight().Add(12 * time.Hour)
 
 	approved := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusApproved, base, env.childIDs[0], true)
 	rejected := env.insertChangeRequest(t, enrollmentModels.ChangeRequestStatusRejected, base.Add(-time.Minute), env.childIDs[1], true)

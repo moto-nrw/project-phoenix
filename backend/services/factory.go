@@ -202,6 +202,7 @@ type Factory struct {
 	EnrollmentCaptcha         *enrollment.CaptchaService
 	EnrollmentRequest         enrollment.RequestService
 	EnrollmentPhase           enrollment.PhaseService
+	EnrollmentPhaseExpiry     enrollment.PhaseExpiryService
 	EnrollmentDecision        enrollment.DecisionService
 	EnrollmentReport          enrollment.ReportService
 	EnrollmentRollover        enrollment.RolloverService
@@ -1624,6 +1625,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
+	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(repos.PhaseExpiry)
 
 	studentAuditService := users.NewStudentAuditService(
 		repos.StudentFieldEdit,
@@ -2476,6 +2478,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentCaptcha:         enrollmentCaptchaService,
 		EnrollmentRequest:         enrollmentRequestService,
 		EnrollmentPhase:           enrollmentPhaseService,
+		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
 		EnrollmentReport:          enrollmentReportService,
 		EnrollmentRollover:        enrollmentRolloverService,

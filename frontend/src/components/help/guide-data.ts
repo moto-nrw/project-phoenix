@@ -1658,6 +1658,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
           "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
           "Für das nächste Halbjahr im Aktionsmenü `Anschlussphase erstellen` wählen. Die Vorschau zeigt: wird übernommen, muss geprüft werden oder wird nicht übernommen. Bei `Klassenstufe erhöhen` wird die Vorschau neu berechnet. Eltern können danach bestätigen, nur Angebote und Wochentage anpassen oder abmelden. Bei einer Anpassung bleiben alle anderen Angaben erhalten.",
+          "30 Tage vor dem ersten Betreuungstag nach einem Phasenende warnt moto, wenn Buchungen auslaufen. Der Hinweis nennt das Datum und die Zahl der betroffenen Kinder. Bei `Anschlussphase fehlt` auf `Anschlussphase erstellen` klicken.",
+          "Nach dem Erstellen prüft moto die Übernahme weiter. Bei `Übernahme noch offen` auf `Anschlussphase öffnen` klicken. Der Hinweis verschwindet, wenn die OGS jedes übernommene Kind genehmigt hat. Für jedes genehmigte Kind muss mindestens ein aktives Angebot gebucht sein. Das kann zum Beispiel Betreuung oder Mittagessen sein. Abgelehnte oder abgemeldete Kinder gelten ebenfalls als erledigt.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1665,7 +1667,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot:
-          "Anmeldephase mit Betreuungszeitraum, Anmeldefenster und Formularwahl.",
+          "Anmeldephasen mit Warnung vor auslaufenden Buchungen und der Aktion Anschlussphase erstellen.",
         image: "/help/screens/anmeldephasen.webp",
       },
       {
