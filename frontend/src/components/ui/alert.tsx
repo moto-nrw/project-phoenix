@@ -6,6 +6,7 @@ type AlertType = "error" | "success" | "warning" | "info";
 
 interface AlertProps {
   readonly type: AlertType;
+  readonly title?: string;
   readonly message: string;
   readonly announce?: "assertive" | "polite" | "off";
   /**
@@ -19,6 +20,7 @@ interface AlertProps {
 
 export function Alert({
   type,
+  title,
   message,
   announce,
   action,
@@ -110,12 +112,19 @@ export function Alert({
             ? "alert"
             : "status"
       }
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm transition-[box-shadow,opacity] duration-200 hover:opacity-95 hover:shadow-md ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]}`}
+      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]}`}
     >
       {icons[type]}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde
           sie beim Umbruch komplett unter das Icon rutschen. */}
-      <span className={action ? "min-w-0 flex-1" : undefined}>{message}</span>
+      {title ? (
+        <div className={action ? "min-w-0 flex-1" : undefined}>
+          <p className="font-semibold">{title}</p>
+          <p className="mt-0.5">{message}</p>
+        </div>
+      ) : (
+        <span className={action ? "min-w-0 flex-1" : undefined}>{message}</span>
+      )}
       {/* basis-full: die Aktion rutscht auf schmalen Bildschirmen unter die
           Meldung, statt den Text in eine schmale Spalte zu quetschen. Ab sm
           steht sie wieder rechts in derselben Zeile. */}

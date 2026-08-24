@@ -246,6 +246,23 @@ Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
 Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
 eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.
 
+## Phasenende
+
+Eine **auslaufende Angebotsbuchung** ist eine am Ende des Leistungszeitraums
+einer Anmeldephase noch wirksame Buchung, deren Gültigkeit mit der Phase endet.
+
+Ein **vom Phasenende betroffenes Kind** ist ein Kind, dessen OGS-Betreuung am
+Phasenende noch läuft und das mindestens eine auslaufende Angebotsbuchung hat.
+Das Angebot muss nicht als Betreuungstag zählen.
+
+Eine **Anschlussphase** ist eine Schuljahresphase, die mit einer auslaufenden
+Schuljahresphase verknüpft ist oder zeitlich ohne Buchungslücke an sie anschließt.
+
+Ein **Übernahmekandidat** ist ein vom Phasenende betroffenes Kind, das mit seinen
+Buchungen in eine Anschlussphase kopiert wurde, dort aber noch nicht genehmigt
+ist. Erst die Genehmigung mit mindestens einer wirksamen Angebotsbuchung ist
+eine **wirksame Übernahme**.
+
 ## Mitbuchungs-Regel
 
 Eine **Mitbuchungs-Regel** legt an einem Ziel-Angebot fest, dass es automatisch

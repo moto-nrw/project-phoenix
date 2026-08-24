@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   fetchManualEnrollmentBootstrap: vi.fn(),
   fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
+  listPhaseExpiryWarnings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
   renameSchema: vi.fn(),
@@ -40,6 +41,7 @@ const mocks = vi.hoisted(() => ({
     gradeLevelMax?: number;
   }>,
   searchParams: new URLSearchParams(),
+  routerReplace: vi.fn(),
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -61,6 +63,8 @@ vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
 });
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/demo/enrollment-phases",
+  useRouter: () => ({ replace: mocks.routerReplace }),
   useSearchParams: () => mocks.searchParams,
 }));
 
@@ -77,6 +81,11 @@ vi.mock("~/lib/tenant-context", () => ({
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => mocks.toast,
+}));
+
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useSWRAuth: () => ({ data: [], error: undefined, isLoading: false }),
 }));
 
 vi.mock("./rollover-form", () => ({
@@ -123,6 +132,7 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
     ...actual,
     createPhase: mocks.createPhase,
     deletePhase: mocks.deletePhase,
+    listPhaseExpiryWarnings: mocks.listPhaseExpiryWarnings,
     listPhases: mocks.listPhases,
     updatePhase: mocks.updatePhase,
   };
@@ -379,6 +389,8 @@ beforeEach(() => {
   mocks.listCareOfferings.mockReset();
   mocks.fetchCareOfferingBookingStats.mockReset();
   mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
+  mocks.listPhaseExpiryWarnings.mockReset();
+  mocks.listPhaseExpiryWarnings.mockResolvedValue([]);
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
   mocks.renameSchema.mockReset();
@@ -397,6 +409,7 @@ beforeEach(() => {
   mocks.toast.error.mockReset();
   mocks.toast.warning.mockReset();
   mocks.searchParams = new URLSearchParams();
+  mocks.routerReplace.mockReset();
   Object.defineProperty(window, "confirm", {
     value: vi.fn(() => true),
     configurable: true,

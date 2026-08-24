@@ -454,8 +454,8 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth phoeni
 	now := time.Now().UTC()
 	openAt := now.Add(-24 * time.Hour).Format(time.RFC3339)
 	closeAt := now.AddDate(0, 2, 0).Format(time.RFC3339)
-	serviceStart := now.AddDate(0, 2, 0).Format("2006-01-02")
-	serviceEnd := now.AddDate(1, 1, 0).Format("2006-01-02")
+	serviceStart := now.AddDate(0, -10, 0).Format("2006-01-02")
+	serviceEnd := now.AddDate(0, 0, 20).Format("2006-01-02")
 	body := map[string]any{
 		"name":                         fmt.Sprintf("Demo Anmeldung %d/%d", now.Year(), now.Year()+1),
 		"kind":                         enrollmentModels.PhaseKindSchoolYear,

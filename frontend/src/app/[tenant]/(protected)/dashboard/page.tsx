@@ -31,6 +31,8 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -226,6 +228,7 @@ function DashboardContent() {
 
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
+  const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
 
   return (
     <div className="w-full">
@@ -247,6 +250,10 @@ function DashboardContent() {
           {error}
         </div>
       )}
+
+      {canReadPhaseExpiryWarnings ? (
+        <PhaseExpiryWarnings className="mb-6 md:mb-8" />
+      ) : null}
 
       {/* Main Stats Grid */}
       <div
