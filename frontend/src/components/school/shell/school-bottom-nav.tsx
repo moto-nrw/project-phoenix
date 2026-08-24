@@ -34,7 +34,16 @@ export function SchoolBottomNav() {
       aria-label="Hauptnavigation"
       className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
     >
-      <div className="px-4 pb-4">
+      {/* Die Leiste schwebt, ihr Rand ist also durchsichtig — ohne diesen
+          Verlauf laeuft der Inhalt daneben und darunter sichtbar weiter und
+          endet mitten in einer Zeile. Der Verlauf geht auf die Seitenfarbe
+          (gray-50) und nicht auf Weiss, damit er auf dem gepunkteten
+          Hintergrund keine Kante zieht. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-gray-50 via-gray-50/90 to-transparent"
+      />
+      <div className="relative px-4 pb-4">
         <div className="rounded-full border border-gray-200/50 bg-white/95 px-3 py-2 shadow-[0_-2px_20px_rgba(0,0,0,0.08)] backdrop-blur-md">
           <ul className="flex items-center justify-around gap-1">
             {SCHOOL_MOBILE_NAV.map((item) => {
