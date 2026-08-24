@@ -68,7 +68,7 @@ frontend_changes=$(
   } | awk '!/\.md$/' | sort -u
 )
 if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup\.ts)'; then
+  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
   echo "==> vitest (frontend test infrastructure changed)"
   (cd frontend && pnpm vitest run)
 elif [ -n "$frontend_changes" ]; then

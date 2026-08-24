@@ -3,6 +3,9 @@ import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { availableParallelism } from "node:os";
 
+const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
+const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
+
 // Pin the test process to Berlin time. The app reasons in Europe/Berlin
 // wall-clock (backend timestamps, reminder thresholds, calendar-date handling),
 // and several tests drive fake system time and assert against wall-clock
@@ -14,8 +17,8 @@ process.env.TZ = "Europe/Berlin";
 export default defineConfig({
   plugins: [react()],
   test: {
-    environment: "happy-dom",
     globals: true,
+    silent: "passed-only",
     // threads statt des Default-Pools "forks": gemessen auf der vollen Suite
     // (1027 Dateien / 14160 Tests, 16-Core-MacBook) 124s → 76s Wandzeit und
     // -24% CPU — der Unterschied ist reiner Prozess-Spawn-/IPC-Overhead.
@@ -27,8 +30,29 @@ export default defineConfig({
     maxWorkers: process.env.CI
       ? availableParallelism()
       : Math.max(1, Math.min(4, Math.floor(availableParallelism() / 2))),
-    setupFiles: ["./src/test/setup.ts"],
-    exclude: ["**/node_modules/**", "**/e2e/**"], // Exclude Playwright tests
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "api-node",
+          include: apiTestFiles,
+          exclude: baseTestExcludes,
+          environment: "node",
+          setupFiles: ["./src/test/setup-common.ts"],
+          sequence: { groupOrder: 0 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "app-dom",
+          exclude: [...baseTestExcludes, ...apiTestFiles],
+          environment: "happy-dom",
+          setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
+          sequence: { groupOrder: 1 },
+        },
+      },
+    ],
     coverage: {
       provider: "v8",
       // CI uploads only lcov.info for SonarCloud. Building JSON/HTML trees and
