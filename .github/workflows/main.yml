@@ -37,6 +37,7 @@ jobs:
       run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-backend-lint: ${{ steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      full-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits and
       # frontend-only pushes cannot affect it and must not buy another runner.
@@ -71,7 +72,15 @@ jobs:
               - 'backend/.go-arch-lint.yml'
               - 'backend/tools/go.mod'
               - 'backend/tools/go.sum'
+              - 'scripts/backend-affected-packages.sh'
+              - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-architecture.sh'
+            backend-lint-full:
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/.golangci.yml'
+              - 'scripts/backend-affected-packages.sh'
+              - 'scripts/backend-affected-packages_test.sh'
             backend-production:
               - 'backend/**/*.go'
               - '!backend/**/*_test.go'
@@ -110,6 +119,7 @@ jobs:
     uses: ./.github/workflows/lint.yml
     with:
       run-backend: ${{ needs.detect-changes.outputs.run-backend-lint == 'true' }}
+      full-backend: ${{ needs.detect-changes.outputs.full-backend-lint == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend-lint == 'true' }}
 
   test:
