@@ -256,6 +256,14 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Check frontend route invariants
+        if: ${{ inputs.is-pr }}
+        working-directory: frontend
+        run: >-
+          pnpm vitest run
+          src/lib/app-route-invariants.test.ts
+          src/lib/analytics-routes.test.ts
+
       - name: Run changed frontend tests
         if: ${{ inputs.is-pr && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
         working-directory: frontend
