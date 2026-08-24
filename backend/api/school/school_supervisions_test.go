@@ -177,6 +177,58 @@ func TestSchoolSupervisionsFollowTheAssignment(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
+// TestSchoolSupervisionsAreBoundToToday pins the second half of the boundary:
+// the assignment says WHICH block, today says WHEN. The day list answers only
+// for today, but the detail routes take an instance id — and an id is guessable,
+// so the clamp has to live behind them, not in front of them.
+//
+// Without it a Lehrkraft could pull the roster, and with it a child's pickup and
+// emergency contacts, for every block she is planned into next week or was
+// planned into months ago.
+func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
+	t.Parallel()
+	f := setupSupervisionFixture(t)
+
+	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Andere", "Woche", "2a")
+
+	for _, tc := range []struct {
+		name string
+		date timezone.Date
+	}{
+		{name: "nächste Woche", date: timezone.TodayDate().AddDays(7)},
+		{name: "vergangener Block", date: timezone.TodayDate().AddDays(-14)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", tc.name, time.Now().UnixNano()))
+			other := testpkg.CreateTestActivityInstance(t, f.db, tc.date, room.ID, testpkg.ActivityInstanceOpts{
+				Title:     "Lernzeit",
+				StartHHMM: "10:00",
+				EndHHMM:   "11:00",
+			})
+			testpkg.CreateTestInstanceStaff(t, f.db, other.ID, f.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+			testpkg.CreateTestInstanceStudent(t, f.db, other.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+
+			// Assigned, same school, correct permission — and still closed,
+			// because the day is part of the boundary.
+			rec := f.request(t, http.MethodGet, "/supervisions/", nil)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			assert.NotContains(t, instanceIDsInDayList(t, rec.Body.Bytes()), other.ID)
+
+			for _, path := range []string{
+				fmt.Sprintf("/supervisions/%d/roster", other.ID),
+				fmt.Sprintf("/supervisions/%d/students/%d/sheet", other.ID, student.ID),
+			} {
+				rec = f.request(t, http.MethodGet, path, nil)
+				assert.Equal(t, http.StatusForbidden, rec.Code, path+": "+rec.Body.String())
+			}
+			rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", other.ID), nil)
+			assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+			rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", other.ID, student.ID), nil)
+			assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+		})
+	}
+}
+
 // TestSchoolSupervisionsIgnoreOperationalOverview pins the #2380 boundary:
 // switching a school to "Alle Räume für alle Mitarbeitenden" opens every
 // running module to OGS staff — and must open nothing at all to a Lehrkraft,

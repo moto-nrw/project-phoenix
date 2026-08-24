@@ -27,7 +27,8 @@ interface ApiEnvelope<T> {
 export interface SupervisionContact {
   name: string;
   relationship?: string;
-  phone?: string;
+  /** Eine Nummer je Eintrag — das Backend fasst nichts zu einer Zeile zusammen. */
+  phones: string[];
   note?: string;
 }
 
@@ -56,8 +57,17 @@ interface BackendSupervisionStudentSheet {
   pickup?: string;
   departure: string;
   status?: string;
-  pickup_contacts: SupervisionContact[];
-  emergency_contacts: SupervisionContact[];
+  pickup_contacts: BackendSupervisionContact[];
+  emergency_contacts: BackendSupervisionContact[];
+}
+
+/** Wire-Form: `phones` fehlt, sobald eine Antwort aus einer älteren Version kommt. */
+type BackendSupervisionContact = Omit<SupervisionContact, "phones"> & {
+  phones?: string[];
+};
+
+function mapContact(raw: BackendSupervisionContact): SupervisionContact {
+  return { ...raw, phones: raw.phones ?? [] };
 }
 
 class SchoolSupervisionApiError extends Error {
@@ -114,8 +124,8 @@ function mapSheet(
     pickup: raw.pickup,
     departure: raw.departure,
     status: raw.status,
-    pickupContacts: raw.pickup_contacts ?? [],
-    emergencyContacts: raw.emergency_contacts ?? [],
+    pickupContacts: (raw.pickup_contacts ?? []).map(mapContact),
+    emergencyContacts: (raw.emergency_contacts ?? []).map(mapContact),
   };
 }
 

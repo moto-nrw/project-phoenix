@@ -63,7 +63,7 @@ function ContactRows({
     <DataGrid>
       {contacts.map((contact, index) => (
         <DataField
-          key={`${contact.name}-${contact.phone ?? index}`}
+          key={`${contact.name}-${contact.phones.join("-") || index}`}
           label={
             contact.relationship
               ? getRelationshipTypeLabel(contact.relationship)
@@ -71,13 +71,18 @@ function ContactRows({
           }
         >
           <span className="block">{contact.name}</span>
-          {contact.phone ? (
-            <a
-              href={`tel:${contact.phone.replace(/\s/g, "")}`}
-              className="mt-0.5 block underline decoration-gray-300 underline-offset-4"
-            >
-              {contact.phone}
-            </a>
+          {/* Jede hinterlegte Nummer bekommt ihren eigenen Link: ein Link mit
+              zwei Nummern wählt keine davon. */}
+          {contact.phones.length > 0 ? (
+            contact.phones.map((phone) => (
+              <a
+                key={phone}
+                href={`tel:${phone.replace(/[^\d+]/g, "")}`}
+                className="mt-0.5 block underline decoration-gray-300 underline-offset-4"
+              >
+                {phone}
+              </a>
+            ))
           ) : (
             <span className="mt-0.5 block text-xs font-normal text-gray-500">
               Keine Telefonnummer hinterlegt

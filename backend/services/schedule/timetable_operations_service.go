@@ -790,6 +790,16 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	if err != nil {
 		return 0, err
 	}
+	// An assignment-bound portal reaches TODAY and nothing else (#2527). Its
+	// list already answers only for today, but a detail route takes an id, and
+	// ids are guessable: without this clamp a Lehrkraft could pull the roster
+	// — and with it a child's pickup and emergency contacts — for any block
+	// she is planned into next week or was planned into in March. Her access
+	// follows the day she stands in front of the children, so the day is part
+	// of the boundary, not just the assignment.
+	if authorize.IsAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+		return 0, ErrTimetableOperationForbidden
+	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return 0, err

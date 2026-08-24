@@ -11,7 +11,7 @@ import { ChevronRight } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatTile } from "~/components/ui/stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { formatDate } from "~/lib/date-helpers";
@@ -133,9 +133,18 @@ export function SupervisionsOverview({
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            <StatTile label="Aufsichten heute" value={summary.count} />
-            <StatTile label="Kinder insgesamt" value={summary.children} />
-            <StatTile
+            <StatCard
+              variant="tile"
+              label="Aufsichten heute"
+              value={summary.count}
+            />
+            <StatCard
+              variant="tile"
+              label="Kinder insgesamt"
+              value={summary.children}
+            />
+            <StatCard
+              variant="tile"
               label={summary.running ? "Läuft gerade" : "Als Nächstes"}
               value={
                 summary.running?.startTime ?? summary.next?.startTime ?? "—"

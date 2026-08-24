@@ -14,7 +14,7 @@ import (
 )
 
 // SupervisionContact is one adult a supervisor may need during an Aufsicht:
-// the name, how they relate to the child, and a phone number.
+// the name, how they relate to the child, and their phone numbers.
 //
 // Deliberately no e-mail address: this sheet is opened when somebody has to be
 // reached NOW, and an inbox is not a way to reach anybody. Everything the sheet
@@ -25,7 +25,10 @@ type SupervisionContact struct {
 	// not a display string: the portal renders it through the same table as
 	// every other guardian screen.
 	Relationship string `json:"relationship,omitempty"`
-	Phone        string `json:"phone,omitempty"`
+	// Phones carries one entry per stored number, never a joined string: the
+	// portal turns each into a tel: link, and a link holding two numbers dials
+	// neither. A guardian with a mobile and a work number is the normal case.
+	Phones []string `json:"phones"`
 	// Note is the pickup remark stored on the relationship ("nur mit
 	// Vollmacht", "holt immer freitags ab"). Empty for most contacts.
 	Note string `json:"note,omitempty"`
@@ -222,6 +225,7 @@ func (s *reportService) supervisionContacts(ctx context.Context, studentID int64
 			entry = &accumulated{order: order}
 			order++
 			entry.contact.Name = strings.TrimSpace(row.FirstName.String + " " + row.LastName.String)
+			entry.contact.Phones = []string{}
 			// Raw wire value ("parent", "guardian", …). The German label is the
 			// frontend's RELATIONSHIP_TYPES table, which every other guardian
 			// screen already renders from — a second translation here would
@@ -232,7 +236,7 @@ func (s *reportService) supervisionContacts(ctx context.Context, studentID int64
 		}
 		entry.canPickup = entry.canPickup || row.CanPickup
 		entry.isEmergenc = entry.isEmergenc || row.IsEmergencyContact
-		entry.contact.Phone = strutil.JoinUnique(entry.contact.Phone, strings.TrimSpace(row.PhoneNumber.String))
+		entry.contact.Phones = strutil.SplitUnique(append(entry.contact.Phones, row.PhoneNumber.String)...)
 	}
 
 	entries := make([]*accumulated, 0, len(byGuardian))
@@ -242,7 +246,7 @@ func (s *reportService) supervisionContacts(ctx context.Context, studentID int64
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].order < entries[j].order })
 
 	for _, entry := range entries {
-		if entry.contact.Name == "" && entry.contact.Phone == "" {
+		if entry.contact.Name == "" && len(entry.contact.Phones) == 0 {
 			continue
 		}
 		if entry.canPickup {

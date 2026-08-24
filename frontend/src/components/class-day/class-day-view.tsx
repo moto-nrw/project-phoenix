@@ -24,7 +24,7 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatTile } from "~/components/ui/stat-tile";
+import { StatCard } from "~/components/ui/stat-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -212,15 +212,31 @@ function ClassCard({
         <div
           className={`mt-3 grid gap-2 ${splitKnown ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
         >
-          <StatTile label="Klassenverband" value={totals.students} />
+          <StatCard
+            variant="tile"
+            label="Klassenverband"
+            value={totals.students}
+          />
           {splitKnown && (
             <>
-              <StatTile label="Bleiben" value={totals.staying} />
-              <StatTile label="Gehen heim" value={totals.leaving} />
+              <StatCard variant="tile" label="Bleiben" value={totals.staying} />
+              <StatCard
+                variant="tile"
+                label="Gehen heim"
+                value={totals.leaving}
+              />
               {totals.list_entries > 0 && (
-                <StatTile label="Keine Betreuung" value={totals.list_entries} />
+                <StatCard
+                  variant="tile"
+                  label="Keine Betreuung"
+                  value={totals.list_entries}
+                />
               )}
-              <StatTile label="Abgemeldet" value={totals.absent} />
+              <StatCard
+                variant="tile"
+                label="Abgemeldet"
+                value={totals.absent}
+              />
             </>
           )}
         </div>
