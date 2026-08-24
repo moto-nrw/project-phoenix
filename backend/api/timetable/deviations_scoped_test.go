@@ -383,6 +383,34 @@ func TestApplyDeviations_RemovesSubstituteOnlyFromSelectedInstances(t *testing.T
 	assert.Equal(t, "substitute_removed", response.Data.AffectedInstances[0].Action)
 }
 
+func TestApplyDeviations_CannotRemoveSickSubstitute(t *testing.T) {
+	t.Parallel()
+
+	s := buildScopedDevSetup(t)
+	date := timezone.TodayDate().AddDays(1)
+	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	row := testpkg.CreateTestInstanceStaff(t, s.db, instance.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
+	sickAbsenceID := row.ID
+	row.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, scheduleRepo.NewInstanceStaffRepository(s.db).Update(s.ctx, row))
+
+	w := doScopedDev(t, s, instance.ID, map[string]any{
+		"substitution_removals": []map[string]any{{
+			"staff_id":     s.staffX,
+			"instance_ids": []int64{instance.ID},
+		}},
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "sick_absence_scope_locked")
+
+	stored := readScopedInstanceStaff(t, s.db, s.ctx, row.ID)
+	assert.True(t, stored.IsSubstitute)
+	assert.True(t, stored.IsAbsent)
+	require.NotNil(t, stored.SickAbsenceID)
+	assert.Equal(t, sickAbsenceID, *stored.SickAbsenceID)
+}
+
 func TestApplyDeviations_RejectsSubstituteRemovalWithoutSelectedAssignment(t *testing.T) {
 	t.Parallel()
 

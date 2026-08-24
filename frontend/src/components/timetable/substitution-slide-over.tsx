@@ -721,7 +721,7 @@ export function SubstitutionSlideOver({
                                       Ersatz
                                     </span>
                                   )}
-                                  {canEdit && (
+                                  {canEdit && !row.isSickAbsence && (
                                     <Button
                                       type="button"
                                       variant="ghost"

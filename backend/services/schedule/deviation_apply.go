@@ -601,6 +601,12 @@ func (s *instanceService) planSubstitutionRemovals(
 				}
 				continue
 			}
+			if row.SickAbsenceID != nil {
+				return nil, devErrConflict(
+					"sick_absence_scope_locked",
+					"diese Abwesenheit kommt aus einer Krankmeldung und kann hier nicht geändert werden",
+				)
+			}
 			seenRows[row.ID] = true
 			plan = append(plan, deviationSubstitutionRemovalOp{row: row, instance: instance})
 		}

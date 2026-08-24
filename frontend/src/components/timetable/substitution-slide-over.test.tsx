@@ -570,6 +570,30 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
+  it("bietet das Entfernen bei einer Krankmeldung nicht an", () => {
+    const instance = makeInstance({
+      staff: [
+        plannedPerson({ isAbsent: true }),
+        plannedPerson({
+          staffId: "12",
+          isPrimary: false,
+          isSubstitute: true,
+          isAbsent: true,
+          isSickAbsence: true,
+        }),
+      ],
+    });
+    renderEditor({
+      instance,
+      dayInstances: [instance],
+      onApply: applyMock(true),
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("tauscht eine Vertretung in einem Speichervorgang", async () => {
     const onApply = applyMock(true);
     const instance = makeInstance({
