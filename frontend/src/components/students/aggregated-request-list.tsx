@@ -97,44 +97,6 @@ function itemKey(item: AnyItem): string {
   return `${item.request_type}:${item.data.id}`;
 }
 
-function CareWithdrawalHistoryRows({
-  rows,
-}: Readonly<{ rows: CareWithdrawalCompletion[] }>) {
-  return rows.map((row) => {
-    const deleted = row.outcome === "deleted";
-    const childName =
-      deleted || row.studentId === ""
-        ? "Gelöschtes Kind"
-        : `${row.firstName} ${row.lastName}`.trim();
-    return (
-      <RequestReviewCard
-        key={`care_withdrawal:${row.id}`}
-        type="care_withdrawal"
-        typeLabel="Abmeldung"
-        childName={childName}
-        summary={deleted ? "Kind sofort gelöscht" : "Betreuung beendet"}
-        badge={
-          <StatusBadge
-            tone="gray"
-            label={deleted ? "Gelöscht" : "Abgeschlossen"}
-          />
-        }
-        history={{
-          kind: "readonly",
-          label: deleted ? "Gelöscht" : "Abgeschlossen",
-          tone: "gray",
-        }}
-      >
-        {row.resolvedAt ? (
-          <p className="text-sm text-gray-600">
-            Erledigt am {formatDate(row.resolvedAt)}
-          </p>
-        ) : null}
-      </RequestReviewCard>
-    );
-  });
-}
-
 /** Wie viele Zeilen eine Seite der zusammengeführten Liste zeigt. */
 const PAGE_SIZE = 25;
 
@@ -401,9 +363,11 @@ export function AggregatedRequestList({
   }, []);
 
   const handleWithdrawalFinished = useCallback(
-    (row: CareWithdrawalCompletion) => {
+    (row: CareWithdrawalCompletion, deleted = false) => {
       setWithdrawals((current) => current.filter((item) => item.id !== row.id));
-      setNotice("Die Betreuung wurde beendet.");
+      setNotice(
+        deleted ? "Das Kind wurde gelöscht." : "Die Betreuung wurde beendet.",
+      );
       window.dispatchEvent(new Event("change-requests-refresh"));
     },
     [],
@@ -520,9 +484,43 @@ export function AggregatedRequestList({
                 );
               })
             : null}
-          {view === "history" ? (
-            <CareWithdrawalHistoryRows rows={visibleWithdrawals} />
-          ) : null}
+          {view === "history"
+            ? visibleWithdrawals.map((row) => {
+                const deleted = row.outcome === "deleted";
+                return (
+                  <RequestReviewCard
+                    key={`care_withdrawal:${row.id}`}
+                    type="care_withdrawal"
+                    typeLabel="Abmeldung"
+                    childName={
+                      deleted || row.studentId === ""
+                        ? "Gelöschtes Kind"
+                        : `${row.firstName} ${row.lastName}`.trim()
+                    }
+                    summary={
+                      deleted ? "Kind sofort gelöscht" : "Betreuung beendet"
+                    }
+                    badge={
+                      <StatusBadge
+                        tone="gray"
+                        label={deleted ? "Gelöscht" : "Abgeschlossen"}
+                      />
+                    }
+                    history={{
+                      kind: "readonly",
+                      label: deleted ? "Gelöscht" : "Abgeschlossen",
+                      tone: "gray",
+                    }}
+                  >
+                    {row.resolvedAt ? (
+                      <p className="text-sm text-gray-600">
+                        Erledigt am {formatDate(row.resolvedAt)}
+                      </p>
+                    ) : null}
+                  </RequestReviewCard>
+                );
+              })
+            : null}
           {items.map((item) => {
             const key = itemKey(item);
             // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
@@ -615,7 +613,7 @@ export function AggregatedRequestList({
           onClose={() => setDeletionWithdrawal(null)}
           onDeleted={() => {
             setDeletionWithdrawal(null);
-            handleWithdrawalFinished(deletionWithdrawal);
+            handleWithdrawalFinished(deletionWithdrawal, true);
           }}
         />
       )}
