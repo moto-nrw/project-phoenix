@@ -80,6 +80,28 @@ func TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap(t *
 	assert.Empty(t, rows)
 }
 
+func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := repositories.NewFactory(db).CareWithdrawal
+	student := testpkg.CreateTestStudent(t, db, "Mia", "Wochenplan", "2a")
+	actor := testpkg.CreateTestAccount(t, db, "weekly-plan-actor")
+	studentID := student.ID
+	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	changed, err := repo.MarkPendingObsoleteForWeeklyPlans(ctx, time.Now())
+	require.NoError(t, err)
+	assert.Equal(t, 1, changed)
+	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	assert.Empty(t, rows)
+}
+
 func TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

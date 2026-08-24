@@ -168,6 +168,26 @@ func (r *CareWithdrawalCompletionRepository) MarkObsoleteForRebooking(
 	return affected == 1, nil
 }
 
+// MarkPendingObsoleteForWeeklyPlans closes booking-derived tasks when the
+// school switches back to weekly-plan-driven care.
+func (r *CareWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {
+	result, err := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*userModels.CareWithdrawalCompletion)(nil)).
+		ModelTableExpr(tableExprCareWithdrawalCompletions).
+		Set("state = ?", userModels.CareWithdrawalStateObsolete).
+		Set("obsolete_reason = ?", userModels.CareWithdrawalObsoleteWeeklyPlans).
+		Set("resolved_at = ?", at).
+		Set("updated_at = ?", at).
+		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"care_withdrawal_completion".state = ?`, userModels.CareWithdrawalStatePending).
+		Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "obsolete pending care withdrawal completions for weekly plans", Err: err}
+	}
+	affected, _ := result.RowsAffected()
+	return int(affected), nil
+}
+
 // ReopenAfterCancelledExit copies one exact resolved event into a new event;
 // generic CRUD must not mutate the historical outcome in place.
 func (r *CareWithdrawalCompletionRepository) ReopenAfterCancelledExit(

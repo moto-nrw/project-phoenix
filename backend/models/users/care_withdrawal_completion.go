@@ -18,6 +18,7 @@ const (
 	CareWithdrawalTriggerDirectSchool = "direct_school"
 	CareWithdrawalOutcomeCareEnded    = "care_ended"
 	CareWithdrawalObsoleteRebooked    = "rebooked_without_gap"
+	CareWithdrawalObsoleteWeeklyPlans = "weekly_plan_mode"
 
 	CareWithdrawalUrgencyPlanned = "planned"
 	CareWithdrawalUrgencyOverdue = "overdue"
@@ -95,5 +96,6 @@ type CareWithdrawalCompletionRepository interface {
 	ListPending(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
 	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkObsoleteForRebooking(ctx context.Context, studentID int64, careStartsOn timezone.Date, at time.Time) (bool, error)
+	MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error)
 	ReopenAfterCancelledExit(ctx context.Context, completionID, studentID int64, at time.Time) (bool, error)
 }

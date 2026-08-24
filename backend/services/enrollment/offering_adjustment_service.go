@@ -324,9 +324,6 @@ func sortAdjustmentOfferingIDs(ids []int64, offerings map[int64]*enrollmentModel
 }
 
 func (s *decisionService) resolveAdjustmentAuthority(ctx context.Context, work *offeringAdjustmentWork) error {
-	if work.source != auditModels.OfferingAdjustmentSourceDirect {
-		return nil
-	}
 	authoritative, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative, false)
 	if err != nil {
 		return fmt.Errorf("offering adjustment: resolve authoritative bookings setting: %w", err)
@@ -368,7 +365,7 @@ func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, wor
 	work.selections, work.overridden = materialized[0], overridden
 	work.afterHasCareDays = materializedSelectionsHaveCareDays(work.selections, work.offeringByID)
 	work.isCompleteWithdrawal = allowWithdrawal && !work.afterHasCareDays
-	if work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
+	if work.source == auditModels.OfferingAdjustmentSourceDirect && work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
 		return ErrCompleteWithdrawalConfirmationRequired
 	}
 	return s.buildOfferingAdjustmentReplacement(work)
