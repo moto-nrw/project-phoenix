@@ -628,7 +628,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.UserContext = usercontextAPI.NewResource(api.Services.UserContext, db)
 	api.ClassDay = classdayAPI.NewResource(api.Services.EnrollmentReport, api.Services.UserContext, db, logger.With("handler", "class-day"))
 	api.ClassListEntries = classlistentriesAPI.NewResource(api.Services.ClassListEntries, db, logger.With("handler", "class-list-entries"))
-	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay)
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
@@ -651,11 +650,15 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:         api.Services.Settings,
 		SlotListsService:        api.Services.SlotLists,
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
+		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,
 	})
+	// The school portal reuses the class-day and the timetable resources, so
+	// it is built after both (#2207, #2527).
+	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
@@ -910,9 +913,6 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
-
-		// Mount the Lehrkraft class-day view (#1772)
-		r.Mount("/class-day", a.ClassDay.Router())
 
 		// Mount class-list-only entries (#2382)
 		r.Mount("/class-list-entries", a.ClassListEntries.Router())

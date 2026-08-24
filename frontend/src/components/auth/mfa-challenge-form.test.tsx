@@ -25,9 +25,13 @@ function mockOk(body: unknown): typeof global.fetch {
   );
 }
 
-function mockErr(status: number, error: string): typeof global.fetch {
+function mockErr(
+  status: number,
+  error: string,
+  code?: string,
+): typeof global.fetch {
   return vi.fn().mockResolvedValue(
-    new Response(JSON.stringify({ error }), {
+    new Response(JSON.stringify({ error, ...(code ? { code } : {}) }), {
       status,
       headers: { "Content-Type": "application/json" },
     }),
@@ -131,6 +135,31 @@ describe("MFAChallengeForm", () => {
         "Der eingegebene Code ist ungültig. Bitte erneut versuchen.",
       );
     });
+  });
+
+  it("delegates a coded portal handoff error to the embedding login flow", async () => {
+    global.fetch = mockErr(403, "school portal required", "use_school_portal");
+    const onError = vi.fn().mockResolvedValue(true);
+
+    render(
+      <MFAChallengeForm
+        {...defaultProps}
+        onSuccess={vi.fn()}
+        onError={onError}
+      />,
+    );
+
+    const inputs = screen.getAllByRole("textbox").slice(0, 6);
+    await act(async () => {
+      fireEvent.change(inputs[0]!, { target: { value: "222222" } });
+    });
+
+    await waitFor(() => {
+      expect(onError).toHaveBeenCalledWith(
+        expect.objectContaining({ code: "use_school_portal", status: 403 }),
+      );
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("does not render any recovery-code affordance", () => {

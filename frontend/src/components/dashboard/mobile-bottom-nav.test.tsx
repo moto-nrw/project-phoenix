@@ -28,8 +28,6 @@ vi.mock("~/lib/auth-utils", () => {
       return false;
     }),
     hasPermission: vi.fn(() => false),
-    // These scenarios model staff/admin accounts, never a pure Lehrkraft.
-    isLehrkraftOnly: vi.fn(() => false),
   };
 });
 

@@ -73,6 +73,7 @@ function LoginForm() {
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
   const searchParams = useSearchParams();
+  const targetTenantSlug = searchParams.get("tenant") ?? undefined;
   const { data: session, status } = useSession();
 
   // Guard against calling signOut multiple times during stale session cleanup
@@ -169,7 +170,11 @@ function LoginForm() {
     setNoPortalRole(false);
 
     try {
-      const response = await loginApi("school", { email, password });
+      const response = await loginApi("school", {
+        email,
+        password,
+        tenantSlug: targetTenantSlug,
+      });
 
       if (response.status === "mfa_required") {
         setMfaStep({

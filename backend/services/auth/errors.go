@@ -83,6 +83,14 @@ var (
 	// without renaming this sentinel or its wire code.
 	ErrAccountNoSchoolPortalRole = errors.New("account has no school portal role at any school")
 
+	// ErrMustUseSchoolPortal is the symmetric half of the school portal
+	// split: an account whose only role at this school is a school-portal
+	// role (today: lehrkraft) has no reachable surface in the OGS tenant
+	// portal, so the tenant login refuses it and points at moto schule.
+	// Dual-role accounts (also caregiver, admin, or guest) pass through
+	// unchanged — same rule as the guardian split above.
+	ErrMustUseSchoolPortal = errors.New("school portal accounts must log in at the school portal")
+
 	// Invitation errors
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")

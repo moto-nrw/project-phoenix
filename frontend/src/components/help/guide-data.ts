@@ -1054,13 +1054,14 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Lehrkraft-Zugang mit Klassenansicht",
         icon: GraduationCap,
         summary:
-          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht – wer bleibt heute in der Betreuung, wer geht nach Hause.",
+          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht: wer bleibt heute in der Betreuung, wer geht nach Hause.",
         steps: [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
           "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
-          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
+          "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
+          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt. Nur wenn Sie die Lehrkraft im Betreuungsplan für eine Aufsicht einteilen, sieht sie zu den Kindern dieser Aufsicht auch Abhol- und Notfallkontakte (siehe `Lehrkraft führt eine Aufsicht`).",
         ],
         callout: {
           title: "Passwort vergessen",
@@ -1069,6 +1070,28 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Klassenansicht einer Lehrkraft mit Tagesliste der Klasse und Kennzeichnung Betreuung oder nach Hause.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-aufsichten",
+        title: "Lehrkraft führt eine Aufsicht",
+        icon: ClipboardCheck,
+        summary:
+          "Teilt eine Lehrkraft im Betreuungsplan für eine Lernzeit oder eine andere Aufsicht ein. Sie kann diese Aufsicht dann selbst starten, die Anwesenheit führen und beenden.",
+        steps: [
+          "Voraussetzung: die Lehrkraft hat schon einen Zugang zu moto schule (siehe `Lehrkraft-Zugang mit Klassenansicht`).",
+          "Im `Betreuungsplan` den Termin öffnen und die Lehrkraft als Person eintragen, wie jede andere Betreuungskraft auch. Eine eigene Rolle braucht sie dafür nicht.",
+          "Die Lehrkraft findet den Termin am selben Tag in moto schule unter `Meine Aufsichten`. Sie startet die Aufsicht, hakt die Kinder ab und beendet sie am Ende.",
+          "Tippt sie in der Liste auf den Namen eines Kindes, sieht sie für dieses Kind die Abholzeit, den Heimweg, wer abholen darf und die Notfallkontakte. Jeder dieser Aufrufe wird im Zugriffsprotokoll vermerkt.",
+          "Nehmen Sie die Einteilung wieder heraus, ist die Aufsicht für die Lehrkraft sofort weg. Sie sieht dann auch die Kinder dieser Aufsicht nicht mehr.",
+        ],
+        callout: {
+          title: "Nur die eigene Einteilung",
+          body: "Eine Lehrkraft sieht ausschließlich Aufsichten, für die sie selbst eingeteilt ist, und darin nur die Kinder dieser Aufsicht. Andere Aufsichten der Schule bleiben ihr verborgen, auch wenn Sie für Ihre Betreuungskräfte den Zugriff auf alle Räume eingeschaltet haben.",
+          tone: "blue",
+        },
+        screenshot:
+          "Ansicht Meine Aufsichten in moto schule mit einer eingeteilten Aufsicht und der Kinderliste darunter.",
         printCompact: true,
       },
       {
@@ -1221,7 +1244,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Ersatzperson übernimmt nur die ausgewählten Termine. `Auch in allen anderen Terminen als abwesend markieren` erweitert die Abwesenheit. Die Vertretung bleibt auf die Auswahl begrenzt.",
           "Eine Abwesenheit aus einer Krankmeldung kann hier nicht geändert werden. Der Umfang der Vertretung kann weiterhin gewählt werden.",
           "`Speichern` überträgt alle Änderungen gemeinsam. Die Meldung nennt die Anzahl der geänderten Termine.",
-          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Die Ersatzperson wird nicht als abwesend markiert. Der Regeltermin im Betreuungsplan bleibt unverändert.",
+          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Das geht auch, wenn die Ersatzperson dort als abwesend steht. Bei einer Krankmeldung gibt es diese Aktion nicht. Andere Termine und der Regeltermin im Betreuungsplan bleiben unverändert. `Anwesend melden` erscheint nur, wenn im Termin noch eine geplante Position frei ist.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
           "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
           "Fällt eine Person mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen. Sie brauchen dafür die Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`. Die abwesende Person und den Zeitraum angeben. Jeder ausgewählte Tag verwendet `Alle noch offenen Termine`. Einzelne Tage können abgewählt werden. Eine Ersatzperson und ein Grund sind freiwillig. Ohne Ersatzperson wird die Person nur als abwesend markiert. `Speichern` trägt alle Tage gemeinsam ein. Bei einem Fehler wird nichts gespeichert. Die Meldung nennt den betroffenen Tag.",

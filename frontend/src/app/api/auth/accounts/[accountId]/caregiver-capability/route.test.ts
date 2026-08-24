@@ -156,5 +156,6 @@ describe("/api/auth/accounts/[accountId]/caregiver-capability", () => {
       }),
     );
     expect(response.status).toBe(204);
+    await expect(response.text()).resolves.toBe("");
   });
 });

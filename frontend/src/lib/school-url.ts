@@ -40,6 +40,36 @@ export function schoolPath(path: string): string {
 }
 
 /**
+ * Absolute URL of the school-portal login page on its OWN host.
+ *
+ * Different from schoolAbsoluteUrl(), which stays on the current origin.
+ * This one crosses hosts: the tenant (staff) login uses it to send a
+ * school-portal-only account to the portal it actually belongs to — the
+ * mirror of parentsPortalLoginUrl in parent-url.ts.
+ *
+ * NEXT_PUBLIC_SCHOOL_HOSTNAME is a host authority and already carries the
+ * port (e.g. "schule.localhost:3000"), so no port is appended. The scheme
+ * follows the current page so local http stays http.
+ *
+ * Client-side only — throws on server.
+ */
+export function schoolPortalLoginUrl(search?: string): string {
+  if (typeof window === "undefined") {
+    throw new Error("schoolPortalLoginUrl() is client-only.");
+  }
+
+  const schoolHostname = process.env.NEXT_PUBLIC_SCHOOL_HOSTNAME;
+  if (!schoolHostname) {
+    throw new Error(
+      "NEXT_PUBLIC_SCHOOL_HOSTNAME is not set. " +
+        "Add it to your .env.local or docker-compose environment.",
+    );
+  }
+
+  return `${window.location.protocol}//${schoolHostname}/login${search ?? ""}`;
+}
+
+/**
  * Returns an absolute URL for school paths.
  * Use for NextAuth callbackUrl where relative paths resolve against
  * NEXTAUTH_URL. Client-side only — throws on server.

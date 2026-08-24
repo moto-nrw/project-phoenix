@@ -259,6 +259,12 @@ type ReportService interface {
 	// (#1772). Every call writes a GDPR access-log row for the actor;
 	// actorRole carries the caller's actual roles (comma-joined claims).
 	ClassDay(ctx context.Context, schoolClass string, date timezone.Date, actorAccountID int64, actorRole string) (*ClassDayReport, error)
+	// SupervisionStudentSheet is the per-child pickup/emergency sheet a
+	// supervisor opens from a running block (#2527). It carries guardian
+	// names and phone numbers, which ClassDay deliberately does not, so the
+	// caller MUST have proven the assignment to a block holding this child
+	// before calling. Every call writes a GDPR access-log row.
+	SupervisionStudentSheet(ctx context.Context, in SupervisionSheetInput) (*SupervisionStudentSheet, error)
 }
 
 type ReportServiceConfig struct {

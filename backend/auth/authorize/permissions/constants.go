@@ -257,3 +257,19 @@ const (
 
 	ClassDayRead = ResourceClassDay + ":read"
 )
+
+// Supervision permission for the school portal (#2527). supervision:own gates
+// the assignment-bound operational surface a Lehrkraft reaches through "moto
+// schule": her own Betreuungsplan blocks of the day, their roster, and the
+// check-in/check-out on the children of those blocks.
+//
+// It is deliberately NOT schedules:read: that permission unlocks the whole
+// planner and every instance of the school. "own" is the whole point — the
+// permission opens the door, the Betreuungsplan assignment decides which
+// blocks lie behind it, and the service re-checks that assignment on every
+// read and write.
+const (
+	ResourceSupervision = "supervision"
+
+	SupervisionOwn = ResourceSupervision + ":own"
+)

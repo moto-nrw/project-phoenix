@@ -271,8 +271,8 @@ export interface RoleOption {
 
 /**
  * System roles that are legacy/relationship-derived and not assignable to
- * staff accounts. "lehrkraft" (#1772) is assignable since the class day view
- * (/klassen) shipped — invited Lehrkraft accounts land on a real page now.
+ * staff accounts. "lehrkraft" (#1772) is assignable: an invited Lehrkraft
+ * lands in the Klassenansicht of moto schule (#2207), not in this portal.
  */
 const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
 
