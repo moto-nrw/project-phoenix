@@ -38,6 +38,17 @@ func TestCompleteWithdrawalIsDetectedAfterMaterialization(t *testing.T) {
 	assert.Len(t, materialized[0], 1, "a non-care offering may remain without blocking the withdrawal")
 }
 
+func TestFixedCareOfferingPreventsCompleteWithdrawalWithoutSelectedDays(t *testing.T) {
+	t.Parallel()
+	care := &enrollmentModels.CareOffering{
+		Model: base.Model{ID: 1}, CountsAsCare: true,
+		DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed, AvailableDays: []string{"mon"},
+	}
+	assert.True(t, materializedSelectionsHaveCareDays(
+		[]materializedOfferingSelection{{OfferingID: care.ID}}, map[int64]*enrollmentModels.CareOffering{care.ID: care},
+	))
+}
+
 func TestCompleteWithdrawalStillEnforcesOfferingGroupUpperBounds(t *testing.T) {
 	t.Parallel()
 	care := &enrollmentModels.CareOffering{

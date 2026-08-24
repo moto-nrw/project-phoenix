@@ -1403,7 +1403,14 @@ func materializedSelectionsHaveCareDays(
 ) bool {
 	for _, selection := range selections {
 		offering := offerings[selection.OfferingID]
-		if offering != nil && offering.CountsAsCare && len(selection.SelectedDays) > 0 {
+		if offering == nil || !offering.CountsAsCare {
+			continue
+		}
+		hasCareDays := len(selection.SelectedDays) > 0
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+			hasCareDays = len(offering.AvailableDays) > 0
+		}
+		if hasCareDays {
 			return true
 		}
 	}

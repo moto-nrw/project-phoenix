@@ -694,7 +694,9 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			SELECT 1 FROM enrollment.request_child_offerings AS later
 			JOIN enrollment.care_offerings AS later_offering
 			  ON later_offering.id = later.care_offering_id AND later_offering.tenant_id = later.tenant_id
-			WHERE later.tenant_id = rco.tenant_id AND later.request_child_id = rco.request_child_id
+			JOIN enrollment.request_children AS later_child
+			  ON later_child.id = later.request_child_id AND later_child.tenant_id = later.tenant_id
+			WHERE later.tenant_id = rco.tenant_id AND later_child.created_student_id = rc.created_student_id
 			  AND later_offering.counts_as_care
 			  AND COALESCE(later.valid_from, '-infinity'::date) <= rco.valid_until
 			  AND (later.valid_until IS NULL OR later.valid_until > rco.valid_until)
