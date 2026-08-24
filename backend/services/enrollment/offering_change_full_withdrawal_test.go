@@ -53,11 +53,16 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	authoritative := false
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
 	defer cleanup()
+	env.settings.boolValues[configModel.KeyEnrollmentBookingsAuthoritative] = false
 	ctx := offeringChangeAdminContext(t)
 	svc := newOfferingChangeServiceForTest(t, env)
 	direct, ok := svc.(enrollmentService.DirectOfferingAdjustmentCoordinator)
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
+	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	fx.oldOffering.IsRequired = true
+	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
 
 	_, err := direct.PreviewDirectOfferingAdjustment(ctx, enrollmentService.DirectOfferingAdjustmentInput{
 		StudentID: fx.studentID, EffectiveFrom: fx.switchDate, Selections: []enrollmentService.OfferingChangeSelection{},
