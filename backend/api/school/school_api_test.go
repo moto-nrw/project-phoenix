@@ -85,7 +85,6 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
-	tenantClassDayRouter := classDayResource.Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
@@ -99,11 +98,10 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), className)
 
-	// School token on the TENANT class-day mount → 401. Same handlers, but
-	// the tenant mantle refuses the school scope.
-	req = httptest.NewRequest(http.MethodGet, "/classes", nil)
-	rec = testutil.ExecuteWithAuthPermissions(t, tenantClassDayRouter, req, schoolClaims, []string{"class_day:read"})
-	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	// The tenant-portal twin under /api/class-day no longer exists since the
+	// cutover (#2207 PR 3) — its absence is pinned by the route-table golden,
+	// and TestSchoolScopeRejectedOnAllAPIRoutes keeps the whole /api surface
+	// closed to school tokens.
 
 	// Every non-school scope on the school surface → 401, permission or not.
 	foreignScopes := []struct {

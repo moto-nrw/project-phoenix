@@ -70,7 +70,7 @@ describe("redirect-utils", () => {
       expect(result).toBe("/dashboard");
     });
 
-    it("should return /klassen for lehrkraft-only users (#1772)", () => {
+    it("hands an existing school-only session to moto schule", () => {
       const session = createSession(["lehrkraft"]);
       const supervisionState: SupervisionState = {
         hasGroups: false,
@@ -80,7 +80,7 @@ describe("redirect-utils", () => {
       };
 
       const result = getSmartRedirectPath(session, supervisionState);
-      expect(result).toBe("/klassen");
+      expect(result).toBe("/school/login");
     });
 
     it("keeps caregiver flows for dual-role lehrkraft accounts", () => {

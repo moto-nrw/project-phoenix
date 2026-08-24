@@ -24,6 +24,11 @@ interface MFAChallengeFormProps {
   readonly maskedEmail: string;
   readonly resendCooldownSeconds?: number;
   readonly onSuccess: (tokens: MFATokenResponse) => void | Promise<void>;
+  /**
+   * Gives the embedding login flow a chance to handle a terminal verify
+   * error, such as a portal handoff. Return true when the error is handled.
+   */
+  readonly onError?: (error: unknown) => boolean | Promise<boolean>;
   readonly onCancel?: () => void;
   /**
    * Mirrors security.mfa_trusted_device_enabled for the tenant. When false
@@ -47,6 +52,7 @@ export function MFAChallengeForm({
   maskedEmail,
   resendCooldownSeconds = DEFAULT_RESEND_COOLDOWN_SECONDS,
   onSuccess,
+  onError,
   onCancel,
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
@@ -83,6 +89,9 @@ export function MFAChallengeForm({
         });
         await onSuccess(tokens);
       } catch (err) {
+        if (await onError?.(err)) {
+          return;
+        }
         const msg = germanMFAErrorMessage(err);
         setError(msg);
         logger.warn("mfa_verify_failed", {
@@ -94,7 +103,7 @@ export function MFAChallengeForm({
         setIsVerifying(false);
       }
     },
-    [scope, activeToken, rememberDevice, onSuccess],
+    [scope, activeToken, rememberDevice, onSuccess, onError],
   );
 
   const handleResend = async () => {

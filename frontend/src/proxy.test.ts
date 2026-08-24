@@ -505,6 +505,25 @@ describe("proxy", () => {
       expect(redirect).not.toContain("/school/login");
     });
 
+    it.each([
+      ["/klassen", "school-a.localhost:3000"],
+      ["/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "school-a.localhost:3000"],
+      ["/school-a/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "localhost:3000"],
+      ["/school-a/klassen/", "localhost:3000"],
+    ])(
+      "sends the old %s bookmark to the selected school (#2207)",
+      (path, host) => {
+        const res = proxy(makeRequest(`http://${host}${path}`, host));
+
+        const redirect = res.headers.get("location");
+        expect(redirect).toContain(SCHOOL_HOSTNAME);
+        expect(redirect).toContain("tenant=school-a");
+        expect(redirect).not.toContain("/klassen");
+      },
+    );
+
     it("does NOT hijack tenant slugs that start with 'school'", () => {
       const res = proxy(
         makeRequest(

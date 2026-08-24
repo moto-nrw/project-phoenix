@@ -570,10 +570,38 @@ export function proxy(request: NextRequest): NextResponse {
     return withSecurityHeaders(NextResponse.redirect(redirectUrl));
   }
 
-  // 4. Tenant subdomain routing
-  const host = request.headers.get("host") ?? "";
-  const tenantSlug = extractTenantSlug(host);
+  // 3d. Bookmark bridge for the old Lehrkraft-Klassenansicht (#2207 PR 3).
+  // Until the cutover the view lived at {slug}.{TENANT_DOMAIN}/klassen; the
+  // page is gone and a Lehrkraft-only account can no longer log in here at
+  // all. A 404 would look like the school lost its access, so send the
+  // bookmark to moto schule instead. Remove once the schools have settled in.
+  const tenantSlug = extractTenantSlug(hostname);
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const bareTenantPath = getBareTenantPrefixedPath(pathname);
+  const bareTenantSlug =
+    bareTenantPath && (bareTenantPath.replace(/\/+$/, "") || "/") === "/klassen"
+      ? pathname.split("/")[1]
+      : null;
+  const tenantPath = tenantSlug
+    ? pathname.startsWith(`/${tenantSlug}`)
+      ? pathname.slice(tenantSlug.length + 1) || "/"
+      : pathname
+    : null;
+  const isLegacyClassBookmark =
+    normalizedPathname === "/klassen" ||
+    (tenantPath && (tenantPath.replace(/\/+$/, "") || "/") === "/klassen") ||
+    bareTenantSlug !== null;
+  if (isLegacyClassBookmark) {
+    const protocol = request.nextUrl.protocol;
+    const selectedTenantSlug = tenantSlug ?? bareTenantSlug;
+    const search = selectedTenantSlug
+      ? `?from=staff&tenant=${encodeURIComponent(selectedTenantSlug)}`
+      : "?from=staff";
+    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/login${search}`;
+    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
+  }
 
+  // 4. Tenant subdomain routing
   // No subdomain (bare domain): pass through without rewrite.
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {

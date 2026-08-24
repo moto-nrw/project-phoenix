@@ -911,9 +911,6 @@ func (a *API) registerTenantRoutes() {
 		// Mount user context resources
 		r.Mount("/me", a.UserContext.Router())
 
-		// Mount the Lehrkraft class-day view (#1772)
-		r.Mount("/class-day", a.ClassDay.Router())
-
 		// Mount class-list-only entries (#2382)
 		r.Mount("/class-list-entries", a.ClassListEntries.Router())
 

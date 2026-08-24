@@ -22,6 +22,7 @@ type wtmMockSessionReader struct {
 	sessions []*activeModels.WorkSession
 	calls    int
 	lastFrom timezone.Date
+	nowFunc  func() time.Time
 }
 
 func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
@@ -30,6 +31,9 @@ func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int
 	var result []*activeModels.WorkSession
 	for _, s := range m.sessions {
 		end := time.Now()
+		if m.nowFunc != nil {
+			end = m.nowFunc()
+		}
 		if s.CheckOutTime != nil {
 			end = *s.CheckOutTime
 		}
@@ -887,11 +891,14 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 
 	f := newWTMFixture()
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, timezone.Berlin)
-	// A live open session belongs to the current day. Pin the clock to midday
-	// so all timestamps stay on the session's own Berlin calendar day.
+	// A live open session belongs to the current day. Pin the clock to midday,
+	// service and session reader alike, so the now-relative timestamps stay on
+	// the session's own Berlin day and the day cap does not clamp the running
+	// span.
 	today := timezone.DateFromTime(now)
 	f.svc.todayFunc = func() timezone.Date { return today }
 	f.svc.nowFunc = func() time.Time { return now }
+	f.sessions.nowFunc = f.svc.nowFunc
 	f.settings.accountStart = today.String()
 
 	session := &activeModels.WorkSession{

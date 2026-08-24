@@ -303,6 +303,9 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+				common.RenderError(w, r, common.ErrorForbiddenWithCode(
+					authService.ErrMustUseSchoolPortal, "use_school_portal"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

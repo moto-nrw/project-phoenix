@@ -313,16 +313,19 @@ interface SwitchTenantResponse {
 interface ErrorResponseBody {
   error?: string;
   message?: string;
+  code?: string;
 }
+
+type TenantSwitchErrorCode = "access_denied" | "use_school_portal" | "unknown";
 
 export class TenantSwitchError extends Error {
   status: number;
-  code: "access_denied" | "unknown";
+  code: TenantSwitchErrorCode;
 
   constructor(
     message: string,
     status: number,
-    code: "access_denied" | "unknown" = "unknown",
+    code: TenantSwitchErrorCode = "unknown",
   ) {
     super(message);
     this.name = "TenantSwitchError";
@@ -331,18 +334,23 @@ export class TenantSwitchError extends Error {
   }
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+async function parseErrorResponse(
+  response: Response,
+): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
-    return "Failed to switch tenant";
+    return { message: "Failed to switch tenant" };
   }
 
   try {
     const payload = JSON.parse(text) as ErrorResponseBody;
-    return payload.error ?? payload.message ?? text;
+    return {
+      message: payload.error ?? payload.message ?? text,
+      code: payload.code,
+    };
   } catch {
-    return text;
+    return { message: text };
   }
 }
 
@@ -399,11 +407,13 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
-    const message = await parseErrorMessage(response);
+    const { message, code: responseCode } = await parseErrorResponse(response);
     const code =
       response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
         ? "access_denied"
-        : "unknown";
+        : response.status === 403 && responseCode === "use_school_portal"
+          ? "use_school_portal"
+          : "unknown";
     throw new TenantSwitchError(message, response.status, code);
   }
   return (await response.json()) as SwitchTenantResponse;

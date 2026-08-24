@@ -307,6 +307,21 @@ describe("passkey-api", () => {
     });
   });
 
+  it("preserves a stable backend error code", async () => {
+    mockAuthenticatedSession();
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      jsonResponse(403, {
+        error: "school portal accounts must log in at the school portal",
+        code: "use_school_portal",
+      }),
+    );
+
+    await expect(startPasskeyEnrollment("tenant")).rejects.toMatchObject({
+      status: 403,
+      code: "use_school_portal",
+    });
+  });
+
   it("falls back when an error response is not parseable JSON", async () => {
     mockAuthenticatedSession();
     vi.mocked(global.fetch).mockResolvedValueOnce(
