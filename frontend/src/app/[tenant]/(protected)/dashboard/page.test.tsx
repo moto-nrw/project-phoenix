@@ -35,6 +35,7 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: vi.fn((session) => session?.user?.isAdmin ?? false),
+  hasEffectiveAdminScope: vi.fn((session) => session?.user?.isAdmin ?? false),
   hasPermission: vi.fn((session, permission: string) =>
     permission === "admin:*" ? (session?.user?.isAdmin ?? false) : false,
   ),
@@ -133,7 +134,7 @@ vi.mock("~/lib/dashboard-helpers", () => ({
 
 import { useSession } from "next-auth/react";
 import { isAdmin } from "~/lib/auth-utils";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import {
   useNFCEnabled,
@@ -194,13 +195,22 @@ describe("DashboardPage", () => {
   });
 
   it("does not load phase expiry warnings without admin permission", () => {
-    vi.mocked(hasPermission).mockReturnValue(false);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(false);
 
     render(<DashboardPage />);
 
     expect(
       screen.queryByTestId("phase-expiry-warnings"),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows phase expiry warnings for a wildcard admin", () => {
+    vi.mocked(isAdmin).mockReturnValue(false);
+    vi.mocked(hasEffectiveAdminScope).mockReturnValue(true);
+
+    render(<DashboardPage />);
+
+    expect(screen.getByTestId("phase-expiry-warnings")).toBeInTheDocument();
   });
 
   it("shows loading state when session is loading", () => {

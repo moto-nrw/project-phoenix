@@ -32,7 +32,7 @@ import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
 
@@ -228,7 +228,7 @@ function DashboardContent() {
 
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
-  const canReadPhaseExpiryWarnings = hasPermission(session, "admin:*");
+  const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
 
   return (
     <div className="w-full">

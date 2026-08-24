@@ -97,9 +97,17 @@ function WarningAction({
     );
   }
   return (
-    <ButtonLink href={href} variant="surface" size="md">
-      {label}
-    </ButtonLink>
+    <>
+      <span className="lg:hidden">Bitte am Computer öffnen.</span>
+      <ButtonLink
+        href={href}
+        variant="surface"
+        size="md"
+        className="hidden lg:inline-flex"
+      >
+        {label}
+      </ButtonLink>
+    </>
   );
 }
 

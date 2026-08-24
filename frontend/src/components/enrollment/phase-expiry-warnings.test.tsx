@@ -43,6 +43,10 @@ describe("PhaseExpiryWarnings", () => {
     expect(
       screen.getByRole("link", { name: "Anschlussphase erstellen" }),
     ).toHaveAttribute("href", "/enrollment-phases?rollover=3");
+    expect(
+      screen.getByRole("link", { name: "Anschlussphase erstellen" }),
+    ).toHaveClass("hidden", "lg:inline-flex");
+    expect(screen.getByText("Bitte am Computer öffnen.")).toBeVisible();
     expect(screen.getByRole("status")).toHaveClass("bg-moto-orange-soft");
   });
 
