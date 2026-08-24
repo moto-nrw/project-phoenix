@@ -165,7 +165,7 @@ describe("POST /api/invitations/accept", () => {
     expect(json.error).toBe("Server Error");
   });
 
-  it("handles empty response body", async () => {
+  it("returns an empty 204 response", async () => {
     const requestPayload = {
       token: "invitation-token",
       password: "Test1234!",
@@ -173,7 +173,7 @@ describe("POST /api/invitations/accept", () => {
     };
 
     vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response("", {
+      new Response(null, {
         status: 204,
         headers: { "Content-Type": "text/plain" },
       }),
@@ -185,8 +185,7 @@ describe("POST /api/invitations/accept", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(204);
-    const json = await parseJsonResponse<Record<string, unknown>>(response);
-    expect(json).toEqual({});
+    await expect(response.text()).resolves.toBe("");
   });
 
   it("returns 500 on fetch failure", async () => {
