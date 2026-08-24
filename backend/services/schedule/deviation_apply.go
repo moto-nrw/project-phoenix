@@ -55,8 +55,8 @@ type DeviationPresenceInput struct {
 	InstanceIDs *[]int64
 }
 
-// DeviationSubstitutionRemovalInput removes an active substitute assignment
-// without marking that substitute absent. Nil InstanceIDs means every
+// DeviationSubstitutionRemovalInput removes a substitute assignment without
+// changing that person's other appointments. Nil InstanceIDs means every
 // plannable same-day appointment; a non-nil list targets exact ones.
 type DeviationSubstitutionRemovalInput struct {
 	StaffID     int64
@@ -357,6 +357,10 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	}
 	absenceOnlyByInstance := absentStaffFromAbsences(absencePlan)
 	removedSubstitutes := removedSubstituteStaffFromPlans(removalPlan)
+	// Removing an absent substitute row subsumes restoring that exact row. Keep
+	// any other planned assignments in the presence plan so one atomic request
+	// can remove the obsolete role here and restore the person elsewhere (#2577).
+	presencePlan = withoutRemovedSubstitutePresences(presencePlan, removedSubstitutes)
 	subPlan, newSubByInstance, err := s.planSubstitutions(ctx, in.Substitutions, absenceOnlyByInstance, removedSubstitutes, date)
 	if err != nil {
 		return nil, err
@@ -364,15 +368,14 @@ func (s *instanceService) planDeviations(ctx context.Context, instanceID int64, 
 	absencePlan = withoutSubstitutionTargets(absencePlan, subPlan)
 	absentByInstance := absentStaffFromPlans(absencePlan, subPlan)
 	presentByInstance := presentStaffFromPlans(presencePlan)
-	removedByInstance := removalCountByInstance(removalPlan)
 
 	// Restoring a persisted absence must not orphan an already-assigned
 	// substitute (over-staffing). Reject before any write (#1840).
-	if err := s.rejectOverstaffingPresences(ctx, presencePlan, absentByInstance, presentByInstance, newSubByInstance, removedByInstance); err != nil {
+	if err := s.rejectOverstaffingPresences(ctx, presencePlan, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes); err != nil {
 		return nil, err
 	}
 
-	finalAck, finalAckNote, ackChanged, err := s.reconcileSelectedAck(ctx, instanceID, instance, in, absentByInstance, presentByInstance, newSubByInstance, removedByInstance)
+	finalAck, finalAckNote, ackChanged, err := s.reconcileSelectedAck(ctx, instanceID, instance, in, absentByInstance, presentByInstance, newSubByInstance, removedSubstitutes)
 	if err != nil {
 		return nil, err
 	}
@@ -437,20 +440,26 @@ func presentStaffFromPlans(presences []deviationPresenceOp) deviationStaffByInst
 	return present
 }
 
-func removalCountByInstance(removals []deviationSubstitutionRemovalOp) map[int64]int {
-	counts := make(map[int64]int)
-	for _, op := range removals {
-		counts[op.instance.ID]++
-	}
-	return counts
-}
-
 func removedSubstituteStaffFromPlans(removals []deviationSubstitutionRemovalOp) deviationStaffByInstance {
 	removed := make(deviationStaffByInstance)
 	for _, op := range removals {
 		removed.add(op.instance.ID, op.row.StaffID)
 	}
 	return removed
+}
+
+func withoutRemovedSubstitutePresences(
+	presences []deviationPresenceOp,
+	removed deviationStaffByInstance,
+) []deviationPresenceOp {
+	kept := make([]deviationPresenceOp, 0, len(presences))
+	for _, presence := range presences {
+		if presence.row.IsSubstitute && removed[presence.instance.ID][presence.row.StaffID] {
+			continue
+		}
+		kept = append(kept, presence)
+	}
+	return kept
 }
 
 func (staff deviationStaffByInstance) add(instanceID, staffID int64) {
@@ -576,10 +585,10 @@ func (s *instanceService) planSubstitutionRemovals(
 		}
 		selected := make(map[int64]bool)
 		for _, row := range rows {
-			if removal.InstanceIDs != nil && row.IsSubstitute && !row.IsAbsent && scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
+			if removal.InstanceIDs != nil && row.IsSubstitute && scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
 				selected[row.InstanceID] = true
 			}
-			if seenRows[row.ID] || !row.IsSubstitute || row.IsAbsent || !scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
+			if seenRows[row.ID] || !row.IsSubstitute || !scopeContainsInstance(removal.InstanceIDs, row.InstanceID) {
 				continue
 			}
 			instance, err := s.loadPlannableInstance(ctx, row)
@@ -887,7 +896,7 @@ func (s *instanceService) rejectOverstaffingPresences(
 	presencePlan []deviationPresenceOp,
 	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
-	removedByInstance map[int64]int,
+	removedByInstance deviationStaffByInstance,
 ) error {
 	checked := make(map[int64]bool)
 	for _, op := range presencePlan {
@@ -913,7 +922,7 @@ func (s *instanceService) rejectOverstaffingPresences(
 			removedByInstance[op.instance.ID],
 		) > baseline {
 			return devErrConflict("presence_would_overstaff",
-				"das Wiederherstellen dieser Anwesenheit würde den Block überbesetzen; bitte zuerst die nicht mehr benötigte Vertretung entfernen")
+				"der Termin ist bereits vollständig besetzt. Entfernen Sie zuerst die nicht mehr benötigte Vertretung")
 		}
 	}
 	return nil
@@ -946,7 +955,7 @@ func (s *instanceService) reconcileSelectedAck(
 	in ApplyDeviationsInput,
 	absentByInstance, presentByInstance deviationStaffByInstance,
 	newSubByInstance map[int64]int,
-	removedByInstance map[int64]int,
+	removedByInstance deviationStaffByInstance,
 ) (finalAck bool, note *string, ackChanged bool, err error) {
 	thisRows, loadErr := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if loadErr != nil {
@@ -1342,9 +1351,12 @@ func projectAbsent(rows []*scheduleModel.InstanceStaff, absent map[int64]bool, o
 
 // projectedNonAbsentCount counts staff that remain non-absent on an instance
 // after the deviation writes.
-func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, absent, presence map[int64]bool, newSubs, removedSubs int) int {
+func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, absent, presence map[int64]bool, newSubs int, removedSubs map[int64]bool) int {
 	count := 0
 	for _, row := range rows {
+		if row.IsSubstitute && removedSubs[row.StaffID] {
+			continue
+		}
 		if absent[row.StaffID] {
 			continue
 		}
@@ -1353,7 +1365,7 @@ func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, absent, presen
 		}
 		count++
 	}
-	return count + newSubs - removedSubs
+	return count + newSubs
 }
 
 // sameNote reports whether two optional notes carry the same text.

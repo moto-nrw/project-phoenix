@@ -543,6 +543,33 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
+  it("entfernt eine abwesende Vertretung aus einem bereits voll besetzten Termin", async () => {
+    const onApply = applyMock(true);
+    const instance = makeInstance({
+      staff: [
+        plannedPerson(),
+        plannedPerson({
+          staffId: "12",
+          isPrimary: false,
+          isSubstitute: true,
+          isAbsent: true,
+        }),
+      ],
+    });
+    renderEditor({ instance, dayInstances: [instance], onApply });
+
+    expect(
+      screen.queryByRole("button", { name: "Anwesend melden" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Entfernen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(onApply).toHaveBeenCalledTimes(1));
+    expect(onApply).toHaveBeenCalledWith({
+      substitutionRemovals: [{ staffId: "12", instanceIds: ["42"] }],
+    });
+  });
+
   it("tauscht eine Vertretung in einem Speichervorgang", async () => {
     const onApply = applyMock(true);
     const instance = makeInstance({
