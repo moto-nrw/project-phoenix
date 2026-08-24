@@ -1059,8 +1059,9 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
-          "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
-          "Ganz oben steht der Block `Anders als sonst`. Er nennt über alle zugewiesenen Klassen hinweg nur die Kinder, bei denen der Tag vom üblichen Plan abweicht: krank, entschuldigt, für den Tag abgemeldet oder mit geänderter Abholzeit. Bei einer geänderten Abholzeit steht die Regelzeit daneben, etwa `Geht um 12:15 Uhr statt um 15:00 Uhr`. Kam die Meldung am selben Tag herein, steht die Uhrzeit dabei: `Heute 09:24 gemeldet`. So sieht die Lehrkraft ohne Rückfrage, wer heute früher gehen darf. Der Block ist reine Anzeige; geändert wird im OGS-Team.",
+          "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie in der `Klassenansicht`: einer Tagesübersicht mit ihren Klassen und den Zahlen des Tages. Ein Tipp auf eine Klasse öffnet deren Liste: der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`). Über `Alle Klassen` geht es zurück zur Übersicht.",
+          "Weicht bei einem Kind etwas vom üblichen Plan ab, steht das direkt an dem Kind: `Andere Abholzeit` mit beiden Zeiten (`bis 12:15`, darunter `sonst 15:30`) oder das Kennzeichen `Krank`, `Entschuldigt`, `Klassenfahrt`, `Heute abgemeldet`. Kam die Meldung am selben Tag herein, steht die Uhrzeit dabei: `Heute 09:24 gemeldet`. So sieht die Lehrkraft ohne Rückfrage, wer heute früher gehen darf. Geändert wird das im OGS-Team, nicht in moto schule.",
+          "Auf der Übersicht trägt jede Klasse eine Zeile wie `4 Kinder anders als sonst`, sobald es an dem Tag Abweichungen gibt. Damit ist ohne Öffnen jeder einzelnen Klasse erkennbar, wo heute etwas zu beachten ist.",
           "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
           "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt. Nur wenn Sie die Lehrkraft im Betreuungsplan für eine Aufsicht einteilen, sieht sie zu den Kindern dieser Aufsicht auch Abhol- und Notfallkontakte (siehe `Lehrkraft führt eine Aufsicht`).",
         ],
@@ -1070,7 +1071,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Klassenansicht einer Lehrkraft mit dem Block Anders als sonst und der Tagesliste der Klasse darunter.",
+          "Tagesübersicht einer Lehrkraft mit ihren Klassen und der Anzahl der Abweichungen, daneben die geöffnete Klassenliste.",
         printCompact: true,
       },
       {

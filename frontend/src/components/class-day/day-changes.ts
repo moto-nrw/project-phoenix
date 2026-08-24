@@ -1,32 +1,20 @@
-// Abweichungen vom üblichen Plan, klassenübergreifend (#2294).
+// Abweichungen vom üblichen Plan (#2294).
 //
-// Die Klassenansicht zeigt den ganzen Tag jeder Klasse. Was sie bisher nicht
-// zeigte: was heute ANDERS ist als sonst. Genau das ist die Information, die
-// eine Lehrkraft für die Entscheidung braucht, ob sie ein Kind früher gehen
-// lässt, und die heute manuell über das OGS-Team läuft.
+// Die Klassenansicht zeigt den ganzen Tag einer Klasse. Was sie nicht zeigte:
+// was heute ANDERS ist als sonst. Genau das braucht eine Lehrkraft für die
+// Entscheidung, ob sie ein Kind früher gehen lässt, und genau das läuft heute
+// manuell über das OGS-Team.
 //
-// Diese Datei enthält nur die Auswahl und die Reihenfolge — kein React, kein
-// Fetch —, damit die Regel ("was gilt als Abweichung") einzeln prüfbar ist.
+// Die Abweichung wird am Kind selbst gekennzeichnet, nicht in einem eigenen
+// Block: jedes Kind steht genau einmal auf der Seite. Über die Klassen hinweg
+// trägt die Klassenzeile der Übersicht nur die Anzahl — sie beantwortet die
+// eine Frage, die man nicht durch Lesen einer Liste beantworten kann: welche
+// Klasse muss ich überhaupt aufmachen.
+//
+// Diese Datei enthält nur die Regel und die Zählung, kein React, kein Fetch.
 
 import type { ClassDayReport, ClassDayRow } from "~/lib/class-day-api";
-import { berlinTodayISO } from "~/lib/date-helpers";
-
-export type DayChangeKind = "status" | "pickup";
-
-export interface DayChange {
-  /** Stabiler Listen-Key über alle Klassen hinweg. */
-  readonly key: string;
-  readonly schoolClass: string;
-  readonly row: ClassDayRow;
-  /**
-   * `status` = gemeldete Abwesenheit oder Abmeldung, `pickup` = die Betreuung
-   * läuft, aber die Abholzeit weicht ab. Der Status ist die stärkere Aussage
-   * und gewinnt, wenn beides zutrifft.
-   */
-  readonly kind: DayChangeKind;
-  /** ISO-Zeitstempel, seit wann die Abweichung bekannt ist. */
-  readonly reportedAt: string | null;
-}
+import { berlinTodayISO, formatChatClockTime } from "~/lib/date-helpers";
 
 /**
  * Eine Zeile weicht ab, wenn ein Tagesstatus gemeldet ist (krank,
@@ -42,53 +30,12 @@ export function isDayChange(row: ClassDayRow): boolean {
 }
 
 /**
- * Sammelt die Abweichungen aller geladenen Klassen in einer Liste.
- *
- * `classes` gibt die Reihenfolge vor, damit die Liste sich nicht bei jedem
- * Abruf umsortiert; fehlgeschlagene Klassen fehlen schlicht (der
- * Teilausfall-Banner der Ansicht trägt diese Aussage bereits).
+ * Anzahl der abweichenden Kinder einer Klasse an dem Tag. Ein Tag ohne
+ * Übergabe (Wochenende) hat keine Abweichungen, nicht "unbekannt viele".
  */
-export function collectDayChanges(
-  classes: readonly string[],
-  reports: Readonly<Record<string, ClassDayReport>>,
-): DayChange[] {
-  const changes: DayChange[] = [];
-  for (const schoolClass of classes) {
-    const report = reports[schoolClass];
-    if (!report?.school_day) continue;
-    for (const row of report.rows) {
-      if (!isDayChange(row)) continue;
-      changes.push({
-        key: `${schoolClass}-${row.student_id}`,
-        schoolClass,
-        row,
-        kind: row.status ? "status" : "pickup",
-        reportedAt: row.reported_at ?? null,
-      });
-    }
-  }
-  return changes.sort(compareDayChanges);
-}
-
-/**
- * Zuletzt gemeldet zuerst: die kurzfristige Meldung von heute Vormittag ist
- * die, die die Lehrkraft noch nicht kennt. Zeilen ohne Zeitstempel hängen
- * hinten, danach entscheidet Klasse und Name — nie die Abrufreihenfolge, sonst
- * springt die Liste bei jeder Aktualisierung.
- */
-function compareDayChanges(a: DayChange, b: DayChange): number {
-  if (a.reportedAt !== b.reportedAt) {
-    if (a.reportedAt === null) return 1;
-    if (b.reportedAt === null) return -1;
-    if (a.reportedAt > b.reportedAt) return -1;
-    if (a.reportedAt < b.reportedAt) return 1;
-  }
-  if (a.schoolClass !== b.schoolClass) {
-    return a.schoolClass.localeCompare(b.schoolClass, "de");
-  }
-  const lastName = a.row.last_name.localeCompare(b.row.last_name, "de");
-  if (lastName !== 0) return lastName;
-  return a.row.first_name.localeCompare(b.row.first_name, "de");
+export function countDayChanges(report: ClassDayReport | null): number {
+  if (!report?.school_day) return 0;
+  return report.rows.filter(isDayChange).length;
 }
 
 /**
@@ -98,7 +45,7 @@ function compareDayChanges(a: DayChange, b: DayChange): number {
  * Zeitzone des Browsers abhängt.
  */
 export function isReportedToday(
-  reportedAt: string | null,
+  reportedAt: string | null | undefined,
   now: Date = new Date(),
 ): boolean {
   if (!reportedAt) return false;
@@ -108,20 +55,16 @@ export function isReportedToday(
 }
 
 /**
- * Der Satz, der die Abweichung benennt. Bei einer geänderten Abholzeit nennt
- * er beide Zeiten: ohne die Regelzeit daneben liest sich "geht um 12:15" wie
- * der Normalfall, und genau diese Fehllesung soll der Block verhindern.
+ * "Heute 09:24 gemeldet" — und sonst nichts.
+ *
+ * Der Zeitpunkt erscheint nur bei Meldungen von heute: genau dann ist er eine
+ * Neuigkeit. Bei einer vor zwei Wochen geplanten Klassenfahrt beantwortet er
+ * keine Frage und würde die Zeile nur länger machen.
  */
-export function describeDayChange(
-  change: DayChange,
-  statusLabelOf: (status: string) => string,
-): string {
-  if (change.kind === "status") {
-    return statusLabelOf(change.row.status ?? "");
-  }
-  const pickup = change.row.pickup ?? "";
-  const regular = change.row.pickup_regular ?? "";
-  if (!pickup) return "Abholzeit geändert";
-  if (!regular) return `Geht um ${pickup} Uhr`;
-  return `Geht um ${pickup} Uhr statt um ${regular} Uhr`;
+export function reportedTodayLabel(
+  reportedAt: string | null | undefined,
+  now: Date = new Date(),
+): string | null {
+  if (!isReportedToday(reportedAt, now)) return null;
+  return `Heute ${formatChatClockTime(reportedAt!)} gemeldet`;
 }

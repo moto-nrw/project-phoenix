@@ -448,6 +448,21 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites a class page to /school/klasse/... (#2294)", () => {
+      // Klassennamen sind Freitext und enthalten Leerzeichen, die Adresse
+      // trägt sie deshalb kodiert.
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/klasse/Klasse%202a?tag=2026-10-26`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/klasse/Klasse%202a",
+      );
+    });
+
     it("returns 404 for tenant, operator, and parent auth endpoints", () => {
       for (const path of [
         "/api/auth/session",

@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import type { ClassDayReport, ClassDayRow } from "~/lib/class-day-api";
 import {
-  collectDayChanges,
-  describeDayChange,
+  countDayChanges,
   isDayChange,
   isReportedToday,
+  reportedTodayLabel,
 } from "./day-changes";
-import { statusLabel } from "./status-labels";
 
 function row(overrides: Partial<ClassDayRow> = {}): ClassDayRow {
   return {
@@ -54,99 +53,36 @@ describe("isDayChange", () => {
 
   it("lässt Klassenlisteneinträge draußen", () => {
     // Ein Kind ohne OGS-Datensatz hat keinen Plan, von dem es abweichen
-    // könnte — es gehört nie in den Abweichungsblock.
+    // könnte — es zählt nie als Abweichung.
     expect(
       isDayChange(row({ list_entry: true, student_id: 0, status: "sick" })),
     ).toBe(false);
   });
 });
 
-describe("collectDayChanges", () => {
-  it("sammelt über alle Klassen und sortiert die jüngste Meldung nach oben", () => {
-    const changes = collectDayChanges(["2a", "3b"], {
-      "2a": report([
-        row({
-          student_id: 1,
-          last_name: "Adam",
-          status: "sick",
-          reported_at: "2026-08-20T08:00:00Z",
-        }),
-        row({
-          student_id: 2,
-          last_name: "Bosch",
-          pickup_changed: true,
-          pickup: "12:15",
-          pickup_regular: "15:00",
-          reported_at: "2026-08-24T09:24:00Z",
-        }),
+describe("countDayChanges", () => {
+  it("zählt Status und geänderte Abholzeiten zusammen", () => {
+    const count = countDayChanges(
+      report([
+        row({ student_id: 1, status: "sick" }),
+        row({ student_id: 2, pickup_changed: true }),
+        row({ student_id: 3, pickup: "15:00" }),
+        row({ student_id: 0, list_entry: true }),
       ]),
-      "3b": report(
-        [row({ student_id: 3, last_name: "Cerny", status: "excused" })],
-        "3b",
-      ),
-    });
+    );
 
-    expect(changes.map((change) => change.row.last_name)).toEqual([
-      "Bosch",
-      "Adam",
-      "Cerny",
-    ]);
-    expect(changes[0]?.kind).toBe("pickup");
-    expect(changes[0]?.schoolClass).toBe("2a");
-    // Ohne Zeitstempel hängt die Zeile hinten, nicht irgendwo dazwischen.
-    expect(changes[2]?.reportedAt).toBeNull();
+    expect(count).toBe(2);
   });
 
-  it("überspringt Klassen ohne Schultag", () => {
+  it("zählt an einem Tag ohne Übergabe nichts", () => {
+    // Wochenende: keine Abweichungen, nicht "unbekannt viele".
     const weekend = { ...report([row({ status: "sick" })]), school_day: false };
 
-    expect(collectDayChanges(["2a"], { "2a": weekend })).toEqual([]);
+    expect(countDayChanges(weekend)).toBe(0);
   });
 
-  it("überspringt Klassen, die nicht geladen werden konnten", () => {
-    expect(collectDayChanges(["2a", "3b"], {})).toEqual([]);
-  });
-
-  it("gibt dem Status den Vorrang vor der geänderten Abholzeit", () => {
-    // Beides zugleich: das Kind ist krank. "Andere Abholzeit" wäre die
-    // schwächere und irreführende Aussage.
-    const changes = collectDayChanges(["2a"], {
-      "2a": report([row({ status: "sick", pickup_changed: true })]),
-    });
-
-    expect(changes[0]?.kind).toBe("status");
-  });
-});
-
-describe("describeDayChange", () => {
-  const [statusChange] = collectDayChanges(["2a"], {
-    "2a": report([row({ status: "sick" })]),
-  });
-  const [pickupChange] = collectDayChanges(["2a"], {
-    "2a": report([
-      row({ pickup_changed: true, pickup: "12:15", pickup_regular: "15:00" }),
-    ]),
-  });
-  const [pickupWithoutRegular] = collectDayChanges(["2a"], {
-    "2a": report([row({ pickup_changed: true, pickup: "14:00" })]),
-  });
-
-  it("benennt den gemeldeten Status", () => {
-    expect(describeDayChange(statusChange!, statusLabel)).toBe("Krank");
-  });
-
-  it("nennt bei der Abholzeit immer beide Zeiten", () => {
-    // Ohne die Regelzeit daneben liest sich "geht um 12:15" wie der
-    // Normalfall — genau die Fehllesung, die der Block verhindern soll.
-    expect(describeDayChange(pickupChange!, statusLabel)).toBe(
-      "Geht um 12:15 Uhr statt um 15:00 Uhr",
-    );
-  });
-
-  it("lässt die Regelzeit weg, wenn der Plan an dem Tag keine hat", () => {
-    expect(describeDayChange(pickupWithoutRegular!, statusLabel)).toBe(
-      "Geht um 14:00 Uhr",
-    );
+  it("verträgt eine Klasse, die nicht geladen werden konnte", () => {
+    expect(countDayChanges(null)).toBe(0);
   });
 });
 
@@ -163,15 +99,32 @@ describe("isReportedToday", () => {
 
   it("verträgt fehlende und kaputte Zeitstempel", () => {
     expect(isReportedToday(null, now)).toBe(false);
+    expect(isReportedToday(undefined, now)).toBe(false);
     expect(isReportedToday("nicht-datum", now)).toBe(false);
   });
 
   it("rechnet in Berliner Zeit, nicht in UTC", () => {
-    // 23:30 UTC am 23.08. ist in Berlin bereits der 24.08. — eine abends
-    // gemeldete Änderung darf am Folgetag nicht als "heute" erscheinen.
+    // 23:30 UTC am 23.08. ist in Berlin bereits der 24.08.
     expect(isReportedToday("2026-08-23T23:30:00Z", now)).toBe(true);
-    expect(
-      isReportedToday("2026-08-24T22:30:00Z", new Date("2026-08-24T10:00:00Z")),
-    ).toBe(false);
+    // 22:30 UTC am 24.08. ist in Berlin schon der 25.08.
+    expect(isReportedToday("2026-08-24T22:30:00Z", now)).toBe(false);
+  });
+});
+
+describe("reportedTodayLabel", () => {
+  const now = new Date("2026-08-24T10:00:00Z");
+
+  it("nennt die Uhrzeit einer heute eingegangenen Meldung", () => {
+    // Das ist die Meldung, die die Lehrkraft noch nicht kennt.
+    expect(reportedTodayLabel("2026-08-24T07:24:00Z", now)).toBe(
+      "Heute 09:24 gemeldet",
+    );
+  });
+
+  it("schweigt bei älteren Meldungen", () => {
+    // Bei einer vor zwei Wochen geplanten Klassenfahrt beantwortet der
+    // Zeitpunkt keine Frage und macht die Zeile nur länger.
+    expect(reportedTodayLabel("2026-08-10T09:00:00Z", now)).toBeNull();
+    expect(reportedTodayLabel(undefined, now)).toBeNull();
   });
 });
