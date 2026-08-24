@@ -473,9 +473,13 @@ func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, sta
 	if err != nil {
 		return err
 	}
-	// Recurring arrival and pickup plans have no date range. They must remain
-	// effective through a future last care day and are removed by ApplyDueEffects.
-	sourceEnded, err := s.cleanupRepo.EndSourceBookings(ctx, state.studentIDs, validUntil)
+	// Recurring arrival and pickup plans have no date range. Keep them through
+	// a future last care day, but end them immediately once that day has passed.
+	endSourceBookings := s.cleanupRepo.EndSourceBookings
+	if state.input.LastCareDay.Before(timezone.TodayDate()) {
+		endSourceBookings = s.cleanupRepo.EndSourceBookingsAndSchedules
+	}
+	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil)
 	if err != nil {
 		return err
 	}

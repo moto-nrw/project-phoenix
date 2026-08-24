@@ -674,8 +674,8 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 ) ([]userModels.CareWithdrawalBookingChange, error) {
 	rows := make([]userModels.CareWithdrawalBookingChange, 0)
 	err := base.GetDB(ctx, r.db).NewRaw(`
-		SELECT rc.created_student_id AS student_id,
-		       ? AS first_bookingless_day,
+	SELECT rc.created_student_id AS student_id,
+	       rco.valid_until AS first_bookingless_day,
 		       jsonb_agg(jsonb_build_object(
 				'name', co.name,
 				'days', COALESCE(NULLIF(rco.selected_days, '[]'::jsonb), co.available_days, '[]'::jsonb)
@@ -687,27 +687,27 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
 		JOIN users.students AS student
 		  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id
-		WHERE rco.tenant_id = ? AND rco.valid_until = ? AND co.counts_as_care
+		WHERE rco.tenant_id = ? AND rco.valid_until <= ? AND co.counts_as_care
 		  AND student.status = 'active'
-		  AND (student.enrolled_until IS NULL OR student.enrolled_until >= ?)
+		  AND (student.enrolled_until IS NULL OR student.enrolled_until >= rco.valid_until)
 		  AND NOT EXISTS (
 			SELECT 1 FROM enrollment.request_child_offerings AS later
 			JOIN enrollment.care_offerings AS later_offering
 			  ON later_offering.id = later.care_offering_id AND later_offering.tenant_id = later.tenant_id
 			WHERE later.tenant_id = rco.tenant_id AND later.request_child_id = rco.request_child_id
 			  AND later_offering.counts_as_care
-			  AND COALESCE(later.valid_from, '-infinity'::date) <= ?
-			  AND (later.valid_until IS NULL OR later.valid_until > ?)
+			  AND COALESCE(later.valid_from, '-infinity'::date) <= rco.valid_until
+			  AND (later.valid_until IS NULL OR later.valid_until > rco.valid_until)
 		  )
 		  AND NOT EXISTS (
 			SELECT 1 FROM users.care_withdrawal_completions AS completion
 			WHERE completion.tenant_id = rco.tenant_id
 			  AND completion.student_id = rc.created_student_id
-			  AND completion.first_bookingless_day = ?
+			  AND completion.first_bookingless_day = rco.valid_until
 			  AND completion.state = 'pending'
 		  )
-		GROUP BY rc.created_student_id
-	`, asOf, tenant.FromContext(ctx), asOf, asOf, asOf, asOf, asOf).Scan(ctx, &rows)
+		GROUP BY rc.created_student_id, rco.valid_until
+	`, tenant.FromContext(ctx), asOf).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: err}
 	}
