@@ -24,6 +24,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+
 	// Registers the real setting definitions — the gate resolves the key
 	// against the production registry, not a test stand-in.
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"

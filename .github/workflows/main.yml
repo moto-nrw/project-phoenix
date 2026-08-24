@@ -31,11 +31,13 @@ jobs:
       contents: read
     runs-on: ubuntu-latest
     outputs:
-      # Test jobs cross-run after merge to produce complete Sonar coverage.
-      # Lint/build jobs stay scoped to the side that changed.
-      run-backend: ${{ steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && steps.filter.outputs.frontend == 'true') }}
-      run-frontend: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' || (github.event_name == 'push' && (steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true')) }}
-      run-backend-lint: ${{ steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      # Every protected-branch push rechecks both full suites. A docs-only push
+      # must not report green while inheriting a broken development head.
+      # Backend lint also runs in full; frontend lint/build stays change-scoped.
+      run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      full-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits and
       # frontend-only pushes cannot affect it and must not buy another runner.
@@ -67,6 +69,20 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/.golangci.yml'
+              - 'backend/.go-arch-lint.yml'
+              - 'backend/tools/go.mod'
+              - 'backend/tools/go.sum'
+              - 'scripts/backend-affected-packages.sh'
+              - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
+              - 'scripts/backend-architecture.sh'
+            backend-lint-full:
+              - 'backend/go.mod'
+              - 'backend/go.sum'
+              - 'backend/.golangci.yml'
+              - 'scripts/backend-affected-packages.sh'
+              - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
             backend-production:
               - 'backend/**/*.go'
               - '!backend/**/*_test.go'
@@ -81,6 +97,7 @@ jobs:
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
             frontend-test-infra:
@@ -105,6 +122,7 @@ jobs:
     uses: ./.github/workflows/lint.yml
     with:
       run-backend: ${{ needs.detect-changes.outputs.run-backend-lint == 'true' }}
+      full-backend: ${{ needs.detect-changes.outputs.full-backend-lint == 'true' }}
       run-frontend: ${{ needs.detect-changes.outputs.run-frontend-lint == 'true' }}
 
   test:

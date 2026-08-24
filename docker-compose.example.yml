@@ -13,6 +13,8 @@ services:
       - ./backend:/app
       # Preserve go modules cache
       - go_mod_cache:/go/pkg/mod
+      # Preserve compiled packages across container rebuilds
+      - go_build_cache:/root/.cache/go-build
     environment:
       TZ: ${TZ}
       APP_ENV: ${APP_ENV}
@@ -131,6 +133,8 @@ services:
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
       - ./frontend/postcss.config.js:/app/postcss.config.js
+      # Preserve Next.js incremental build artifacts across container rebuilds
+      - next_cache:/app/.next/cache
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
@@ -224,3 +228,5 @@ volumes:
   postgres:
   postgres_test:
   go_mod_cache:
+  go_build_cache:
+  next_cache:

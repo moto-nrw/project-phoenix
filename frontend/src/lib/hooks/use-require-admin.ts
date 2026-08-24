@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface UseRequireAdminReturn {
@@ -13,8 +13,9 @@ interface UseRequireAdminReturn {
 }
 
 /**
- * Gate a client page on admin role. Non-admins are redirected to /dashboard;
- * unauthenticated users are redirected to "/" by NextAuth's `required: true`.
+ * Gate a client page on the effective admin scope. Non-admins are redirected
+ * to /dashboard; unauthenticated users are redirected to "/" by NextAuth's
+ * `required: true`.
  *
  * Usage:
  *   const { isReady } = useRequireAdmin();
@@ -23,7 +24,7 @@ interface UseRequireAdminReturn {
 export function useRequireAdmin(): UseRequireAdminReturn {
   const { data: session, status } = useSession({ required: true });
   const tenantPath = useTenantAwarePath();
-  const userIsAdmin = isAdmin(session);
+  const userIsAdmin = hasEffectiveAdminScope(session);
 
   if (status === "authenticated" && !userIsAdmin) {
     redirect(tenantPath("/dashboard"));

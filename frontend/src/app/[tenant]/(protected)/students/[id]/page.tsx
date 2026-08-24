@@ -14,6 +14,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
@@ -58,9 +59,11 @@ import {
   StudentStatusActionsMenu,
 } from "~/components/students/student-checkout-section";
 import { createLogger } from "~/lib/logger";
+import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { CareExitModal } from "~/components/students/care-exit-modal";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
@@ -79,6 +82,10 @@ import {
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import {
+  fetchStudentCareWithdrawal,
+  type CareWithdrawalCompletion,
+} from "~/lib/care-exit-api";
 import { fetchStudentCarePlanDay } from "~/lib/student-care-plan-api";
 import {
   deleteStudentPartialAbsence,
@@ -406,6 +413,13 @@ function StudentDetailPageContent() {
   const canCheckin =
     sessionStatus === "authenticated" &&
     hasPermission(session, "users:checkin");
+  const canCompleteCareWithdrawal =
+    sessionStatus === "authenticated" && canReviewCareWithdrawals(session);
+  const [careWithdrawal, setCareWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
+  const [careWithdrawalLoadFailed, setCareWithdrawalLoadFailed] =
+    useState(false);
+  const [careWithdrawalModalOpen, setCareWithdrawalModalOpen] = useState(false);
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -658,6 +672,38 @@ function StudentDetailPageContent() {
   // while data is still loading: hasFullAccess defaults to false then, so acting
   // early would wrongly strip a valid full-access deep-link before it resolves.
   const urlTab = searchParams.get("tab");
+  useEffect(() => {
+    if (!canCompleteCareWithdrawal || !studentId) {
+      setCareWithdrawal(null);
+      setCareWithdrawalLoadFailed(false);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      void fetchStudentCareWithdrawal(studentId)
+        .then((result) => {
+          if (cancelled) return;
+          setCareWithdrawal(result);
+          setCareWithdrawalLoadFailed(false);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          logger.warn("care_withdrawal_warning_load_failed", {
+            student_id: studentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          setCareWithdrawal(null);
+          setCareWithdrawalLoadFailed(true);
+        });
+    };
+    load();
+    window.addEventListener("change-requests-refresh", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("change-requests-refresh", load);
+    };
+  }, [canCompleteCareWithdrawal, studentId]);
+
   useEffect(() => {
     if (loading || !student || sessionStatus === "loading") return;
     if (urlTab !== null && urlTab !== activeTab) {
@@ -1094,6 +1140,44 @@ function StudentDetailPageContent() {
           isArrivalAbsent={todayArrival.isAbsent}
           sickReason={currentSickReason}
         />
+
+        {careWithdrawalLoadFailed ? (
+          <div className="mt-4">
+            <Alert
+              type="error"
+              message="Die offene Abmeldung konnte nicht geladen werden."
+            />
+          </div>
+        ) : careWithdrawal ? (
+          <div className="mt-4">
+            <Alert
+              type="warning"
+              message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  onClick={() => setCareWithdrawalModalOpen(true)}
+                >
+                  Betreuung beenden
+                </Button>
+              }
+            />
+            <CareExitModal
+              isOpen={careWithdrawalModalOpen}
+              studentIds={[studentId]}
+              completionId={careWithdrawal.id}
+              firstBookinglessDay={careWithdrawal.firstBookinglessDay}
+              onClose={() => setCareWithdrawalModalOpen(false)}
+              onFinished={() => {
+                setCareWithdrawalModalOpen(false);
+                setCareWithdrawal(null);
+                window.dispatchEvent(new Event("change-requests-refresh"));
+              }}
+            />
+          </div>
+        ) : null}
 
         {hasFullAccess ? (
           <FullAccessView

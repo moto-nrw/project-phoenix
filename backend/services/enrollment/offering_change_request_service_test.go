@@ -16,6 +16,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -422,6 +423,74 @@ func TestOfferingChangeRequestService_Decide_RefusesApprovalAfterPlannedCareEnd(
 
 	err = svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID})
 	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+}
+
+func TestOfferingChangeRequestService_Decide_CapsRebookingAtPlannedCareEnd(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "CareEndCap")
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+	_, err = env.db.NewUpdate().TableExpr("users.students").
+		Set("enrolled_until = ?", fx.switchDate).Where("id = ?", fx.studentID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+	}))
+	exclusiveEnd := fx.switchDate.AddDays(1)
+	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	require.NoError(t, err)
+	require.NotEmpty(t, links)
+	for _, link := range links {
+		require.NotNil(t, link.ValidUntil)
+		assert.False(t, link.ValidUntil.After(exclusiveEnd), "source booking must not outlive the child care interval")
+	}
+	for _, enrollment := range listStudentEnrollmentRowsForDecisionTest(t, env, fx.studentID) {
+		if enrollment.ActivityGroupID != fx.newGroupID {
+			continue
+		}
+		require.NotNil(t, enrollment.ValidUntil)
+		assert.False(t, enrollment.ValidUntil.After(exclusiveEnd), "derived booking must not be recreated past care end")
+	}
+}
+
+func TestOfferingChangeRequestService_Decide_RebookingObsoletesWithdrawalWithoutGap(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	fx := setupOfferingChangeFixture(t, env, "RebookWithdrawal")
+	studentID := fx.studentID
+	actorID := env.creatorID
+	repo := env.repos.CareWithdrawal
+	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: fx.switchDate,
+		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",
+		WithdrawalConfirmedAt: time.Now(),
+	}))
+	row, err := svc.Create(ctx, enrollmentService.CreateOfferingChangeInput{
+		StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+		Selections: []enrollmentService.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
+		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
+	}))
+	pending, err := pendingWithdrawalForStudent(ctx, repo, fx.studentID)
+	require.NoError(t, err)
+	assert.Nil(t, pending, "approved parent rebooking must remove the stale complete-withdrawal task")
 }
 
 // A pending request outlives edits to its care period. When the period's

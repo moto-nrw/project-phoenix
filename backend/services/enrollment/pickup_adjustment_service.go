@@ -89,13 +89,14 @@ type PickupAdjustmentRemovedNote struct {
 
 type PickupAdjustmentApplyInput struct {
 	PickupAdjustmentPreviewInput
-	PreviewToken     string
-	Resolution       string
-	Reason           string
-	ActorAccountID   int64
-	ActorRole        string
-	CreatedByStaffID int64
-	Authorize        func(context.Context, *usersModels.Student) (bool, error)
+	PreviewToken                string
+	Resolution                  string
+	Reason                      string
+	ActorAccountID              int64
+	ActorRole                   string
+	CreatedByStaffID            int64
+	CompleteWithdrawalConfirmed bool
+	Authorize                   func(context.Context, *usersModels.Student) (bool, error)
 }
 
 type PickupAdjustmentResult struct {
@@ -466,6 +467,7 @@ func directOfferingInput(input PickupAdjustmentApplyInput) DirectOfferingAdjustm
 		StudentID: input.StudentID, EffectiveFrom: input.EffectiveFrom,
 		Selections: input.Selections, ExcludedAutoOfferingIDs: input.ExcludedAutoOfferingIDs,
 		Reason: input.Reason, ActorAccountID: input.ActorAccountID, ActorRole: input.ActorRole,
+		CompleteWithdrawalConfirmed: input.CompleteWithdrawalConfirmed,
 	}
 }
 

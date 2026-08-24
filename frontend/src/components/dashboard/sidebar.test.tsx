@@ -83,6 +83,14 @@ vi.mock("~/lib/hooks/use-enrollment-requests-pending", () => ({
   })),
 }));
 
+vi.mock("~/lib/hooks/use-care-withdrawals-pending", () => ({
+  useCareWithdrawalsPending: vi.fn(() => ({
+    unreadCount: 0,
+    isLoading: false,
+    refresh: vi.fn(),
+  })),
+}));
+
 // Import after mocks
 import { Sidebar } from "./sidebar";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -92,6 +100,7 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
+import { useCareWithdrawalsPending } from "~/lib/hooks/use-care-withdrawals-pending";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -115,6 +124,7 @@ const restoreDefaultHasPermission = () =>
 const mockUseShellAuth = vi.mocked(useShellAuth);
 const mockUseStaffAbsencesPending = vi.mocked(useStaffAbsencesPending);
 const mockUseChangeRequestsPending = vi.mocked(useChangeRequestsPending);
+const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
@@ -208,6 +218,11 @@ describe("Sidebar", () => {
       refresh: vi.fn(),
     });
     mockUseChangeRequestsPending.mockReturnValue({
+      unreadCount: 0,
+      isLoading: false,
+      refresh: vi.fn(),
+    });
+    mockUseCareWithdrawalsPending.mockReturnValue({
       unreadCount: 0,
       isLoading: false,
       refresh: vi.fn(),
@@ -328,7 +343,9 @@ describe("Sidebar", () => {
     it("prefixes Anfragen and aggregates the visible request counts", () => {
       mockHasPermission.mockImplementation(
         (_session, permission) =>
-          permission === "users:update" || permission === "vacation:approve",
+          permission === "users:update" ||
+          permission === "users:delete" ||
+          permission === "vacation:approve",
       );
       mockUseChangeRequestsPending.mockReturnValue({
         unreadCount: 2,
@@ -340,6 +357,11 @@ describe("Sidebar", () => {
         isLoading: false,
         refresh: vi.fn(),
       });
+      mockUseCareWithdrawalsPending.mockReturnValue({
+        unreadCount: 4,
+        isLoading: false,
+        refresh: vi.fn(),
+      });
 
       render(<Sidebar />);
 
@@ -347,7 +369,7 @@ describe("Sidebar", () => {
         "href",
         "/test-tenant/anfragen",
       );
-      expect(screen.getByLabelText("5 offene Anfragen")).toBeInTheDocument();
+      expect(screen.getByLabelText("9 offene Anfragen")).toBeInTheDocument();
     });
 
     it("hides admin-only items for staff", () => {

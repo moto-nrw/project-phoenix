@@ -819,6 +819,76 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  it("requires the exact confirmation before removing the final care day", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ counts_as_care: true }),
+    ]);
+    mocks.updateAdminChildOfferings
+      .mockRejectedValueOnce(
+        Object.assign(new Error("confirmation required"), {
+          code: "enrollment.complete_withdrawal_confirmation_required",
+        }),
+      )
+      .mockResolvedValueOnce({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Alle Betreuungstage entfernen",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Kein Betreuungsbedarf mehr" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Alle Betreuungstage entfernen?",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Danach ist für Lina kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
+      ),
+    ).toBeVisible();
+    expect(mocks.updateAdminChildOfferings).toHaveBeenNthCalledWith(
+      1,
+      "request-1",
+      "child-1",
+      expect.objectContaining({
+        offerings: [],
+        completeWithdrawalConfirmed: false,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenNthCalledWith(
+        2,
+        "request-1",
+        "child-1",
+        expect.objectContaining({ completeWithdrawalConfirmed: true }),
+      );
+    });
+    expect(await screen.findByText(/Abmeldung noch abschließen/)).toBeVisible();
+  });
+
   it("hides mutation controls while retaining adjustment history when disabled", async () => {
     vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
     mocks.listAdminChildOfferingAdjustments.mockResolvedValue([

@@ -63,7 +63,9 @@ func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx 
 		}
 		row.RequestChildID = requestChildID
 		row.ValidFrom = &effectiveFrom
-		row.ValidUntil = &phaseEndExclusive
+		if row.ValidUntil == nil || phaseEndExclusive.Before(*row.ValidUntil) {
+			row.ValidUntil = &phaseEndExclusive
+		}
 		base.EnsureTenantID(ctx, row)
 	}
 	if _, err := db.NewInsert().Model(&rows).ModelTableExpr("enrollment.request_child_offerings").Exec(ctx); err != nil {

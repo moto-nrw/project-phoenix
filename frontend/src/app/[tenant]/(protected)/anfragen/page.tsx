@@ -25,6 +25,7 @@ import {
   canOpenParentRequestsTab,
   canOpenRequestsPage,
   canReviewChangeRequests,
+  canReviewCareWithdrawals,
   canReviewEnrollmentChangeRequests,
   canReviewStaffAbsenceRequests,
   canReviewStudentDataRequests,
@@ -50,6 +51,11 @@ const ENROLLMENT_TYPE_OPTION: {
   value: AggregatedRequestType;
   label: string;
 } = { value: "enrollment", label: "Anmeldung" };
+
+const CARE_WITHDRAWAL_TYPE_OPTION: {
+  value: AggregatedRequestType;
+  label: string;
+} = { value: "care_withdrawal", label: "Abmeldungen" };
 
 // Direkt-Korrekturen sind keine Anfragen: sie gibt es nur in der Historie,
 // also auch den Filter nur dort (#2436).
@@ -96,6 +102,7 @@ export default function AnfragenPage() {
   // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
   // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
   const showEnrollmentRequests = canReviewEnrollmentChangeRequests(session);
+  const showCareWithdrawals = canReviewCareWithdrawals(session);
   const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
   // Der Aggregator über die vier Kinderdaten-Arten verlangt users:update oder
   // users:absence — ohne eines von beiden darf die Quelle gar nicht angefragt
@@ -141,9 +148,10 @@ export default function AnfragenPage() {
       search: deferredSearch,
       includeAggregated: showAggregatedRequests,
       includeEnrollment: showEnrollmentRequests,
+      includeCareWithdrawals: showCareWithdrawals,
       types:
         view === "history"
-          ? typeFilter
+          ? typeFilter.filter((type) => type !== "care_withdrawal")
           : typeFilter.filter((type) => type !== "direct_correction"),
       statuses: view === "history" ? statusFilter : [],
       from:
@@ -159,6 +167,7 @@ export default function AnfragenPage() {
       deferredSearch,
       showAggregatedRequests,
       showEnrollmentRequests,
+      showCareWithdrawals,
       typeFilter,
       statusFilter,
       dateRange,
@@ -177,11 +186,19 @@ export default function AnfragenPage() {
     () => [
       ...(showStudentDataRequests ? REQUEST_TYPE_OPTIONS : []),
       ...(showEnrollmentRequests ? [ENROLLMENT_TYPE_OPTION] : []),
+      ...(view === "open" && showCareWithdrawals
+        ? [CARE_WITHDRAWAL_TYPE_OPTION]
+        : []),
       ...(view === "history" && showStudentDataRequests
         ? HISTORY_ONLY_TYPE_OPTIONS
         : []),
     ],
-    [showStudentDataRequests, showEnrollmentRequests, view],
+    [
+      showStudentDataRequests,
+      showEnrollmentRequests,
+      showCareWithdrawals,
+      view,
+    ],
   );
 
   const filterConfigs = useMemo(() => {

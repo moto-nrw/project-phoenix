@@ -29,6 +29,7 @@ type Resource struct {
 	RequestService            enrollmentService.RequestService
 	CaptchaService            *enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
+	PhaseExpiryService        enrollmentService.PhaseExpiryService
 	DecisionService           enrollmentService.DecisionService
 	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
@@ -155,6 +156,7 @@ func (rs *Resource) Router() chi.Router {
 
 		r.Route("/phases", func(r chi.Router) {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listPhases)
+			r.With(authorize.RequiresPermission("admin:*")).Get("/expiry-warnings", rs.listPhaseExpiryWarnings)
 			r.With(authorize.RequiresPermission("config:manage")).Post("/", rs.createPhase)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:read")).Get("/", rs.getPhase)

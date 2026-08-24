@@ -72,6 +72,7 @@ type Factory struct {
 	StudentDeletion     userModels.StudentDeletionRepository
 	CareExit            userModels.CareExitRepository
 	CareExitCleanup     userModels.CareExitCleanupRepository
+	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
@@ -228,6 +229,7 @@ type Factory struct {
 	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
 	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
 	Phase                 enrollmentModels.PhaseRepository
+	PhaseExpiry           enrollmentModels.PhaseExpiryRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -290,6 +292,7 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentDeletion:     users.NewStudentDeletionRepository(db),
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
+		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
@@ -443,6 +446,7 @@ func NewFactory(db *bun.DB) *Factory {
 		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                 enrollment.NewPhaseRepository(db),
+		PhaseExpiry:           enrollment.NewPhaseExpiryRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

@@ -179,6 +179,7 @@ GET /api/enrollment/legal/{tenantSlug}
 GET /api/enrollment/legal/{tenantSlug}/{phaseId}
 GET /api/enrollment/me/profile
 GET /api/enrollment/phases/
+GET /api/enrollment/phases/expiry-warnings
 GET /api/enrollment/phases/public/{tenantSlug}
 GET /api/enrollment/phases/{id}/
 GET /api/enrollment/phases/{id}/delete-impact
@@ -336,6 +337,7 @@ GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
 GET /api/students/arrival-settings
+GET /api/students/care-withdrawals
 GET /api/students/change-requests
 GET /api/students/change-requests/pending-count
 GET /api/students/class-arrival-times/{schoolClass}
@@ -671,6 +673,8 @@ POST /api/students/care-end
 POST /api/students/care-end/cancel
 POST /api/students/care-end/preview
 POST /api/students/care-schedule-change-requests/{requestId}/decide
+POST /api/students/care-withdrawals/{completionId}/care-end
+POST /api/students/care-withdrawals/{completionId}/care-end/preview
 POST /api/students/excused-absence-requests/{requestId}/decide
 POST /api/students/export
 POST /api/students/master-data-change-requests/{requestId}/decide

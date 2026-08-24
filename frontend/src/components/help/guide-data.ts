@@ -1222,7 +1222,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Ersatzperson übernimmt nur die ausgewählten Termine. `Auch in allen anderen Terminen als abwesend markieren` erweitert die Abwesenheit. Die Vertretung bleibt auf die Auswahl begrenzt.",
           "Eine Abwesenheit aus einer Krankmeldung kann hier nicht geändert werden. Der Umfang der Vertretung kann weiterhin gewählt werden.",
           "`Speichern` überträgt alle Änderungen gemeinsam. Die Meldung nennt die Anzahl der geänderten Termine.",
-          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Die Ersatzperson wird nicht als abwesend markiert. Der Regeltermin im Betreuungsplan bleibt unverändert.",
+          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Das geht auch, wenn die Ersatzperson dort als abwesend steht. Bei einer Krankmeldung gibt es diese Aktion nicht. Andere Termine und der Regeltermin im Betreuungsplan bleiben unverändert. `Anwesend melden` erscheint nur, wenn im Termin noch eine geplante Position frei ist.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
           "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
           "Fällt eine Person mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen. Sie brauchen dafür die Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`. Die abwesende Person und den Zeitraum angeben. Jeder ausgewählte Tag verwendet `Alle noch offenen Termine`. Einzelne Tage können abgewählt werden. Eine Ersatzperson und ein Grund sind freiwillig. Ohne Ersatzperson wird die Person nur als abwesend markiert. `Speichern` trägt alle Tage gemeinsam ein. Bei einem Fehler wird nichts gespeichert. Die Meldung nennt den betroffenen Tag.",
@@ -1423,7 +1423,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` öffnen.",
           "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
-          "Einträge anlegen, bearbeiten oder prüfen.",
+          "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
@@ -1459,9 +1459,10 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
           "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
-          "Letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil, ab dem Folgetag ist seine Betreuung beendet. Ein Tag in der Vergangenheit ist nicht möglich.",
+          "Beim normalen Ende den letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil. Ein Tag in der Vergangenheit ist hier nicht möglich.",
           "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
           "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert: wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
+          "Wenn alle gebuchten Betreuungstage wegfallen, erscheint ein offener Abschluss in der Aufgabenliste und beim Kind. Dort `Betreuung beenden` wählen. Für diesen Abschluss darf der letzte Betreuungstag auch in der Vergangenheit liegen. Er muss vor dem ersten Tag ohne Buchung liegen und darf nicht vor einer erfassten Anwesenheit liegen.",
           "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
           "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
           "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
@@ -1658,6 +1659,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
           "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
           "Für das nächste Halbjahr im Aktionsmenü `Anschlussphase erstellen` wählen. Die Vorschau zeigt: wird übernommen, muss geprüft werden oder wird nicht übernommen. Bei `Klassenstufe erhöhen` wird die Vorschau neu berechnet. Eltern können danach bestätigen, nur Angebote und Wochentage anpassen oder abmelden. Bei einer Anpassung bleiben alle anderen Angaben erhalten.",
+          "30 Tage vor dem ersten Betreuungstag nach einem Phasenende warnt moto, wenn Buchungen auslaufen. Der Hinweis nennt das Datum und die Zahl der betroffenen Kinder. Bei `Anschlussphase fehlt` auf `Anschlussphase erstellen` klicken.",
+          "Nach dem Erstellen prüft moto die Übernahme weiter. Bei `Übernahme noch offen` auf `Anschlussphase öffnen` klicken. Der Hinweis verschwindet, wenn die OGS jedes übernommene Kind genehmigt hat. Für jedes genehmigte Kind muss mindestens ein aktives Angebot gebucht sein. Das kann zum Beispiel Betreuung oder Mittagessen sein. Abgelehnte oder abgemeldete Kinder gelten ebenfalls als erledigt.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1665,7 +1668,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot:
-          "Anmeldephase mit Betreuungszeitraum, Anmeldefenster und Formularwahl.",
+          "Anmeldephasen mit Warnung vor auslaufenden Buchungen und der Aktion Anschlussphase erstellen.",
         image: "/help/screens/anmeldephasen.webp",
       },
       {

@@ -593,6 +593,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		repoFactory.FormSchema,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
+	api.Enrollment.PhaseExpiryService = api.Services.EnrollmentPhaseExpiry
 	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)

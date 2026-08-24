@@ -254,14 +254,15 @@ func (s *offeringChangeRequestService) ApplyDirectOfferingAdjustment(
 		effectiveFrom = timezone.TodayDate()
 	}
 	_, err = s.DirectApplier.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
-		RequestID:                preview.RequestID,
-		ChildID:                  preview.RequestChildID,
-		Offerings:                adjustmentSelections(input.Selections),
-		Reason:                   reason,
-		ActorAccountID:           input.ActorAccountID,
-		ActorRole:                input.ActorRole,
-		EffectiveFrom:            &effectiveFrom,
-		ExcludedAutoAddTargetIDs: excluded,
+		RequestID:                   preview.RequestID,
+		ChildID:                     preview.RequestChildID,
+		Offerings:                   adjustmentSelections(input.Selections),
+		Reason:                      reason,
+		ActorAccountID:              input.ActorAccountID,
+		ActorRole:                   input.ActorRole,
+		EffectiveFrom:               &effectiveFrom,
+		ExcludedAutoAddTargetIDs:    excluded,
+		CompleteWithdrawalConfirmed: input.CompleteWithdrawalConfirmed,
 	})
 	return err
 }

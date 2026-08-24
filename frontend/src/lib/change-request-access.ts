@@ -51,6 +51,11 @@ export function canReviewEnrollmentChangeRequests(
   return isAdmin(session) || hasPermission(session, "config:manage");
 }
 
+/** Darf eine Komplett-Abmeldung aufgerufen und abgeschlossen werden? */
+export function canReviewCareWithdrawals(session: Session | null): boolean {
+  return isAdmin(session) || hasPermission(session, "users:delete");
+}
+
 /**
  * Darf die Person den Eltern-Reiter sehen? Er zeigt die vier Kinderdaten-Arten
  * und die Anmeldungsänderungen; wer eines von beiden entscheiden darf, sieht
@@ -59,7 +64,8 @@ export function canReviewEnrollmentChangeRequests(
 export function canOpenParentRequestsTab(session: Session | null): boolean {
   return (
     canReviewChangeRequests(session) ||
-    canReviewEnrollmentChangeRequests(session)
+    canReviewEnrollmentChangeRequests(session) ||
+    canReviewCareWithdrawals(session)
   );
 }
 

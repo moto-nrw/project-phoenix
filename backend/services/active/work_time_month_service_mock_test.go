@@ -891,9 +891,10 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 
 	f := newWTMFixture()
 	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, timezone.Berlin)
-	// A live open session belongs to the current day; pin today to the real
-	// calendar date and the service clock so the now-relative timestamps stay
-	// on the session's own day and the day cap does not clamp the running span.
+	// A live open session belongs to the current day. Pin the clock to midday,
+	// service and session reader alike, so the now-relative timestamps stay on
+	// the session's own Berlin day and the day cap does not clamp the running
+	// span.
 	today := timezone.DateFromTime(now)
 	f.svc.todayFunc = func() timezone.Date { return today }
 	f.svc.nowFunc = func() time.Time { return now }
@@ -941,8 +942,8 @@ func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
 // The admin correction API accepts a check_out_time later than the current
 // instant. On TODAY's session the now cap keeps only the minutes already
 // worked from counting; the future tail must not credit Ist against a target
-// that only accrues up to today. The fixture pins today to the real calendar
-// day so the session's own day does not clamp the span before now does.
+// that only accrues up to today. The fixture pins the clock to midday so the
+// session's own day does not clamp the span before now does.
 func TestWTMMonthSummary_TodayFutureCheckOutClampedAtNow(t *testing.T) {
 	t.Parallel()
 

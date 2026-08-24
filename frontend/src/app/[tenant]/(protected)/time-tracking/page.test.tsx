@@ -1457,22 +1457,28 @@ describe("TimeTrackingPage", () => {
   // of a range by intersection instead of by stored date.
   describe("abgelaufene und übergreifende Blöcke (#2402)", () => {
     it("stops counting a block whose live limit has passed", () => {
-      const threeDaysAgo = new Date(today);
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      const staleISO = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`;
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T12:00:00+01:00"));
+      try {
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        const staleISO = `${threeDaysAgo.getFullYear()}-${String(threeDaysAgo.getMonth() + 1).padStart(2, "0")}-${String(threeDaysAgo.getDate()).padStart(2, "0")}`;
 
-      setupDefaultMocks({
-        currentSession: {
-          ...mockActiveSession,
-          date: staleISO,
-          checkInTime: testTimestamp(staleISO, "08:00"),
-        },
-      });
-      const { container } = render(<TimeTrackingPage />);
+        setupDefaultMocks({
+          currentSession: {
+            ...mockActiveSession,
+            date: staleISO,
+            checkInTime: testTimestamp(staleISO, "08:00"),
+          },
+        });
+        const { container } = render(<TimeTrackingPage />);
 
-      // The block ended at the end of its own Berlin day — server-side too, so
-      // running it through `now` would print days of work the Saldo denies.
-      expect(container.querySelector(".text-4xl")).toHaveTextContent("0min");
+        // The block ended at the end of its own Berlin day — server-side too, so
+        // running it through `now` would print days of work the Saldo denies.
+        expect(container.querySelector(".text-4xl")).toHaveTextContent("0min");
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("keeps counting a block that is still inside its live window", () => {

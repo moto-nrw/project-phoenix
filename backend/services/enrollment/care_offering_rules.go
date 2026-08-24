@@ -22,6 +22,19 @@ import (
 // over-selection interactively), but a stale or scripted submit must not
 // slip past. Mirrors groupOfferings/validation in enrollment-form.tsx.
 func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) error {
+	return validateOfferingGroupRulesWithMissingRequiredAllowed(children, openByID, false)
+}
+
+// validateOfferingGroupRulesWithMissingRequiredAllowed keeps the upper bounds
+// and configuration checks intact while allowing a confirmed complete
+// withdrawal to leave a required group empty. In particular, at_most_one and
+// the "at most" half of exactly_one remain enforced for non-care offerings
+// that stay booked.
+func validateOfferingGroupRulesWithMissingRequiredAllowed(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	allowMissingRequired bool,
+) error {
 	// Build group → rule from the catalog. Iterate offerings in a stable
 	// order (sorted by id) rather than over the map directly: Go map
 	// iteration order is unspecified, so picking the rule from the map would
@@ -57,12 +70,19 @@ func validateOfferingGroupRules(children []SubmitChild, openByID map[int64]*enro
 	for idx := range children {
 		counts := offeringGroupCounts(children[idx], openByID)
 		for _, group := range groups {
-			if err := checkGroupRule(idx, group, groupRule[group], counts[group]); err != nil {
+			if err := checkGroupRuleAllowingMissingRequired(idx, group, groupRule[group], counts[group], allowMissingRequired); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func checkGroupRuleAllowingMissingRequired(childIdx int, group, rule string, count int, allowMissingRequired bool) error {
+	if allowMissingRequired && count == 0 && (rule == enrollmentModels.SelectionRuleExactlyOne || rule == enrollmentModels.SelectionRuleAtLeastOne) {
+		return nil
+	}
+	return checkGroupRule(childIdx, group, rule, count)
 }
 
 // offeringGroupCounts counts how many offerings the child selected in

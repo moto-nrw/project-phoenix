@@ -194,24 +194,87 @@ App-Zugang.
 ## OGS-Betreuung
 
 Die **OGS-Betreuung** ist die grundsätzliche Anmeldung eines Kindes bei einer
-OGS. Sie besteht unabhängig davon, ob zusätzliche Betreuungsangebote ausgewählt
-sind.
+OGS. Welcher Plan ihre Betreuungstage bestimmt, hängt vom Betreuungsmodell der
+Schule ab; beendet wird sie erst durch einen Austritt oder die Löschung.
+
+Eine **buchungsgeführte Betreuung** leitet die Betreuungstage eines Kindes aus
+seinen wirksamen Buchungen von Betreuungsangeboten ab.
+
+Eine **wochenplangeführte Betreuung** leitet die Betreuungstage eines Kindes
+aus seinem regelmäßig gepflegten Wochenplan ab; Angebotsbuchungen sind dafür
+nicht maßgeblich.
+
+Eine **Komplett-Abmeldung** entsteht in der buchungsgeführten Betreuung, wenn
+die wirksamen, betreuungszählenden Angebotsbuchungen eines weiterhin betreuten
+Kindes von mindestens einer auf keine fallen. Auslöser können eine bestätigte
+Elternanfrage, eine Änderung der Schule oder das Auslaufen der letzten Buchung
+sein; Angebote ohne Betreuungstage dürfen bestehen bleiben.
+
+Eine Komplett-Abmeldung ist keine normale Angebotsauswahl für eine fortlaufende
+Betreuung. Betreuungszählende Pflichtangebote und Mindestmengen stehen ihr
+daher nicht entgegen.
+
+Die **Bestätigung einer Komplett-Abmeldung** hält fest, dass Eltern oder Schule
+den Wegfall aller Betreuungstage ausdrücklich beabsichtigen. Sie beendet die
+OGS-Betreuung noch nicht und bleibt vom späteren Abschluss getrennt.
+
+Der **Abschluss einer Komplett-Abmeldung** ist die noch ausstehende Entscheidung,
+die OGS-Betreuung zu beenden oder das Kind zu löschen. Er bleibt offen, bis eine
+berechtigte Person entscheidet, und kennt kein bewusstes Behalten als Ergebnis.
+
+Ein **gegenstandsloser Abschluss** ist ein noch offener Abschluss, dessen Kind
+wieder ohne zeitliche Lücke wirksame Betreuungstage hat oder dessen Schule zur
+wochenplangeführten Betreuung wechselt. Er endet ohne Austritt oder Löschung.
+
+Ein **geplanter Abschluss** ist ein Abschluss für einen erst künftig beginnenden
+buchungslosen Zeitraum. Er ist bereits vor diesem Zeitraum sichtbar und kann
+vorher erledigt werden. Bis zum Beginn des buchungslosen Zeitraums nimmt das
+Kind weiter regulär an Betreuung und Planung teil.
+
+Ein **überfälliger Abschluss** ist ein noch offener Abschluss, dessen
+buchungsloser Zeitraum bereits begonnen hat. Er verlangt eine Entscheidung,
+beendet oder löscht die Betreuung aber nicht automatisch. Das Kind wird nicht
+mehr in Klassen-, Gruppen-, Erwartungs- oder Planungslisten geführt. In der
+Kinderverwaltung und bei den offenen Abschlüssen bleibt es sichtbar; eine
+tatsächliche Anwesenheit bleibt ebenfalls sichtbar.
+
+Ein **reguläres Betreuungsende** liegt vor, wenn der Betreuungszeitraum und die
+letzten Buchungen gemeinsam enden. Es braucht keinen Abschluss einer
+Komplett-Abmeldung.
 
 Ein **Austritt** beendet die OGS-Betreuung eines Kindes, ohne seine historischen
 Daten zu löschen. Umzug und entfallener Betreuungsbedarf sind Austrittsgründe,
-keine Löschgründe.
+keine Löschgründe. Mit dem Austritt enden alle laufenden und geplanten
+Angebotsbuchungen sowie regelmäßig geplanten Teilnahmen. Das gilt auch für
+Angebote, die nicht als Betreuungstag zählen.
 
 Der **letzte Betreuungstag** ist der letzte Kalendertag, an dem das Kind noch
-an der OGS-Betreuung teilnimmt. Ab dem Folgetag ist seine Betreuung beendet.
+an der OGS-Betreuung teilnimmt. Ab dem Folgetag ist die Betreuung beendet; bei
+einer Komplett-Abmeldung darf der Tag rückwirkend liegen, aber nur vor dem
+Beginn des buchungslosen Zeitraums und nicht vor einer tatsächlich erfassten
+Anwesenheit.
+
+Die **Löschung eines Kindes** entfernt den Kind-Datensatz und seine löschbaren
+kindbezogenen Daten sofort. Anders als ein Austritt kennt sie weder einen
+späteren Stichtag noch eine Wiederaufnahme.
 
 Eine **beendete OGS-Betreuung** bleibt für berechtigte Personen außerhalb der
 laufenden Arbeitslisten auffindbar. Ihr Austritt kann korrigiert oder
 zurückgenommen werden; das ist keine Wiederherstellung gelöschter Daten.
 Eltern sehen vergangene Inhalte dazu nur noch lesend.
 
+Ein **inaktives Kind** ist ein Kind, dessen Betreuungszeitraum abgelaufen ist.
+Dieser Zustand folgt aus den Betreuungsdaten und ist keine eigenständige,
+manuell wählbare Form des Ausblendens.
+
 Eine **Wiederaufnahme** beginnt die OGS-Betreuung eines ausgetretenen Kindes
-neu. Sie behält seine Stammdaten, übernimmt aber keine früheren Wochenpläne,
-Angebote oder Gruppen ungeprüft.
+neu. Sie behält seine Stammdaten und seine Historie. Frühere Gruppen, Angebote,
+Wochenpläne sowie Ankunfts- und Gehzeiten werden nicht automatisch wieder
+wirksam; die Schule legt die neue Betreuung ausdrücklich fest.
+
+Die **Stornierung eines geplanten Austritts** nimmt ein noch nicht wirksames
+Betreuungsende zurück. Anders als eine Wiederaufnahme stellt sie den Stand vor
+der Planung des Austritts wieder her.
 
 Der **Austrittsgrund** ordnet ein Ende als Umzug, entfallenen Betreuungsbedarf
 oder anderen Grund ein. Nur der andere Grund wird durch einen kurzen Freitext
@@ -245,6 +308,23 @@ die OGS wirksam.
 Ein **Betreuungsangebot** ist eine innerhalb der OGS-Betreuung auswählbare
 Leistung, etwa Mittagessen oder Ferienbetreuung. Eine Änderung der Auswahl ist
 eine Elternanfrage und wird erst nach Bestätigung durch die OGS wirksam.
+
+## Phasenende
+
+Eine **auslaufende Angebotsbuchung** ist eine am Ende des Leistungszeitraums
+einer Anmeldephase noch wirksame Buchung, deren Gültigkeit mit der Phase endet.
+
+Ein **vom Phasenende betroffenes Kind** ist ein Kind, dessen OGS-Betreuung am
+Phasenende noch läuft und das mindestens eine auslaufende Angebotsbuchung hat.
+Das Angebot muss nicht als Betreuungstag zählen.
+
+Eine **Anschlussphase** ist eine Schuljahresphase, die mit einer auslaufenden
+Schuljahresphase verknüpft ist oder zeitlich ohne Buchungslücke an sie anschließt.
+
+Ein **Übernahmekandidat** ist ein vom Phasenende betroffenes Kind, das mit seinen
+Buchungen in eine Anschlussphase kopiert wurde, dort aber noch nicht genehmigt
+ist. Erst die Genehmigung mit mindestens einer wirksamen Angebotsbuchung ist
+eine **wirksame Übernahme**.
 
 ## Mitbuchungs-Regel
 
