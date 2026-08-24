@@ -1,4 +1,4 @@
-import { Plus, RotateCcw } from "lucide-react";
+import { Plus, RotateCcw, UserMinus } from "lucide-react";
 
 import { getStatusLabel } from "~/lib/timetable-helpers";
 import type {
@@ -10,7 +10,6 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Radio } from "~/components/ui/radio";
 
 import {
@@ -83,7 +82,7 @@ function MarkAbsentAction({ person, name, onUpdate }: PersonHeaderProps) {
         })
       }
     >
-      <MotoConceptIcon concept="substitution" size={16} className="mr-1.5" />
+      <UserMinus className="mr-1.5 h-4 w-4" aria-hidden />
       Abwesend
     </Button>
   );
