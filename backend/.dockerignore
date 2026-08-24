@@ -9,6 +9,8 @@
 *.dylib
 main
 bin/
+project-phoenix
+test-build
 
 # Test binary, built with `go test -c`
 *.test

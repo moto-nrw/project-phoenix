@@ -6,6 +6,9 @@ node_modules
 # Testing
 coverage
 .nyc_output
+playwright-report
+storybook-static
+test-results
 
 # Next.js
 .next
