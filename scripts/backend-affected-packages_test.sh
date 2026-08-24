@@ -13,7 +13,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{core,consumer,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{core,consumer,consumerwithouttests,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
@@ -29,6 +29,13 @@ import "example.test/project/core"
 const Value = core.Value
 EOF
 printf 'package consumer\n' >"$fixture/backend/consumer/consumer_test.go"
+cat >"$fixture/backend/consumerwithouttests/consumer.go" <<'EOF'
+package consumerwithouttests
+
+import "example.test/project/core"
+
+const Value = core.Value
+EOF
 printf 'package corex\n' >"$fixture/backend/corex/corex.go"
 printf 'package corex\n' >"$fixture/backend/corex/corex_test.go"
 printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/localization/locales.go"
@@ -105,8 +112,8 @@ assert_output $'example.test/project/core\nexample.test/project/test'
 git -C "$fixture" restore backend/core/core_test.go
 
 printf '\n// changed\n' >>"$fixture/backend/core/core.go"
-assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test'
-assert_output $'example.test/project/consumer\nexample.test/project/core\nexample.test/project/test' "$fixture/backend"
+assert_output $'example.test/project/consumer\nexample.test/project/consumerwithouttests\nexample.test/project/core\nexample.test/project/test'
+assert_output $'example.test/project/consumer\nexample.test/project/consumerwithouttests\nexample.test/project/core\nexample.test/project/test' "$fixture/backend"
 git -C "$fixture" restore backend/core/core.go
 
 mkdir -p "$fixture/backend/consumer/testdata"
@@ -145,6 +152,16 @@ fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
+assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' present
+assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present
+for pattern in \
+  'backend/go.mod' \
+  'backend/go.sum' \
+  'backend/.golangci.yml' \
+  'scripts/backend-affected-packages.sh' \
+  'scripts/backend-affected-packages_test.sh'; do
+  assert_workflow_filter backend-lint-full "$pattern" present
+done
 for pattern in \
   'backend/templates/email/**' \
   'backend/localization/locales.json' \
@@ -155,5 +172,6 @@ done
 
 assert_workflow_output_contains run-backend '${{ github.event_name == '\''push'\'' ||'
 assert_workflow_output_contains run-frontend '${{ github.event_name == '\''push'\'' ||'
+assert_workflow_output_contains full-backend-lint '${{ github.event_name == '\''push'\'' ||'
 
 echo 'backend affected-package selector tests passed'
