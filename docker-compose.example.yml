@@ -13,6 +13,8 @@ services:
       - ./backend:/app
       # Preserve go modules cache
       - go_mod_cache:/go/pkg/mod
+      # Preserve compiled packages across container rebuilds
+      - go_build_cache:/root/.cache/go-build
     environment:
       TZ: ${TZ}
       APP_ENV: ${APP_ENV}
@@ -224,3 +226,4 @@ volumes:
   postgres:
   postgres_test:
   go_mod_cache:
+  go_build_cache:
