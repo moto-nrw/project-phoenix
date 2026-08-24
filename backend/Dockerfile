@@ -8,14 +8,12 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     go mod download
 
-# Add cache-busting argument
-ARG CACHE_BUST=1
-
 # Add source code
 COPY . .
 
-# Build with module cache mount to avoid re-downloading
+# Reuse downloaded modules and compiled packages across builds.
 RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
+    --mount=type=cache,mode=0755,target=/root/.cache/go-build \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o main .
 
 # Multi-Stage production build
