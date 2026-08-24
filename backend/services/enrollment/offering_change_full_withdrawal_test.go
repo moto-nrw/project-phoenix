@@ -47,6 +47,24 @@ func TestOfferingChangeRequestService_Create_RequiresAndAuditsCompleteWithdrawal
 	assert.False(t, row.WithdrawalConfirmedAt.IsZero())
 }
 
+func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAreNotAuthoritative(t *testing.T) {
+	t.Parallel()
+
+	authoritative := false
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &authoritative})
+	defer cleanup()
+	ctx := offeringChangeAdminContext(t)
+	svc := newOfferingChangeServiceForTest(t, env)
+	direct, ok := svc.(enrollmentService.DirectOfferingAdjustmentCoordinator)
+	require.True(t, ok)
+	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
+
+	_, err := direct.PreviewDirectOfferingAdjustment(ctx, enrollmentService.DirectOfferingAdjustmentInput{
+		StudentID: fx.studentID, EffectiveFrom: fx.switchDate, Selections: []enrollmentService.OfferingChangeSelection{},
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrOfferingChangeInvalid)
+}
+
 func TestOfferingChangeRequestService_Decide_RequiresStaffWithdrawalConfirmation(t *testing.T) {
 	t.Parallel()
 

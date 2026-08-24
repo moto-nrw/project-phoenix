@@ -135,33 +135,6 @@ function CareWithdrawalHistoryRows({
   });
 }
 
-function WithdrawalDeletionWarning({
-  withdrawal,
-  onCancel,
-  onConfirm,
-}: Readonly<{
-  withdrawal: CareWithdrawalCompletion | null;
-  onCancel: () => void;
-  onConfirm: () => void;
-}>) {
-  return (
-    <ConfirmationModal
-      isOpen={withdrawal !== null}
-      onClose={onCancel}
-      onConfirm={onConfirm}
-      title="Kind sofort löschen"
-      confirmText="Löschen prüfen"
-      cancelText="Zurück"
-      mobileSheet
-    >
-      <p className="text-sm text-gray-600">
-        Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag
-        wird nicht abgewartet.
-      </p>
-    </ConfirmationModal>
-  );
-}
-
 /** Wie viele Zeilen eine Seite der zusammengeführten Liste zeigt. */
 const PAGE_SIZE = 25;
 
@@ -635,14 +608,25 @@ export function AggregatedRequestList({
           }}
         />
       )}
-      <WithdrawalDeletionWarning
-        withdrawal={deletionWarningWithdrawal}
-        onCancel={() => setDeletionWarningWithdrawal(null)}
-        onConfirm={() => {
-          setDeletionWithdrawal(deletionWarningWithdrawal);
-          setDeletionWarningWithdrawal(null);
-        }}
-      />
+      {deletionWarningWithdrawal && (
+        <ConfirmationModal
+          isOpen
+          onClose={() => setDeletionWarningWithdrawal(null)}
+          onConfirm={() => {
+            setDeletionWithdrawal(deletionWarningWithdrawal);
+            setDeletionWarningWithdrawal(null);
+          }}
+          title="Kind sofort löschen"
+          confirmText="Löschen prüfen"
+          cancelText="Zurück"
+          mobileSheet
+        >
+          <p className="text-sm text-gray-600">
+            Das Kind wird sofort gelöscht. Auch ein späterer letzter
+            Betreuungstag wird nicht abgewartet.
+          </p>
+        </ConfirmationModal>
+      )}
     </div>
   );
 }
