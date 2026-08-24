@@ -73,7 +73,9 @@ export function StudentRow({
             trüge die Zeile das Kennzeichen "Andere Abholzeit" ohne die Zeit,
             um die es geht. Die Regelzeit steht darunter: ohne sie liest sich
             "bis 12:15" wie der Normalfall. */}
-        {(row.stays_today || row.pickup_changed) && row.pickup ? (
+        {!row.status &&
+        (row.stays_today || row.pickup_changed) &&
+        row.pickup ? (
           <span className="text-right">
             <span className="block text-xs font-medium text-gray-600 tabular-nums">
               bis {row.pickup}

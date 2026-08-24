@@ -82,6 +82,8 @@ describe("StudentRow", () => {
 
     expect(screen.getByText("Krank")).toBeInTheDocument();
     expect(screen.queryByText("Andere Abholzeit")).not.toBeInTheDocument();
+    expect(screen.queryByText("bis 12:15")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^sonst /)).not.toBeInTheDocument();
   });
 
   it("kennzeichnet ein Kind ohne OGS-Datensatz und erfindet keine Abweichung", () => {

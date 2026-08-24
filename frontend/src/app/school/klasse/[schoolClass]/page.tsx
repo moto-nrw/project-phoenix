@@ -19,7 +19,7 @@ export default function SchoolClassDayPage({
   return (
     <Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <ClassDayClass
-        schoolClass={decodeURIComponent(schoolClass)}
+        schoolClass={schoolClass}
         fetchClassDay={fetchClassDaySchool}
       />
     </Suspense>

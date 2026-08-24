@@ -179,7 +179,7 @@ export function ClassDayOverview({
   // gar nicht (spart pro Klasse den vollen Report samt GDPR-Logzeile).
   const { data: dayData, isLoading: reportsLoading } = useSWRAuth(
     classes && classes.length > 0 && !weekend
-      ? `class-day-reports-${dateISO}-${classes.join("|")}`
+      ? `class-day-reports-${dateISO}-${JSON.stringify(classes)}`
       : null,
     async () => {
       const list = classes ?? [];
