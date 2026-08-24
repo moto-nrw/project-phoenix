@@ -50,6 +50,13 @@ const (
 	// to a Lehrkraft (or any other class_day:read holder). StudentID stays
 	// NULL; metadata carries school_class, date and student_count.
 	ResourceTypeClassDayView = "class_day_view"
+	// ResourceTypeSupervisionStudentSheet records serving ONE child's pickup
+	// and emergency contacts to a supervisor running the block that child is
+	// in (#2527). The class day view (ResourceTypeClassDayView) deliberately
+	// carries no contact details at all, so this is the wider disclosure and
+	// gets its own resource type — and, unlike the class day view, no
+	// deduplication: the sheet opens only on a deliberate tap.
+	ResourceTypeSupervisionStudentSheet = "supervision_student_sheet"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

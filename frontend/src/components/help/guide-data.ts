@@ -1061,7 +1061,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
           "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
           "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
-          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
+          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt. Nur wenn Sie die Lehrkraft im Betreuungsplan für eine Aufsicht einteilen, sieht sie zu den Kindern dieser Aufsicht auch Abhol- und Notfallkontakte (siehe `Lehrkraft führt eine Aufsicht`).",
         ],
         callout: {
           title: "Passwort vergessen",
@@ -1070,6 +1070,28 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Klassenansicht einer Lehrkraft mit Tagesliste der Klasse und Kennzeichnung Betreuung oder nach Hause.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-aufsichten",
+        title: "Lehrkraft führt eine Aufsicht",
+        icon: ClipboardCheck,
+        summary:
+          "Teilt eine Lehrkraft im Betreuungsplan für eine Lernzeit oder eine andere Aufsicht ein. Sie kann diese Aufsicht dann selbst starten, die Anwesenheit führen und beenden.",
+        steps: [
+          "Voraussetzung: die Lehrkraft hat schon einen Zugang zu moto schule (siehe `Lehrkraft-Zugang mit Klassenansicht`).",
+          "Im `Betreuungsplan` den Termin öffnen und die Lehrkraft als Person eintragen, wie jede andere Betreuungskraft auch. Eine eigene Rolle braucht sie dafür nicht.",
+          "Die Lehrkraft findet den Termin am selben Tag in moto schule unter `Meine Aufsichten`. Sie startet die Aufsicht, hakt die Kinder ab und beendet sie am Ende.",
+          "Tippt sie in der Liste auf den Namen eines Kindes, sieht sie für dieses Kind die Abholzeit, den Heimweg, wer abholen darf und die Notfallkontakte. Jeder dieser Aufrufe wird im Zugriffsprotokoll vermerkt.",
+          "Nehmen Sie die Einteilung wieder heraus, ist die Aufsicht für die Lehrkraft sofort weg. Sie sieht dann auch die Kinder dieser Aufsicht nicht mehr.",
+        ],
+        callout: {
+          title: "Nur die eigene Einteilung",
+          body: "Eine Lehrkraft sieht ausschließlich Aufsichten, für die sie selbst eingeteilt ist, und darin nur die Kinder dieser Aufsicht. Andere Aufsichten der Schule bleiben ihr verborgen, auch wenn Sie für Ihre Betreuungskräfte den Zugriff auf alle Räume eingeschaltet haben.",
+          tone: "blue",
+        },
+        screenshot:
+          "Ansicht Meine Aufsichten in moto schule mit einer eingeteilten Aufsicht und der Kinderliste darunter.",
         printCompact: true,
       },
       {

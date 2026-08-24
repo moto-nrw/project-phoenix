@@ -14,12 +14,28 @@ vi.mock("~/lib/school-url", () => ({
 }));
 
 describe("SchoolSidebar", () => {
-  it("führt genau die zwei erreichbaren Ziele", () => {
+  it("führt genau die drei erreichbaren Ziele", () => {
     render(<SchoolSidebar />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
+    // Seit #2527 führt eine Lehrkraft auch ihre eigenen Aufsichten.
+    expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
     expect(screen.getByText("Hilfe")).toBeInTheDocument();
-    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(2);
+    expect(document.querySelectorAll("[data-school-nav-item]")).toHaveLength(3);
+  });
+
+  it("markiert die Aufsichten auf ihrer Seite des Schul-Hosts (#2527)", () => {
+    mockPathname.value = "/aufsichten";
+    render(<SchoolSidebar />);
+
+    const item = document.querySelector(
+      '[data-school-nav-item="supervisions"]',
+    );
+    expect(item).toHaveAttribute("data-active", "true");
+    expect(item).toHaveAttribute("href", "/aufsichten");
+    expect(
+      document.querySelector('[data-school-nav-item="classDay"]'),
+    ).toHaveAttribute("data-active", "false");
   });
 
   it("markiert die Klassenansicht auf der Startseite des Schul-Hosts", () => {

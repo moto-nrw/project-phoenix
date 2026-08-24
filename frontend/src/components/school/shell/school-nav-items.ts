@@ -30,13 +30,25 @@ export interface SchoolNavItem {
   readonly portalPath?: boolean;
 }
 
-/** Die Startseite des Schul-Hosts: der heutige Tag einer Klasse. */
+/**
+ * Die beiden Alltagsziele: der heutige Tag einer Klasse, und die Aufsichten,
+ * die diese Lehrkraft heute selbst führt. Getrennte Namen mit getrennten
+ * Aufgaben — die Klassenansicht ist die Übergabe nach Unterricht, die
+ * Aufsichten sind der eigene Dienst danach.
+ */
 export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
   {
     key: "classDay",
     href: "/school",
     label: "Klassenansicht",
     concept: "classDay",
+    portalPath: true,
+  },
+  {
+    key: "supervisions",
+    href: "/school/aufsichten",
+    label: "Meine Aufsichten",
+    concept: "present",
     portalPath: true,
   },
 ];

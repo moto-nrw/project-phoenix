@@ -42,6 +42,15 @@ func (c *AppClaims) IsPlatformScope() bool {
 	return c.Scope == "platform"
 }
 
+// IsSchoolScope returns true if this is a school-portal token ("moto schule",
+// #2207). School tokens are tenant-bound like regular tenant tokens, so the
+// scope is the ONLY thing that distinguishes them once the tenant transaction
+// is open — which is why authorization rules that must not apply to a
+// Lehrkraft ask this question instead of inspecting roles (#2527).
+func (c *AppClaims) IsSchoolScope() bool {
+	return c.Scope == "school"
+}
+
 // Error format for missing claims
 const errMissingClaim = "missing required claim: %s"
 
