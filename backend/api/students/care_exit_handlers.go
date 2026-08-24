@@ -99,6 +99,7 @@ type careExitImpactResponse struct {
 	HasRFIDTag         bool                                `json:"has_rfid_tag"`
 	CurrentlyPresent   bool                                `json:"currently_present"`
 	SourceOfferings    []userModels.CareExitSourceOffering `json:"source_offerings"`
+	WeeklyPlans        []string                            `json:"weekly_plans"`
 	PlannedEndsOn      *string                             `json:"planned_ends_on,omitempty"`
 	Blocker            string                              `json:"blocker,omitempty"`
 }
@@ -126,6 +127,7 @@ func toCareExitPreviewResponse(preview *userService.CareExitPreview) careExitPre
 			HasRFIDTag:         impact.HasRFIDTag,
 			CurrentlyPresent:   impact.CurrentlyPresent,
 			SourceOfferings:    impact.SourceOfferings,
+			WeeklyPlans:        impact.WeeklyPlans,
 			Blocker:            impact.Blocker,
 		}
 		if impact.PlannedEndsOn != nil {

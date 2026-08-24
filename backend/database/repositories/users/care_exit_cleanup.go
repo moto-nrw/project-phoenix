@@ -562,6 +562,42 @@ func (r *CareExitCleanupRepository) ListSourceOfferingsAfter(
 	return result, nil
 }
 
+func (r *CareExitCleanupRepository) ListWeeklyPlanPatterns(ctx context.Context, studentIDs []int64) (map[int64][]string, error) {
+	patterns := make(map[int64][]string, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return patterns, nil
+	}
+	var rows []struct {
+		StudentID int64  `bun:"student_id"`
+		Pattern   string `bun:"pattern"`
+	}
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT student_id, pattern FROM (
+			SELECT student_id,
+			       'Ankunft am ' || CASE weekday
+			         WHEN 1 THEN 'Montag' WHEN 2 THEN 'Dienstag' WHEN 3 THEN 'Mittwoch'
+			         WHEN 4 THEN 'Donnerstag' WHEN 5 THEN 'Freitag' END ||
+			       COALESCE(': ' || TO_CHAR(expected_arrival, 'HH24:MI'), '') AS pattern
+			FROM schedule.student_arrival_schedules
+			WHERE tenant_id = ? AND student_id IN (?)
+			UNION ALL
+			SELECT student_id,
+			       'Abholung am ' || CASE weekday
+			         WHEN 1 THEN 'Montag' WHEN 2 THEN 'Dienstag' WHEN 3 THEN 'Mittwoch'
+			         WHEN 4 THEN 'Donnerstag' WHEN 5 THEN 'Freitag' END ||
+			       ': ' || TO_CHAR(pickup_time, 'HH24:MI') AS pattern
+			FROM schedule.student_pickup_schedules
+			WHERE tenant_id = ? AND student_id IN (?)
+		) AS patterns ORDER BY student_id, pattern
+	`, tenant.FromContext(ctx), bun.List(studentIDs), tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list recurring weekly plans for care exit preview", Err: err}
+	}
+	for _, row := range rows {
+		patterns[row.StudentID] = append(patterns[row.StudentID], row.Pattern)
+	}
+	return patterns, nil
+}
+
 // CapByStudentIDs ends every offering and activity booking of the given
 // children at validUntil (exclusive), deleting the ones that would be left
 // with no interval at all. Both halves write the ledger first so a cancelled
@@ -671,7 +707,7 @@ func (r *CareExitCleanupRepository) EndSourceBookings(
 }
 
 func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
-	ctx context.Context, asOf timezone.Date,
+	ctx context.Context, _ timezone.Date,
 ) ([]userModels.CareWithdrawalBookingChange, error) {
 	rows := make([]userModels.CareWithdrawalBookingChange, 0)
 	err := base.GetDB(ctx, r.db).NewRaw(`
@@ -689,7 +725,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
 		JOIN users.students AS student
 		  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id
-		WHERE rco.tenant_id = ? AND rco.valid_until <= ? AND co.counts_as_care
+		WHERE rco.tenant_id = ? AND rco.valid_until IS NOT NULL AND co.counts_as_care
 		  AND ((co.days_of_week_mode = 'fixed' AND jsonb_array_length(co.available_days) > 0)
 		    OR (co.days_of_week_mode <> 'fixed' AND jsonb_array_length(rco.selected_days) > 0))
 		  AND student.status = 'active'
@@ -702,6 +738,8 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			  ON later_child.id = later.request_child_id AND later_child.tenant_id = later.tenant_id
 			WHERE later.tenant_id = rco.tenant_id AND later_child.created_student_id = rc.created_student_id
 			  AND later_offering.counts_as_care
+			  AND ((later_offering.days_of_week_mode = 'fixed' AND jsonb_array_length(later_offering.available_days) > 0)
+			    OR (later_offering.days_of_week_mode <> 'fixed' AND jsonb_array_length(later.selected_days) > 0))
 			  AND COALESCE(later.valid_from, '-infinity'::date) <= rco.valid_until
 			  AND (later.valid_until IS NULL OR later.valid_until > rco.valid_until)
 		  )
@@ -712,7 +750,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			  AND completion.first_bookingless_day = rco.valid_until
 		  )
 		GROUP BY rc.created_student_id, rco.valid_until, rco.request_child_id
-	`, tenant.FromContext(ctx), asOf).Scan(ctx, &rows)
+	`, tenant.FromContext(ctx)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: err}
 	}

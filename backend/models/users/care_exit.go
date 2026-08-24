@@ -189,6 +189,7 @@ type CareExitCleanupRepository interface {
 	// activity bookings still running at validUntil (exclusive bound).
 	CountRunningByStudentIDsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64]int, error)
 	ListSourceOfferingsAfter(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (map[int64][]CareExitSourceOffering, error)
+	ListWeeklyPlanPatterns(ctx context.Context, studentIDs []int64) (map[int64][]string, error)
 	// CapByStudentIDs ends those bookings at validUntil.
 	CapByStudentIDs(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
 	// EndSourceBookingsAndSchedules caps/deletes every source booking and

@@ -457,6 +457,9 @@ function CareExitImpactLines({ impact }: { readonly impact: CareExitImpact }) {
         .join("; ")}`,
     );
   }
+  if (impact.weeklyPlans?.length) {
+    lines.push(`Wöchentliche Zeiten: ${impact.weeklyPlans.join("; ")}`);
+  }
   if (impact.plannedEndsOn) {
     lines.push(
       `Bisher geplantes Ende: ${formatDate(impact.plannedEndsOn)}, wird geändert`,

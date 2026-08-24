@@ -199,12 +199,12 @@ func (r *CareWithdrawalCompletionRepository) ReopenAfterCancelledExit(
 	result, err := base.GetDB(ctx, r.DB).ExecContext(ctx, `
 		INSERT INTO users.care_withdrawal_completions (
 			tenant_id, student_id, first_bookingless_day, trigger,
-			source_adjustment_id, withdrawal_confirmed_by,
+			source_adjustment_id, source_request_child_id, withdrawal_confirmed_by,
 			withdrawal_confirmed_role, withdrawal_confirmed_at, source_offerings, state,
 			created_at, updated_at
 		)
 		SELECT tenant_id, student_id, first_bookingless_day, trigger,
-		       source_adjustment_id, withdrawal_confirmed_by,
+		       source_adjustment_id, source_request_child_id, withdrawal_confirmed_by,
 		       withdrawal_confirmed_role, withdrawal_confirmed_at, source_offerings, 'pending', ?, ?
 		FROM users.care_withdrawal_completions
 		WHERE tenant_id = ? AND id = ? AND student_id = ?
@@ -214,6 +214,7 @@ func (r *CareWithdrawalCompletionRepository) ReopenAfterCancelledExit(
 		DO UPDATE SET
 			first_bookingless_day = EXCLUDED.first_bookingless_day,
 			source_adjustment_id = EXCLUDED.source_adjustment_id,
+			source_request_child_id = EXCLUDED.source_request_child_id,
 			withdrawal_confirmed_by = EXCLUDED.withdrawal_confirmed_by,
 			withdrawal_confirmed_role = EXCLUDED.withdrawal_confirmed_role,
 			withdrawal_confirmed_at = EXCLUDED.withdrawal_confirmed_at,

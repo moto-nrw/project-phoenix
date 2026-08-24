@@ -32,6 +32,7 @@ export interface CareExitImpact {
   hasRfidTag: boolean;
   currentlyPresent: boolean;
   sourceOfferings: Array<{ name: string; days: string[] }>;
+  weeklyPlans: string[];
   /** Bereits hinterlegtes Betreuungsende (dann ist der Vorgang eine Änderung). */
   plannedEndsOn: string | null;
   /** Leer, wenn das Kind beendet werden kann; sonst der konkrete Grund. */
@@ -91,6 +92,7 @@ interface WireImpact {
   has_rfid_tag: boolean;
   currently_present: boolean;
   source_offerings?: Array<{ name: string; days?: string[] }>;
+  weekly_plans?: string[];
   planned_ends_on?: string | null;
   blocker?: string;
 }
@@ -179,6 +181,7 @@ function mapImpact(wire: WireImpact): CareExitImpact {
       name: offering.name,
       days: offering.days ?? [],
     })),
+    weeklyPlans: wire.weekly_plans ?? [],
     plannedEndsOn: wire.planned_ends_on ?? null,
     blocker: wire.blocker ?? "",
   };

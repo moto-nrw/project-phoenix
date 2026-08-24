@@ -95,6 +95,7 @@ type CareExitImpact struct {
 	HasRFIDTag         bool
 	CurrentlyPresent   bool
 	SourceOfferings    []userModels.CareExitSourceOffering
+	WeeklyPlans        []string
 	// PlannedEndsOn is the exit already recorded for this child, if any. A
 	// second run over the same child is a CHANGE, not a blocker.
 	PlannedEndsOn *timezone.Date
@@ -400,6 +401,9 @@ func (s *careLifecycleService) refreshLockedWithdrawalPreview(
 	completion, err := s.withdrawalRepo.FindByIDForUpdate(ctx, state.completion.ID)
 	if err != nil {
 		return nil, err
+	}
+	if completion == nil {
+		return nil, userModels.ErrCareWithdrawalAlreadyResolved
 	}
 	if !withdrawalMatchesCareExit(completion, state.input.StudentIDs) {
 		return nil, userModels.ErrCareWithdrawalAlreadyResolved
@@ -1035,6 +1039,10 @@ func (s *careLifecycleService) buildPreview(
 	if err != nil {
 		return nil, err
 	}
+	weeklyPlans, err := s.cleanupRepo.ListWeeklyPlanPatterns(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
 	requestCounts, err := s.cleanupRepo.CountOpenRequests(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -1076,6 +1084,7 @@ func (s *careLifecycleService) buildPreview(
 			impact.PlannedRosterRows = rosterCounts[id]
 			impact.ActivityBookings = bookingCounts[id]
 			impact.SourceOfferings = mergeCareExitSourceOfferings(sourceOfferings[id], withdrawalOfferings[id])
+			impact.WeeklyPlans = weeklyPlans[id]
 			impact.OpenParentRequests = requestCounts[id]
 			impact.CurrentlyPresent = presence[id]
 		}

@@ -40,6 +40,7 @@ function impact(overrides: Partial<CareExitImpact> = {}): CareExitImpact {
     hasRfidTag: false,
     currentlyPresent: false,
     sourceOfferings: [],
+    weeklyPlans: [],
     plannedEndsOn: null,
     blocker: "",
     ...overrides,
@@ -338,6 +339,10 @@ describe("CareExitModal", () => {
         students: [
           impact({
             sourceOfferings: [{ name: "OGS", days: ["mon", "wed", "fri"] }],
+            weeklyPlans: [
+              "Ankunft am Montag: 08:00",
+              "Abholung am Montag: 15:00",
+            ],
           }),
         ],
       }),
@@ -347,6 +352,11 @@ describe("CareExitModal", () => {
 
     expect(
       await screen.findByText("Gebuchte Angebote: OGS (Mo, Mi, Fr)"),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Wöchentliche Zeiten: Ankunft am Montag: 08:00; Abholung am Montag: 15:00",
+      ),
     ).toBeVisible();
     expect(screen.getByText("Folgen des Austritts")).toBeVisible();
     expect(
