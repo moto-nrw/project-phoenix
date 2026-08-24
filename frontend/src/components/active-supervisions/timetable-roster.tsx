@@ -4,6 +4,7 @@ import { useState } from "react";
 import { UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import {
   clearOwnAttendanceMutation,
   markOwnAttendanceMutation,
@@ -142,60 +143,67 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {!row.currentlyPresent && row.status === "expected" ? (
-        <button
+        <Button
           type="button"
           onClick={() => runAction("check-in")}
-          className="bg-moto-green rounded-md px-3 py-2 text-sm font-medium text-gray-950"
+          variant="success"
+          size="md"
         >
           Einchecken
-        </button>
+        </Button>
       ) : null}
       {!row.currentlyPresent && row.status !== "expected" ? (
-        <button
+        <Button
           type="button"
           onClick={() => runAction("check-in")}
-          className="bg-moto-green rounded-md px-3 py-2 text-sm font-medium text-gray-950"
+          variant="success"
+          size="md"
         >
           Wieder einchecken
-        </button>
+        </Button>
       ) : null}
       {row.currentlyPresent ? (
-        <button
+        <Button
           type="button"
           onClick={() => runAction("check-out")}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+          variant="outline"
+          size="md"
         >
           Raum verlassen
-        </button>
+        </Button>
       ) : null}
       {row.planned &&
       row.status === "expected" &&
       isCareDayExpected(row.careDayStatus) ? (
         <>
-          <button
+          <Button
             type="button"
             onClick={() => runAction("excused")}
-            className="border-moto-purple text-moto-purple-strong rounded-md border px-3 py-2 text-sm font-medium"
+            variant="outline"
+            size="md"
+            className="text-moto-purple-strong !ring-moto-purple"
           >
             Entschuldigt
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() => runAction("absent")}
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+            variant="outline"
+            size="md"
           >
             Abwesend
-          </button>
+          </Button>
         </>
       ) : null}
       {row.planned && !row.currentlyPresent && row.status === "absent" ? (
-        <button
+        <Button
           type="button"
           onClick={() => runAction("expected")}
-          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+          variant="outline"
+          size="md"
         >
           Zurück auf erwartet
-        </button>
+        </Button>
       ) : null}
     </div>
   );
@@ -366,29 +374,31 @@ function TimetableRosterHeader({
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
           {attendanceWebEnabled ? (
-            <button
+            <Button
               type="button"
               disabled={
                 isConfirmingExpected || confirmableExpectedRows.length === 0
               }
               onClick={handleConfirmExpectedClick}
-              className="bg-moto-green hover:bg-moto-green-hover focus-visible:ring-moto-green/30 inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium text-gray-950 shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              variant="success"
+              size="md"
             >
               <MotoConceptIcon concept="present" size={16} />
               {confirmLabel}
-            </button>
+            </Button>
           ) : null}
           {attendanceWebEnabled ? (
-            <button
+            <Button
               type="button"
               disabled={isCompletingInstance || !completeEnabled}
               onClick={handleCompleteClick}
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+              variant="primary"
+              size="md"
             >
               {completeEnabled
                 ? "Beenden"
                 : `Beenden ab ${roster.instance.endTime}`}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -452,25 +462,28 @@ function AddUnplannedStudentForm({
         Kind ungeplant hinzufügen
       </div>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <input
-          type="search"
-          name="unplanned-student-search"
-          aria-label="Kind ungeplant suchen"
-          value={search}
-          onChange={(event) => {
-            setSelectedId(null);
-            onSearchChange(event.target.value);
-          }}
-          placeholder="Weiteres Kind suchen..."
-          className="focus:border-moto-green focus:ring-moto-green/20 min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:ring-2 focus:outline-none"
-        />
-        <button
+        <div className="flex-1">
+          <Input
+            type="search"
+            name="unplanned-student-search"
+            aria-label="Kind ungeplant suchen"
+            controlSize="compact"
+            value={search}
+            onChange={(event) => {
+              setSelectedId(null);
+              onSearchChange(event.target.value);
+            }}
+            placeholder="Weiteres Kind suchen..."
+          />
+        </div>
+        <Button
           type="submit"
           disabled={isAddingStudent || !targetStudent}
-          className="bg-moto-green hover:bg-moto-green-hover rounded-lg px-4 py-2 text-sm font-medium text-gray-950 shadow-sm transition-colors disabled:opacity-50"
+          variant="success"
+          size="md"
         >
           Hinzufügen
-        </button>
+        </Button>
       </div>
       {results.length > 0 ? (
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
