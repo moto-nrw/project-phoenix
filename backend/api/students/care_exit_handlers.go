@@ -254,11 +254,12 @@ func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) 
 	state := strings.TrimSpace(r.URL.Query().Get("state"))
 	var rows []*userModels.CareWithdrawalCompletion
 	var total int
-	if state == "" || state == userModels.CareWithdrawalStatePending {
+	switch state {
+	case "", userModels.CareWithdrawalStatePending:
 		rows, total, err = rs.CareLifecycleService.ListPendingWithdrawals(r.Context(), filter)
-	} else if state == userModels.CareWithdrawalStateResolved {
+	case userModels.CareWithdrawalStateResolved:
 		rows, total, err = rs.CareLifecycleService.ListResolvedWithdrawals(r.Context(), filter)
-	} else {
+	default:
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("state must be pending or resolved")))
 		return
 	}

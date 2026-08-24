@@ -2071,6 +2071,7 @@ var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
 		return common.ErrorConflictWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
 			errCodeStudentDeletionConstraintsChanged,
 		)
