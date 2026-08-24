@@ -18,13 +18,18 @@ const ITEM_IDLE = "text-gray-500 hover:text-gray-700";
 const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
 
 /**
- * Die mobile Hauptnavigation des Schul-Portals: beide Ziele nebeneinander.
+ * Die mobile Hauptnavigation des Schul-Portals.
  *
- * Kein "Mehr"-Menü und kein gleitender Indikator wie in der Eltern-App —
- * bei zwei Zielen wäre beides Mechanik ohne Nutzen. Die Beschriftungen
- * stehen deshalb dauerhaft da und nicht nur am aktiven Feld. Ab 1024 px
- * übernimmt die Seitennavigation; CSS blendet diese Leiste dort schon beim
- * ersten Paint aus.
+ * Beschriftet ist nur das aktive Ziel, die übrigen tragen ihr Icon und ihren
+ * Namen als aria-label — dasselbe Muster wie die Eltern-App. Solange es zwei
+ * Ziele waren, standen alle Beschriftungen dauerhaft da; mit dem dritten
+ * (#2527) passte das auf einem 390 px breiten Gerät nicht mehr in die Pille:
+ * die Zeile brauchte 447 px bei 324 px Platz, "Hilfe" lag komplett ausserhalb
+ * des Bildschirms und "Meine Aufsichten" ragte über die Pille hinaus.
+ *
+ * Kein "Mehr"-Menü und kein gleitender Indikator — dafür sind es zu wenige
+ * Ziele. Ab 1024 px übernimmt die Seitennavigation; CSS blendet diese Leiste
+ * dort schon beim ersten Paint aus.
  */
 export function SchoolBottomNav() {
   const pathname = usePathname();
@@ -58,6 +63,7 @@ export function SchoolBottomNav() {
                     {...(item.newTab
                       ? { target: "_blank", rel: "noopener noreferrer" }
                       : {})}
+                    aria-label={item.label}
                     className={`${ITEM} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
                   >
                     <MotoNavIcon
@@ -65,9 +71,11 @@ export function SchoolBottomNav() {
                       active={active}
                       className="h-5 w-5 shrink-0"
                     />
-                    <span className="text-sm font-semibold whitespace-nowrap">
-                      {item.label}
-                    </span>
+                    {active ? (
+                      <span className="text-sm font-semibold whitespace-nowrap">
+                        {item.label}
+                      </span>
+                    ) : null}
                   </Link>
                 </li>
               );
