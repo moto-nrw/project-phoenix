@@ -21,6 +21,13 @@ if printf '%s\n' "$backend_changes" | grep -qxE 'backend/go\.(mod|sum)'; then
 fi
 
 changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
+  /^backend\/.*\/testdata\// {
+    path = $0
+    sub(/^backend\//, "", path)
+    sub(/\/testdata\/.*/, "", path)
+    print "test", path
+    next
+  }
   /\.go$/ {
     path = $0
     kind = path ~ /_test\.go$/ ? "test" : "production"
@@ -31,13 +38,6 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
       sub(/\/[^\/]+$/, "", path)
     }
     print kind, path
-    next
-  }
-  /^backend\/.*\/testdata\// {
-    path = $0
-    sub(/^backend\//, "", path)
-    sub(/\/testdata\/.*/, "", path)
-    print "test", path
     next
   }
   /^backend\/templates\/email\/.*\.html$/ { print "test templates/email"; next }

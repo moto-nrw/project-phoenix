@@ -47,11 +47,14 @@ staff, err := rs.UsersService.GetStaffByPersonID(ctx, personID)
 4. `database/repositories` imports in `api/` beyond `base.go` + `testutil/`
 5. Test-only handler accessor wrappers in `api/`
 
-`scripts/backend-architecture.sh check` also checks direct imports across the
-whole production backend. Every non-test Go package must match a component in
-`backend/.go-arch-lint.yml`; unmatched packages and forbidden component edges
-fail CI. `_test.go` imports stay outside this gate because integration tests
-deliberately compose multiple layers.
+`scripts/backend-architecture.sh check` evaluates the strict target policy in
+`backend/architecture/policy.json` against production, internal-test, and
+external-test imports. The target policy still reports legacy violations;
+issue #2583 owns its exact baseline and CI cutover.
+
+CI currently runs `scripts/backend-architecture.sh legacy-check`. That command
+keeps the existing production-only go-arch-lint gate in
+`backend/.go-arch-lint.yml`; `_test.go` imports remain outside that legacy gate.
 
 ### Why
 

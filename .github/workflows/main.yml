@@ -70,6 +70,8 @@ jobs:
               - 'backend/go.sum'
               - 'backend/.golangci.yml'
               - 'backend/.go-arch-lint.yml'
+              - 'backend/architecture/**'
+              - 'backend/internal/architecture/**'
               - 'backend/tools/go.mod'
               - 'backend/tools/go.sum'
               - 'scripts/backend-affected-packages.sh'

@@ -9,10 +9,11 @@ allow:
 
 excludeFiles:
   - "^.*_test\\.go$"
+  - "^.*internal/architecture/testdata/.*\\.go$"
 
 components:
   composition:
-    in: [., api, cmd, services, seed/**, simulate]
+    in: [., api, cmd, internal/architecture, internal/architecture/cmd, services, seed/**, simulate]
 
   handlers: { in: api/** }
 

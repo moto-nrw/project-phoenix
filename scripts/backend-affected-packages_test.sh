@@ -157,6 +157,15 @@ printf 'fixture\n' >"$fixture/backend/consumer/testdata/input.golden"
 assert_output $'example.test/project/consumer\nexample.test/project/test'
 rm "$fixture/backend/consumer/testdata/input.golden"
 
+mkdir -p "$fixture/backend/consumer/testdata/module/source"
+printf 'module example.test/fixture\n\ngo 1.25\n' >"$fixture/backend/consumer/testdata/module/go.mod"
+printf 'package source\n' >"$fixture/backend/consumer/testdata/module/source/source.go"
+assert_output $'example.test/project/consumer\nexample.test/project/test'
+rm "$fixture/backend/consumer/testdata/module/source/source.go"
+rm "$fixture/backend/consumer/testdata/module/go.mod"
+rmdir "$fixture/backend/consumer/testdata/module/source"
+rmdir "$fixture/backend/consumer/testdata/module"
+
 printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
