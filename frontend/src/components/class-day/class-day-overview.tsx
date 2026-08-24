@@ -13,13 +13,12 @@
 // dashboards.
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useMemo } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -102,9 +101,11 @@ function ClassLink({
       ? classSummary(report, weekend)
       : "Wird geladen …";
   return (
-    <Link
+    <ButtonLink
       href={schoolPath(classDayPath(klass, dateISO))}
-      className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      variant="surface"
+      size="card"
+      className="justify-between gap-3 text-left"
     >
       {/* flex-1 + min-w-0: ohne beides schrumpft das Textfeld nicht und die
           Karte läuft auf schmalen Bildschirmen über den Rand hinaus. Die
@@ -134,7 +135,7 @@ function ClassLink({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </Link>
+    </ButtonLink>
   );
 }
 

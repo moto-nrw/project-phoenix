@@ -46,6 +46,9 @@ function summaryLine(report: ClassDayReport): string {
     `${totals.leaving} gehen heim`,
   ];
   if (totals.absent > 0) parts.push(`${totals.absent} abgemeldet`);
+  if (totals.list_entries > 0) {
+    parts.push(`${totals.list_entries} keine Betreuung`);
+  }
   return parts.join(" · ");
 }
 
