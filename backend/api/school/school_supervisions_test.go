@@ -157,6 +157,10 @@ func TestSchoolSupervisionsFollowTheAssignment(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+	// Starting creates an active-group supervisor row. It must not preserve
+	// school-portal access after the actual timetable assignment is revoked.
+	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", mine.ID), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// Removing the assignment withdraws both, server-side.
 	_, err := f.db.NewDelete().

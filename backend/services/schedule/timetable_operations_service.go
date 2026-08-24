@@ -771,6 +771,13 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	if staffAssigned(staffRows, staffID) {
 		return staffID, nil
 	}
+	// The school portal's boundary is the concrete timetable assignment, not
+	// the active group's supervisor list. Starting a block adds its operator
+	// as a supervisor, so using that list here would preserve access after the
+	// assignment has been withdrawn.
+	if authorize.IsAssignmentBoundPortal(ctx) {
+		return 0, ErrTimetableOperationForbidden
+	}
 	if inst.ActiveGroupID != nil {
 		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID, true)
 		if err != nil {

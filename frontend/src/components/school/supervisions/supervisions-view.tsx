@@ -210,14 +210,14 @@ export function SchoolSupervisionsView() {
         // Zurück auf "der Tag entscheidet": die Aufsicht läuft jetzt und ist
         // damit von selbst die, die die Seite zeigt.
         setIntent(AUTO_VIEW);
-        await reloadList();
+        await Promise.all([reloadList(), reloadRoster()]);
       } catch (err) {
         report("supervision_start_failed", err);
       } finally {
         setBusyId(null);
       }
     },
-    [reloadList, report],
+    [reloadList, reloadRoster, report],
   );
 
   const handleRosterAction = useCallback(
@@ -360,7 +360,7 @@ export function SchoolSupervisionsView() {
       {openInstance && showRoster && rosterMatchesSelection ? (
         <TimetableRosterContent
           roster={roster as TimetableRoster}
-          attendanceWebEnabled
+          attendanceWebEnabled={openInstance.status === "active"}
           showTimetableCounts
           canAddUnplanned={false}
           // Ohne diesen Satz ist der unterstrichene Name nur ein
