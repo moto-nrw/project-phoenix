@@ -1578,3 +1578,63 @@ func TestPickupScheduleService_BulkUpsertPickupSchedules_MapsAuthorizeErrorToUna
 	require.NoError(t, findErr)
 	assert.Empty(t, rows, "authorize error denial must not leave partial writes")
 }
+
+// TestPickupScheduleService_EffectiveTimeKeepsRegularTime pins the fact the
+// Lehrkraft view needs (#2294): when a day exception overrides the pickup,
+// the recurring time it replaced travels with the result. Without it the
+// class-day sheet can flag THAT something changed but never name the time
+// the child would otherwise be picked up at.
+func TestPickupScheduleService_EffectiveTimeKeepsRegularTime(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupPickupScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	student := testpkg.CreateTestStudent(t, db, "Regular", "Time", "1a")
+	staffID := createPickupServiceTestStaffID(t, db)
+
+	// January 8, 2024 is a Monday.
+	testDate := timezone.NewDate(2024, 1, 8)
+	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &scheduleModels.StudentPickupSchedule{
+		StudentID:  student.ID,
+		Weekday:    scheduleModels.WeekdayMonday,
+		PickupTime: time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		CreatedBy:  staffID,
+	}))
+
+	t.Run("without exception the regular time is the effective one", func(t *testing.T) {
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		require.NotNil(t, result.RegularPickupTime)
+		assert.Equal(t, 15, result.RegularPickupTime.Hour())
+		assert.Nil(t, result.ChangedAt)
+	})
+
+	t.Run("an exception keeps the regular time next to the new one", func(t *testing.T) {
+		earlier := time.Date(2024, 1, 1, 12, 15, 0, 0, time.UTC)
+		require.NoError(t, service.CreateStudentPickupException(ctx, &scheduleModels.StudentPickupException{
+			StudentID:     student.ID,
+			ExceptionDate: testDate,
+			PickupTime:    &earlier,
+			Reason:        testpkg.StrPtr("Arzttermin"),
+			CreatedBy:     staffID,
+		}))
+
+		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
+
+		require.NoError(t, err)
+		assert.True(t, result.IsException)
+		require.NotNil(t, result.PickupTime)
+		assert.Equal(t, 12, result.PickupTime.Hour())
+		assert.Equal(t, 15, result.PickupTime.Minute())
+		require.NotNil(t, result.RegularPickupTime)
+		assert.Equal(t, 15, result.RegularPickupTime.Hour())
+		assert.Equal(t, 0, result.RegularPickupTime.Minute())
+		// The stamp is what separates a change filed this morning from one
+		// planned two weeks ago.
+		require.NotNil(t, result.ChangedAt)
+		assert.False(t, result.ChangedAt.IsZero())
+	})
+}

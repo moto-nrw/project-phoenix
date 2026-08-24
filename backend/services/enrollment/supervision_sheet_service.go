@@ -125,25 +125,25 @@ func (s *reportService) SupervisionStudentSheet(ctx context.Context, in Supervis
 
 	studentIDs := []int64{student.ID}
 
-	arrivals, pickups, err := s.classDayEffectiveTimes(ctx, studentIDs, date)
-	if err != nil {
+	facts := newClassDayFacts()
+	if err := s.classDayEffectiveTimes(ctx, studentIDs, date, &facts); err != nil {
 		return nil, err
 	}
-	sheet.Arrival = arrivals[student.ID]
-	sheet.Pickup = pickups[student.ID]
+	sheet.Arrival = facts.arrivals[student.ID]
+	sheet.Pickup = facts.pickups[student.ID]
 
 	sheet.Departure, err = s.supervisionDeparture(ctx, student, date, in.CompanionBoundary)
 	if err != nil {
 		return nil, err
 	}
 
-	statuses, err := s.classDayStatuses(ctx, studentIDs, date)
+	statuses, _, err := s.classDayStatuses(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}
 	sheet.Status = statuses[student.ID]
 	if sheet.Status == "" {
-		cancelled, _, cancelErr := s.classDayCancellations(ctx, studentIDs, date)
+		cancelled, cancelErr := s.classDayCancellations(ctx, studentIDs, date, &facts)
 		if cancelErr != nil {
 			return nil, cancelErr
 		}
