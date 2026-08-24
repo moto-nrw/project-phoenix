@@ -251,6 +251,7 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		}
 		_, updateErr := base.GetDB(ctx, db).NewUpdate().
 			TableExpr(`enrollment.request_children AS "request_child"`).
+			Set("created_student_id = ?", student.ID).
 			Set("rollover_source_child_id = NULL").
 			Where(`"request_child".id = ?`, targetChild.ID).
 			Exec(ctx)
