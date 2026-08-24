@@ -911,20 +911,27 @@ func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context,
 	if s.bookingsAuthoritative == nil {
 		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
 	}
-	authoritative, err := s.bookingsAuthoritative(ctx)
-	if err != nil || !authoritative {
-		return err
-	}
-	expiries, err := s.cleanupRepo.FindCareWithdrawalBookingExpiries(ctx, asOf)
-	if err != nil {
-		return err
-	}
-	for _, expiry := range expiries {
-		if err := s.ReconcileAuthoritativeBookingChange(ctx, expiry); err != nil {
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)
+			}
+		}
+		authoritative, err := s.bookingsAuthoritative(txCtx)
+		if err != nil || !authoritative {
 			return err
 		}
-	}
-	return nil
+		expiries, err := s.cleanupRepo.FindCareWithdrawalBookingExpiries(txCtx, asOf)
+		if err != nil {
+			return err
+		}
+		for _, expiry := range expiries {
+			if err := s.ReconcileAuthoritativeBookingChange(txCtx, expiry); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func optionalPositiveID(value int64) *int64 {

@@ -20,14 +20,20 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
+import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { ExcusedRequestReviewItem } from "~/components/students/excused-request-review-item";
 import { MasterDataReviewItem } from "~/components/students/master-data-review-item";
 import { OfferingRequestReviewItem } from "~/components/students/offering-request-review-item";
 import { EnrollmentRequestItem } from "~/components/students/enrollment-request-item";
-import { CareWithdrawalTaskItem } from "~/components/students/care-withdrawal-task-item";
 import { RequestHistoryItem } from "~/components/students/request-history-item";
-import { RequestRowHeader } from "~/components/students/request-review-card";
+import {
+  RequestReviewCard,
+  RequestRowHeader,
+} from "~/components/students/request-review-card";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   fetchCareWithdrawals,
@@ -110,6 +116,10 @@ export function AggregatedRequestList({
     [],
   );
   const [withdrawalsLoading, setWithdrawalsLoading] = useState(false);
+  const [careExitWithdrawal, setCareExitWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
+  const [deletionWithdrawal, setDeletionWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
   // Set while THIS list dispatches change-requests-refresh so its own listener
   // (below) doesn't refetch — it already removed the decided row optimistically.
   // dispatchEvent is synchronous, so the flag only has to cover that one call.
@@ -350,6 +360,15 @@ export function AggregatedRequestList({
     setNotice(decidedNotice);
   }, []);
 
+  const handleWithdrawalFinished = useCallback(
+    (row: CareWithdrawalCompletion) => {
+      setWithdrawals((current) => current.filter((item) => item.id !== row.id));
+      setNotice("Die Betreuung wurde beendet.");
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    },
+    [],
+  );
+
   if (loading || withdrawalsLoading) {
     return (
       <SkeletonRegion label="Anfragen werden geladen">
@@ -400,19 +419,55 @@ export function AggregatedRequestList({
         <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
           <RequestRowHeader view={view} />
           {view === "open"
-            ? withdrawals.map((row) => (
-                <CareWithdrawalTaskItem
-                  key={`care_withdrawal:${row.id}`}
-                  row={row}
-                  onFinished={() => {
-                    setWithdrawals((current) =>
-                      current.filter((item) => item.id !== row.id),
-                    );
-                    setNotice("Die Betreuung wurde beendet.");
-                    window.dispatchEvent(new Event("change-requests-refresh"));
-                  }}
-                />
-              ))
+            ? withdrawals.map((row) => {
+                const name = `${row.firstName} ${row.lastName}`.trim();
+                const overdue = row.urgency === "overdue";
+                return (
+                  <RequestReviewCard
+                    key={`care_withdrawal:${row.id}`}
+                    type="care_withdrawal"
+                    typeLabel="Abmeldung"
+                    childName={name}
+                    summary={`Keine Betreuungstage ab ${formatDate(row.firstBookinglessDay)}`}
+                    badge={
+                      <StatusBadge
+                        tone={overdue ? "red" : "orange"}
+                        label={overdue ? "Überfällig" : "Geplant"}
+                      />
+                    }
+                    history={{
+                      kind: "readonly",
+                      label: overdue ? "Überfällig" : "Geplant",
+                      tone: overdue ? "red" : "orange",
+                    }}
+                    action={
+                      <div className="flex flex-wrap gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="compact"
+                          onClick={() => setCareExitWithdrawal(row)}
+                        >
+                          Betreuung beenden
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="compact"
+                          onClick={() => setDeletionWithdrawal(row)}
+                        >
+                          Kind löschen
+                        </Button>
+                      </div>
+                    }
+                  >
+                    <p className="text-sm text-gray-600">
+                      Für dieses Kind ist kein Betreuungstag mehr gebucht.
+                      Beenden Sie jetzt die Betreuung.
+                    </p>
+                  </RequestReviewCard>
+                );
+              })
             : null}
           {items.map((item) => {
             const key = itemKey(item);
@@ -483,6 +538,31 @@ export function AggregatedRequestList({
             {loadingMore ? "Wird geladen…" : "Weitere Einträge laden"}
           </Button>
         </div>
+      )}
+      {careExitWithdrawal && (
+        <CareExitModal
+          isOpen
+          studentIds={[careExitWithdrawal.studentId]}
+          completionId={careExitWithdrawal.id}
+          firstBookinglessDay={careExitWithdrawal.firstBookinglessDay}
+          onClose={() => setCareExitWithdrawal(null)}
+          onFinished={() => {
+            setCareExitWithdrawal(null);
+            handleWithdrawalFinished(careExitWithdrawal);
+          }}
+        />
+      )}
+      {deletionWithdrawal && (
+        <StudentDeletionModal
+          isOpen
+          studentId={deletionWithdrawal.studentId}
+          displayName={`${deletionWithdrawal.firstName} ${deletionWithdrawal.lastName}`.trim()}
+          onClose={() => setDeletionWithdrawal(null)}
+          onDeleted={() => {
+            setDeletionWithdrawal(null);
+            handleWithdrawalFinished(deletionWithdrawal);
+          }}
+        />
       )}
     </div>
   );

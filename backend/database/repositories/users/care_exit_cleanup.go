@@ -704,6 +704,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			WHERE completion.tenant_id = rco.tenant_id
 			  AND completion.student_id = rc.created_student_id
 			  AND completion.first_bookingless_day = ?
+			  AND completion.state = 'pending'
 		  )
 		GROUP BY rc.created_student_id
 	`, asOf, tenant.FromContext(ctx), asOf, asOf, asOf, asOf, asOf).Scan(ctx, &rows)

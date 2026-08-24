@@ -28,18 +28,23 @@ vi.mock("~/lib/care-exit-api", () => ({
   fetchCareWithdrawals: vi.fn(),
 }));
 
-vi.mock("~/components/students/care-withdrawal-task-item", () => ({
-  CareWithdrawalTaskItem: ({
-    row,
+vi.mock("~/components/students/care-exit-modal", () => ({
+  CareExitModal: ({
+    isOpen,
     onFinished,
   }: {
-    row: { id: string };
+    isOpen: boolean;
     onFinished: () => void;
-  }) => (
-    <button type="button" onClick={onFinished}>
-      withdrawal-item-{row.id}
-    </button>
-  ),
+  }) =>
+    isOpen ? (
+      <button type="button" onClick={onFinished}>
+        withdrawal-finished
+      </button>
+    ) : null,
+}));
+
+vi.mock("~/components/students/student-deletion-modal", () => ({
+  StudentDeletionModal: () => null,
 }));
 
 vi.mock("~/components/students/enrollment-request-item", () => ({
@@ -149,14 +154,20 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    const task = await screen.findByText("withdrawal-item-withdrawal-1");
+    const task = await screen.findByRole("button", {
+      name: /Anfrage für Mia Muster/,
+    });
     expect(mockListWithdrawals).toHaveBeenCalledWith({
       search: "",
       page: 1,
       pageSize: 100,
     });
     fireEvent.click(task);
-    expect(screen.queryByText("withdrawal-item-withdrawal-1")).toBeNull();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Betreuung beenden" }),
+    );
+    fireEvent.click(await screen.findByText("withdrawal-finished"));
+    expect(screen.queryByText("Mia Muster")).toBeNull();
     expect(screen.getByText("Die Betreuung wurde beendet.")).toBeVisible();
   });
 
@@ -191,9 +202,9 @@ describe("AggregatedRequestList", () => {
       />,
     );
 
-    expect(
-      await screen.findByText("withdrawal-item-withdrawal-101"),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getAllByText("Mia Muster")).toHaveLength(101),
+    );
     expect(mockListWithdrawals).toHaveBeenNthCalledWith(2, {
       search: "",
       page: 2,
