@@ -110,26 +110,8 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           FULL_BACKEND: ${{ inputs.full-backend }}
         run: |
-          packages=(./...)
-          if [[ "$EVENT_NAME" == "pull_request" && "$FULL_BACKEND" != "true" ]]; then
-            module=$(cd backend && go list -m)
-            affected_output=$(scripts/backend-affected-packages.sh "origin/$BASE_REF")
-            mapfile -t affected_packages <<< "$affected_output"
-
-            if [[ -n "$affected_output" ]]; then
-              packages=()
-              for package in "${affected_packages[@]}"; do
-                if [[ "$package" == "$module" ]]; then
-                  packages+=(.)
-                elif [[ "$package" == "$module/"* ]]; then
-                  packages+=(".${package#"$module"}")
-                else
-                  packages+=("$package")
-                fi
-              done
-            fi
-          fi
-
+          packages_output=$(scripts/backend-lint-packages.sh)
+          mapfile -t packages <<< "$packages_output"
           echo "Linting ${#packages[@]} backend package target(s): ${packages[*]}"
           printf 'args=%s\n' "${packages[*]}" >> "$GITHUB_OUTPUT"
       - name: golang ci lint

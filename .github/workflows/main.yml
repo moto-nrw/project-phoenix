@@ -33,10 +33,10 @@ jobs:
     outputs:
       # Every protected-branch push rechecks both full suites. A docs-only push
       # must not report green while inheriting a broken development head.
-      # Lint/build jobs stay scoped to the side that changed.
+      # Backend lint also runs in full; frontend lint/build stays change-scoped.
       run-backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.ci == 'true' }}
-      run-backend-lint: ${{ steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
+      run-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.ci == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.ci == 'true' }}
       run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits and
@@ -74,6 +74,7 @@ jobs:
               - 'backend/tools/go.sum'
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
               - 'scripts/backend-architecture.sh'
             backend-lint-full:
               - 'backend/go.mod'
@@ -81,6 +82,7 @@ jobs:
               - 'backend/.golangci.yml'
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
             backend-production:
               - 'backend/**/*.go'
               - '!backend/**/*_test.go'
@@ -95,6 +97,7 @@ jobs:
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
+              - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
             frontend-test-infra:
