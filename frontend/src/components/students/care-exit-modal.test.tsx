@@ -298,6 +298,9 @@ describe("CareExitModal", () => {
     const { onFinished } = renderWithdrawalModal();
 
     expect(screen.getByText("31.08.2026")).toBeVisible();
+    expect(
+      screen.getByText(/Der letzte Betreuungstag ist am 31\.08\.2026/),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
 

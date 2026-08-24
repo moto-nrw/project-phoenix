@@ -279,7 +279,9 @@ export function CareExitModal({
 
         <p className="text-sm text-gray-600">
           {completionId && !isCorrection
-            ? "Der letzte Betreuungstag liegt bereits in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
+            ? completionLastCareDay && completionLastCareDay >= todayISO()
+              ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
+              : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
             : isCorrection
               ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
               : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
