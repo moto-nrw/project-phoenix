@@ -1,7 +1,8 @@
+# syntax=docker/dockerfile:1
 FROM node:24-alpine AS base
 
 RUN apk add --no-cache tzdata && \
-    corepack enable && corepack prepare pnpm@10 --activate
+    corepack enable && corepack prepare pnpm@10.34.4 --activate
 ENV TZ=Europe/Berlin
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -10,7 +11,8 @@ WORKDIR /app
 FROM base AS deps
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 FROM base AS builder
 
@@ -53,7 +55,8 @@ ENV NEXT_PUBLIC_POSTHOG_HOST=${NEXT_PUBLIC_POSTHOG_HOST}
 RUN pnpm run validate:build-env
 
 # Build the app. Runtime secrets are validated when the container starts.
-RUN SKIP_ENV_VALIDATION=true pnpm run build
+RUN --mount=type=cache,target=/app/.next/cache \
+    SKIP_ENV_VALIDATION=true pnpm run build
 
 FROM node:24-alpine AS runner
 
