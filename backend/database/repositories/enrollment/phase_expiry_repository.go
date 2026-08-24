@@ -286,9 +286,15 @@ SELECT
                                               ELSE target_offering.available_days
                                           END
                                       ) AS booked_day(value)
-                                      WHERE LOWER(BTRIM(booked_day.value)) IN (
-                                          'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'
-                                      )
+                                      WHERE CASE LOWER(BTRIM(booked_day.value))
+                                          WHEN 'mon' THEN 1
+                                          WHEN 'tue' THEN 2
+                                          WHEN 'wed' THEN 3
+                                          WHEN 'thu' THEN 4
+                                          WHEN 'fri' THEN 5
+                                          WHEN 'sat' THEN 6
+                                          WHEN 'sun' THEN 7
+                                      END = EXTRACT(ISODOW FROM source_student.first_affected_date)::integer
                                   )
                             )
                         )

@@ -173,7 +173,7 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		"a booking without a canonical weekday must not hide the warning")
 
 	targetOffering := makeOffering(successor.ID, uniqueOfferingName("target-care"))
-	targetOffering.AvailableDays = []string{"mon"}
+	targetOffering.AvailableDays = []string{"tue"}
 	targetOffering.IsActive = false
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return offeringRepo.Create(ctx, targetOffering)
@@ -195,6 +195,15 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 		return offeringRepo.Update(ctx, targetOffering)
 	}))
 
+	mismatchedWeekdayBooking := listSnapshots()
+	require.Len(t, mismatchedWeekdayBooking, 1)
+	assert.Equal(t, 1, mismatchedWeekdayBooking[0].UnresolvedChildren,
+		"a successor booking on another weekday must not hide the warning")
+
+	targetOffering.AvailableDays = []string{"mon"}
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return offeringRepo.Update(ctx, targetOffering)
+	}))
 	completedSuccessor := listSnapshots()
 	require.Len(t, completedSuccessor, 1)
 	assert.Equal(t, 0, completedSuccessor[0].UnresolvedChildren)

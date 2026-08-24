@@ -19,9 +19,9 @@ export default function AdminEnrollmentsPage() {
   return (
     <div className="-mt-1.5 w-full">
       <DesktopOnlyNotice />
+      <PhaseExpiryWarnings className="mt-4" />
       <div className="hidden lg:block">
         <PageHeaderWithSearch title="Überblick" />
-        <PhaseExpiryWarnings className="mt-4" />
         <AdminEnrollmentsList />
       </div>
     </div>
