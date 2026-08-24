@@ -533,16 +533,20 @@ func careExitSourceOfferingsFromLinks(
 ) []users.CareExitSourceOffering {
 	result := make([]users.CareExitSourceOffering, 0, len(links))
 	for _, link := range links {
-		if link == nil || len(link.SelectedDays) == 0 {
+		if link == nil {
 			continue
 		}
 		offering := offerings[link.CareOfferingID]
 		if offering == nil {
 			continue
 		}
-		result = append(result, users.CareExitSourceOffering{
-			Name: offering.Name, Days: copyDays(link.SelectedDays),
-		})
+		days := link.SelectedDays
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed && len(days) == 0 {
+			days = offering.AvailableDays
+		}
+		if len(days) > 0 {
+			result = append(result, users.CareExitSourceOffering{Name: offering.Name, Days: copyDays(days)})
+		}
 	}
 	return result
 }

@@ -278,9 +278,11 @@ export function CareExitModal({
         <WizardStepper steps={STEPS} current={step - 1} />
 
         <p className="text-sm text-gray-600">
-          {isCorrection
-            ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
-            : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
+          {completionId && !isCorrection
+            ? "Der letzte Betreuungstag liegt bereits in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
+            : isCorrection
+              ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
+              : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
         </p>
 
         {error ? <Alert type="error" message={error} /> : null}
@@ -419,7 +421,7 @@ function CareExitPreviewList({
             <li>
               Alle laufenden und geplanten Angebote und Betreuungstermine enden.
             </li>
-            <li>Wochenplan, Ankunftszeiten und Gehzeiten enden.</li>
+            <li>Die oben genannten Angebote und Wochentage enden.</li>
             <li>
               Ab dem Folgetag werden übrige offene Eltern-Anfragen geschlossen.
               Das Armband wird freigegeben. Eine noch offene Anwesenheit wird
