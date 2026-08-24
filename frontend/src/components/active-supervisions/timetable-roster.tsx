@@ -339,6 +339,7 @@ interface TimetableRosterHeaderProps {
     readonly present: number;
     readonly unplanned: number;
   };
+  readonly note?: string;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
 }
@@ -351,6 +352,7 @@ function TimetableRosterHeader({
   roster,
   showTimetableCounts,
   summary,
+  note,
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
@@ -422,6 +424,11 @@ function TimetableRosterHeader({
           ) : null}
         </div>
       </div>
+      {note ? (
+        <p className="border-b border-gray-100 px-4 py-3 text-sm text-gray-600">
+          {note}
+        </p>
+      ) : null}
       {showTimetableCounts ? (
         <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
           <RosterSummaryStat label="Anwesend" value={summary.present} />
@@ -570,6 +577,12 @@ interface TimetableRosterContentProps {
    * Suchfeld etwas finden könnte.
    */
   readonly canAddUnplanned?: boolean;
+  /**
+   * Eine Zeile in der Kopfkarte, direkt über den Zahlen. Für Hinweise, die zur
+   * Liste gehören und deshalb auf ihrer Fläche stehen müssen — freier Text
+   * zwischen den Karten liegt sonst auf dem nackten Seitenhintergrund.
+   */
+  readonly headerNote?: string;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
@@ -588,6 +601,7 @@ export function TimetableRosterContent({
   roster,
   showTimetableCounts,
   canAddUnplanned = true,
+  headerNote,
   onAddStudent,
   onComplete,
   onConfirmExpected,
@@ -656,6 +670,7 @@ export function TimetableRosterContent({
         isConfirmingExpected={isConfirmingExpected}
         roster={roster}
         showTimetableCounts={showTimetableCounts}
+        note={headerNote}
         summary={{
           absent: absent.length,
           departed: departed.length,

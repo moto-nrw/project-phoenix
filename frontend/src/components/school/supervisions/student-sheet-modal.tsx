@@ -8,15 +8,20 @@
 // jeder Aufruf schreibt serverseitig eine Zugriffszeile. Das Backend gibt
 // das Blatt nur für Kinder der eigenen Aufsicht heraus.
 
-import { Phone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
 import { Modal } from "~/components/ui/modal";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
-import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import {
   schoolSupervisionsApi,
@@ -40,61 +45,52 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: LOCATION_COLORS.UNKNOWN,
 };
 
-function Fact({
-  label,
-  value,
-}: Readonly<{ label: string; value: string | undefined }>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-semibold text-gray-900">
-        {value && value !== "" ? value : "Keine Angabe"}
-      </span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
+const NO_ENTRY = "Keine Angabe";
 
-function ContactList({
+function ContactRows({
   contacts,
   emptyText,
-}: Readonly<{ contacts: SupervisionContact[]; emptyText: string }>) {
+  showNote,
+}: Readonly<{
+  contacts: SupervisionContact[];
+  emptyText: string;
+  showNote: boolean;
+}>) {
   if (contacts.length === 0) {
-    return <p className="text-sm text-gray-500">{emptyText}</p>;
+    return <p className="text-xs text-gray-500 md:text-sm">{emptyText}</p>;
   }
   return (
-    <ul className="space-y-1.5">
+    <DataGrid>
       {contacts.map((contact, index) => (
-        <li
+        <DataField
           key={`${contact.name}-${contact.phone ?? index}`}
-          className="rounded-xl border border-gray-100 bg-white px-3 py-2.5"
+          label={
+            contact.relationship
+              ? getRelationshipTypeLabel(contact.relationship)
+              : "Kontakt"
+          }
         >
-          <p className="text-sm font-medium text-gray-900">{contact.name}</p>
-          {contact.relationship ? (
-            <p className="text-xs text-gray-500">
-              {getRelationshipTypeLabel(contact.relationship)}
-            </p>
-          ) : null}
+          <span className="block">{contact.name}</span>
           {contact.phone ? (
             <a
               href={`tel:${contact.phone.replace(/\s/g, "")}`}
-              className="mt-1 inline-flex items-center gap-1.5 text-sm font-medium text-gray-900 underline decoration-gray-300 underline-offset-4"
+              className="mt-0.5 block underline decoration-gray-300 underline-offset-4"
             >
-              <Phone className="h-3.5 w-3.5" aria-hidden="true" />
               {contact.phone}
             </a>
           ) : (
-            <p className="mt-1 text-xs text-gray-500">
+            <span className="mt-0.5 block text-xs font-normal text-gray-500">
               Keine Telefonnummer hinterlegt
-            </p>
+            </span>
           )}
-          {contact.note ? (
-            <p className="mt-1 text-xs text-gray-600">{contact.note}</p>
+          {showNote && contact.note ? (
+            <span className="mt-0.5 block text-xs font-normal text-gray-600">
+              {contact.note}
+            </span>
           ) : null}
-        </li>
+        </DataField>
       ))}
-    </ul>
+    </DataGrid>
   );
 }
 
@@ -142,7 +138,7 @@ export function StudentSheetModal({
 
   return (
     <Modal isOpen={studentId !== null} onClose={onClose} title={title}>
-      <div className="space-y-5">
+      <div className="space-y-4">
         {failed ? (
           <Alert
             type="error"
@@ -151,8 +147,8 @@ export function StudentSheetModal({
         ) : null}
         {!sheet && !failed ? (
           <div className="space-y-3">
-            <Skeleton className="h-16 w-full" />
-            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-28 w-full" />
           </div>
         ) : null}
         {sheet ? (
@@ -171,36 +167,46 @@ export function StudentSheetModal({
               ) : null}
             </div>
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Heute
-              </h3>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                <Fact label="Kommt um" value={sheet.arrival} />
-                <Fact label="Geht um" value={sheet.pickup} />
-                <Fact label="Geht so nach Hause" value={sheet.departure} />
-              </div>
-            </div>
+            <InfoSection
+              title="Heute"
+              icon={<MotoConceptIcon concept="classDay" size={16} />}
+            >
+              {/* DataField statt StatTile: die InfoSection-Fläche ist selbst
+                  schon gray-50, eine graue Kachel darauf verschwindet. */}
+              <DataGrid>
+                <DataField label="Kommt um">
+                  {sheet.arrival ?? NO_ENTRY}
+                </DataField>
+                <DataField label="Geht um">
+                  {sheet.pickup ?? NO_ENTRY}
+                </DataField>
+                <DataField label="Geht so nach Hause" fullWidth>
+                  {sheet.departure || NO_ENTRY}
+                </DataField>
+              </DataGrid>
+            </InfoSection>
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Darf abholen
-              </h3>
-              <ContactList
+            <InfoSection
+              title="Darf abholen"
+              icon={<MotoConceptIcon concept="pickup" size={16} />}
+            >
+              <ContactRows
                 contacts={sheet.pickupContacts}
+                showNote
                 emptyText="Für dieses Kind ist niemand zum Abholen hinterlegt. Bitte im OGS-Büro nachfragen."
               />
-            </div>
+            </InfoSection>
 
-            <div>
-              <h3 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                Im Notfall anrufen
-              </h3>
-              <ContactList
+            <InfoSection
+              title="Im Notfall anrufen"
+              icon={<MotoConceptIcon concept="emergency" size={16} />}
+            >
+              <ContactRows
                 contacts={sheet.emergencyContacts}
+                showNote={false}
                 emptyText="Für dieses Kind ist kein Notfallkontakt hinterlegt. Bitte im OGS-Büro nachfragen."
               />
-            </div>
+            </InfoSection>
 
             <p className="text-xs text-gray-500">
               Diese Angaben pflegt das OGS-Büro. Änderungen bitte dort melden.

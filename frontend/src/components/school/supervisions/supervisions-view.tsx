@@ -10,11 +10,14 @@
 // Kindersuche und keine Berechtigung.
 
 import { useCallback, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import { useSession } from "next-auth/react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatTile } from "~/components/ui/stat-tile";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   TimetableRosterContent,
@@ -23,7 +26,7 @@ import {
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { getTimeBasedGreeting } from "~/lib/greeting";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { schoolSupervisionsApi } from "~/lib/school-supervisions-api";
 import { useSWRAuth } from "~/lib/swr";
@@ -50,19 +53,10 @@ const STATUS_COLORS: Record<PlannedTimetableInstance["status"], string> = {
   planned: LOCATION_COLORS.UNKNOWN,
   active: LOCATION_COLORS.GROUP_ROOM,
   completed: LOCATION_COLORS.OTHER_ROOM,
-  cancelled: LOCATION_COLORS.SICK,
+  // DANGER, nicht SICK: der Termin faellt aus, das Kind ist nicht krank.
+  // Gleicher Hex, aber der Name muss sagen, was gemeint ist.
+  cancelled: LOCATION_COLORS.DANGER,
 };
-
-function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-semibold text-gray-900">{value}</span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
 
 function SupervisionCard({
   instance,
@@ -83,9 +77,15 @@ function SupervisionCard({
 
   return (
     <div
+      // Die Auswahlfarbe kommt als Variable aus der Marken-Tabelle, nicht als
+      // Hex in einer Utility-Klasse: ein Literal bliebe stehen, wenn die
+      // Palette sich bewegt.
+      style={
+        { "--supervision-accent": LOCATION_COLORS.OTHER_ROOM } as CSSProperties
+      }
       className={`rounded-2xl border bg-white p-4 shadow-sm ${
         selected
-          ? "border-[var(--school-blue)] ring-1 ring-[var(--school-blue)]"
+          ? "border-[var(--supervision-accent)] ring-1 ring-[var(--supervision-accent)]"
           : "border-gray-200"
       }`}
     >
@@ -106,10 +106,10 @@ function SupervisionCard({
 
       {!cancelled ? (
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <Stat label="Erwartet" value={instance.expectedStudentsCount} />
-          <Stat label="Anwesend" value={instance.presentStudentsCount} />
+          <StatTile label="Erwartet" value={instance.expectedStudentsCount} />
+          <StatTile label="Anwesend" value={instance.presentStudentsCount} />
           {instance.notScheduledStudentsCount > 0 ? (
-            <Stat
+            <StatTile
               label="Heute nicht eingeplant"
               value={instance.notScheduledStudentsCount}
             />
@@ -288,35 +288,19 @@ export function SchoolSupervisionsView() {
     !isLoading && !listError && sortedInstances.length === 0;
 
   return (
-    <div
-      className="w-full"
-      style={
-        {
-          "--school-blue": MOTO_COLOR_PALETTE.blue.base,
-        } as React.CSSProperties
-      }
-    >
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div>
-          <p className="text-xs font-semibold tracking-wide text-[var(--school-blue)] uppercase">
-            Meine Aufsichten
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
-            {getTimeBasedGreeting()}, {getUserDisplayName(session)}
-          </h2>
-          <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Ihre Aufsichten am {formatDate(today)}. Sie sehen nur die Termine,
-            für die Sie im Betreuungsplan eingeteilt sind.
-          </p>
-        </div>
-
+    <div className="w-full">
+      <SectionCard
+        kicker="Meine Aufsichten"
+        title={`${getTimeBasedGreeting()}, ${getUserDisplayName(session)}`}
+        description={`Ihre Aufsichten am ${formatDate(today)}. Sie sehen nur die Termine, für die Sie im Betreuungsplan eingeteilt sind.`}
+      >
         {error ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert type="error" message={error} />
           </div>
         ) : null}
         {listError ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert
               type="error"
               message="Ihre Aufsichten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
@@ -324,7 +308,7 @@ export function SchoolSupervisionsView() {
           </div>
         ) : null}
 
-        <div className="mt-5 space-y-4">
+        <div className="space-y-4">
           {isLoading ? (
             <div className="grid gap-3 lg:grid-cols-2">
               <Skeleton className="h-40 w-full" />
@@ -358,7 +342,7 @@ export function SchoolSupervisionsView() {
             </div>
           ) : null}
         </div>
-      </section>
+      </SectionCard>
 
       {selectedId ? (
         <div className="mt-4">
@@ -366,32 +350,27 @@ export function SchoolSupervisionsView() {
             <Skeleton className="h-64 w-full" />
           ) : null}
           {rosterMatchesSelection ? (
-            <>
-              {/* Ohne diesen Satz ist der unterstrichene Name nur ein
-                  unterstrichener Name — die Abhol- und Notfallangaben
-                  hinter dem Antippen findet sonst niemand. */}
-              <p className="mb-3 text-sm text-gray-600">
-                Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht,
-                wer es abholen darf und wen Sie im Notfall anrufen.
-              </p>
-              <TimetableRosterContent
-                roster={roster as TimetableRoster}
-                attendanceWebEnabled
-                showTimetableCounts
-                canAddUnplanned={false}
-                addStudentResults={[]}
-                addStudentSearch=""
-                isAddingStudent={false}
-                isCompletingInstance={busyId === selectedId}
-                isConfirmingExpected={false}
-                onAddStudent={() => Promise.resolve(false)}
-                onSearchChange={() => undefined}
-                onRosterAction={handleRosterAction}
-                onConfirmExpected={handleConfirmExpected}
-                onComplete={handleComplete}
-                onOpenStudent={setSheetRow}
-              />
-            </>
+            <TimetableRosterContent
+              roster={roster as TimetableRoster}
+              attendanceWebEnabled
+              showTimetableCounts
+              canAddUnplanned={false}
+              // Ohne diesen Satz ist der unterstrichene Name nur ein
+              // unterstrichener Name — die Abhol- und Notfallangaben hinter
+              // dem Antippen findet sonst niemand.
+              headerNote="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
+              addStudentResults={[]}
+              addStudentSearch=""
+              isAddingStudent={false}
+              isCompletingInstance={busyId === selectedId}
+              isConfirmingExpected={false}
+              onAddStudent={() => Promise.resolve(false)}
+              onSearchChange={() => undefined}
+              onRosterAction={handleRosterAction}
+              onConfirmExpected={handleConfirmExpected}
+              onComplete={handleComplete}
+              onOpenStudent={setSheetRow}
+            />
           ) : null}
         </div>
       ) : null}

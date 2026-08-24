@@ -24,6 +24,7 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatTile } from "~/components/ui/stat-tile";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { getUserDisplayName } from "~/lib/auth-utils";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
@@ -58,17 +59,6 @@ const STATUS_COLORS: Record<string, string> = {
   excused: LOCATION_COLORS.EXCUSED,
   cancelled: LOCATION_COLORS.UNKNOWN,
 };
-
-function Stat({ label, value }: Readonly<{ label: string; value: number }>) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span className="block text-sm font-semibold text-gray-900">{value}</span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
 
 function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
   // Klassenlisteneintrag (#2382): "Keine Betreuung" ist die ganze Aussage —
@@ -222,15 +212,15 @@ function ClassCard({
         <div
           className={`mt-3 grid gap-2 ${splitKnown ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1"}`}
         >
-          <Stat label="Klassenverband" value={totals.students} />
+          <StatTile label="Klassenverband" value={totals.students} />
           {splitKnown && (
             <>
-              <Stat label="Bleiben" value={totals.staying} />
-              <Stat label="Gehen heim" value={totals.leaving} />
+              <StatTile label="Bleiben" value={totals.staying} />
+              <StatTile label="Gehen heim" value={totals.leaving} />
               {totals.list_entries > 0 && (
-                <Stat label="Keine Betreuung" value={totals.list_entries} />
+                <StatTile label="Keine Betreuung" value={totals.list_entries} />
               )}
-              <Stat label="Abgemeldet" value={totals.absent} />
+              <StatTile label="Abgemeldet" value={totals.absent} />
             </>
           )}
         </div>
