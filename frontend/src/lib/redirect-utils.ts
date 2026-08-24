@@ -6,7 +6,7 @@ import type { Session } from "next-auth";
 import { hasRole, isCaregiver } from "~/lib/auth-utils";
 import type { PresenceMode } from "~/lib/tenant-api";
 
-export const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
+const SCHOOL_PORTAL_HANDOFF_PATH = "/school/login";
 
 export function isSchoolPortalHandoffPath(path: string): boolean {
   return path === SCHOOL_PORTAL_HANDOFF_PATH;
