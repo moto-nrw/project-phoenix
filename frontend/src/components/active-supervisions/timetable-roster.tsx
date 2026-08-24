@@ -382,8 +382,18 @@ function TimetableRosterHeader({
             <MotoConceptIcon concept="present" size={18} />
           </span>
           <div className="min-w-0">
-            <p className="text-moto-green-strong text-xs font-semibold tracking-wide uppercase">
-              Aktiv
+            {/* Der Kicker folgt dem Zustand des Blocks. Fest "Aktiv" war
+                gelogen, sobald der Roster eines beendeten Termins offen ist —
+                im Reopen-Fenster der OGS ebenso wie in der Aufsicht einer
+                Lehrkraft (#2527). */}
+            <p
+              className={`text-xs font-semibold tracking-wide uppercase ${
+                roster.instance.status === "completed"
+                  ? "text-gray-500"
+                  : "text-moto-green-strong"
+              }`}
+            >
+              {roster.instance.status === "completed" ? "Beendet" : "Aktiv"}
             </p>
             <h2 className="truncate text-base font-semibold text-gray-900">
               {roster.instance.title}

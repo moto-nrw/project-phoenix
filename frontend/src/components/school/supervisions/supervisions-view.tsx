@@ -2,20 +2,22 @@
 
 // Aufsichten der Lehrkraft im Schul-Portal ("moto schule", #2527).
 //
-// Die Liste zeigt genau die Betreuungsplan-Blöcke des heutigen Tages, in die
-// diese Lehrkraft eingeteilt ist — das Backend filtert, die Oberfläche blendet
-// nichts aus. Ist ein Block offen, rendert darunter dieselbe Kinderliste, die
-// eine Betreuungskraft im OGS-Portal bedient (TimetableRosterContent), nur
-// ohne das Nachtragen fremder Kinder: dafür hat eine Lehrkraft keine
-// Kindersuche und keine Berechtigung.
+// Die Seite hat zwei Zustände, und der Tag bestimmt sie: läuft eine Aufsicht,
+// IST die Seite diese Aufsicht — Kinderliste, sonst nichts. Läuft keine, zeigt
+// sie den Tag als schlichte Liste. Es gibt bewusst kein Auswahl-Bedienelement:
+// eine Lehrkraft macht immer die Aufsicht, die gerade dran ist, und muss das
+// nicht erst angeben. Nach dem Beenden fällt die Seite von selbst in den
+// Überblick zurück.
+//
+// Das Backend filtert auf die eigene Einteilung im Betreuungsplan; die
+// Oberfläche blendet nichts aus. Die Kinderliste ist dieselbe Komponente, die
+// eine Betreuungskraft im OGS-Portal bedient, nur ohne das Nachtragen fremder
+// Kinder: dafür hat eine Lehrkraft keine Kindersuche und keine Berechtigung.
 
-import { useCallback, useMemo, useState } from "react";
-import type { CSSProperties } from "react";
-import { useSession } from "next-auth/react";
+import { ChevronLeft } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatTile } from "~/components/ui/stat-tile";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -23,11 +25,9 @@ import {
   TimetableRosterContent,
   type RosterAction,
 } from "~/components/active-supervisions/timetable-roster";
-import { getUserDisplayName } from "~/lib/auth-utils";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
-import { getTimeBasedGreeting } from "~/lib/greeting";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
+import { useMinuteClock } from "~/lib/pickup-helpers";
 import { schoolSupervisionsApi } from "~/lib/school-supervisions-api";
 import { useSWRAuth } from "~/lib/swr";
 import type {
@@ -35,79 +35,82 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { StudentSheetModal } from "./student-sheet-modal";
+import { SupervisionsOverview } from "./supervisions-overview";
+import {
+  AUTO_VIEW,
+  resolveSupervisionView,
+  supervisionStartState,
+  upcomingAfter,
+  type SupervisionStartState,
+  type SupervisionViewIntent,
+} from "./view-model";
 
 const logger = createLogger({ component: "SchoolSupervisionsView" });
 
 const GENERIC_ERROR =
   "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 
-const STATUS_LABELS: Record<PlannedTimetableInstance["status"], string> = {
-  planned: "Noch nicht gestartet",
-  active: "Läuft",
-  completed: "Beendet",
-  cancelled: "Fällt aus",
+/**
+ * Eine Aufsicht, die nicht läuft: ein Satz, was als Nächstes passiert, und
+ * genau ein Knopf. Mehr gibt es an dieser Stelle nicht zu entscheiden.
+ */
+const START_EXPLANATIONS: Record<SupervisionStartState, string> = {
+  cancelled: "Dieser Termin findet heute nicht statt. Sie müssen nichts tun.",
+  completed: "Diese Aufsicht ist beendet.",
+  startable:
+    "Starten Sie die Aufsicht, wenn die Kinder da sind. Danach können Sie die Anwesenheit führen.",
+  too_early: "",
+  expired:
+    "Diese Aufsicht ist vorbei und wurde nicht gestartet. Melden Sie sich im OGS-Büro, wenn die Anwesenheit noch nachgetragen werden soll.",
 };
 
-const STATUS_COLORS: Record<PlannedTimetableInstance["status"], string> = {
-  planned: LOCATION_COLORS.UNKNOWN,
-  active: LOCATION_COLORS.GROUP_ROOM,
-  completed: LOCATION_COLORS.OTHER_ROOM,
-  // DANGER, nicht SICK: der Termin faellt aus, das Kind ist nicht krank.
-  // Gleicher Hex, aber der Name muss sagen, was gemeint ist.
-  cancelled: LOCATION_COLORS.DANGER,
-};
-
-function SupervisionCard({
+function SupervisionIntro({
   instance,
-  selected,
   busy,
-  onOpen,
   onStart,
 }: Readonly<{
   instance: PlannedTimetableInstance;
-  selected: boolean;
   busy: boolean;
-  onOpen: () => void;
   onStart: () => void;
 }>) {
   const room = instance.roomName ?? `Raum ${instance.roomId}`;
-  const running = instance.status === "active";
-  const cancelled = instance.status === "cancelled";
+  // Die Minutenuhr, weil "noch nicht" von selbst in "jetzt" übergehen muss,
+  // ohne dass jemand die Seite neu lädt.
+  const now = useMinuteClock();
+  const startState = supervisionStartState(instance, now);
+  const explanation =
+    startState === "too_early"
+      ? `Die Aufsicht lässt sich ab ${instance.startTime} starten.`
+      : START_EXPLANATIONS[startState];
+  const cancelled = startState === "cancelled";
+  const showStartButton =
+    startState === "startable" || startState === "too_early";
 
   return (
-    <div
-      // Die Auswahlfarbe kommt als Variable aus der Marken-Tabelle, nicht als
-      // Hex in einer Utility-Klasse: ein Literal bliebe stehen, wenn die
-      // Palette sich bewegt.
-      style={
-        { "--supervision-accent": LOCATION_COLORS.OTHER_ROOM } as CSSProperties
-      }
-      className={`rounded-2xl border bg-white p-4 shadow-sm ${
-        selected
-          ? "border-[var(--supervision-accent)] ring-1 ring-[var(--supervision-accent)]"
-          : "border-gray-200"
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
+    <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-gray-900">
+          <h2 className="truncate text-base font-semibold text-gray-900">
             {instance.title}
-          </h3>
-          <p className="mt-1 truncate text-xs text-gray-500">
+          </h2>
+          <p className="mt-1 truncate text-sm text-gray-600">
             {room} · {instance.startTime} bis {instance.endTime}
           </p>
         </div>
-        <StatusDotBadge
-          label={STATUS_LABELS[instance.status]}
-          color={STATUS_COLORS[instance.status]}
-        />
+        {cancelled ? (
+          <StatusDotBadge label="Fällt aus" color={LOCATION_COLORS.DANGER} />
+        ) : null}
       </div>
 
+      <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-600">
+        {explanation}
+      </p>
+
       {!cancelled ? (
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
           <StatTile label="Erwartet" value={instance.expectedStudentsCount} />
-          <StatTile label="Anwesend" value={instance.presentStudentsCount} />
           {instance.notScheduledStudentsCount > 0 ? (
             <StatTile
               label="Heute nicht eingeplant"
@@ -117,46 +120,33 @@ function SupervisionCard({
         </div>
       ) : null}
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        {instance.status === "planned" ? (
+      {showStartButton ? (
+        <div className="mt-4">
           <Button
             type="button"
             size="md"
             variant="success"
-            disabled={busy || instance.canStart === false}
+            disabled={busy || startState !== "startable"}
             onClick={onStart}
           >
-            {instance.canStart === false
-              ? `Start ab ${instance.startTime}`
-              : "Aufsicht starten"}
+            {busy ? "Wird gestartet..." : "Aufsicht starten"}
           </Button>
-        ) : null}
-        {running || instance.status === "completed" ? (
-          <Button type="button" size="md" variant="outline" onClick={onOpen}>
-            {selected ? "Liste ausblenden" : "Kinderliste öffnen"}
-          </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       {instance.isSubstitute ? (
-        <p className="mt-2 text-xs text-gray-500">
+        <p className="mt-3 text-xs text-gray-500">
           Sie vertreten hier eine andere Person.
         </p>
       ) : null}
-      {cancelled ? (
-        <p className="mt-2 text-xs text-gray-500">
-          Dieser Termin findet heute nicht statt.
-        </p>
-      ) : null}
-    </div>
+    </section>
   );
 }
 
 export function SchoolSupervisionsView() {
-  const { data: session } = useSession();
   const today = berlinTodayISO();
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [intent, setIntent] = useState<SupervisionViewIntent>(AUTO_VIEW);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sheetRow, setSheetRow] = useState<TimetableRosterRow | null>(null);
@@ -172,13 +162,37 @@ export function SchoolSupervisionsView() {
     { revalidateOnFocus: true, focusThrottleInterval: 60_000 },
   );
 
+  const sortedInstances = useMemo(
+    () =>
+      [...(instances ?? [])].sort((a, b) =>
+        a.startTime.localeCompare(b.startTime),
+      ),
+    [instances],
+  );
+
+  const view = useMemo(
+    () => resolveSupervisionView(intent, sortedInstances),
+    [intent, sortedInstances],
+  );
+  const openInstance = view.mode === "detail" ? view.instance : null;
+  const openId = openInstance?.id ?? null;
+
+  // Ein Wechsel der Aufsicht schließt ein offenes Kind-Infoblatt: es gehört
+  // zu einem Kind der vorherigen Liste.
+  useEffect(() => {
+    setSheetRow(null);
+  }, [openId]);
+
+  const showRoster =
+    openInstance?.status === "active" || openInstance?.status === "completed";
+
   const {
     data: roster,
     isLoading: rosterLoading,
     mutate: reloadRoster,
   } = useSWRAuth(
-    selectedId ? `school-supervision-roster-${selectedId}` : null,
-    () => schoolSupervisionsApi.roster(selectedId as string),
+    openId && showRoster ? `school-supervision-roster-${openId}` : null,
+    () => schoolSupervisionsApi.roster(openId as string),
     { keepPreviousData: false, revalidateOnFocus: false },
   );
 
@@ -199,7 +213,9 @@ export function SchoolSupervisionsView() {
       setError(null);
       try {
         await schoolSupervisionsApi.start(instance.id);
-        setSelectedId(instance.id);
+        // Zurück auf "der Tag entscheidet": die Aufsicht läuft jetzt und ist
+        // damit von selbst die, die die Seite zeigt.
+        setIntent(AUTO_VIEW);
         await reloadList();
       } catch (err) {
         report("supervision_start_failed", err);
@@ -212,22 +228,22 @@ export function SchoolSupervisionsView() {
 
   const handleRosterAction = useCallback(
     async (action: RosterAction, row: TimetableRosterRow) => {
-      if (!selectedId) return;
+      if (!openId) return;
       setError(null);
       try {
         if (action === "check-in") {
-          await schoolSupervisionsApi.checkIn(selectedId, row.studentId);
+          await schoolSupervisionsApi.checkIn(openId, row.studentId);
         } else if (action === "check-out") {
-          await schoolSupervisionsApi.checkOut(selectedId, row.studentId);
+          await schoolSupervisionsApi.checkOut(openId, row.studentId);
         } else if (action === "expected") {
-          await schoolSupervisionsApi.patchAttendance(
-            selectedId,
-            row.studentId,
-            { status: "expected", substatus: null, note: null },
-          );
+          await schoolSupervisionsApi.patchAttendance(openId, row.studentId, {
+            status: "expected",
+            substatus: null,
+            note: null,
+          });
         } else {
           await schoolSupervisionsApi.patchAttendance(
-            selectedId,
+            openId,
             row.studentId,
             action === "excused"
               ? { status: "absent", substatus: "excused" }
@@ -239,145 +255,136 @@ export function SchoolSupervisionsView() {
         report("supervision_roster_action_failed", err);
       }
     },
-    [refreshAll, report, selectedId],
+    [openId, refreshAll, report],
   );
 
   const handleConfirmExpected = useCallback(
     async (rows: TimetableRosterRow[]) => {
-      if (!selectedId) return;
+      if (!openId) return;
       setError(null);
       try {
         for (const row of rows) {
-          await schoolSupervisionsApi.checkIn(selectedId, row.studentId);
+          await schoolSupervisionsApi.checkIn(openId, row.studentId);
         }
         await refreshAll();
       } catch (err) {
         report("supervision_confirm_expected_failed", err);
       }
     },
-    [refreshAll, report, selectedId],
+    [openId, refreshAll, report],
   );
 
   const handleComplete = useCallback(async () => {
-    if (!selectedId || !roster) return;
+    if (!openId || !roster) return;
     setError(null);
+    setBusyId(openId);
     try {
       const present = roster.rows
         .filter((row) => row.currentlyPresent)
         .map((row) => row.studentId);
-      await schoolSupervisionsApi.complete(selectedId, present);
-      setSelectedId(null);
+      await schoolSupervisionsApi.complete(openId, present);
+      // Nichts läuft mehr, also zeigt die Seite wieder den Tag.
+      setIntent(AUTO_VIEW);
       await reloadList();
     } catch (err) {
       report("supervision_complete_failed", err);
+    } finally {
+      setBusyId(null);
     }
-  }, [reloadList, report, roster, selectedId]);
+  }, [openId, reloadList, report, roster]);
 
   const rosterMatchesSelection =
-    roster != null && selectedId != null && roster.instance.id === selectedId;
+    roster != null && openId != null && roster.instance.id === openId;
 
-  const sortedInstances = useMemo(
-    () =>
-      [...(instances ?? [])].sort((a, b) =>
-        a.startTime.localeCompare(b.startTime),
-      ),
-    [instances],
-  );
-
-  const noSupervisions =
-    !isLoading && !listError && sortedInstances.length === 0;
+  const upcoming = openInstance
+    ? upcomingAfter(openInstance, sortedInstances)
+    : [];
 
   return (
-    <div className="w-full">
-      <SectionCard
-        kicker="Meine Aufsichten"
-        title={`${getTimeBasedGreeting()}, ${getUserDisplayName(session)}`}
-        description={`Ihre Aufsichten am ${formatDate(today)}. Sie sehen nur die Termine, für die Sie im Betreuungsplan eingeteilt sind.`}
-      >
-        {error ? (
-          <div className="mb-4">
-            <Alert type="error" message={error} />
-          </div>
-        ) : null}
-        {listError ? (
-          <div className="mb-4">
-            <Alert
-              type="error"
-              message="Ihre Aufsichten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
-            />
-          </div>
-        ) : null}
-
-        <div className="space-y-4">
-          {isLoading ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
-            </div>
-          ) : null}
-
-          {noSupervisions ? (
-            <EmptyState
-              title="Heute keine Aufsicht für Sie"
-              description="Für heute sind Sie im Betreuungsplan keiner Aufsicht zugeteilt. Die Einteilung macht das OGS-Büro."
-            />
-          ) : null}
-
-          {sortedInstances.length > 0 ? (
-            <div className="grid gap-3 lg:grid-cols-2">
-              {sortedInstances.map((instance) => (
-                <SupervisionCard
-                  key={instance.id}
-                  instance={instance}
-                  selected={selectedId === instance.id}
-                  busy={busyId === instance.id}
-                  onOpen={() =>
-                    setSelectedId((current) =>
-                      current === instance.id ? null : instance.id,
-                    )
-                  }
-                  onStart={() => void handleStart(instance)}
-                />
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </SectionCard>
-
-      {selectedId ? (
-        <div className="mt-4">
-          {rosterLoading && !rosterMatchesSelection ? (
-            <Skeleton className="h-64 w-full" />
-          ) : null}
-          {rosterMatchesSelection ? (
-            <TimetableRosterContent
-              roster={roster as TimetableRoster}
-              attendanceWebEnabled
-              showTimetableCounts
-              canAddUnplanned={false}
-              // Ohne diesen Satz ist der unterstrichene Name nur ein
-              // unterstrichener Name — die Abhol- und Notfallangaben hinter
-              // dem Antippen findet sonst niemand.
-              headerNote="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
-              addStudentResults={[]}
-              addStudentSearch=""
-              isAddingStudent={false}
-              isCompletingInstance={busyId === selectedId}
-              isConfirmingExpected={false}
-              onAddStudent={() => Promise.resolve(false)}
-              onSearchChange={() => undefined}
-              onRosterAction={handleRosterAction}
-              onConfirmExpected={handleConfirmExpected}
-              onComplete={handleComplete}
-              onOpenStudent={setSheetRow}
-            />
-          ) : null}
-        </div>
+    <div className="w-full space-y-4">
+      {error ? <Alert type="error" message={error} /> : null}
+      {listError ? (
+        <Alert
+          type="error"
+          message="Ihre Aufsichten konnten nicht geladen werden. Bitte laden Sie die Seite neu."
+        />
       ) : null}
 
-      {selectedId ? (
+      {isLoading ? <Skeleton className="h-64 w-full" /> : null}
+
+      {!isLoading && view.mode === "overview" ? (
+        <SupervisionsOverview
+          instances={sortedInstances}
+          onOpen={(id) => setIntent({ kind: "detail", id })}
+        />
+      ) : null}
+
+      {view.mode === "detail" && view.canGoBack ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          className="-ml-2"
+          onClick={() => setIntent({ kind: "overview" })}
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+          Alle Aufsichten heute
+        </Button>
+      ) : null}
+
+      {openInstance && !showRoster ? (
+        <SupervisionIntro
+          instance={openInstance}
+          busy={busyId === openInstance.id}
+          onStart={() => void handleStart(openInstance)}
+        />
+      ) : null}
+
+      {openInstance &&
+      showRoster &&
+      rosterLoading &&
+      !rosterMatchesSelection ? (
+        <Skeleton className="h-64 w-full" />
+      ) : null}
+
+      {openInstance && showRoster && rosterMatchesSelection ? (
+        <TimetableRosterContent
+          roster={roster as TimetableRoster}
+          attendanceWebEnabled
+          showTimetableCounts
+          canAddUnplanned={false}
+          // Ohne diesen Satz ist der unterstrichene Name nur ein
+          // unterstrichener Name — die Abhol- und Notfallangaben hinter dem
+          // Antippen findet sonst niemand.
+          headerNote="Tippen Sie auf einen Namen. Sie sehen dann, wann das Kind geht, wer es abholen darf und wen Sie im Notfall anrufen."
+          addStudentResults={[]}
+          addStudentSearch=""
+          isAddingStudent={false}
+          isCompletingInstance={busyId === openId}
+          isConfirmingExpected={false}
+          onAddStudent={() => Promise.resolve(false)}
+          onSearchChange={() => undefined}
+          onRosterAction={handleRosterAction}
+          onConfirmExpected={handleConfirmExpected}
+          onComplete={handleComplete}
+          onOpenStudent={setSheetRow}
+        />
+      ) : null}
+
+      {/* Die einzige andere Frage waehrend einer Aufsicht: was kommt danach.
+          Ein Satz, kein Bedienelement. */}
+      {openInstance && upcoming.length > 0 ? (
+        <p className="px-1 text-sm text-gray-500">
+          Danach:{" "}
+          {upcoming
+            .map((item) => `${item.title} ab ${item.startTime}`)
+            .join(", ")}
+        </p>
+      ) : null}
+
+      {openId ? (
         <StudentSheetModal
-          instanceId={selectedId}
+          instanceId={openId}
           studentId={sheetRow?.studentId ?? null}
           studentName={sheetRow?.studentName ?? ""}
           onClose={() => setSheetRow(null)}
