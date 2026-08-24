@@ -133,7 +133,6 @@ var seedCoverageAllowlist = map[string]string{
 	"schedule.timeframes":                       "GAP: prod has 16 rows",
 	"schedule.timetable_conflict_acks":          "empty in prod too",
 
-	"users.care_withdrawal_completions":       "seeded rollout scenario is delivered in #2548",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.class_list_entries":                "not in prod yet (migration newer than the deployed image)",
 	"users.guardian_phone_numbers":            "GAP: prod has 3071 rows",

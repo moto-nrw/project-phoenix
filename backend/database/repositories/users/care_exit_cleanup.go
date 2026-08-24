@@ -688,6 +688,8 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 		JOIN users.students AS student
 		  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id
 		WHERE rco.tenant_id = ? AND rco.valid_until <= ? AND co.counts_as_care
+		  AND ((co.days_of_week_mode = 'fixed' AND jsonb_array_length(co.available_days) > 0)
+		    OR (co.days_of_week_mode <> 'fixed' AND jsonb_array_length(rco.selected_days) > 0))
 		  AND student.status = 'active'
 		  AND (student.enrolled_until IS NULL OR student.enrolled_until >= rco.valid_until)
 		  AND NOT EXISTS (
@@ -706,7 +708,6 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			WHERE completion.tenant_id = rco.tenant_id
 			  AND completion.student_id = rc.created_student_id
 			  AND completion.first_bookingless_day = rco.valid_until
-			  AND completion.state = 'pending'
 		  )
 		GROUP BY rc.created_student_id, rco.valid_until
 	`, tenant.FromContext(ctx), asOf).Scan(ctx, &rows)
