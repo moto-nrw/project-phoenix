@@ -616,15 +616,6 @@ export function proxy(request: NextRequest): NextResponse {
   const appPath = pathname.startsWith(`/${tenantSlug}`)
     ? pathname.slice(tenantSlug.length + 1) || "/"
     : pathname;
-
-  // Path-prefixed tenant URLs are an internal routing representation, but
-  // users may have bookmarked them directly. Normalize its trailing slash
-  // too before recognizing the retired Klassenansicht.
-  if ((appPath.replace(/\/+$/, "") || "/") === "/klassen") {
-    const protocol = request.nextUrl.protocol;
-    const redirectUrl = `${protocol}//${SCHOOL_HOSTNAME}/`;
-    return withSecurityHeaders(NextResponse.redirect(redirectUrl));
-  }
   const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
   const isEnroll = isEnrollPath(normalizedAppPath);
 
