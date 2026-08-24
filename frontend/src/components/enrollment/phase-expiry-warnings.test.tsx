@@ -40,13 +40,20 @@ describe("PhaseExpiryWarnings", () => {
         "Ab 1. Februar 2027 enden die Buchungen für 204 Kinder. Erstellen Sie jetzt eine Anschlussphase.",
       ),
     ).toBeVisible();
-    expect(
-      screen.getByRole("link", { name: "Anschlussphase erstellen" }),
-    ).toHaveAttribute("href", "/enrollment-phases?rollover=3");
-    expect(
-      screen.getByRole("link", { name: "Anschlussphase erstellen" }),
-    ).toHaveClass("hidden", "lg:inline-flex");
-    expect(screen.getByText("Bitte am Computer öffnen.")).toBeVisible();
+    const actions = screen.getAllByRole("link", {
+      name: "Anschlussphase erstellen",
+    });
+    expect(actions).toHaveLength(2);
+    expect(actions[0]!).toHaveAttribute(
+      "href",
+      "/enrollment-phases/3/rollover",
+    );
+    expect(actions[0]!).toHaveClass("lg:hidden");
+    expect(actions[1]!).toHaveAttribute(
+      "href",
+      "/enrollment-phases?rollover=3",
+    );
+    expect(actions[1]!).toHaveClass("hidden", "lg:inline-flex");
     expect(screen.getByRole("status")).toHaveClass("bg-moto-orange-soft");
   });
 

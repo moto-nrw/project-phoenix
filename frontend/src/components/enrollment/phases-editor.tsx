@@ -271,6 +271,18 @@ export function PhasesEditor() {
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const tenantMutate = useTenantMutate();
+  const refreshPhaseExpiryWarnings = useCallback(() => {
+    void tenantMutate("enrollment-phase-expiry-warnings").catch(
+      (refreshError: unknown) => {
+        logger.error("phase_expiry_warning_refresh_failed", {
+          error:
+            refreshError instanceof Error
+              ? refreshError.message
+              : String(refreshError),
+        });
+      },
+    );
+  }, [tenantMutate]);
   const assignFormId = searchParams.get("assignForm");
   const rolloverPhaseID = searchParams.get("rollover");
   const latestSchemas = useMemo(() => latestSchemasByName(schemas), [schemas]);
@@ -456,6 +468,7 @@ export function PhasesEditor() {
       }
       cancelEdit();
       await loadAll();
+      refreshPhaseExpiryWarnings();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_save_failed", { error: message });
@@ -517,6 +530,7 @@ export function PhasesEditor() {
       toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
       closeDelete();
       await loadAll();
+      refreshPhaseExpiryWarnings();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unbekannter Fehler";
       logger.error("phase_delete_failed", { error: message });
@@ -532,6 +546,7 @@ export function PhasesEditor() {
     impactError,
     closeDelete,
     loadAll,
+    refreshPhaseExpiryWarnings,
     toast,
   ]);
 
@@ -599,16 +614,7 @@ export function PhasesEditor() {
       `Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`,
     );
     void loadAll();
-    void tenantMutate("enrollment-phase-expiry-warnings").catch(
-      (refreshError: unknown) => {
-        logger.error("phase_expiry_warning_refresh_failed", {
-          error:
-            refreshError instanceof Error
-              ? refreshError.message
-              : String(refreshError),
-        });
-      },
-    );
+    refreshPhaseExpiryWarnings();
   };
 
   const handleToggleActive = useCallback(
@@ -626,6 +632,7 @@ export function PhasesEditor() {
             : `Anmeldephase „${updated.name}" wurde deaktiviert.`,
         );
         await loadAll();
+        refreshPhaseExpiryWarnings();
       } catch (err) {
         const message =
           err instanceof Error ? err.message : "Unbekannter Fehler";
@@ -636,7 +643,7 @@ export function PhasesEditor() {
         setSaving(false);
       }
     },
-    [loadAll, toast],
+    [loadAll, refreshPhaseExpiryWarnings, toast],
   );
 
   const activePhaseCount = phases.filter((phase) => phase.is_active).length;

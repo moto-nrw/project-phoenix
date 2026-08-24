@@ -182,7 +182,7 @@ export async function setPhaseCalendarPeriod(
   });
 }
 
-async function getPhase(id: string): Promise<Phase> {
+export async function getPhase(id: string): Promise<Phase> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });

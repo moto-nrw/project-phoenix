@@ -89,6 +89,29 @@ function WarningAction({
     href = tenantPath(
       `/enrollment-phases?rollover=${encodeURIComponent(warning.source_phase_id)}`,
     );
+    const mobileHref = tenantPath(
+      `/enrollment-phases/${encodeURIComponent(warning.source_phase_id)}/rollover`,
+    );
+    return (
+      <>
+        <ButtonLink
+          href={mobileHref}
+          variant="surface"
+          size="md"
+          className="lg:hidden"
+        >
+          {label}
+        </ButtonLink>
+        <ButtonLink
+          href={href}
+          variant="surface"
+          size="md"
+          className="hidden lg:inline-flex"
+        >
+          {label}
+        </ButtonLink>
+      </>
+    );
   } else {
     const successorPhaseID = warning.successor_phase_id;
     if (!successorPhaseID) return null;
@@ -97,17 +120,9 @@ function WarningAction({
     );
   }
   return (
-    <>
-      <span className="lg:hidden">Bitte am Computer öffnen.</span>
-      <ButtonLink
-        href={href}
-        variant="surface"
-        size="md"
-        className="hidden lg:inline-flex"
-      >
-        {label}
-      </ButtonLink>
-    </>
+    <ButtonLink href={href} variant="surface" size="md">
+      {label}
+    </ButtonLink>
   );
 }
 
