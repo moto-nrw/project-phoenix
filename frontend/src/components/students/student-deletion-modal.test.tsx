@@ -43,13 +43,18 @@ const impact: StudentDeletionImpact = {
   },
 };
 
-function renderModal(onDeleted = vi.fn(), onClose = vi.fn()) {
+function renderModal(
+  onDeleted = vi.fn(),
+  onClose = vi.fn(),
+  completionId?: string,
+) {
   render(
     <ModalProvider>
       <StudentDeletionModal
         isOpen
         studentId="42"
         displayName="Mia Muster"
+        completionId={completionId}
         onClose={onClose}
         onDeleted={onDeleted}
       />

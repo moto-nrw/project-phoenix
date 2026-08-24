@@ -55,13 +55,14 @@ function pendingSchedule() {
   } as unknown as Awaited<ReturnType<typeof getChildCareSchedule>>;
 }
 
-function renderSection(careEnded = false) {
+function renderSection(careEnded = false, enrolledUntil?: string) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
       <BookedCareSection
         studentId="42"
         childFirstName="Hannah"
         careEnded={careEnded}
+        enrolledUntil={enrolledUntil}
       />
     </NextIntlClientProvider>,
   );
@@ -290,6 +291,51 @@ describe("BookedCareSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Anfrage abgelehnt")).toBeInTheDocument();
     expect(screen.getByText(/Der Zeitraum ist ausgebucht/)).toBeInTheDocument();
+  });
+
+  it("erklärt eine bestätigte Komplett-Abmeldung bis zum Abschluss", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [],
+      can_request: false,
+      last_decision: {
+        id: "d2",
+        status: "approved",
+        decided_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        complete_withdrawal: true,
+        requested: [],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection();
+
+    expect(await screen.findByText("Abmeldung bestätigt")).toBeVisible();
+    expect(
+      screen.getByText(
+        "Die Schule schließt die Abmeldung ab. Sie müssen nichts tun.",
+      ),
+    ).toBeVisible();
+  });
+
+  it("zeigt nach dem Abschluss den letzten Betreuungstag", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [],
+      can_request: false,
+      last_decision: {
+        id: "d3",
+        status: "approved",
+        decided_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        complete_withdrawal: true,
+        requested: [],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection(true, "2026-08-31");
+
+    expect(
+      await screen.findByText("Betreuung beendet am 31.08.2026"),
+    ).toBeVisible();
   });
 
   // #2303: der Block irritiert, Eltern konnten dort ohnehin nichts anmelden.

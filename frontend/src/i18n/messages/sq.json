@@ -1240,6 +1240,9 @@
       "disabledPeriodOver": "Periudha e përkujdesjes ka përfunduar. Regjistrojeni përsëri fëmijën për periudhën e re.",
       "requestsTitle": "Ndryshimi i kërkuar",
       "decisionApproved": "Ndryshimi u zbatua",
+      "withdrawalApproved": "Çregjistrimi u konfirmua",
+      "withdrawalApprovedHint": "Shkolla do ta përfundojë çregjistrimin. Ju nuk duhet të bëni asgjë.",
+      "withdrawalCareEnded": "Kujdesi përfundoi më {date}",
       "decisionApprovedFrom": "Vlen nga {date}",
       "decisionRejected": "Kërkesa u refuzua",
       "decisionReason": "Arsyeja e ekipit të përkujdesjes: {reason}",
@@ -1273,7 +1276,11 @@
       "noDaysSelected": "Zgjidhni të paktën një ditë për çdo ofertë të zgjedhur.",
       "submitError": "Kërkesa nuk mund të dërgohej.",
       "capacityFull": "Një nga ofertat e zgjedhura nuk ka më vende të lira.",
-      "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj."
+      "alreadyPending": "Ka tashmë një kërkesë për fëmijën tuaj. Prisni shqyrtimin e saj.",
+      "withdrawalConfirmTitle": "Të çregjistrohet plotësisht nga përkujdesja?",
+      "withdrawalConfirmBody": "Pas kësaj, {name} nuk do të ketë asnjë ditë përkujdesjeje të rezervuar. Dëshironi vërtet ta dërgoni këtë kërkesë?",
+      "withdrawalConfirmBack": "Kthehu",
+      "withdrawalConfirmSubmit": "Dërgo kërkesën"
     },
     "weekdayShort": {
       "1": "Hën",

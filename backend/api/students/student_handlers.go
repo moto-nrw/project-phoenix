@@ -1684,6 +1684,21 @@ type studentDeletePreservedDataResponse struct {
 	SharedInstances  bool `json:"shared_instances"`
 }
 
+func toStudentDeleteImpactResponse(impact *userService.StudentDeletionPreview) studentDeleteImpactResponse {
+	return studentDeleteImpactResponse{
+		ConfirmationName: impact.ConfirmationName,
+		Fingerprint:      impact.Fingerprint,
+		Total:            impact.Counts.Total(),
+		Counts:           impact.Counts,
+		Preserved: studentDeletePreservedDataResponse{
+			GuardianProfiles: true,
+			ParentAccounts:   true,
+			OtherStudents:    true,
+			SharedInstances:  true,
+		},
+	}
+}
+
 func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
@@ -1708,18 +1723,7 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, studentDeletionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, studentDeleteImpactResponse{
-		ConfirmationName: impact.ConfirmationName,
-		Fingerprint:      impact.Fingerprint,
-		Total:            impact.Counts.Total(),
-		Counts:           impact.Counts,
-		Preserved: studentDeletePreservedDataResponse{
-			GuardianProfiles: true,
-			ParentAccounts:   true,
-			OtherStudents:    true,
-			SharedInstances:  true,
-		},
-	}, "Student deletion impact retrieved")
+	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Student deletion impact retrieved")
 }
 
 type studentDeleteRequest struct {

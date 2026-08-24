@@ -19,6 +19,7 @@ import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
@@ -119,6 +120,8 @@ export function AggregatedRequestList({
   const [careExitWithdrawal, setCareExitWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   const [deletionWithdrawal, setDeletionWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
+  const [deletionWarningWithdrawal, setDeletionWarningWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   // Set while THIS list dispatches change-requests-refresh so its own listener
   // (below) doesn't refetch — it already removed the decided row optimistically.
@@ -229,7 +232,7 @@ export function AggregatedRequestList({
     const selected = filters.types;
     const typeMatches =
       selected.length === 0 || selected.includes("care_withdrawal");
-    if (view !== "open" || !filters.includeCareWithdrawals || !typeMatches) {
+    if (!filters.includeCareWithdrawals || !typeMatches) {
       setWithdrawals([]);
       return;
     }
@@ -242,6 +245,7 @@ export function AggregatedRequestList({
           search: filters.search,
           page: pageNumber,
           pageSize: WITHDRAWAL_PAGE_SIZE,
+          ...(view === "history" ? { state: "resolved" as const } : {}),
         });
         items.push(...page.items);
         total = page.total;
@@ -262,9 +266,7 @@ export function AggregatedRequestList({
 
   useEffect(() => {
     let cancelled = false;
-    setWithdrawalsLoading(
-      view === "open" && filters.includeCareWithdrawals === true,
-    );
+    setWithdrawalsLoading(filters.includeCareWithdrawals === true);
     void loadWithdrawals().finally(() => {
       if (!cancelled) setWithdrawalsLoading(false);
     });
@@ -454,7 +456,7 @@ export function AggregatedRequestList({
                           type="button"
                           variant="ghost"
                           size="compact"
-                          onClick={() => setDeletionWithdrawal(row)}
+                          onClick={() => setDeletionWarningWithdrawal(row)}
                         >
                           Kind löschen
                         </Button>
@@ -465,6 +467,43 @@ export function AggregatedRequestList({
                       Für dieses Kind ist kein Betreuungstag mehr gebucht.
                       Beenden Sie jetzt die Betreuung.
                     </p>
+                  </RequestReviewCard>
+                );
+              })
+            : null}
+          {view === "history"
+            ? withdrawals.map((row) => {
+                const deleted = row.outcome === "deleted";
+                const name =
+                  deleted || row.studentId === ""
+                    ? "Gelöschtes Kind"
+                    : `${row.firstName} ${row.lastName}`.trim();
+                return (
+                  <RequestReviewCard
+                    key={`care_withdrawal:${row.id}`}
+                    type="care_withdrawal"
+                    typeLabel="Abmeldung"
+                    childName={name}
+                    summary={
+                      deleted ? "Kind sofort gelöscht" : "Betreuung beendet"
+                    }
+                    badge={
+                      <StatusBadge
+                        tone="gray"
+                        label={deleted ? "Gelöscht" : "Abgeschlossen"}
+                      />
+                    }
+                    history={{
+                      kind: "readonly",
+                      label: deleted ? "Gelöscht" : "Abgeschlossen",
+                      tone: "gray",
+                    }}
+                  >
+                    {row.resolvedAt ? (
+                      <p className="text-sm text-gray-600">
+                        Erledigt am {formatDate(row.resolvedAt)}
+                      </p>
+                    ) : null}
                   </RequestReviewCard>
                 );
               })
@@ -556,6 +595,7 @@ export function AggregatedRequestList({
         <StudentDeletionModal
           isOpen
           studentId={deletionWithdrawal.studentId}
+          completionId={deletionWithdrawal.id}
           displayName={`${deletionWithdrawal.firstName} ${deletionWithdrawal.lastName}`.trim()}
           onClose={() => setDeletionWithdrawal(null)}
           onDeleted={() => {
@@ -564,6 +604,23 @@ export function AggregatedRequestList({
           }}
         />
       )}
+      <ConfirmationModal
+        isOpen={deletionWarningWithdrawal !== null}
+        onClose={() => setDeletionWarningWithdrawal(null)}
+        onConfirm={() => {
+          setDeletionWithdrawal(deletionWarningWithdrawal);
+          setDeletionWarningWithdrawal(null);
+        }}
+        title="Kind sofort löschen"
+        confirmText="Löschen prüfen"
+        cancelText="Zurück"
+        mobileSheet
+      >
+        <p className="text-sm text-gray-600">
+          Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag
+          wird nicht abgewartet.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

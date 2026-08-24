@@ -1240,6 +1240,9 @@
       "disabledPeriodOver": "The care period has ended. Please enrol your child again for the new period.",
       "requestsTitle": "Requested change",
       "decisionApproved": "Change applied",
+      "withdrawalApproved": "Withdrawal confirmed",
+      "withdrawalApprovedHint": "The school will complete the withdrawal. You do not need to do anything.",
+      "withdrawalCareEnded": "Care ended on {date}",
       "decisionApprovedFrom": "Valid from {date}",
       "decisionRejected": "Request rejected",
       "decisionReason": "Reason given by the care team: {reason}",
@@ -1273,7 +1276,11 @@
       "noDaysSelected": "Pick at least one day for every selected offering.",
       "submitError": "The request could not be sent.",
       "capacityFull": "One of the selected offerings has no places left.",
-      "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed."
+      "alreadyPending": "There is already a request for your child. Please wait for it to be reviewed.",
+      "withdrawalConfirmTitle": "End all booked care?",
+      "withdrawalConfirmBody": "After this, {name} will have no booked care day. Do you really want to send this request?",
+      "withdrawalConfirmBack": "Back",
+      "withdrawalConfirmSubmit": "Send request"
     },
     "weekdayShort": {
       "1": "Mon",

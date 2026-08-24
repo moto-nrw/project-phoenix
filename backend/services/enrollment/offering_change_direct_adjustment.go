@@ -132,25 +132,25 @@ func (s *offeringChangeRequestService) directMaterializedSelections(
 ) ([]materializedOfferingSelection, []materializedOfferingSelection, error) {
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	if _, err := s.validateSelections(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, true,
 	); err != nil {
 		return nil, nil, err
 	}
 	if checkCapacity {
 		if err := s.assertCapacityAvailable(
-			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded,
+			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, true,
 		); err != nil {
 			return nil, nil, err
 		}
 	}
 	base, err := s.materializedSelections(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, true,
 	)
 	if err != nil || len(excluded) == 0 {
 		return base, base, err
 	}
 	selected, err := s.materializedSelectionsExcluding(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, true,
 	)
 	return base, selected, err
 }

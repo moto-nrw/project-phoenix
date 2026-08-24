@@ -67,6 +67,7 @@ interface StudentDeletionModalProps {
   readonly isOpen: boolean;
   readonly studentId: string;
   readonly displayName: string;
+  readonly completionId?: string;
   /** Die Betreuung dieses Kindes ist beendet — nur dann gibt es den Grund
    *  "Aufbewahrungsfrist abgelaufen" (#2487). */
   readonly careEnded?: boolean;
@@ -78,6 +79,7 @@ export function StudentDeletionModal({
   isOpen,
   studentId,
   displayName,
+  completionId,
   careEnded = false,
   onClose,
   onDeleted,
@@ -105,7 +107,10 @@ export function StudentDeletionModal({
     let active = true;
     setLoadingPreview(true);
     setError("");
-    void fetchStudentDeletionImpact(studentId)
+    const previewRequest = completionId
+      ? fetchStudentDeletionImpact(studentId, completionId)
+      : fetchStudentDeletionImpact(studentId);
+    void previewRequest
       .then((result) => {
         if (active) setImpact(result);
       })
@@ -127,7 +132,7 @@ export function StudentDeletionModal({
     return () => {
       active = false;
     };
-  }, [isOpen, studentId]);
+  }, [completionId, isOpen, studentId]);
 
   const countRows = useMemo(() => {
     if (!impact) return [];
@@ -154,12 +159,17 @@ export function StudentDeletionModal({
     setDeleting(true);
     setError("");
     try {
-      await deleteStudentWithData(studentId, {
+      const input = {
         expected_fingerprint: impact.fingerprint,
         confirmation_name: confirmationName,
         reason,
-        acknowledged: true,
-      });
+        acknowledged: true as const,
+      };
+      if (completionId) {
+        await deleteStudentWithData(studentId, input, completionId);
+      } else {
+        await deleteStudentWithData(studentId, input);
+      }
       try {
         await onDeleted();
       } catch (refreshError) {
@@ -200,7 +210,11 @@ export function StudentDeletionModal({
         setConfirmationName("");
         setLoadingPreview(true);
         try {
-          setImpact(await fetchStudentDeletionImpact(studentId));
+          setImpact(
+            completionId
+              ? await fetchStudentDeletionImpact(studentId, completionId)
+              : await fetchStudentDeletionImpact(studentId),
+          );
         } catch (refreshError) {
           logger.error("student_delete_preview_refresh_failed", {
             student_id: studentId,

@@ -64,6 +64,15 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 		assert.Equal(t, http.StatusForbidden, response.Code,
 			"%s must be gated on users:delete. Body: %s", path, response.Body.String())
 	}
+	for method, path := range map[string]string{
+		http.MethodGet:    "/care-withdrawals/1/deletion-impact",
+		http.MethodDelete: "/care-withdrawals/1",
+	} {
+		request := testutil.NewAuthenticatedRequest(t, method, path, body)
+		response := authExec(t, tc, request, claims, []string{"users:update"})
+		assert.Equal(t, http.StatusForbidden, response.Code,
+			"%s must be gated on users:delete. Body: %s", path, response.Body.String())
+	}
 
 	archiveRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/ended-care", nil)
 	archiveResponse := authExec(t, tc, archiveRequest, claims, []string{"users:update"})

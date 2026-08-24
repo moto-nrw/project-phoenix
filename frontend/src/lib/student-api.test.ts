@@ -346,6 +346,45 @@ describe("student-api", () => {
       );
     });
 
+    it("uses the completion-scoped deletion endpoints", async () => {
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ data: { fingerprint: "abc" } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ success: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      const input = {
+        expected_fingerprint: "abc",
+        confirmation_name: "Mia Muster",
+        reason: "privacy_request" as const,
+        acknowledged: true as const,
+      };
+
+      await fetchStudentDeletionImpact("42", "73");
+      await deleteStudentWithData("42", input, "73");
+
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        1,
+        "/api/students/care-withdrawals/73/deletion-impact",
+        { cache: "no-store" },
+      );
+      expect(fetchMock).toHaveBeenNthCalledWith(
+        2,
+        "/api/students/care-withdrawals/73",
+        expect.objectContaining({
+          method: "DELETE",
+          body: JSON.stringify(input),
+        }),
+      );
+    });
+
     it("sends every confirmation field in the DELETE body", async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(JSON.stringify({ success: true }), {

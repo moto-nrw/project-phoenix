@@ -665,11 +665,12 @@ async function studentDeletionResponse<T>(
 
 export async function fetchStudentDeletionImpact(
   id: string,
+  completionId?: string,
 ): Promise<StudentDeletionImpact> {
-  const response = await fetch(
-    `/api/students/${encodeURIComponent(id)}/delete-impact`,
-    { cache: "no-store" },
-  );
+  const path = completionId
+    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
+    : `/api/students/${encodeURIComponent(id)}/delete-impact`;
+  const response = await fetch(path, { cache: "no-store" });
   return studentDeletionResponse<StudentDeletionImpact>(
     response,
     "Auswirkungen der Löschung konnten nicht geladen werden.",
@@ -679,8 +680,12 @@ export async function fetchStudentDeletionImpact(
 export async function deleteStudentWithData(
   id: string,
   input: DeleteStudentWithDataInput,
+  completionId?: string,
 ): Promise<void> {
-  const response = await fetch(`/api/students/${encodeURIComponent(id)}`, {
+  const path = completionId
+    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
+    : `/api/students/${encodeURIComponent(id)}`;
+  const response = await fetch(path, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
