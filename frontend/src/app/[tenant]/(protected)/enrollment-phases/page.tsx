@@ -2,6 +2,7 @@
 
 import { Suspense } from "react";
 import { PhasesEditor } from "~/components/enrollment/phases-editor";
+import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
@@ -19,13 +20,16 @@ export default function EnrollmentPhasesPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {showSkeleton ? (
-        <PhasesEditorSkeleton />
-      ) : (
-        <Suspense fallback={<PhasesEditorSkeleton />}>
-          <PhasesEditor />
-        </Suspense>
-      )}
+      <DesktopOnlyNotice />
+      <div className="hidden lg:block">
+        {showSkeleton ? (
+          <PhasesEditorSkeleton />
+        ) : (
+          <Suspense fallback={<PhasesEditorSkeleton />}>
+            <PhasesEditor />
+          </Suspense>
+        )}
+      </div>
     </div>
   );
 }
