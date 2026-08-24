@@ -308,13 +308,17 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
 
 function offeringRemovesAllCareDays(props: PickupAdjustmentDecisionProps) {
   if (!props.preview.offering_catalog) return false;
-  const selected = new Set(
+  const selected = new Map(
     props.preview.matching_offerings
       .find((offering) => offering.offering_id === props.selectedOfferingId)
-      ?.selections.map((selection) => selection.offering_id) ?? [],
+      ?.selections.map((selection) => [selection.offering_id, selection]) ?? [],
   );
   return !props.preview.offering_catalog.items.some(
-    (item) => item.counts_as_care && selected.has(item.offering_id),
+    (item) =>
+      item.counts_as_care &&
+      (item.days_of_week_mode === "fixed"
+        ? selected.has(item.offering_id) && item.available_days.length > 0
+        : (selected.get(item.offering_id)?.selected_days.length ?? 0) > 0),
   );
 }
 

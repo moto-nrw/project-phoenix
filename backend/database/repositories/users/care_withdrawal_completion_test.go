@@ -44,7 +44,7 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, 1, total)
 	require.Len(t, rows, 1)
-	assert.Equal(t, second.FirstBookinglessDay, rows[0].FirstBookinglessDay)
+	assert.Equal(t, first.FirstBookinglessDay, rows[0].FirstBookinglessDay)
 	assert.Equal(t, "Mira", rows[0].FirstName)
 }
 

@@ -544,7 +544,7 @@ func (r *CareExitCleanupRepository) ListSourceOfferingsAfter(
 	}
 	if err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT rc.created_student_id AS student_id, co.name,
-		       COALESCE(NULLIF(rco.selected_days, '[]'::jsonb), co.available_days, '[]'::jsonb) AS days
+		       CASE WHEN co.days_of_week_mode = 'fixed' THEN co.available_days ELSE rco.selected_days END AS days
 		FROM enrollment.request_child_offerings AS rco
 		JOIN enrollment.request_children AS rc
 		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
@@ -678,7 +678,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 	       rco.valid_until AS first_bookingless_day,
 		       jsonb_agg(jsonb_build_object(
 				'name', co.name,
-				'days', COALESCE(NULLIF(rco.selected_days, '[]'::jsonb), co.available_days, '[]'::jsonb)
+				'days', CASE WHEN co.days_of_week_mode = 'fixed' THEN co.available_days ELSE rco.selected_days END
 			)) AS source_offerings
 		FROM enrollment.request_child_offerings AS rco
 		JOIN enrollment.request_children AS rc

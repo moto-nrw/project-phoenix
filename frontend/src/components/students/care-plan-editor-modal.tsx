@@ -866,11 +866,15 @@ function offeringRemovesAllCareDays(
   selections: PickupAdjustmentSelection[],
 ) {
   if (!preview.offering_catalog) return false;
-  const selected = new Set(
-    selections.map((selection) => selection.offering_id),
+  const selected = new Map(
+    selections.map((selection) => [selection.offering_id, selection]),
   );
   return !preview.offering_catalog.items.some(
-    (item) => item.counts_as_care && selected.has(item.offering_id),
+    (item) =>
+      item.counts_as_care &&
+      (item.days_of_week_mode === "fixed"
+        ? selected.has(item.offering_id) && item.available_days.length > 0
+        : (selected.get(item.offering_id)?.selected_days.length ?? 0) > 0),
   );
 }
 

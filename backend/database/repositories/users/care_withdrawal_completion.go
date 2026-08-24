@@ -43,7 +43,7 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		Model(completion).
 		ModelTableExpr(tableExprCareWithdrawalCompletions).
 		On("CONFLICT (tenant_id, student_id) WHERE state = 'pending' AND student_id IS NOT NULL DO UPDATE").
-		Set("first_bookingless_day = EXCLUDED.first_bookingless_day").
+		Set(`first_bookingless_day = LEAST("care_withdrawal_completion".first_bookingless_day, EXCLUDED.first_bookingless_day)`).
 		Set("trigger = EXCLUDED.trigger").
 		Set("source_adjustment_id = EXCLUDED.source_adjustment_id").
 		Set("withdrawal_confirmed_by = EXCLUDED.withdrawal_confirmed_by").
