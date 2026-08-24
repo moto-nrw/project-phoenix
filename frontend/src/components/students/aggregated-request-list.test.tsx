@@ -242,7 +242,9 @@ describe("AggregatedRequestList", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: /Anfrage für Mia Muster/ }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Kind löschen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kind sofort löschen" }),
+    );
 
     expect(
       screen.getByRole("heading", { name: "Kind sofort löschen" }),

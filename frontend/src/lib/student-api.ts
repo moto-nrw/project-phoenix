@@ -609,41 +609,70 @@ export interface DeleteStudentWithDataInput {
 
 export class StudentDeletionApiError extends Error {
   readonly status: number;
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "StudentDeletionApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
-function studentDeletionErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") return fallback;
-  const candidate = payload as { error?: unknown; message?: unknown };
+interface StudentDeletionErrorPayload {
+  readonly error?: unknown;
+  readonly message?: unknown;
+  readonly code?: unknown;
+}
+
+function nestedStudentDeletionError(raw: string) {
+  const jsonStart = raw.indexOf("{");
+  if (jsonStart < 0) return null;
+  try {
+    const nested = JSON.parse(
+      raw.slice(jsonStart),
+    ) as StudentDeletionErrorPayload;
+    const message =
+      typeof nested.error === "string"
+        ? nested.error
+        : typeof nested.message === "string"
+          ? nested.message
+          : raw;
+    return {
+      message,
+      code: typeof nested.code === "string" ? nested.code : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function studentDeletionErrorDetails(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") {
+    return { message: fallback, code: undefined };
+  }
+  const candidate = payload as StudentDeletionErrorPayload;
   const raw =
     typeof candidate.error === "string"
       ? candidate.error
       : typeof candidate.message === "string"
         ? candidate.message
         : "";
-  if (!raw) return fallback;
-
-  // The Next.js proxy may wrap the backend JSON inside
-  // "API error (409): {...}". Prefer the original German domain message.
-  const jsonStart = raw.indexOf("{");
-  if (jsonStart >= 0) {
-    try {
-      const nested = JSON.parse(raw.slice(jsonStart)) as {
-        error?: unknown;
-        message?: unknown;
-      };
-      if (typeof nested.error === "string") return nested.error;
-      if (typeof nested.message === "string") return nested.message;
-    } catch {
-      // Fall through to the unwrapped proxy message.
-    }
+  if (!raw) {
+    return {
+      message: fallback,
+      code: typeof candidate.code === "string" ? candidate.code : undefined,
+    };
   }
-  return raw;
+
+  // The Next.js proxy wraps backend JSON inside "API error (409): {...}".
+  // Preserve the stable code alongside the original domain message.
+  const nested = nestedStudentDeletionError(raw);
+  if (nested) return nested;
+  return {
+    message: raw,
+    code: typeof candidate.code === "string" ? candidate.code : undefined,
+  };
 }
 
 async function studentDeletionResponse<T>(
@@ -652,9 +681,11 @@ async function studentDeletionResponse<T>(
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
+    const error = studentDeletionErrorDetails(payload, fallbackError);
     throw new StudentDeletionApiError(
       response.status,
-      studentDeletionErrorMessage(payload, fallbackError),
+      error.message,
+      error.code,
     );
   }
   if (payload && typeof payload === "object" && "data" in payload) {

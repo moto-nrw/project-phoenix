@@ -2045,15 +2045,34 @@ func deleteStudentTxErrorRenderer(err error) render.Renderer {
 }
 
 var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: userService.ErrStudentDeletionPreviewChanged, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
-	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionPreviewChanged, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionPreviewChanged)
+	}},
+	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionConfirmationMismatch)
+	}},
+	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionAcknowledgement)
+	}},
+	{Target: userService.ErrStudentDeletionInvalidReason, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionInvalidReason)
+	}},
+	{Target: userService.ErrStudentDeletionAlumnus, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionAlumnus)
+	}},
+	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionRetentionNotEnded)
+	}},
+	{Target: userService.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionBlocked)
+	}},
+	{Target: userService.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionLockBusy)
+	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
-		return common.ErrorConflictMessage("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen.")
+		return common.ErrorConflictWithCode(
+			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
+			errCodeStudentDeletionConstraintsChanged,
+		)
 	}},
 }, common.ErrorInternalServer)

@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -398,16 +399,25 @@ func (rs *Resource) deleteWithdrawalStudent(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, withdrawalDeletionErrorRenderer(err))
 		return
 	}
-	if rs.StudentPhotos != nil {
-		rs.StudentPhotos.ScheduleUnlinkAfterCommit(r.Context(), result.PhotoPath)
-	}
-	if len(result.CompanionIDs) > 0 {
-		tenantID := tenant.FromContext(r.Context())
-		tenant.RegisterAfterCommit(r.Context(), func() {
-			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
-		})
-	}
+	rs.scheduleWithdrawalDeletionEffects(r.Context(), studentID, result)
 	common.Respond(w, r, http.StatusOK, nil, "Kind und verknüpfte Daten gelöscht")
+}
+
+func (rs *Resource) scheduleWithdrawalDeletionEffects(
+	ctx context.Context,
+	studentID int64,
+	result *userService.StudentDeletionResult,
+) {
+	if rs.StudentPhotos != nil {
+		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, result.PhotoPath)
+	}
+	if len(result.CompanionIDs) == 0 {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+	})
 }
 
 func (rs *Resource) authorizeWithdrawalDeletion(
@@ -633,8 +643,11 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 })
 
 func withdrawalDeletionErrorRenderer(err error) render.Renderer {
-	if errors.Is(err, userService.ErrCareWithdrawalNotFound) || errors.Is(err, userModels.ErrCareWithdrawalAlreadyResolved) {
-		return careExitErrorRenderer(err)
+	if errors.Is(err, userService.ErrCareWithdrawalNotFound) {
+		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
+	}
+	if errors.Is(err, userModels.ErrCareWithdrawalAlreadyResolved) {
+		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
 	}
 	return studentDeletionErrorRenderer(err)
 }

@@ -97,6 +97,71 @@ function itemKey(item: AnyItem): string {
   return `${item.request_type}:${item.data.id}`;
 }
 
+function CareWithdrawalHistoryRows({
+  rows,
+}: Readonly<{ rows: CareWithdrawalCompletion[] }>) {
+  return rows.map((row) => {
+    const deleted = row.outcome === "deleted";
+    const childName =
+      deleted || row.studentId === ""
+        ? "Gelöschtes Kind"
+        : `${row.firstName} ${row.lastName}`.trim();
+    return (
+      <RequestReviewCard
+        key={`care_withdrawal:${row.id}`}
+        type="care_withdrawal"
+        typeLabel="Abmeldung"
+        childName={childName}
+        summary={deleted ? "Kind sofort gelöscht" : "Betreuung beendet"}
+        badge={
+          <StatusBadge
+            tone="gray"
+            label={deleted ? "Gelöscht" : "Abgeschlossen"}
+          />
+        }
+        history={{
+          kind: "readonly",
+          label: deleted ? "Gelöscht" : "Abgeschlossen",
+          tone: "gray",
+        }}
+      >
+        {row.resolvedAt ? (
+          <p className="text-sm text-gray-600">
+            Erledigt am {formatDate(row.resolvedAt)}
+          </p>
+        ) : null}
+      </RequestReviewCard>
+    );
+  });
+}
+
+function WithdrawalDeletionWarning({
+  withdrawal,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  withdrawal: CareWithdrawalCompletion | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  return (
+    <ConfirmationModal
+      isOpen={withdrawal !== null}
+      onClose={onCancel}
+      onConfirm={onConfirm}
+      title="Kind sofort löschen"
+      confirmText="Löschen prüfen"
+      cancelText="Zurück"
+      mobileSheet
+    >
+      <p className="text-sm text-gray-600">
+        Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag
+        wird nicht abgewartet.
+      </p>
+    </ConfirmationModal>
+  );
+}
+
 /** Wie viele Zeilen eine Seite der zusammengeführten Liste zeigt. */
 const PAGE_SIZE = 25;
 
@@ -458,7 +523,7 @@ export function AggregatedRequestList({
                           size="compact"
                           onClick={() => setDeletionWarningWithdrawal(row)}
                         >
-                          Kind löschen
+                          Kind sofort löschen
                         </Button>
                       </div>
                     }
@@ -471,43 +536,9 @@ export function AggregatedRequestList({
                 );
               })
             : null}
-          {view === "history"
-            ? withdrawals.map((row) => {
-                const deleted = row.outcome === "deleted";
-                const name =
-                  deleted || row.studentId === ""
-                    ? "Gelöschtes Kind"
-                    : `${row.firstName} ${row.lastName}`.trim();
-                return (
-                  <RequestReviewCard
-                    key={`care_withdrawal:${row.id}`}
-                    type="care_withdrawal"
-                    typeLabel="Abmeldung"
-                    childName={name}
-                    summary={
-                      deleted ? "Kind sofort gelöscht" : "Betreuung beendet"
-                    }
-                    badge={
-                      <StatusBadge
-                        tone="gray"
-                        label={deleted ? "Gelöscht" : "Abgeschlossen"}
-                      />
-                    }
-                    history={{
-                      kind: "readonly",
-                      label: deleted ? "Gelöscht" : "Abgeschlossen",
-                      tone: "gray",
-                    }}
-                  >
-                    {row.resolvedAt ? (
-                      <p className="text-sm text-gray-600">
-                        Erledigt am {formatDate(row.resolvedAt)}
-                      </p>
-                    ) : null}
-                  </RequestReviewCard>
-                );
-              })
-            : null}
+          {view === "history" ? (
+            <CareWithdrawalHistoryRows rows={withdrawals} />
+          ) : null}
           {items.map((item) => {
             const key = itemKey(item);
             // Anmeldungsänderungen tragen in beiden Ansichten dieselbe Karte:
@@ -604,23 +635,14 @@ export function AggregatedRequestList({
           }}
         />
       )}
-      <ConfirmationModal
-        isOpen={deletionWarningWithdrawal !== null}
-        onClose={() => setDeletionWarningWithdrawal(null)}
+      <WithdrawalDeletionWarning
+        withdrawal={deletionWarningWithdrawal}
+        onCancel={() => setDeletionWarningWithdrawal(null)}
         onConfirm={() => {
           setDeletionWithdrawal(deletionWarningWithdrawal);
           setDeletionWarningWithdrawal(null);
         }}
-        title="Kind sofort löschen"
-        confirmText="Löschen prüfen"
-        cancelText="Zurück"
-        mobileSheet
-      >
-        <p className="text-sm text-gray-600">
-          Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag
-          wird nicht abgewartet.
-        </p>
-      </ConfirmationModal>
+      />
     </div>
   );
 }

@@ -413,7 +413,7 @@ describe("student-api", () => {
         new Response(
           JSON.stringify({
             error:
-              'API error (409): {"status":"error","error":"Vorschau veraltet"}',
+              'API error (409): {"status":"error","error":"Vorschau veraltet","code":"students.deletion_preview_changed"}',
           }),
           {
             status: 409,
@@ -433,6 +433,7 @@ describe("student-api", () => {
       expect(error).toMatchObject({
         status: 409,
         message: "Vorschau veraltet",
+        code: "students.deletion_preview_changed",
       });
     });
   });

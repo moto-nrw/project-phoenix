@@ -107,10 +107,7 @@ export function StudentDeletionModal({
     let active = true;
     setLoadingPreview(true);
     setError("");
-    const previewRequest = completionId
-      ? fetchStudentDeletionImpact(studentId, completionId)
-      : fetchStudentDeletionImpact(studentId);
-    void previewRequest
+    void fetchStudentDeletionImpact(studentId, completionId)
       .then((result) => {
         if (active) setImpact(result);
       })
@@ -165,11 +162,7 @@ export function StudentDeletionModal({
         reason,
         acknowledged: true as const,
       };
-      if (completionId) {
-        await deleteStudentWithData(studentId, input, completionId);
-      } else {
-        await deleteStudentWithData(studentId, input);
-      }
+      await deleteStudentWithData(studentId, input, completionId);
       try {
         await onDeleted();
       } catch (refreshError) {
@@ -201,7 +194,7 @@ export function StudentDeletionModal({
 
       if (
         deleteError instanceof StudentDeletionApiError &&
-        deleteError.status === 409
+        deleteError.code === "students.deletion_preview_changed"
       ) {
         // The backend re-checks the preview under a row lock. A 409 means the
         // user must see a fresh impact before confirming again.
@@ -210,11 +203,7 @@ export function StudentDeletionModal({
         setConfirmationName("");
         setLoadingPreview(true);
         try {
-          setImpact(
-            completionId
-              ? await fetchStudentDeletionImpact(studentId, completionId)
-              : await fetchStudentDeletionImpact(studentId),
-          );
+          setImpact(await fetchStudentDeletionImpact(studentId, completionId));
         } catch (refreshError) {
           logger.error("student_delete_preview_refresh_failed", {
             student_id: studentId,

@@ -83,3 +83,17 @@ func renderExceptionWriteError(w http.ResponseWriter, r *http.Request, err error
 // leave both sick and excused set at the same time. The frontend uses this
 // code to prompt the user to switch from one state to the other.
 const ErrCodeSickExcusedConflict = "SICK_EXCUSED_CONFLICT"
+
+const (
+	errCodeStudentDeletionPreviewChanged       = "students.deletion_preview_changed"
+	errCodeStudentDeletionConfirmationMismatch = "students.deletion_confirmation_mismatch"
+	errCodeStudentDeletionAcknowledgement      = "students.deletion_acknowledgement_required"
+	errCodeStudentDeletionInvalidReason        = "students.deletion_invalid_reason"
+	errCodeStudentDeletionAlumnus              = "students.deletion_alumnus"
+	errCodeStudentDeletionRetentionNotEnded    = "students.deletion_retention_not_ended"
+	errCodeStudentDeletionCompanionBlocked     = "students.deletion_companion_blocked"
+	errCodeStudentDeletionCompanionLockBusy    = "students.deletion_companion_lock_busy"
+	errCodeStudentDeletionConstraintsChanged   = "students.deletion_constraints_changed"
+	errCodeCareWithdrawalNotFound              = "students.care_withdrawal_not_found"
+	errCodeCareWithdrawalAlreadyResolved       = "students.care_withdrawal_already_resolved"
+)
