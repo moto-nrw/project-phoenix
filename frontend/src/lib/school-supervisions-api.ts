@@ -60,7 +60,7 @@ interface BackendSupervisionStudentSheet {
   emergency_contacts: SupervisionContact[];
 }
 
-export class SchoolSupervisionApiError extends Error {
+class SchoolSupervisionApiError extends Error {
   readonly httpStatus: number;
   readonly code?: string;
 
@@ -101,7 +101,9 @@ function jsonRequest(method: string, body?: unknown): RequestInit {
   };
 }
 
-function mapSheet(raw: BackendSupervisionStudentSheet): SupervisionStudentSheet {
+function mapSheet(
+  raw: BackendSupervisionStudentSheet,
+): SupervisionStudentSheet {
   return {
     studentId: raw.student_id.toString(),
     firstName: raw.first_name,
