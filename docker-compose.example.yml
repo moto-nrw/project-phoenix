@@ -132,7 +132,7 @@ services:
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
       - ./frontend/tailwind.config.js:/app/tailwind.config.js
-      - ./frontend/postcss.config.js:/app/postcss.config.js
+      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
       # Preserve Next.js incremental build artifacts across container rebuilds
       - next_cache:/app/.next/cache
     restart: unless-stopped
