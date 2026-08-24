@@ -1827,9 +1827,10 @@ func TestWSGetHistory_Success(t *testing.T) {
 	today := timezone.TodayDate()
 	from := today.AddDays(-7)
 	to := today
+	sessionDay := today.AddDays(-1)
 
-	checkIn := today.BerlinMidnight().Add(10 * time.Hour)
-	checkOut := today.BerlinMidnight().Add(16 * time.Hour)
+	checkIn := sessionDay.BerlinMidnight().Add(10 * time.Hour)
+	checkOut := sessionDay.BerlinMidnight().Add(16 * time.Hour)
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{
