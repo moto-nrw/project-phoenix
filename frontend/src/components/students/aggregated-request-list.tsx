@@ -426,12 +426,23 @@ export function AggregatedRequestList({
     filters.statuses.length > 0 ||
     Boolean(filters.from) ||
     Boolean(filters.to);
+  const visibleWithdrawals =
+    view === "history"
+      ? withdrawals.filter((row) => {
+          const resolvedDate = row.resolvedAt?.slice(0, 10);
+          return (
+            resolvedDate !== undefined &&
+            (!filters.from || resolvedDate >= filters.from) &&
+            (!filters.to || resolvedDate <= filters.to)
+          );
+        })
+      : withdrawals;
 
   return (
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
       {notice && <Alert type="success" message={notice} />}
-      {items.length === 0 && withdrawals.length === 0 && !error ? (
+      {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}
           // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
@@ -459,7 +470,7 @@ export function AggregatedRequestList({
         <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
           <RequestRowHeader view={view} />
           {view === "open"
-            ? withdrawals.map((row) => {
+            ? visibleWithdrawals.map((row) => {
                 const name = `${row.firstName} ${row.lastName}`.trim();
                 const overdue = row.urgency === "overdue";
                 return (
@@ -510,7 +521,7 @@ export function AggregatedRequestList({
               })
             : null}
           {view === "history" ? (
-            <CareWithdrawalHistoryRows rows={withdrawals} />
+            <CareWithdrawalHistoryRows rows={visibleWithdrawals} />
           ) : null}
           {items.map((item) => {
             const key = itemKey(item);

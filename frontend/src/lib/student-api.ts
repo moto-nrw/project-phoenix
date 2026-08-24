@@ -636,6 +636,13 @@ function studentDeletionErrorDetails(payload: unknown, fallback: string) {
       : typeof candidate.message === "string"
         ? candidate.message
         : "";
+  if (raw.startsWith("{") && raw.endsWith("}")) {
+    try {
+      return studentDeletionErrorDetails(JSON.parse(raw), fallback);
+    } catch {
+      // Keep the proxy's text when it did not embed a complete JSON object.
+    }
+  }
   if (!raw) {
     return {
       message: fallback,

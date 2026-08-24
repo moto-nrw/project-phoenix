@@ -436,6 +436,33 @@ describe("student-api", () => {
         code: "students.deletion_preview_changed",
       });
     });
+
+    it("extracts conflict codes embedded by the deletion proxy", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            error: JSON.stringify({
+              error: "Vorschau veraltet",
+              code: "students.deletion_preview_changed",
+            }),
+          }),
+          { status: 409, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+      const error = await deleteStudentWithData("42", {
+        expected_fingerprint: "abc",
+        confirmation_name: "Mia Muster",
+        reason: "test_data",
+        acknowledged: true,
+      }).catch((caught: unknown) => caught);
+
+      expect(error).toMatchObject({
+        status: 409,
+        message: "Vorschau veraltet",
+        code: "students.deletion_preview_changed",
+      });
+    });
   });
 
   describe("fetchGroups", () => {
