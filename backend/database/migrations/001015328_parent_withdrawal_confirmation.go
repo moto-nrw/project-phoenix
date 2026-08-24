@@ -29,7 +29,7 @@ func parentWithdrawalConfirmationUp(ctx context.Context, db *bun.DB) error {
 			ADD COLUMN withdrawal_confirmed_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 			ADD COLUMN withdrawal_confirmed_at TIMESTAMPTZ,
 			ADD CONSTRAINT chk_offering_change_withdrawal_confirmation CHECK (
-				(complete_withdrawal_confirmed AND withdrawal_confirmed_by IS NOT NULL AND withdrawal_confirmed_at IS NOT NULL)
+				(complete_withdrawal_confirmed AND withdrawal_confirmed_at IS NOT NULL)
 				OR (NOT complete_withdrawal_confirmed AND withdrawal_confirmed_by IS NULL AND withdrawal_confirmed_at IS NULL)
 			);
 	`).Exec(ctx); err != nil {

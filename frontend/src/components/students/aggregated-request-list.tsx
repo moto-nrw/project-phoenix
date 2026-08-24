@@ -243,6 +243,7 @@ export function AggregatedRequestList({
       do {
         const page = await fetchCareWithdrawals({
           search: filters.search,
+          studentId: filters.studentId,
           page: pageNumber,
           pageSize: WITHDRAWAL_PAGE_SIZE,
           ...(view === "history" ? { state: "resolved" as const } : {}),
@@ -262,7 +263,13 @@ export function AggregatedRequestList({
       });
       setError("Abmeldungen konnten nicht geladen werden.");
     }
-  }, [filters.includeCareWithdrawals, filters.search, filters.types, view]);
+  }, [
+    filters.includeCareWithdrawals,
+    filters.search,
+    filters.studentId,
+    filters.types,
+    view,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
