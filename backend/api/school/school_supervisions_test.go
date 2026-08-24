@@ -331,12 +331,11 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Fremdraum-%d", time.Now().UnixNano()))
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
-	now := timezone.Now()
 	foreign := &scheduleModel.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     "Fremde Schule",
-		StartTime: now.Add(-30 * time.Minute),
-		EndTime:   now.Add(90 * time.Minute),
+		StartTime: timezone.WallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.WallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
