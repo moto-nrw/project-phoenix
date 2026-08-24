@@ -15,11 +15,16 @@ export default function SchoolClassDayPage({
 }: {
   readonly params: Promise<{ schoolClass: string }>;
 }) {
+  // Dekodiert, nicht roh: der Proxy schreibt den Host-Pfad auf /school/...
+  // um und reicht das Segment kodiert weiter. `params` liefert hier deshalb
+  // "Klasse%202a" — beim direkten Aufruf genauso wie beim Klick aus der
+  // Übersicht. Ohne diese Zeile sucht die Seite eine Klasse dieses Namens
+  // und zeigt "nicht verfügbar" (im Browser geprüft, 24.08.2026).
   const { schoolClass } = use(params);
   return (
     <Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <ClassDayClass
-        schoolClass={schoolClass}
+        schoolClass={decodeURIComponent(schoolClass)}
         fetchClassDay={fetchClassDaySchool}
       />
     </Suspense>
