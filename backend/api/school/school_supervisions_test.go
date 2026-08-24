@@ -245,6 +245,28 @@ func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "pickup_contacts")
 	assert.Contains(t, rec.Body.String(), "emergency_contacts")
+
+	// The stored roster is retained as history, but an alumnus must leave the
+	// effective current roster and cannot be checked out through this route.
+	_, err := f.db.NewUpdate().
+		TableExpr("users.students").
+		Set("status = ?", "alumnus").
+		Where("id = ?", onRoster.ID).
+		Exec(testpkg.TenantContext(f.tenantID))
+	require.NoError(t, err)
+	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-out", mine.ID, onRoster.ID), nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
+
+	careEnded := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Betreuung", "Beendet", "2a")
+	testpkg.CreateTestInstanceStudent(t, f.db, mine.ID, careEnded.ID, scheduleModel.AttendanceStatusExpected)
+	_, err = f.db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Where("id = ?", careEnded.ID).
+		Exec(testpkg.TenantContext(f.tenantID))
+	require.NoError(t, err)
+	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, careEnded.ID), nil)
+	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
 // TestSchoolSupervisionsCrossTenant proves the tenant transaction still bounds

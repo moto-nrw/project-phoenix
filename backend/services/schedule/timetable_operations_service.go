@@ -729,6 +729,13 @@ func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, i
 		return err
 	}
 	if _, ok := findPlanned(planned, studentID); ok {
+		excluded, err := s.rosterStudentExcluded(ctx, inst, studentID)
+		if err != nil {
+			return err
+		}
+		if excluded {
+			return ErrTimetableOperationForbidden
+		}
 		return nil
 	}
 	if inst != nil && inst.ActiveGroupID != nil {
@@ -738,11 +745,30 @@ func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, i
 		}
 		for _, visit := range visits {
 			if visit.StudentID == studentID {
+				excluded, err := s.rosterStudentExcluded(ctx, inst, studentID)
+				if err != nil {
+					return err
+				}
+				if excluded {
+					return ErrTimetableOperationForbidden
+				}
 				return nil
 			}
 		}
 	}
 	return ErrTimetableOperationForbidden
+}
+
+// rosterStudentExcluded applies the same current-roster exclusion used by the
+// read model before an assignment-bound portal mutates a child. A planned row
+// is retained as history after graduation or care end, but it must not still
+// authorize attendance changes for a current or future supervision.
+func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, inst *scheduleModel.ActivityInstance, studentID int64) (bool, error) {
+	students, err := s.deps.StudentRepo.FindByIDs(ctx, []int64{studentID})
+	if err != nil {
+		return false, err
+	}
+	return rosterExcludedAlumni(inst, students)[studentID], nil
 }
 
 func (s *timetableOperationsService) requireCanOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {

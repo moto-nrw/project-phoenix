@@ -129,7 +129,10 @@ func (s *reportService) SupervisionStudentSheet(ctx context.Context, in Supervis
 	sheet.Arrival = arrivals[student.ID]
 	sheet.Pickup = pickups[student.ID]
 
-	sheet.Departure = s.supervisionDeparture(ctx, student, date, in.CompanionBoundary)
+	sheet.Departure, err = s.supervisionDeparture(ctx, student, date, in.CompanionBoundary)
+	if err != nil {
+		return nil, err
+	}
 
 	statuses, err := s.classDayStatuses(ctx, studentIDs, date)
 	if err != nil {
@@ -161,25 +164,26 @@ func (s *reportService) SupervisionStudentSheet(ctx context.Context, in Supervis
 
 // supervisionDeparture renders today's departure with the block roster as the
 // disclosure boundary for companion names. A companion repo that is not wired
-// costs the names in brackets, never the departure itself.
-func (s *reportService) supervisionDeparture(ctx context.Context, student *userModels.Student, date timezone.Date, boundary []int64) string {
+// costs the names in brackets, but a lookup failure fails the sheet closed so
+// a partial departure instruction is never presented as complete.
+func (s *reportService) supervisionDeparture(ctx context.Context, student *userModels.Student, date timezone.Date, boundary []int64) (string, error) {
 	weekday := classDayWeekdayKey(date)
 	if weekday == "" {
-		return classDayDepartureUnknown
+		return classDayDepartureUnknown, nil
 	}
 	onSheet := make(map[int64]bool, len(boundary))
 	for _, id := range boundary {
 		onSheet[id] = true
 	}
-	var companions []userModels.CompanionLink
-	if links, err := s.classRosterCompanions(ctx, []int64{student.ID}); err == nil {
-		companions = links[student.ID]
+	links, err := s.classRosterCompanions(ctx, []int64{student.ID})
+	if err != nil {
+		return "", fmt.Errorf("supervision sheet: load departure companions: %w", err)
 	}
-	departure := classDayDeparture(student, weekday, companions, onSheet)
+	departure := classDayDeparture(student, weekday, links[student.ID], onSheet)
 	if departure == "" {
-		return classDayDepartureUnknown
+		return classDayDepartureUnknown, nil
 	}
-	return departure
+	return departure, nil
 }
 
 // supervisionContacts splits the child's guardians into the two questions a
@@ -272,6 +276,7 @@ func (s *reportService) recordSupervisionSheetAudit(ctx context.Context, sheet *
 	if err != nil {
 		return err
 	}
+	entry.StudentID = &sheet.StudentID
 	entry.SetMetadata("report", "supervision_student_sheet")
 	entry.SetMetadata("student_id", sheet.StudentID)
 	entry.SetMetadata("date", sheet.Date.String())
