@@ -68,6 +68,10 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/.golangci.yml'
+              - 'backend/.go-arch-lint.yml'
+              - 'backend/tools/go.mod'
+              - 'backend/tools/go.sum'
+              - 'scripts/backend-architecture.sh'
             backend-production:
               - 'backend/**/*.go'
               - '!backend/**/*_test.go'

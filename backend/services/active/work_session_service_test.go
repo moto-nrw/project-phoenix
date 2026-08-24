@@ -1824,13 +1824,12 @@ func TestWSGetHistory_Success(t *testing.T) {
 	t.Parallel()
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)
-	today := timezone.TodayDate()
-	from := today.AddDays(-7)
-	to := today
-	sessionDay := today.AddDays(-1)
+	day := timezone.NewDate(2026, 8, 19)
+	from := day.AddDays(-3)
+	to := day.AddDays(3)
 
-	checkIn := sessionDay.BerlinMidnight().Add(10 * time.Hour)
-	checkOut := sessionDay.BerlinMidnight().Add(16 * time.Hour)
+	checkIn := day.BerlinMidnight().Add(8 * time.Hour)
+	checkOut := checkIn.Add(6 * time.Hour)
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
 		return []*activeModels.WorkSession{
 			{
