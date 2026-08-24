@@ -66,28 +66,30 @@ type ClassDayRow struct {
 // them is keyed by student ID for the same date, and the builder reads them
 // together.
 type classDayFacts struct {
-	statuses         map[int64]string
-	statusReportedAt map[int64]time.Time
-	departures       map[int64]string
-	arrivals         map[int64]string
-	pickups          map[int64]string
-	pickupRegular    map[int64]string
-	pickupChanged    map[int64]bool
-	pickupChangedAt  map[int64]time.Time
-	notScheduled     map[int64]bool
+	statuses           map[int64]string
+	statusReportedAt   map[int64]time.Time
+	departures         map[int64]string
+	arrivals           map[int64]string
+	pickups            map[int64]string
+	pickupRegular      map[int64]string
+	pickupChanged      map[int64]bool
+	pickupChangedAt    map[int64]time.Time
+	arrivalCancelledAt map[int64]time.Time
+	notScheduled       map[int64]bool
 }
 
 func newClassDayFacts() classDayFacts {
 	return classDayFacts{
-		statuses:         map[int64]string{},
-		statusReportedAt: map[int64]time.Time{},
-		departures:       map[int64]string{},
-		arrivals:         map[int64]string{},
-		pickups:          map[int64]string{},
-		pickupRegular:    map[int64]string{},
-		pickupChanged:    map[int64]bool{},
-		pickupChangedAt:  map[int64]time.Time{},
-		notScheduled:     map[int64]bool{},
+		statuses:           map[int64]string{},
+		statusReportedAt:   map[int64]time.Time{},
+		departures:         map[int64]string{},
+		arrivals:           map[int64]string{},
+		pickups:            map[int64]string{},
+		pickupRegular:      map[int64]string{},
+		pickupChanged:      map[int64]bool{},
+		pickupChangedAt:    map[int64]time.Time{},
+		arrivalCancelledAt: map[int64]time.Time{},
+		notScheduled:       map[int64]bool{},
 	}
 }
 
@@ -451,8 +453,11 @@ func (s *reportService) ClassDay(ctx context.Context, schoolClass string, date t
 			if facts.statuses[studentID] == "" {
 				facts.statuses[studentID] = StudentStatusDayCancelled
 				// The cancellation is a timeless day exception; its creation
-				// time is when the abmeldung became known (#2294).
-				if stamp, ok := facts.pickupChangedAt[studentID]; ok {
+				// time is when the Abmeldung became known (#2294). Arrival
+				// exceptions win over pickup exceptions in ResolveDayPlanning.
+				if stamp, ok := facts.arrivalCancelledAt[studentID]; ok {
+					facts.statusReportedAt[studentID] = stamp
+				} else if stamp, ok := facts.pickupChangedAt[studentID]; ok {
 					facts.statusReportedAt[studentID] = stamp
 				}
 			}
@@ -521,8 +526,14 @@ func (s *reportService) classDayEffectiveTimes(ctx context.Context, studentIDs [
 			return fmt.Errorf("class day report: load effective arrival times: %w", err)
 		}
 		for studentID, entry := range effective {
-			if entry != nil && entry.ArrivalTime != nil {
+			if entry == nil {
+				continue
+			}
+			if entry.ArrivalTime != nil {
 				facts.arrivals[studentID] = entry.ArrivalTime.Format("15:04")
+			}
+			if entry.IsException && entry.ArrivalTime == nil && entry.ChangedAt != nil && !entry.ChangedAt.IsZero() {
+				facts.arrivalCancelledAt[studentID] = *entry.ChangedAt
 			}
 		}
 	}

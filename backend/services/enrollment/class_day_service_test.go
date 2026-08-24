@@ -319,6 +319,37 @@ func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 	assert.Equal(t, map[int64]bool{3: true}, facts.notScheduled)
 }
 
+func TestClassDayCancellationUsesArrivalExceptionReportTime(t *testing.T) {
+	t.Parallel()
+
+	reportedAt := time.Date(2026, 8, 5, 7, 24, 0, 0, time.UTC)
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		ArrivalScheduleSvc: &fakeArrivalScheduleService{byStudent: map[int64]*scheduleService.EffectiveArrivalTime{
+			1: {IsException: true, ChangedAt: &reportedAt},
+		}},
+		CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
+			1: scheduleService.CareDayCancelled,
+		}},
+	}}
+	facts := newClassDayFacts()
+
+	require.NoError(t, svc.classDayEffectiveTimes(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts))
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts)
+	require.NoError(t, err)
+	for studentID := range cancelled {
+		facts.statuses[studentID] = StudentStatusDayCancelled
+		if stamp, ok := facts.arrivalCancelledAt[studentID]; ok {
+			facts.statusReportedAt[studentID] = stamp
+		}
+	}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", []ClassRosterRow{{
+		StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
+	}}, facts)
+	require.NotNil(t, report.Rows[0].ReportedAt)
+	assert.Equal(t, reportedAt, *report.Rows[0].ReportedAt)
+}
+
 func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
 	t.Parallel()
 
