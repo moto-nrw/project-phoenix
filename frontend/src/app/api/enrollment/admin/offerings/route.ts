@@ -22,6 +22,7 @@ interface UpdateOfferingsBody {
     selected_days?: string[];
   }>;
   reason?: string;
+  complete_withdrawal_confirmed?: boolean;
 }
 
 async function PUTHandler(request: NextRequest) {
@@ -60,6 +61,8 @@ async function PUTHandler(request: NextRequest) {
         body: JSON.stringify({
           offerings: body.offerings ?? [],
           reason: body.reason ?? "",
+          complete_withdrawal_confirmed:
+            body.complete_withdrawal_confirmed === true,
         }),
       },
     );

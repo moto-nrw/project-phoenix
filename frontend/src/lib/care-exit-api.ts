@@ -31,6 +31,8 @@ export interface CareExitImpact {
   openParentRequests: number;
   hasRfidTag: boolean;
   currentlyPresent: boolean;
+  sourceOfferings: Array<{ name: string; days: string[] }>;
+  weeklyPlans: string[];
   /** Bereits hinterlegtes Betreuungsende (dann ist der Vorgang eine Änderung). */
   plannedEndsOn: string | null;
   /** Leer, wenn das Kind beendet werden kann; sonst der konkrete Grund. */
@@ -89,6 +91,8 @@ interface WireImpact {
   open_parent_requests: number;
   has_rfid_tag: boolean;
   currently_present: boolean;
+  source_offerings?: Array<{ name: string; days?: string[] }>;
+  weekly_plans?: string[];
   planned_ends_on?: string | null;
   blocker?: string;
 }
@@ -143,7 +147,9 @@ async function request<T>(
       (typeof payload?.error === "string" && payload.error) ||
       (typeof payload?.message === "string" && payload.message) ||
       `API error (${response.status})`;
-    throw new Error(message);
+    const error = new Error(message) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
   }
   return payload as T;
 }
@@ -171,8 +177,131 @@ function mapImpact(wire: WireImpact): CareExitImpact {
     openParentRequests: wire.open_parent_requests,
     hasRfidTag: wire.has_rfid_tag,
     currentlyPresent: wire.currently_present,
+    sourceOfferings: (wire.source_offerings ?? []).map((offering) => ({
+      name: offering.name,
+      days: offering.days ?? [],
+    })),
+    weeklyPlans: wire.weekly_plans ?? [],
     plannedEndsOn: wire.planned_ends_on ?? null,
     blocker: wire.blocker ?? "",
+  };
+}
+
+export interface CareWithdrawalCompletion {
+  id: string;
+  studentId: string;
+  firstName: string;
+  lastName: string;
+  schoolClass: string;
+  firstBookinglessDay: string;
+  urgency: "planned" | "overdue";
+}
+
+export interface CareWithdrawalPage {
+  items: CareWithdrawalCompletion[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+interface WireCareWithdrawal {
+  id: string;
+  student_id: string;
+  first_name?: string;
+  last_name?: string;
+  school_class?: string;
+  first_bookingless_day: string;
+  urgency: "planned" | "overdue";
+}
+
+function mapCareWithdrawal(wire: WireCareWithdrawal): CareWithdrawalCompletion {
+  return {
+    id: wire.id,
+    studentId: wire.student_id,
+    firstName: wire.first_name ?? "",
+    lastName: wire.last_name ?? "",
+    schoolClass: wire.school_class ?? "",
+    firstBookinglessDay: wire.first_bookingless_day,
+    urgency: wire.urgency,
+  };
+}
+
+export async function fetchCareWithdrawals(
+  params: {
+    search?: string;
+    studentId?: string;
+    page?: number;
+    pageSize?: number;
+  } = {},
+): Promise<CareWithdrawalPage> {
+  const query = new URLSearchParams();
+  if (params.search) query.set("search", params.search);
+  if (params.studentId) query.set("student_id", params.studentId);
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  const envelope = await request<
+    Envelope<{
+      items: WireCareWithdrawal[];
+      total: number;
+      page: number;
+      page_size: number;
+    }>
+  >(`/api/students/care-withdrawals${suffix}`, "GET");
+  return {
+    items: envelope.data.items.map(mapCareWithdrawal),
+    total: envelope.data.total,
+    page: envelope.data.page,
+    pageSize: envelope.data.page_size,
+  };
+}
+
+export async function fetchStudentCareWithdrawal(
+  studentId: string,
+): Promise<CareWithdrawalCompletion | null> {
+  const page = await fetchCareWithdrawals({ studentId, pageSize: 1 });
+  return page.items[0] ?? null;
+}
+
+export async function previewWithdrawalCareEnd(
+  completionId: string,
+  input: CareExitInput,
+): Promise<CareExitPreview> {
+  const envelope = await request<Envelope<WirePreview>>(
+    `/api/students/care-withdrawals/${completionId}/care-end/preview`,
+    "POST",
+    toWireInput(input),
+  );
+  return {
+    token: envelope.data.token,
+    lastCareDay: envelope.data.last_care_day,
+    reason: envelope.data.reason,
+    reasonNote: envelope.data.reason_note ?? "",
+    blocked: envelope.data.blocked,
+    students: (envelope.data.students ?? []).map(mapImpact),
+  };
+}
+
+export async function confirmWithdrawalCareEnd(
+  completionId: string,
+  token: string,
+  input: CareExitInput,
+): Promise<CareExitResult> {
+  const envelope = await request<
+    Envelope<{
+      students_ended: number;
+      roster_rows_removed: number;
+      bookings_ended: number;
+    }>
+  >(
+    `/api/students/care-withdrawals/${completionId}/care-end`,
+    "POST",
+    toWireInput(input, token),
+  );
+  return {
+    studentsEnded: envelope.data.students_ended,
+    rosterRowsRemoved: envelope.data.roster_rows_removed,
+    bookingsEnded: envelope.data.bookings_ended,
   };
 }
 

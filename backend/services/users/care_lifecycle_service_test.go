@@ -36,17 +36,28 @@ func careActor(t *testing.T, db *bun.DB) int64 {
 }
 
 func newCareLifecycleService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
+	return newCareLifecycleServiceWithLock(t, db, nil)
+}
+
+func newCareLifecycleServiceWithLock(
+	t *testing.T,
+	db *bun.DB,
+	lockCareBookingWrites func(context.Context) error,
+) userService.CareLifecycleService {
 	t.Helper()
 	repos := repositories.NewFactory(db)
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
-		StudentRepo:  repos.Student,
-		PersonRepo:   repos.Person,
-		CareExitRepo: repos.CareExit,
-		CleanupRepo:  repos.CareExitCleanup,
-		TagReleaser:  repos.GradeTransition,
-		AuditService: userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
-		DB:           db,
-		Logger:       slog.Default(),
+		StudentRepo:           repos.Student,
+		PersonRepo:            repos.Person,
+		CareExitRepo:          repos.CareExit,
+		CleanupRepo:           repos.CareExitCleanup,
+		WithdrawalRepo:        repos.CareWithdrawal,
+		TagReleaser:           repos.GradeTransition,
+		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+		LockCareBookingWrites: lockCareBookingWrites,
+		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
+		DB:                    db,
+		Logger:                slog.Default(),
 	})
 }
 
@@ -690,6 +701,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	repos := repositories.NewFactory(db)
 
 	student := testpkg.CreateTestStudent(t, db, "Jara", "Ohlsen", "4a")
+	staff := testpkg.CreateTestStaff(t, db, "Plan", "Verantwortlich")
 	room := testpkg.CreateTestRoom(t, db, "Atelier")
 	group := testpkg.CreateTestActivityGroup(t, db, "Theater")
 	today := timezone.TodayDate()
@@ -699,9 +711,23 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	manualAt := time.Now()
 	instance := testpkg.CreateTestActivityInstance(t, db, today.AddDays(30), room.ID,
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
-	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
+	roster := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
 		scheduleModels.AttendanceStatusAbsent,
 		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "15:30")
+	testpkg.CreateTestArrivalSchedule(t, db, student.ID, 1, staff.ID, "08:00")
+	pickupException := testpkg.CreateTestPickupException(
+		t, db, student.ID, today.AddDays(30), staff.ID, "14:45", "Arzt",
+	)
+	testpkg.CreateTestArrivalException(
+		t, db, student.ID, today.AddDays(30), staff.ID, "09:00", "Termin",
+	)
+	_, err := db.NewUpdate().TableExpr("schedule.instance_students").
+		Set("pickup_exception_id = ?", pickupException.ID).
+		Where("tenant_id = ? AND instance_id = ? AND student_id = ?", testpkg.Tenant(t), instance.ID, student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	roster.PickupExceptionID = &pickupException.ID
 
 	// One open-ended booking (gets capped) and one starting after the exit
 	// (gets deleted outright).
@@ -733,6 +759,12 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	rows, err := repos.InstanceStudent.FindByInstanceID(ctx, instance.ID)
 	require.NoError(t, err)
 	require.Empty(t, rows, "the exit removed the roster row")
+	pickupSchedules, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Len(t, pickupSchedules, 1, "the weekly pickup plan remains until the exit takes effect")
+	arrivalSchedules, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Len(t, arrivalSchedules, 1, "the weekly arrival plan remains until the exit takes effect")
 
 	cancelled, err := svc.Cancel(ctx, []int64{student.ID}, actorID)
 	require.NoError(t, err)
@@ -746,6 +778,24 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 		assert.Equal(t, scheduleModels.AttendanceStatusAbsent, restored[0].Status,
 			"a restore is the inverse of the deletion, not a rebuild from enrollments")
 		assert.NotNil(t, restored[0].ManualStatusAt)
+		require.NotNil(t, restored[0].PickupExceptionID)
+		assert.Equal(t, pickupException.ID, *restored[0].PickupExceptionID,
+			"the restored roster keeps its restored pickup exception")
+	})
+
+	t.Run("the weekly arrival and pickup plans are back", func(t *testing.T) {
+		pickupSchedules, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, pickupSchedules, 1)
+		arrivalSchedules, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, arrivalSchedules, 1)
+		pickupExceptions, err := repos.StudentPickupException.FindByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, pickupExceptions, 1)
+		arrivalExceptions, err := repos.StudentArrivalException.FindByStudentID(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, arrivalExceptions, 1)
 	})
 
 	t.Run("the capped booking is open-ended again", func(t *testing.T) {

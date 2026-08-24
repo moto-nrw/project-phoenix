@@ -483,6 +483,31 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	require.ErrorIs(t, err, schedule.ErrPickupChangeAlreadyCompleted)
 }
 
+func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
+	t.Parallel()
+
+	f := newCareFixture(t)
+	ctx := f.staffCtx(f.staffAccount)
+	date := timezone.TodayDate().AddDays(4)
+	req := seedPickupChangeRequest(t, f, date)
+	lastCareDay := date.AddDays(-1)
+	_, err := f.db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", lastCareDay).
+		Where("id = ?", f.chain.StudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = f.svc.Decide(ctx, schedule.CareRequestDecideInput{
+		RequestID: req.ID, Approve: true, ReviewedBy: f.staffAccount,
+	})
+	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound)
+
+	exception, findErr := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, date)
+	require.NoError(t, findErr)
+	assert.Nil(t, exception, "approval must not create a pickup exception after care ends")
+}
+
 // TestPickupChangeRequestsForDifferentDaysCoexist: pending uniqueness for
 // pickup changes is per requested DAY, not per child — an Arzttermin on
 // Tuesday must not block an independent request for Wednesday. Only a second

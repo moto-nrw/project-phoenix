@@ -133,6 +133,9 @@ async function applyWeeklyPickupAdjustment(
     preview_token: preview.preview_token,
     resolution: adjustment?.resolution ?? "exception",
     ...(adjustment?.reason ? { reason: adjustment.reason } : {}),
+    ...(adjustment?.completeWithdrawalConfirmed
+      ? { complete_withdrawal_confirmed: true }
+      : {}),
   });
 }
 

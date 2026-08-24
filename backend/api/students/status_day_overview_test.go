@@ -129,6 +129,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 		Model(&auditEntry).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
 		Where("resource_type = ?", auditModels.ResourceTypeStudentStatusDayOverview).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
 		OrderExpr("id DESC").
 		Limit(1).
 		Scan(context.Background()))

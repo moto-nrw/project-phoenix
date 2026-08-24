@@ -31,6 +31,7 @@ export type RequestRowType =
   | "excused"
   | "enrollment"
   | "direct_correction"
+  | "care_withdrawal"
   | "absence";
 
 /**
@@ -46,6 +47,7 @@ const TYPE_COLOR: Record<RequestRowType, string> = {
   excused: LOCATION_COLORS.EXCUSED,
   enrollment: LOCATION_COLORS.NOT_ARRIVAL,
   direct_correction: LOCATION_COLORS.UNKNOWN,
+  care_withdrawal: LOCATION_COLORS.WARNING,
   absence: LOCATION_COLORS.TRANSIT,
 };
 
@@ -68,6 +70,7 @@ const TYPE_LABEL: Record<RequestRowType, string> = {
   excused: "Entschuldigung",
   enrollment: "Anmeldung",
   direct_correction: "Direkt-Korrektur",
+  care_withdrawal: "Abmeldung",
   absence: "Abwesenheit",
 };
 

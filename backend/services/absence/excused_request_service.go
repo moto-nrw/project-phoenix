@@ -645,6 +645,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		if requestExtendsBeyondCare(req, student) {
+			return nil, activeModels.ErrExcusedRequestNotFound
+		}
 		if err := s.ensureNoPartialAbsence(ctx, req); err != nil {
 			return nil, err
 		}
@@ -761,6 +764,18 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func requestExtendsBeyondCare(req *activeModels.ExcusedAbsenceRequest, student *usersModels.Student) bool {
+	if req == nil || student == nil || student.EnrolledUntil == nil {
+		return false
+	}
+	for _, date := range req.Dates {
+		if date.After(*student.EnrolledUntil) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(

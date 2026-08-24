@@ -135,6 +135,9 @@ type UpdateChildOfferingsInput struct {
 	// target offerings in this one adjustment (#2370). The shared applier
 	// validates them against the same materialization it persists.
 	ExcludedAutoAddTargetIDs map[int64]bool
+	// CompleteWithdrawalConfirmed is the explicit confirmation shown only when
+	// an authoritative adjustment removes the child's final care day.
+	CompleteWithdrawalConfirmed bool
 }
 
 type SyncApprovedChildDataInput struct {
@@ -372,6 +375,12 @@ type PickupGuardianNotifier interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
 
+// CareWithdrawalReconciler persists or obsoletes the durable follow-up in the
+// same tenant transaction as the authoritative booking change.
+type CareWithdrawalReconciler interface {
+	ReconcileAuthoritativeBookingChange(ctx context.Context, change users.CareWithdrawalBookingChange) error
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -406,6 +415,7 @@ type DecisionServiceConfig struct {
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	StudentAudit             StudentRolloverAuditor
+	CareWithdrawal           CareWithdrawalReconciler
 	// Broadcaster announces student_updated + student_companions_changed after
 	// an approved enrollment sync replaced a child's departure plan (the write
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
@@ -1983,6 +1993,9 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		if err := s.materializeEnrollmentsForApproval(ctx, child.ID, studentID, phase); err != nil {
 			return nil, err
 		}
+		if err := s.reconcileExistingStudentCareRenewal(ctx, child.ID, studentID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -1996,6 +2009,43 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// stays nil there) and whenever the account attach above already linked
 	// them.
 	return s.pendingGuardianInvite(guardian, reviewedBy, false), nil
+}
+
+// reconcileExistingStudentCareRenewal closes a stale complete-withdrawal task
+// when an approved renewal starts care on or before its first bookingless day.
+// It runs after materialization in the same tenant transaction, so the booking
+// and task cannot disagree if either write fails.
+func (s *decisionService) reconcileExistingStudentCareRenewal(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+) error {
+	if s.CareWithdrawal == nil {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
+	if err != nil {
+		return fmt.Errorf("decision: list renewed care offerings: %w", err)
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDsFromLinks(links))
+	if err != nil {
+		return fmt.Errorf("decision: load renewed care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			offeringByID[offering.ID] = offering
+		}
+	}
+	if !requestChildOfferingLinksHaveCareDays(links, offeringByID) {
+		return nil
+	}
+	if err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
+		StudentID: studentID, FirstBookinglessDay: phase.ServiceStartDate, HasCareDays: true,
+	}); err != nil {
+		return fmt.Errorf("decision: reconcile renewed care withdrawal: %w", err)
+	}
+	return nil
 }
 
 // renewedEnrollmentWindow decides the enrollment window an approval writes
@@ -3069,6 +3119,9 @@ func careDraftValidUntil(draft *careEnrollmentDraft, phase *enrollmentModels.Pha
 	if draft.linkValidUntil != nil && draft.linkValidUntil.Before(validUntil) {
 		validUntil = *draft.linkValidUntil
 	}
+	if draft.studentValidUntil != nil && draft.studentValidUntil.Before(validUntil) {
+		validUntil = *draft.studentValidUntil
+	}
 	return validUntil
 }
 
@@ -3107,6 +3160,10 @@ type careEnrollmentDraft struct {
 	// adjustment split instead.
 	linkValidFrom  *timezone.Date
 	linkValidUntil *timezone.Date
+	// studentValidUntil is the child's exclusive care end. Unlike link bounds,
+	// it also constrains the legacy feed, so a later resync cannot recreate
+	// rows after a completed care exit.
+	studentValidUntil *timezone.Date
 }
 
 func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
@@ -3133,7 +3190,7 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
-	gradeLevel, err := s.studentGradeLevel(ctx, studentID)
+	gradeLevel, studentValidUntil, err := s.studentCareDraftBounds(ctx, studentID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3153,27 +3210,34 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 			return nil, nil, err
 		}
 	}
+	for _, draft := range drafts {
+		draft.studentValidUntil = cloneOptionalDraftDate(studentValidUntil)
+	}
 	return drafts, multiSource, nil
 }
 
-// studentGradeLevel derives the child's Jahrgang for offering-source filters
-// (#2137). A missing student row or a class without a grade number yields nil
-// — grade-filtered templates then skip the child, unfiltered ones keep it.
-func (s *decisionService) studentGradeLevel(ctx context.Context, studentID int64) (*int16, error) {
+// studentCareDraftBounds derives the child's grade filter and exclusive care
+// end. A missing row yields open bounds for legacy compatibility.
+func (s *decisionService) studentCareDraftBounds(ctx context.Context, studentID int64) (*int16, *timezone.Date, error) {
 	if studentID <= 0 || s.StudentRepo == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("decision: load student for grade filter: %w", err)
+		return nil, nil, fmt.Errorf("decision: load student for care draft bounds: %w", err)
 	}
 	if student == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return gradeLevelFromSchoolClass(student.SchoolClass), nil
+	var validUntil *timezone.Date
+	if student.EnrolledUntil != nil {
+		end := student.EnrolledUntil.AddDays(1)
+		validUntil = &end
+	}
+	return gradeLevelFromSchoolClass(student.SchoolClass), validUntil, nil
 }
 
 func (s *decisionService) addCareOfferingDrafts(

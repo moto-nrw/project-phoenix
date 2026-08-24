@@ -1038,6 +1038,13 @@ func (s *careScheduleRequestService) applyPickupChangeRequest(
 	if date.Before(timezone.TodayDate()) {
 		return ErrPickupChangeExpired
 	}
+	student, err := s.studentRepo.FindByID(ctx, req.StudentID)
+	if err != nil {
+		return fmt.Errorf("schedule: reload student for pickup request decision: %w", err)
+	}
+	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
+		return scheduleModels.ErrCareRequestNotFound
+	}
 	if err := LockCareExceptionDay(ctx, s.pickupAutoExcusal.db, req.StudentID, date); err != nil {
 		return fmt.Errorf("schedule: lock pickup request care day: %w", err)
 	}

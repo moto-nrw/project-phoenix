@@ -7,16 +7,24 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
+import { InfoCard } from "~/components/ui/info-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import {
+  formatDate,
+  parseISODate,
+  toISODate,
+  todayISO,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   CARE_EXIT_NOTE_MAX_LENGTH,
   CARE_EXIT_REASON_LABELS,
   confirmCareExit,
+  confirmWithdrawalCareEnd,
   previewCareExit,
+  previewWithdrawalCareEnd,
   type CareExitImpact,
   type CareExitPreview,
   type CareExitReason,
@@ -46,6 +54,9 @@ interface CareExitModalProps {
    * nur den Grund ändern will, verschiebt das Ende ungewollt nach vorne.
    */
   readonly plannedLastCareDay?: string;
+  /** Durable follow-up created by an authoritative complete withdrawal. */
+  readonly completionId?: string;
+  readonly firstBookinglessDay?: string;
   readonly onClose: () => void;
   readonly onFinished: () => Promise<void> | void;
 }
@@ -61,19 +72,30 @@ export function CareExitModal({
   isOpen,
   studentIds,
   plannedLastCareDay,
+  completionId,
+  firstBookinglessDay,
   onClose,
   onFinished,
 }: CareExitModalProps) {
   // Ein bereits eingetragenes Ende, das in der Vergangenheit läge, wäre im Feld
   // nicht wählbar (min = heute) — dann bleibt der heutige Tag der Startwert.
+  const completionLastCareDay = useMemo(() => {
+    if (!completionId || !firstBookinglessDay) return null;
+    const day = parseISODate(firstBookinglessDay);
+    day.setDate(day.getDate() - 1);
+    return toISODate(day);
+  }, [completionId, firstBookinglessDay]);
   const initialLastCareDay =
-    plannedLastCareDay && plannedLastCareDay >= todayISO()
+    completionLastCareDay ??
+    (plannedLastCareDay && plannedLastCareDay >= todayISO()
       ? plannedLastCareDay
-      : todayISO();
+      : todayISO());
   const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);
   const [lastCareDay, setLastCareDay] = useState(initialLastCareDay);
-  const [reason, setReason] = useState<CareExitReason | "">("");
+  const [reason, setReason] = useState<CareExitReason | "">(
+    completionId ? "no_care_needed" : "",
+  );
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,11 +108,11 @@ export function CareExitModal({
     if (isOpen) return;
     setStep(1);
     setLastCareDay(initialLastCareDay);
-    setReason("");
+    setReason(completionId ? "no_care_needed" : "");
     setNote("");
     setPreview(null);
     setError("");
-  }, [isOpen, initialLastCareDay]);
+  }, [completionId, isOpen, initialLastCareDay]);
 
   const noteRequired = reason === "other";
   const detailsComplete =
@@ -105,12 +127,15 @@ export function CareExitModal({
     if (!reason) return null;
     setLoading(true);
     try {
-      const result = await previewCareExit({
+      const input = {
         studentIds: ids,
         lastCareDay,
         reason,
         reasonNote: note,
-      });
+      };
+      const result = completionId
+        ? await previewWithdrawalCareEnd(completionId, input)
+        : await previewCareExit(input);
       setPreview(result);
       return result;
     } catch (previewError) {
@@ -128,7 +153,7 @@ export function CareExitModal({
     } finally {
       setLoading(false);
     }
-  }, [ids, lastCareDay, note, reason]);
+  }, [completionId, ids, lastCareDay, note, reason]);
 
   const handleContinue = async () => {
     setError("");
@@ -141,12 +166,17 @@ export function CareExitModal({
     setSaving(true);
     setError("");
     try {
-      await confirmCareExit(preview.token, {
+      const input = {
         studentIds: ids,
         lastCareDay,
         reason,
         reasonNote: note,
-      });
+      };
+      if (completionId) {
+        await confirmWithdrawalCareEnd(completionId, preview.token, input);
+      } else {
+        await confirmCareExit(preview.token, input);
+      }
       try {
         await onFinished();
       } catch (refreshError) {
@@ -248,9 +278,13 @@ export function CareExitModal({
         <WizardStepper steps={STEPS} current={step - 1} />
 
         <p className="text-sm text-gray-600">
-          {isCorrection
-            ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
-            : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
+          {completionId && !isCorrection
+            ? completionLastCareDay && completionLastCareDay >= todayISO()
+              ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
+              : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
+            : isCorrection
+              ? "Das Ende ist schon eingetragen. Tag und Grund werden neu gespeichert. Das Kind nimmt am letzten Betreuungstag noch teil."
+              : "Das Kind nimmt am letzten Betreuungstag noch teil. Ab dem Folgetag ist seine Betreuung beendet. Die bisherigen Daten bleiben erhalten."}
         </p>
 
         {error ? <Alert type="error" message={error} /> : null}
@@ -262,7 +296,8 @@ export function CareExitModal({
               label="Letzter Betreuungstag"
               value={lastCareDay}
               onChange={setLastCareDay}
-              min={todayISO()}
+              min={completionId ? undefined : todayISO()}
+              max={completionLastCareDay ?? undefined}
               required
             />
             <div>
@@ -349,8 +384,8 @@ function CareExitPreviewList({
           <div className="border-b border-gray-200 px-4 py-3">
             <p className="text-sm font-semibold text-gray-900">
               {ready.length === 1
-                ? "Dieses Kind wird beendet"
-                : `Diese ${ready.length} Kinder werden beendet`}
+                ? "Betreuung für dieses Kind beenden"
+                : `Betreuung für ${ready.length} Kinder beenden`}
             </p>
             <p className="mt-0.5 text-sm text-gray-600">
               Letzter Betreuungstag: {formatDate(preview.lastCareDay)}
@@ -375,6 +410,33 @@ function CareExitPreviewList({
           </ul>
         </div>
       ) : null}
+      {ready.length > 0 ? (
+        <InfoCard
+          title="Folgen des Austritts"
+          icon={<LogOut className="h-5 w-5 text-gray-600" aria-hidden="true" />}
+        >
+          <ul className="list-disc space-y-1 pl-5 text-sm text-gray-600">
+            <li>
+              Die Anmeldung zur Betreuung endet. Das Kind erscheint danach nicht
+              mehr in aktuellen Betreuungslisten.
+            </li>
+            <li>
+              Alle laufenden und geplanten Angebote und Betreuungstermine enden.
+            </li>
+            <li>Die oben genannten Angebote und Wochentage enden.</li>
+            <li>
+              Ab dem Folgetag werden übrige offene Eltern-Anfragen geschlossen.
+              Das Armband wird freigegeben. Eine noch offene Anwesenheit wird
+              beendet.
+            </li>
+            <li>
+              Vergangene Anwesenheit und andere historische Daten bleiben
+              erhalten. Bei einer späteren Rückkehr muss die Betreuung neu
+              geplant werden.
+            </li>
+          </ul>
+        </InfoCard>
+      ) : null}
     </div>
   );
 }
@@ -385,6 +447,19 @@ function CareExitPreviewList({
  */
 function CareExitImpactLines({ impact }: { readonly impact: CareExitImpact }) {
   const lines: string[] = [];
+  if (impact.sourceOfferings.length > 0) {
+    lines.push(
+      `Gebuchte Angebote: ${impact.sourceOfferings
+        .map(
+          (offering) =>
+            `${offering.name} (${formatCompactDays(offering.days)})`,
+        )
+        .join("; ")}`,
+    );
+  }
+  if (impact.weeklyPlans?.length) {
+    lines.push(`Wöchentliche Zeiten: ${impact.weeklyPlans.join("; ")}`);
+  }
   if (impact.plannedEndsOn) {
     lines.push(
       `Bisher geplantes Ende: ${formatDate(impact.plannedEndsOn)}, wird geändert`,
@@ -435,4 +510,19 @@ function CareExitImpactLines({ impact }: { readonly impact: CareExitImpact }) {
       ))}
     </ul>
   );
+}
+
+const COMPACT_DAY_LABELS: Record<string, string> = {
+  mon: "Mo",
+  tue: "Di",
+  wed: "Mi",
+  thu: "Do",
+  fri: "Fr",
+  sat: "Sa",
+  sun: "So",
+};
+
+function formatCompactDays(days: readonly string[]): string {
+  if (days.length === 0) return "keine Betreuungstage";
+  return days.map((day) => COMPACT_DAY_LABELS[day] ?? day).join(", ");
 }

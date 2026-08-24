@@ -1299,6 +1299,13 @@ export function ChildOfferingAdjustment({
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [withdrawalConfirmationOpen, setWithdrawalConfirmationOpen] =
+    useState(false);
+  const [pendingWithdrawalInput, setPendingWithdrawalInput] = useState<{
+    reason: string;
+    offerings: Array<{ offering_id: string; selected_days?: string[] }>;
+  } | null>(null);
+  const [withdrawalCreated, setWithdrawalCreated] = useState(false);
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -1436,6 +1443,48 @@ export function ChildOfferingAdjustment({
     });
   };
 
+  const removeAllCareDays = () => {
+    const careOfferingIDs = new Set(
+      rawCatalog
+        .filter((offering) => offering.counts_as_care)
+        .map((offering) => offering.id),
+    );
+    setSelected(
+      new Set([...selected].filter((id) => !careOfferingIDs.has(id))),
+    );
+  };
+
+  const hasSelectedCareDays = rawCatalog.some(
+    (offering) => offering.counts_as_care && selected.has(offering.id),
+  );
+
+  const finishSave = async () => {
+    setWithdrawalConfirmationOpen(false);
+    setPendingWithdrawalInput(null);
+    setOpen(false);
+    setReason("");
+    await loadHistory();
+    onSaved();
+  };
+
+  const saveAdjustment = async (
+    input: {
+      reason: string;
+      offerings: Array<{ offering_id: string; selected_days?: string[] }>;
+    },
+    completeWithdrawalConfirmed: boolean,
+  ) => {
+    await updateAdminChildOfferings(requestId, child.id, {
+      ...input,
+      completeWithdrawalConfirmed,
+    });
+    setWithdrawalCreated(completeWithdrawalConfirmed);
+    if (completeWithdrawalConfirmed) {
+      window.dispatchEvent(new Event("change-requests-refresh"));
+    }
+    await finishSave();
+  };
+
   const handleSave = async () => {
     const trimmedReason = reason.trim();
     if (trimmedReason === "") {
@@ -1448,21 +1497,42 @@ export function ChildOfferingAdjustment({
     }
     setSaving(true);
     setError(null);
+    const input = {
+      reason: trimmedReason,
+      offerings: adjustmentPayloadOfferings(
+        catalog,
+        selected,
+        days,
+        child.offerings,
+      ),
+    };
     try {
-      await updateAdminChildOfferings(requestId, child.id, {
-        reason: trimmedReason,
-        offerings: adjustmentPayloadOfferings(
-          catalog,
-          selected,
-          days,
-          child.offerings,
-        ),
-      });
-      setOpen(false);
-      setReason("");
-      await loadHistory();
-      onSaved();
+      await saveAdjustment(input, false);
     } catch (err) {
+      if (
+        (err as { code?: string } | undefined)?.code ===
+        "enrollment.complete_withdrawal_confirmation_required"
+      ) {
+        setPendingWithdrawalInput(input);
+        setWithdrawalConfirmationOpen(true);
+      } else {
+        setError(
+          err instanceof Error ? err.message : "Speichern fehlgeschlagen",
+        );
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const confirmCompleteWithdrawal = async () => {
+    if (!pendingWithdrawalInput) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveAdjustment(pendingWithdrawalInput, true);
+    } catch (err) {
+      setWithdrawalConfirmationOpen(false);
       setError(err instanceof Error ? err.message : "Speichern fehlgeschlagen");
     } finally {
       setSaving(false);
@@ -1473,6 +1543,12 @@ export function ChildOfferingAdjustment({
 
   return (
     <div className="rounded-lg border border-gray-100 bg-white p-3">
+      {withdrawalCreated ? (
+        <Alert
+          type="warning"
+          message="Abmeldung noch abschließen. Die Betreuungstage sind entfernt. Eine berechtigte Person muss die Betreuung jetzt beenden."
+        />
+      ) : null}
       {careOfferingsEnabled ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1662,6 +1738,15 @@ export function ChildOfferingAdjustment({
                           ))}
                         </div>
                       ) : null}
+                      {hasSelectedCareDays ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={removeAllCareDays}
+                        >
+                          Alle Betreuungstage entfernen
+                        </Button>
+                      ) : null}
                     </div>
                   )}
 
@@ -1702,6 +1787,21 @@ export function ChildOfferingAdjustment({
             portalRoot,
           )
         : null}
+      <ConfirmationModal
+        isOpen={withdrawalConfirmationOpen}
+        onClose={() => setWithdrawalConfirmationOpen(false)}
+        onConfirm={() => void confirmCompleteWithdrawal()}
+        title="Alle Betreuungstage entfernen?"
+        confirmText="Änderung speichern"
+        cancelText="Zurück"
+        isConfirmLoading={saving}
+        isDismissDisabled={saving}
+      >
+        <p>
+          Danach ist für {child.first_name} kein Betreuungstag mehr gebucht. Die
+          Abmeldung muss anschließend abgeschlossen werden.
+        </p>
+      </ConfirmationModal>
     </div>
   );
 }

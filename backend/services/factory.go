@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -1630,6 +1631,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentFieldEdit,
 		logger.With("service", "student_audit"),
 	)
+	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		CareExitRepo:   repos.CareExit,
+		CleanupRepo:    repos.CareExitCleanup,
+		WithdrawalRepo: repos.CareWithdrawal,
+		TagReleaser:    repos.GradeTransition,
+		AuditService:   studentAuditService,
+		LockCareBookingWrites: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+		},
+		DB:     db,
+		Logger: logger.With("service", "care_lifecycle"),
+	})
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
 	pillEmitter := parentmessaging.NewEmitter(
@@ -1682,6 +1700,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
+		CareWithdrawal:           careLifecycleService,
 		Broadcaster:              realtimeHub,
 		PickupGuardianNotifier:   pillEmitter,
 		FrontendURL:              frontendURL,
@@ -1839,21 +1858,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
-
-	// "Betreuung beenden" (#2487): the ONE care-lifecycle contract. Manual
-	// single and batch exits, the archive view, cancellation, resumption and
-	// the effect-day housekeeping all go through it — there must not be a
-	// second way for a child to leave the OGS.
-	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
-		StudentRepo:  repos.Student,
-		PersonRepo:   repos.Person,
-		CareExitRepo: repos.CareExit,
-		CleanupRepo:  repos.CareExitCleanup,
-		TagReleaser:  repos.GradeTransition,
-		AuditService: studentAuditService,
-		DB:           db,
-		Logger:       logger.With("service", "care_lifecycle"),
-	})
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
@@ -2491,6 +2495,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, repos.CareWithdrawal)
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

@@ -77,3 +77,31 @@ func TestCareExitRepository_RecordedAtUsesTheBerlinDay(t *testing.T) {
 		})
 	require.NoError(t, err)
 }
+
+func TestCareExitCleanupRepository_LocksPersonImpactRows(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "CareExitLock", "Kid", "2a")
+	repo := repositories.NewFactory(db).CareExitCleanup
+	result := make(chan error, 1)
+
+	err := tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		if err := repo.LockImpactRowsForCareExit(txCtx, []int64{student.ID}); err != nil {
+			return err
+		}
+		go func() {
+			result <- tenant.WithTenantTx(context.Background(), db, testpkg.Tenant(t), func(otherCtx context.Context, tx bun.Tx) error {
+				if _, err := tx.ExecContext(otherCtx, `SET LOCAL lock_timeout = '100ms'`); err != nil {
+					return err
+				}
+				_, err := tx.NewUpdate().TableExpr("users.persons").
+					Set("tag_id = ?", "care-exit-lock-probe").Where("id = ?", student.PersonID).Exec(otherCtx)
+				return err
+			})
+		}()
+		assert.Error(t, <-result, "RFID assignment must not change behind a binding preview")
+		return nil
+	})
+	require.NoError(t, err)
+}
