@@ -147,6 +147,8 @@ func (f *completeWithdrawalFixture) completeWithdrawal() *userModels.CareWithdra
 	require.NotNil(f.t, pending)
 	assert.Equal(f.t, timezone.TodayDate(), pending.FirstBookinglessDay)
 	assert.Equal(f.t, "admin", pending.WithdrawalConfirmedRole)
+	require.NotNil(f.t, pending.SourceRequestChildID)
+	assert.Equal(f.t, f.childID, *pending.SourceRequestChildID)
 	return pending
 }
 

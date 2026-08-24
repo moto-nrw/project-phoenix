@@ -643,12 +643,13 @@ func (r *CareExitCleanupRepository) EndSourceBookingsAndSchedules(
 	ctx context.Context,
 	studentIDs []int64,
 	validUntil timezone.Date,
+	sourceRequestChildID *int64,
 ) (int64, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
 	tenantID := tenant.FromContext(ctx)
-	bookings, err := r.EndSourceBookings(ctx, studentIDs, validUntil)
+	bookings, err := r.EndSourceBookings(ctx, studentIDs, validUntil, sourceRequestChildID)
 	if err != nil {
 		return 0, err
 	}
@@ -657,16 +658,16 @@ func (r *CareExitCleanupRepository) EndSourceBookingsAndSchedules(
 }
 
 func (r *CareExitCleanupRepository) EndSourceBookings(
-	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date, sourceRequestChildID *int64,
 ) (int64, error) {
 	if len(studentIDs) == 0 {
 		return 0, nil
 	}
 	tenantID := tenant.FromContext(ctx)
-	if err := r.snapshotSourceBookings(ctx, studentIDs, validUntil, tenantID); err != nil {
+	if err := r.snapshotSourceBookings(ctx, studentIDs, validUntil, tenantID, sourceRequestChildID); err != nil {
 		return 0, err
 	}
-	return r.endSourceBookingRows(ctx, studentIDs, validUntil, tenantID)
+	return r.endSourceBookingRows(ctx, studentIDs, validUntil, tenantID, sourceRequestChildID)
 }
 
 func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
@@ -676,6 +677,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 	err := base.GetDB(ctx, r.db).NewRaw(`
 	SELECT rc.created_student_id AS student_id,
 	       rco.valid_until AS first_bookingless_day,
+	       rco.request_child_id AS source_request_child_id,
 		       jsonb_agg(jsonb_build_object(
 				'name', co.name,
 				'days', CASE WHEN co.days_of_week_mode = 'fixed' THEN co.available_days ELSE rco.selected_days END
@@ -709,7 +711,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			  AND completion.student_id = rc.created_student_id
 			  AND completion.first_bookingless_day = rco.valid_until
 		  )
-		GROUP BY rc.created_student_id, rco.valid_until
+		GROUP BY rc.created_student_id, rco.valid_until, rco.request_child_id
 	`, tenant.FromContext(ctx), asOf).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: err}
@@ -720,7 +722,7 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 	return rows, nil
 }
 
-func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64) error {
+func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64, sourceRequestChildID *int64) error {
 	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO users.student_care_exit_source_removals
 			(tenant_id, student_id, kind, source_row_id, was_deleted, snapshot)
@@ -730,24 +732,26 @@ func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, 
 		JOIN enrollment.request_children AS rc
 		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 		WHERE rco.tenant_id = ? AND rc.created_student_id IN (?)
+		  AND (? IS NULL OR rco.request_child_id = ?)
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 		ON CONFLICT DO NOTHING
-	`, validUntil, tenantID, bun.List(studentIDs), validUntil); err != nil {
+	`, validUntil, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil); err != nil {
 		return &modelBase.DatabaseError{Op: "snapshot source bookings before care exit", Err: err}
 	}
 	return nil
 }
 
-func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64) (int64, error) {
+func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64, sourceRequestChildID *int64) (int64, error) {
 	db := base.GetDB(ctx, r.db)
 	deleted, err := db.ExecContext(ctx, `
 		DELETE FROM enrollment.request_child_offerings AS rco
 		USING enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 		  AND rco.tenant_id = ? AND rc.created_student_id IN (?)
+		  AND (? IS NULL OR rco.request_child_id = ?)
 		  AND COALESCE(rco.valid_from, '-infinity'::date) >= ?
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
-	`, tenantID, bun.List(studentIDs), validUntil, validUntil)
+	`, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil, validUntil)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "delete future source bookings after care exit", Err: err}
 	}
@@ -758,9 +762,10 @@ func (r *CareExitCleanupRepository) endSourceBookingRows(ctx context.Context, st
 		FROM enrollment.request_children AS rc
 		WHERE rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 		  AND rco.tenant_id = ? AND rc.created_student_id IN (?)
+		  AND (? IS NULL OR rco.request_child_id = ?)
 		  AND COALESCE(rco.valid_from, '-infinity'::date) < ?
 		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
-	`, validUntil, tenantID, bun.List(studentIDs), validUntil, validUntil)
+	`, validUntil, tenantID, bun.List(studentIDs), sourceRequestChildID, sourceRequestChildID, validUntil, validUntil)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "cap source bookings after care exit", Err: err}
 	}

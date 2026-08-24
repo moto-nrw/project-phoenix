@@ -37,6 +37,7 @@ type CareWithdrawalCompletion struct {
 	FirstBookinglessDay     timezone.Date            `bun:"first_bookingless_day,type:date,notnull" json:"first_bookingless_day"`
 	Trigger                 string                   `bun:"trigger,notnull" json:"trigger"`
 	SourceAdjustmentID      *int64                   `bun:"source_adjustment_id" json:"source_adjustment_id,omitempty"`
+	SourceRequestChildID    *int64                   `bun:"source_request_child_id" json:"source_request_child_id,omitempty"`
 	WithdrawalConfirmedBy   *int64                   `bun:"withdrawal_confirmed_by" json:"withdrawal_confirmed_by,omitempty"`
 	WithdrawalConfirmedRole string                   `bun:"withdrawal_confirmed_role,notnull" json:"withdrawal_confirmed_role"`
 	WithdrawalConfirmedAt   time.Time                `bun:"withdrawal_confirmed_at,notnull" json:"withdrawal_confirmed_at"`
@@ -85,6 +86,7 @@ type CareWithdrawalBookingChange struct {
 	HasCareDays           bool
 	WasCompleteWithdrawal bool
 	SourceAdjustmentID    int64
+	SourceRequestChildID  int64
 	ConfirmedBy           int64
 	ConfirmedRole         string
 	SourceOfferings       []CareExitSourceOffering

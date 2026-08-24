@@ -479,7 +479,11 @@ func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, sta
 	if state.input.LastCareDay.Before(timezone.TodayDate()) {
 		endSourceBookings = s.cleanupRepo.EndSourceBookingsAndSchedules
 	}
-	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil)
+	var sourceRequestChildID *int64
+	if state.completion != nil {
+		sourceRequestChildID = state.completion.SourceRequestChildID
+	}
+	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil, sourceRequestChildID)
 	if err != nil {
 		return err
 	}
@@ -727,6 +731,7 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 		FirstBookinglessDay:     change.FirstBookinglessDay,
 		Trigger:                 trigger,
 		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
+		SourceRequestChildID:    optionalPositiveID(change.SourceRequestChildID),
 		WithdrawalConfirmedBy:   actorID,
 		WithdrawalConfirmedRole: role,
 		WithdrawalConfirmedAt:   now,
@@ -963,7 +968,7 @@ func (s *careLifecycleService) removePlansWrittenAfterExitConfirmation(
 		if _, err := s.cleanupRepo.CapByStudentIDs(ctx, ids, validUntil); err != nil {
 			return err
 		}
-		if _, err := s.cleanupRepo.EndSourceBookingsAndSchedules(ctx, ids, validUntil); err != nil {
+		if _, err := s.cleanupRepo.EndSourceBookingsAndSchedules(ctx, ids, validUntil, nil); err != nil {
 			return err
 		}
 	}

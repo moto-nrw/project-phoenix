@@ -477,7 +477,7 @@ func (s *decisionService) reconcileOfferingAdjustmentWithdrawal(
 	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
 		StudentID: *work.child.CreatedStudentID, FirstBookinglessDay: work.selectionDate,
 		HasCareDays: work.afterHasCareDays, WasCompleteWithdrawal: work.isCompleteWithdrawal,
-		SourceAdjustmentID: entry.ID, ConfirmedBy: work.input.ActorAccountID,
+		SourceAdjustmentID: entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
 		ConfirmedRole: entry.ActorRole, SourceOfferings: careExitSourceOfferingsFromLinks(work.beforeLinks, work.offeringByID),
 	})
 	if err != nil {

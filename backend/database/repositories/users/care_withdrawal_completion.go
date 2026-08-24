@@ -46,6 +46,7 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		Set(`first_bookingless_day = LEAST("care_withdrawal_completion".first_bookingless_day, EXCLUDED.first_bookingless_day)`).
 		Set("trigger = EXCLUDED.trigger").
 		Set("source_adjustment_id = EXCLUDED.source_adjustment_id").
+		Set("source_request_child_id = EXCLUDED.source_request_child_id").
 		Set("withdrawal_confirmed_by = EXCLUDED.withdrawal_confirmed_by").
 		Set("withdrawal_confirmed_role = EXCLUDED.withdrawal_confirmed_role").
 		Set("withdrawal_confirmed_at = EXCLUDED.withdrawal_confirmed_at").

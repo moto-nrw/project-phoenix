@@ -34,6 +34,7 @@ func careWithdrawalCompletionsUp(ctx context.Context, db *bun.DB) error {
 			first_bookingless_day DATE NOT NULL,
 			trigger TEXT NOT NULL CHECK (trigger IN ('direct_school')),
 			source_adjustment_id BIGINT REFERENCES audit.enrollment_offering_adjustments(id) ON DELETE SET NULL,
+			source_request_child_id BIGINT REFERENCES enrollment.request_children(id) ON DELETE SET NULL,
 			withdrawal_confirmed_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,
 			withdrawal_confirmed_role TEXT NOT NULL,
 			withdrawal_confirmed_at TIMESTAMPTZ NOT NULL,
