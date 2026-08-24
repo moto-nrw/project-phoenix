@@ -14,11 +14,11 @@ import { useTenantMutate } from "~/lib/swr";
 const logger = createLogger({ component: "MobileRolloverPage" });
 
 interface PageProps {
-  readonly params: Promise<{ phaseId: string }>;
+  readonly params: Promise<{ id: string }>;
 }
 
 export default function MobileRolloverPage({ params }: PageProps) {
-  const { phaseId } = use(params);
+  const { id } = use(params);
   const { isReady } = useRequireAdmin();
   const tenantPath = useTenantAwarePath();
   const tenantMutate = useTenantMutate();
@@ -27,7 +27,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
 
   useEffect(() => {
     if (!isReady) return;
-    getPhase(phaseId)
+    getPhase(id)
       .then(setPhase)
       .catch((err: unknown) => {
         const message =
@@ -37,7 +37,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
         logger.error("rollover_phase_load_failed", { error: message });
         setError(message);
       });
-  }, [isReady, phaseId]);
+  }, [isReady, id]);
 
   if (!isReady || (phase === null && error === null)) {
     return (
