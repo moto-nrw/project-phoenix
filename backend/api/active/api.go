@@ -13,6 +13,7 @@ import (
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
+	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
@@ -26,8 +27,12 @@ type Resource struct {
 	SchulhofService    facilities.SchulhofService
 	UserContextService usercontext.UserContextService
 	SettingsService    configSvc.SettingsService
-	db                 *bun.DB
-	logger             *slog.Logger
+	// SupervisionDashboardService backs the aggregated supervision dashboard
+	// endpoint (#2096); assigned after construction to keep the positional
+	// constructor's existing call sites unchanged.
+	SupervisionDashboardService supervisiondashboard.Getter
+	db                          *bun.DB
+	logger                      *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -104,6 +109,13 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-group", rs.moveStudentsToActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-transit", rs.moveStudentsToTransit)
 		})
+
+		// Aggregated projection for the "Aktuelle Aufsicht" page (#2096):
+		// replaces the former Next.js BFF fan-out. Gated on groups:read (the
+		// widest common permission of the replaced endpoints); sections that
+		// required schedules:read or users:read are redacted deterministically
+		// inside the service for callers missing them.
+		r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/supervision-dashboard", rs.getSupervisionDashboard)
 
 		// Supervisors
 		r.Route("/supervisors", func(r chi.Router) {

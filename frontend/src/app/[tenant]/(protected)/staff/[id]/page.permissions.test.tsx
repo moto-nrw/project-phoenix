@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { staffService } from "~/lib/staff-api";
@@ -119,6 +120,31 @@ vi.mock("~/components/staff/arbeitszeitmodell-tab", () => ({
 
 vi.mock("~/components/staff/abwesenheiten-tab", () => ({
   AbwesenheitenTab: () => <div data-testid="abwesenheiten-tab" />,
+}));
+
+vi.mock("~/components/staff/dokumente-tab", () => ({
+  DokumenteTab: () => <div data-testid="dokumente-tab" />,
+}));
+
+vi.mock("~/components/staff/klassen-tab", () => ({
+  KlassenTab: () => <div data-testid="klassen-tab" />,
+}));
+
+vi.mock("~/components/staff/stammdaten-tab", () => ({
+  StammdatenTab: ({
+    canManagePayroll,
+    canManagePayrollSettings,
+  }: {
+    canManagePayroll: boolean;
+    canManagePayrollSettings: boolean;
+  }) => (
+    <div data-testid="stammdaten-tab">
+      {canManagePayroll ? <button>Bearbeiten</button> : null}
+      {canManagePayroll && canManagePayrollSettings ? (
+        <Link href="/payroll">Abrechnung</Link>
+      ) : null}
+    </div>
+  ),
 }));
 
 vi.mock("./page-skeleton", () => ({

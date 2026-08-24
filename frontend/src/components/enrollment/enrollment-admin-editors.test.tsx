@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   fetchManualEnrollmentBootstrap: vi.fn(),
   fetchPublicLegalTexts: vi.fn(),
   listCareOfferings: vi.fn(),
+  listPhaseExpiryWarnings: vi.fn(),
   listPhases: vi.fn(),
   listSchemas: vi.fn(),
   renameSchema: vi.fn(),
@@ -40,6 +41,7 @@ const mocks = vi.hoisted(() => ({
     gradeLevelMax?: number;
   }>,
   searchParams: new URLSearchParams(),
+  routerReplace: vi.fn(),
   toast: {
     success: vi.fn(),
     error: vi.fn(),
@@ -61,6 +63,8 @@ vi.mock("~/components/ui/date-time-picker", async (importOriginal) => {
 });
 
 vi.mock("next/navigation", () => ({
+  usePathname: () => "/demo/enrollment-phases",
+  useRouter: () => ({ replace: mocks.routerReplace }),
   useSearchParams: () => mocks.searchParams,
 }));
 
@@ -77,6 +81,11 @@ vi.mock("~/lib/tenant-context", () => ({
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => mocks.toast,
+}));
+
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useSWRAuth: () => ({ data: [], error: undefined, isLoading: false }),
 }));
 
 vi.mock("./rollover-form", () => ({
@@ -123,6 +132,7 @@ vi.mock("~/lib/enrollment-phase-api", async (importOriginal) => {
     ...actual,
     createPhase: mocks.createPhase,
     deletePhase: mocks.deletePhase,
+    listPhaseExpiryWarnings: mocks.listPhaseExpiryWarnings,
     listPhases: mocks.listPhases,
     updatePhase: mocks.updatePhase,
   };
@@ -149,16 +159,6 @@ vi.mock("~/lib/care-offering-api", () => ({
   deleteCareOffering: mocks.deleteCareOffering,
   listCareOfferings: mocks.listCareOfferings,
   updateCareOffering: mocks.updateCareOffering,
-  // Gehzeit rollout (#2290): the save flow previews after every save; an
-  // all-zero preview keeps the dialog closed, matching the pre-#2290 flow.
-  previewCareOfferingPickupRollout: vi.fn().mockResolvedValue({
-    affected_students: 0,
-    new_rows: 0,
-    updated_rows: 0,
-    removed_rows: 0,
-    conflicts: [],
-  }),
-  rolloutCareOfferingPickupTimes: vi.fn(),
   // Real const consumed by CareOfferingForm's selection-rule dropdown.
   SELECTION_RULE_LABELS: {
     optional: "Optional (frei wählbar)",
@@ -278,6 +278,14 @@ function offering(overrides: Partial<CareOffering> = {}): CareOffering {
     price_cents: 12500,
     is_active: true,
     is_required: false,
+    counts_as_care: true,
+    pickup_times: {
+      mon: "14:30",
+      tue: "14:30",
+      wed: "14:30",
+      thu: "14:30",
+      fri: "14:30",
+    },
     sort_order: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
@@ -317,6 +325,12 @@ function textareaByName(name: string): HTMLTextAreaElement {
 async function waitForInputByName(name: string): Promise<HTMLInputElement> {
   await waitFor(() => expect(inputByName(name)).toBeInTheDocument());
   return inputByName(name);
+}
+
+function setPickupTime(day: string, value = "14:30") {
+  fireEvent.change(screen.getByLabelText(`${day} Gehzeit`), {
+    target: { value },
+  });
 }
 
 async function chooseOption(
@@ -375,6 +389,8 @@ beforeEach(() => {
   mocks.listCareOfferings.mockReset();
   mocks.fetchCareOfferingBookingStats.mockReset();
   mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
+  mocks.listPhaseExpiryWarnings.mockReset();
+  mocks.listPhaseExpiryWarnings.mockResolvedValue([]);
   mocks.listPhases.mockReset();
   mocks.listSchemas.mockReset();
   mocks.renameSchema.mockReset();
@@ -393,6 +409,7 @@ beforeEach(() => {
   mocks.toast.error.mockReset();
   mocks.toast.warning.mockReset();
   mocks.searchParams = new URLSearchParams();
+  mocks.routerReplace.mockReset();
   Object.defineProperty(window, "confirm", {
     value: vi.fn(() => true),
     configurable: true,
@@ -432,6 +449,7 @@ describe("CareOfferingsEditor", () => {
     const mondayToggle = screen.getByRole("button", { name: "Mo" });
     expect(mondayToggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(mondayToggle);
+    setPickupTime("Mo");
     expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
@@ -485,6 +503,7 @@ describe("CareOfferingsEditor", () => {
       target: { value: "Randstunde" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    setPickupTime("Mo");
     fireEvent.click(
       screen.getByRole("checkbox", {
         name: /Für alle Klassenstufen \/ ohne Bedingungen/,
@@ -546,6 +565,33 @@ describe("CareOfferingsEditor", () => {
     expect(screen.getByText("Zählt als Betreuungstag")).toBeVisible();
   });
 
+  it("blocks active care offerings whose Betreuungstage have no Gehzeit", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ name: "Unvollständig", pickup_times: {} }),
+    ]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Unvollständig")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeiten fehlen")).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Ohne Gehzeit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    expect(
+      screen.getByText(
+        "Bitte tragen Sie für jeden Betreuungstag eine Gehzeit ein: Mo.",
+      ),
+    ).toBeVisible();
+    expect(mocks.createCareOffering).not.toHaveBeenCalled();
+  });
+
   it("keeps auto-add trigger IDs as strings when saving", async () => {
     const unsafeID = "9007199254740993";
     mocks.listPhases.mockResolvedValue([phase()]);
@@ -568,6 +614,7 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
     // Weekdays start unselected (#1885); save requires at least one day.
     fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    setPickupTime("Mo");
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
     await waitFor(() => {
@@ -702,6 +749,7 @@ describe("CareOfferingsEditor", () => {
 
     // Weekdays start unselected (#1885); save requires at least one day.
     fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    setPickupTime("Mo");
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
     await waitFor(() => {
       expect(mocks.createCareOffering).toHaveBeenCalledWith(
@@ -1053,6 +1101,7 @@ describe("CareOfferingsEditor", () => {
     });
     for (const day of ["Mo", "Di"]) {
       fireEvent.click(screen.getByRole("button", { name: day }));
+      setPickupTime(day);
     }
     expect(
       screen.getByText(/Der Name nennt nur einen Wochentag/),

@@ -8,6 +8,8 @@ import (
 )
 
 func TestIsValidWeekday(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		weekday int
@@ -75,6 +77,8 @@ func TestIsValidWeekday(t *testing.T) {
 }
 
 func TestScheduleValidate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		schedule *Schedule
@@ -140,6 +144,8 @@ func TestScheduleValidate(t *testing.T) {
 }
 
 func TestScheduleHasTimeframe(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		schedule *Schedule
@@ -178,6 +184,8 @@ func TestScheduleHasTimeframe(t *testing.T) {
 }
 
 func TestSchedule_GetID(t *testing.T) {
+	t.Parallel()
+
 	schedule := &Schedule{
 		Model:           base.Model{ID: 42},
 		Weekday:         WeekdayMonday,
@@ -190,6 +198,8 @@ func TestSchedule_GetID(t *testing.T) {
 }
 
 func TestSchedule_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	schedule := &Schedule{
 		Model:           base.Model{CreatedAt: now},
@@ -203,6 +213,8 @@ func TestSchedule_GetCreatedAt(t *testing.T) {
 }
 
 func TestSchedule_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	schedule := &Schedule{
 		Model:           base.Model{UpdatedAt: now},

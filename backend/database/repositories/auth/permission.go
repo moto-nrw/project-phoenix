@@ -173,12 +173,13 @@ func (r *PermissionRepository) FindDirectByAccountID(ctx context.Context, accoun
 	var permissions []*auth.Permission
 
 	// This query gets ONLY direct permissions, not role-based ones
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&permissions).
 		ModelTableExpr(permissionTableAlias).
 		Join(`JOIN auth.account_permissions ap ON ap.permission_id = "permission".id`).
-		Where("ap.account_id = ? AND ap.granted = true", accountID).
-		Scan(ctx)
+		Where("ap.account_id = ? AND ap.granted = true", accountID)
+	query = base.WithTenantFilter(ctx, query, "ap")
+	err := query.Scan(ctx)
 
 	if err != nil {
 		return nil, &modelBase.DatabaseError{

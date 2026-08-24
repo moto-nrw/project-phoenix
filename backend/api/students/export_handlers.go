@@ -66,8 +66,9 @@ type studentExportFilters struct {
 }
 
 type weeklySchedule struct {
-	ArrivalByWeekday map[int]string
-	PickupByWeekday  map[int]string
+	ArrivalByWeekday  map[int]string
+	CareDaysByWeekday map[int]bool
+	PickupByWeekday   map[int]string
 }
 
 func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
@@ -91,6 +92,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := exportRequestToListParams(req)
+	params.careStatusOn = planningDate
 	students, errResp := rs.fetchStudentsForExport(r, params)
 	if errResp != nil {
 		renderError(w, r, errResp)
@@ -98,11 +100,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	studentIDs, personIDs, groupIDs := collectIDsFromStudents(students)
-	dataSnapshot, err := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
+	dataSnapshot := common.LoadStudentDataSnapshot(r.Context(), rs.PersonService, rs.EducationService, rs.ActiveService, studentIDs, personIDs, groupIDs)
 
 	accessCtx := rs.determineStudentAccess(r)
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, false)
@@ -128,7 +126,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		groupExportResponsesByClass(responses)
 	}
 
-	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses))
+	weekly, err := rs.loadWeeklySchedules(r, collectResponseIDs(responses), planningDate)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -144,15 +142,26 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var rows []listexport.Row
-	if req.Filters.GroupByClass {
-		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
-	} else {
-		rows = buildExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
+	sources := responseRowSources(responses, weekly, enrollmentSummaries, planningDate, isToday)
+	// Class-list-only entries (#2382) complete the Klassenverband of the
+	// "Klassenliste" preset; filters on properties they don't have exclude
+	// them (classListEntryExportEligible).
+	sources, err = rs.mergeClassListEntrySources(r, req, sources)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
+	// Re-check the cap on the FINAL merged source set: the class-list entries
+	// joined after the student-side check above, and the document limit is a
+	// limit on rows in the file, not on students alone.
+	if errResp := exportSelectionCapError(len(sources)); errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
+	rows := buildExportRowSources(sources, req.Filters.GroupByClass)
 	doc := listexport.Document{
 		Title:       exportTitle(req),
-		Subtitle:    rs.exportSubtitle(r, len(responses)),
+		Subtitle:    rs.exportSubtitle(r, len(sources)),
 		GeneratedAt: time.Now(),
 		Filters:     exportFilterLabelsForDate(req.Filters, planningDate, isToday),
 		Columns:     columns,
@@ -324,6 +333,7 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
+		careStatusOn:        timezone.TodayDate(),
 		// Class and group travel comma-separated so an export mirrors a
 		// multi-selection made in the Kindersuche (#2218).
 		schoolClasses: parseMultiValueParam([]string{req.Filters.SchoolClass}),
@@ -504,7 +514,7 @@ func birthdaySortKey(birthday string) string {
 	return fmt.Sprintf("%02d-%02d", int(date.Month), date.Day)
 }
 
-func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (map[int64]weeklySchedule, error) {
+func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate timezone.Date) (map[int64]weeklySchedule, error) {
 	result := make(map[int64]weeklySchedule, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil
@@ -514,29 +524,31 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64) (ma
 	}
 	for _, studentID := range studentIDs {
 		result[studentID] = weeklySchedule{
-			ArrivalByWeekday: make(map[int]string),
-			PickupByWeekday:  make(map[int]string),
+			ArrivalByWeekday:  make(map[int]string),
+			CareDaysByWeekday: make(map[int]bool),
+			PickupByWeekday:   make(map[int]string),
 		}
 	}
-	for weekday := schedule.WeekdayMonday; weekday <= schedule.WeekdayFriday; weekday++ {
-		arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
-		if err != nil {
-			return nil, err
+	pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsForDate(r.Context(), studentIDs, planningDate)
+	if err != nil {
+		return nil, err
+	}
+	for _, pickup := range pickups {
+		weekly := result[pickup.StudentID]
+		weekly.PickupByWeekday[pickup.Weekday] = formatWallClock(pickup.PickupTime)
+		result[pickup.StudentID] = weekly
+	}
+	arrivals, err := rs.ArrivalScheduleService.GetWeeklySchedulesByStudentIDsForDate(r.Context(), studentIDs, planningDate)
+	if err != nil {
+		return nil, err
+	}
+	for _, arrival := range arrivals {
+		weekly := result[arrival.StudentID]
+		weekly.CareDaysByWeekday[arrival.Weekday] = true
+		if !arrival.ExpectedArrival.IsZero() {
+			weekly.ArrivalByWeekday[arrival.Weekday] = formatWallClock(arrival.ExpectedArrival)
 		}
-		for _, arrival := range arrivals {
-			weekly := result[arrival.StudentID]
-			weekly.ArrivalByWeekday[weekday] = formatWallClock(arrival.ExpectedArrival)
-			result[arrival.StudentID] = weekly
-		}
-		pickups, err := rs.PickupScheduleService.GetWeeklySchedulesByStudentIDsAndWeekday(r.Context(), studentIDs, weekday)
-		if err != nil {
-			return nil, err
-		}
-		for _, pickup := range pickups {
-			weekly := result[pickup.StudentID]
-			weekly.PickupByWeekday[weekday] = formatWallClock(pickup.PickupTime)
-			result[pickup.StudentID] = weekly
-		}
+		result[arrival.StudentID] = weekly
 	}
 	return result, nil
 }
@@ -606,28 +618,20 @@ func groupExportResponsesByClass(students []StudentResponse) {
 	})
 }
 
-func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(students))
-	currentClass := ""
-	for i, student := range students {
-		// Boundary detection must use the sort comparator's equivalence:
-		// label variants like "1a"/"1A"/"1 a" are one logical class and
-		// must share a single heading (first-seen label).
-		if class := strings.TrimSpace(student.SchoolClass); i == 0 || collation.CompareSchoolClasses(class, currentClass) != 0 {
-			currentClass = class
-			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
-		}
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
-	}
-	return rows
-}
-
-func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(students))
+// responseRowSources renders every student response into its future document
+// row plus the sort keys the class-list-entry merge (#2382) needs. The order
+// of `students` (whatever sort mode produced it) is preserved.
+func responseRowSources(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []exportRowSource {
+	sources := make([]exportRowSource, 0, len(students))
 	for _, student := range students {
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
+		sources = append(sources, exportRowSource{
+			schoolClass: student.SchoolClass,
+			lastName:    student.LastName,
+			firstName:   student.FirstName,
+			row:         buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday),
+		})
 	}
-	return rows
+	return sources
 }
 
 // birthdayExportCell renders the birth date German-style ("02.09.2018").
@@ -808,7 +812,7 @@ func departureSummary(allowed users.AllowedDepartureModes, fallback users.Depart
 func weeklyCell(plan weeklySchedule, weekday int) string {
 	arrival := plan.ArrivalByWeekday[weekday]
 	pickup := plan.PickupByWeekday[weekday]
-	if arrival == "" && pickup == "" {
+	if arrival == "" && pickup == "" && !plan.CareDaysByWeekday[weekday] {
 		return "nein"
 	}
 	if arrival != "" && pickup != "" {
@@ -816,6 +820,9 @@ func weeklyCell(plan weeklySchedule, weekday int) string {
 	}
 	if arrival != "" {
 		return "Ankunft: " + arrival
+	}
+	if pickup == "" {
+		return "Ankunft: keine Zeit"
 	}
 	return "Abholung: " + pickup
 }
@@ -832,7 +839,7 @@ func careDays(plan weeklySchedule) string {
 		{schedule.WeekdayThursday, "Do"},
 		{schedule.WeekdayFriday, "Fr"},
 	} {
-		if plan.ArrivalByWeekday[day.weekday] != "" || plan.PickupByWeekday[day.weekday] != "" {
+		if plan.CareDaysByWeekday[day.weekday] || plan.ArrivalByWeekday[day.weekday] != "" || plan.PickupByWeekday[day.weekday] != "" {
 			labels = append(labels, day.label)
 		}
 	}
@@ -898,12 +905,6 @@ func exportTitle(req studentExportRequest) string {
 	default:
 		return "OGS Wochenliste"
 	}
-}
-
-// exportFilterLabels renders the printed filter header for a today-scoped
-// export; exportFilterLabelsForDate is the date-aware form the handler uses.
-func exportFilterLabels(filters studentExportFilters) []string {
-	return exportFilterLabelsForDate(filters, timezone.Date{}, true)
 }
 
 func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {

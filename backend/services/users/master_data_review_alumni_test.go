@@ -18,6 +18,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -25,22 +26,20 @@ import (
 )
 
 func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() {
-		require.NoError(t, db.Close())
-	}()
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(
-		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAudit(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	row := insertPendingChange(t, db, repos, chain,
 		userModels.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
-			items, e := svc.ListPending(txCtx)
+			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)
 			require.Len(t, items, 1, "the pending request must start out visible")
 			return nil
@@ -57,7 +56,7 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	err = tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID,
 		func(txCtx context.Context, _ bun.Tx) error {
-			items, e := svc.ListPending(txCtx)
+			items, _, e := svc.ListPending(txCtx, modelBase.RequestQueueFilters{})
 			require.NoError(t, e)
 			assert.Empty(t, items, "a graduated child's request must leave the queue and the badge")
 

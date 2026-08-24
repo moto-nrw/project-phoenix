@@ -85,18 +85,13 @@ func setupTestContext(t *testing.T) *testContext {
 		MasterDataReviewService: svc.MasterDataReview,
 		CareRequestService:      svc.CareRequests,
 		OfferingChangeService:   svc.OfferingChanges,
+		PickupAdjustmentService: svc.PickupAdjustments,
 		Broadcaster:             broadcaster,
 		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,
 		ListExportService:       listexport.NewService(),
 		Logger:                  slog.Default(),
 		DB:                      db,
-	})
-
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Logf("Failed to close database: %v", err)
-		}
 	})
 
 	return &testContext{

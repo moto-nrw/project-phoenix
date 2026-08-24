@@ -10,6 +10,8 @@ import (
 )
 
 func TestContiguousCarePeriodEnd_StopsBeforeGap(t *testing.T) {
+	t.Parallel()
+
 	initial := &enrollmentModels.StudentCarePeriod{
 		ServiceStartDate: timezone.NewDate(2026, 8, 1),
 		ServiceEndDate:   timezone.NewDate(2026, 8, 31),

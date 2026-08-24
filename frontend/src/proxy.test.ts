@@ -4,11 +4,13 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
+const SCHOOL_HOSTNAME = "schule.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
 const POSTHOG_HOST = "https://eu.i.posthog.com";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
@@ -146,28 +148,28 @@ describe("proxy", () => {
       expect(rewrite).toContain("/operator/login");
     });
 
-    it("rewrites /suggestions to /operator/suggestions", () => {
+    it("rewrites /organizations to /operator/organizations", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/suggestions`,
+          `http://${OPERATOR_HOSTNAME}/organizations`,
           OPERATOR_HOSTNAME,
         ),
       );
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions");
+      expect(rewrite).toContain("/operator/organizations");
     });
 
-    it("rewrites nested operator paths like /suggestions/123", () => {
+    it("rewrites nested operator paths like /organizations/123", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/suggestions/123`,
+          `http://${OPERATOR_HOSTNAME}/organizations/123`,
           OPERATOR_HOSTNAME,
         ),
       );
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions/123");
+      expect(rewrite).toContain("/operator/organizations/123");
     });
 
     it("returns 404 for tenant /api/auth/* routes on operator host", () => {
@@ -205,13 +207,13 @@ describe("proxy", () => {
     // They never reach the proxy function in production.
 
     it("uses x-forwarded-host header when present", () => {
-      const req = new NextRequest(`http://internal-host/suggestions`);
+      const req = new NextRequest(`http://internal-host/organizations`);
       req.headers.set("x-forwarded-host", OPERATOR_HOSTNAME);
 
       const res = proxy(req);
 
       const rewrite = res.headers.get("x-middleware-rewrite");
-      expect(rewrite).toContain("/operator/suggestions");
+      expect(rewrite).toContain("/operator/organizations");
     });
 
     it("rewrites /announcements to /operator/announcements", () => {
@@ -294,7 +296,7 @@ describe("proxy", () => {
     it("passes through paths already prefixed with /operator", () => {
       const res = proxy(
         makeRequest(
-          `http://${OPERATOR_HOSTNAME}/operator/suggestions`,
+          `http://${OPERATOR_HOSTNAME}/operator/organizations`,
           OPERATOR_HOSTNAME,
         ),
       );
@@ -388,18 +390,151 @@ describe("proxy", () => {
     });
   });
 
+  describe("school subdomain (moto schule, #2207)", () => {
+    it("rewrites / to /school (the Klassenansicht)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/school");
+    });
+
+    it("rewrites /login to /school/login", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/login`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/login",
+      );
+    });
+
+    it("rewrites /invite with token to /school/invite (accept flow)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/invite?token=abc`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/school/invite");
+      expect(rewrite).toContain("token=abc");
+    });
+
+    it("rewrites /reset-password to the school reset flow", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/reset-password?token=abc`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/reset-password",
+      );
+    });
+
+    it("returns 404 for tenant, operator, and parent auth endpoints", () => {
+      for (const path of [
+        "/api/auth/session",
+        "/api/operator/auth/session",
+        "/api/parent/auth/session",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+        expect(res.status).toBe(404);
+      }
+    });
+
+    it("passes through /api/school/auth/* without rewriting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/api/school/auth/session`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("passes through the public invitation API routes", () => {
+      for (const path of [
+        "/api/invitations/validate",
+        "/api/invitations/accept",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      }
+    });
+
+    it("returns 404 for non-school API routes", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/api/students`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("redirects unknown paths like /dashboard to /", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/dashboard`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toContain(`${SCHOOL_HOSTNAME}/`);
+    });
+
+    it("redirects /school/* on other hosts to the school host", () => {
+      const res = proxy(
+        makeRequest("http://localhost:3000/school/login", "localhost:3000"),
+      );
+
+      const redirect = res.headers.get("location");
+      expect(redirect).toContain(SCHOOL_HOSTNAME);
+      expect(redirect).toContain("/login");
+      expect(redirect).not.toContain("/school/login");
+    });
+
+    it("does NOT hijack tenant slugs that start with 'school'", () => {
+      const res = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/school-a/dashboard",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      // Already-prefixed tenant path passes through untouched.
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.status).toBe(200);
+    });
+  });
+
   describe("tenant subdomain", () => {
     const TENANT_HOST = "localhost:3000";
 
     it("redirects /operator/* to operator subdomain with clean path", () => {
       const res = proxy(
-        makeRequest(`http://${TENANT_HOST}/operator/suggestions`, TENANT_HOST),
+        makeRequest(
+          `http://${TENANT_HOST}/operator/organizations`,
+          TENANT_HOST,
+        ),
       );
 
       const redirect = res.headers.get("location");
       expect(redirect).toContain(OPERATOR_HOSTNAME);
-      expect(redirect).toContain("/suggestions");
-      expect(redirect).not.toContain("/operator/suggestions");
+      expect(redirect).toContain("/organizations");
+      expect(redirect).not.toContain("/operator/organizations");
     });
 
     it("redirects /operator to operator subdomain root /", () => {

@@ -85,7 +85,13 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 		// existing but must not appear on any staff-facing roster (same rule
 		// as newStudentWithGroupQuery). users.students itself carries no
 		// deleted_at column — status IS the marker.
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
+		// Same for a child whose care has ended (#2487): the birthday card is
+		// a staff-facing list of the children the school currently cares for.
+		Where(
+			`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`,
+			timezone.TodayDate(),
+		)
 
 	condition, args := birthdayDayFilter(days)
 	query = query.Where(condition, args...)

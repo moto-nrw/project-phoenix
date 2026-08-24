@@ -148,8 +148,6 @@ describe("GET /api/active/groups/room/[roomId]", () => {
   });
 
   it("returns 500 when roomId parameter is invalid", async () => {
-    mockApiGet.mockRejectedValueOnce(new Error("Invalid roomId parameter"));
-
     const request = createMockRequest("/api/active/groups/room/invalid");
     const response = await GET(
       request,

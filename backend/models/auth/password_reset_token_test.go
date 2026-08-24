@@ -8,6 +8,8 @@ import (
 )
 
 func TestPasswordResetToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	futureTime := time.Now().Add(1 * time.Hour)
 
 	tests := []struct {
@@ -75,6 +77,8 @@ func TestPasswordResetToken_Validate(t *testing.T) {
 }
 
 func TestPasswordResetToken_SetExpiry(t *testing.T) {
+	t.Parallel()
+
 	token := &PasswordResetToken{
 		AccountID: 1,
 		Token:     "test-token",
@@ -94,6 +98,8 @@ func TestPasswordResetToken_SetExpiry(t *testing.T) {
 }
 
 func TestPasswordResetToken_GetID(t *testing.T) {
+	t.Parallel()
+
 	token := &PasswordResetToken{
 		Model: base.Model{ID: 42},
 	}
@@ -105,6 +111,8 @@ func TestPasswordResetToken_GetID(t *testing.T) {
 }
 
 func TestPasswordResetToken_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &PasswordResetToken{
 		Model: base.Model{CreatedAt: now},
@@ -116,6 +124,8 @@ func TestPasswordResetToken_GetCreatedAt(t *testing.T) {
 }
 
 func TestPasswordResetToken_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &PasswordResetToken{
 		Model: base.Model{UpdatedAt: now},

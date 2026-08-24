@@ -34,6 +34,9 @@ const (
 	// master_data it only ever appears on kind='event' rows, never as a chat
 	// request.
 	ParentMessageRequestExcusedAbsence = "excused_absence"
+	// ParentMessageRequestSickAbsence distinguishes a gated Krankmeldung from an
+	// excused absence in localized parent timeline events and decision pushes.
+	ParentMessageRequestSickAbsence = "sick_absence"
 
 	// Event types for kind='event' system pills that mirror a change request's
 	// lifecycle. ParentMessageEventRequestCreated marks a submitted request (its

@@ -3,6 +3,7 @@ import { tenantAuthConfig as authConfig } from "./tenant-config";
 import { _resetRefreshState, _testHelpers } from "./shared";
 import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
+import { schoolAuthConfig } from "./school-config";
 import type { NextAuthConfig, User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
@@ -2372,19 +2373,19 @@ describe("authConfig", () => {
     it("should resolve relative URLs against baseUrl", async () => {
       expect(
         await callOperatorRedirect(
-          "/operator/suggestions",
+          "/operator/organizations",
           "http://operator.moto-app.de",
         ),
-      ).toBe("http://operator.moto-app.de/operator/suggestions");
+      ).toBe("http://operator.moto-app.de/operator/organizations");
     });
 
     it("should allow same origin redirects", async () => {
       expect(
         await callOperatorRedirect(
-          "http://operator.moto-app.de/operator/suggestions",
+          "http://operator.moto-app.de/operator/organizations",
           "http://operator.moto-app.de",
         ),
-      ).toBe("http://operator.moto-app.de/operator/suggestions");
+      ).toBe("http://operator.moto-app.de/operator/organizations");
     });
 
     it("should block cross-subdomain redirects on the same parent domain", async () => {
@@ -2394,6 +2395,41 @@ describe("authConfig", () => {
           "http://operator.moto-app.de",
         ),
       ).toBe("http://operator.moto-app.de");
+    });
+  });
+
+  describe("school redirect callback", () => {
+    async function callSchoolRedirect(
+      url: string,
+      baseUrl: string,
+    ): Promise<string> {
+      const redirectFn = schoolAuthConfig.callbacks?.redirect;
+      if (!redirectFn) throw new Error("school redirect callback not found");
+      return redirectFn({ url, baseUrl });
+    }
+
+    it("allows relative paths and absolute URLs on the school origin", async () => {
+      await expect(
+        callSchoolRedirect("/class-day", "https://schule.moto-app.de"),
+      ).resolves.toBe("https://schule.moto-app.de/class-day");
+      await expect(
+        callSchoolRedirect(
+          "https://schule.moto-app.de/help",
+          "https://schule.moto-app.de",
+        ),
+      ).resolves.toBe("https://schule.moto-app.de/help");
+    });
+
+    it.each([
+      "https://moto-app.de/",
+      "https://foo.schule.moto-app.de/",
+      "//evil.example/phish",
+      "/\\evil.example/phish",
+      "not a URL",
+    ])("blocks callback target %s outside the school origin", async (url) => {
+      await expect(
+        callSchoolRedirect(url, "https://schule.moto-app.de"),
+      ).resolves.toBe("https://schule.moto-app.de");
     });
   });
 

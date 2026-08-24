@@ -31,6 +31,7 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	pwaService "github.com/moto-nrw/project-phoenix/services/pwa"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -44,6 +45,7 @@ type Resource struct {
 	SchoolService         platformSvc.SchoolService
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
+	PWAUsageService       pwaService.UsageService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
 }
@@ -56,6 +58,11 @@ func (rs *Resource) SetPreferenceService(service notificationsService.Preference
 // SetPushService injects the Web Push subscription service (#2003).
 func (rs *Resource) SetPushService(service notificationsService.PushSubscriptionService) {
 	rs.PushService = service
+}
+
+// SetPWAUsageService injects the PWA standalone-usage service (#2189).
+func (rs *Resource) SetPWAUsageService(service pwaService.UsageService) {
+	rs.PWAUsageService = service
 }
 
 // SetAuthRateLimiter sets the rate limiter middleware for public parent auth
@@ -125,6 +132,10 @@ func (rs *Resource) Router() chi.Router {
 			r.Post("/subscriptions", rs.subscribePush)
 			r.Delete("/subscriptions", rs.unsubscribePush)
 		})
+
+		// PWA standalone-usage report (#2189): fans out to every
+		// active tenant mapping, account id from claims only.
+		r.Post("/me/pwa-usage", rs.reportPWAUsage)
 
 		// Which notifications this guardian agreed to. Applied to every
 		// school the family belongs to, the same fan-out the push
@@ -268,25 +279,6 @@ func (rs *Resource) Router() chi.Router {
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/contact", rs.updateGuardianContact)
 		r.Put("/me/children/{studentId}/guardians/{guardianProfileId}/pickup", rs.updateGuardianRelationship)
 
-		// Feedback board to the moto product team (#1678). This is NOT a
-		// channel to the school: the school never sees these entries, and
-		// guardians appear under a pseudonym. The addressed school arrives as
-		// school_id (query or body) and is validated in the service against the
-		// guardian's own children; the board itself is separated from the
-		// school's staff board by actor-scoped RLS.
-		r.Get("/me/feedback", rs.listFeedback)
-		r.Post("/me/feedback", rs.createFeedback)
-		r.Get("/me/feedback/schools", rs.listFeedbackSchools)
-		r.Get("/me/feedback/unread-count", rs.feedbackUnreadCount)
-		r.Get("/me/feedback/{postId}", rs.getFeedback)
-		r.Put("/me/feedback/{postId}", rs.updateFeedback)
-		r.Delete("/me/feedback/{postId}", rs.deleteFeedback)
-		r.Post("/me/feedback/{postId}/vote", rs.voteFeedback)
-		r.Delete("/me/feedback/{postId}/vote", rs.removeFeedbackVote)
-		r.Get("/me/feedback/{postId}/comments", rs.listFeedbackComments)
-		r.Post("/me/feedback/{postId}/comments", rs.createFeedbackComment)
-		r.Post("/me/feedback/{postId}/comments/read", rs.markFeedbackCommentsRead)
-		r.Delete("/me/feedback/{postId}/comments/{commentId}", rs.deleteFeedbackComment)
 	})
 
 	return r

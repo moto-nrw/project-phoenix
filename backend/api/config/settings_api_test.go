@@ -16,6 +16,8 @@ import (
 )
 
 func TestRenderSettingsError_NotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "resolve",
 		Err: &configSvc.DefinitionNotFoundError{Key: "bad.key"},
@@ -30,6 +32,8 @@ func TestRenderSettingsError_NotFound(t *testing.T) {
 }
 
 func TestRenderSettingsError_InvalidValue(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: &configSvc.InvalidValueError{Key: "test", Reason: "too small"},
@@ -44,6 +48,8 @@ func TestRenderSettingsError_InvalidValue(t *testing.T) {
 }
 
 func TestRenderSettingsError_GenericSettingsError(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: assert.AnError,
@@ -58,6 +64,8 @@ func TestRenderSettingsError_GenericSettingsError(t *testing.T) {
 }
 
 func TestRenderSettingsError_NonSettingsError(t *testing.T) {
+	t.Parallel()
+
 	err := assert.AnError
 
 	w := httptest.NewRecorder()
@@ -69,6 +77,8 @@ func TestRenderSettingsError_NonSettingsError(t *testing.T) {
 }
 
 func TestRenderSettingsError_PermissionDenied(t *testing.T) {
+	t.Parallel()
+
 	err := &configSvc.SettingsError{
 		Op:  "set_value",
 		Err: &configSvc.PermissionDeniedError{Key: "admin.setting", RequiredPermission: "config:manage"},
@@ -83,17 +93,23 @@ func TestRenderSettingsError_PermissionDenied(t *testing.T) {
 }
 
 func TestNewSettingsResource(t *testing.T) {
+	t.Parallel()
+
 	res := NewSettingsResource(nil, nil, nil)
 	assert.NotNil(t, res)
 }
 
 func TestSettingsRouter_ReturnsRouter(t *testing.T) {
+	t.Parallel()
+
 	res := NewSettingsResource(nil, nil, nil)
 	router := res.SettingsRouter()
 	assert.NotNil(t, router)
 }
 
 func TestGuardDirectManagedSettingWrite_BlocksAGBDocumentURL(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 
@@ -104,6 +120,8 @@ func TestGuardDirectManagedSettingWrite_BlocksAGBDocumentURL(t *testing.T) {
 }
 
 func TestGuardDirectManagedSettingWrite_AllowsRegularSettings(t *testing.T) {
+	t.Parallel()
+
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPut, "/test", nil)
 
@@ -114,6 +132,8 @@ func TestGuardDirectManagedSettingWrite_AllowsRegularSettings(t *testing.T) {
 }
 
 func TestCanDeleteEnrollmentLegalAGBDocument_BlocksActivePDFMode(t *testing.T) {
+	t.Parallel()
+
 	settings := legalAGBDeleteSettingsStub{
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalTermsEnabled: true,
@@ -130,6 +150,8 @@ func TestCanDeleteEnrollmentLegalAGBDocument_BlocksActivePDFMode(t *testing.T) {
 }
 
 func TestCanDeleteEnrollmentLegalAGBDocument_AllowsInactiveTerms(t *testing.T) {
+	t.Parallel()
+
 	settings := legalAGBDeleteSettingsStub{
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalTermsEnabled: false,
@@ -145,6 +167,8 @@ func TestCanDeleteEnrollmentLegalAGBDocument_AllowsInactiveTerms(t *testing.T) {
 }
 
 func TestCanDeleteEnrollmentLegalAGBDocument_AllowsTextMode(t *testing.T) {
+	t.Parallel()
+
 	settings := legalAGBDeleteSettingsStub{
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalTermsEnabled: true,
@@ -160,6 +184,8 @@ func TestCanDeleteEnrollmentLegalAGBDocument_AllowsTextMode(t *testing.T) {
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_ReplacementDeletesUnreferencedAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
 	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
 	newURL := legalAGBDocumentPrefix + "1_new.pdf"
@@ -196,6 +222,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_ReplacementDeletesUnreferenced
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_DeleteDeletesUnreferencedAfterCommit(t *testing.T) {
+	t.Parallel()
+
 	ctx, drain := tenant.WithAfterCommitHooksForTest(context.Background())
 	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
 	removed := false
@@ -220,6 +248,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_DeleteDeletesUnreferencedAfter
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_KeepsReferencedDocument(t *testing.T) {
+	t.Parallel()
+
 	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
 	removeCalled := false
 
@@ -239,6 +269,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_KeepsReferencedDocument(t *tes
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_RollbackDoesNotRemoveDocument(t *testing.T) {
+	t.Parallel()
+
 	ctx, _ := tenant.WithAfterCommitHooksForTest(context.Background())
 	oldURL := legalAGBDocumentPrefix + "1_old.pdf"
 	removeCalled := false
@@ -261,6 +293,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_RollbackDoesNotRemoveDocument(
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresInvalidStoredURL(t *testing.T) {
+	t.Parallel()
+
 	referenceChecked := false
 
 	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
@@ -282,6 +316,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresInvalidStoredURL(t *tes
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresOtherTenantDocument(t *testing.T) {
+	t.Parallel()
+
 	referenceChecked := false
 
 	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
@@ -306,6 +342,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_IgnoresOtherTenantDocument(t *
 }
 
 func TestPrepareEnrollmentLegalAGBDocumentCleanup_PropagatesReferenceCheckError(t *testing.T) {
+	t.Parallel()
+
 	expected := errors.New("db failed")
 
 	cleanup, err := prepareEnrollmentLegalAGBDocumentCleanup(
@@ -323,6 +361,8 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_PropagatesReferenceCheckError(
 }
 
 func TestPublicEnrollmentLegalDocumentURL_RewritesStoredUploadURL(t *testing.T) {
+	t.Parallel()
+
 	got := enrollmentSvc.PublicEnrollmentLegalDocumentURL(legalAGBDocumentPrefix + "tenant-1.pdf")
 
 	assert.Equal(t, "/api/public/enrollment-legal-documents/tenant-1.pdf", got)

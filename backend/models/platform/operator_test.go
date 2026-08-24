@@ -8,6 +8,8 @@ import (
 )
 
 func TestOperator_Validate_EmptyEmail(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "",
 		DisplayName: "Test Operator",
@@ -18,6 +20,8 @@ func TestOperator_Validate_EmptyEmail(t *testing.T) {
 }
 
 func TestOperator_Validate_EmailTooLong(t *testing.T) {
+	t.Parallel()
+
 	longEmail := ""
 	for i := 0; i < 256; i++ {
 		longEmail += "a"
@@ -33,6 +37,8 @@ func TestOperator_Validate_EmailTooLong(t *testing.T) {
 }
 
 func TestOperator_Validate_EmailWithoutAt(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "invalidemail.com",
 		DisplayName: "Test Operator",
@@ -43,6 +49,8 @@ func TestOperator_Validate_EmailWithoutAt(t *testing.T) {
 }
 
 func TestOperator_Validate_EmptyDisplayName(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "test@example.com",
 		DisplayName: "",
@@ -53,6 +61,8 @@ func TestOperator_Validate_EmptyDisplayName(t *testing.T) {
 }
 
 func TestOperator_Validate_DisplayNameTooLong(t *testing.T) {
+	t.Parallel()
+
 	longName := ""
 	for i := 0; i < 101; i++ {
 		longName += "a"
@@ -67,6 +77,8 @@ func TestOperator_Validate_DisplayNameTooLong(t *testing.T) {
 }
 
 func TestOperator_Validate_Valid(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "test@example.com",
 		DisplayName: "Test Operator",
@@ -76,6 +88,8 @@ func TestOperator_Validate_Valid(t *testing.T) {
 }
 
 func TestOperator_Validate_EmailNormalized(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "  TEST@Example.Com  ",
 		DisplayName: "Test Operator",
@@ -86,6 +100,8 @@ func TestOperator_Validate_EmailNormalized(t *testing.T) {
 }
 
 func TestOperator_Validate_DisplayNameTrimmed(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{
 		Email:       "test@example.com",
 		DisplayName: "  Test Operator  ",
@@ -96,12 +112,16 @@ func TestOperator_Validate_DisplayNameTrimmed(t *testing.T) {
 }
 
 func TestOperator_GetID(t *testing.T) {
+	t.Parallel()
+
 	o := &Operator{}
 	o.ID = 456
 	assert.Equal(t, int64(456), o.GetID())
 }
 
 func TestOperator_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	o := &Operator{}
 	o.CreatedAt = now
@@ -109,6 +129,8 @@ func TestOperator_GetCreatedAt(t *testing.T) {
 }
 
 func TestOperator_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	o := &Operator{}
 	o.UpdatedAt = now

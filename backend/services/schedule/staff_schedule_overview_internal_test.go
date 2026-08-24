@@ -47,6 +47,8 @@ func formattedGaps(gaps []ShiftCoverageInterval) [][2]string {
 }
 
 func TestUncoveredShiftIntervals(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	start := testClock(t, "08:00")
 	end := testClock(t, "12:00")
@@ -82,6 +84,8 @@ func TestUncoveredShiftIntervals(t *testing.T) {
 }
 
 func TestEffectiveCoverageStaffIDs_MirrorsConcreteEditSemantics(t *testing.T) {
+	t.Parallel()
+
 	prior := []*scheduleModel.InstanceStaff{
 		{StaffID: 1, IsAbsent: true},
 		{StaffID: 2, IsSubstitute: true},
@@ -97,6 +101,8 @@ func TestEffectiveCoverageStaffIDs_MirrorsConcreteEditSemantics(t *testing.T) {
 }
 
 func TestEffectiveSeriesCoverageStaffIDs_MirrorsReplanSemantics(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		proposed []int64
@@ -139,6 +145,8 @@ func TestEffectiveSeriesCoverageStaffIDs_MirrorsReplanSemantics(t *testing.T) {
 }
 
 func TestSeriesDeviationSourceAndSurvivorMatching(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	groupID := int64(17)
 	instance := func(id int64, start, status string, spontaneous bool) *scheduleModel.ActivityInstance {
@@ -355,6 +363,8 @@ func (f *fakeOverviewWorkModelReader) FindByIDs(_ context.Context, ids []int64) 
 }
 
 func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.December, 21)
 	friday := monday.AddDays(4)
 	validFrom := monday.AddDays(-7)
@@ -400,6 +410,8 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 }
 
 func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *testing.T) {
+	t.Parallel()
+
 	middle := timezone.NewDate(2026, time.December, 21)
 	earlier := middle.AddDays(-7)
 	later := middle.AddDays(7)
@@ -440,6 +452,8 @@ func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *te
 }
 
 func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	mainRoomID, overrideRoomID := int64(21), int64(22)
 	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
@@ -507,6 +521,8 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 }
 
 func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.July, 6)
 	nextMonday := monday.AddDays(7)
 	instances := &fakeInstanceReader{rows: []*scheduleModel.ActivityInstance{
@@ -539,6 +555,8 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 }
 
 func TestDetectShiftCoverage_BoundsReturnedWarningDetails(t *testing.T) {
+	t.Parallel()
+
 	start := timezone.NewDate(2026, time.January, 5)
 	dates := make([]timezone.Date, 130)
 	weeks := make([]timezone.Date, 0, 20)
@@ -565,6 +583,8 @@ func TestDetectShiftCoverage_BoundsReturnedWarningDetails(t *testing.T) {
 }
 
 func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	instance := &scheduleModel.ActivityInstance{
 		Date: date, Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: scheduleModel.InstanceStatusPlanned,
@@ -588,6 +608,8 @@ func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *te
 }
 
 func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
+	t.Parallel()
+
 	want := errors.New("database unavailable")
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
 		Shifts: &fakeShiftReader{err: want},
@@ -596,7 +618,14 @@ func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
 	require.ErrorIs(t, err, want)
 }
 
+func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+	result, err := DetectShiftCoverage(ctx, deps, query)
+	return result.Warnings, err
+}
+
 func TestDetectShiftCoverageWarnings_EffectiveRosterAndContainingWeek(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 8) // Wednesday
 	shiftReader := &fakeShiftReader{rows: []*scheduleModel.StaffShift{
 		// A shift anywhere in the tenant activates warnings for the week.
@@ -629,6 +658,8 @@ func TestDetectShiftCoverageWarnings_EffectiveRosterAndContainingWeek(t *testing
 }
 
 func TestDetectShiftCoverageWarnings_ChangedRosterDropsPriorAbsence(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	shiftReader := &fakeShiftReader{rows: []*scheduleModel.StaffShift{testShift(t, 9, date, "07:00", "08:00")}}
 	instanceStaff := &fakeInstanceStaffReader{rows: []*scheduleModel.InstanceStaff{
@@ -653,6 +684,8 @@ func TestDetectShiftCoverageWarnings_ChangedRosterDropsPriorAbsence(t *testing.T
 }
 
 func TestDetectShiftCoverageWarnings_ConvertedInstanceSurvivesRecurrenceFiltering(t *testing.T) {
+	t.Parallel()
+
 	weekA := timezone.NewDate(2026, time.July, 6)
 	concreteWeekB := weekA.AddDays(7)
 	anchor := weekA
@@ -694,6 +727,8 @@ func TestDetectShiftCoverageWarnings_ConvertedInstanceSurvivesRecurrenceFilterin
 }
 
 func TestDetectShiftCoverageWarnings_GapAndTenantUnusedCases(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	staff := &fakeStaffReader{byID: map[int64]*users.Staff{1: fakeStaff(1, "Max", "Mustermann")}}
 
@@ -725,6 +760,8 @@ func TestDetectShiftCoverageWarnings_GapAndTenantUnusedCases(t *testing.T) {
 }
 
 func TestDetectShiftCoverageWarnings_RecurringDatesReusePeriodAndABEngineWithFixedReads(t *testing.T) {
+	t.Parallel()
+
 	weekA := timezone.NewDate(2026, time.July, 6)
 	weekB := weekA.AddDays(7)
 	nextWeekA := weekA.AddDays(14)
@@ -769,6 +806,8 @@ func TestDetectShiftCoverageWarnings_RecurringDatesReusePeriodAndABEngineWithFix
 }
 
 func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDeviations(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.July, 6)
 	wednesday := monday.AddDays(2)
 	friday := monday.AddDays(4)
@@ -834,6 +873,8 @@ func TestDetectShiftCoverageWarnings_SeriesReplanUsesEffectiveExceptionsAndDevia
 }
 
 func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t *testing.T) {
+	t.Parallel()
+
 	monday := timezone.NewDate(2026, time.July, 6)
 	wednesday := monday.AddDays(2)
 	nextMonday := monday.AddDays(7)
@@ -887,6 +928,8 @@ func TestDetectShiftCoverageWarnings_UsesCanonicalSeriesBoundsAndActivePeriod(t 
 }
 
 func TestDetectShiftCoverageWarnings_IncludesWeekendShifts(t *testing.T) {
+	t.Parallel()
+
 	saturday := timezone.NewDate(2026, time.July, 11)
 	shiftReader := &fakeShiftReader{rows: []*scheduleModel.StaffShift{
 		// A weekend-only shift activates the tenant's calendar week.
@@ -907,6 +950,8 @@ func TestDetectShiftCoverageWarnings_IncludesWeekendShifts(t *testing.T) {
 }
 
 func TestNormalizeShiftCoverageQuery_ValidationBounds(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.January, 1)
 	valid := ShiftCoverageQuery{
 		Dates: []timezone.Date{date}, StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), StaffIDs: []int64{1},
@@ -997,6 +1042,8 @@ func TestNormalizeShiftCoverageQuery_ValidationBounds(t *testing.T) {
 }
 
 func TestDetectShiftCoverageWarnings_MissingTenantPeriodIsValidationError(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.NewDate(2026, time.July, 6)
 	periodID, weekPattern := int64(999), 1
 	periodReader := &fakeCalendarPeriodReader{err: sql.ErrNoRows}

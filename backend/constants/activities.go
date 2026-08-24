@@ -15,7 +15,12 @@ const (
 	// SchulhofCategoryDescription is the description for the Schulhof activity category.
 	SchulhofCategoryDescription = "Outdoor playground activities"
 
-	// SchulhofColor is the default color for Schulhof elements (green for outdoor/nature).
+	// SchulhofColor is the color of the auto-provisioned Schulhof activity
+	// CATEGORY (green for outdoor/nature).
+	//
+	// Deliberately NOT stamped on the Schulhof room since #2405: the room's
+	// color is admin-configurable, and leaving it unset is what makes the
+	// orange Schulhof default apply.
 	SchulhofColor = "#7ED321"
 
 	// SchulhofRoomName is the name of the Schulhof room/outdoor area.
@@ -60,7 +65,18 @@ const (
 // IsSystemRoomName returns true if the given room name is a system room
 // that must not be deleted or renamed.
 func IsSystemRoomName(name string) bool {
-	return name == SchulhofRoomName || IsWCRoomName(name)
+	return IsSchulhofRoomName(name) || IsWCRoomName(name)
+}
+
+// IsSchulhofRoomName returns true if the given room name is the canonical
+// Schulhof room. Exact-case, matching the rest of the system-room contract.
+//
+// Split out from IsSystemRoomName because the Schulhof is protected less
+// strictly than the toilet rooms: it may not be renamed or deleted, but its
+// colour IS admin-configurable (#2405) — schools colour-code rooms and
+// tablets and need the yard to take part in that scheme.
+func IsSchulhofRoomName(name string) bool {
+	return name == SchulhofRoomName
 }
 
 // IsWCRoomName returns true if the given room name is one of the accepted

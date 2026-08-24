@@ -25,7 +25,7 @@ import (
 func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaService, int64, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewFormSchemaService(enrollmentService.FormSchemaServiceConfig{
 		Repo:        repoFactory.FormSchema,
@@ -37,10 +37,10 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaSer
 	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Form", "Editor2")
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().TableExpr("enrollment.requests").
-			Where("tenant_id = 1 AND guardian_email LIKE 'form-schema-extra-%@test'").
+			Where("tenant_id = ? AND guardian_email LIKE 'form-schema-extra-%@test'", testpkg.Tenant(t)).
 			Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("enrollment.phases").
-			Where("tenant_id = 1 AND name LIKE 'form-schema-extra-%'").
+			Where("tenant_id = ? AND name LIKE 'form-schema-extra-%'", testpkg.Tenant(t)).
 			Exec(context.Background())
 		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").
 			Where("created_by = ?", account.ID).
@@ -48,15 +48,16 @@ func setupFullSchemaTest(t *testing.T) (*bun.DB, enrollmentService.FormSchemaSer
 		_, _ = db.NewDelete().TableExpr("auth.accounts").
 			Where("id = ?", account.ID).
 			Exec(context.Background())
-		_ = db.Close()
 	})
 
 	return db, svc, account.ID, repoFactory
 }
 
 func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.GetByID(ctx, 0)
 	require.Error(t, err)
@@ -67,8 +68,10 @@ func TestFormSchemaService_GetByID_RejectsNonPositive(t *testing.T) {
 }
 
 func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	pub, err := svc.CreateSchema(ctx, "Testformular GetByID", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -84,8 +87,10 @@ func TestFormSchemaService_GetByID_ReturnsRow(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.CreateSchema(ctx, "", []enrollmentModels.FormField{
 		{Key: "x", Label: "X", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -95,8 +100,10 @@ func TestFormSchemaService_CreateSchema_RequiresName(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Klassenanmeldung")
 	out, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
@@ -108,11 +115,13 @@ func TestFormSchemaService_CreateSchema_FreshNameOK(t *testing.T) {
 }
 
 func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
+	t.Parallel()
+
 	// CreateSchema is for *new* logical schemas. If the name already
 	// has a v1 row, the admin should call UpdateSchema instead — the
 	// service refuses to silently add a sibling.
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("Doppelname")
 	_, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
@@ -128,8 +137,10 @@ func TestFormSchemaService_CreateSchema_RefusesExistingName(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.UpdateSchema(ctx, 0, []enrollmentModels.FormField{
 		{Key: "x", Label: "X", Type: enrollmentModels.FormFieldText, SortOrder: 0},
@@ -139,8 +150,10 @@ func TestFormSchemaService_UpdateSchema_RejectsNonPositiveID(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("BumpTest")
 	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
@@ -165,8 +178,10 @@ func TestFormSchemaService_UpdateSchema_InheritsNameBumpsVersion(t *testing.T) {
 }
 
 func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, repoFactory := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("RepointTest")
 	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
@@ -221,8 +236,10 @@ func TestFormSchemaService_UpdateSchema_RepointsPhasesButKeepsRequestSchemaPin(t
 }
 
 func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
+	t.Parallel()
+
 	_, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("CoreKeyGuard")
 	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{
@@ -237,8 +254,10 @@ func TestFormSchemaService_UpdateSchema_RejectsCoreFieldKey(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := svc.DeleteSchema(ctx, 0)
 	require.Error(t, err)
@@ -246,8 +265,10 @@ func TestFormSchemaService_DeleteSchema_RejectsZero(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := svc.DeleteSchema(ctx, 999_999_999)
 	require.Error(t, err)
@@ -255,8 +276,10 @@ func TestFormSchemaService_DeleteSchema_MissingIDReturnsNotFound(t *testing.T) {
 }
 
 func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	_, svc, _, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
@@ -264,8 +287,10 @@ func TestFormSchemaService_GetByID_MissingIDReturnsNotFound(t *testing.T) {
 }
 
 func TestFormSchemaService_DeleteSchema_HappyPathDropsAllVersions(t *testing.T) {
+	t.Parallel()
+
 	db, svc, creatorID, _ := setupFullSchemaTest(t)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	name := uniqueSchemaName("DropMe")
 	v1, err := svc.CreateSchema(ctx, name, []enrollmentModels.FormField{

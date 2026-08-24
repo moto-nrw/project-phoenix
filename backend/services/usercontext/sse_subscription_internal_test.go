@@ -23,20 +23,26 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockSettingsSvc builds a configtest.Mock backed by a boolValues map,
-// mirroring the previous hand-rolled stub's ResolveBool/ResolveBoolForTenant
-// behavior: missing keys return an error.
-func mockSettingsSvc(boolValues map[string]bool) *configtest.Mock {
-	resolveBool := func(_ context.Context, key string) (bool, error) {
-		if v, ok := boolValues[key]; ok {
-			return v, nil
-		}
-		return false, fmt.Errorf("not found: %s", key)
-	}
+// scopeSettings resolves the one school-wide access setting (#2380) and
+// errors on any other key, so an SSE path reaching for a second access rule
+// fails the test loudly.
+func scopeSettings(scope string) *configtest.Mock {
 	return &configtest.Mock{
-		ResolveBoolFn: resolveBool,
-		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
-			return resolveBool(ctx, key)
+		ResolveStringFn: func(_ context.Context, key string) (string, error) {
+			if key != configModel.KeyOperationalOverviewScope {
+				return "", fmt.Errorf("unexpected settings key: %s", key)
+			}
+			return scope, nil
+		},
+	}
+}
+
+// failingScopeSettings stands in for a settings fault: SSE must fall back to
+// the caller's own supervisions rather than opening the school.
+func failingScopeSettings() *configtest.Mock {
+	return &configtest.Mock{
+		ResolveStringFn: func(_ context.Context, _ string) (string, error) {
+			return "", fmt.Errorf("settings unavailable")
 		},
 	}
 }
@@ -322,10 +328,23 @@ func (s *ssePersonRepoStub) FindByAccountID(_ context.Context, _ int64) (*userMo
 
 type sseStaffRepoStub struct {
 	userModels.StaffRepository
+	staff *userModels.Staff
 }
 
 func (s *sseStaffRepoStub) FindByPersonID(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
+	return s.staff, nil
+}
+
+// staffBackedService wires the person/staff repos the all_staff scope needs to
+// recognise the caller as verified staff.
+func staffBackedService(settings SSESettingsResolver, active *mockActiveSvcForSSE) *userContextService {
+	return &userContextService{
+		personRepo:   &ssePersonRepoStub{person: &userModels.Person{Model: base.Model{ID: 7}}},
+		staffRepo:    &sseStaffRepoStub{staff: &userModels.Staff{Model: base.Model{ID: 42}}},
+		sseSettings:  settings,
+		sseActiveSvc: active,
+		logger:       slog.Default(),
+	}
 }
 
 // =============================================================================
@@ -333,16 +352,16 @@ func (s *sseStaffRepoStub) FindByPersonID(_ context.Context, _ int64) (*userMode
 // =============================================================================
 
 func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
+	t.Parallel()
+
 	for _, permission := range []string{"admin:*", "*:*"} {
 		t.Run(permission, func(t *testing.T) {
 			rs := &userContextService{
 				personRepo: &ssePersonRepoStub{
 					person: &userModels.Person{Model: base.Model{ID: 99}},
 				},
-				staffRepo: &sseStaffRepoStub{},
-				sseSettings: mockSettingsSvc(map[string]bool{
-					configModel.KeyAdminSupervisionOverview: true,
-				}),
+				staffRepo:   &sseStaffRepoStub{},
+				sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 				sseActiveSvc: &mockActiveSvcForSSE{
 					listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 						return nil, nil
@@ -363,6 +382,8 @@ func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
 }
 
 func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
+	t.Parallel()
+
 	// Admin SSE path now enumerates active.groups directly so unclaimed groups
 	// still receive live events. Synthetic GroupSupervisor entries are built
 	// from the list.
@@ -373,9 +394,7 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	}
 
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil
@@ -394,14 +413,14 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 }
 
 func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 200}, GroupID: 20, StaffID: 42},
 	}
 
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: false,
-		}),
+		sseSettings: scopeSettings(configModel.OverviewScopeOwn),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 				assert.Equal(t, int64(42), staffID)
@@ -420,14 +439,15 @@ func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
 }
 
 func TestResolveSupervisions_NonAdmin(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 300}, GroupID: 30, StaffID: 42},
 	}
 
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true, // enabled but user is not admin
-		}),
+		// Admin scope, but the caller is not an admin.
+		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
@@ -444,6 +464,8 @@ func TestResolveSupervisions_NonAdmin(t *testing.T) {
 }
 
 func TestResolveSupervisions_NilSettingsService(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 400}, GroupID: 40, StaffID: 42},
 	}
@@ -466,12 +488,14 @@ func TestResolveSupervisions_NilSettingsService(t *testing.T) {
 }
 
 func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
+	t.Parallel()
+
 	staffSupervisions := []*activeModel.GroupSupervisor{
 		{Model: base.Model{ID: 500}, GroupID: 50, StaffID: 42},
 	}
 
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{}), // key missing → error
+		sseSettings: failingScopeSettings(),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
@@ -488,6 +512,8 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 }
 
 func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		isAdmin  bool
@@ -502,23 +528,19 @@ func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
 			isAdmin: true,
 		},
 		{
-			name:    "admin with overview disabled",
-			isAdmin: true,
-			settings: mockSettingsSvc(map[string]bool{
-				configModel.KeyAdminSupervisionOverview: false,
-			}),
+			name:     "admin with overview disabled",
+			isAdmin:  true,
+			settings: scopeSettings(configModel.OverviewScopeOwn),
 		},
 		{
 			name:     "admin with setting error",
 			isAdmin:  true,
-			settings: mockSettingsSvc(map[string]bool{}),
+			settings: failingScopeSettings(),
 		},
 		{
-			name:    "admin with overview enabled",
-			isAdmin: true,
-			settings: mockSettingsSvc(map[string]bool{
-				configModel.KeyAdminSupervisionOverview: true,
-			}),
+			name:     "admin with overview enabled",
+			isAdmin:  true,
+			settings: scopeSettings(configModel.OverviewScopeAdmins),
 		},
 	}
 
@@ -538,10 +560,10 @@ func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
 }
 
 func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: false,
-		}),
+		sseSettings: scopeSettings(configModel.OverviewScopeOwn),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("database connection lost")
@@ -558,8 +580,10 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 }
 
 func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{}),
+		sseSettings: failingScopeSettings(),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("timeout")
@@ -576,10 +600,10 @@ func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
 }
 
 func TestResolveSupervisions_GetAllError(t *testing.T) {
+	t.Parallel()
+
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")
@@ -600,6 +624,8 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 // included in the SSE topic list — closing the prior divergence between
 // HTTP (/supervisors/all → ListActiveGroups) and SSE (→ FindAllActive).
 func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	// Two active groups, including one that would have been missed by the
 	// previous GetAllActiveSupervisions path (no supervisor row).
@@ -609,9 +635,7 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	}
 
 	rs := &userContextService{
-		sseSettings: mockSettingsSvc(map[string]bool{
-			configModel.KeyAdminSupervisionOverview: true,
-		}),
+		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil
@@ -628,11 +652,109 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	assert.Equal(t, int64(51), result[1].GroupID)
 }
 
+// TestResolveSupervisions_AllStaffScopeSubscribesNonAdmin closes the gap the
+// admin-only rule left behind (#2380): a caregiver who SEES every running
+// module in the list must also receive its live events, otherwise the block
+// on screen silently stops updating.
+func TestResolveSupervisions_AllStaffScopeSubscribesNonAdmin(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	activeGroups := []*activeModel.Group{
+		{Model: base.Model{ID: 60}, StartTime: now.Add(-time.Hour)},
+		{Model: base.Model{ID: 61}, StartTime: now.Add(-time.Minute)},
+	}
+
+	rs := staffBackedService(
+		scopeSettings(configModel.OverviewScopeAllStaff),
+		&mockActiveSvcForSSE{
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				return activeGroups, nil
+			},
+			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+				t.Fatal("must not fall back to own supervisions under the all_staff scope")
+				return nil, nil
+			},
+		},
+	)
+
+	result, err := rs.resolveSSESupervisions(ctxWithClaims(false), 42)
+
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	assert.Equal(t, int64(60), result[0].GroupID)
+	assert.Equal(t, int64(61), result[1].GroupID)
+}
+
+// A caller without a staff record (guardian, guest) stays on their own
+// supervisions even under the broadest scope.
+func TestResolveSupervisions_AllStaffScopeDeniesNonStaff(t *testing.T) {
+	t.Parallel()
+
+	staffSupervisions := []*activeModel.GroupSupervisor{
+		{Model: base.Model{ID: 700}, GroupID: 70, StaffID: 42},
+	}
+
+	rs := &userContextService{
+		personRepo:  &ssePersonRepoStub{person: &userModels.Person{Model: base.Model{ID: 7}}},
+		staffRepo:   &sseStaffRepoStub{},
+		sseSettings: scopeSettings(configModel.OverviewScopeAllStaff),
+		sseActiveSvc: &mockActiveSvcForSSE{
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				t.Fatal("a non-staff caller must never enumerate all active groups")
+				return nil, nil
+			},
+			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+				return staffSupervisions, nil
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	result, err := rs.resolveSSESupervisions(ctxWithClaims(false), 42)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(70), result[0].GroupID)
+}
+
+// TestResolveSupervisions_OwnScopeKeepsCaregiverNarrow is the deactivation
+// case: after the school switches back, foreign modules disappear from the
+// subscription again.
+func TestResolveSupervisions_OwnScopeKeepsCaregiverNarrow(t *testing.T) {
+	t.Parallel()
+
+	staffSupervisions := []*activeModel.GroupSupervisor{
+		{Model: base.Model{ID: 800}, GroupID: 80, StaffID: 42},
+	}
+
+	rs := staffBackedService(
+		scopeSettings(configModel.OverviewScopeOwn),
+		&mockActiveSvcForSSE{
+			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+				t.Fatal("the own scope must never enumerate all active groups")
+				return nil, nil
+			},
+			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
+				return staffSupervisions, nil
+			},
+		},
+	)
+
+	result, err := rs.resolveSSESupervisions(ctxWithClaims(false), 42)
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(80), result[0].GroupID)
+}
+
 // =============================================================================
 // TESTS: SSESetupError
 // =============================================================================
 
 func TestSSESetupError_ErrorMessage(t *testing.T) {
+	t.Parallel()
+
 	err := &SSESetupError{Message: "Account not found", Status: http.StatusUnauthorized}
 
 	assert.Equal(t, "SSE setup: Account not found", err.Error())
@@ -640,6 +762,8 @@ func TestSSESetupError_ErrorMessage(t *testing.T) {
 }
 
 func TestSSESetupError_AsMatchesTypedError(t *testing.T) {
+	t.Parallel()
+
 	var err error = &SSESetupError{Message: "forbidden", Status: http.StatusForbidden}
 
 	var setupErr *SSESetupError
@@ -649,6 +773,8 @@ func TestSSESetupError_AsMatchesTypedError(t *testing.T) {
 }
 
 func TestSSESetupError_AsDistinguishesErrors(t *testing.T) {
+	t.Parallel()
+
 	var setupErr *SSESetupError
 	assert.False(t, errors.As(assert.AnError, &setupErr),
 		"Regular error should not match *SSESetupError")

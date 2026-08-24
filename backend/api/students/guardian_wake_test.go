@@ -21,13 +21,13 @@ import (
 // manual reload. One representative write (staff pickup exception) is asserted;
 // every staff care-write path calls the same wakeChildGuardians helper.
 func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupWake", "GuardianExc")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupWake", "GuardianExc")
 
 	// Isolate the wake triggered by the write below from any setup broadcasts.
 	tc.broadcaster.Reset()
@@ -65,13 +65,13 @@ func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 // parents SSE stream. The status write must ALSO wake the child's guardians; a
 // plain (non-status) edit must NOT, so a name/notes change never spams parent tabs.
 func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
-	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StatusWake", "GuardianUpd")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StatusWake", "GuardianUpd")
 
 	// A sick=true update writes today's status day → must wake guardians.
 	tc.broadcaster.Reset()

@@ -339,6 +339,8 @@ func mapChangeRequestError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrRequestNotFound),
 		errors.Is(err, enrollmentService.ErrChangeRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, enrollmentService.ErrChangeRequestChildLocked):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "enrollment.change_request_child_locked"))
 	case errors.Is(err, enrollmentService.ErrChangeRequestNotAllowed),
 		errors.Is(err, enrollmentService.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))

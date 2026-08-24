@@ -45,6 +45,13 @@ type ChildSummary struct {
 	GuardianProfileID   int64                  `json:"-"`
 }
 
+// CareEnded reports whether the child's care at this school has ended on the
+// given day. The enrollment interval's upper bound is inclusive, so the last
+// care day itself still counts as care (#2487).
+func (c *ChildSummary) CareEnded(day timezone.Date) bool {
+	return c != nil && c.EnrolledUntil != nil && day.After(*c.EnrolledUntil)
+}
+
 // ChildRepository is the contract for the cross-tenant lookup the
 // parent portal needs. There's only one method today; future
 // endpoints (per-child detail, attendance summary, etc.) get added
@@ -210,7 +217,7 @@ type EnrollmentRequestRepository interface {
 	// enrollment.requests row with guardian_account_id IS NULL and a
 	// case-insensitive match on guardian_email. Returns how many rows
 	// were updated. Cross-tenant — implementation MUST run under
-	// WithAdminTx. Called after a guardian invitation accept so
+	// WithAdminTx. Called inside a guardian invitation accept so
 	// pre-account submissions surface in /me/enrollments.
 	BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error)
 }

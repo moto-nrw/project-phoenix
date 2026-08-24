@@ -114,6 +114,11 @@ type WorkTimeMonthService interface {
 	// each target minus recorded net work, because comp_time itself credits
 	// nothing (#1420).
 	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
+	// GetDailyProjection returns Soll, Gutschrift, Ist and Saldo per calendar
+	// day for the daily table — the same arithmetic the Monatskarte sums.
+	GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error)
+	// GetDailyTargets resolves only the date-valid Soll for callers that do not
+	// need absence, session, or balance data.
 	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
 	// GetRangeAggregate sums Soll, Ist and balance over an arbitrary closed
 	// range with the same daily arithmetic as the Monatskarte, WITHOUT a carry
@@ -146,11 +151,33 @@ type AdjustmentView struct {
 	DecidedAt     time.Time     `json:"decided_at"`
 }
 
+// DailyProjection is the complete work-time picture of ONE calendar day, priced
+// exactly as the Monatskarte prices it: the contractual Soll resolved against
+// the schedule version valid ON that day (#1842), the absence credit that Soll
+// earns, the net work time recorded, and the resulting day balance (#2443).
+//
+// The daily table reads these instead of deriving anything itself. Applying the
+// current schedule to historical dates contradicted the Monatskarte the moment
+// a staff member's hours changed (#1842); deriving the Saldo as "Ist minus
+// Soll" left every absence day without one, so a Freizeitausgleich looked as if
+// it cost nothing while the card below already deducted the full day (#2443).
+//
+// BalanceMinutes is ActualMinutes + CreditMinutes - TargetMinutes, and is 0 on
+// days the card does not price either: future days and days before a mid-month
+// account start. Stundenkonto-Buchungen (Auszahlung, Reset, pauschaler
+// Freizeitausgleich) are deliberately NOT folded in — they are ledger entries
+// with an effective date, not work time of that day, and the Monatskarte shows
+// them as their own line. Summe der Tageszeilen + Buchungen = Monatssaldo.
+type DailyProjection struct {
+	Date           timezone.Date `json:"date"`
+	TargetMinutes  int           `json:"target_minutes"`
+	CreditMinutes  int           `json:"credit_minutes"`
+	ActualMinutes  int           `json:"actual_minutes"`
+	BalanceMinutes int           `json:"balance_minutes"`
+}
+
 // DailyTarget is the contractual Soll of one calendar day, resolved against
-// the schedule version that was valid ON that day (#1842). The daily table
-// reads these instead of applying the current schedule to historical dates —
-// otherwise the rows contradict the Monatskarte sitting above them the moment
-// a staff member's hours change.
+// the schedule version that was valid ON that day (#1842).
 type DailyTarget struct {
 	Date          timezone.Date `json:"date"`
 	TargetMinutes int           `json:"target_minutes"`
@@ -172,12 +199,13 @@ type monthShiftReader interface {
 
 // monthSessionReader is implemented by active.WorkSessionRepository.
 type monthSessionReader interface {
-	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
+	ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error)
 }
 
 // monthBreakReader is implemented by active.WorkSessionBreakRepository.
 type monthBreakReader interface {
-	GetActiveBySessionID(ctx context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error)
+	GetBySessionID(ctx context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
+	GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*activeModels.WorkSessionBreak, error)
 }
 
 // monthAbsenceReader is implemented by active.StaffAbsenceRepository.
@@ -235,6 +263,8 @@ type workTimeMonthService struct {
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
+	// nowFunc is a test hook; production uses time.Now.
+	nowFunc func() time.Time
 }
 
 func NewWorkTimeMonthService(
@@ -290,6 +320,13 @@ func (s *workTimeMonthService) today() timezone.Date {
 	return timezone.TodayDate()
 }
 
+func (s *workTimeMonthService) now() time.Time {
+	if s.nowFunc != nil {
+		return s.nowFunc()
+	}
+	return time.Now()
+}
+
 // ---- month arithmetic ----------------------------------------------------
 
 type monthKey struct {
@@ -322,12 +359,12 @@ func (k monthKey) before(o monthKey) bool {
 	return k.Year < o.Year || (k.Year == o.Year && k.Month < o.Month)
 }
 
-// maxDailyTargetRangeDays bounds GetDailyTargets: the table never shows more
+// maxDailyTargetRangeDays bounds GetDailyProjection: the table never shows more
 // than a month, and an unbounded range would let a caller walk years of
 // calendar days per request.
 const maxDailyTargetRangeDays = 366
 
-// ErrInvalidTargetRange marks a GetDailyTargets range the caller got wrong:
+// ErrInvalidTargetRange marks a GetDailyProjection range the caller got wrong:
 // missing, inverted, or longer than the cap. The range comes straight from the
 // query string, so handlers map this to HTTP 400 — an oversized window is the
 // caller's mistake, not an internal failure.
@@ -563,85 +600,94 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 	return nil
 }
 
-// addActualMinutes sums the net worked minutes per month, skipping sessions
-// dated after today. Targets and absence credits are both clamped at today, so
-// counting a future-dated session (the admin correction service accepts them)
-// would credit Ist against a Soll that is deliberately not there yet and show
-// a phantom plus in the current month — and, via the carry chain, in every
-// later one.
+// addActualMinutes assigns each session's time to every Berlin calendar day it
+// intersects. A work session is filed under its check-in date, but may validly
+// run past midnight; counting it only in that filing month would lose the
+// after-midnight part from the following day's balance.
 func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, first, last)
+	end := last.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, first.BerlinMidnight(), &end)
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
-	now := time.Now()
+	now := s.now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return err
+	}
 	for _, session := range sessions {
-		if session.Date.After(today) {
+		end := balanceSessionEnd(session, now, today)
+		if !end.After(session.CheckInTime) {
 			continue
 		}
-		agg, ok := aggregates[monthOf(session.Date)]
-		if !ok {
-			continue
+
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
+			if agg, ok := aggregates[monthOf(day)]; ok {
+				agg.actual += minutes
+			}
 		}
-		minutes := workedMinutesUpTo(session, now)
-		running, err := s.runningBreakMinutes(ctx, session, now)
-		if err != nil {
-			return err
-		}
-		if minutes -= running; minutes < 0 {
-			minutes = 0
-		}
-		agg.actual += minutes
 	}
 	return nil
 }
 
-// workedMinutesUpTo is netMinutes with the session end clamped at both the
-// session's own calendar day and now. netMinutes otherwise measures gross work
-// time up to the check-out (or, for an open session, up to now), so two kinds
-// of bad data inflate Ist without bound and both pass the date guard in
-// addActualMinutes:
-//
-//   - a session left open on a PAST day bills every minute since check-in
-//     through now — potentially days or months of fictitious presence, and via
-//     the carry chain every later balance; and
-//   - a historical session an admin corrected with a check-out later than its
-//     day (the correction API accepts a future check_out_time) bills the whole
-//     span the moment it is saved.
-//
-// The day cap bounds those past cases; the now cap additionally keeps a future
-// check-out on TODAY's session from counting past the current instant, against
-// a target that is deliberately only accrued up to today. A consistent, closed
-// past session is unaffected: its check-out already precedes both caps.
-func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
+func (s *workTimeMonthService) breaksBySessionID(ctx context.Context, sessions []*activeModels.WorkSession) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	ids := make([]int64, 0, len(sessions))
+	for _, session := range sessions {
+		ids = append(ids, session.ID)
+	}
+	if len(ids) == 0 {
+		return map[int64][]*activeModels.WorkSessionBreak{}, nil
+	}
+	breaks, err := s.breakRepo.GetBySessionIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load work session breaks: %w", err)
+	}
+	return breaks, nil
+}
+
+// sessionEndUpTo clamps a session end at now. This prevents a future
+// check-out from being credited before it happens while preserving valid work
+// across Berlin midnight.
+func sessionEndUpTo(session *activeModels.WorkSession, now time.Time) time.Time {
 	end := now
 	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
 		end = *session.CheckOutTime
 	}
-	if dayEnd := session.Date.EndOfDay(); dayEnd.Before(end) {
-		end = dayEnd
-	}
-	capped := *session
-	capped.CheckOutTime = &end // netMinutes measures gross up to the capped end
-	return netMinutes(&capped, end)
+	return end
 }
 
-// runningBreakMinutes is the elapsed duration of a break that has started but
-// not ended yet. WorkSession.BreakMinutes caches ENDED breaks only — StartBreak
-// records no duration and the cache is refreshed when the break ends or is
-// auto-ended — so netMinutes counts every minute of a running break as worked
-// time. Without this correction the polled Monatskarte inflates Ist and Saldo
-// for as long as the staff member is on break. The elapsed math is shared with
-// /history (runningBreakElapsedMinutes) so card and day rows agree.
-func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session *activeModels.WorkSession, now time.Time) (int, error) {
-	if s.breakRepo == nil || session.CheckOutTime != nil {
-		return 0, nil
+// maxOpenWorkSessionDuration is the shared live limit. The presence lookup in
+// database/repositories/active reads the same constant, so a block that stops
+// counting toward the balance stops marking its owner present as well.
+const maxOpenWorkSessionDuration = activeModels.MaxOpenWorkSessionDuration
+
+// BalanceSessionEnd applies the live balance limit using the Berlin day of
+// now. Readers outside this package (notably the kiosk) use it so a running
+// block cannot produce a different total from the monthly balance.
+func BalanceSessionEnd(session *activeModels.WorkSession, now time.Time) time.Time {
+	return balanceSessionEnd(session, now, timezone.DateFromTime(now))
+}
+
+func balanceSessionEnd(session *activeModels.WorkSession, now time.Time, today timezone.Date) time.Time {
+	end := sessionEndUpTo(session, now)
+	// A completed block is historical fact. Only still-open blocks (or a
+	// malformed future check-out) need a live safety limit.
+	if session.CheckOutTime != nil && !session.CheckOutTime.After(now) {
+		return end
 	}
-	brk, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
-	if err != nil {
-		return 0, fmt.Errorf("failed to load active break: %w", err)
+	maxEnd := session.CheckInTime.Add(maxOpenWorkSessionDuration)
+	if !end.After(maxEnd) {
+		return end
 	}
-	return runningBreakElapsedMinutes(brk, now), nil
+	if session.Date.Before(today.AddDays(-1)) {
+		if staleEnd := session.Date.EndOfDay(); staleEnd.Before(end) {
+			return staleEnd
+		}
+	}
+	if !session.Date.Before(today.AddDays(-1)) && session.Date.Before(today) {
+		return maxEnd
+	}
+	return end
 }
 
 // addAbsenceCredits credits sick/vacation/training days with the day's
@@ -655,57 +701,98 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 	if err != nil {
 		return fmt.Errorf("failed to load absences: %w", err)
 	}
-	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
+	through := last
+	if today.Before(through) {
+		through = today
+	}
+	walkCreditedAbsenceDays(absences, first, through, resolver.targetFor,
+		func(d timezone.Date, absence *activeModels.StaffAbsence, credit int, fraction float64) {
+			creditAbsenceDay(absence, credit, fraction, aggregates[monthOf(d)])
+		})
+	return nil
+}
 
+// absenceDayVisitor receives one effectively covered absence day together with
+// the minutes it credits (already 0 for Freizeitausgleich, already halved on a
+// half-day boundary) and the day fraction that credit represents.
+type absenceDayVisitor func(d timezone.Date, absence *activeModels.StaffAbsence, credit int, fraction float64)
+
+// walkCreditedAbsenceDays applies the ONE set of absence rules every reader
+// prices days with — Monatskarte, Tageszeile, Stundenkonto: only
+// reported/approved absences count, a day is consumed by the LOWEST absence ID
+// covering it (so overlapping absences never pay twice), a day without Soll is
+// worth nothing, a half-day boundary is worth half the Soll, and
+// Freizeitausgleich consumes its day while crediting nothing (#1420 5b).
+//
+// `through` is the last creditable day: the Monatskarte passes today (a future
+// day earns no credit yet), the reduction-capacity math passes the range end
+// (a planned comp-time day must still reserve its Soll). Callers that used to
+// carry their own copy of this walk drifted apart in exactly these details.
+func walkCreditedAbsenceDays(
+	absences []*activeModels.StaffAbsence,
+	first, through timezone.Date,
+	targetFor func(timezone.Date) int,
+	visit absenceDayVisitor,
+) {
+	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
 	credited := make(map[timezone.Date]bool)
 	for _, absence := range absences {
 		if absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved {
 			continue
 		}
-		s.creditAbsenceDays(absence, first, last, today, resolver, aggregates, credited)
+		startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
+		for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
+			if d.Before(first) || d.After(through) || credited[d] {
+				continue
+			}
+			credited[d] = true
+			target := targetFor(d)
+			if target <= 0 {
+				continue
+			}
+			fraction := 1.0
+			credit := target
+			if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
+				fraction = 0.5
+				credit = target / 2
+			}
+			if absence.AbsenceType == activeModels.AbsenceTypeCompTime {
+				// Freizeitausgleich (#1420 5b) credits NOTHING: the day keeps
+				// its Soll, so the balance drops by the day's target. The day
+				// still counts as consumed above, so an overlapping vacation
+				// cannot re-credit it.
+				credit = 0
+			}
+			visit(d, absence, credit, fraction)
+		}
 	}
-	return nil
 }
 
-func (s *workTimeMonthService) creditAbsenceDays(absence *activeModels.StaffAbsence, first, last, today timezone.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates, credited map[timezone.Date]bool) {
-	startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
-	for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
-		if d.Before(first) || d.After(last) || d.After(today) || credited[d] {
-			continue
-		}
-		credited[d] = true
-		target := resolver.targetFor(d)
-		if target <= 0 {
-			continue
-		}
-		fraction := 1.0
-		credit := target
-		if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
-			fraction = 0.5
-			credit = target / 2
-		}
-		agg := aggregates[monthOf(d)]
-		switch absence.AbsenceType {
-		case activeModels.AbsenceTypeSick:
-			agg.creditedSick += credit
-			agg.sickDays += fraction
-		case activeModels.AbsenceTypeVacation:
-			agg.creditedVacation += credit
-			agg.vacationDays += fraction
-		case activeModels.AbsenceTypeTraining:
-			// Fortbildung split (#1417 2b writers): a Lohnart "Fortbildung"
-			// needs hours OR days separately from "Sonstige" — same credit
-			// math, own counters.
-			agg.creditedTraining += credit
-			agg.trainingDays += fraction
-		case activeModels.AbsenceTypeCompTime:
-			// Freizeitausgleich (#1420 5b) deliberately credits NOTHING: the
-			// day keeps its Soll, so the balance drops by the day's target.
-			// The day still counts as consumed (credited[d] above) so an
-			// overlapping vacation cannot re-credit it.
-		default:
-			agg.creditedOther += credit
-		}
+// creditAbsenceDay books one credited absence day into its month's counters.
+// The credit itself is already resolved by walkCreditedAbsenceDays; this only
+// routes it to the Lohnart the month card reports.
+func creditAbsenceDay(absence *activeModels.StaffAbsence, credit int, fraction float64, agg *monthAggregates) {
+	if agg == nil {
+		return
+	}
+	switch absence.AbsenceType {
+	case activeModels.AbsenceTypeSick:
+		agg.creditedSick += credit
+		agg.sickDays += fraction
+	case activeModels.AbsenceTypeVacation:
+		agg.creditedVacation += credit
+		agg.vacationDays += fraction
+	case activeModels.AbsenceTypeTraining:
+		// Fortbildung split (#1417 2b writers): a Lohnart "Fortbildung"
+		// needs hours OR days separately from "Sonstige" — same credit
+		// math, own counters.
+		agg.creditedTraining += credit
+		agg.trainingDays += fraction
+	case activeModels.AbsenceTypeCompTime:
+		// Nothing to credit (see walkCreditedAbsenceDays); the type still
+		// needs its own case so it does not land in "Sonstige".
+	default:
+		agg.creditedOther += credit
 	}
 }
 
@@ -834,7 +921,7 @@ func (s *workTimeMonthService) GetMonthSummaryAtMonthEnd(ctx context.Context, st
 
 // GetRangeAggregate sums an arbitrary closed range from the SAME helpers the
 // Monatskarte and the daily table use. It first clamps the whole range to the
-// account anchor, then uses GetDailyTargets for the Soll,
+// account anchor, then uses the same date-valid resolver for the Soll,
 // getDailyActualMinutes for the Ist (day cap, now cap, running break), and
 // getDailyBalanceDeltas for the balance (credits, adjustments, target). No new
 // arithmetic, therefore no way for a week total to contradict the month card
@@ -854,12 +941,15 @@ func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID in
 	if from.Before(anchor) {
 		from = anchor
 	}
-	targets, err := s.GetDailyTargets(ctx, staffID, from, to)
+	resolver, targetAnchor, err := s.accountAwareTargets(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
 	}
-	for _, target := range targets {
-		aggregate.TargetMinutes += target.TargetMinutes
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if excludedByAccountStart(d, targetAnchor) {
+			continue
+		}
+		aggregate.TargetMinutes += resolver.targetFor(d)
 	}
 	actual, err := s.getDailyActualMinutes(ctx, staffID, from, to)
 	if err != nil {
@@ -1269,22 +1359,21 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 	staffID int64,
 	from, to timezone.Date,
 ) (map[timezone.Date]int, error) {
-	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, from, to)
+	end := to.AddDays(1).BerlinMidnight()
+	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
 	actualByDate := make(map[timezone.Date]int)
-	now := time.Now()
+	now := s.now()
+	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
+	if err != nil {
+		return nil, err
+	}
 	for _, session := range sessions {
-		if session.Date.Before(from) || session.Date.After(to) {
-			continue
+		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], balanceSessionEnd(session, now, timezone.TodayDate()), from, to) {
+			actualByDate[day] += minutes
 		}
-		minutes := workedMinutesUpTo(session, now)
-		running, err := s.runningBreakMinutes(ctx, session, now)
-		if err != nil {
-			return nil, err
-		}
-		actualByDate[session.Date] += max(0, minutes-running)
 	}
 	return actualByDate, nil
 }
@@ -1296,33 +1385,35 @@ func (s *workTimeMonthService) addDailyAbsenceCredits(
 	resolver *dailyTargetResolver,
 	deltas map[timezone.Date]int,
 ) error {
-	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	credits, err := s.getDailyAbsenceCredits(ctx, staffID, from, to, to, resolver)
 	if err != nil {
-		return fmt.Errorf("failed to load absences for daily reduction validation: %w", err)
+		return err
 	}
-	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
-	credited := make(map[timezone.Date]bool)
-	for _, absence := range absences {
-		if absence.Status != activeModels.AbsenceStatusReported && absence.Status != activeModels.AbsenceStatusApproved {
-			continue
-		}
-		startHalf, endHalf := effectiveAbsenceBoundaryHalves(absence)
-		for d := absence.DateStart; !d.After(absence.DateEnd); d = d.AddDays(1) {
-			if d.Before(from) || d.After(to) || credited[d] {
-				continue
-			}
-			credited[d] = true
-			target := resolver.targetFor(d)
-			if target <= 0 || absence.AbsenceType == activeModels.AbsenceTypeCompTime {
-				continue
-			}
-			if isHalfAbsenceDay(absence, d, startHalf, endHalf) {
-				target /= 2
-			}
-			deltas[d] += target
-		}
+	for d, credit := range credits {
+		deltas[d] += credit
 	}
 	return nil
+}
+
+// getDailyAbsenceCredits is the per-day credit map behind both the daily
+// deltas and the table's Gutschrift column (#2443). `through` is the last
+// creditable day (see walkCreditedAbsenceDays).
+func (s *workTimeMonthService) getDailyAbsenceCredits(
+	ctx context.Context,
+	staffID int64,
+	from, to, through timezone.Date,
+	resolver *dailyTargetResolver,
+) (map[timezone.Date]int, error) {
+	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load absences for daily credits: %w", err)
+	}
+	credits := make(map[timezone.Date]int)
+	walkCreditedAbsenceDays(absences, from, through, resolver.targetFor,
+		func(d timezone.Date, _ *activeModels.StaffAbsence, credit int, _ float64) {
+			credits[d] += credit
+		})
+	return credits, nil
 }
 
 func (s *workTimeMonthService) addDailyAdjustments(
@@ -1588,14 +1679,91 @@ func excludedByAccountStart(d, anchor timezone.Date) bool {
 	return monthOf(d) == monthOf(anchor) && d.Before(anchor)
 }
 
-// GetDailyTargets resolves the contractual Soll for every day in [from, to]
-// through the same resolver the Monatskarte uses, so card and table can never
-// disagree. Days with no target are returned as 0 rather than omitted: the
-// caller must be able to tell "planned day off" from "range not covered".
+// accountAwareTargets loads the date-valid Soll resolver together with the
+// account anchor. The anchor is absolute; the month key only picks the January
+// fallback for an unset setting, and no day can precede January 1st of its own
+// year — so an unset account start zeroes nothing.
+func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, timezone.Date, error) {
+	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
+	if err != nil {
+		return nil, timezone.Date{}, err
+	}
+	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	if err != nil {
+		return nil, timezone.Date{}, err
+	}
+	return resolver, anchor, nil
+}
+
+// GetDailyProjection prices every day in [from, to] with the same helpers the
+// Monatskarte sums: the date-valid Soll (buildTargetResolver), the absence
+// credit (walkCreditedAbsenceDays) and the recorded net work
+// (getDailyActualMinutes). Days with nothing on them are returned as zeros
+// rather than omitted: the caller must be able to tell "planned day off" from
+// "range not covered".
 //
-// Days before a mid-month account start resolve to 0 for the same reason: the
-// card starts accruing Soll on the start date, so billing them in the table
-// would make the Soll column contradict the card's "Summe Soll" (#1842).
+// Days before a mid-month account start project as all-zero: the card starts
+// accruing on the start date, so billing them in the table would contradict its
+// "Summe Soll" (#1842). Future days carry their Soll but no balance — the card
+// charges Soll only up to today.
+func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error) {
+	if from.IsZero() || to.IsZero() {
+		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
+	}
+	if to.Before(from) {
+		return nil, fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
+	}
+	if from.DaysUntil(to) > maxDailyTargetRangeDays {
+		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
+	}
+
+	resolver, anchor, err := s.accountAwareTargets(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	today := s.today()
+	// Everything that prices a day stops at today, exactly like the card:
+	// tomorrow's Soll is planned, not owed.
+	through := to
+	if today.Before(through) {
+		through = today
+	}
+	targetFor := func(d timezone.Date) int {
+		if excludedByAccountStart(d, anchor) {
+			return 0
+		}
+		return resolver.targetFor(d)
+	}
+
+	credits := map[timezone.Date]int{}
+	actual := map[timezone.Date]int{}
+	if !through.Before(from) {
+		if credits, err = s.getDailyAbsenceCredits(ctx, staffID, from, to, through, resolver); err != nil {
+			return nil, err
+		}
+		if actual, err = s.getDailyActualMinutes(ctx, staffID, from, through); err != nil {
+			return nil, err
+		}
+	}
+
+	projection := make([]DailyProjection, 0, from.DaysUntil(to)+1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		day := DailyProjection{Date: d, TargetMinutes: targetFor(d)}
+		if excludedByAccountStart(d, anchor) || d.After(today) {
+			projection = append(projection, day)
+			continue
+		}
+		day.CreditMinutes = credits[d]
+		day.ActualMinutes = actual[d]
+		day.BalanceMinutes = day.ActualMinutes + day.CreditMinutes - day.TargetMinutes
+		projection = append(projection, day)
+	}
+	return projection, nil
+}
+
+// GetDailyTargets resolves the contractual Soll for every day in [from, to]
+// without loading absence or work-session data. It is the lightweight variant
+// for overview consumers that only chart targets.
 func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
 	if from.IsZero() || to.IsZero() {
 		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
@@ -1607,14 +1775,7 @@ func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int6
 		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
 	}
 
-	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
-	if err != nil {
-		return nil, err
-	}
-	// The anchor is absolute; the month key only picks the January fallback for
-	// an unset setting, and no day can precede January 1st of its own year — so
-	// an unset account start zeroes nothing.
-	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	resolver, anchor, err := s.accountAwareTargets(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
 	}

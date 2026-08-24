@@ -19,6 +19,8 @@ func validActivityException() *ActivityException {
 }
 
 func TestActivityException_Validate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid cancelled exception", func(t *testing.T) {
 		require.NoError(t, validActivityException().Validate())
 	})
@@ -105,6 +107,8 @@ func TestActivityException_Validate(t *testing.T) {
 }
 
 func TestIsValidExceptionType(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidExceptionType(ActivityExceptionCancelled))
 	assert.True(t, IsValidExceptionType(ActivityExceptionModified))
 	assert.False(t, IsValidExceptionType(""))
@@ -112,6 +116,8 @@ func TestIsValidExceptionType(t *testing.T) {
 }
 
 func TestActivityException_IsCancellation(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, validActivityException().IsCancellation())
 
 	modified := validActivityException()

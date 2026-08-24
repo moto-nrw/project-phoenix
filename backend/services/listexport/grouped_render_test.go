@@ -30,6 +30,8 @@ func groupedSampleDocument() Document {
 }
 
 func TestClassGroupTitle(t *testing.T) {
+	t.Parallel()
+
 	cases := map[string]string{
 		"1a":         "Klasse 1a",
 		" 2b ":       "Klasse 2b",
@@ -73,6 +75,8 @@ func docxDocumentXML(t *testing.T, data []byte) string {
 }
 
 func TestRenderDOCXGroupsIntoSeparateTables(t *testing.T) {
+	t.Parallel()
+
 	file, err := NewService().Render(groupedSampleDocument(), FormatDOCX, "klassenlisten")
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
@@ -87,6 +91,8 @@ func TestRenderDOCXGroupsIntoSeparateTables(t *testing.T) {
 }
 
 func TestRenderDOCXUngroupedKeepsSingleTable(t *testing.T) {
+	t.Parallel()
+
 	doc := groupedSampleDocument()
 	doc.Rows = []Row{
 		{Values: map[ColumnID]string{ColumnName: "Anders, Emma", ColumnSchoolClass: "1a"}},

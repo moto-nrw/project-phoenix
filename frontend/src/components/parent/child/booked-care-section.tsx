@@ -64,7 +64,12 @@ const DISABLED_REASON_KEYS: Record<OfferingChangesDisabledReason, string> = {
 export function BookedCareSection({
   studentId,
   childFirstName,
-}: Readonly<{ studentId: string; childFirstName: string }>) {
+  careEnded,
+}: Readonly<{
+  studentId: string;
+  childFirstName: string;
+  careEnded: boolean;
+}>) {
   const t = useTranslations("parentMasterData");
   const tc = useTranslations("parentChild");
   const locale = useLocale();
@@ -228,7 +233,7 @@ export function BookedCareSection({
           concept="carePlan"
           prominent
           actions={
-            !pending && offerings.can_request ? (
+            !careEnded && !pending && offerings.can_request ? (
               <Button
                 type="button"
                 variant="surface"
@@ -356,7 +361,7 @@ export function BookedCareSection({
               <p className="text-sm text-gray-500">
                 {t("careOfferings.pendingNotice")}
               </p>
-              {pending.submitted_by_self && (
+              {!careEnded && pending.submitted_by_self && (
                 <div>
                   <Button
                     type="button"

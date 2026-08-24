@@ -484,7 +484,12 @@ describe("timetableService", () => {
         totalCount: 18,
         gradeCounts: { 0: 2, 1: 9, 2: 7 },
         sourcedTemplates: [
-          { id: "7", name: "Frühbetreuung Jg. 1", gradeLevels: [1] },
+          {
+            id: "7",
+            name: "Frühbetreuung Jg. 1",
+            gradeLevels: [1],
+            schoolClasses: [],
+          },
         ],
         legacyLinkedTemplateId: "7",
       },
@@ -803,7 +808,7 @@ describe("timetableService", () => {
         understaffedNote: "keine Vertretung",
         absences: [{ staffId: "11", reason: "krank" }],
         substitutions: [{ absentStaffId: "12", substituteStaffId: "13" }],
-        presences: ["14"],
+        presences: [{ staffId: "14" }],
       }),
     ).resolves.toMatchObject({ instanceId: "42", understaffedAck: true });
     await expect(
@@ -824,7 +829,7 @@ describe("timetableService", () => {
           understaffed_note: "keine Vertretung",
           absences: [{ staff_id: 11, reason: "krank" }],
           substitutions: [{ absent_staff_id: 12, substitute_staff_id: 13 }],
-          presences: [14],
+          presences: [{ staff_id: 14 }],
         }),
       }),
     );
@@ -982,15 +987,20 @@ describe("timetableService", () => {
       timetableService.applyDeviations("42", {
         understaffedAck: true,
         understaffedNote: "Rest offen",
-        absences: [{ staffId: "11", reason: "krank" }, { staffId: "13" }],
+        absences: [
+          { staffId: "11", reason: "krank", instanceIds: ["42"] },
+          { staffId: "13" },
+        ],
         substitutions: [
           {
             absentStaffId: "11",
             substituteStaffId: "12",
             reason: "springt ein",
+            instanceIds: ["42", "43"],
           },
         ],
-        presences: ["14", "15"],
+        substitutionRemovals: [{ staffId: "16", instanceIds: ["42"] }],
+        presences: [{ staffId: "14", instanceIds: ["42"] }, { staffId: "15" }],
       }),
     ).resolves.toMatchObject({
       instanceId: "42",
@@ -1005,15 +1015,20 @@ describe("timetableService", () => {
         body: JSON.stringify({
           understaffed_ack: true,
           understaffed_note: "Rest offen",
-          absences: [{ staff_id: 11, reason: "krank" }, { staff_id: 13 }],
+          absences: [
+            { staff_id: 11, reason: "krank", instance_ids: [42] },
+            { staff_id: 13 },
+          ],
           substitutions: [
             {
               absent_staff_id: 11,
               substitute_staff_id: 12,
               reason: "springt ein",
+              instance_ids: [42, 43],
             },
           ],
-          presences: [14, 15],
+          substitution_removals: [{ staff_id: 16, instance_ids: [42] }],
+          presences: [{ staff_id: 14, instance_ids: [42] }, { staff_id: 15 }],
         }),
       }),
     );

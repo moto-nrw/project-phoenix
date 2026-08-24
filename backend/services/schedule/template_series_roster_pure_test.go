@@ -23,6 +23,8 @@ func datePtr(day int) *timezone.Date {
 }
 
 func TestSegmentIsReconcilablePredecessor(t *testing.T) {
+	t.Parallel()
+
 	group := &activitiesModel.Group{}
 	group.ID = 4711
 
@@ -90,6 +92,8 @@ func TestSegmentIsReconcilablePredecessor(t *testing.T) {
 }
 
 func TestCoveredSeriesWeekdays(t *testing.T) {
+	t.Parallel()
+
 	monday := activitiesModel.WeekdayMonday
 	friday := activitiesModel.WeekdayFriday
 	scoped := []int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}
@@ -103,6 +107,8 @@ func TestCoveredSeriesWeekdays(t *testing.T) {
 }
 
 func TestWeekdayScopeReachesBeyondEdit(t *testing.T) {
+	t.Parallel()
+
 	segment := []int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}
 	monday := activitiesModel.WeekdayMonday
 	wednesday := activitiesModel.WeekdayWednesday
@@ -121,6 +127,8 @@ func TestWeekdayScopeReachesBeyondEdit(t *testing.T) {
 }
 
 func TestWantedOnAllWeekdays(t *testing.T) {
+	t.Parallel()
+
 	const personID = 77
 	want := map[seriesWeekdayPerson]bool{
 		{weekday: activitiesModel.WeekdayMonday, personID: personID}: true,
@@ -135,6 +143,8 @@ func TestWantedOnAllWeekdays(t *testing.T) {
 }
 
 func TestPrimaryFlagMatches(t *testing.T) {
+	t.Parallel()
+
 	const personID = 77
 	primaryWanted := map[seriesWeekdayPerson]bool{
 		{weekday: activitiesModel.WeekdayMonday, personID: personID}: true,
@@ -150,6 +160,8 @@ func TestPrimaryFlagMatches(t *testing.T) {
 }
 
 func TestSeriesRowStaysCorrect(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, seriesRowStaysCorrect(seriesDate(3), datePtr(17), seriesDate(10), datePtr(17)),
 		"a row starting before the window and ending with the segment is already right")
 	assert.False(t, seriesRowStaysCorrect(seriesDate(12), datePtr(17), seriesDate(10), datePtr(17)),
@@ -159,6 +171,8 @@ func TestSeriesRowStaysCorrect(t *testing.T) {
 }
 
 func TestProtectedPredecessorEnrollments(t *testing.T) {
+	t.Parallel()
+
 	requestChildID := int64(4242)
 	protectedByRequest := &activitiesModel.StudentEnrollment{
 		StudentID:                101,
@@ -187,6 +201,8 @@ func TestProtectedPredecessorEnrollments(t *testing.T) {
 }
 
 func TestInt64SetDropsNonPositiveIDs(t *testing.T) {
+	t.Parallel()
+
 	set := int64Set([]int64{101, 0, -3, 101})
 	assert.Len(t, set, 1)
 	_, ok := set[101]

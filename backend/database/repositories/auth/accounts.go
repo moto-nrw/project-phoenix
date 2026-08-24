@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -17,6 +18,40 @@ const (
 	accountTable      = "auth.accounts"
 	accountTableAlias = `auth.accounts AS "account"`
 )
+
+func accountMembershipScope(ctx context.Context) (string, []any) {
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		organizationID := tenant.OrgFromContext(ctx)
+		if organizationID == 0 {
+			return "FALSE", nil
+		}
+		return `EXISTS (
+			SELECT 1
+			FROM auth.account_tenants AS "account_tenant"
+			INNER JOIN platform.schools AS "school" ON "school".id = "account_tenant".tenant_id
+			WHERE "account_tenant".account_id = "account".id
+			  AND "account_tenant".status = ?
+			  AND "school".organization_id = ?
+			  AND "school".active = TRUE
+			  AND "school".deleted_at IS NULL
+		)`, []any{auth.AccountTenantStatusActive, organizationID}
+	}
+	if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+		return "", nil
+	}
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID == 0 {
+		return "FALSE", nil
+	}
+	return `EXISTS (
+		SELECT 1
+		FROM auth.account_tenants AS "account_tenant"
+		WHERE "account_tenant".account_id = "account".id
+		  AND "account_tenant".tenant_id = ?
+		  AND "account_tenant".status = ?
+	)`, []any{tenantID, auth.AccountTenantStatusActive}
+}
 
 // EffectiveAdminExistsSQL builds the SQL predicate that decides whether an
 // account holds effective admin scope within one tenant: the literal admin
@@ -122,6 +157,28 @@ func NewAccountRepository(db *bun.DB) auth.AccountRepository {
 		Repository: base.NewRepository[*auth.Account](db, accountTable, "Account"),
 		db:         db,
 	}
+}
+
+// FindManageableByID restricts account administration to active memberships
+// in the tenant or organization from the caller's context. Platform and admin
+// contexts keep the global lookup used by operator flows.
+func (r *AccountRepository) FindManageableByID(ctx context.Context, id int64) (*auth.Account, error) {
+	predicate, args := accountMembershipScope(ctx)
+	if predicate == "" {
+		return r.FindByID(ctx, id)
+	}
+
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id).
+		Where(predicate, args...).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+	}
+	return account, nil
 }
 
 // FindByEmail retrieves an account by email address
@@ -407,39 +464,45 @@ func (r *AccountRepository) UpdateAvatar(ctx context.Context, id int64, avatar s
 	return err
 }
 
-// FindByRole retrieves accounts that have a specific role
-func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
-	var accounts []*auth.Account
-
-	// Use a SQL JOIN to retrieve accounts with the specified role
-	// This assumes your account_roles table exists and has the proper foreign keys
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&accounts).
-		ModelTableExpr(accountTableAlias).
-		Join(`JOIN auth.account_roles ar ON ar.account_id = "account".id`).
-		Join(`JOIN auth.roles r ON ar.role_id = r.id`).
-		Where("LOWER(r.name) = LOWER(?)", role).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by role",
-			Err: err,
-		}
-	}
-
-	return accounts, nil
+// List retrieves accounts matching the provided filters without applying an
+// account-management boundary. Internal authentication flows remain global.
+func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
+	return r.list(ctx, filters, false)
 }
 
-// List retrieves accounts matching the provided filters
-func (r *AccountRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
+// ListManageable lists only accounts the caller may administer.
+func (r *AccountRepository) ListManageable(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error) {
+	return r.list(ctx, filters, true)
+}
+
+// FindByRole retrieves manageable accounts that hold a named role in the
+// caller's tenant or organization.
+func (r *AccountRepository) FindByRole(ctx context.Context, role string) ([]*auth.Account, error) {
+	if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+		var accounts []*auth.Account
+		err := tenant.WithAdminTx(modelBase.ContextWithoutTx(ctx), r.db, func(adminCtx context.Context, _ bun.Tx) error {
+			var err error
+			accounts, err = r.list(adminCtx, map[string]interface{}{"role": role}, true)
+			return err
+		})
+		return accounts, err
+	}
+	return r.list(ctx, map[string]interface{}{"role": role}, true)
+}
+
+func (r *AccountRepository) list(ctx context.Context, filters map[string]interface{}, manageable bool) ([]*auth.Account, error) {
 	var accounts []*auth.Account
 	query := base.GetDB(ctx, r.db).NewSelect().Model(&accounts).ModelTableExpr(accountTableAlias)
+	if manageable {
+		if predicate, args := accountMembershipScope(ctx); predicate != "" {
+			query = query.Where(predicate, args...)
+		}
+	}
 
 	// Apply filters
 	for field, value := range filters {
 		if value != nil {
-			query = r.applyAccountFilter(query, field, value)
+			query = r.applyAccountFilter(ctx, query, field, value)
 		}
 	}
 
@@ -455,7 +518,7 @@ func (r *AccountRepository) List(ctx context.Context, filters map[string]interfa
 }
 
 // applyAccountFilter applies a single filter to the query
-func (r *AccountRepository) applyAccountFilter(query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
+func (r *AccountRepository) applyAccountFilter(ctx context.Context, query *bun.SelectQuery, field string, value interface{}) *bun.SelectQuery {
 	switch field {
 	case "email":
 		return r.applyStringEqualFilter(query, "email", value)
@@ -468,7 +531,7 @@ func (r *AccountRepository) applyAccountFilter(query *bun.SelectQuery, field str
 	case "active":
 		return query.Where("active = ?", value)
 	case "role":
-		return r.applyRoleFilter(query, value)
+		return r.applyRoleFilter(ctx, query, value)
 	default:
 		return query.Where("? = ?", bun.Ident(field), value)
 	}
@@ -491,12 +554,33 @@ func (r *AccountRepository) applyStringLikeFilter(query *bun.SelectQuery, field 
 }
 
 // applyRoleFilter applies role-based filtering
-func (r *AccountRepository) applyRoleFilter(query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
+func (r *AccountRepository) applyRoleFilter(ctx context.Context, query *bun.SelectQuery, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.
-			Join("JOIN auth.account_roles ar ON ar.account_id = account.id").
-			Join("JOIN auth.roles r ON ar.role_id = r.id").
-			Where("LOWER(r.name) = LOWER(?)", strValue)
+		query = query.
+			Join(`JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "account".id`).
+			Join(`JOIN auth.roles AS "role" ON "account_role".role_id = "role".id`).
+			Where(`LOWER("role".name) = LOWER(?)`, strValue).
+			Distinct()
+		if tenant.ScopeFromContext(ctx) == tenant.ScopeOrg {
+			organizationID := tenant.OrgFromContext(ctx)
+			if organizationID == 0 {
+				return query.Where("FALSE")
+			}
+			return query.
+				Join(`INNER JOIN platform.schools AS "role_school" ON "role_school".id = "account_role".tenant_id`).
+				Join(`INNER JOIN auth.account_tenants AS "role_account_tenant" ON "role_account_tenant".account_id = "account_role".account_id AND "role_account_tenant".tenant_id = "account_role".tenant_id`).
+				Where(`"role_school".organization_id = ?`, organizationID).
+				Where(`"role_school".active = TRUE`).
+				Where(`"role_school".deleted_at IS NULL`).
+				Where(`"role_account_tenant".status = ?`, auth.AccountTenantStatusActive)
+		}
+		if tenant.IsAdminTx(ctx) || tenant.ScopeFromContext(ctx) == tenant.ScopePlatform {
+			return query
+		}
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			return query.Where(`"account_role".tenant_id = ?`, tenantID)
+		}
+		return query.Where("FALSE")
 	}
 	return query
 }
@@ -730,8 +814,18 @@ func (r *AccountRepository) mergePermissions(directPermissions, rolePermissions 
 	return allPermissions
 }
 
-// Update overrides the base Update method to handle email normalization
+// Update overrides the base Update method to handle email normalization.
 func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) error {
+	return r.update(ctx, account, false)
+}
+
+// UpdateManageable atomically applies the account-management membership
+// predicate to the write as well as its preceding read.
+func (r *AccountRepository) UpdateManageable(ctx context.Context, account *auth.Account) error {
+	return r.update(ctx, account, true)
+}
+
+func (r *AccountRepository) update(ctx context.Context, account *auth.Account, manageable bool) error {
 	if account == nil {
 		return fmt.Errorf("account cannot be nil")
 	}
@@ -742,19 +836,33 @@ func (r *AccountRepository) Update(ctx context.Context, account *auth.Account) e
 	}
 
 	// Execute the query using GetDB for transaction support
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
+	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model(account).
-		Where(whereID, account.ID).
-		ModelTableExpr(accountTable).
-		Exec(ctx)
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, account.ID)
+	if manageable {
+		if predicate, args := accountMembershipScope(ctx); predicate != "" {
+			query = query.Where(predicate, args...)
+		}
+	}
+
+	result, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "update",
 			Err: err,
 		}
 	}
-
-	return nil
+	if manageable {
+		affected, rowsErr := result.RowsAffected()
+		if rowsErr != nil {
+			return &modelBase.DatabaseError{Op: "update account", Err: rowsErr}
+		}
+		if affected == 0 {
+			return &modelBase.DatabaseError{Op: "update account", Err: sql.ErrNoRows}
+		}
+	}
+	return base.AssertRowsAffected(result, 1, "update account")
 }
 
 // AnonymizeForDeletion overwrites the account's email with the given

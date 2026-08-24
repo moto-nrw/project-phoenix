@@ -4,10 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestAccount_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		account Account
@@ -68,6 +71,8 @@ func TestAccount_Validate(t *testing.T) {
 //   - database/repositories/auth (atomic counter mutations)
 
 func TestAccount_SetLastLogin(t *testing.T) {
+	t.Parallel()
+
 	account := Account{
 		Email: "test@example.com",
 	}
@@ -85,6 +90,8 @@ func TestAccount_SetLastLogin(t *testing.T) {
 }
 
 func TestAccount_IsActive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		active   bool
@@ -117,6 +124,8 @@ func TestAccount_IsActive(t *testing.T) {
 }
 
 func TestAccount_HashPIN(t *testing.T) {
+	t.Parallel()
+
 	account := &Account{
 		Email: "test@example.com",
 	}
@@ -143,6 +152,8 @@ func TestAccount_HashPIN(t *testing.T) {
 }
 
 func TestAccount_VerifyPIN(t *testing.T) {
+	t.Parallel()
+
 	account := &Account{
 		Email: "test@example.com",
 	}
@@ -172,6 +183,8 @@ func TestAccount_VerifyPIN(t *testing.T) {
 }
 
 func TestAccount_HasPIN(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		pinHash  *string
@@ -184,12 +197,12 @@ func TestAccount_HasPIN(t *testing.T) {
 		},
 		{
 			name:     "empty PIN hash",
-			pinHash:  base.StringPtr(""),
+			pinHash:  ptrtest.Ptr(""),
 			expected: false,
 		},
 		{
 			name:     "valid PIN hash",
-			pinHash:  base.StringPtr("$argon2id$v=19$somehash"),
+			pinHash:  ptrtest.Ptr("$argon2id$v=19$somehash"),
 			expected: true,
 		},
 	}
@@ -209,6 +222,8 @@ func TestAccount_HasPIN(t *testing.T) {
 }
 
 func TestAccount_GetID(t *testing.T) {
+	t.Parallel()
+
 	account := &Account{
 		Model: base.Model{ID: 42},
 		Email: "test@example.com",
@@ -221,6 +236,8 @@ func TestAccount_GetID(t *testing.T) {
 }
 
 func TestAccount_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	account := &Account{
 		Model: base.Model{CreatedAt: now},
@@ -233,6 +250,8 @@ func TestAccount_GetCreatedAt(t *testing.T) {
 }
 
 func TestAccount_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	account := &Account{
 		Model: base.Model{UpdatedAt: now},

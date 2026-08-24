@@ -8,6 +8,8 @@ import (
 )
 
 func TestRoomRequestBindCapacity(t *testing.T) {
+	t.Parallel()
+
 	request := httptest.NewRequest("POST", "/rooms", nil)
 
 	t.Run("allows an omitted capacity", func(t *testing.T) {

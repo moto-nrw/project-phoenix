@@ -18,6 +18,8 @@ import (
 // same student_id+date key. The tenant check runs before any DB access, so this
 // needs no database.
 func TestLockCareExceptionDay_RequiresTenant(t *testing.T) {
+	t.Parallel()
+
 	err := scheduleService.LockCareExceptionDay(context.Background(), nil, 123, timezone.TodayDate())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tenant id is required")

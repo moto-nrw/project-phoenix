@@ -61,14 +61,12 @@ type listSetup struct {
 func buildListSetup(t *testing.T) *listSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("List-Room-%d", suffix))
 
 	cleanup := func() {
-		testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 	}
 
 	res := NewResource(Dependencies{
@@ -120,6 +118,8 @@ func listFutureDate(offsetDays int) (string, timezone.Date) {
 }
 
 func TestListInstances_Empty(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 	router := listRouter(s.ctx, s.res)
@@ -136,6 +136,8 @@ func TestListInstances_Empty(t *testing.T) {
 }
 
 func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *testing.T) {
+	t.Parallel()
+
 	sourceID := time.Now().UnixNano()
 	serviceStart := timezone.NewDate(2026, 8, 13)
 	resource := NewResource(Dependencies{OfferingSourceOptions: &stubOfferingSourceLister{
@@ -181,12 +183,11 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 }
 
 func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
+	t.Parallel()
+
 	s := buildTemplateSetup(t, &mockMaterializationService{})
 	defer s.cleanupFn()
 	period := createTemplateTestPeriod(t, s.db, "Tpl-Empty-Reason-Period")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
-	})
 	roomID := s.roomID
 	sourceID := time.Now().UnixNano()
 	group := &activitiesModels.Group{
@@ -202,17 +203,16 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 		TargetGroupType:       activitiesModels.TargetGroupTypeAngebot,
 		SourceCareOfferingIDs: []int64{sourceID},
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	repoFactory := repositories.NewFactory(s.db)
 	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
 
 	date := timezone.NewDate(2026, 8, 10)
-	instance := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
 		Title:            group.Name,
 		ActivityGroupID:  &group.ID,
 		CalendarPeriodID: &period.ID,
 	})
-	defer testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instance.ID)
 	s.res.OfferingSourceOptions = &stubOfferingSourceLister{options: []enrollmentSvc.OfferingSourceOption{{
 		ID:                sourceID,
 		PhaseName:         "Schuljahr 2026/27",
@@ -231,6 +231,8 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 }
 
 func TestListInstances_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -240,7 +242,6 @@ func TestListInstances_HappyPath(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "12:00", EndHHMM: "12:50", Title: "Mensa-List-Test",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -270,6 +271,8 @@ func TestListInstances_HappyPath(t *testing.T) {
 }
 
 func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -277,18 +280,13 @@ func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
 	to, _ := listFutureDate(7)
 	template := testpkg.CreateTestActivityGroup(t, s.db, fmt.Sprintf("List-Live-Template-%d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, s.db, tenant.FromContext(s.ctx), template.ID, s.roomID)
-	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &template.ID,
 		ActiveGroupID:   &activeGroup.ID,
 		Status:          schedule.InstanceStatusCompleted,
 		StartHHMM:       "12:00",
 		EndHHMM:         "13:00",
 		Title:           "Completed historical bridge",
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, template.ID)
 	})
 
 	router := listRouter(s.ctx, s.res)
@@ -302,6 +300,8 @@ func TestListInstances_CompletedBridgeIsNotLive(t *testing.T) {
 }
 
 func TestListInstances_StaffAndStudentCounts(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -311,7 +311,6 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:00", EndHHMM: "14:00", Title: "Lernzeit-List-Test",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	staff1 := testpkg.CreateTestStaff(t, s.db, "Mueller", fmt.Sprintf("ListA-%d", suffix))
@@ -319,17 +318,13 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	student1 := testpkg.CreateTestStudent(t, s.db, "Anna", fmt.Sprintf("Pupil-%d-A", suffix), "1a")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Ben", fmt.Sprintf("Pupil-%d-B", suffix), "1a")
 
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
-	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
-	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
-
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, student1.ID, staff1.ID, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, student2.ID, staff2.ID, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	sickAbsenceID := sickRow.ID
+	sickRow.SickAbsenceID = &sickAbsenceID
+	require.NoError(t, repositories.NewFactory(s.db).InstanceStaff.Update(s.ctx, sickRow))
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -353,6 +348,7 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	assert.True(t, staffByID[staff1.ID].IsPrimary)
 	assert.False(t, staffByID[staff1.ID].IsAbsent)
 	assert.True(t, staffByID[staff2.ID].IsAbsent)
+	assert.True(t, staffByID[staff2.ID].IsSickAbsence)
 	assert.ElementsMatch(t, []int64{student1.ID, student2.ID}, item.StudentIDs)
 	require.Len(t, item.Students, 2)
 	studentByID := map[int64]instanceStudentSummary{}
@@ -376,6 +372,8 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 // the two completion paths write it, so anything else (a reset through the
 // attendance PATCH) has to keep counting as a real expectation.
 func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -386,22 +384,15 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 		Status:    schedule.InstanceStatusCompleted,
 		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Completed-Freeze-Test",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	student1 := testpkg.CreateTestStudent(t, s.db, "Frozen", fmt.Sprintf("Marker-%d-A", suffix), "2b")
 	student2 := testpkg.CreateTestStudent(t, s.db, "Was", fmt.Sprintf("There-%d-B", suffix), "2b")
 	student3 := testpkg.CreateTestStudent(t, s.db, "Reset", fmt.Sprintf("Expected-%d-C", suffix), "2b")
-	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected,
 		testpkg.InstanceStudentOpts{NotScheduled: true})
-	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
-	is3 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student3.ID, schedule.AttendanceStatusExpected)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID, is3.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, student1.ID, 0, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, student2.ID, 0, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, student3.ID, 0, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student3.ID, schedule.AttendanceStatusExpected)
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -474,6 +465,8 @@ func (s stubListCareDays) ResolveForRange(
 // A manual absence on the same unbooked day is the counter-case: somebody
 // decided it (student_status_day_id is NULL), so it stays an absence.
 func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -483,7 +476,6 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "StatusDay-Unbooked-Test",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	sickUnbooked := testpkg.CreateTestStudent(t, s.db, "Krank", fmt.Sprintf("Unbooked-%d-A", suffix), "3c")
@@ -492,18 +484,11 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickUnbooked.ID, fromDate, activeModels.StudentStatusDaySick)
 	bookedStatusDay := testpkg.CreateTestStudentStatusDay(t, s.db, sickBooked.ID, fromDate, activeModels.StudentStatusDaySick)
-	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickUnbooked.ID, schedule.AttendanceStatusAbsent,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickUnbooked.ID, schedule.AttendanceStatusAbsent,
 		testpkg.InstanceStudentOpts{StudentStatusDayID: &statusDay.ID})
-	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, manualUnbooked.ID, schedule.AttendanceStatusAbsent)
-	is3 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickBooked.ID, schedule.AttendanceStatusAbsent,
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, manualUnbooked.ID, schedule.AttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, sickBooked.ID, schedule.AttendanceStatusAbsent,
 		testpkg.InstanceStudentOpts{StudentStatusDayID: &bookedStatusDay.ID})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID, is3.ID)
-		testpkg.CleanupStudentStatusDays(t, s.db, statusDay.ID, bookedStatusDay.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, sickUnbooked.ID, 0, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, manualUnbooked.ID, 0, 0, 0, 0)
-		testpkg.CleanupActivityFixtures(t, s.db, sickBooked.ID, 0, 0, 0, 0)
-	})
 
 	s.res.CareDayService = stubListCareDays{notScheduled: map[int64]bool{
 		sickUnbooked.ID:   true,
@@ -535,6 +520,8 @@ func TestListInstances_StatusDayAbsenceOnUnbookedDayReadsAsNotScheduled(t *testi
 }
 
 func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -553,17 +540,11 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	instB := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:30", EndHHMM: "15:30", Title: "Window-Conflict-B",
 	})
-	instAdjacent := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:30", EndHHMM: "16:30", Title: "Window-Adjacent",
 	})
-	rowA := testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, student.ID, "")
-	rowB := testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, student.ID, "")
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", rowA.ID, rowB.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", instA.ID, instB.ID, instAdjacent.ID)
-		testpkg.CleanupActivityFixtures(t, s.db, student.ID, 0, 0, 0, 0)
-	})
+	testpkg.CreateTestInstanceStudent(t, s.db, instA.ID, student.ID, "")
+	testpkg.CreateTestInstanceStudent(t, s.db, instB.ID, student.ID, "")
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -596,6 +577,8 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 }
 
 func TestListInstances_DateValidation(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 	router := listRouter(s.ctx, s.res)
@@ -620,6 +603,8 @@ func TestListInstances_DateValidation(t *testing.T) {
 }
 
 func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{})
 	got, err := res.enforcePlannedEnd(context.Background())
 	require.NoError(t, err)
@@ -627,6 +612,8 @@ func TestEnforcePlannedEndDefaultsTrue(t *testing.T) {
 }
 
 func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
+	t.Parallel()
+
 	res := NewResource(Dependencies{
 		SettingsService: &configtest.Mock{
 			ResolveBoolFn: func(context.Context, string) (bool, error) {
@@ -639,6 +626,8 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 }
 
 func TestListInstances_IsLive(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -655,7 +644,7 @@ func TestListInstances_IsLive(t *testing.T) {
 		CategoryID:      category.ID,
 		CreatedBy:       &staff.ID,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().
 		Model(group).
 		ModelTableExpr(`activities.groups AS "group"`).
@@ -663,20 +652,12 @@ func TestListInstances_IsLive(t *testing.T) {
 	require.NoError(t, err)
 
 	activeGroup := testpkg.CreateTestActiveGroup(t, s.db, group.ID, s.roomID)
-	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM:     "10:00",
 		EndHHMM:       "11:00",
 		Title:         "Live-Test",
 		Status:        schedule.InstanceStatusActive,
 		ActiveGroupID: &activeGroup.ID,
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, s.db, "active.groups", activeGroup.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
 	})
 
 	router := listRouter(s.ctx, s.res)
@@ -691,6 +672,8 @@ func TestListInstances_IsLive(t *testing.T) {
 }
 
 func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -700,17 +683,14 @@ func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
 	day2 := fromDate.AddDays(1)
 
 	// Insert in non-chronological order to exercise the repo's ORDER BY.
-	inst3 := testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, day2, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Day2-12",
 	})
-	inst1 := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Day1-12",
 	})
-	inst2 := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Day1-14",
-	})
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID, inst3.ID)
 	})
 
 	router := listRouter(s.ctx, s.res)
@@ -725,6 +705,8 @@ func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
 }
 
 func TestListInstances_CapacityFields(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -742,34 +724,25 @@ func TestListInstances_CapacityFields(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "13:00", EndHHMM: "14:00", Title: "Capacity-List-Test",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	suffix := time.Now().UnixNano()
 	staff1 := testpkg.CreateTestStaff(t, s.db, "Assigned", fmt.Sprintf("CapA-%d", suffix))
 	staff2 := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("CapB-%d", suffix))
-	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
-	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	// 5 children (3 expected + 2 present) at a ratio of 2 -> ceil(5/2) = 3
 	// required staff, against 1 actually assigned (staff2 is absent) -> understaffed.
 	personIDs := []int64{staff1.ID, staff2.ID}
-	instanceStudentIDs := make([]int64, 0, 5)
 	for i := 0; i < 5; i++ {
 		status := schedule.AttendanceStatusExpected
 		if i%2 == 0 {
 			status = schedule.AttendanceStatusPresent
 		}
 		student := testpkg.CreateTestStudent(t, s.db, "Cap", fmt.Sprintf("Cap-%d-%d", suffix, i), "1a")
-		is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, status)
+		testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, status)
 		personIDs = append(personIDs, student.ID)
-		instanceStudentIDs = append(instanceStudentIDs, is.ID)
 	}
-
-	t.Cleanup(func() {
-		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
-		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", instanceStudentIDs...)
-		testpkg.CleanupActivityFixtures(t, s.db, personIDs...)
-	})
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -786,6 +759,8 @@ func TestListInstances_CapacityFields(t *testing.T) {
 // Wochennotiz on a template is joined onto every instance at read time
 // (series_notes), independently of the per-occurrence Tagesnotiz (notes).
 func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
@@ -805,7 +780,7 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 		IsTemplate:      true,
 		Notes:           &seriesNote,
 	}
-	group.SetTenantID(1)
+	group.SetTenantID(testpkg.Tenant(t))
 	_, err := s.db.NewInsert().Model(group).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
 	require.NoError(t, err)
 
@@ -823,17 +798,9 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Set("notes = ?", dayNote).
 		Where(`"activity_instance".id = ?`, inst.ID).
-		Where(`"activity_instance".tenant_id = ?`, 1).
+		Where(`"activity_instance".tenant_id = ?`, testpkg.Tenant(t)).
 		Exec(s.ctx)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
-		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
-	})
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
@@ -851,16 +818,17 @@ func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
 // TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose
 // template carries no Wochennotiz omits series_notes.
 func TestListInstances_NoSeriesNotesWhenTemplateHasNone(t *testing.T) {
+	t.Parallel()
+
 	s := buildListSetup(t)
 	defer s.cleanupFn()
 
 	from, fromDate := listFutureDate(1)
 	to, _ := listFutureDate(7)
 
-	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+	testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "12:00", EndHHMM: "12:50", Title: "Spontan",
 	})
-	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	router := listRouter(s.ctx, s.res)
 	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))

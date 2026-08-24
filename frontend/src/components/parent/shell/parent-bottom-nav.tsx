@@ -17,7 +17,7 @@ import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
 import { ChevronRight } from "lucide-react";
 import { isParentNavActive } from "./parent-nav-active";
-import { ParentNavIcon } from "./parent-nav-icon";
+import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
   PARENT_MORE_BADGE_SOURCES,
   PARENT_MORE_ENTRY,
@@ -178,7 +178,7 @@ export function ParentBottomNav({
                       className={`${ITEM} ${active ? ITEM_ACTIVE : ITEM_IDLE}`}
                     >
                       <span className="relative">
-                        <ParentNavIcon
+                        <MotoNavIcon
                           concept={item.concept}
                           iconConcept={
                             item.key === "children" && childCount !== 1
@@ -216,7 +216,7 @@ export function ParentBottomNav({
                   className={`${ITEM} ${moreActive ? ITEM_ACTIVE : ITEM_IDLE}`}
                 >
                   <span className="relative">
-                    <ParentNavIcon
+                    <MotoNavIcon
                       concept={PARENT_MORE_ENTRY.concept}
                       active={moreActive}
                       className="h-5 w-5 shrink-0"
@@ -260,7 +260,7 @@ export function ParentBottomNav({
                         }}
                         className="flex w-full items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 text-left text-base font-medium text-gray-900 hover:bg-gray-100 active:bg-gray-200"
                       >
-                        <ParentNavIcon
+                        <MotoNavIcon
                           concept={item.concept}
                           active={false}
                           className="h-5 w-5 text-gray-600"
@@ -296,7 +296,7 @@ export function ParentBottomNav({
                           : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
                       }`}
                     >
-                      <ParentNavIcon
+                      <MotoNavIcon
                         concept={item.concept}
                         active={active}
                         className={`h-5 w-5 ${active ? "" : "text-gray-600"}`}

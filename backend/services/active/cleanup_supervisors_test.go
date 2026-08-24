@@ -26,11 +26,12 @@ func utcToday() time.Time {
 // TestCleanupStaleSupervisors_NoStaleRecords tests that cleanup works correctly
 // when there are no stale supervisor records to clean up.
 func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT: Run cleanup when there are no stale records
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -47,11 +48,12 @@ func TestCleanupStaleSupervisors_NoStaleRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_ClosesYesterdayRecords tests that stale supervisor
 // records from previous days without end_date are properly closed.
 func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Stale", "Supervisor")
@@ -64,16 +66,10 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 	var supervisorID int64
 	err := db.NewRaw(`
 		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
-		VALUES (?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id
-	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
+	`, staff.ID, activeGroup.ID, "supervisor", yesterday, testpkg.Tenant(t)).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create stale supervisor record")
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, activity.ID, room.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -103,11 +99,12 @@ func TestCleanupStaleSupervisors_ClosesYesterdayRecords(t *testing.T) {
 // TestCleanupStaleSupervisors_IgnoresTodayRecords tests that supervisor records
 // from today (with no end_date) are NOT closed — they are still active.
 func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures
 	staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
@@ -120,16 +117,10 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 	var supervisorID int64
 	err := db.NewRaw(`
 		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
-		VALUES (?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id
-	`, staff.ID, activeGroup.ID, "supervisor", today).Scan(ctx, &supervisorID)
+	`, staff.ID, activeGroup.ID, "supervisor", today, testpkg.Tenant(t)).Scan(ctx, &supervisorID)
 	require.NoError(t, err, "Failed to create today's supervisor record")
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, activity.ID, room.ID)
-	}()
 
 	// ACT: Run cleanup
 	_, err = cleanupService.CleanupStaleSupervisors(ctx)
@@ -152,11 +143,12 @@ func TestCleanupStaleSupervisors_IgnoresTodayRecords(t *testing.T) {
 // (visit_retention, manual, gdpr_request). The "supervisor_cleanup" type is logged
 // as an error in result.Errors but does not prevent the cleanup from completing.
 func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Audit", "Supervisor")
@@ -168,16 +160,10 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 	var supervisorID int64
 	err := db.NewRaw(`
 		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
-		VALUES (?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id
-	`, staff.ID, activeGroup.ID, "supervisor", yesterday).Scan(ctx, &supervisorID)
+	`, staff.ID, activeGroup.ID, "supervisor", yesterday, testpkg.Tenant(t)).Scan(ctx, &supervisorID)
 	require.NoError(t, err)
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, activity.ID, room.ID)
-	}()
 
 	// ACT: Run cleanup
 	result, err := cleanupService.CleanupStaleSupervisors(ctx)
@@ -209,11 +195,12 @@ func TestCleanupStaleSupervisors_SucceedsEvenWithAuditError(t *testing.T) {
 // TestPreviewSupervisorCleanup tests that preview correctly identifies stale
 // supervisor records without modifying data.
 func TestPreviewSupervisorCleanup(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	cleanupService := setupCleanupService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE: Create fixtures with a stale record
 	staff := testpkg.CreateTestStaff(t, db, "Preview", "Supervisor")
@@ -225,16 +212,10 @@ func TestPreviewSupervisorCleanup(t *testing.T) {
 	var supervisorID int64
 	err := db.NewRaw(`
 		INSERT INTO active.group_supervisors (staff_id, group_id, role, start_date, tenant_id)
-		VALUES (?, ?, ?, ?, 1)
+		VALUES (?, ?, ?, ?, ?)
 		RETURNING id
-	`, staff.ID, activeGroup.ID, "supervisor", twoDaysAgo).Scan(ctx, &supervisorID)
+	`, staff.ID, activeGroup.ID, "supervisor", twoDaysAgo, testpkg.Tenant(t)).Scan(ctx, &supervisorID)
 	require.NoError(t, err)
-
-	defer func() {
-		testpkg.CleanupTableRecords(t, db, "active.group_supervisors", supervisorID)
-		testpkg.CleanupTableRecords(t, db, "active.groups", activeGroup.ID)
-		testpkg.CleanupActivityFixtures(t, db, staff.ID, activity.ID, room.ID)
-	}()
 
 	// ACT: Preview cleanup
 	preview, err := cleanupService.PreviewSupervisorCleanup(ctx)

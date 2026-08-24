@@ -1,11 +1,8 @@
 package facilities_test
 
 import (
-	"context"
-	"fmt"
 	"log/slog"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -17,38 +14,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// cleanupWCArtifacts removes all WC-related database rows to ensure
-// hermetic test isolation.
-func cleanupWCArtifacts(t *testing.T, db *bun.DB) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE activity_group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.WCRoomName),
-	}
-	for _, stmt := range stmts {
-		if _, err := db.ExecContext(ctx, stmt); err != nil {
-			t.Logf("wc cleanup: %v (stmt: %s)", err, stmt)
-		}
-	}
-}
-
 // setupWCService creates a WC service with real database connection.
 func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db)
 
-	facilityService := facilitiesSvc.NewService(
-		repoFactory.Room,
-		repoFactory.ActiveGroup,
-	)
+	facilityService := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+		RoomRepo: repoFactory.Room, ActiveGroupRepo: repoFactory.ActiveGroup,
+	})
 
 	activityService, err := activitiesSvc.NewService(
 		repoFactory.ActivityCategory,
@@ -74,14 +48,12 @@ func setupWCService(t *testing.T, db *bun.DB) facilitiesSvc.WCService {
 // ============================================================================
 
 func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -97,14 +69,12 @@ func TestWCService_EnsureInfrastructure_CreatesAll(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT - First call creates infrastructure
 	group1, err := service.EnsureInfrastructure(ctx)
@@ -119,14 +89,12 @@ func TestWCService_EnsureInfrastructure_Idempotent(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -145,14 +113,12 @@ func TestWCService_EnsureInfrastructure_CreatesRoom(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
+	db := testpkg.SetupTestDB(t)
 
 	service := setupWCService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ACT
 	activityGroup, err := service.EnsureInfrastructure(ctx)
@@ -170,18 +136,16 @@ func TestWCService_EnsureInfrastructure_CreatesCategory(t *testing.T) {
 }
 
 func TestWCService_EnsureInfrastructure_ReuseExistingRoom(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
-	cleanupWCArtifacts(t, db)
-	defer cleanupWCArtifacts(t, db)
-
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// ARRANGE - Pre-create the WC room via raw SQL
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO facilities.rooms (tenant_id, name, capacity, category, color) VALUES (1, ?, ?, ?, ?)`,
-		constants.WCRoomName, constants.WCRoomCapacity, constants.WCCategoryName, constants.WCColor,
+		`INSERT INTO facilities.rooms (tenant_id, name, capacity, category, color) VALUES (?, ?, ?, ?, ?)`,
+		testpkg.Tenant(t), constants.WCRoomName, constants.WCRoomCapacity, constants.WCCategoryName, constants.WCColor,
 	)
 	require.NoError(t, err)
 

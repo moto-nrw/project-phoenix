@@ -15,6 +15,8 @@ import (
 // and reject invalid targets/values.
 
 func TestPersonFieldRaw(t *testing.T) {
+	t.Parallel()
+
 	bday := timezone.NewDate(2018, 5, 4)
 	person := &userModels.Person{FirstName: "Max", LastName: "Mustermann", Birthday: &bday}
 
@@ -44,6 +46,8 @@ func TestPersonFieldRaw(t *testing.T) {
 }
 
 func TestDecodeDepartureModes(t *testing.T) {
+	t.Parallel()
+
 	modes, err := decodeDepartureModes(json.RawMessage(`{"mon":["bus","pickup"]}`))
 	if err != nil {
 		t.Fatalf("valid decode = %v", err)
@@ -70,6 +74,8 @@ func TestDecodeDepartureModes(t *testing.T) {
 }
 
 func TestDepartureModesEqual(t *testing.T) {
+	t.Parallel()
+
 	a := userModels.AllowedDepartureModes{"mon": {userModels.DepartureBus, userModels.DeparturePickup}}
 	b := userModels.AllowedDepartureModes{"mon": {userModels.DepartureBus, userModels.DeparturePickup}}
 	if !departureModesEqual(a, b) {
@@ -91,6 +97,8 @@ func TestDepartureModesEqual(t *testing.T) {
 }
 
 func TestJSONRawEqual(t *testing.T) {
+	t.Parallel()
+
 	// Semantic equality: whitespace and key order do not matter.
 	if !jsonRawEqual(json.RawMessage(`{"a":1,"b":2}`), json.RawMessage(`{"b":2, "a":1}`)) {
 		t.Error("semantically equal JSON compared unequal")

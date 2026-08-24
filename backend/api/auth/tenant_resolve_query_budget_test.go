@@ -41,9 +41,11 @@ func (c *settingValuesQueryCounter) BeforeQuery(ctx context.Context, event *bun.
 
 func (*settingValuesQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
+// Deliberately NOT parallel: the test installs a query hook on the SHARED
+// package pool and asserts a query budget, so any test running beside it is
+// counted too.
 func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	t.Cleanup(func() { _ = db.Close() })
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)

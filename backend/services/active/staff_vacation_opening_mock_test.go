@@ -105,6 +105,8 @@ func voRequest() SetVacationOpeningRequest {
 // ============================================================================
 
 func TestValidateSetVacationOpening(t *testing.T) {
+	t.Parallel()
+
 	const (
 		staffID   = int64(41)
 		decidedBy = int64(42)
@@ -181,6 +183,8 @@ func TestValidateSetVacationOpening(t *testing.T) {
 // TestSetVacationOpening_CurrentYearGuardAlsoAppliesPerStaff pins the guard on
 // the route the per-person modal uses, not just on the pure validator.
 func TestSetVacationOpening_CurrentYearGuardAlsoAppliesPerStaff(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := voService(&voOpeningRepoMock{})
 	req := voRequest()
 	req.EffectiveDate = timezone.NewDate(timezone.TodayDate().Year-1, time.June, 1)
@@ -196,6 +200,8 @@ func TestSetVacationOpening_CurrentYearGuardAlsoAppliesPerStaff(t *testing.T) {
 // ============================================================================
 
 func TestSetVacationOpening_WithoutRepositoryFailsLoudly(t *testing.T) {
+	t.Parallel()
+
 	svc := &staffAbsenceService{absenceRepo: &absStaffAbsenceRepoMock{}}
 
 	_, err := svc.SetVacationOpening(context.Background(), 41, 42, voRequest())
@@ -205,6 +211,8 @@ func TestSetVacationOpening_WithoutRepositoryFailsLoudly(t *testing.T) {
 }
 
 func TestSetVacationOpening_RejectsSecondTakeoverForTheSameYear(t *testing.T) {
+	t.Parallel()
+
 	existing := &activeModels.StaffVacationOpening{EffectiveDate: timezone.TodayDate().AddDays(-30)}
 	svc, _, _ := voService(&voOpeningRepoMock{
 		getByStaffAndYearFunc: func(context.Context, int64, int) (*activeModels.StaffVacationOpening, error) {
@@ -219,6 +227,8 @@ func TestSetVacationOpening_RejectsSecondTakeoverForTheSameYear(t *testing.T) {
 }
 
 func TestSetVacationOpening_PropagatesRepositoryFailures(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.New("db down")
 
 	t.Run("lock", func(t *testing.T) {
@@ -260,6 +270,8 @@ func TestSetVacationOpening_PropagatesRepositoryFailures(t *testing.T) {
 // whole takeover rests on: the Jahresanspruch stays authoritative and the days
 // taken before the Stichtag are derived from it.
 func TestSetVacationOpening_DerivesTakenBeforeFromTheQuota(t *testing.T) {
+	t.Parallel()
+
 	var created *activeModels.StaffVacationOpening
 	svc, _, _ := voService(&voOpeningRepoMock{
 		createFunc: func(_ context.Context, opening *activeModels.StaffVacationOpening) error {
@@ -285,6 +297,8 @@ func TestSetVacationOpening_DerivesTakenBeforeFromTheQuota(t *testing.T) {
 // TestSetVacationOpening_RejectsADerivedValueTheModelWouldRefuse guards the
 // path where the entered rest is arithmetically impossible for the quota.
 func TestSetVacationOpening_RejectsADerivedValueTheModelWouldRefuse(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _ := voService(&voOpeningRepoMock{})
 	req := voRequest()
 	req.RemainingDays = -990
@@ -299,6 +313,8 @@ func TestSetVacationOpening_RejectsADerivedValueTheModelWouldRefuse(t *testing.T
 // ============================================================================
 
 func TestDeleteVacationOpening_WritesTombstoneBeforeDeleting(t *testing.T) {
+	t.Parallel()
+
 	opening := &activeModels.StaffVacationOpening{
 		StaffID:         41,
 		Year:            timezone.TodayDate().Year,
@@ -331,6 +347,8 @@ func TestDeleteVacationOpening_WritesTombstoneBeforeDeleting(t *testing.T) {
 }
 
 func TestDeleteVacationOpening_Rejects(t *testing.T) {
+	t.Parallel()
+
 	boom := errors.New("db down")
 	year := timezone.TodayDate().Year
 
@@ -433,6 +451,8 @@ func TestDeleteVacationOpening_Rejects(t *testing.T) {
 // ============================================================================
 
 func TestGetVacationOpening(t *testing.T) {
+	t.Parallel()
+
 	t.Run("requires a staff id", func(t *testing.T) {
 		svc, _, _ := voService(&voOpeningRepoMock{})
 
@@ -455,6 +475,8 @@ func TestGetVacationOpening(t *testing.T) {
 // booked takeover must block a later vacation absence that would land before
 // its Stichtag (those days are part of the entered Resturlaub already).
 func TestRejectVacationBeforeOpening(t *testing.T) {
+	t.Parallel()
+
 	year := timezone.TodayDate().Year
 	cutoff := timezone.NewDate(year, time.June, 8) // Monday
 
@@ -539,6 +561,8 @@ func TestRejectVacationBeforeOpening(t *testing.T) {
 // TestRejectVacationAbsencesBefore covers the forward guard: declined and
 // canceled absences do not count, an approved one before the Stichtag does.
 func TestRejectVacationAbsencesBefore(t *testing.T) {
+	t.Parallel()
+
 	year := timezone.TodayDate().Year
 	cutoff := timezone.NewDate(year, time.June, 8) // Monday
 	friday := cutoff.AddDays(-3)
@@ -610,6 +634,8 @@ func TestRejectVacationAbsencesBefore(t *testing.T) {
 }
 
 func TestRejectVacationAbsencesBefore_PropagatesLookupFailures(t *testing.T) {
+	t.Parallel()
+
 	svc, absenceRepo, _ := voService(&voOpeningRepoMock{})
 	absenceRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StaffAbsence, error) {
 		return nil, errors.New("db down")

@@ -1,6 +1,7 @@
 import { createLogger } from "~/lib/logger";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
+  CareOfferingSelectionMode,
   PublicEnrollmentBootstrap,
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
@@ -129,6 +130,7 @@ export interface AdminChildDataCorrectionResult extends AdminEnrollmentChangeReq
 export interface UpdateAdminChildOfferingsInput {
   offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   reason: string;
+  completeWithdrawalConfirmed?: boolean;
 }
 
 export interface CorrectAdminChildDataInput {
@@ -193,6 +195,7 @@ export interface AdminRequestSummary {
   id: string;
   phase_id: string;
   phase_name: string;
+  care_offering_selection_mode: CareOfferingSelectionMode;
   guardian_first_name: string;
   guardian_last_name: string;
   guardian_email: string;
@@ -604,6 +607,7 @@ export async function updateAdminChildOfferings(
       child_id: childId,
       offerings: input.offerings,
       reason: input.reason,
+      complete_withdrawal_confirmed: input.completeWithdrawalConfirmed === true,
     }),
   });
   if (!response.ok) {

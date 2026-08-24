@@ -135,6 +135,9 @@ type UpdateChildOfferingsInput struct {
 	// target offerings in this one adjustment (#2370). The shared applier
 	// validates them against the same materialization it persists.
 	ExcludedAutoAddTargetIDs map[int64]bool
+	// CompleteWithdrawalConfirmed is the explicit confirmation shown only when
+	// an authoritative adjustment removes the child's final care day.
+	CompleteWithdrawalConfirmed bool
 }
 
 type SyncApprovedChildDataInput struct {
@@ -372,6 +375,12 @@ type PickupGuardianNotifier interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
 
+// CareWithdrawalReconciler persists or obsoletes the durable follow-up in the
+// same tenant transaction as the authoritative booking change.
+type CareWithdrawalReconciler interface {
+	ReconcileAuthoritativeBookingChange(ctx context.Context, change users.CareWithdrawalBookingChange) error
+}
+
 type DecisionServiceConfig struct {
 	RequestRepo              enrollmentModels.RequestRepository
 	RequestChildRepo         enrollmentModels.RequestChildRepository
@@ -390,8 +399,9 @@ type DecisionServiceConfig struct {
 	StudentRepo              users.StudentRepository
 	StudentGuardianRepo      users.StudentGuardianRepository
 	GuardianProfileRepo      users.GuardianProfileRepository
-	GuardianPhoneRepo        users.GuardianPhoneNumberRepository             // target: guardian.phone_numbers / contact.phone_numbers
-	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository  // target: schedule.pickup
+	GuardianPhoneRepo        users.GuardianPhoneNumberRepository            // target: guardian.phone_numbers / contact.phone_numbers
+	PickupScheduleRepo       scheduleModels.StudentPickupScheduleRepository // target: schedule.pickup
+	PickupBaselines          OfferingPickupBaselineReader
 	ArrivalScheduleRepo      scheduleModels.StudentArrivalScheduleRepository // target: schedule.arrival
 	StudentEnrollmentRepo    activities.StudentEnrollmentRepository
 	ActivityGroupRepo        activities.GroupRepository
@@ -405,6 +415,7 @@ type DecisionServiceConfig struct {
 	RoleRepo                 authModels.RoleRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	StudentAudit             StudentRolloverAuditor
+	CareWithdrawal           CareWithdrawalReconciler
 	// Broadcaster announces student_updated + student_companions_changed after
 	// an approved enrollment sync replaced a child's departure plan (the write
 	// that can trim "läuft mit" links). Nil-safe: without it the sync still
@@ -415,9 +426,10 @@ type DecisionServiceConfig struct {
 	FrontendURL            string                   // not used by parent-facing emails today; kept for future admin links
 	ParentsURL             string                   // status link in approved/waitlisted/rejected emails. Falls back to FrontendURL when empty.
 	Settings               DecisionSettingsResolver // resolves enrollment.default_activation_mode on approval; nil-safe (defaults to scheduled)
-	// LockTemplateRecurrence serializes sourced roster writes with template
-	// split/end/materialization. Production wires the schedule service's
-	// transaction-scoped tenant recurrence gate; tests may leave it nil.
+	// LockTemplateRecurrence serializes offering-derived writes: sourced roster
+	// changes, booking links, care-offering configuration, and manual-pickup
+	// reset preflights. Production wires the schedule service's transaction-
+	// scoped tenant recurrence gate; tests may leave it nil.
 	LockTemplateRecurrence func(context.Context) error
 	// InstanceRosters propagates sourced-roster resync results onto already-
 	// materialized future occurrences (#2147 review). Production wires the
@@ -1216,6 +1228,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
+	if input.Status == DecisionApproved {
+		if err := s.validateApprovalOfferingSelection(ctx, target, phase); err != nil {
+			return nil, err
+		}
+	}
 
 	reason := strings.TrimSpace(input.Reason)
 	var reasonPtr *string
@@ -1270,13 +1287,13 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return nil, ErrDecisionChildNotFound
 	}
 
-	// Materialize the Angebots-Gehzeiten AFTER the refresh: the re-read
-	// child carries the created_student_id the approval just stamped (#2290).
+	// Refresh projected-pickup consumers AFTER the re-read has the student id
+	// stamped by this approval.
 	if input.Status == DecisionApproved {
 		today := timezone.TodayDate()
 		if !phase.ServiceStartDate.After(today) {
-			if err := s.materializeOfferingPickupAfterApproval(ctx, target, input.ReviewedBy, today); err != nil {
-				return nil, fmt.Errorf("decision: materialize offering pickup times: %w", err)
+			if err := s.syncOfferingPickupAfterApproval(ctx, target); err != nil {
+				return nil, fmt.Errorf("decision: refresh offering pickup projection: %w", err)
 			}
 		}
 	}
@@ -1305,6 +1322,54 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = target
 	return outcome, nil
+}
+
+func (s *decisionService) validateApprovalOfferingSelection(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if !careOfferingsEnabled {
+		return nil
+	}
+	if phase.CareOfferingSelectionMode == "" ||
+		phase.CareOfferingSelectionMode == enrollmentModels.PhaseCareOfferingSelectionOptional {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
+		ctx,
+		child.ID,
+		phase.ServiceStartDate,
+	)
+	if err != nil {
+		return fmt.Errorf("decision: validate child offerings: %w", err)
+	}
+	offeringIDs := uniqueCareOfferingIDs(links)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDs)
+	if err != nil {
+		return fmt.Errorf("decision: list child offerings: %w", err)
+	}
+	choosableCount := 0
+	for _, offering := range offerings {
+		if offering != nil && offering.PhaseID == phase.ID && !offering.IsRequired {
+			choosableCount++
+		}
+	}
+	switch phase.CareOfferingSelectionMode {
+	case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
+		if choosableCount == 0 {
+			return ErrCareOfferingMissing
+		}
+	case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
+		if choosableCount != 1 {
+			return ErrCareOfferingExactlyOneRequired
+		}
+	}
+	return nil
 }
 
 func isParentVisibleDecision(status DecisionStatus) bool {
@@ -1928,6 +1993,9 @@ func (s *decisionService) attachApprovalToExistingStudent(
 		if err := s.materializeEnrollmentsForApproval(ctx, child.ID, studentID, phase); err != nil {
 			return nil, err
 		}
+		if err := s.reconcileExistingStudentCareRenewal(ctx, child.ID, studentID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -1941,6 +2009,43 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	// stays nil there) and whenever the account attach above already linked
 	// them.
 	return s.pendingGuardianInvite(guardian, reviewedBy, false), nil
+}
+
+// reconcileExistingStudentCareRenewal closes a stale complete-withdrawal task
+// when an approved renewal starts care on or before its first bookingless day.
+// It runs after materialization in the same tenant transaction, so the booking
+// and task cannot disagree if either write fails.
+func (s *decisionService) reconcileExistingStudentCareRenewal(
+	ctx context.Context,
+	requestChildID, studentID int64,
+	phase *enrollmentModels.Phase,
+) error {
+	if s.CareWithdrawal == nil {
+		return nil
+	}
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, phase.ServiceStartDate)
+	if err != nil {
+		return fmt.Errorf("decision: list renewed care offerings: %w", err)
+	}
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDsFromLinks(links))
+	if err != nil {
+		return fmt.Errorf("decision: load renewed care offerings: %w", err)
+	}
+	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	for _, offering := range offerings {
+		if offering != nil {
+			offeringByID[offering.ID] = offering
+		}
+	}
+	if !requestChildOfferingLinksHaveCareDays(links, offeringByID) {
+		return nil
+	}
+	if err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
+		StudentID: studentID, FirstBookinglessDay: phase.ServiceStartDate, HasCareDays: true,
+	}); err != nil {
+		return fmt.Errorf("decision: reconcile renewed care withdrawal: %w", err)
+	}
+	return nil
 }
 
 // renewedEnrollmentWindow decides the enrollment window an approval writes
@@ -2915,6 +3020,7 @@ func (s *decisionService) resyncMultiSourceTemplates(
 			TemplateID:           tmpl.ID,
 			OfferingIDs:          tmpl.SourceCareOfferingIDs,
 			GradeLevels:          tmpl.SourceGradeLevels,
+			SchoolClasses:        tmpl.SourceSchoolClasses,
 			CalendarPeriodID:     tmpl.CalendarPeriodID,
 			EffectiveFrom:        effectiveFrom,
 			ScopeRequestChildIDs: scopeRequestChildIDs,
@@ -3013,6 +3119,9 @@ func careDraftValidUntil(draft *careEnrollmentDraft, phase *enrollmentModels.Pha
 	if draft.linkValidUntil != nil && draft.linkValidUntil.Before(validUntil) {
 		validUntil = *draft.linkValidUntil
 	}
+	if draft.studentValidUntil != nil && draft.studentValidUntil.Before(validUntil) {
+		validUntil = *draft.studentValidUntil
+	}
 	return validUntil
 }
 
@@ -3051,6 +3160,10 @@ type careEnrollmentDraft struct {
 	// adjustment split instead.
 	linkValidFrom  *timezone.Date
 	linkValidUntil *timezone.Date
+	// studentValidUntil is the child's exclusive care end. Unlike link bounds,
+	// it also constrains the legacy feed, so a later resync cannot recreate
+	// rows after a completed care exit.
+	studentValidUntil *timezone.Date
 }
 
 func uniqueCareOfferingIDs(links []*enrollmentModels.RequestChildOffering) []int64 {
@@ -3077,7 +3190,7 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
-	gradeLevel, err := s.studentGradeLevel(ctx, studentID)
+	gradeLevel, studentValidUntil, err := s.studentCareDraftBounds(ctx, studentID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -3097,27 +3210,34 @@ func (s *decisionService) buildCareEnrollmentDrafts(
 			return nil, nil, err
 		}
 	}
+	for _, draft := range drafts {
+		draft.studentValidUntil = cloneOptionalDraftDate(studentValidUntil)
+	}
 	return drafts, multiSource, nil
 }
 
-// studentGradeLevel derives the child's Jahrgang for offering-source filters
-// (#2137). A missing student row or a class without a grade number yields nil
-// — grade-filtered templates then skip the child, unfiltered ones keep it.
-func (s *decisionService) studentGradeLevel(ctx context.Context, studentID int64) (*int16, error) {
+// studentCareDraftBounds derives the child's grade filter and exclusive care
+// end. A missing row yields open bounds for legacy compatibility.
+func (s *decisionService) studentCareDraftBounds(ctx context.Context, studentID int64) (*int16, *timezone.Date, error) {
 	if studentID <= 0 || s.StudentRepo == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		if modelBase.IsNoRows(err) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, fmt.Errorf("decision: load student for grade filter: %w", err)
+		return nil, nil, fmt.Errorf("decision: load student for care draft bounds: %w", err)
 	}
 	if student == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
-	return gradeLevelFromSchoolClass(student.SchoolClass), nil
+	var validUntil *timezone.Date
+	if student.EnrolledUntil != nil {
+		end := student.EnrolledUntil.AddDays(1)
+		validUntil = &end
+	}
+	return gradeLevelFromSchoolClass(student.SchoolClass), validUntil, nil
 }
 
 func (s *decisionService) addCareOfferingDrafts(
@@ -4210,31 +4330,30 @@ func (s *decisionService) dispatchWeekdaySchedule(ctx context.Context, raw any, 
 		if hhmm == "" {
 			continue
 		}
+		if !isPickup {
+			row := &scheduleModels.StudentArrivalSchedule{
+				StudentID: studentID,
+				Weekday:   weekdayInt[day],
+				CreatedBy: createdBy,
+			}
+			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
+				return fmt.Errorf("create arrival %s: %w", day, err)
+			}
+			continue
+		}
 		t, err := time.Parse("15:04", hhmm)
 		if err != nil {
 			return fmt.Errorf("parse %s time %q: %w", day, hhmm, err)
 		}
 		t = timezone.WallClock(t)
-		if isPickup {
-			row := &scheduleModels.StudentPickupSchedule{
-				StudentID:  studentID,
-				Weekday:    weekdayInt[day],
-				PickupTime: t,
-				CreatedBy:  createdBy,
-			}
-			if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
-				return fmt.Errorf("upsert pickup %s: %w", day, err)
-			}
-		} else {
-			row := &scheduleModels.StudentArrivalSchedule{
-				StudentID:       studentID,
-				Weekday:         weekdayInt[day],
-				ExpectedArrival: t,
-				CreatedBy:       createdBy,
-			}
-			if err := s.ArrivalScheduleRepo.Create(ctx, row); err != nil {
-				return fmt.Errorf("create arrival %s: %w", day, err)
-			}
+		row := &scheduleModels.StudentPickupSchedule{
+			StudentID:  studentID,
+			Weekday:    weekdayInt[day],
+			PickupTime: t,
+			CreatedBy:  createdBy,
+		}
+		if err := s.PickupScheduleRepo.UpsertSchedule(ctx, row); err != nil {
+			return fmt.Errorf("upsert pickup %s: %w", day, err)
 		}
 	}
 	return nil

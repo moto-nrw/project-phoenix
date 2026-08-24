@@ -4,11 +4,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
 
 func TestGroup_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		group   *Group
@@ -25,7 +28,7 @@ func TestGroup_Validate(t *testing.T) {
 			name: "valid group with room",
 			group: &Group{
 				Name:   "Class 2B",
-				RoomID: base.Int64Ptr(1),
+				RoomID: ptrtest.Ptr(int64(1)),
 			},
 			wantErr: false,
 		},
@@ -49,6 +52,8 @@ func TestGroup_Validate(t *testing.T) {
 }
 
 func TestGroup_Validate_Normalization(t *testing.T) {
+	t.Parallel()
+
 	group := &Group{Name: "  Class 1A  "}
 	err := group.Validate()
 	if err != nil {
@@ -60,6 +65,8 @@ func TestGroup_Validate_Normalization(t *testing.T) {
 }
 
 func TestGroup_SetRoom(t *testing.T) {
+	t.Parallel()
+
 	t.Run("set room", func(t *testing.T) {
 		group := &Group{Name: "Test Group"}
 		room := &facilities.Room{
@@ -98,6 +105,8 @@ func TestGroup_SetRoom(t *testing.T) {
 }
 
 func TestGroup_HasRoom(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		group    *Group
@@ -107,7 +116,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "has room",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(1),
+				RoomID: ptrtest.Ptr(int64(1)),
 			},
 			expected: true,
 		},
@@ -123,7 +132,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "zero room ID",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(0),
+				RoomID: ptrtest.Ptr(int64(0)),
 			},
 			expected: false,
 		},
@@ -140,6 +149,8 @@ func TestGroup_HasRoom(t *testing.T) {
 }
 
 func TestGroup_GetID(t *testing.T) {
+	t.Parallel()
+
 	group := &Group{
 		Model: base.Model{ID: 42},
 		Name:  "Test",
@@ -151,6 +162,8 @@ func TestGroup_GetID(t *testing.T) {
 }
 
 func TestGroup_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	group := &Group{
 		Model: base.Model{CreatedAt: now},
@@ -163,6 +176,8 @@ func TestGroup_GetCreatedAt(t *testing.T) {
 }
 
 func TestGroup_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	group := &Group{
 		Model: base.Model{UpdatedAt: now},

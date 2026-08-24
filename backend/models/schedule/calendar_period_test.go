@@ -10,6 +10,8 @@ import (
 )
 
 func TestCalendarPeriod_Validate(t *testing.T) {
+	t.Parallel()
+
 	anchor := timezone.NewDate(2025, 9, 1)
 
 	tests := []struct {
@@ -121,6 +123,8 @@ func TestCalendarPeriod_Validate(t *testing.T) {
 }
 
 func TestIsValidPeriodType(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, IsValidPeriodType(PeriodTypeSchoolYear))
 	assert.True(t, IsValidPeriodType(PeriodTypeSemester))
 	assert.True(t, IsValidPeriodType(PeriodTypeHoliday))
@@ -130,6 +134,8 @@ func TestIsValidPeriodType(t *testing.T) {
 }
 
 func TestCalendarPeriod_HasWeekCycle(t *testing.T) {
+	t.Parallel()
+
 	p := &CalendarPeriod{WeekCycleLength: 1}
 	assert.False(t, p.HasWeekCycle())
 
@@ -138,6 +144,8 @@ func TestCalendarPeriod_HasWeekCycle(t *testing.T) {
 }
 
 func TestCalendarPeriod_ContainsDate(t *testing.T) {
+	t.Parallel()
+
 	p := &CalendarPeriod{
 		StartDate: timezone.NewDate(2025, 8, 1),
 		EndDate:   timezone.NewDate(2026, 7, 31),
@@ -151,12 +159,16 @@ func TestCalendarPeriod_ContainsDate(t *testing.T) {
 }
 
 func TestCalendarPeriod_GetID(t *testing.T) {
+	t.Parallel()
+
 	p := &CalendarPeriod{}
 	p.ID = 42
 	assert.Equal(t, int64(42), p.GetID())
 }
 
 func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.CreatedAt = now
@@ -164,6 +176,8 @@ func TestCalendarPeriod_GetCreatedAt(t *testing.T) {
 }
 
 func TestCalendarPeriod_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	p := &CalendarPeriod{}
 	p.UpdatedAt = now

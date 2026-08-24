@@ -4,6 +4,7 @@ import { requirePathSegmentParam } from "~/lib/route-wrapper-utils.server";
 interface BackendExcusedRequest {
   id: string;
   student_id: string;
+  absence_status: string;
   status: string;
   dates: string[];
   note: string;
@@ -15,8 +16,8 @@ interface BackendExcusedRequest {
 
 /**
  * Proxy GET /api/parent/me/children/{studentId}/excused-requests → backend.
- * Returns the child's "entschuldigt" absence requests that went through the OGS
- * approval gate (pending + recently-decided), newest first. The route-wrapper
+ * Returns the child's sick and excused absence requests that went through the
+ * OGS approval gate (pending + recently-decided), newest first. The route-wrapper
  * injects the parent session token; the backend verifies the account is a
  * guardian of the child (account id from the JWT, never the URL).
  */

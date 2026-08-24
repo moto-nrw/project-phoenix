@@ -176,9 +176,10 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/admin/guardian-approvals")).toBe(
           "Konto-Anfragen",
         );
-        expect(getPageTitle("/admin/change-requests")).toBe(
-          "Änderungsanfragen",
-        );
+        // Alt-Route der Freigabeansicht: nur noch ein Redirect-Frame auf
+        // /anfragen (#2429); der Titel verhindert den "Home"-Blitzer.
+        expect(getPageTitle("/admin/change-requests")).toBe("Anfragen");
+        expect(getPageTitle("/anfragen")).toBe("Anfragen");
       });
 
       it("should return titles for recent staff navigation entries", () => {
@@ -188,7 +189,6 @@ describe("breadcrumb-utils", () => {
           "Mitteilungen und Umfragen",
         );
         expect(getPageTitle("/meal-plan")).toBe("Essensplan");
-        expect(getPageTitle("/suggestions")).toBe("Feedback");
       });
 
       it("should return titles for operator navigation entries", () => {
@@ -449,9 +449,9 @@ describe("breadcrumb-utils", () => {
           sectionHref: "/eltern",
           pageLabel: "Konto-Anfragen",
         });
-        expect(getSectionBreadcrumb("/admin/change-requests")?.pageLabel).toBe(
-          "Änderungsanfragen",
-        );
+        // /admin/change-requests ist kein Eltern-Katalogeintrag mehr — nur
+        // noch ein Redirect auf das Top-Level-Modul /anfragen (#2429).
+        expect(getSectionBreadcrumb("/admin/change-requests")).toBeNull();
         expect(getSectionBreadcrumb("/parent-announcements")?.pageLabel).toBe(
           "Mitteilungen und Umfragen",
         );

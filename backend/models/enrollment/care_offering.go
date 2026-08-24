@@ -42,8 +42,7 @@ var canonicalDayISOWeekday = map[string]int{
 
 // CanonicalDayToISOWeekday translates a stored day abbreviation ("mon") into
 // its ISO weekday number (1=Mon..7=Sun). Lives on the model so enrollment
-// materialization and the parents-portal read view cannot drift apart on the
-// mapping.
+// writes and the schedule projection cannot drift apart on the mapping.
 func CanonicalDayToISOWeekday(day string) (int, bool) {
 	weekday, ok := canonicalDayISOWeekday[strings.ToLower(strings.TrimSpace(day))]
 	return weekday, ok
@@ -77,6 +76,11 @@ var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
 // ErrCareOfferingDaysRequired marks the missing-weekday validation so the
 // HTTP layer can attach a stable error code for the admin editor (#1885).
 var ErrCareOfferingDaysRequired = errors.New("available_days must contain at least one day")
+
+// ErrCareOfferingPickupTimesRequired marks an active care offering whose
+// weekday plan has no unambiguous pickup time. The admin API maps it to a
+// stable client error code.
+var ErrCareOfferingPickupTimesRequired = errors.New("active care offering requires pickup_times for every weekday")
 
 const (
 	AvailabilityMatchAll = "all"
@@ -219,10 +223,10 @@ type CareOffering struct {
 	// parent must pick. See SelectionRule* constants.
 	SelectionGroup string `bun:"selection_group" json:"selection_group,omitempty"`
 	SelectionRule  string `bun:"selection_rule,notnull,default:'optional'" json:"selection_rule"`
-	// PickupTimes is the optional Angebots-Gehzeit per weekday
+	// PickupTimes is the booking-derived pickup baseline per weekday
 	// ({"mon":"14:30"}). Keys are canonical day codes within
-	// AvailableDays; values wall-clock HH:MM. Rolled out onto
-	// schedule.student_pickup_schedules (#2290, ADR 0001).
+	// AvailableDays; values are wall-clock HH:MM. The schedule service projects
+	// them through each booking's validity window (ADR 0001).
 	PickupTimes map[string]string `bun:"pickup_times,type:jsonb" json:"pickup_times,omitempty"`
 
 	// AutoAddTriggerOfferingIDs is loaded from
@@ -342,7 +346,7 @@ func normalizePickupTimes(times map[string]string, availableDays []string) (map[
 		if err != nil {
 			return nil, fmt.Errorf("pickup_times value for %q must be HH:MM, got %q", key, hhmm)
 		}
-		// Store canonically zero-padded: the Gehzeit reconciler's
+		// Store canonically zero-padded: the pickup projection's
 		// latest-wins rule compares these strings lexicographically, so
 		// "9:30" must become "09:30".
 		out[key] = parsed.Format("15:04")
@@ -518,12 +522,13 @@ type RequestChildOfferingRepository interface {
 	// returns an empty slice without a query.
 	ListApprovedChildrenByCareOfferingIDs(ctx context.Context, careOfferingIDs []int64, onOrAfter timezone.Date) ([]*ApprovedOfferingChild, error)
 
-	// ListApprovedByStudentIDsOnDate returns every offering link of an
-	// APPROVED request child resolved to one of the given students that is
-	// active on onDate (valid_from <= onDate and valid_until > onDate).
-	// Alumni are excluded. The Gehzeit reconciler (#2290) uses it to compute
-	// a student's desired offering-sourced pickup times.
-	ListApprovedByStudentIDsOnDate(ctx context.Context, studentIDs []int64, onDate timezone.Date) ([]*ApprovedOfferingChild, error)
+	// ListApprovedByStudentIDsInRange returns the approved offering links that
+	// overlap the inclusive calendar window [from, to]. Callers still apply the
+	// link's half-open [valid_from, valid_until) bounds per projected date.
+	// The custom repository query is required because generic filters cannot
+	// express its approved-child/student joins plus interval overlap. Empty
+	// input returns an empty slice without a query.
+	ListApprovedByStudentIDsInRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*ApprovedOfferingChild, error)
 
 	// CountActiveGradeLevelsByCareOfferingIDs groups the non-terminal
 	// bookings whose validity interval overlaps [from, until) by offering and

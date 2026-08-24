@@ -71,15 +71,15 @@ func hasGlobalPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
 // clients and must not be a global fan-out, which would make every other school
 // refetch student and care-plan data for a child it cannot read.
 func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupCast", "Teacher")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "PickupCast", "Teacher")
 	claims := testutil.AdminTestClaims(int(account.ID))
 
 	t.Run("weekly_schedule_update", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Weekly", "PC1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 		defer deletePickupSchedules(t, tc, student.ID)
 
 		tc.broadcaster.Reset()
@@ -99,7 +99,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 
 	t.Run("exception_create_update_delete", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Exception", "PC2")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 		defer deletePickupExceptions(t, tc, student.ID)
 
 		// Create
@@ -144,7 +143,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 	// header renders it next to the Gehzeit), so it goes stale the same way.
 	t.Run("day_note_create", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "PickupCast", "Note", "PC3")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 		defer deletePickupNotes(t, tc, student.ID)
 
 		tc.broadcaster.Reset()

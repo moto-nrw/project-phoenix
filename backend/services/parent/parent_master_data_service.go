@@ -136,6 +136,11 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to what
+	// happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {
@@ -160,6 +165,9 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	var out *ChildMasterData
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
 		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.guardianProfileID, studentID, child.tenantID, accountID, target, fieldKey, newStr)
 		if applyErr != nil {
 			return applyErr

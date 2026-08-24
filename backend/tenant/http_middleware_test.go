@@ -12,6 +12,8 @@ import (
 // TestTenantTxMiddleware_PassthroughWhenNoTenantID verifies that requests
 // without a tenant ID (e.g. platform scope) pass through without a tx.
 func TestTenantTxMiddleware_PassthroughWhenNoTenantID(t *testing.T) {
+	t.Parallel()
+
 	handlerCalled := false
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -38,6 +40,8 @@ func TestTenantTxMiddleware_PassthroughWhenNoTenantID(t *testing.T) {
 // path. Because we pass a nil *bun.DB, WithTenantTx panics (nil dereference
 // inside RunInTx). Catching that panic proves the tx-path was taken.
 func TestTenantTxMiddleware_AttemptsTransactionWhenTenantIDPresent(t *testing.T) {
+	t.Parallel()
+
 	handlerCalled := false
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -71,6 +75,8 @@ func TestTenantTxMiddleware_AttemptsTransactionWhenTenantIDPresent(t *testing.T)
 // TestStatusWriter_CapturesWriteHeader verifies the status writer captures
 // the first WriteHeader call.
 func TestStatusWriter_CapturesWriteHeader(t *testing.T) {
+	t.Parallel()
+
 	rec := httptest.NewRecorder()
 	sw := &statusWriterShim{ResponseWriter: rec}
 
@@ -85,6 +91,8 @@ func TestStatusWriter_CapturesWriteHeader(t *testing.T) {
 // TestStatusWriter_ImplicitOKOnWrite verifies implicit 200 when Write is
 // called without a prior WriteHeader.
 func TestStatusWriter_ImplicitOKOnWrite(t *testing.T) {
+	t.Parallel()
+
 	rec := httptest.NewRecorder()
 	sw := &statusWriterShim{ResponseWriter: rec}
 

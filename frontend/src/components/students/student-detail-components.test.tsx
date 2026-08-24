@@ -19,6 +19,11 @@ vi.mock("~/lib/tenant-router", () => ({
   useTenantRouter: () => ({ push: vi.fn() }),
 }));
 
+vi.mock("~/lib/student-companion-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/student-companion-api")>()),
+  fetchStudentCompanions: vi.fn(() => new Promise(() => undefined)),
+}));
+
 import {
   PersonIcon,
   ChevronDownIcon,
@@ -170,6 +175,25 @@ describe("StudentDetailHeader", () => {
       />,
     );
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
+  });
+
+  it("does not reserve desktop header margins on narrow screens", () => {
+    const { container } = render(
+      <StudentDetailHeader
+        student={mockStudent}
+        myGroups={[]}
+        myGroupRooms={[]}
+        mySupervisedRooms={[]}
+      />,
+    );
+
+    const identitySlot = container.querySelector(".flex.flex-1.items-center");
+    expect(identitySlot).toHaveClass("ml-0", "sm:ml-6");
+    expect(identitySlot).not.toHaveClass("ml-6");
+
+    const badgeSlot = container.querySelector(".flex-shrink-0.pb-3");
+    expect(badgeSlot).toHaveClass("mr-0", "sm:mr-4");
+    expect(badgeSlot).not.toHaveClass("mr-4");
   });
 
   // ---------------------------------------------------------------------------

@@ -66,6 +66,20 @@ export interface PhaseDeleteImpact {
   students_kept: number;
 }
 
+type PhaseExpiryState = "missing_successor" | "incomplete";
+
+export interface PhaseExpiryWarning {
+  source_phase_id: string;
+  source_phase_name: string;
+  successor_phase_id?: string;
+  successor_phase_name?: string;
+  first_affected_date: string;
+  affected_children: number;
+  unresolved_children: number;
+  state: PhaseExpiryState;
+  overdue: boolean;
+}
+
 export interface PhaseInput {
   name: string;
   kind: PhaseKind;
@@ -168,7 +182,7 @@ export async function setPhaseCalendarPeriod(
   });
 }
 
-async function getPhase(id: string): Promise<Phase> {
+export async function getPhase(id: string): Promise<Phase> {
   const response = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
     cache: "no-store",
   });
@@ -184,6 +198,20 @@ export async function listPhases(): Promise<Phase[]> {
     throw await readError(response, "Phasen konnten nicht geladen werden");
   }
   const list = await readJSON<Phase[]>(response);
+  return Array.isArray(list) ? list : [];
+}
+
+export async function listPhaseExpiryWarnings(): Promise<PhaseExpiryWarning[]> {
+  const response = await fetch(`${BASE}/expiry-warnings`, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Hinweise zum Phasenende konnten nicht geladen werden",
+    );
+  }
+  const list = await readJSON<PhaseExpiryWarning[]>(response);
   return Array.isArray(list) ? list : [];
 }
 

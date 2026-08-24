@@ -11,6 +11,8 @@ import (
 // bus_days is the source of truth and the legacy bus boolean is only an alias
 // that must never flatten an existing per-day selection.
 func TestApplyBusDays(t *testing.T) {
+	t.Parallel()
+
 	boolPtr := func(b bool) *bool { return &b }
 	daysPtr := func(d usersModel.BusDays) *usersModel.BusDays { return &d }
 

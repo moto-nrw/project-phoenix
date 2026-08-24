@@ -25,7 +25,7 @@ import (
 func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories.Factory, *bun.DB, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.EnsureTestTenant(t, db, 1)
+	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 	phaseNamePrefix := "phase-" + t.Name()
 	repoFactory := repositories.NewFactory(db)
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
@@ -53,12 +53,11 @@ func setupPhaseTest(t *testing.T) (enrollmentService.PhaseService, *repositories
 			TableExpr("enrollment.phases").
 			Where("tenant_id = ? AND name LIKE ?", 1, phaseNamePrefix+"%").
 			Exec(bg)
-		_ = db.Close()
 	}
 	return svc, repoFactory, db, cleanup
 }
 
-func minimalPhase(suffix string) *enrollmentModels.Phase {
+func minimalPhase(t *testing.T, suffix string) *enrollmentModels.Phase {
 	p := &enrollmentModels.Phase{
 		Name:             "phase-" + suffix,
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
@@ -67,16 +66,18 @@ func minimalPhase(suffix string) *enrollmentModels.Phase {
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
-	p.SetTenantID(1)
+	p.SetTenantID(testpkg.Tenant(t))
 	return p
 }
 
 func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.NotZero(t, created.ID)
 	assert.Equal(t, enrollmentModels.PhaseKindSchoolYear, created.Kind)
@@ -84,11 +85,13 @@ func TestPhaseService_Create_ValidatesAndPersists(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	bad := minimalPhase(t.Name())
+	bad := minimalPhase(t, t.Name())
 	bad.ServiceStartDate = timezone.NewDate(2027, 9, 1)
 	bad.ServiceEndDate = timezone.NewDate(2026, 7, 31)
 
@@ -97,11 +100,13 @@ func TestPhaseService_Create_RejectsServiceDateInversion(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	bad := minimalPhase(t.Name())
+	bad := minimalPhase(t, t.Name())
 	bad.Kind = "invalid_kind"
 
 	_, err := svc.Create(ctx, bad)
@@ -109,26 +114,30 @@ func TestPhaseService_Create_RejectsUnknownKind(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	first := minimalPhase(t.Name() + "-dup")
+	first := minimalPhase(t, t.Name()+"-dup")
 	_, err := svc.Create(ctx, first)
 	require.NoError(t, err)
 
-	second := minimalPhase(t.Name() + "-dup")
+	second := minimalPhase(t, t.Name()+"-dup")
 	_, err = svc.Create(ctx, second)
 	require.Error(t, err, "UNIQUE(tenant_id, name) must reject duplicate")
 	assert.True(t, errors.Is(err, enrollmentService.ErrPhaseDuplicateName))
 }
 
 func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase := minimalPhase(t.Name())
+	phase := minimalPhase(t, t.Name())
 	missing := int64(999_999_999)
 	phase.FormSchemaID = &missing
 
@@ -138,11 +147,13 @@ func TestPhaseService_Create_RejectsUnknownFormSchema(t *testing.T) {
 }
 
 func TestPhaseService_Update_AppliesChanges(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	created.Name = "phase-" + t.Name() + "-renamed"
@@ -158,11 +169,13 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 }
 
 func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	originalEnd := created.ServiceEndDate
 	lockCalls := 0
@@ -233,11 +246,13 @@ func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(
 }
 
 func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            created.ID,
@@ -284,11 +299,13 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 // transaction, instead of committing a phase whose sourced rosters and
 // materialized occurrences could never be resynced again.
 func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *testing.T) {
+	t.Parallel()
+
 	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := tenant.WithRollbackMarker(testpkg.TenantContext(1))
+	ctx := tenant.WithRollbackMarker(testpkg.Ctx(t))
 
-	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	created, err := baseService.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	offering := &enrollmentModels.CareOffering{
 		PhaseID:            created.ID,
@@ -329,13 +346,15 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 }
 
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	first, err := svc.Create(ctx, minimalPhase(t.Name()+"-first"))
+	first, err := svc.Create(ctx, minimalPhase(t, t.Name()+"-first"))
 	require.NoError(t, err)
-	second, err := svc.Create(ctx, minimalPhase(t.Name()+"-second"))
+	second, err := svc.Create(ctx, minimalPhase(t, t.Name()+"-second"))
 	require.NoError(t, err)
 
 	second.Name = first.Name
@@ -345,11 +364,13 @@ func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 }
 
 func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	missing := int64(999_999_999)
@@ -360,11 +381,13 @@ func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 }
 
 func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase := minimalPhase(t.Name())
+	phase := minimalPhase(t, t.Name())
 	phase.ID = 999_999_999
 
 	err := svc.Update(ctx, phase)
@@ -373,9 +396,11 @@ func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 }
 
 func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	now := time.Now()
 	openStart := now.AddDate(0, 0, -7)
@@ -383,14 +408,14 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	pastEnd := now.AddDate(0, 0, -1)
 
 	// Currently open + active.
-	openActive := minimalPhase(t.Name() + "-open-active")
+	openActive := minimalPhase(t, t.Name()+"-open-active")
 	openActive.EnrollmentOpenAt = &openStart
 	openActive.EnrollmentCloseAt = &openEnd
 	_, err := svc.Create(ctx, openActive)
 	require.NoError(t, err)
 
 	// Open + inactive (admin hidden).
-	hidden := minimalPhase(t.Name() + "-open-inactive")
+	hidden := minimalPhase(t, t.Name()+"-open-inactive")
 	hidden.EnrollmentOpenAt = &openStart
 	hidden.EnrollmentCloseAt = &openEnd
 	hidden.IsActive = false
@@ -398,7 +423,7 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 	require.NoError(t, err)
 
 	// Active but window closed yesterday.
-	closed := minimalPhase(t.Name() + "-closed-window")
+	closed := minimalPhase(t, t.Name()+"-closed-window")
 	closed.EnrollmentOpenAt = &openStart
 	closed.EnrollmentCloseAt = &pastEnd
 	_, err = svc.Create(ctx, closed)
@@ -424,11 +449,13 @@ func TestPhaseService_ListPublicOpen_FiltersInactiveAndClosedWindow(t *testing.T
 // Business rule (changed): a phase with care offerings is now deletable.
 // The offerings cascade away with the phase; there is no reference guard.
 func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	offering := &enrollmentModels.CareOffering{
@@ -438,7 +465,7 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
@@ -457,19 +484,20 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 // were created from those requests are PRESERVED (created_student_id is
 // ON DELETE SET NULL; the student is the parent in that relationship).
 func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// A real student that an approved enrollment "created".
 	student := testpkg.CreateTestStudent(t, db, "Kept", "Child", "1a")
 	defer func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
-		testpkg.CleanupPerson(t, db, student.PersonID)
 	}()
 
-	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	req := &enrollmentModels.Request{
@@ -480,7 +508,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		StatusToken:       "test-token-" + t.Name(),
 		SubmittedAt:       time.Now(),
 	}
-	req.SetTenantID(1)
+	req.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.Request.Create(ctx, req))
 
 	child := &enrollmentModels.RequestChild{
@@ -490,7 +518,7 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 		DateOfBirth:      timezone.NewDate(2019, 5, 1),
 		CreatedStudentID: &student.ID,
 	}
-	child.SetTenantID(1)
+	child.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
 
 	require.NoError(t, svc.Delete(ctx, phase.ID),
@@ -514,18 +542,19 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 }
 
 func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Impact", "Child", "1a")
 	defer func() {
 		bg := context.Background()
 		_, _ = db.NewDelete().TableExpr("users.students").Where("id = ?", student.ID).Exec(bg)
-		testpkg.CleanupPerson(t, db, student.PersonID)
 	}()
 
-	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	offering := &enrollmentModels.CareOffering{
@@ -535,7 +564,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		AvailableDays:  []string{"mon"},
 		IsActive:       true,
 	}
-	offering.SetTenantID(1)
+	offering.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	req := &enrollmentModels.Request{
@@ -546,7 +575,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		StatusToken:       "impact-token-" + t.Name(),
 		SubmittedAt:       time.Now(),
 	}
-	req.SetTenantID(1)
+	req.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.Request.Create(ctx, req))
 
 	child := &enrollmentModels.RequestChild{
@@ -556,7 +585,7 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 		DateOfBirth:      timezone.NewDate(2019, 5, 1),
 		CreatedStudentID: &student.ID,
 	}
-	child.SetTenantID(1)
+	child.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.RequestChild.Create(ctx, child))
 
 	impact, err := svc.DeleteImpact(ctx, phase.ID)
@@ -567,11 +596,13 @@ func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
 }
 
 func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase, err := svc.Create(ctx, minimalPhase(t.Name()))
+	phase, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.NoError(t, svc.Delete(ctx, phase.ID))
 
@@ -581,9 +612,11 @@ func TestPhaseService_Delete_RemovesEmptyPhase(t *testing.T) {
 }
 
 func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := setupPhaseTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := svc.GetByID(ctx, 999_999_999)
 	require.Error(t, err)
@@ -591,6 +624,8 @@ func TestPhaseService_GetByID_NotFoundSentinel(t *testing.T) {
 }
 
 func TestPhaseService_GetByID_PreservesRepositoryFailure(t *testing.T) {
+	t.Parallel()
+
 	repoErr := errors.New("database unavailable")
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Repo: findByIDErrorPhaseRepo{err: repoErr},
@@ -623,17 +658,21 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 		RequestChildRepo: repoFactory.RequestChild,
 		CareOfferingRepo: repoFactory.CareOffering,
 		FormSchemaRepo:   repoFactory.FormSchema,
-		CalendarPeriods:  scheduleService.NewCalendarPeriodService(repoFactory.CalendarPeriod, slog.Default()),
-		DB:               db,
-		Logger:           slog.Default(),
+		CalendarPeriods: scheduleService.NewCalendarPeriodServiceWithConfig(scheduleService.CalendarPeriodServiceConfig{
+			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
+		}),
+		DB:     db,
+		Logger: slog.Default(),
 	})
 	return svc, repoFactory, db, cleanup
 }
 
 func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "period-" + t.Name(),
@@ -643,7 +682,7 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
 	defer func() {
 		_, _ = db.NewDelete().
@@ -652,7 +691,7 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	phase := minimalPhase(t.Name())
+	phase := minimalPhase(t, t.Name())
 	phase.CalendarPeriodID = &period.ID
 
 	created, err := svc.Create(ctx, phase)
@@ -670,9 +709,11 @@ func TestPhaseService_Create_WithCalendarPeriodLink(t *testing.T) {
 // calendar_period_id, so linking an EXISTING phase to a period silently
 // persisted nothing (create worked, update didn't).
 func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
+	t.Parallel()
+
 	svc, repoFactory, db, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	period := &scheduleModels.CalendarPeriod{
 		Name:            "period-" + t.Name(),
@@ -682,7 +723,7 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
-	period.SetTenantID(1)
+	period.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repoFactory.CalendarPeriod.Create(ctx, period))
 	defer func() {
 		_, _ = db.NewDelete().
@@ -691,7 +732,7 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 			Exec(context.Background())
 	}()
 
-	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 	require.Nil(t, created.CalendarPeriodID)
 
@@ -712,11 +753,13 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 }
 
 func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase := minimalPhase(t.Name())
+	phase := minimalPhase(t, t.Name())
 	missing := int64(999_999_999)
 	phase.CalendarPeriodID = &missing
 
@@ -726,11 +769,13 @@ func TestPhaseService_Create_RejectsUnknownCalendarPeriod(t *testing.T) {
 }
 
 func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
+	t.Parallel()
+
 	svc, _, _, cleanup := phaseServiceWithCalendarPeriods(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	created, err := svc.Create(ctx, minimalPhase(t.Name()))
+	created, err := svc.Create(ctx, minimalPhase(t, t.Name()))
 	require.NoError(t, err)
 
 	missing := int64(999_999_999)
@@ -741,14 +786,16 @@ func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
 }
 
 func TestPhaseService_Create_PropagatesCalendarPeriodLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	lookupErr := errors.New("synthetic database failure")
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		CalendarPeriods: failingCalendarPeriodService{err: lookupErr},
 		Logger:          slog.Default(),
 	})
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	phase := minimalPhase(t.Name())
+	phase := minimalPhase(t, t.Name())
 	periodID := int64(42)
 	phase.CalendarPeriodID = &periodID
 

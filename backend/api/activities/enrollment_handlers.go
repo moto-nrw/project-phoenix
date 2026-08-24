@@ -8,6 +8,8 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -40,10 +42,10 @@ func (rs *Resource) getActivityStudents(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Build simplified student responses
+	callerPermissions := jwt.PermissionsFromCtx(r.Context())
 	responses := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		// Skip nil students to prevent panic
-		if student == nil {
+		if !authorize.CanReadStudent(r.Context(), callerPermissions, student, rs.UserContextService) {
 			continue
 		}
 

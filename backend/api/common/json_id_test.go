@@ -11,6 +11,8 @@ import (
 )
 
 func TestJSONID_AcceptsNumberAndString(t *testing.T) {
+	t.Parallel()
+
 	var payload struct {
 		ID common.JSONID `json:"id"`
 	}
@@ -27,6 +29,8 @@ func TestJSONID_AcceptsNumberAndString(t *testing.T) {
 // number cannot carry through JavaScript — it arrives as 2^53, a perfectly
 // valid id for a different row. As a string the digits survive.
 func TestJSONID_KeepsBigintPrecisionFromString(t *testing.T) {
+	t.Parallel()
+
 	var payload struct {
 		ID common.JSONID `json:"id"`
 	}
@@ -36,6 +40,8 @@ func TestJSONID_KeepsBigintPrecisionFromString(t *testing.T) {
 }
 
 func TestJSONID_RejectsNonIntegerStrings(t *testing.T) {
+	t.Parallel()
+
 	for _, raw := range []string{`{"id": "abc"}`, `{"id": ""}`, `{"id": "1.5"}`, `{"id": " "}`} {
 		var payload struct {
 			ID common.JSONID `json:"id"`
@@ -47,6 +53,8 @@ func TestJSONID_RejectsNonIntegerStrings(t *testing.T) {
 // Absent and null leave the zero value, which every Bind() rejects as "id is
 // required" — the same answer a missing field gave before.
 func TestJSONID_NullAndMissingStayZero(t *testing.T) {
+	t.Parallel()
+
 	var payload struct {
 		ID common.JSONID `json:"id"`
 	}
@@ -61,6 +69,8 @@ func TestJSONID_NullAndMissingStayZero(t *testing.T) {
 // Negative ids decode rather than error, so the caller's own validation gets to
 // produce its message instead of a JSON parse failure.
 func TestJSONID_NegativeDecodesForCallerValidation(t *testing.T) {
+	t.Parallel()
+
 	var payload struct {
 		ID common.JSONID `json:"id"`
 	}
@@ -72,6 +82,8 @@ func TestJSONID_NegativeDecodesForCallerValidation(t *testing.T) {
 // Round-tripping a decoded struct keeps the JSON-number shape every existing
 // consumer expects.
 func TestJSONID_MarshalsAsNumber(t *testing.T) {
+	t.Parallel()
+
 	payload := struct {
 		ID common.JSONID `json:"id"`
 	}{ID: common.JSONID(9007199254740993)}

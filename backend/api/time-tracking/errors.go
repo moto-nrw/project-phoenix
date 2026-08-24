@@ -13,23 +13,6 @@ import (
 
 // classifyServiceError maps known business errors to appropriate HTTP status codes
 func classifyServiceError(err error) render.Renderer {
-	// Typed reopen-status-conflict: surfaced as 409 with a stable code so the
-	// frontend can branch into the "change status with reason" flow instead
-	// of showing a generic conflict toast (Issue #1368).
-	//
-	// We also serialize the conflict's identifying fields into details so the
-	// frontend can drive the follow-up modal directly from the response —
-	// without scanning local history (which may not even cover today's date
-	// when the user is viewing a past week).
-	var reopenConflict *activeSvc.ReopenStatusConflictError
-	if errors.As(err, &reopenConflict) {
-		return common.ErrorConflictWithDetails(err, "reopen_status_conflict", map[string]any{
-			"session_id":       strconv.FormatInt(reopenConflict.SessionID, 10),
-			"existing_status":  reopenConflict.ExistingStatus,
-			"requested_status": reopenConflict.RequestedStatus,
-		})
-	}
-
 	var plannedStart *activeSvc.PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		return common.ErrorConflictWithDetails(err, "planned_start_not_reached", map[string]any{
@@ -58,6 +41,12 @@ func classifyServiceError(err error) render.Renderer {
 		msg == "already checked out today",
 		msg == "break already active":
 		return common.ErrorConflict(err)
+
+	// The overlap message carries the dynamic conflicting interval, so the
+	// frontend cannot use it as a mapping key — the stable code drives the
+	// specific German toast instead of the generic stamp error.
+	case strings.HasPrefix(msg, "work session overlaps an existing block"):
+		return common.ErrorConflictWithCode(err, "work_session_overlap")
 
 	case msg == "no active session found",
 		msg == "no session found for today",
@@ -97,6 +86,14 @@ func classifyAbsenceError(err error) render.Renderer {
 
 	case errors.Is(err, activeSvc.ErrCompTimeExceedsBalance):
 		return common.ErrorConflictWithCode(err, "comp_time_exceeds_balance")
+
+	// School-defined Abwesenheitsarten (#2403). A retired or unknown art is a
+	// bad selection, not a server fault — the client has to pick another one.
+	case errors.Is(err, activeSvc.ErrAbsenceTypeInactive):
+		return common.ErrorConflictWithCode(err, "absence_type_inactive")
+
+	case errors.Is(err, activeSvc.ErrAbsenceTypeNotFound):
+		return common.ErrorInvalidRequest(err)
 
 	case msg == "absence not found":
 		return common.ErrorNotFound(err)

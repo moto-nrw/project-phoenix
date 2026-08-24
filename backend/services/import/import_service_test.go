@@ -92,6 +92,8 @@ func (m *mockImportConfig) ProcessingOrder(_ []testRow) []int {
 // ============================================================================
 
 func TestNewImportService(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates service with config", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
@@ -106,6 +108,8 @@ func TestNewImportService(t *testing.T) {
 }
 
 func TestImportService_RecordAuditInTransaction(t *testing.T) {
+	t.Parallel()
+
 	service := NewImportService[testRow](&mockImportConfig{})
 	repo := &mockDataImportRepository{}
 	service.SetAuditRepository(repo)
@@ -139,6 +143,8 @@ func TestImportService_RecordAuditInTransaction(t *testing.T) {
 // ============================================================================
 
 func TestImportService_Import(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("returns error when preload fails", func(t *testing.T) {
@@ -481,6 +487,8 @@ func TestImportService_Import(t *testing.T) {
 }
 
 func TestImportService_ImportUsesConfiguredProcessingOrder(t *testing.T) {
+	t.Parallel()
+
 	config := &mockImportConfig{processingOrder: []int{1, 0}}
 	service := NewImportService[testRow](config)
 
@@ -494,6 +502,8 @@ func TestImportService_ImportUsesConfiguredProcessingOrder(t *testing.T) {
 }
 
 func TestImportService_ImportKeepsOriginalRowNumbersWhenReordered(t *testing.T) {
+	t.Parallel()
+
 	config := &mockImportConfig{
 		processingOrder: []int{1, 0},
 		createErrByName: map[string]error{
@@ -517,6 +527,8 @@ func TestImportService_ImportKeepsOriginalRowNumbersWhenReordered(t *testing.T) 
 // ============================================================================
 
 func TestCategorizeValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	t.Run("separates errors and warnings", func(t *testing.T) {
 		// ARRANGE
 		errors := []importModels.ValidationError{
@@ -548,6 +560,8 @@ func TestCategorizeValidationErrors(t *testing.T) {
 // ============================================================================
 
 func TestGenerateBulkActions(t *testing.T) {
+	t.Parallel()
+
 	t.Run("generates bulk actions for repeated errors", func(t *testing.T) {
 		// ARRANGE
 		config := &mockImportConfig{}
@@ -676,6 +690,8 @@ func TestGenerateBulkActions(t *testing.T) {
 // ============================================================================
 
 func TestImportService_DryRunDuplicateCheckError(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("records error in dry run mode when duplicate check fails", func(t *testing.T) {

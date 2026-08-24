@@ -85,6 +85,16 @@ func (r roleManagementAccountRepo) FindByID(ctx context.Context, id interface{})
 }
 
 func (r roleManagementAccountRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Account, error) {
+	if r.findByIDFn == nil {
+		return &authModel.Account{Model: base.Model{ID: id}}, nil
+	}
+	return r.FindByID(ctx, id)
+}
+
+func (r roleManagementAccountRepo) FindManageableByID(ctx context.Context, id int64) (*authModel.Account, error) {
+	if r.findByIDFn == nil {
+		return &authModel.Account{Model: base.Model{ID: id}}, nil
+	}
 	return r.FindByID(ctx, id)
 }
 
@@ -256,6 +266,8 @@ func newRoleManagementServiceWithIdentity(
 }
 
 func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns mapped role names", func(t *testing.T) {
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{
@@ -297,6 +309,8 @@ func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
 }
 
 func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns mapped avatar paths", func(t *testing.T) {
 		svc := newRoleManagementService(
 			roleManagementRoleRepo{},
@@ -338,6 +352,8 @@ func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
 }
 
 func TestRoleManagement_UpdateRole_ReturnsNotFoundOnLookupFailure(t *testing.T) {
+	t.Parallel()
+
 	svc := newRoleManagementService(
 		roleManagementRoleRepo{
 			findByIDFn: func(context.Context, interface{}) (*authModel.Role, error) {
@@ -356,6 +372,8 @@ func TestRoleManagement_UpdateRole_ReturnsNotFoundOnLookupFailure(t *testing.T) 
 }
 
 func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) {
+	t.Parallel()
+
 	baseRoleRepo := roleManagementRoleRepo{
 		findByIDFn: func(context.Context, interface{}) (*authModel.Role, error) {
 			return &authModel.Role{Model: base.Model{ID: 77}}, nil
@@ -427,6 +445,8 @@ func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) 
 }
 
 func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
+	t.Parallel()
+
 	t.Run("ListRoles wraps repository failures", func(t *testing.T) {
 		expectedErr := errors.New("list failed")
 		svc := newRoleManagementService(
@@ -469,6 +489,8 @@ func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
 }
 
 func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 9)
 	account := &authModel.Account{Model: base.Model{ID: 12}}
 	role := &authModel.Role{Model: base.Model{ID: 34}}
@@ -611,6 +633,8 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 // further way to produce the broken state: an account that holds the role, logs
 // in, and is not staff as far as the database is concerned.
 func TestRoleManagement_AssignRoleProvisionsSchoolIdentity(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 9)
 	account := &authModel.Account{Model: base.Model{ID: 12}}
 	tenantID := int64(9)

@@ -22,9 +22,9 @@ import (
 // viper to verify default behaviour and would otherwise lose the secret.
 const testFactoryJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	require.NotNil(t, repos)
@@ -75,9 +75,9 @@ func TestNewFactory(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 	viper.Reset()
@@ -92,9 +92,9 @@ func TestNewFactory_RejectsPartialVAPIDConfig(t *testing.T) {
 	assert.ErrorContains(t, err, "VAPID_SUBSCRIBER")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -110,9 +110,9 @@ func TestNewFactory_InvitationTokenExpiry_ZeroDefaults(t *testing.T) {
 	assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -128,9 +128,9 @@ func TestNewFactory_InvitationTokenExpiry_ClampedToMax(t *testing.T) {
 	assert.Equal(t, 168*time.Hour, factory.InvitationTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -146,9 +146,9 @@ func TestNewFactory_InvitationTokenExpiry_ValidValue(t *testing.T) {
 	assert.Equal(t, 72*time.Hour, factory.InvitationTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -164,9 +164,9 @@ func TestNewFactory_PasswordResetExpiry_ZeroDefaults(t *testing.T) {
 	assert.Equal(t, 30*time.Minute, factory.PasswordResetTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -182,9 +182,9 @@ func TestNewFactory_PasswordResetExpiry_ClampedToMax(t *testing.T) {
 	assert.Equal(t, 1440*time.Minute, factory.PasswordResetTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -200,9 +200,9 @@ func TestNewFactory_PasswordResetExpiry_ValidValue(t *testing.T) {
 	assert.Equal(t, 60*time.Minute, factory.PasswordResetTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -218,9 +218,9 @@ func TestNewFactory_FrontendURL_TrailingSlashRemoved(t *testing.T) {
 	assert.Equal(t, "http://example.com", factory.FrontendURL)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -235,25 +235,33 @@ func TestNewFactory_FrontendURL_Required(t *testing.T) {
 	assert.Contains(t, err.Error(), "FRONTEND_URL")
 }
 
-func TestNewFactory_ParentsURL_Required(t *testing.T) {
+// Deliberately NOT parallel: mutates process-global configuration.
+func TestNewFactory_PortalURLs_Required(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
 	repos := repositories.NewFactory(db)
 
-	viper.Reset()
-	seedFactoryRequiredConfig()
-	viper.Set("parents_url", "")
+	for _, tc := range []struct {
+		name, key, want string
+	}{
+		{"parents", "parents_url", "PARENTS_URL"},
+		{"school", "school_url", "SCHOOL_URL"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			viper.Reset()
+			seedFactoryRequiredConfig()
+			viper.Set(tc.key, "")
 
-	factory, err := services.NewFactory(repos, db, slog.Default())
-	require.Error(t, err)
-	require.Nil(t, factory)
-	assert.Contains(t, err.Error(), "PARENTS_URL")
+			factory, err := services.NewFactory(repos, db, slog.Default())
+			require.Error(t, err)
+			require.Nil(t, factory)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -270,9 +278,9 @@ func TestNewFactory_DefaultEmailFrom_WhenNotConfigured(t *testing.T) {
 	assert.Equal(t, "no-reply@moto.local", factory.DefaultFrom.Address)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -290,9 +298,9 @@ func TestNewFactory_EmailFrom_WhenConfigured(t *testing.T) {
 	assert.Equal(t, "test@example.com", factory.DefaultFrom.Address)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -308,9 +316,9 @@ func TestNewFactory_NegativeInvitationExpiry(t *testing.T) {
 	assert.Equal(t, 48*time.Hour, factory.InvitationTokenExpiry)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestNewFactory_NegativePasswordResetExpiry(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repos := repositories.NewFactory(db)
 
@@ -330,11 +338,14 @@ func seedFactoryRequiredConfig() {
 	viper.Set("auth_jwt_secret", testFactoryJWTSecret)
 	viper.Set("frontend_url", "http://localhost:3000")
 	viper.Set("parents_url", "http://parents.localhost:3000")
+	viper.Set("school_url", "http://schule.localhost:3000")
 	viper.Set("tenant_domain", "localhost")
 	viper.Set("next_public_operator_hostname", "operator.localhost:3000")
 }
 
 func TestEnableStudentPhotos(t *testing.T) {
+	t.Parallel()
+
 	f := &services.Factory{SettingsSideEffects: sideeffects.NewRegistry()}
 	f.EnableStudentPhotos(services.StudentPhotoBootstrap{Logger: slog.Default()})
 	require.NotNil(t, f.StudentPhotos)

@@ -176,6 +176,23 @@ type StudentResponse struct {
 	DataProcessingAcceptedAt *time.Time `json:"data_processing_accepted_at,omitempty"`
 	EmailContactAcceptedAt   *time.Time `json:"email_contact_accepted_at,omitempty"`
 
+	// CareEndsOn is the child's LAST care day (#2487) — the inclusive upper
+	// bound of the enrollment interval — as "YYYY-MM-DD", or empty when no end
+	// of care is recorded. CareEnded says whether that day has already passed.
+	//
+	// Both travel on the ordinary student payload because every list has to
+	// render the two states differently: a planned exit stays in the list with
+	// "Betreuung endet am …", an effective one only appears in the archive
+	// view. The exit REASON is NOT here — it is read behind users:delete.
+	CareEndsOn string `json:"care_ends_on,omitempty"`
+	CareEnded  bool   `json:"care_ended,omitempty"`
+	// CareExitRecorded says the end of care was ENTERED by the school
+	// ("Betreuung beenden"), as opposed to the interval simply carrying the end
+	// of an enrolment phase. Only such an exit can be changed or cancelled in
+	// the child management, so the two must not be told apart by how far the
+	// date lies ahead. The exit REASON stays behind users:delete.
+	CareExitRecorded bool `json:"care_exit_recorded,omitempty"`
+
 	HasFullAccess bool      `json:"has_full_access"`
 	CreatedAt     time.Time `json:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at"`

@@ -176,6 +176,9 @@ func TestLogVisitCleanupResult_WithErrors_Verbose(t *testing.T) {
 	assert.Contains(t, output, "Student 2: error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
@@ -198,6 +201,9 @@ func TestPrintVisitCleanupSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.CleanupResult{
 		StartedAt:         time.Now(),
@@ -218,6 +224,9 @@ func TestPrintVisitCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	oldestVisit := time.Now().Add(-48 * time.Hour)
 	preview := &active.CleanupPreview{
@@ -237,6 +246,9 @@ func TestPrintPreviewHeader_WithOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	preview := &active.CleanupPreview{
 		StudentVisitCounts: map[int64]int{1: 5},
@@ -254,6 +266,9 @@ func TestPrintPreviewHeader_NoOldestVisit(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	oldestExpired := time.Now().Add(-30 * 24 * time.Hour)
 	stats := &active.RetentionStats{
@@ -273,6 +288,9 @@ func TestPrintRetentionStats_WithOldestExpiredVisit(t *testing.T) {
 	assert.Contains(t, output, "days ago")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	stats := &active.RetentionStats{
 		TotalExpiredVisits: 50,
@@ -290,6 +308,9 @@ func TestPrintRetentionStats_NoOldestExpiredVisit(t *testing.T) {
 	assert.NotContains(t, output, "Oldest expired visit:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.AttendanceCleanupPreview{
@@ -309,6 +330,9 @@ func TestPrintAttendancePreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	preview := &active.AttendanceCleanupPreview{
 		TotalRecords:   10,
@@ -326,6 +350,9 @@ func TestPrintAttendancePreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Students affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.AttendanceCleanupResult{
@@ -351,6 +378,9 @@ func TestPrintAttendanceCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
@@ -372,6 +402,9 @@ func TestPrintAttendanceCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.AttendanceCleanupResult{
 		StartedAt:        time.Now(),
@@ -391,6 +424,9 @@ func TestPrintAttendanceCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_Empty(t *testing.T) {
 	output := captureStdout(t, func() {
 		printErrorList([]string{})
@@ -399,6 +435,9 @@ func TestPrintErrorList_Empty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
 	output := captureStdout(t, func() {
 		printErrorList(nil)
@@ -407,6 +446,9 @@ func TestPrintErrorList_EmptySlice_Nil(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_NotVerbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = false
@@ -423,6 +465,9 @@ func TestPrintErrorList_NotVerbose(t *testing.T) {
 	assert.NotContains(t, output, "error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintErrorList_Verbose(t *testing.T) {
 	oldVerbose := verbose
 	verbose = true
@@ -439,6 +484,9 @@ func TestPrintErrorList_Verbose(t *testing.T) {
 	assert.Contains(t, output, "error 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintAbandonedSessionSummary(t *testing.T) {
 	threshold := 2 * time.Hour
 	count := 5
@@ -453,6 +501,9 @@ func TestPrintAbandonedSessionSummary(t *testing.T) {
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDailySessionSummary_Success(t *testing.T) {
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    10,
@@ -475,6 +526,9 @@ func TestPrintDailySessionSummary_Success(t *testing.T) {
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 	result := &active.DailySessionCleanupResult{
 		SessionsEnded:    5,
@@ -493,6 +547,9 @@ func TestPrintDailySessionSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	oldestRecord := timezone.TodayDate().AddDays(-1)
 	preview := &active.SupervisorCleanupPreview{
@@ -512,6 +569,9 @@ func TestPrintSupervisorPreviewHeader_WithOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 2")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	preview := &active.SupervisorCleanupPreview{
 		TotalRecords: 10,
@@ -529,6 +589,9 @@ func TestPrintSupervisorPreviewHeader_NoOldestRecord(t *testing.T) {
 	assert.Contains(t, output, "Staff affected: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T) {
 	oldestDate := timezone.TodayDate().AddDays(-2)
 	result := &active.SupervisorCleanupResult{
@@ -554,6 +617,9 @@ func TestPrintSupervisorCleanupSummary_Success_WithOldestRecordDate(t *testing.T
 	assert.NotContains(t, output, "Errors:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) {
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
@@ -575,6 +641,9 @@ func TestPrintSupervisorCleanupSummary_Success_NoOldestRecordDate(t *testing.T) 
 	assert.Contains(t, output, "Status: SUCCESS")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 	result := &active.SupervisorCleanupResult{
 		StartedAt:        time.Now(),
@@ -594,6 +663,9 @@ func TestPrintSupervisorCleanupSummary_WithErrors(t *testing.T) {
 	assert.Contains(t, output, "Errors: 1")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_Empty(t *testing.T) {
 	output := captureStdout(t, func() {
 		printStaffBreakdown("Test Header", "Count", map[int64]int{})
@@ -602,6 +674,9 @@ func TestPrintStaffBreakdown_Empty(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_WithData(t *testing.T) {
 	data := map[int64]int{
 		1: 10,
@@ -632,7 +707,6 @@ func TestRunVisitsDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -655,7 +729,6 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -669,7 +742,6 @@ func TestRunVisitsDryRun_Verbose(t *testing.T) {
 
 func TestRunVisitsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	logger := log.New(&logBuf, "", 0)
@@ -685,7 +757,6 @@ func TestRunAttendanceDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceDryRun(ctx)
 	require.NoError(t, err)
@@ -697,7 +768,6 @@ func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceDryRun(ctx)
 	require.NoError(t, err)
@@ -705,7 +775,6 @@ func TestRunAttendanceDryRun_Verbose(t *testing.T) {
 
 func TestRunAttendanceCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runAttendanceCleanup(ctx)
 	require.NoError(t, err)
@@ -717,7 +786,6 @@ func TestRunSupervisorsDryRun_NotVerbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsDryRun(ctx)
 	require.NoError(t, err)
@@ -729,7 +797,6 @@ func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 	defer func() { verbose = oldVerbose }()
 
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsDryRun(ctx)
 	require.NoError(t, err)
@@ -737,7 +804,6 @@ func TestRunSupervisorsDryRun_Verbose(t *testing.T) {
 
 func TestRunSupervisorsCleanup(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	err := runSupervisorsCleanup(ctx)
 	require.NoError(t, err)
@@ -747,9 +813,11 @@ func TestRunSupervisorsCleanup(t *testing.T) {
 // Category C: Functions Needing ServiceFactory (New Tests)
 // =============================================================================
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintVerboseRecentDeletions(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	// Should run without error even if no recent deletions exist
 	output := captureStdout(t, func() {
@@ -762,7 +830,6 @@ func TestPrintVerboseRecentDeletions(t *testing.T) {
 
 func TestCountExpiredTokens(t *testing.T) {
 	ctx := setupTestCleanupContext(t)
-	defer ctx.Close()
 
 	// Should return count (0 or more) without error
 	count, err := countExpiredTokens(ctx)
@@ -776,7 +843,6 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	log.SetOutput(&logBuf)
@@ -791,13 +857,15 @@ func TestRunAbandonedSessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "5m")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunAbandonedSessionCleanup_Execute(t *testing.T) {
 	oldDryRun := dryRun
 	dryRun = false
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	threshold := 5 * time.Minute
 
@@ -819,7 +887,6 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	var logBuf bytes.Buffer
 	log.SetOutput(&logBuf)
@@ -833,13 +900,15 @@ func TestRunDailySessionCleanup_DryRun(t *testing.T) {
 	assert.Contains(t, logOutput, "Would end all active sessions")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestRunDailySessionCleanup_Execute(t *testing.T) {
 	oldDryRun := dryRun
 	dryRun = false
 	defer func() { dryRun = oldDryRun }()
 
 	ctx := setupTestCleanupContextWithServices(t)
-	defer ctx.Close()
 
 	output := captureStdout(t, func() {
 		err := runDailySessionCleanup(ctx)
@@ -858,6 +927,9 @@ func TestRunDailySessionCleanup_Execute(t *testing.T) {
 // Category D: Branch Coverage Tests for printStaffBreakdown
 // =============================================================================
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_Empty_AlreadyTested(t *testing.T) {
 	// This test already exists as TestPrintStaffBreakdown_Empty in cleanup_test.go
 	// It properly tests the empty data case (line 639 early return)
@@ -868,6 +940,9 @@ func TestPrintStaffBreakdown_Empty_AlreadyTested(t *testing.T) {
 	assert.Empty(t, output)
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStaffBreakdown_WithData_AlreadyTested(t *testing.T) {
 	// This test already exists as TestPrintStaffBreakdown_WithData in cleanup_test.go
 	// It properly tests the non-empty data case with table output

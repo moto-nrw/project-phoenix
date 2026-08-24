@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -21,12 +22,14 @@ import (
 // =============================================================================
 
 func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	endTime := now.Add(time.Hour)
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1, CreatedAt: now, UpdatedAt: now},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   &endTime,
@@ -48,11 +51,13 @@ func TestNewActiveGroupResponse_BasicFields(t *testing.T) {
 }
 
 func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil, // Active group
@@ -70,11 +75,13 @@ func TestNewActiveGroupResponse_WithVisits(t *testing.T) {
 }
 
 func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		EndTime:   nil,
@@ -95,11 +102,13 @@ func TestNewActiveGroupResponse_WithActiveSupervisors(t *testing.T) {
 }
 
 func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	group := &active.Group{
 		Model:     base.Model{ID: 1},
-		GroupID:   base.Int64Ptr(100),
+		GroupID:   ptrtest.Ptr(int64(100)),
 		RoomID:    200,
 		StartTime: now,
 		Room: &facilities.Room{
@@ -116,6 +125,8 @@ func TestNewActiveGroupResponse_WithRoom(t *testing.T) {
 }
 
 func TestNewVisitResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exitTime := now.Add(time.Hour)
 
@@ -140,6 +151,8 @@ func TestNewVisitResponse_BasicFields(t *testing.T) {
 }
 
 func TestNewVisitResponse_ActiveVisit(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	visit := &active.Visit{
@@ -157,6 +170,8 @@ func TestNewVisitResponse_ActiveVisit(t *testing.T) {
 }
 
 func TestNewVisitResponse_WithStudent(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	visit := &active.Visit{
@@ -180,6 +195,8 @@ func TestNewVisitResponse_WithStudent(t *testing.T) {
 }
 
 func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	visit := &active.Visit{
@@ -189,7 +206,7 @@ func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
 		EntryTime:     now,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: base.Int64Ptr(300),
+			GroupID: ptrtest.Ptr(int64(300)),
 		},
 	}
 
@@ -199,6 +216,8 @@ func TestNewVisitResponse_WithActiveGroup(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	endDate := timezone.TodayDate().AddDays(-1) // End date in the past = inactive
 
@@ -220,6 +239,8 @@ func TestNewSupervisorResponse_BasicFields(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	supervisor := &active.GroupSupervisor{
@@ -236,6 +257,8 @@ func TestNewSupervisorResponse_ActiveSupervisor(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_WithStaff(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	supervisor := &active.GroupSupervisor{
@@ -259,6 +282,8 @@ func TestNewSupervisorResponse_WithStaff(t *testing.T) {
 }
 
 func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	supervisor := &active.GroupSupervisor{
@@ -268,7 +293,7 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 		StartDate: timezone.DateFromTime(now),
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 200},
-			GroupID: base.Int64Ptr(300),
+			GroupID: ptrtest.Ptr(int64(300)),
 		},
 	}
 
@@ -278,6 +303,8 @@ func TestNewSupervisorResponse_WithActiveGroup(t *testing.T) {
 }
 
 func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	endTime := now.Add(-time.Hour) // Past end time = inactive
 
@@ -300,6 +327,8 @@ func TestNewCombinedGroupResponse_BasicFields(t *testing.T) {
 }
 
 func TestNewCombinedGroupResponse_ActiveWithGroups(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	group := &active.CombinedGroup{
@@ -320,6 +349,8 @@ func TestNewCombinedGroupResponse_ActiveWithGroups(t *testing.T) {
 }
 
 func TestNewGroupMappingResponse_BasicFields(t *testing.T) {
+	t.Parallel()
+
 	mapping := &active.GroupMapping{
 		Model:                 base.Model{ID: 1},
 		ActiveGroupID:         100,
@@ -336,6 +367,8 @@ func TestNewGroupMappingResponse_BasicFields(t *testing.T) {
 }
 
 func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	mapping := &active.GroupMapping{
@@ -344,7 +377,7 @@ func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
 		ActiveCombinedGroupID: 200,
 		ActiveGroup: &active.Group{
 			Model:   base.Model{ID: 100},
-			GroupID: base.Int64Ptr(50),
+			GroupID: ptrtest.Ptr(int64(50)),
 		},
 		CombinedGroup: &active.CombinedGroup{
 			Model:     base.Model{ID: 200},
@@ -363,6 +396,8 @@ func TestNewGroupMappingResponse_WithRelations(t *testing.T) {
 // =============================================================================
 
 func TestActiveGroupRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &ActiveGroupRequest{
 		GroupID:   1,
 		RoomID:    2,
@@ -375,6 +410,8 @@ func TestActiveGroupRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestActiveGroupRequest_Bind_MissingGroupID(t *testing.T) {
+	t.Parallel()
+
 	req := &ActiveGroupRequest{
 		GroupID:   0,
 		RoomID:    2,
@@ -388,6 +425,8 @@ func TestActiveGroupRequest_Bind_MissingGroupID(t *testing.T) {
 }
 
 func TestActiveGroupRequest_Bind_MissingRoomID(t *testing.T) {
+	t.Parallel()
+
 	req := &ActiveGroupRequest{
 		GroupID:   1,
 		RoomID:    0,
@@ -401,6 +440,8 @@ func TestActiveGroupRequest_Bind_MissingRoomID(t *testing.T) {
 }
 
 func TestActiveGroupRequest_Bind_MissingStartTime(t *testing.T) {
+	t.Parallel()
+
 	req := &ActiveGroupRequest{
 		GroupID: 1,
 		RoomID:  2,
@@ -413,6 +454,8 @@ func TestActiveGroupRequest_Bind_MissingStartTime(t *testing.T) {
 }
 
 func TestVisitRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &VisitRequest{
 		StudentID:     1,
 		ActiveGroupID: 2,
@@ -425,6 +468,8 @@ func TestVisitRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestVisitRequest_Bind_MissingStudentID(t *testing.T) {
+	t.Parallel()
+
 	req := &VisitRequest{
 		StudentID:     0,
 		ActiveGroupID: 2,
@@ -438,6 +483,8 @@ func TestVisitRequest_Bind_MissingStudentID(t *testing.T) {
 }
 
 func TestVisitRequest_Bind_MissingActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	req := &VisitRequest{
 		StudentID:     1,
 		ActiveGroupID: 0,
@@ -451,6 +498,8 @@ func TestVisitRequest_Bind_MissingActiveGroupID(t *testing.T) {
 }
 
 func TestVisitRequest_Bind_MissingCheckInTime(t *testing.T) {
+	t.Parallel()
+
 	req := &VisitRequest{
 		StudentID:     1,
 		ActiveGroupID: 2,
@@ -463,6 +512,8 @@ func TestVisitRequest_Bind_MissingCheckInTime(t *testing.T) {
 }
 
 func TestSupervisorRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &SupervisorRequest{
 		StaffID:       1,
 		ActiveGroupID: 2,
@@ -475,6 +526,8 @@ func TestSupervisorRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestSupervisorRequest_Bind_MissingStaffID(t *testing.T) {
+	t.Parallel()
+
 	req := &SupervisorRequest{
 		StaffID:       0,
 		ActiveGroupID: 2,
@@ -488,6 +541,8 @@ func TestSupervisorRequest_Bind_MissingStaffID(t *testing.T) {
 }
 
 func TestSupervisorRequest_Bind_MissingActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	req := &SupervisorRequest{
 		StaffID:       1,
 		ActiveGroupID: 0,
@@ -501,6 +556,8 @@ func TestSupervisorRequest_Bind_MissingActiveGroupID(t *testing.T) {
 }
 
 func TestSupervisorRequest_Bind_MissingStartTime(t *testing.T) {
+	t.Parallel()
+
 	req := &SupervisorRequest{
 		StaffID:       1,
 		ActiveGroupID: 2,
@@ -513,6 +570,8 @@ func TestSupervisorRequest_Bind_MissingStartTime(t *testing.T) {
 }
 
 func TestCombinedGroupRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &CombinedGroupRequest{
 		Name:      "Test Combined",
 		RoomID:    1,
@@ -525,6 +584,8 @@ func TestCombinedGroupRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestCombinedGroupRequest_Bind_MissingName(t *testing.T) {
+	t.Parallel()
+
 	req := &CombinedGroupRequest{
 		Name:      "",
 		RoomID:    1,
@@ -538,6 +599,8 @@ func TestCombinedGroupRequest_Bind_MissingName(t *testing.T) {
 }
 
 func TestCombinedGroupRequest_Bind_MissingRoomID(t *testing.T) {
+	t.Parallel()
+
 	req := &CombinedGroupRequest{
 		Name:      "Test",
 		RoomID:    0,
@@ -551,6 +614,8 @@ func TestCombinedGroupRequest_Bind_MissingRoomID(t *testing.T) {
 }
 
 func TestCombinedGroupRequest_Bind_MissingStartTime(t *testing.T) {
+	t.Parallel()
+
 	req := &CombinedGroupRequest{
 		Name:   "Test",
 		RoomID: 1,
@@ -563,6 +628,8 @@ func TestCombinedGroupRequest_Bind_MissingStartTime(t *testing.T) {
 }
 
 func TestGroupMappingRequest_Bind_Valid(t *testing.T) {
+	t.Parallel()
+
 	req := &GroupMappingRequest{
 		ActiveGroupID:   1,
 		CombinedGroupID: 2,
@@ -574,6 +641,8 @@ func TestGroupMappingRequest_Bind_Valid(t *testing.T) {
 }
 
 func TestGroupMappingRequest_Bind_MissingActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	req := &GroupMappingRequest{
 		ActiveGroupID:   0,
 		CombinedGroupID: 2,
@@ -586,6 +655,8 @@ func TestGroupMappingRequest_Bind_MissingActiveGroupID(t *testing.T) {
 }
 
 func TestGroupMappingRequest_Bind_MissingCombinedGroupID(t *testing.T) {
+	t.Parallel()
+
 	req := &GroupMappingRequest{
 		ActiveGroupID:   1,
 		CombinedGroupID: 0,
@@ -602,6 +673,8 @@ func TestGroupMappingRequest_Bind_MissingCombinedGroupID(t *testing.T) {
 // =============================================================================
 
 func TestExportedHandlers_NotNil(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	// Active Group Handlers
@@ -674,6 +747,8 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 // =============================================================================
 
 func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrActiveGroupNotFound
 	renderer := ErrorRenderer(err)
 
@@ -684,6 +759,8 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrVisitNotFound
 	renderer := ErrorRenderer(err)
 
@@ -694,6 +771,8 @@ func TestErrorRenderer_VisitNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrGroupSupervisorNotFound
 	renderer := ErrorRenderer(err)
 
@@ -704,6 +783,8 @@ func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrCombinedGroupNotFound
 	renderer := ErrorRenderer(err)
 
@@ -714,6 +795,8 @@ func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrGroupMappingNotFound
 	renderer := ErrorRenderer(err)
 
@@ -724,6 +807,8 @@ func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidData(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrInvalidData
 	renderer := ErrorRenderer(err)
 
@@ -734,6 +819,8 @@ func TestErrorRenderer_InvalidData(t *testing.T) {
 }
 
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrActiveGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
@@ -744,6 +831,8 @@ func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 }
 
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrVisitAlreadyEnded
 	renderer := ErrorRenderer(err)
 
@@ -754,6 +843,8 @@ func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 }
 
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrSupervisionAlreadyEnded
 	renderer := ErrorRenderer(err)
 
@@ -764,6 +855,8 @@ func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 }
 
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrCombinedGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
@@ -774,6 +867,8 @@ func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 }
 
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrGroupAlreadyInCombination
 	renderer := ErrorRenderer(err)
 
@@ -784,6 +879,8 @@ func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 }
 
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrStudentAlreadyInGroup
 	renderer := ErrorRenderer(err)
 
@@ -794,6 +891,8 @@ func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
+	t.Parallel()
+
 	// 409 Conflict, not 400 Bad Request: the duplicate-active-visit
 	// translation introduced for Issue #844 means this error now
 	// surfaces from the DB-level unique index on every CreateVisit
@@ -811,6 +910,8 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 }
 
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrStaffAlreadySupervising
 	renderer := ErrorRenderer(err)
 
@@ -821,6 +922,8 @@ func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 }
 
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrCannotDeleteActiveGroup
 	renderer := ErrorRenderer(err)
 
@@ -831,6 +934,8 @@ func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrInvalidTimeRange
 	renderer := ErrorRenderer(err)
 
@@ -841,6 +946,8 @@ func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 }
 
 func TestErrorRenderer_RoomConflict(t *testing.T) {
+	t.Parallel()
+
 	err := activeSvc.ErrRoomConflict
 	renderer := ErrorRenderer(err)
 
@@ -851,6 +958,8 @@ func TestErrorRenderer_RoomConflict(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	err := errors.New("unknown error")
 	renderer := ErrorRenderer(err)
 

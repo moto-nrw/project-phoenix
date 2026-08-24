@@ -28,7 +28,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -63,7 +62,6 @@ func splitInsertInstance(t *testing.T, s *scenarioSetup, groupID *int64, date ti
 	row.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(row).ModelTableExpr(`schedule.activity_instances`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("schedule.activity_instances", row.ID)
 	return row.ID
 }
 
@@ -163,9 +161,6 @@ func createSplitRequestChild(t *testing.T, s *scenarioSetup, studentID int64) in
 	`, s.tenantID, requestID, studentID).Scan(s.ctx, &childID))
 
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_children", childID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.requests", requestID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.phases", phaseID)
 	}}, s.extraCleanups...)
 	return childID
 }
@@ -191,8 +186,6 @@ func createSplitRequestChildInPhase(t *testing.T, s *scenarioSetup, phaseID, stu
 		RETURNING id
 	`, s.tenantID, requestID, studentID).Scan(s.ctx, &childID))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_children", childID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.requests", requestID)
 	}}, s.extraCleanups...)
 	return childID
 }
@@ -213,36 +206,7 @@ func createProtectedSplitEnrollment(
 	}
 	row.SetTenantID(s.tenantID)
 	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, row))
-	s.registerCleanup("activities.student_enrollments", row.ID)
 	return row
-}
-
-// registerSuccessorCleanup registers everything the split created for the
-// successor template: schedules, roster rows, instances (with cascading
-// children), and — via a PREPENDED extra cleanup so it runs before the
-// scenario's category/room teardown — the group row and its timeframe.
-func registerSuccessorCleanup(t *testing.T, s *scenarioSetup, newGroupID int64) {
-	t.Helper()
-	schedules := loadSplitSchedules(t, s, newGroupID)
-	var timeframeIDs []int64
-	for _, sch := range schedules {
-		s.registerCleanup("activities.schedules", sch.ID)
-		if sch.TimeframeID != nil {
-			timeframeIDs = append(timeframeIDs, *sch.TimeframeID)
-		}
-	}
-	for _, e := range loadSplitEnrollments(t, s, newGroupID) {
-		s.registerCleanup("activities.student_enrollments", e.ID)
-	}
-	for _, sp := range loadSplitSupervisors(t, s, newGroupID) {
-		s.registerCleanup("activities.supervisors", sp.ID)
-	}
-	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", newGroupID)
-		if len(timeframeIDs) > 0 {
-			testpkg.CleanupTableRecords(t, s.db, "schedule.timeframes", timeframeIDs...)
-		}
-	}}, s.extraCleanups...)
 }
 
 func baseSplitInput(s *scenarioSetup, effective timezone.Date, name string) scheduleSvc.TemplateSplitInput {
@@ -297,6 +261,7 @@ func createLinkedCareOffering(
 		Name:               fmt.Sprintf("Linked care offering %d", time.Now().UnixNano()),
 		DaysOfWeekMode:     enrollmentModels.DaysOfWeekModeFixed,
 		AvailableDays:      []string{"mon"},
+		PickupTimes:        map[string]string{"mon": "14:30"},
 		IsActive:           true,
 		CountsAsCare:       true,
 		CountsAsCareSet:    true,
@@ -311,8 +276,6 @@ func createLinkedCareOffering(
 	}))
 
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.care_offerings", created.ID)
-		testpkg.CleanupTableRecords(t, s.db, "enrollment.phases", phase.ID)
 	}}, s.extraCleanups...)
 	return created
 }
@@ -329,7 +292,6 @@ func createShortCalendarPeriod(t *testing.T, s *scenarioSetup, start, end timezo
 	}
 	require.NoError(t, s.factory.CalendarPeriod.CreatePeriod(s.ctx, period))
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID)
 	}}, s.extraCleanups...)
 	return period
 }
@@ -383,6 +345,8 @@ func linkedTemplateUpdateInput(t *testing.T, s *scenarioSetup, periodID *int64) 
 }
 
 func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 
 	t.Run("split", func(t *testing.T) {
@@ -462,7 +426,6 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		}
 		require.NoError(t, repos.RequestChildOffering.Create(s.ctx, selection))
 		s.extraCleanups = append([]func(){func() {
-			testpkg.CleanupTableRecords(t, s.db, "enrollment.request_child_offerings", selection.ID)
 		}}, s.extraCleanups...)
 		offering.IsActive = false
 		require.NoError(t, repos.CareOffering.Update(s.ctx, offering))
@@ -530,6 +493,8 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 }
 
 func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 
 	t.Run("split A to B", func(t *testing.T) {
@@ -546,7 +511,6 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 		in.CalendarPeriodID = &periodB.ID
 		result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.NoError(t, err)
-		registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 		rows := loadSplitEnrollments(t, s, result.NewTemplateID)
 		var protected *activitiesModels.StudentEnrollment
@@ -566,7 +530,6 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 		require.Equal(t, 1, materialized.InstancesCreated)
 		instances := listInstancesForDate(t, s.db, result.NewTemplateID, effective)
 		require.Len(t, instances, 1)
-		s.registerCleanup("schedule.activity_instances", instances[0].ID)
 		assert.True(t, splitInstanceContainsStudent(t, s, instances[0].ID, s.students[2]))
 	})
 
@@ -600,12 +563,13 @@ func TestTemplatePeriodChange_RebasesProtectedEnrollmentForMaterialization(t *te
 		require.Equal(t, 1, materialized.InstancesCreated)
 		instances := listInstancesForDate(t, s.db, s.template.ID, effective)
 		require.Len(t, instances, 1)
-		s.registerCleanup("schedule.activity_instances", instances[0].ID)
 		assert.True(t, splitInstanceContainsStudent(t, s, instances[0].ID, s.students[2]))
 	})
 }
 
 func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	tuesday := monday.AddDays(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
@@ -632,7 +596,6 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 	}}
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
 	var protected, manual *activitiesModels.StudentEnrollment
@@ -657,11 +620,12 @@ func TestTemplateSplit_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *test
 	require.Equal(t, 1, materialized.InstancesCreated)
 	instances := listInstancesForDate(t, s.db, result.NewTemplateID, tuesday)
 	require.Len(t, instances, 1)
-	s.registerCleanup("schedule.activity_instances", instances[0].ID)
 	assert.True(t, splitInstanceContainsStudent(t, s, instances[0].ID, s.students[0]))
 }
 
 func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T) {
+	t.Parallel()
+
 	monday := futureMonday(1)
 	tuesday := monday.AddDays(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, monday)
@@ -681,7 +645,6 @@ func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T)
 	in.StudentIDs = []int64{s.students[0]}
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 	rows := loadSplitEnrollments(t, s, result.NewTemplateID)
 	require.Len(t, rows, 1)
@@ -696,12 +659,13 @@ func TestTemplateSplit_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T)
 	tuesdayInstances := listInstancesForDate(t, s.db, result.NewTemplateID, tuesday)
 	require.Len(t, mondayInstances, 1)
 	require.Len(t, tuesdayInstances, 1)
-	s.registerCleanup("schedule.activity_instances", mondayInstances[0].ID, tuesdayInstances[0].ID)
 	assert.True(t, splitInstanceContainsStudent(t, s, mondayInstances[0].ID, s.students[0]))
 	assert.False(t, splitInstanceContainsStudent(t, s, tuesdayInstances[0].ID, s.students[0]))
 }
 
 func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -717,7 +681,6 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	require.Len(t, first, 1)
 	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, second, 1)
-	s.registerCleanup("schedule.activity_instances", first[0].ID, second[0].ID)
 
 	// First Monday's instance has started — history that must survive.
 	_, err = s.db.NewUpdate().
@@ -748,7 +711,6 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	_, err = s.db.NewInsert().Model(otherGroup).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", otherGroup.ID)
 	}}, s.extraCleanups...)
 	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
 
@@ -760,11 +722,7 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
-	for _, d := range []timezone.Date{effective, secondMonday} {
-		for _, inst := range listInstancesForDate(t, s.db, res.NewTemplateID, d) {
-			s.registerCleanup("schedule.activity_instances", inst.ID)
-		}
+	for range []timezone.Date{effective, secondMonday} {
 	}
 
 	// --- Assert: result shape ------------------------------------------------
@@ -847,6 +805,8 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 }
 
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -869,7 +829,6 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 	in.PlanningTrackIDProvided = true
 	result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 	predecessor := reloadSplitGroup(t, s, result.OldTemplateID)
 	successor := reloadSplitGroup(t, s, result.NewTemplateID)
@@ -880,6 +839,8 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 }
 
 func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name      string
 		provided  bool
@@ -909,7 +870,6 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 			in.PlanningTrackIDProvided = tt.provided
 			result, err := s.factory.TemplateSplit.Split(s.ctx, in)
 			require.NoError(t, err)
-			registerSuccessorCleanup(t, s, result.NewTemplateID)
 
 			successor := reloadSplitGroup(t, s, result.NewTemplateID)
 			if tt.wantTrack {
@@ -923,6 +883,8 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 }
 
 func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -942,6 +904,8 @@ func TestTemplateMutationsRejectUnknownPlanningTrack(t *testing.T) {
 }
 
 func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -956,7 +920,6 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	require.Len(t, first, 1)
 	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, second, 1)
-	s.registerCleanup("schedule.activity_instances", first[0].ID, second[0].ID)
 
 	_, err = s.db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
@@ -983,7 +946,6 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 	_, err = s.db.NewInsert().Model(otherGroup).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
 	require.NoError(t, err)
 	s.extraCleanups = append([]func(){func() {
-		testpkg.CleanupTableRecords(t, s.db, "activities.groups", otherGroup.ID)
 	}}, s.extraCleanups...)
 	otherPlannedID := splitInsertInstance(t, s, &otherGroup.ID, effective, scheduleModels.InstanceStatusPlanned, false, 12)
 
@@ -1033,6 +995,8 @@ func TestTemplateEndFromDate_CapsTemplateAndProtectsHistory(t *testing.T) {
 }
 
 func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1052,7 +1016,6 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	assert.Nil(t, res.Materialization, "no window requested, no materialization")
 	assert.Zero(t, res.DeletedInstances, "no planned instances existed in the horizon")
@@ -1087,6 +1050,8 @@ func TestTemplateSplit_ExplicitRosterAndWeekPattern(t *testing.T) {
 }
 
 func TestTemplateSplit_ValidationErrors(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1126,7 +1091,6 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 		_, err := s.db.NewInsert().Model(plain).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
 		require.NoError(t, err)
 		s.extraCleanups = append([]func(){func() {
-			testpkg.CleanupTableRecords(t, s.db, "activities.groups", plain.ID)
 		}}, s.extraCleanups...)
 
 		in := baseSplitInput(s, effective, fmt.Sprintf("Split-KeinTemplateNeu-%d", suffix))
@@ -1151,6 +1115,8 @@ func TestTemplateSplit_ValidationErrors(t *testing.T) {
 // materialization run over a window BEFORE the split point never emits
 // phantom successor instances next to the old template's rows.
 func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	prevMonday := effective.AddDays(-7) // still in the future (futureMonday(0))
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -1160,7 +1126,6 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-ValidFrom-%d", suffix))
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	newSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
 	require.Len(t, newSchedules, 1)
@@ -1171,9 +1136,6 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 	// template still owns it; the successor must be skipped as not started.
 	r, err := s.svc.MaterializeForTenant(s.ctx, prevMonday, prevMonday, scheduleSvc.MaterializationSourceManual)
 	require.NoError(t, err)
-	for _, inst := range listInstancesForDate(t, s.db, s.template.ID, prevMonday) {
-		s.registerCleanup("schedule.activity_instances", inst.ID)
-	}
 	assert.Equal(t, 1, r.InstancesCreated, "old template still materializes before the split point")
 	assert.Equal(t, 1, r.CandidatesSkippedNotStarted, "successor skipped before its valid_from")
 	assert.Empty(t, listInstancesForDate(t, s.db, res.NewTemplateID, prevMonday),
@@ -1185,6 +1147,8 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 // the complete successor series: the predecessor still owns the prior Monday,
 // while the successor starts exactly at the split Monday and never backfills.
 func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	previousMonday := effective.AddDays(-7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -1204,7 +1168,6 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 	sourced.SetTenantID(s.tenantID)
 	_, err := s.db.NewInsert().Model(sourced).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.student_enrollments", sourced.ID)
 
 	futureRosterStart := effective.AddDays(5)
 	weekdaySpecific := &activitiesModels.StudentEnrollment{
@@ -1216,13 +1179,11 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 	weekdaySpecific.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(weekdaySpecific).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.student_enrollments", weekdaySpecific.ID)
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Update-Bounds-%d", time.Now().UnixNano()))
 	in.CalendarPeriodID = &s.period.ID
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	oldGroup := reloadSplitGroup(t, s, s.template.ID)
 	require.NotNil(t, oldGroup.PlannedRoomID)
@@ -1469,13 +1430,6 @@ func assertSuccessorStaffRoster(t *testing.T, s *scenarioSetup, groupID int64, e
 
 func registerSplitInstancesForCleanup(t *testing.T, s *scenarioSetup, groupIDs []int64, dates []timezone.Date) {
 	t.Helper()
-	for _, groupID := range groupIDs {
-		for _, date := range dates {
-			for _, instance := range listInstancesForDate(t, s.db, groupID, date) {
-				s.registerCleanup("schedule.activity_instances", instance.ID)
-			}
-		}
-	}
 }
 
 // Re-splitting the bounded predecessor [a,b) at e must produce [a,e) and
@@ -1483,6 +1437,8 @@ func registerSplitInstancesForCleanup(t *testing.T, s *scenarioSetup, groupIDs [
 // successor [b,∞). Materializing beyond b must therefore yield exactly one
 // occurrence from the original later successor.
 func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
+	t.Parallel()
+
 	outerBoundary := futureMonday(3)
 	innerBoundary := outerBoundary.AddDays(-7)
 	afterOuter := outerBoundary.AddDays(7)
@@ -1492,7 +1448,6 @@ func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
 	first, err := s.factory.TemplateSplit.Split(s.ctx,
 		baseSplitInput(s, outerBoundary, fmt.Sprintf("Split-Later-%d", time.Now().UnixNano())))
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, first.NewTemplateID)
 
 	_, err = s.factory.TemplateSplit.Split(s.ctx,
 		baseSplitInput(s, innerBoundary, fmt.Sprintf("Split-Middle-%d", time.Now().UnixNano())))
@@ -1520,6 +1475,8 @@ func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
 }
 
 func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
+	t.Parallel()
+
 	boundary := futureMonday(2)
 	beforeBoundary := boundary.AddDays(-1)
 	futureRosterStart := boundary.AddDays(5)
@@ -1536,7 +1493,6 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	_, err := s.db.NewInsert().Model(futureEnrollment).
 		ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.student_enrollments", futureEnrollment.ID)
 
 	futureSupervisor := &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffID,
@@ -1547,13 +1503,11 @@ func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
 	futureSupervisor.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(futureSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.supervisors", futureSupervisor.ID)
 
 	firstInput := baseSplitInput(s, boundary, fmt.Sprintf("Split-Envelope-%d", time.Now().UnixNano()))
 	firstInput.CalendarPeriodID = &s.period.ID
 	first, err := s.factory.TemplateSplit.Split(s.ctx, firstInput)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, first.NewTemplateID)
 
 	assertFutureRosterCarried(t, s, first.NewTemplateID, futureRosterStart)
 	assertTemplateRosterWindowsNotInverted(t, s, s.template.ID)
@@ -1629,6 +1583,8 @@ func assertTemplateRosterWindowsNotInverted(t *testing.T, s *scenarioSetup, grou
 // then re-plan across both dates. The moved single occurrence and its
 // exception must not be joined by a backfilled successor occurrence.
 func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(2)
 	singleDate := effective.AddDays(-7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, singleDate)
@@ -1640,7 +1596,6 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	instances := listInstancesForDate(t, s.db, s.template.ID, singleDate)
 	require.Len(t, instances, 1)
 	single := instances[0]
-	s.registerCleanup("schedule.activity_instances", single.ID)
 
 	// "Nur diese Woche": move the start by one hour. UpdatePlanned keeps the
 	// instance on this date and writes a cancellation exception for the old
@@ -1662,7 +1617,6 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Single-Following-%d", time.Now().UnixNano()))
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	// "Alle Termine der Serie" on the successor: a full schedule replacement
 	// must retain valid_from=effective.
@@ -1721,6 +1675,8 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 // shared tenant recurrence gate, then reject the now-bounded segment instead
 // of mutating a template the active CRUD contract no longer exposes.
 func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1832,6 +1788,8 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 // predecessor occurrence after the end operation has already performed its
 // future-instance delete.
 func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -1912,9 +1870,6 @@ func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *te
 	assert.Zero(t, outcome.result.InstancesCreated)
 	assert.Equal(t, 1, outcome.result.CandidatesSkippedEnded)
 	instances := listInstancesForDate(t, s.db, s.template.ID, effective)
-	for _, instance := range instances {
-		s.registerCleanup("schedule.activity_instances", instance.ID)
-	}
 	assert.Empty(t, instances, "no predecessor occurrence may survive on/after the committed cap")
 }
 
@@ -1922,6 +1877,8 @@ func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *te
 // materializer that started concurrently must not insert an occurrence from a
 // template snapshot taken before the archive.
 func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t *testing.T) {
+	t.Parallel()
+
 	date := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
 	defer s.runCleanup(t)
@@ -2003,9 +1960,6 @@ func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t 
 	require.Len(t, outcome.result.Warnings, 1)
 	assert.Equal(t, scheduleSvc.MaterializationWarningCodeNoTemplates, outcome.result.Warnings[0].Code)
 	instances := listInstancesForDate(t, s.db, s.template.ID, date)
-	for _, instance := range instances {
-		s.registerCleanup("schedule.activity_instances", instance.ID)
-	}
 	assert.Empty(t, instances, "archived template must not produce a stale occurrence")
 }
 
@@ -2014,6 +1968,8 @@ func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t 
 // the carry path stamped every active row with the successor's period id and
 // violated the active-row uniqueness indexes (500 on split).
 func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2044,7 +2000,6 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	secondEnroll.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(secondEnroll).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.student_enrollments", secondEnroll.ID)
 
 	// Same situation for the supervisor: a second active period-scoped row.
 	secondSup := &activitiesModels.SupervisorPlanned{
@@ -2057,7 +2012,6 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	secondSup.SetTenantID(s.tenantID)
 	_, err = s.db.NewInsert().Model(secondSup).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
 	require.NoError(t, err)
-	s.registerCleanup("activities.supervisors", secondSup.ID)
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-MultiPeriode-%d", suffix))
 	// nil StudentIDs/StaffIDs → carry; nil CalendarPeriodID → successor rows
@@ -2065,7 +2019,6 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	// the per-person dedupe.
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err, "multi-period roster must not violate idx_student_enrollments_active")
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	newEnrollments := loadSplitEnrollments(t, s, res.NewTemplateID)
 	require.Len(t, newEnrollments, 3, "both protected period/weekday rows plus the other manual student survive")
@@ -2099,6 +2052,8 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 // ErrSplitInvalidInput (→ 400) instead of bubbling out of the materializer
 // as 500s.
 func TestTemplateSplit_WindowValidation(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2141,6 +2096,8 @@ func TestTemplateSplit_WindowValidation(t *testing.T) {
 // a successful split NO planned non-spontaneous old-template instance exists
 // on/after the effective date, even beyond materialize_to.
 func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	secondMonday := effective.AddDays(7)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -2155,7 +2112,6 @@ func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
 	require.Len(t, first, 1)
 	second := listInstancesForDate(t, s.db, s.template.ID, secondMonday)
 	require.Len(t, second, 1)
-	s.registerCleanup("schedule.activity_instances", first[0].ID, second[0].ID)
 
 	// Split with a materialization window covering ONLY the first Monday.
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-OffenesEnde-%d", suffix))
@@ -2164,10 +2120,6 @@ func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
 
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
-	for _, inst := range listInstancesForDate(t, s.db, res.NewTemplateID, effective) {
-		s.registerCleanup("schedule.activity_instances", inst.ID)
-	}
 
 	assert.Equal(t, 2, res.DeletedInstances,
 		"both planned old-template instances deleted, including the one beyond materialize_to")
@@ -2190,6 +2142,8 @@ func reloadSplitGroup(t *testing.T, s *scenarioSetup, id int64) *activitiesModel
 }
 
 func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2203,7 +2157,6 @@ func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing
 
 	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	successor := reloadSplitGroup(t, s, res.NewTemplateID)
 	require.NotNil(t, successor.CalendarPeriodID)
@@ -2223,6 +2176,8 @@ func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing
 }
 
 func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
+	t.Parallel()
+
 	firstBoundary := futureMonday(1)
 	secondBoundary := futureMonday(2)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, firstBoundary)
@@ -2231,13 +2186,11 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	firstInput := baseSplitInput(s, firstBoundary, fmt.Sprintf("Split-Series-First-%d", time.Now().UnixNano()))
 	first, err := s.factory.TemplateSplit.Split(s.ctx, firstInput)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, first.NewTemplateID)
 
 	secondInput := baseSplitInput(s, secondBoundary, fmt.Sprintf("Split-Series-Second-%d", time.Now().UnixNano()))
 	secondInput.TemplateID = first.NewTemplateID
 	second, err := s.factory.TemplateSplit.Split(s.ctx, secondInput)
 	require.NoError(t, err)
-	registerSuccessorCleanup(t, s, second.NewTemplateID)
 
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
@@ -2248,6 +2201,8 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 }
 
 func TestTemplateSplit_ValidationErrors_RejectsInvalidTargetGroup(t *testing.T) {
+	t.Parallel()
+
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
@@ -2279,6 +2234,8 @@ func setSourceTemplateNotes(t *testing.T, s *scenarioSetup, notes string) {
 // inherited by the successor when omitted, overwritten when provided, and
 // cleared when explicitly nulled (#1837 follow-up).
 func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted note inherits the source template's Wochennotiz", func(t *testing.T) {
 		effective := futureMonday(1)
 		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -2289,7 +2246,6 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		// NotesProvided stays false → inherit.
 		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.NoError(t, err)
-		registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
 		require.NotNil(t, successor.Notes, "successor must inherit the source note")
@@ -2308,7 +2264,6 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		in.NotesProvided = true
 		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.NoError(t, err)
-		registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
 		require.NotNil(t, successor.Notes)
@@ -2326,7 +2281,6 @@ func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
 		in.NotesProvided = true
 		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
 		require.NoError(t, err)
-		registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 		successor := reloadSplitGroup(t, s, res.NewTemplateID)
 		assert.Nil(t, successor.Notes, "explicit null must clear the successor note")

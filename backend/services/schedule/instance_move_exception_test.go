@@ -41,9 +41,6 @@ func loadExceptions(t *testing.T, s *scenarioSetup, groupID int64) []*scheduleMo
 		Order("exception_date ASC").
 		Scan(s.ctx)
 	require.NoError(t, err)
-	for _, row := range rows {
-		s.registerCleanup("schedule.activity_exceptions", row.ID)
-	}
 	return rows
 }
 
@@ -65,6 +62,8 @@ func moveInput(s *scenarioSetup, inst *scheduleModels.ActivityInstance, date tim
 }
 
 func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -75,7 +74,6 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
 	require.Len(t, rows, 1)
 	inst := rows[0]
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Move the occurrence to Tuesday, keeping times and template binding.
 	newDate := origDate.AddDays(1)
@@ -98,6 +96,8 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 }
 
 func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20) // Mon
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -108,7 +108,6 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
 	require.Len(t, rows, 1)
 	inst := rows[0]
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	require.NoError(t, s.factory.Instance.DeleteCancelled(s.ctx, inst.ID))
 
@@ -125,6 +124,8 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 }
 
 func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -135,7 +136,6 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
 	require.Len(t, rows, 1)
 	inst := rows[0]
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Same date, start shifted by one hour.
 	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, origDate, 1), nil)
@@ -158,6 +158,8 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 }
 
 func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)
@@ -168,7 +170,6 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	rows := listInstancesForDate(t, s.db, s.template.ID, origDate)
 	require.Len(t, rows, 1)
 	inst := rows[0]
-	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Title and end_time change only — the (template, date, start) key stays.
 	in := moveInput(s, inst, origDate, 0)
@@ -182,6 +183,8 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 }
 
 func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
+	t.Parallel()
+
 	origDate := timezone.NewDate(2026, time.April, 20)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, origDate)
 	defer s.runCleanup(t)

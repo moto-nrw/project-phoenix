@@ -71,6 +71,9 @@ func TestMigrateCmd_HasSubcommands(t *testing.T) {
 	assert.Contains(t, names, "validate", "migrateCmd should have 'validate' subcommand")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateCmd_SubcommandCount(t *testing.T) {
 	assert.Len(t, migrateCmd.Commands(), 3, "migrateCmd should have exactly 3 subcommands")
 }
@@ -128,6 +131,9 @@ func TestMigrateStatusCmd_Run_CallsStatus(t *testing.T) {
 	assert.True(t, called, "migrateStatusCmd.Run should call migrateStatusFn")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateValidateCmd_Run_Success(t *testing.T) {
 	// ValidateMigrations() and PrintMigrationPlan() are pure in-memory checks
 	// that operate on the global MigrationRegistry — no database needed.
@@ -141,6 +147,9 @@ func TestMigrateValidateCmd_Run_Success(t *testing.T) {
 	assert.Contains(t, output, "Migration Plan:")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestMigrateValidateCmd_Run_ValidationError(t *testing.T) {
 	// Inject a migration with a broken dependency to trigger the error path.
 	migrations.MigrationRegistry["test_broken_dep"] = &migrations.Migration{

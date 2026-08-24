@@ -6,6 +6,8 @@ import (
 )
 
 func TestPasswordResetRateLimit_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		limit   *PasswordResetRateLimit
@@ -66,6 +68,8 @@ func TestPasswordResetRateLimit_Validate(t *testing.T) {
 }
 
 func TestPasswordResetRateLimit_IncrementAttempts(t *testing.T) {
+	t.Parallel()
+
 	limit := &PasswordResetRateLimit{
 		Email:       "test@example.com",
 		Attempts:    0,
@@ -89,6 +93,8 @@ func TestPasswordResetRateLimit_IncrementAttempts(t *testing.T) {
 }
 
 func TestRateLimitState_RetryAfterSeconds(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {

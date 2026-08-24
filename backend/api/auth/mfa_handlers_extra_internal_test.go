@@ -104,6 +104,8 @@ func withEnrollmentClaims(r *http.Request, accountID int64, tenantID int64) *htt
 // --- tests -------------------------------------------------------------
 
 func TestMFAVerify_InvalidJSONReturns400(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := httptest.NewRequest(http.MethodPost, "/mfa/verify", strings.NewReader("not-json"))
@@ -115,6 +117,8 @@ func TestMFAVerify_InvalidJSONReturns400(t *testing.T) {
 }
 
 func TestMFAVerify_BindRejectsMissingFields(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/verify", MFAVerifyRequest{}) // empty fields fail Bind
@@ -125,6 +129,8 @@ func TestMFAVerify_BindRejectsMissingFields(t *testing.T) {
 }
 
 func TestMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.VerifyChallengeFn = func(context.Context, string, string) (*authService.VerifiedChallenge, error) {
 		return nil, authService.ErrMFACodeInvalid
@@ -142,6 +148,8 @@ func TestMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 }
 
 func TestMFAVerify_ServiceErrorMapsTo429ForLockout(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.VerifyChallengeFn = func(context.Context, string, string) (*authService.VerifiedChallenge, error) {
 		return nil, authService.ErrMFALocked
@@ -164,6 +172,8 @@ func TestMFAVerify_ServiceErrorMapsTo429ForLockout(t *testing.T) {
 // produced a dead end where the freshly emailed code couldn't be verified
 // once the original JWT expired.
 func TestMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.ResendChallengeFn = func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil }
 	rs := &Resource{MFAService: svc}
@@ -179,6 +189,8 @@ func TestMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 }
 
 func TestMFAResend_BindRejectsEmptyToken(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/resend", MFAResendRequest{}) // empty token fails Bind
@@ -189,6 +201,8 @@ func TestMFAResend_BindRejectsEmptyToken(t *testing.T) {
 }
 
 func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.ResendChallengeFn = func(context.Context, string, net.IP) (string, error) {
 		return "", authService.ErrMFARateLimited
@@ -203,6 +217,8 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 }
 
 func TestMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := jsonReq(t, http.MethodPost, "/mfa/enroll/start", nil) // no enrollment claim
@@ -214,6 +230,8 @@ func TestMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 }
 
 func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.EnrollFn = func(context.Context, int64) error { return nil }
 	svc.StartChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) { return "ch", nil }
@@ -227,6 +245,8 @@ func TestMFAEnrollStart_Success_Returns204(t *testing.T) {
 }
 
 func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
+	t.Parallel()
+
 	// mfaEnrollStart is a thin wrapper around StartChallenge — actual
 	// enrollment happens in mfaEnrollConfirm. A service-level rate-limit
 	// must propagate as 429.
@@ -244,6 +264,8 @@ func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
 }
 
 func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
+	t.Parallel()
+
 	// Item #1 of #1430 review: confirm no longer returns 204 on
 	// already-enrolled. It mints a full access/refresh pair so the
 	// enrollment-scoped token never sticks around past enrollment.
@@ -271,6 +293,8 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 }
 
 func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollFn = func(context.Context, int64) error { return errors.New("db down") }
@@ -292,6 +316,8 @@ func TestMFAEnrollConfirm_EnrollErrorPropagates(t *testing.T) {
 // MFA audit events those emit (mfa_verified / mfa_failed) land in
 // audit.auth_events instead of being dropped as "no tenant context".
 func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
+	t.Parallel()
+
 	const tenantID int64 = 70010001
 	var verifyTenant, enrollTenant int64
 	svc := newStubMFAService()
@@ -321,6 +347,8 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 }
 
 func TestMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
+	t.Parallel()
+
 	// Without an enrollment claim on the context the handler must fail
 	// closed — this also covers the case where a regular AppClaims token
 	// (CtxClaims) was set instead. Renamed from RequiresAccountClaim to
@@ -355,6 +383,8 @@ func withPlatformEnrollmentClaims(r *http.Request, accountID int64) *http.Reques
 // even when account_id is set. Regression test for the
 // cross-scope-enrollment finding in the second #1430 review round.
 func TestMFAEnrollStart_RejectsPlatformScopeToken(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.StartChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) {
 		t.Fatal("StartChallenge must not run on a platform-scope token")
@@ -373,6 +403,8 @@ func TestMFAEnrollStart_RejectsPlatformScopeToken(t *testing.T) {
 // TestMFAEnrollConfirm_RejectsPlatformScopeToken is the confirm-side
 // counterpart of TestMFAEnrollStart_RejectsPlatformScopeToken.
 func TestMFAEnrollConfirm_RejectsPlatformScopeToken(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error {
 		t.Fatal("VerifyCodeForAccount must not run on a platform-scope token")
@@ -393,6 +425,8 @@ func TestMFAEnrollConfirm_RejectsPlatformScopeToken(t *testing.T) {
 // with TenantID==0 is also refused. (claims.Scope alone is not enough
 // — without TenantID the service can't resolve the tenant policy.)
 func TestMFAEnrollStart_RejectsMissingTenantID(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.StartChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) {
 		t.Fatal("StartChallenge must not run without a tenant_id")
@@ -415,6 +449,8 @@ func TestMFAEnrollStart_RejectsMissingTenantID(t *testing.T) {
 }
 
 func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -426,6 +462,8 @@ func TestMFAEnrollConfirm_BindRejectsShortCode(t *testing.T) {
 }
 
 func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return authService.ErrMFACodeInvalid }
 	rs := &Resource{MFAService: svc}
@@ -440,6 +478,8 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 
 // listTrustedDevices returns an empty slice for an account with no rows.
 func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
 		return []*authModels.MFATrustedDevice{}, nil
@@ -457,6 +497,8 @@ func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 }
 
 func TestMFAListTrustedDevices_RequiresClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{MFAService: newStubMFAService()}
 
 	r := httptest.NewRequest(http.MethodGet, "/mfa/trusted-devices", nil)
@@ -467,6 +509,8 @@ func TestMFAListTrustedDevices_RequiresClaim(t *testing.T) {
 }
 
 func TestMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	svc := newStubMFAService()
 	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]*authModels.MFATrustedDevice, error) {
 		return nil, errors.New("db down")

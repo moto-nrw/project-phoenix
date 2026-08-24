@@ -66,10 +66,15 @@ type InvitationServiceConfig struct {
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
 	FrontendURL       string
-	DefaultFrom       email.Email
-	InvitationExpiry  time.Duration
-	DB                *bun.DB
-	Logger            *slog.Logger
+	// SchoolURL is the school-portal base URL (#2207). Invitations for a
+	// school-portal role (today: lehrkraft) link there instead of the staff
+	// frontend, because that is where the accept flow for those accounts
+	// lives.
+	SchoolURL        string
+	DefaultFrom      email.Email
+	InvitationExpiry time.Duration
+	DB               *bun.DB
+	Logger           *slog.Logger
 }
 
 type invitationService struct {
@@ -86,6 +91,7 @@ type invitationService struct {
 	schoolRepo        platformModels.SchoolRepository
 	dispatcher        *email.Dispatcher
 	frontendURL       string
+	schoolURL         string
 	defaultFrom       email.Email
 	invitationExpiry  time.Duration
 	db                *bun.DB
@@ -123,6 +129,7 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 		schoolRepo:        config.SchoolRepo,
 		dispatcher:        dispatcher,
 		frontendURL:       trimmedFrontend,
+		schoolURL:         strings.TrimRight(strings.TrimSpace(config.SchoolURL), "/"),
 		defaultFrom:       config.DefaultFrom,
 		invitationExpiry:  config.InvitationExpiry,
 		db:                config.DB,
@@ -157,7 +164,8 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 		slog.Any("created_by", nullableCreatedBy(req.CreatedBy)),
 		slog.String("email", invitation.Email))
 
-	if err := s.attachRoleAndCreator(ctx, invitation); err != nil {
+	role, err := s.attachRoleAndCreator(ctx, invitation)
+	if err != nil {
 		return nil, err
 	}
 
@@ -165,12 +173,15 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	if invitation.Role != nil {
 		roleName = invitation.Role.Name
 	}
+	// A school-portal invitation must link to the school portal, not the
+	// staff frontend — decided here, before the send is queued (#2207).
+	schoolPortal := isSchoolPortalRole(role)
 	// Queue the email until the surrounding tenant transaction commits: the
 	// staff import creates invitations mid-transaction, and a rolled-back
 	// token must never reach an inbox as a dead link. Outside a tenant tx
 	// the hook runs synchronously.
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.sendInvitationEmail(invitation, roleName, req.SchoolName)
+		s.sendInvitationEmail(invitation, roleName, req.SchoolName, schoolPortal)
 	})
 
 	return invitation, nil
@@ -260,22 +271,25 @@ func (s *invitationService) buildInvitationToken(email string, req InvitationReq
 }
 
 // attachRoleAndCreator populates the Role and Creator fields on the invitation.
-func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation *authModels.InvitationToken) error {
-	roleName, _ := s.lookupRoleName(ctx, invitation.RoleID)
-	if roleName != "" {
+// Returns the full resolved role (nil when the lookup failed) so callers can
+// branch on role properties — e.g. the school-portal link decision — without a
+// second lookup; the invitation itself keeps carrying only ID + Name.
+func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation *authModels.InvitationToken) (*authModels.Role, error) {
+	role, _ := s.lookupRole(ctx, invitation.RoleID)
+	if role != nil && role.Name != "" {
 		invitation.Role = &authModels.Role{
 			Model: modelBase.Model{ID: invitation.RoleID},
-			Name:  roleName,
+			Name:  role.Name,
 		}
 	}
 
 	if invitation.CreatedBy == nil {
-		return nil
+		return role, nil
 	}
 
 	creator, err := s.accountRepo.FindByID(ctx, *invitation.CreatedBy)
 	if err != nil && !isNotFoundError(err) {
-		return &AuthError{Op: "lookup creator", Err: err}
+		return role, &AuthError{Op: "lookup creator", Err: err}
 	}
 	if creator != nil {
 		invitation.Creator = &authModels.Account{
@@ -284,7 +298,7 @@ func (s *invitationService) attachRoleAndCreator(ctx context.Context, invitation
 		}
 	}
 
-	return nil
+	return role, nil
 }
 
 // ValidateInvitation returns the public details for a token if it is still usable.
@@ -711,7 +725,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		return &AuthError{Op: opResendInvitation, Err: ErrInvitationExpired}
 	}
 
-	roleName, err := s.lookupRoleName(ctx, invitation.RoleID)
+	role, err := s.lookupRole(ctx, invitation.RoleID)
 	if err != nil {
 		return err
 	}
@@ -728,7 +742,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("actor_account_id", actorAccountID))
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.sendInvitationEmail(invitation, roleName, schoolName)
+	s.sendInvitationEmail(invitation, role.Name, schoolName, isSchoolPortalRole(role))
 	return nil
 }
 
@@ -820,14 +834,24 @@ func (s *invitationService) fetchValidInvitation(ctx context.Context, token stri
 }
 
 func (s *invitationService) lookupRoleName(ctx context.Context, roleID int64) (string, error) {
+	role, err := s.lookupRole(ctx, roleID)
+	if err != nil {
+		return "", err
+	}
+	return role.Name, nil
+}
+
+// lookupRole resolves the full role record — needed where the caller must
+// branch on role properties beyond the name (school-portal link decision).
+func (s *invitationService) lookupRole(ctx context.Context, roleID int64) (*authModels.Role, error) {
 	role, err := s.roleRepo.FindByID(ctx, roleID)
 	if err != nil {
 		if isNotFoundError(err) {
-			return "", &AuthError{Op: "lookup role", Err: fmt.Errorf("role not found")}
+			return nil, &AuthError{Op: "lookup role", Err: fmt.Errorf("role not found")}
 		}
-		return "", &AuthError{Op: "lookup role", Err: err}
+		return nil, &AuthError{Op: "lookup role", Err: err}
 	}
-	return role.Name, nil
+	return role, nil
 }
 
 var invitationEmailBackoff = []time.Duration{
@@ -855,7 +879,7 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 	return school.Name
 }
 
-func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string) {
+func (s *invitationService) sendInvitationEmail(invitation *authModels.InvitationToken, roleName string, schoolName string, schoolPortal bool) {
 	if s.dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping invitation email",
 			slog.Int64("invitation_id", invitation.ID))
@@ -865,6 +889,13 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	frontend := s.frontendURL
 	if frontend == "" {
 		frontend = "http://localhost:3000"
+	}
+	// School-portal roles accept their invitation on the school portal
+	// (#2207): the link must land where their login lives, otherwise the
+	// Lehrkraft sets a password in the staff portal and then cannot use it
+	// there.
+	if schoolPortal && s.schoolURL != "" {
+		frontend = s.schoolURL
 	}
 
 	invitationURL := fmt.Sprintf("%s/invite?token=%s", frontend, invitation.Token)

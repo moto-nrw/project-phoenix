@@ -13,22 +13,6 @@ import (
 // it as a client-correctable 400 response.
 var ErrTemplateTargetGradeExceedsLimit = errors.New("template target grade exceeds tenant limit")
 
-// ValidateTemplateTargetGradeLimit applies the tenant cap to a requested
-// target. Existing above-cap Jahrgang targets remain editable when their grade
-// is unchanged, so lowering the setting does not strand legacy series.
-func ValidateTemplateTargetGradeLimit(
-	gradeLevelMax int,
-	existing *activitiesModel.Group,
-	targetGroupType string,
-	targetGradeLevel *int16,
-) error {
-	target := &activitiesModel.GroupTarget{
-		TargetGroupType:  targetGroupType,
-		TargetGradeLevel: targetGradeLevel,
-	}
-	return ValidateTemplateTargetsGradeLimit(gradeLevelMax, existing, nil, []*activitiesModel.GroupTarget{target})
-}
-
 // ValidateTemplateTargetsGradeLimit permits every unchanged legacy grade,
 // including secondary targets that are not represented by the group mirror.
 func ValidateTemplateTargetsGradeLimit(

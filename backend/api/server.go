@@ -124,6 +124,10 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	if svc.StudentChangeLogCleanup != nil {
 		sched.SetStudentChangeLogCleanup(svc.StudentChangeLogCleanup)
 	}
+	// Issue #2189: PWA standalone-usage GDPR cleanup. Same nil-safe wiring.
+	if svc.PWAUsage != nil {
+		sched.SetPWAUsageCleanup(svc.PWAUsage)
+	}
 	if svc.EnrollmentRejectedCleanup != nil {
 		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)
 	}
@@ -177,11 +181,17 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	// active.groups via repositories (issue #585 layering).
 	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
 	sched.SetStudentStatusDayRepo(repos.StudentStatusDay)
+	sched.SetBookingConsistencyAudit(repos.BookingConsistency)
 	// Parent-enrollment PR 2: activate-students tick.
 	if repos.Student != nil {
 		sched.SetStudentLifecycleRepo(repos.Student)
 		if api.Services.StudentAudit != nil {
 			sched.SetStudentLifecycleAudit(api.Services.StudentAudit)
+		}
+		// Effect day of "Betreuung beenden" (#2487): runs inside the same tick,
+		// before the status transition it shares its candidate set with.
+		if api.Services.CareLifecycle != nil {
+			sched.SetCareExitEffector(api.Services.CareLifecycle)
 		}
 	}
 }

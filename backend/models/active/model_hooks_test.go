@@ -11,12 +11,16 @@ import (
 // ============================================================================
 
 func TestGroupMapping_GetID(t *testing.T) {
+	t.Parallel()
+
 	gm := &GroupMapping{}
 	gm.ID = 123
 	assert.Equal(t, int64(123), gm.GetID())
 }
 
 func TestGroupMapping_Validate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("valid mapping", func(t *testing.T) {
 		gm := &GroupMapping{
 			ActiveCombinedGroupID: 1,
@@ -50,6 +54,8 @@ func TestGroupMapping_Validate(t *testing.T) {
 // ============================================================================
 
 func TestGroupSupervisor_GetID(t *testing.T) {
+	t.Parallel()
+
 	gs := &GroupSupervisor{}
 	gs.ID = 456
 	assert.Equal(t, int64(456), gs.GetID())
@@ -60,6 +66,8 @@ func TestGroupSupervisor_GetID(t *testing.T) {
 // ============================================================================
 
 func TestVisit_GetID(t *testing.T) {
+	t.Parallel()
+
 	v := &Visit{}
 	v.ID = 789
 	assert.Equal(t, int64(789), v.GetID())

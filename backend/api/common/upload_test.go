@@ -17,6 +17,8 @@ import (
 )
 
 func TestDetectContentType_JPEG(t *testing.T) {
+	t.Parallel()
+
 	jpegBytes := make([]byte, 512)
 	jpegBytes[0] = 0xFF
 	jpegBytes[1] = 0xD8
@@ -30,6 +32,8 @@ func TestDetectContentType_JPEG(t *testing.T) {
 }
 
 func TestDetectContentType_PNG(t *testing.T) {
+	t.Parallel()
+
 	pngBytes := make([]byte, 512)
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
 
@@ -41,6 +45,8 @@ func TestDetectContentType_PNG(t *testing.T) {
 }
 
 func TestDetectContentType_Invalid(t *testing.T) {
+	t.Parallel()
+
 	htmlBytes := make([]byte, 512)
 	copy(htmlBytes, []byte("<!DOCTYPE html><html><body>Hello</body></html>"))
 
@@ -52,6 +58,8 @@ func TestDetectContentType_Invalid(t *testing.T) {
 }
 
 func TestDetectContentType_SmallFile(t *testing.T) {
+	t.Parallel()
+
 	// A valid PNG smaller than 512 bytes should still be detected
 	pngBytes := make([]byte, 16)
 	copy(pngBytes, []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A})
@@ -64,6 +72,8 @@ func TestDetectContentType_SmallFile(t *testing.T) {
 }
 
 func TestDetectContentType_Empty(t *testing.T) {
+	t.Parallel()
+
 	reader := bytes.NewReader([]byte{})
 	_, err := detectImageContentType(reader)
 
@@ -71,6 +81,8 @@ func TestDetectContentType_Empty(t *testing.T) {
 }
 
 func TestFileExtension_DerivedFromContentType(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		contentType, expected string
 	}{
@@ -86,6 +98,8 @@ func TestFileExtension_DerivedFromContentType(t *testing.T) {
 }
 
 func TestGenerateRandomString(t *testing.T) {
+	t.Parallel()
+
 	result, err := randstr.String(8, randstr.Alphanumeric)
 	assert.NoError(t, err)
 	assert.Len(t, result, 8)
@@ -97,6 +111,8 @@ func TestGenerateRandomString(t *testing.T) {
 }
 
 func TestValidateFilename(t *testing.T) {
+	t.Parallel()
+
 	assert.NoError(t, ValidateFilename("test.jpg"))
 	assert.NoError(t, ValidateFilename("123_abcdef.png"))
 
@@ -106,35 +122,47 @@ func TestValidateFilename(t *testing.T) {
 }
 
 func TestResolveStoredPath_Valid(t *testing.T) {
+	t.Parallel()
+
 	path, err := ResolveStoredPath("public", "/uploads/avatars/global/test.jpg", "/uploads/avatars/")
 	assert.NoError(t, err)
 	assert.NotEmpty(t, path)
 }
 
 func TestResolveStoredPath_InvalidPrefix(t *testing.T) {
+	t.Parallel()
+
 	_, err := ResolveStoredPath("public", "/uploads/not-avatars/test.jpg", "/uploads/avatars/")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid path")
 }
 
 func TestResolveStoredPath_Traversal(t *testing.T) {
+	t.Parallel()
+
 	_, err := ResolveStoredPath("public", "/uploads/avatars/../../etc/passwd", "/uploads/avatars/")
 	assert.Error(t, err)
 }
 
 func TestCloseFile_Success(t *testing.T) {
+	t.Parallel()
+
 	closer := &mockCloser{}
 	CloseFile(closer)
 	assert.True(t, closer.closed)
 }
 
 func TestCloseFile_WithError(t *testing.T) {
+	t.Parallel()
+
 	closer := &mockCloser{err: assert.AnError}
 	CloseFile(closer)
 	assert.True(t, closer.closed)
 }
 
 func TestAllowedImageTypes_Correct(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, AllowedImageTypes["image/jpeg"])
 	assert.True(t, AllowedImageTypes["image/png"])
 	assert.True(t, AllowedImageTypes["image/webp"])
@@ -199,6 +227,8 @@ func makeZIP(t *testing.T, files map[string]string) []byte {
 }
 
 func TestParseDocumentWithLimits_ValidatesOOXMLPackage(t *testing.T) {
+	t.Parallel()
+
 	validDOCX := makeZIP(t, map[string]string{
 		"[Content_Types].xml": "<Types/>",
 		"word/document.xml":   "<w:document/>",
@@ -216,6 +246,8 @@ func TestParseDocumentWithLimits_ValidatesOOXMLPackage(t *testing.T) {
 }
 
 func TestParseImage_ValidJPEG(t *testing.T) {
+	t.Parallel()
+
 	req := createMultipartRequest(t, "image", "photo.jpg", makeJPEGBytes())
 	w := httptest.NewRecorder()
 
@@ -228,6 +260,8 @@ func TestParseImage_ValidJPEG(t *testing.T) {
 }
 
 func TestParseImage_MissingField(t *testing.T) {
+	t.Parallel()
+
 	req := createMultipartRequest(t, "other_field", "photo.jpg", makeJPEGBytes())
 	w := httptest.NewRecorder()
 
@@ -237,6 +271,8 @@ func TestParseImage_MissingField(t *testing.T) {
 }
 
 func TestParseImage_ContentTypeSpoofed(t *testing.T) {
+	t.Parallel()
+
 	// Content is HTML, but filename suggests JPEG
 	htmlContent := make([]byte, 512)
 	copy(htmlContent, []byte("<!DOCTYPE html><html><body>malicious</body></html>"))
@@ -250,6 +286,8 @@ func TestParseImage_ContentTypeSpoofed(t *testing.T) {
 }
 
 func TestParseImageWithLimits_AllowsExactFileSizeWithMultipartHeadroom(t *testing.T) {
+	t.Parallel()
+
 	content := make([]byte, 1024)
 	copy(content, makeJPEGBytes())
 	req := createMultipartRequest(t, "image", "photo.jpg", content)
@@ -263,6 +301,8 @@ func TestParseImageWithLimits_AllowsExactFileSizeWithMultipartHeadroom(t *testin
 }
 
 func TestParseImageWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
+	t.Parallel()
+
 	content := make([]byte, 1025)
 	copy(content, makeJPEGBytes())
 	req := createMultipartRequest(t, "image", "photo.jpg", content)
@@ -274,6 +314,8 @@ func TestParseImageWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
 }
 
 func TestParsePDF_ValidDocument(t *testing.T) {
+	t.Parallel()
+
 	req := createMultipartRequest(t, "document", "terms.pdf", makePDFBytes())
 	w := httptest.NewRecorder()
 
@@ -286,6 +328,8 @@ func TestParsePDF_ValidDocument(t *testing.T) {
 }
 
 func TestParsePDF_RejectsNonPDFContent(t *testing.T) {
+	t.Parallel()
+
 	req := createMultipartRequest(t, "document", "terms.pdf", makeJPEGBytes())
 	w := httptest.NewRecorder()
 
@@ -295,6 +339,8 @@ func TestParsePDF_RejectsNonPDFContent(t *testing.T) {
 }
 
 func TestParsePDFWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
+	t.Parallel()
+
 	content := append(makePDFBytes(), bytes.Repeat([]byte("x"), 1024)...)
 	req := createMultipartRequest(t, "document", "terms.pdf", content)
 	w := httptest.NewRecorder()
@@ -305,6 +351,8 @@ func TestParsePDFWithLimits_RejectsFileOverAdvertisedLimit(t *testing.T) {
 }
 
 func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("fake image data"))
 
@@ -318,6 +366,8 @@ func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 }
 
 func TestSaveImage_GeneratesUniqueFilenames(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	path1, err := SaveImage(bytes.NewReader([]byte("data1")), dir, "img", "image/png")
@@ -330,6 +380,8 @@ func TestSaveImage_GeneratesUniqueFilenames(t *testing.T) {
 }
 
 func TestSaveImage_UnknownContentType(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("pdf content"))
 
@@ -345,6 +397,8 @@ func TestSaveImage_UnknownContentType(t *testing.T) {
 }
 
 func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	content := makePDFBytes()
 
@@ -360,6 +414,8 @@ func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
 }
 
 func TestSavePrivateNamedFile_UsesOwnerOnlyPermissions(t *testing.T) {
+	t.Parallel()
+
 	dir := filepath.Join(t.TempDir(), "staff-documents")
 	path, err := SavePrivateNamedFile(bytes.NewReader([]byte("sensitive")), dir, "document.pdf")
 	require.NoError(t, err)
@@ -373,6 +429,8 @@ func TestSavePrivateNamedFile_UsesOwnerOnlyPermissions(t *testing.T) {
 }
 
 func TestServeImage_ValidFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "test.jpg")
 	require.NoError(t, os.WriteFile(filePath, makeJPEGBytes(), 0644))
@@ -388,6 +446,8 @@ func TestServeImage_ValidFile(t *testing.T) {
 }
 
 func TestServeImage_PathTraversal(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	req := httptest.NewRequest(http.MethodGet, "/images/../../../etc/passwd", nil)
@@ -399,6 +459,8 @@ func TestServeImage_PathTraversal(t *testing.T) {
 }
 
 func TestServeFile_ValidPDF(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "terms.pdf")
 	require.NoError(t, os.WriteFile(filePath, makePDFBytes(), 0644))
@@ -415,6 +477,8 @@ func TestServeFile_ValidPDF(t *testing.T) {
 }
 
 func TestServeFile_PathTraversal(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	req := httptest.NewRequest(http.MethodGet, "/documents/../../../etc/passwd", nil)
@@ -426,6 +490,8 @@ func TestServeFile_PathTraversal(t *testing.T) {
 }
 
 func TestServeImage_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 
 	req := httptest.NewRequest(http.MethodGet, "/images/doesnotexist.jpg", nil)
@@ -437,6 +503,8 @@ func TestServeImage_NonExistent(t *testing.T) {
 }
 
 func TestRemoveImage_ExistingFile(t *testing.T) {
+	t.Parallel()
+
 	dir := t.TempDir()
 	filePath := filepath.Join(dir, "to_delete.jpg")
 	require.NoError(t, os.WriteFile(filePath, []byte("data"), 0644))
@@ -448,6 +516,8 @@ func TestRemoveImage_ExistingFile(t *testing.T) {
 }
 
 func TestRemoveImage_NonExistent(t *testing.T) {
+	t.Parallel()
+
 	// Should not panic when file does not exist
 	assert.NotPanics(t, func() {
 		RemoveImage("/tmp/nonexistent_file_abc123.jpg")
@@ -455,6 +525,8 @@ func TestRemoveImage_NonExistent(t *testing.T) {
 }
 
 func TestRemoveImage_EmptyPath(t *testing.T) {
+	t.Parallel()
+
 	// Should be a no-op, no panic
 	assert.NotPanics(t, func() {
 		RemoveImage("")
@@ -462,6 +534,8 @@ func TestRemoveImage_EmptyPath(t *testing.T) {
 }
 
 func TestPublicDirCandidates(t *testing.T) {
+	t.Parallel()
+
 	base := "/some/project/backend"
 	candidates := publicDirCandidates(base)
 
@@ -475,32 +549,4 @@ func TestPublicDirCandidates(t *testing.T) {
 	parent := filepath.Dir(base)
 	assert.Contains(t, candidates, filepath.Join(parent, "public"))
 	assert.Contains(t, candidates, filepath.Join(parent, "backend", "public"))
-}
-
-func TestModTime_ValidFile(t *testing.T) {
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "modtime_test.txt")
-	require.NoError(t, os.WriteFile(filePath, []byte("content"), 0644))
-
-	f, err := os.Open(filePath)
-	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-
-	mt := modTime(f)
-	assert.False(t, mt.IsZero(), "modification time should be non-zero for a real file")
-}
-
-func TestModTime_NilHandling(t *testing.T) {
-	// Open a file, close it, then call modTime on the closed file descriptor.
-	// This should return zero time (the error path) rather than panic.
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "closed.txt")
-	require.NoError(t, os.WriteFile(filePath, []byte("x"), 0644))
-
-	f, err := os.Open(filePath)
-	require.NoError(t, err)
-	_ = f.Close() // intentionally close before calling modTime
-
-	mt := modTime(f)
-	assert.True(t, mt.IsZero(), "should return zero time for closed file descriptor")
 }

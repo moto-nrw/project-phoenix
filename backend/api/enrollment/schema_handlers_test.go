@@ -21,6 +21,8 @@ import (
 )
 
 func TestCountAssignedPreviewPhases(t *testing.T) {
+	t.Parallel()
+
 	schemaID := int64(1234)
 	otherSchemaID := int64(5678)
 	phases := []*enrollmentModels.Phase{
@@ -210,12 +212,16 @@ func makeFormSchema(id int64, name string, version int) *enrollmentModels.FormSc
 // --- getActiveSchema ---------------------------------------------------
 
 func TestGetActiveSchemaHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestGetActiveSchemaHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{getActiveResult: makeFormSchema(1234, "Standardformular", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema", nil)
@@ -225,6 +231,8 @@ func TestGetActiveSchemaHandler_HappyPath(t *testing.T) {
 }
 
 func TestGetActiveSchemaHandler_NoActiveSchemaReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{getActiveErr: enrollmentService.ErrNoActiveSchema}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema", nil)
@@ -233,6 +241,8 @@ func TestGetActiveSchemaHandler_NoActiveSchemaReturns404(t *testing.T) {
 }
 
 func TestGetActiveSchemaHandler_GenericErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{getActiveErr: errors.New("synthetic boom")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema", nil)
@@ -242,12 +252,16 @@ func TestGetActiveSchemaHandler_GenericErrorReturns500(t *testing.T) {
 // --- listSchemaVersions ------------------------------------------------
 
 func TestListSchemaVersionsHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/versions", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestListSchemaVersionsHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{listResult: []*enrollmentModels.FormSchema{
 		makeFormSchema(2222, "A", 3),
 		makeFormSchema(1111, "A", 2),
@@ -263,6 +277,8 @@ func TestListSchemaVersionsHandler_HappyPath(t *testing.T) {
 }
 
 func TestListSchemaVersionsHandler_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{listErr: errors.New("synthetic boom")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/versions", nil)
@@ -272,24 +288,32 @@ func TestListSchemaVersionsHandler_ServiceErrorReturns500(t *testing.T) {
 // --- getSchemaByID -----------------------------------------------------
 
 func TestGetSchemaByIDHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestGetSchemaByIDHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/notanumber", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetSchemaByIDHandler_ZeroIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/0", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestGetSchemaByIDHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{getByIDResult: makeFormSchema(1234, "Standardformular", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodGet, "/enrollment/schema/1234", nil)
@@ -299,6 +323,8 @@ func TestGetSchemaByIDHandler_HappyPath(t *testing.T) {
 }
 
 func TestGetSchemaByIDHandler_ServiceErrorMappedAs404(t *testing.T) {
+	t.Parallel()
+
 	// Schema-by-id misses are rare and we already verified the id is
 	// numeric — so any service error here is "not found".
 	mock := &mockFormSchemaService{getByIDErr: errors.New("synthetic boom")}
@@ -310,6 +336,8 @@ func TestGetSchemaByIDHandler_ServiceErrorMappedAs404(t *testing.T) {
 // --- publishSchema -----------------------------------------------------
 
 func TestPublishSchemaHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
 		map[string]any{"fields": []map[string]any{}})
@@ -317,6 +345,8 @@ func TestPublishSchemaHandler_NilServiceReturns500(t *testing.T) {
 }
 
 func TestPublishSchemaHandler_RejectsMissingActor(t *testing.T) {
+	t.Parallel()
+
 	// Hit the "missing actor" branch by sending a request without
 	// claims in context.
 	router := buildSchemaRouter(&mockFormSchemaService{})
@@ -334,6 +364,8 @@ func TestPublishSchemaHandler_RejectsMissingActor(t *testing.T) {
 // forwards the wire fields into PublishFormInput and maps the outcome.
 
 func TestPublishSchemaHandler_WithNameForwardsInput(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
@@ -351,6 +383,8 @@ func TestPublishSchemaHandler_WithNameForwardsInput(t *testing.T) {
 }
 
 func TestPublishSchemaHandler_ForwardsLegalBlocks(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishResult: makeFormSchema(1234, "Klassenanmeldung", 1)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
@@ -381,6 +415,8 @@ func TestPublishSchemaHandler_ForwardsLegalBlocks(t *testing.T) {
 }
 
 func TestPublishSchemaHandler_NoNameForwardsEmptyName(t *testing.T) {
+	t.Parallel()
+
 	// An omitted name legacy-routes through the service's active/default
 	// resolution; the handler simply forwards an empty name and nil
 	// core_requirements.
@@ -397,6 +433,8 @@ func TestPublishSchemaHandler_NoNameForwardsEmptyName(t *testing.T) {
 }
 
 func TestPublishSchemaHandler_ValidationErrorReturns400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishErr: errors.New("field 0: form field key is required")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPost, "/enrollment/schema",
@@ -408,6 +446,8 @@ func TestPublishSchemaHandler_ValidationErrorReturns400(t *testing.T) {
 // --- updateSchema -----------------------------------------------------
 
 func TestUpdateSchemaHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
 		map[string]any{"fields": []map[string]any{}})
@@ -415,6 +455,8 @@ func TestUpdateSchemaHandler_NilServiceReturns500(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/notanumber",
 		map[string]any{"fields": []map[string]any{}})
@@ -422,6 +464,8 @@ func TestUpdateSchemaHandler_InvalidIDRejected(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_MissingActorRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	raw, _ := json.Marshal(map[string]any{"fields": []map[string]any{}})
 	req := httptest.NewRequest(http.MethodPut, "/enrollment/schema/1234", bytes.NewReader(raw))
@@ -438,6 +482,8 @@ func TestUpdateSchemaHandler_MissingActorRejected(t *testing.T) {
 // forwards the wire fields into PublishFormVersionInput and maps the outcome.
 
 func TestUpdateSchemaHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
@@ -452,6 +498,8 @@ func TestUpdateSchemaHandler_HappyPath(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
@@ -466,6 +514,8 @@ func TestUpdateSchemaHandler_ForwardsCoreRequirementsWhenPresent(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishVersionResult: makeFormSchema(1234, "Klassenanmeldung", 2)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
@@ -492,6 +542,8 @@ func TestUpdateSchemaHandler_ForwardsLegalBlocksWhenPresent(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishVersionErr: errors.New("invalid schema")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
@@ -500,6 +552,8 @@ func TestUpdateSchemaHandler_ServiceErrorReturns400(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_ForwardsName(t *testing.T) {
+	t.Parallel()
+
 	// A name in the PUT body forwards as a non-nil pointer so the service
 	// runs the combined rename+publish. The handler forwards a blank name
 	// too; the service owns the skip decision.
@@ -517,6 +571,8 @@ func TestUpdateSchemaHandler_ForwardsName(t *testing.T) {
 }
 
 func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T) {
+	t.Parallel()
+
 	// A name already used by another lineage surfaces the same 409 + stable
 	// code the PATCH route returns, so the frontend shows "name already taken".
 	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNameExists}
@@ -531,6 +587,8 @@ func TestUpdateSchemaHandler_RenameNameCollisionReturns409WithCode(t *testing.T)
 }
 
 func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{publishVersionErr: enrollmentService.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
@@ -541,39 +599,27 @@ func TestUpdateSchemaHandler_RenameNotFoundReturns404(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, w.Code)
 }
 
-func TestUpdateSchemaHandler_RenameInfraErrorReturns500(t *testing.T) {
-	// A rename failure that is neither a name collision nor a missing lineage
-	// (a DB/lock/read fault) is infrastructure, not a client error. The
-	// service wraps it in RenameStepError; the handler surfaces it as a 5xx —
-	// matching the PATCH handler — so it takes the normal error-logging path,
-	// NOT the publish path's 400.
-	mock := &mockFormSchemaService{
-		publishVersionErr: enrollmentService.NewRenameStepError(errors.New("lineage lock failed")),
-	}
-	router := buildSchemaRouter(mock)
-	w := executeSchemaJSON(t, router, http.MethodPut, "/enrollment/schema/1234",
-		map[string]any{
-			"name":   "Neuer Name",
-			"fields": []map[string]any{{"key": "x", "label": "X", "type": "text", "sort_order": 0}},
-		})
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-}
-
 // --- deleteSchema -----------------------------------------------------
 
 func TestDeleteSchemaHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
 func TestDeleteSchemaHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/notanumber", nil)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestDeleteSchemaHandler_HappyPathReturns204(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
@@ -582,6 +628,8 @@ func TestDeleteSchemaHandler_HappyPathReturns204(t *testing.T) {
 }
 
 func TestDeleteSchemaHandler_HasPhases409WithCode(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaHasPhases}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
@@ -591,6 +639,8 @@ func TestDeleteSchemaHandler_HasPhases409WithCode(t *testing.T) {
 }
 
 func TestDeleteSchemaHandler_HasRequests409WithCode(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaHasRequests}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
@@ -599,6 +649,8 @@ func TestDeleteSchemaHandler_HasRequests409WithCode(t *testing.T) {
 }
 
 func TestDeleteSchemaHandler_NotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{deleteErr: enrollmentService.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)
@@ -608,6 +660,8 @@ func TestDeleteSchemaHandler_NotFoundReturns404(t *testing.T) {
 // --- renameSchema -----------------------------------------------------
 
 func TestRenameSchemaHandler_NilServiceReturns500(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(nil)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
 		map[string]any{"name": "Neuer Name"})
@@ -615,6 +669,8 @@ func TestRenameSchemaHandler_NilServiceReturns500(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_InvalidIDRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/notanumber",
 		map[string]any{"name": "Neuer Name"})
@@ -622,6 +678,8 @@ func TestRenameSchemaHandler_InvalidIDRejected(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_EmptyNameRejected(t *testing.T) {
+	t.Parallel()
+
 	router := buildSchemaRouter(&mockFormSchemaService{})
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
 		map[string]any{"name": "   "})
@@ -630,6 +688,8 @@ func TestRenameSchemaHandler_EmptyNameRejected(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{renameResult: makeFormSchema(1234, "Ferienprogramm", 3)}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
@@ -642,6 +702,8 @@ func TestRenameSchemaHandler_HappyPath(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNameExists}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
@@ -652,6 +714,8 @@ func TestRenameSchemaHandler_NameExistsReturns409WithCode(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_NotFoundReturns404(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{renameErr: enrollmentService.ErrFormSchemaNotFound}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
@@ -660,6 +724,8 @@ func TestRenameSchemaHandler_NotFoundReturns404(t *testing.T) {
 }
 
 func TestRenameSchemaHandler_GenericErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{renameErr: errors.New("synthetic boom")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodPatch, "/enrollment/schema/1234",
@@ -669,6 +735,8 @@ func TestRenameSchemaHandler_GenericErrorReturns500(t *testing.T) {
 }
 
 func TestDeleteSchemaHandler_GenericErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	mock := &mockFormSchemaService{deleteErr: errors.New("synthetic boom")}
 	router := buildSchemaRouter(mock)
 	w := executeSchemaJSON(t, router, http.MethodDelete, "/enrollment/schema/1234", nil)

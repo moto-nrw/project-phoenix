@@ -11,6 +11,8 @@ import (
 )
 
 func TestBuildPublicEnrollmentFormBootstrapResponse_IncludesLateInvitePrefill(t *testing.T) {
+	t.Parallel()
+
 	firstName := "Mara"
 	lastName := "Muster"
 	response := BuildPublicEnrollmentFormBootstrapResponse(

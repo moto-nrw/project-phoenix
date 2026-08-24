@@ -18,13 +18,14 @@ import (
 // =============================================================================
 
 func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher, group, and student
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Auth", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "AuthTestGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Auth", "Student", "AT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign student to group
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
@@ -44,8 +45,7 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 	t.Run("staff_outside_the_group_can_update", func(t *testing.T) {
 		// #2329: a staff member who does not supervise the child's group is a
 		// full writer — the route permission decides, not the group.
-		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID)
+		_, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff")
 
 		body := map[string]interface{}{
 			"first_name": "Updated",
@@ -62,7 +62,6 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 		// Guests and guardians authenticate against the same portal; holding
 		// users:update is not enough without a staff record in this tenant.
 		guest := testpkg.CreateTestAccount(t, tc.db, "students-auth-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, guest.ID)
 
 		body := map[string]interface{}{
 			"first_name": "GuestUpdated",
@@ -78,7 +77,6 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 
 	t.Run("account_without_staff_record_cannot_delete", func(t *testing.T) {
 		guest := testpkg.CreateTestAccount(t, tc.db, "students-auth-guest-delete@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, guest.ID)
 
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
 
@@ -91,14 +89,14 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 }
 
 func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create student without group assignment
 	student := testpkg.CreateTestStudent(t, tc.db, "NoGroup", "Student", "NG1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroup", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "NoGroup", "Staff")
 
 	t.Run("staff_can_update_student_without_group", func(t *testing.T) {
 		// #2329: a child without a group is an ordinary child, no longer
@@ -131,14 +129,15 @@ func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
 // =============================================================================
 
 func TestStudentResponse_FullAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	t.Run("admin_sees_all_fields", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Full", "Access", "FA1")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 		// Update student with additional fields using raw SQL - use ? placeholders
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET guardian_email = ?, guardian_phone = ?, extra_info = ? WHERE id = ?",
 			"guardian@example.com", "+49123456789", "Important notes", student.ID)
@@ -158,10 +157,9 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		// #2329: read access is tenant-wide for staff, so the address block —
 		// gated on full access — reaches a staff member who supervises nothing.
 		student := testpkg.CreateTestStudent(t, tc.db, "Limited", "Access", "LA1")
-		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
+		_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff")
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET address_street = ? WHERE id = ?",
 			"Vollzugriffweg 1", student.ID)
@@ -189,9 +187,8 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		// full-access fields (address, RFID tag, photo URL) stay out.
 		student := testpkg.CreateTestStudent(t, tc.db, "Redacted", "Access", "RA1")
 		guest := testpkg.CreateTestAccount(t, tc.db, "students-redacted-guest@example.com")
-		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, guest.ID)
 
-		ctx := testpkg.TenantContext(1)
+		ctx := testpkg.Ctx(t)
 		_, err := tc.db.ExecContext(ctx,
 			"UPDATE users.students SET address_street = ? WHERE id = ?",
 			"Geheimstrasse 9", student.ID)
@@ -223,13 +220,14 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentDetail_WithGroup(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	// Create teacher, group, and student
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Detail", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "DetailGroup")
 	student := testpkg.CreateTestStudent(t, tc.db, "Detail", "Student", "DT1")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID, group.ID, student.ID)
 
 	// Assign teacher and student to group
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
@@ -252,10 +250,11 @@ func TestGetStudentDetail_WithGroup(t *testing.T) {
 // =============================================================================
 
 func TestListStudents_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access")
 
 	req := testutil.NewRequest("GET", "/", nil)
 
@@ -266,11 +265,12 @@ func TestListStudents_WithTeacherAccess(t *testing.T) {
 }
 
 func TestGetStudent_WithTeacherAccess(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "TeacherAccess", "Test", "TAT1")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GetTeacher", "Access")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GetTeacher", "Access")
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 

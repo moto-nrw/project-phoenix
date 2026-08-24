@@ -32,7 +32,6 @@ func uniqueSchemaName(prefix string) string {
 func setupSchemaRepoTest(t *testing.T) (*bun.DB, enrollmentModels.FormSchemaRepository, int64, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
@@ -76,6 +75,8 @@ func validFields() []enrollmentModels.FormField {
 // --- Create + FindByID --------------------------------------------------
 
 func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -96,6 +97,8 @@ func TestFormSchemaRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestFormSchemaRepository_Create_RejectsInvalidSchema(t *testing.T) {
+	t.Parallel()
+
 	// Validate() runs before INSERT — missing name must surface as a
 	// wrapped validation error, not a DB constraint error.
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
@@ -114,6 +117,8 @@ func TestFormSchemaRepository_Create_RejectsInvalidSchema(t *testing.T) {
 }
 
 func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -144,6 +149,8 @@ func TestFormSchemaRepository_FindByID_HappyPath(t *testing.T) {
 }
 
 func TestFormSchemaRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	var got *enrollmentModels.FormSchema
@@ -162,6 +169,8 @@ func TestFormSchemaRepository_FindByID_NotFound(t *testing.T) {
 // --- FindActive ---------------------------------------------------------
 
 func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -188,6 +197,8 @@ func TestFormSchemaRepository_FindActive_ReturnsActiveRow(t *testing.T) {
 }
 
 func TestFormSchemaRepository_FindActive_NoRowsReturnsWrappedErrNoRows(t *testing.T) {
+	t.Parallel()
+
 	// Service layer relies on errors.Is(err, sql.ErrNoRows) to map to
 	// its own ErrNoActiveSchema sentinel. The wrap must preserve that.
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
@@ -207,6 +218,8 @@ func TestFormSchemaRepository_FindActive_NoRowsReturnsWrappedErrNoRows(t *testin
 // --- ListByTenant -------------------------------------------------------
 
 func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -246,9 +259,11 @@ func TestFormSchemaRepository_ListByTenant_OrdersByVersionDesc(t *testing.T) {
 }
 
 func TestFormSchemaRepository_ListByTenant_EmptyIsNoError(t *testing.T) {
+	t.Parallel()
+
 	db, repo, _, _ := setupSchemaRepoTest(t)
 	// Use a fresh tenant so we know no rows exist.
-	var tenantID int64 = 90001
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	var list []*enrollmentModels.FormSchema
@@ -264,10 +279,12 @@ func TestFormSchemaRepository_ListByTenant_EmptyIsNoError(t *testing.T) {
 // --- NextVersion / NextVersionForName ----------------------------------
 
 func TestFormSchemaRepository_NextVersion_StartsAt1WhenEmpty(t *testing.T) {
+	t.Parallel()
+
 	// Tenant-scoped via RLS. Use a fresh tenant id so no other test
 	// rows interfere with the MAX(version) read.
 	db, repo, _, _ := setupSchemaRepoTest(t)
-	var tenantID int64 = 90002
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	var next int
@@ -281,6 +298,8 @@ func TestFormSchemaRepository_NextVersion_StartsAt1WhenEmpty(t *testing.T) {
 }
 
 func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -329,6 +348,8 @@ func TestFormSchemaRepository_NextVersionForName_BumpsWithinName(t *testing.T) {
 // --- DeactivatePrevious + UpdateActiveFlag -----------------------------
 
 func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -366,6 +387,8 @@ func TestFormSchemaRepository_DeactivatePrevious_FlipsEveryActiveRow(t *testing.
 }
 
 func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -406,6 +429,8 @@ func TestFormSchemaRepository_UpdateActiveFlag_TogglesSingleRow(t *testing.T) {
 }
 
 func TestFormSchemaRepository_UpdateActiveFlag_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -418,6 +443,8 @@ func TestFormSchemaRepository_UpdateActiveFlag_MissingIDErrors(t *testing.T) {
 // --- DeleteByName -------------------------------------------------------
 
 func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -468,6 +495,8 @@ func TestFormSchemaRepository_DeleteByName_RemovesEveryVersion(t *testing.T) {
 }
 
 func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -480,6 +509,8 @@ func TestFormSchemaRepository_DeleteByName_UnknownNameErrors(t *testing.T) {
 // --- Legal document references -----------------------------------------
 
 func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -598,6 +629,8 @@ func TestFormSchemaRepository_HasLegalDocumentReference(t *testing.T) {
 // --- RenameByName -------------------------------------------------------
 
 func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, creator := setupSchemaRepoTest(t)
 	defer wipeSchemas(db, tenantID, creator)
 
@@ -656,6 +689,8 @@ func TestFormSchemaRepository_RenameByName_RenamesEveryVersion(t *testing.T) {
 }
 
 func TestFormSchemaRepository_RenameByName_UnknownNameErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _ := setupSchemaRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -668,13 +703,15 @@ func TestFormSchemaRepository_RenameByName_UnknownNameErrors(t *testing.T) {
 // --- Tenant isolation ---------------------------------------------------
 
 func TestFormSchemaRepository_RLS_TenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	// A row created under tenant A must not be visible to tenant B.
 	// This guards against accidental ModelTableExpr or query construction
 	// that bypasses the RLS predicate.
 	db, repo, _, creator := setupSchemaRepoTest(t)
 
-	var tenantA int64 = 90010
-	var tenantB int64 = 90011
+	tenantA := testpkg.UniqueTestTenantID(t)
+	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 

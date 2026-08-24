@@ -27,7 +27,7 @@ func submitApprovedAdjustmentChild(
 	offerings []*enrollmentModels.CareOffering,
 ) (requestID, childID, studentID int64) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	offeringIDs := make([]int64, 0, len(offerings))
 	offeringDays := make([]enrollmentService.SubmitOfferingDays, 0, len(offerings))
@@ -40,7 +40,7 @@ func submitApprovedAdjustmentChild(
 	}
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Eltern",
 		GuardianLastName:  lastName,
@@ -88,16 +88,14 @@ func rowsByGroupForAdjustmentTest(
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGroup(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedSwitchNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 101
@@ -172,16 +170,14 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedKeptGroup")
 	addedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedAddedGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		keptGroup.ID, keptGroup.CategoryID, *keptGroup.CreatedBy,
-		addedGroup.ID, addedGroup.CategoryID, *addedGroup.CreatedBy,
-	)
 	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 111
@@ -231,18 +227,15 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 }
 
 func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesScheduledSwitch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionOld")
 	correctedGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionNow")
 	scheduledGroup := testpkg.CreateTestActivityGroup(t, env.db, "CorrectionLater")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		correctedGroup.ID, correctedGroup.CategoryID, *correctedGroup.CreatedBy,
-		scheduledGroup.ID, scheduledGroup.CategoryID, *scheduledGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisher", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 141
@@ -284,18 +277,15 @@ func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesSchedule
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOfferingPastSupersededSwitch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	keptGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedKeptGroup")
 	firstAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedFirstGroup")
 	secondAddedGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedExtendedSecondGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		keptGroup.ID, keptGroup.CategoryID, *keptGroup.CreatedBy,
-		firstAddedGroup.ID, firstAddedGroup.CategoryID, *firstAddedGroup.CreatedBy,
-		secondAddedGroup.ID, secondAddedGroup.CategoryID, *secondAddedGroup.CreatedBy,
-	)
 	keptOffering := createAdjustmentCareOfferingWith(t, env, "Bleibt durchgehend", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &keptGroup.ID
 		o.SortOrder = 114
@@ -347,16 +337,14 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 }
 
 func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUnstartedRow(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "DatedUnstartedNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Vorher gewählt", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 121
@@ -398,12 +386,13 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 }
 
 func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestActivityGroup(t, env.db, "DatedRejectGroup")
-	defer testpkg.CleanupActivityFixtures(t, env.db, group.ID, group.CategoryID, *group.CreatedBy)
 	offering := createAdjustmentCareOfferingWith(t, env, "Egal", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &group.ID
 		o.SortOrder = 131
@@ -443,7 +432,7 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 // the future never allows.
 func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 	t.Helper()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	env.sourcePhase.ServiceStartDate = timezone.TodayDate().AddDays(-60)
 	env.sourcePhase.ServiceEndDate = timezone.TodayDate().AddDays(240)
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
@@ -454,17 +443,15 @@ func startRunningCarePeriodForTest(t *testing.T, env *decisionTestEnv) {
 // otherwise the reopened form offers the superseded selection back and
 // approving an unrelated correction writes it over the switch.
 func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
+	t.Parallel()
+
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	startRunningCarePeriodForTest(t, env)
 
 	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestOld")
 	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "ChangeRequestNew")
-	defer testpkg.CleanupActivityFixtures(t, env.db,
-		oldGroup.ID, oldGroup.CategoryID, *oldGroup.CreatedBy,
-		newGroup.ID, newGroup.CategoryID, *newGroup.CreatedBy,
-	)
 	oldOffering := createAdjustmentCareOfferingWith(t, env, "Bisheriges Angebot", func(o *enrollmentModels.CareOffering) {
 		o.ActivityGroupID = &oldGroup.ID
 		o.SortOrder = 151
@@ -496,6 +483,9 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	requestRow, err := env.repos.Request.FindByID(ctx, requestID)
 	require.NoError(t, err)
 
+	// The reopened form and the change request below predate the takeover
+	// (ADR 0003); after the takeover both paths are closed for this child.
+	restoreTakeover := liftTakeoverStamp(t, env, requestID)
 	draft, err := env.requestSvc.GetEditDraft(ctx, requestRow.StatusToken)
 	require.NoError(t, err)
 	draftLinks := draft.OfferingsByChild[childID]
@@ -503,7 +493,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 	assert.Equal(t, newOffering.ID, draftLinks[0].CareOfferingID)
 
 	proposed := enrollmentService.SubmitRequest{
-		TenantID:          1,
+		TenantID:          testpkg.Tenant(t),
 		PhaseID:           env.sourcePhase.ID,
 		GuardianFirstName: "Elternteil",
 		GuardianLastName:  "SwitchKeeper",
@@ -535,6 +525,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 		ParentNote: "Bitte den Vornamen des Elternteils korrigieren.",
 	})
 	require.NoError(t, err)
+	restoreTakeover()
 
 	// The base the staff diff is rendered against is today's booking. Pinned to
 	// the service start it would report an offering change the parent never

@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -68,8 +69,22 @@ func populatePersonAndGuardianData(response *StudentResponse, person *users.Pers
 	}
 }
 
+// populateCareEndFields carries the child's last care day onto every student
+// payload (#2487). Both list projections need it: a planned exit stays in the
+// list and is labelled "Betreuung endet am …", an effective one is only shown
+// in the archive view. The exit REASON never travels here — it is read behind
+// users:delete.
+func populateCareEndFields(response *StudentResponse, student *users.Student) {
+	if student.EnrolledUntil == nil {
+		return
+	}
+	response.CareEndsOn = student.EnrolledUntil.String()
+	response.CareEnded = student.CareEndedOn(timezone.TodayDate())
+}
+
 // populatePublicStudentFields sets fields visible to all authenticated staff
 func populatePublicStudentFields(response *StudentResponse, student *users.Student) {
+	populateCareEndFields(response, student)
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
 	}
@@ -256,6 +271,7 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *users.S
 
 // populateSnapshotPublicFields sets fields visible to all staff in snapshot version
 func populateSnapshotPublicFields(response *StudentResponse, student *users.Student) {
+	populateCareEndFields(response, student)
 	allowed := student.AllowedDepartureModes.Normalize()
 	response.DepartureRuleConfigured = departureRuleConfigured(student, allowed)
 	if !allowed.HasAny() {
@@ -301,7 +317,11 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	}
 
 	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
-		return common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		info := common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		if info.Location == common.YardLocationLabel {
+			info.RoomColor = common.ResolveYardRoomColor(ctx, activeService)
+		}
+		return info
 	}
 
 	// Handle non-checked-in states (checked_out or other)
@@ -471,21 +491,41 @@ func teacherToSupervisorContact(teacher *users.Teacher) *SupervisorContact {
 	return supervisor
 }
 
-// enrichWithPickupTimes adds today's effective pickup time to each student response.
-// Uses a single bulk query via PickupScheduleService (handles schedule + exception merging).
-// Only students with HasFullAccess=true receive pickup times (GDPR).
-func (rs *Resource) enrichWithPickupTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
-	if len(studentIDs) == 0 || rs.PickupScheduleService == nil {
-		return
+// enrichWithCareExitFlag marks the children whose end of care was entered by
+// the school (#2487). Batched over the page that is actually being returned:
+// the flag decides whether the child management offers "Ende ändern" and
+// "Ende stornieren", which must not depend on how far the date lies ahead.
+func (rs *Resource) enrichWithCareExitFlag(ctx context.Context, responses []StudentResponse) error {
+	if rs.CareLifecycleService == nil {
+		return nil
 	}
-
-	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
+	ids := make([]int64, 0, len(responses))
+	for i := range responses {
+		// Only children that carry an end date at all can have an exit row —
+		// asking for the others would be a query for nothing.
+		if responses[i].CareEndsOn == "" {
+			continue
+		}
+		ids = append(ids, responses[i].ID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	recorded, err := rs.CareLifecycleService.RecordedExitStudentIDs(ctx, ids)
 	if err != nil {
-		rs.Logger.Warn("failed to bulk-fetch pickup times", "error", err.Error())
-		return
+		if rs.Logger != nil {
+			rs.Logger.ErrorContext(ctx, "failed to load recorded care exits",
+				slog.String("error", err.Error()),
+			)
+		}
+		return fmt.Errorf("load recorded care exits: %w", err)
 	}
-
-	applyPickupTimesFromMap(responses, pickupTimes)
+	for i := range responses {
+		if recorded[responses[i].ID] {
+			responses[i].CareExitRecorded = true
+		}
+	}
+	return nil
 }
 
 // applyPickupTimesFromMap writes already-loaded effective pickup times onto the
@@ -505,23 +545,6 @@ func applyPickupTimesFromMap(responses []StudentResponse, pickupTimes map[int64]
 			responses[i].PickupNotes = buildPickupNotes(ept)
 		}
 	}
-}
-
-// enrichWithArrivalTimes adds today's effective arrival time to each student response.
-// It mirrors pickup enrichment so student list consumers can render arrival badges
-// from their primary SWR cache instead of maintaining a second cache.
-func (rs *Resource) enrichWithArrivalTimes(ctx context.Context, responses []StudentResponse, studentIDs []int64, now time.Time) {
-	if len(studentIDs) == 0 || rs.ArrivalScheduleService == nil {
-		return
-	}
-
-	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, timezone.DateFromTime(now))
-	if err != nil {
-		rs.Logger.Warn("failed to bulk-fetch arrival times", "error", err.Error())
-		return
-	}
-
-	applyArrivalTimesFromMap(responses, arrivalTimes)
 }
 
 // applyArrivalTimesFromMap writes already-loaded effective arrival times onto

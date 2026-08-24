@@ -104,8 +104,6 @@ export function Header() {
       return tParentNav("mealPlan");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
-    if (pathname === "/parents/feedback" || pathname === "/feedback")
-      return tParentNav("feedback");
     if (
       matchesPathPrefix(pathname, "/parents/enroll") ||
       matchesPathPrefix(pathname, "/enroll")
@@ -113,7 +111,15 @@ export function Header() {
       return tParentNav("enroll");
     return null;
   })();
-  const displayedPageTitle = parentPageTitle ?? pageTitle;
+  // Schul-Portal (#2207): die Klassenansicht ist die Root-Seite des
+  // Schul-Hosts — getPageTitle kennt nur die Tenant-Pfade und würde den
+  // Dashboard-Fallback anzeigen.
+  const schoolPageTitle =
+    mode === "school" &&
+    (pathname === "/" || pathname === "/school" || pathname === "/klassen")
+      ? "Klassenansicht"
+      : null;
+  const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -124,11 +130,13 @@ export function Header() {
       ? "Operator"
       : mode === "parent"
         ? tParentNav("role")
-        : userRoles.includes("admin")
-          ? "Admin"
-          : rolesIndicateLehrkraftOnly(userRoles)
-            ? "Lehrkraft"
-            : "Betreuer";
+        : mode === "school"
+          ? "Lehrkraft"
+          : userRoles.includes("admin")
+            ? "Admin"
+            : rolesIndicateLehrkraftOnly(userRoles)
+              ? "Lehrkraft"
+              : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)
   useEffect(() => {

@@ -4,56 +4,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNetMinutes(t *testing.T) {
-	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	t.Run("with checkout 8 hours no breaks", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 0,
-		}
-		assert.Equal(t, 480, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("with checkout 8 hours 30min break", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 30,
-		}
-		assert.Equal(t, 450, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("net cannot be negative", func(t *testing.T) {
-		checkIn := time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC)
-		checkOut := time.Date(2024, 1, 1, 8, 10, 0, 0, time.UTC)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: &checkOut,
-			BreakMinutes: 60,
-		}
-		assert.Equal(t, 0, netMinutes(ws, fixedNow))
-	})
-
-	t.Run("active session measures against now", func(t *testing.T) {
-		checkIn := fixedNow.Add(-2 * time.Hour)
-		ws := &activeModels.WorkSession{
-			CheckInTime:  checkIn,
-			CheckOutTime: nil,
-			BreakMinutes: 0,
-		}
-		assert.Equal(t, 120, netMinutes(ws, fixedNow))
-	})
-}
 
 // runningBreak is a break started `minutesAgo` before `now` and not yet ended.
 func runningBreak(now time.Time, minutesAgo int) *activeModels.WorkSessionBreak {
@@ -64,6 +18,8 @@ func runningBreak(now time.Time, minutesAgo int) *activeModels.WorkSessionBreak 
 }
 
 func TestNetMinutesWithBreaks(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 
 	t.Run("deducts a running break from an open session", func(t *testing.T) {
@@ -113,6 +69,8 @@ func TestNetMinutesWithBreaks(t *testing.T) {
 }
 
 func TestIsOvertime(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 20, 0, 0, 0, time.UTC)
 
 	t.Run("not overtime under 10 hours", func(t *testing.T) {
@@ -164,6 +122,8 @@ func TestIsOvertime(t *testing.T) {
 }
 
 func TestIsBreakCompliant(t *testing.T) {
+	t.Parallel()
+
 	fixedNow := time.Date(2024, 1, 1, 20, 0, 0, 0, time.UTC)
 
 	makeSession := func(hours, breakMin int) *activeModels.WorkSession {
@@ -258,5 +218,111 @@ func TestIsBreakCompliant(t *testing.T) {
 		breaks := []*activeModels.WorkSessionBreak{runningBreak(fixedNow, 10)}
 		// 410 net > 360 → needs 30 min, only 10 taken so far.
 		assert.False(t, isBreakCompliant(ws, breaks, fixedNow))
+	})
+}
+
+func TestEvaluateWorkSessionsLaborTime(t *testing.T) {
+	t.Parallel()
+	fixedNow := time.Date(2026, 8, 17, 17, 0, 0, 0, time.UTC)
+	block := func(id int64, inHour, inMin, outHour, outMin, breakMin int) *activeModels.WorkSession {
+		checkIn := time.Date(2026, 8, 17, inHour, inMin, 0, 0, time.UTC)
+		checkOut := time.Date(2026, 8, 17, outHour, outMin, 0, 0, time.UTC)
+		ws := &activeModels.WorkSession{
+			CheckInTime:  checkIn,
+			CheckOutTime: &checkOut,
+			BreakMinutes: breakMin,
+		}
+		ws.ID = id
+		return ws
+	}
+
+	t.Run("sums net and break minutes across blocks", func(t *testing.T) {
+		// 08:00–12:00 Homeoffice, 13:30–16:00 OGS — the Swantje case (#2402).
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 0),
+			block(2, 13, 30, 16, 0, 0),
+		}
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
+		assert.Equal(t, 240+150, eval.NetMinutes, "the 90-minute gap is not work time")
+		assert.Equal(t, 0, eval.BreakMinutes, "the gap is not a stamped break either")
+		assert.Equal(t, 30, eval.RequiredBreakMinutes, "6.5h summed net work requires 30min")
+		assert.True(t, eval.IsBreakCompliant, "the 90-minute gap satisfies the break requirement")
+	})
+
+	t.Run("two adjacent blocks without a gap are not compliant", func(t *testing.T) {
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 0),
+			block(2, 12, 0, 16, 0, 0),
+		}
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
+		assert.Equal(t, 480, eval.NetMinutes)
+		assert.Equal(t, 30, eval.RequiredBreakMinutes)
+		assert.False(t, eval.IsBreakCompliant, "back-to-back blocks earn no gap credit")
+	})
+
+	t.Run("does not combine a short gap with a break", func(t *testing.T) {
+		first := block(1, 8, 0, 12, 0, 0)
+		second := block(2, 12, 5, 15, 30, 25)
+		breakStart := time.Date(2026, 8, 17, 13, 0, 0, 0, time.UTC)
+		breakEnd := breakStart.Add(25 * time.Minute)
+		breaks := map[int64][]*activeModels.WorkSessionBreak{
+			second.ID: {{StartedAt: breakStart, EndedAt: &breakEnd}},
+		}
+
+		eval := EvaluateWorkSessionsLaborTime([]*activeModels.WorkSession{first, second}, breaks, fixedNow)
+		assert.Equal(t, 420, eval.NetMinutes)
+		assert.Equal(t, 25, eval.BreakMinutes)
+		assert.Equal(t, 30, eval.RequiredBreakMinutes)
+		assert.False(t, eval.IsBreakCompliant, "a five-minute gap is not a qualifying break interval")
+	})
+
+	t.Run("open second block measures against now", func(t *testing.T) {
+		open := &activeModels.WorkSession{
+			CheckInTime: time.Date(2026, 8, 17, 13, 30, 0, 0, time.UTC),
+		}
+		open.ID = 2
+		sessions := []*activeModels.WorkSession{
+			block(1, 8, 0, 12, 0, 30),
+			open,
+		}
+		eval := EvaluateWorkSessionsLaborTime(sessions, nil, fixedNow)
+		// Block 1: 240 gross − 30 break = 210. Block 2: 13:30 → 17:00 = 210.
+		assert.Equal(t, 420, eval.NetMinutes)
+		assert.Equal(t, 30, eval.BreakMinutes)
+	})
+
+	t.Run("single block matches EvaluateLaborTime", func(t *testing.T) {
+		ws := block(1, 8, 0, 15, 0, 45)
+		day := EvaluateWorkSessionsLaborTime([]*activeModels.WorkSession{ws}, nil, fixedNow)
+		single := EvaluateLaborTime(ws, nil, fixedNow)
+		assert.Equal(t, single, day)
+	})
+}
+
+func TestNetMinutesByDateLegacyBreakAcrossRangeStart(t *testing.T) {
+	t.Parallel()
+
+	// Legacy row: only the aggregate BreakMinutes, no break intervals.
+	checkIn := time.Date(2024, 1, 1, 22, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2024, 1, 2, 4, 0, 0, 0, timezone.Berlin)
+	session := &activeModels.WorkSession{
+		Date:         timezone.NewDate(2024, time.January, 1),
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+		BreakMinutes: 60,
+	}
+	firstDay := timezone.NewDate(2024, time.January, 1)
+	secondDay := timezone.NewDate(2024, time.January, 2)
+
+	t.Run("full span consumes the cache on the day it starts", func(t *testing.T) {
+		byDate := netMinutesByDate(session, nil, checkOut, firstDay, secondDay)
+		assert.Equal(t, map[timezone.Date]int{firstDay: 60, secondDay: 240}, byDate)
+	})
+
+	t.Run("range starting on the second day keeps that day whole", func(t *testing.T) {
+		// The pause belongs to the night segment before the range. Deducting
+		// it again here would understate 2 January by an hour.
+		byDate := netMinutesByDate(session, nil, checkOut, secondDay, secondDay)
+		assert.Equal(t, map[timezone.Date]int{secondDay: 240}, byDate)
 	})
 }

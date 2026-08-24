@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CarePlanEditorModal } from "./care-plan-editor-modal";
 import type { ArrivalDayData } from "~/lib/arrival-schedule-helpers";
 import type { DayData as PickupDayData } from "~/lib/pickup-schedule-helpers";
+import type { PickupAdjustmentPreview } from "~/lib/pickup-schedule-api";
 
 const toastSuccess = vi.fn();
 const toastError = vi.fn();
@@ -124,6 +125,18 @@ const basePickupDay: PickupDayData = {
     createdAt: "2026-05-01T00:00:00Z",
     updatedAt: "2026-05-01T00:00:00Z",
   },
+  offeringSchedule: {
+    id: "0",
+    studentId: "42",
+    weekday: 1,
+    weekdayName: "Montag",
+    pickupTime: "15:30",
+    source: "care_offering",
+    careOfferingName: "Ganztagsbetreuung",
+    createdBy: "0",
+    createdAt: "0001-01-01T00:00:00Z",
+    updatedAt: "0001-01-01T00:00:00Z",
+  },
   effectiveTime: "15:00",
   effectiveNotes: "Bus",
   isException: false,
@@ -141,11 +154,18 @@ const basePickupDay: PickupDayData = {
 };
 
 const weeklyArrival = [
-  { weekday: 1, expected_arrival: "08:00", notes: "Haupteingang" },
-  { weekday: 2, expected_arrival: "08:15", notes: null },
-  { weekday: 3, expected_arrival: "", notes: null },
-  { weekday: 4, expected_arrival: "", notes: null },
-  { weekday: 5, expected_arrival: "", notes: null },
+  {
+    weekday: 1,
+    inCare: true,
+    expected_arrival: "08:00",
+    notes: "Haupteingang",
+  },
+  { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
+  // Not care days: since #2414 that is what an absent tick means, and it is
+  // what an empty time meant before the split.
+  { weekday: 3, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 4, inCare: false, expected_arrival: "", notes: null },
+  { weekday: 5, inCare: false, expected_arrival: "", notes: null },
 ];
 
 const weeklyPickup = [
@@ -167,6 +187,7 @@ function renderEditor(
   ) => (
     <CarePlanEditorModal
       isOpen
+      careDaysSource="weekly_plan"
       onClose={onClose}
       date={MONDAY}
       arrivalDay={baseArrivalDay}
@@ -185,6 +206,56 @@ function renderEditor(
 
 function save(): void {
   fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+}
+
+function decisionPreview(token: string): PickupAdjustmentPreview {
+  const catalogItem = (id: string, name: string) => ({
+    offering_id: id,
+    name,
+    days_of_week_mode: "fixed" as const,
+    available_days: ["mon", "tue"],
+    selection_rule: "exactly_one",
+    selection_group: "care",
+    is_required: false,
+    includes_lunch: false,
+    includes_holiday_care: false,
+    selected: false,
+    selected_days: [],
+    automatic: false,
+    is_active: true,
+    pickup_times: { mon: "14:30", tue: "14:30" },
+    counts_as_care: true,
+  });
+  return {
+    preview_token: token,
+    effective_from: "2026-05-25",
+    current_plan: "Mo 16:00 Uhr, Di 16:00 Uhr",
+    proposed_plan: "Mo 14:30 Uhr, Di 14:30 Uhr",
+    deviates_from_offering: true,
+    resolution_required: true,
+    matching_offerings: [
+      {
+        offering_id: "2",
+        name: "Angebot A",
+        selected_days: [],
+        selections: [{ offering_id: "2", selected_days: [] }],
+      },
+      {
+        offering_id: "3",
+        name: "Angebot B",
+        selected_days: [],
+        selections: [{ offering_id: "3", selected_days: [] }],
+      },
+    ],
+    offering_catalog: {
+      phase_id: "10",
+      phase_name: "Schuljahr",
+      selection_mode: "required",
+      earliest_effective_from: "2026-05-25",
+      latest_effective_from: "2027-07-31",
+      items: [catalogItem("2", "Angebot A"), catalogItem("3", "Angebot B")],
+    },
+  };
 }
 
 describe("CarePlanEditorModal", () => {
@@ -208,6 +279,454 @@ describe("CarePlanEditorModal", () => {
     expect(
       screen.getByText(/Gilt ab sofort für alle kommenden Wochen/),
     ).toBeInTheDocument();
+  });
+
+  it("requires an explicit lasting exception when no offering matches", async () => {
+    const onSubmitWeekly = vi
+      .fn()
+      .mockResolvedValueOnce({
+        preview_token: "preview-1",
+        effective_from: "2026-05-25",
+        current_plan: "Mo 16:00 Uhr, Di 16:00 Uhr",
+        proposed_plan: "Mo 13:45 Uhr, Di 13:45 Uhr",
+        deviates_from_offering: true,
+        resolution_required: true,
+        matching_offerings: [],
+      })
+      .mockResolvedValueOnce(undefined);
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    expect(
+      await screen.findByText("Gehzeiten passen zu keinem Angebot"),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Als dauerhafte Ausnahme speichern",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenLastCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          resolution: "exception",
+          confirm: true,
+        }),
+      );
+    });
+  });
+
+  it("does not resubmit the weekly form from the decision step", async () => {
+    const onSubmitWeekly = vi.fn().mockResolvedValueOnce({
+      ...decisionPreview("preview-1"),
+      matching_offerings: [],
+    });
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    const heading = await screen.findByText(
+      "Angebot oder dauerhafte Ausnahme wählen",
+    );
+    expect(heading).toHaveFocus();
+    fireEvent.submit(heading.closest("form")!);
+
+    expect(onSubmitWeekly).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears offer A when the preview for offer B fails", async () => {
+    const initial = decisionPreview("preview-1");
+    const readyA = {
+      ...decisionPreview("preview-2"),
+      offering_consequences: {
+        selections: [{ offering_id: "2", state: "booked" as const, days: [] }],
+        manual_planning_conflicts: [],
+        arrival_expectations_follow_bookings: true,
+      },
+    };
+    const onSubmitWeekly = vi
+      .fn()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(readyA)
+      .mockRejectedValueOnce(new Error("Angebot B ist nicht mehr verfügbar"));
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Auf „Angebot A“ umbuchen" }),
+    );
+    await screen.findByRole("button", { name: "Angebot ändern und speichern" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auf „Angebot B“ umbuchen" }),
+    );
+
+    await screen.findByText("Angebot B ist nicht mehr verfügbar");
+    expect(
+      screen.queryByRole("button", { name: "Angebot ändern und speichern" }),
+    ).not.toBeInTheDocument();
+    expect(
+      onSubmitWeekly.mock.calls.some(([, adjustment]) => adjustment?.confirm),
+    ).toBe(false);
+  });
+
+  it("keeps the current-date preview when switching from a future offering to an exception", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime("2026-05-25T12:00:00");
+    const initial = decisionPreview("preview-current");
+    const selected = {
+      ...decisionPreview("preview-selected"),
+      offering_consequences: {
+        selections: [{ offering_id: "2", state: "booked" as const, days: [] }],
+        manual_planning_conflicts: [],
+        arrival_expectations_follow_bookings: true,
+      },
+    };
+    const future = {
+      ...selected,
+      preview_token: "preview-future",
+      effective_from: "2026-06-01",
+      matching_offerings: [],
+    };
+    const onSubmitWeekly = vi
+      .fn()
+      .mockResolvedValueOnce(initial)
+      .mockResolvedValueOnce(selected)
+      .mockResolvedValueOnce(future)
+      .mockResolvedValueOnce(undefined);
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Auf „Angebot A“ umbuchen" }),
+    );
+    await screen.findByRole("button", { name: "Angebot ändern und speichern" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Gilt ab" }));
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Montag, 1\. Juni 2026/i,
+      }),
+    );
+    await waitFor(() => expect(onSubmitWeekly).toHaveBeenCalledTimes(3));
+
+    expect(
+      screen.queryByRole("button", { name: "Angebot ändern und speichern" }),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.getByRole("button", {
+        name: "Als dauerhafte Ausnahme speichern",
+      }),
+    ).toBeDisabled();
+    expect(onSubmitWeekly).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
+  it("shows all exact matches and requires confirmation before changing the offering", async () => {
+    const initialPreview = {
+      preview_token: "preview-1",
+      effective_from: "2026-05-25",
+      current_plan: "Mo 16:00 Uhr, Di 16:00 Uhr",
+      proposed_plan: "Mo 14:30 Uhr, Di 14:30 Uhr",
+      deviates_from_offering: true,
+      resolution_required: true,
+      matching_offerings: [
+        {
+          offering_id: "2",
+          name: "Bis 14:30",
+          selected_days: [],
+          selections: [
+            { offering_id: "4", selected_days: [] },
+            { offering_id: "2", selected_days: [] },
+          ],
+        },
+        {
+          offering_id: "3",
+          name: "Flexibel bis 14:30",
+          selected_days: ["mon", "tue"],
+          selections: [
+            { offering_id: "4", selected_days: [] },
+            { offering_id: "3", selected_days: ["mon", "tue"] },
+          ],
+        },
+      ],
+      offering_catalog: {
+        phase_id: "10",
+        phase_name: "Schuljahr",
+        selection_mode: "required",
+        earliest_effective_from: "2026-05-25",
+        latest_effective_from: "2027-07-31",
+        items: [
+          {
+            offering_id: "1",
+            name: "Bis 16:00",
+            days_of_week_mode: "fixed" as const,
+            available_days: ["mon", "tue"],
+            selection_rule: "exactly_one",
+            selection_group: "care",
+            is_required: false,
+            includes_lunch: false,
+            includes_holiday_care: false,
+            selected: true,
+            selected_days: ["mon", "tue"],
+            automatic: false,
+            is_active: true,
+            pickup_times: { mon: "16:00", tue: "16:00" },
+            counts_as_care: true,
+          },
+          {
+            offering_id: "2",
+            name: "Bis 14:30",
+            days_of_week_mode: "fixed" as const,
+            available_days: ["mon", "tue"],
+            selection_rule: "exactly_one",
+            selection_group: "care",
+            is_required: false,
+            includes_lunch: false,
+            includes_holiday_care: false,
+            selected: false,
+            selected_days: [],
+            automatic: false,
+            is_active: true,
+            pickup_times: { mon: "14:30", tue: "14:30" },
+            counts_as_care: true,
+          },
+          {
+            offering_id: "3",
+            name: "Flexibel bis 14:30",
+            days_of_week_mode: "parent_choice" as const,
+            available_days: ["mon", "tue"],
+            selection_rule: "exactly_one",
+            selection_group: "care",
+            is_required: false,
+            includes_lunch: false,
+            includes_holiday_care: false,
+            selected: false,
+            selected_days: [],
+            automatic: false,
+            is_active: true,
+            capacity: 2,
+            free_slots: 0,
+            pickup_times: { mon: "14:30", tue: "14:30" },
+            counts_as_care: true,
+          },
+          {
+            offering_id: "4",
+            name: "Mittagessen",
+            days_of_week_mode: "fixed" as const,
+            available_days: ["mon", "tue"],
+            selection_rule: "multiple",
+            selection_group: "food",
+            is_required: false,
+            includes_lunch: true,
+            includes_holiday_care: false,
+            selected: true,
+            selected_days: [],
+            automatic: false,
+            is_active: true,
+            pickup_times: {},
+            counts_as_care: false,
+          },
+        ],
+      },
+    };
+    const confirmedPreview = {
+      ...initialPreview,
+      preview_token: "preview-2",
+      offering_consequences: {
+        selections: [
+          { offering_id: "1", state: "removed" as const, days: [] },
+          {
+            offering_id: "2",
+            state: "booked" as const,
+            days: ["mon", "tue"],
+          },
+        ],
+        manual_planning_conflicts: [],
+        arrival_expectations_follow_bookings: true,
+      },
+      removed_manual_notes: [{ weekday: 1, note: "Abholung mit dem Bus" }],
+    };
+    const onSubmitWeekly = vi
+      .fn()
+      .mockResolvedValueOnce(initialPreview)
+      .mockResolvedValueOnce(confirmedPreview)
+      .mockResolvedValueOnce(undefined);
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      onSubmitWeekly,
+    });
+
+    save();
+    expect(
+      await screen.findByRole("button", { name: "Auf „Bis 14:30“ umbuchen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Auf „Flexibel bis 14:30“ umbuchen",
+      }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText("Dieses Angebot hat keinen freien Platz."),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Auf „Bis 14:30“ umbuchen" }),
+    );
+    expect(
+      await screen.findByText("Montag: Abholung mit dem Bus"),
+    ).toBeInTheDocument();
+
+    const saveOffering = await screen.findByRole("button", {
+      name: "Angebot ändern und speichern",
+    });
+    expect(saveOffering).toBeDisabled();
+    fireEvent.click(screen.getByText(/Ich bestätige: Das Angebot gilt ab/));
+    expect(saveOffering).toBeEnabled();
+    fireEvent.click(saveOffering);
+
+    await waitFor(() => {
+      expect(onSubmitWeekly).toHaveBeenLastCalledWith(
+        expect.any(Object),
+        expect.objectContaining({
+          resolution: "offering",
+          confirm: true,
+          selections: [
+            { offering_id: "4", selected_days: [] },
+            { offering_id: "2", selected_days: [] },
+          ],
+        }),
+      );
+    });
+  });
+
+  it("disables care-day changes when bookings define them", () => {
+    renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+    });
+
+    expect(
+      screen.getByText(/Die Betreuungstage kommen aus den Buchungen/),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Montag")).toBeDisabled();
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("keeps booked care days when clearing their own arrival time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      careDaysSource: "bookings",
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "",
+          classTime: "11:45",
+          notes: null,
+        },
+        {
+          weekday: 2,
+          inCare: true,
+          expected_arrival: "12:15",
+          classTime: "11:45",
+          notes: null,
+        },
+        ...weeklyArrival.slice(2),
+      ],
+    });
+
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: [
+            expect.objectContaining({
+              weekday: 1,
+              expected_arrival: "",
+              notes: null,
+            }),
+            expect.objectContaining({
+              weekday: 2,
+              expected_arrival: "12:15",
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("disables arrival fields when a day is not in care", () => {
+    renderEditor({ date: null, arrivalDay: null, pickupDay: null });
+
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-3" }),
+    ).toBeDisabled();
+  });
+
+  it("resets an own arrival time to the class time", async () => {
+    const { onSubmitWeekly } = renderEditor({
+      date: null,
+      arrivalDay: null,
+      pickupDay: null,
+      weeklyArrival: [
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "08:00",
+          classTime: "08:30",
+          notes: null,
+        },
+        ...weeklyArrival.slice(1),
+      ],
+    });
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Klassenzeit nutzen" })[0]!,
+    );
+    expect(
+      screen.getByLabelText("Ankunft", { selector: "#weekly-arrival-1" }),
+    ).toHaveValue("");
+    save();
+
+    await waitFor(() =>
+      expect(onSubmitWeekly).toHaveBeenCalledWith(
+        expect.objectContaining({
+          arrivalSchedules: expect.arrayContaining([
+            expect.objectContaining({ weekday: 1, expected_arrival: "" }),
+          ]),
+        }),
+      ),
+    );
   });
 
   it("saves a day exception with a Grund", async () => {
@@ -513,6 +1032,8 @@ describe("CarePlanEditorModal", () => {
       }),
     );
 
+    expect(onResetPickupToOffering).toHaveBeenCalledWith(1, "2026-05-25");
+
     const message =
       "Die Abholung konnte nicht zurückgesetzt werden. Bitte versuchen Sie es noch einmal.";
     expect(await screen.findByText(message)).toBeInTheDocument();
@@ -624,8 +1145,13 @@ describe("CarePlanEditorModal", () => {
     await waitFor(() => {
       expect(onSubmitWeekly).toHaveBeenCalledWith({
         arrivalSchedules: [
-          { weekday: 1, expected_arrival: "08:45", notes: "Haupteingang" },
-          { weekday: 2, expected_arrival: "08:15", notes: null },
+          {
+            weekday: 1,
+            inCare: true,
+            expected_arrival: "08:45",
+            notes: "Haupteingang",
+          },
+          { weekday: 2, inCare: true, expected_arrival: "08:15", notes: null },
         ],
         pickupSchedules: [
           { weekday: 1, pickupTime: "15:00", notes: "Bus" },
@@ -635,7 +1161,9 @@ describe("CarePlanEditorModal", () => {
     });
   });
 
-  it("rejects a weekly note without its matching time", async () => {
+  // Business rule changed with #2414: an arrival note hangs on the care day,
+  // not on a time — the time may legitimately come from the class.
+  it("rejects a weekly arrival note without a care day", async () => {
     const { onSubmitWeekly } = renderEditor({
       date: null,
       arrivalDay: null,
@@ -653,7 +1181,7 @@ describe("CarePlanEditorModal", () => {
 
     expect(
       await screen.findByText(
-        "Eine Ankunftsnotiz für Mittwoch benötigt eine Ankunftszeit.",
+        "Eine Ankunftsnotiz für Mittwoch braucht einen Betreuungstag.",
       ),
     ).toBeInTheDocument();
     expect(onSubmitWeekly).not.toHaveBeenCalled();

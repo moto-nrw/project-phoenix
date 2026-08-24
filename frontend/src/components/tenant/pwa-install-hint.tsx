@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, EllipsisVertical, Share, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { trackEvent } from "~/lib/analytics";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
@@ -97,8 +98,17 @@ export function PwaInstallHint() {
 
   useEffect(() => {
     if (!installationCompleted) return;
+    // Anonymous install-funnel signal (#2189): the appinstalled event fired.
+    trackEvent("pwa_installed");
     setPlatform(null);
   }, [installationCompleted]);
+
+  // Install-funnel signal (#2189): the install-hint card became visible —
+  // any platform, so the shown count covers the manual iOS card too.
+  useEffect(() => {
+    if (!platform) return;
+    trackEvent("pwa_install_prompt_shown");
+  }, [platform]);
 
   if (!platform || installationCompleted) return null;
 
@@ -111,6 +121,8 @@ export function PwaInstallHint() {
     void triggerInstallPrompt()
       .then((outcome) => {
         logger.info("pwa_install_prompt_answered", { outcome });
+        if (outcome === "accepted") trackEvent("pwa_install_prompt_accepted");
+        if (outcome === "dismissed") trackEvent("pwa_install_prompt_dismissed");
         // A declined prompt leaves the card in place so the user can retry.
         if (outcome === "accepted") dismiss();
       })

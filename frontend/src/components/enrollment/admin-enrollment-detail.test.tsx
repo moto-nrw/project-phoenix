@@ -12,6 +12,7 @@ import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
   getAdminRequest: vi.fn(),
+  decideAdminChild: vi.fn(),
   correctAdminChildData: vi.fn(),
   listCareOfferings: vi.fn(),
   listAdminChildOfferingAdjustments: vi.fn(),
@@ -42,6 +43,7 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   return {
     ...actual,
     getAdminRequest: mocks.getAdminRequest,
+    decideAdminChild: mocks.decideAdminChild,
     correctAdminChildData: mocks.correctAdminChildData,
     listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
     updateAdminChildOfferings: mocks.updateAdminChildOfferings,
@@ -126,6 +128,7 @@ function renderAdjustment(child: AdminRequestChild = adjustmentChild()) {
 
 beforeEach(() => {
   mocks.getAdminRequest.mockReset();
+  mocks.decideAdminChild.mockReset();
   mocks.correctAdminChildData.mockReset();
   mocks.listCareOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockReset();
@@ -135,6 +138,166 @@ beforeEach(() => {
   mocks.fetchCareOfferingBookingStats.mockReset();
   mocks.fetchCareOfferingBookingStats.mockResolvedValue({});
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
+});
+
+describe("AdminEnrollmentDetail approval without an offering", () => {
+  it("requires confirmation when offerings are optional and none is booked", async () => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: "optional",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [],
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    expect(mocks.decideAdminChild).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen.",
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem bestätigen" }),
+    );
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+  });
+
+  it("approves directly when care offerings are disabled", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: "optional",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings: [],
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+    expect(
+      screen.queryByRole("button", { name: "Trotzdem bestätigen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: "the phase requires an offering",
+      mode: "at_least_one",
+      offerings: [],
+    },
+    {
+      name: "an optional offering is booked",
+      mode: "optional",
+      offerings: [
+        {
+          offering_id: "offering-1",
+          offering_name: "Ganztag",
+          days_of_week_mode: "fixed",
+        },
+      ],
+    },
+  ])("approves directly when $name", async ({ mode, offerings }) => {
+    mocks.getAdminRequest.mockResolvedValue({
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      care_offering_selection_mode: mode,
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.test",
+      submitted_at: "2026-08-05T10:00:00Z",
+      status_token: "status-token",
+      children: [
+        {
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-04-15",
+          status: "submitted",
+          activation_mode: "scheduled",
+          offerings,
+        },
+      ],
+    });
+    mocks.decideAdminChild.mockResolvedValue({
+      id: "child-1",
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Bestätigen" }));
+
+    await waitFor(() => {
+      expect(mocks.decideAdminChild).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        "approved",
+        undefined,
+      );
+    });
+    expect(
+      screen.queryByText(/Das Kind wird trotzdem in die OGS aufgenommen/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("AdminEnrollmentDetail late-invite email warning", () => {
@@ -656,6 +819,76 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  it("requires the exact confirmation before removing the final care day", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ counts_as_care: true }),
+    ]);
+    mocks.updateAdminChildOfferings
+      .mockRejectedValueOnce(
+        Object.assign(new Error("confirmation required"), {
+          code: "enrollment.complete_withdrawal_confirmation_required",
+        }),
+      )
+      .mockResolvedValueOnce({});
+
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Alle Betreuungstage entfernen",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Kein Betreuungsbedarf mehr" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Alle Betreuungstage entfernen?",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Danach ist für Lina kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.",
+      ),
+    ).toBeVisible();
+    expect(mocks.updateAdminChildOfferings).toHaveBeenNthCalledWith(
+      1,
+      "request-1",
+      "child-1",
+      expect.objectContaining({
+        offerings: [],
+        completeWithdrawalConfirmed: false,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenNthCalledWith(
+        2,
+        "request-1",
+        "child-1",
+        expect.objectContaining({ completeWithdrawalConfirmed: true }),
+      );
+    });
+    expect(await screen.findByText(/Abmeldung noch abschließen/)).toBeVisible();
+  });
+
   it("hides mutation controls while retaining adjustment history when disabled", async () => {
     vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
     mocks.listAdminChildOfferingAdjustments.mockResolvedValue([

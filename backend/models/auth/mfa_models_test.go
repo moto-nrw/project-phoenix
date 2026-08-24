@@ -16,6 +16,8 @@ import (
 // --- MFACredential ---
 
 func TestMFACredential_Validate(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		cred    MFACredential
@@ -52,6 +54,8 @@ func TestMFACredential_Validate(t *testing.T) {
 // --- MFAEmailChallenge ---
 
 func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
+	t.Parallel()
+
 	unconsumed := &MFAEmailChallenge{}
 	now := time.Now()
 	consumed := &MFAEmailChallenge{ConsumedAt: &now}
@@ -62,6 +66,8 @@ func TestMFAEmailChallenge_IsConsumed(t *testing.T) {
 // --- MFATrustedDevice ---
 
 func TestMFATrustedDevice_IsRevoked(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	assert.False(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour)}).IsRevoked())
 	assert.True(t, (&MFATrustedDevice{ExpiresAt: now.Add(time.Hour), RevokedAt: &now}).IsRevoked())

@@ -9,6 +9,8 @@ import (
 
 // TestUserContextErrorVariables tests that error variables have correct messages
 func TestUserContextErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		err      error
@@ -34,6 +36,8 @@ func TestUserContextErrorVariables(t *testing.T) {
 
 // TestUserContextErrorsAreDistinct ensures each error can be identified uniquely
 func TestUserContextErrorsAreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errorVars := []error{
 		ErrUserNotFound,
 		ErrUserNotAuthenticated,
@@ -59,6 +63,8 @@ func TestUserContextErrorsAreDistinct(t *testing.T) {
 
 // TestUserContextError tests the UserContextError custom error type
 func TestUserContextError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error message format", func(t *testing.T) {
 		underlyingErr := errors.New("database connection lost")
 		userContextErr := &UserContextError{
@@ -103,6 +109,8 @@ func TestUserContextError(t *testing.T) {
 
 // TestPartialError tests the PartialError custom error type
 func TestPartialError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Error message includes counts", func(t *testing.T) {
 		lastErr := errors.New("final operation failed")
 		partialErr := &PartialError{

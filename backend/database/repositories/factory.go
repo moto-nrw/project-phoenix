@@ -17,7 +17,6 @@ import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	suggestionsRepo "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -36,7 +35,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	suggestionsModels "github.com/moto-nrw/project-phoenix/models/suggestions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	"github.com/uptrace/bun"
@@ -70,7 +68,11 @@ type Factory struct {
 	RFIDCard            userModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
+	ClassListEntry      userModels.ClassListEntryRepository
 	StudentDeletion     userModels.StudentDeletionRepository
+	CareExit            userModels.CareExitRepository
+	CareExitCleanup     userModels.CareExitCleanupRepository
+	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
@@ -98,6 +100,7 @@ type Factory struct {
 	Group             educationModels.GroupRepository
 	GroupTeacher      educationModels.GroupTeacherRepository
 	ClassTeacher      educationModels.ClassTeacherRepository
+	ClassArrivalTime  educationModels.ClassArrivalTimeRepository
 	GroupSubstitution educationModels.GroupSubstitutionRepository
 	GradeTransition   educationModels.GradeTransitionRepository
 
@@ -145,6 +148,7 @@ type Factory struct {
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
 	StaffAbsence          activeModels.StaffAbsenceRepository
 	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffAbsenceType      activeModels.StaffAbsenceTypeRepository
 	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 	StaffVacationOpening  activeModels.StaffVacationOpeningRepository
 	StaffBalanceAdjust    activeModels.StaffBalanceAdjustmentRepository
@@ -157,21 +161,15 @@ type Factory struct {
 	FeedbackEntry feedbackModels.EntryRepository
 
 	// IoT domain
-	Device           iotModels.DeviceRepository
-	PushSubscription iotModels.PushSubscriptionRepository
+	Device             iotModels.DeviceRepository
+	PushSubscription   iotModels.PushSubscriptionRepository
+	PWAStandaloneUsage iotModels.PWAStandaloneUsageRepository
 
 	// Config domain
 	SettingValue      configModels.SettingValueRepository
 	SettingAudit      configModels.SettingAuditRepository
 	StaffWorkSchedule configModels.StaffWorkScheduleRepository
 	WorkTimeModel     configModels.WorkTimeModelRepository
-
-	// Suggestions domain
-	SuggestionPost        suggestionsModels.PostRepository
-	SuggestionVote        suggestionsModels.VoteRepository
-	SuggestionComment     suggestionsModels.CommentRepository
-	SuggestionCommentRead suggestionsModels.CommentReadRepository
-	SuggestionPostRead    suggestionsModels.PostReadRepository
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
@@ -190,7 +188,9 @@ type Factory struct {
 	TimeTrackingDeletion         auditModels.TimeTrackingDeletionRepository
 	PersonnelNumberChange        auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange        auditModels.StaffMasterDataChangeCreator
+	ClassListEntryChange         auditModels.ClassListEntryChangeRepository
 	TimeTrackingAuditLog         auditModels.TimeTrackingAuditLogRepository
+	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
 	Organization             platformModels.OrganizationRepository
@@ -220,6 +220,7 @@ type Factory struct {
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	LateInvite           enrollmentModels.LateInviteRepository
 	CareOffering         enrollmentModels.CareOfferingRepository
+	OfferingChangeImpact enrollmentModels.OfferingChangeImpactRepository
 	RequestChildOffering enrollmentModels.RequestChildOfferingRepository
 	ChangeRequest        enrollmentModels.ChangeRequestRepository
 	ChangeRequestMessage enrollmentModels.ChangeRequestMessageRepository
@@ -228,6 +229,7 @@ type Factory struct {
 	OfferingChangeRequest enrollmentModels.OfferingChangeRequestRepository
 	SubmissionRateLimit   enrollmentModels.SubmissionRateLimitRepository
 	Phase                 enrollmentModels.PhaseRepository
+	PhaseExpiry           enrollmentModels.PhaseExpiryRepository
 
 	// Display domain (info-point dashboards, issue #1325)
 	Display displayModels.Repository
@@ -286,7 +288,11 @@ func NewFactory(db *bun.DB) *Factory {
 		RFIDCard:            users.NewRFIDCardRepository(db),
 		Staff:               users.NewStaffRepository(db),
 		Student:             users.NewStudentRepository(db),
+		ClassListEntry:      users.NewClassListEntryRepository(db),
 		StudentDeletion:     users.NewStudentDeletionRepository(db),
+		CareExit:            users.NewCareExitRepository(db),
+		CareExitCleanup:     users.NewCareExitCleanupRepository(db),
+		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
@@ -314,6 +320,7 @@ func NewFactory(db *bun.DB) *Factory {
 		Group:             education.NewGroupRepository(db),
 		GroupTeacher:      education.NewGroupTeacherRepository(db),
 		ClassTeacher:      education.NewClassTeacherRepository(db),
+		ClassArrivalTime:  education.NewClassArrivalTimeRepository(db),
 		GroupSubstitution: education.NewGroupSubstitutionRepository(db),
 		GradeTransition:   education.NewGradeTransitionRepository(db),
 
@@ -361,6 +368,7 @@ func NewFactory(db *bun.DB) *Factory {
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
 		StaffAbsence:          active.NewStaffAbsenceRepository(db),
 		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffAbsenceType:      active.NewStaffAbsenceTypeRepository(db),
 		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 		StaffVacationOpening:  active.NewStaffVacationOpeningRepository(db),
 		StaffBalanceAdjust:    active.NewStaffBalanceAdjustmentRepository(db),
@@ -373,21 +381,15 @@ func NewFactory(db *bun.DB) *Factory {
 		FeedbackEntry: feedback.NewEntryRepository(db),
 
 		// IoT repositories
-		Device:           iot.NewDeviceRepository(db),
-		PushSubscription: iot.NewPushSubscriptionRepository(db),
+		Device:             iot.NewDeviceRepository(db),
+		PushSubscription:   iot.NewPushSubscriptionRepository(db),
+		PWAStandaloneUsage: iot.NewPWAStandaloneUsageRepository(db),
 
 		// Config repositories
 		SettingValue:      config.NewSettingValueRepository(db),
 		SettingAudit:      config.NewSettingAuditRepository(db),
 		StaffWorkSchedule: config.NewStaffWorkScheduleRepository(db),
 		WorkTimeModel:     config.NewWorkTimeModelRepository(db),
-
-		// Suggestions repositories
-		SuggestionPost:        suggestionsRepo.NewPostRepository(db),
-		SuggestionVote:        suggestionsRepo.NewVoteRepository(db),
-		SuggestionComment:     suggestionsRepo.NewCommentRepository(db),
-		SuggestionCommentRead: suggestionsRepo.NewCommentReadRepository(db),
-		SuggestionPostRead:    suggestionsRepo.NewPostReadRepository(db),
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
@@ -406,7 +408,9 @@ func NewFactory(db *bun.DB) *Factory {
 		TimeTrackingDeletion:         audit.NewTimeTrackingDeletionRepository(db),
 		PersonnelNumberChange:        audit.NewPersonnelNumberChangeRepository(db),
 		StaffMasterDataChange:        audit.NewStaffMasterDataChangeRepository(db),
+		ClassListEntryChange:         audit.NewClassListEntryChangeRepository(db),
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(db),
+		BookingConsistency:           audit.NewBookingConsistencyRepository(db),
 
 		// Platform repositories
 		Organization:             platformRepo.NewOrganizationRepository(db),
@@ -435,12 +439,14 @@ func NewFactory(db *bun.DB) *Factory {
 		RequestGuardian:       enrollment.NewRequestGuardianRepository(db),
 		LateInvite:            enrollment.NewLateInviteRepository(db),
 		CareOffering:          enrollment.NewCareOfferingRepository(db),
+		OfferingChangeImpact:  enrollment.NewOfferingChangeImpactRepository(db),
 		RequestChildOffering:  enrollment.NewRequestChildOfferingRepository(db),
 		OfferingChangeRequest: enrollment.NewOfferingChangeRequestRepository(db),
 		ChangeRequest:         enrollment.NewChangeRequestRepository(db),
 		ChangeRequestMessage:  enrollment.NewChangeRequestMessageRepository(db),
 		SubmissionRateLimit:   enrollment.NewSubmissionRateLimitRepository(db),
 		Phase:                 enrollment.NewPhaseRepository(db),
+		PhaseExpiry:           enrollment.NewPhaseExpiryRepository(db),
 
 		// Display (info-point dashboards, issue #1325)
 		Display: displayRepo.NewDisplayRepository(db),

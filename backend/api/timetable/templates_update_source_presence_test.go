@@ -23,6 +23,8 @@ func decodeUpdateSourceFields(t *testing.T, raw string) *updateTemplateRequest {
 }
 
 func TestUpdateTemplateRequestSourceFieldPresence(t *testing.T) {
+	t.Parallel()
+
 	t.Run("omitted fields are unset", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, `{"name":"Tpl"}`)
 		assert.False(t, req.SourceCareOfferingIDs.Set)
@@ -69,6 +71,8 @@ func validUpdateBodyJSON(fragment string) string {
 // the not-yet-merged nil source (#2147 review round 14). Submitted source
 // fields keep failing fast at bind.
 func TestUpdateTemplateBind_DefersSourceValidationUntilMerge(t *testing.T) {
+	t.Parallel()
+
 	t.Run("filter-only body binds and keeps the filter for the merge", func(t *testing.T) {
 		req := decodeUpdateSourceFields(t, validUpdateBodyJSON(
 			`"target_group_type":"angebot","source_grade_levels":[2]`))
@@ -99,6 +103,8 @@ func sourcedExistingTemplate(offeringIDs []int64, gradeLevels []int) templateRes
 }
 
 func TestApplyOfferingSourcePresence(t *testing.T) {
+	t.Parallel()
+
 	storedOfferingIDs := []int64{41, 43}
 
 	t.Run("omitted fields carry the stored sources and filter", func(t *testing.T) {
@@ -152,5 +158,69 @@ func TestApplyOfferingSourcePresence(t *testing.T) {
 		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
 		assert.Nil(t, req.SourceCareOfferingIDs.Value)
 		assert.Nil(t, req.SourceGradeLevels.Value)
+	})
+}
+
+// #2482: the Klassenfilter follows the same presence rules as the
+// Jahrgangsfilter, plus the mutual exclusion — submitting one non-empty
+// filter must DROP a stored other one instead of colliding with it.
+func TestApplyOfferingSourcePresenceClassFilter(t *testing.T) {
+	t.Parallel()
+
+	stored := templateResponse{
+		SourceCareOfferingIDs: []int64{44},
+		SourceGradeLevels:     []int{1},
+	}
+	storedClasses := templateResponse{
+		SourceCareOfferingIDs: []int64{44},
+		SourceSchoolClasses:   []string{"1b"},
+	}
+
+	t.Run("omitted class filter inherits the stored one", func(t *testing.T) {
+		req := &updateTemplateRequest{TargetGroupType: activitiesModel.TargetGroupTypeAngebot}
+		applyOfferingSourcePresence(req, storedClasses)
+		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value)
+		assert.Empty(t, req.SourceGradeLevels.Value)
+	})
+
+	t.Run("submitted class filter drops the stored grade filter", func(t *testing.T) {
+		req := &updateTemplateRequest{
+			TargetGroupType:     activitiesModel.TargetGroupTypeAngebot,
+			SourceSchoolClasses: nullableStringSlice{Set: true, Value: []string{"1b"}},
+		}
+		applyOfferingSourcePresence(req, stored)
+		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value)
+		assert.Empty(t, req.SourceGradeLevels.Value,
+			"switching to a Klassenfilter must not be blocked by a filter the client never sent")
+	})
+
+	t.Run("submitted grade filter drops the stored class filter", func(t *testing.T) {
+		req := &updateTemplateRequest{
+			TargetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			SourceGradeLevels: nullableIntSlice{Set: true, Value: []int{2}},
+		}
+		applyOfferingSourcePresence(req, storedClasses)
+		assert.Equal(t, []int{2}, req.SourceGradeLevels.Value)
+		assert.Empty(t, req.SourceSchoolClasses.Value)
+	})
+
+	t.Run("clearing the source clears both filters", func(t *testing.T) {
+		req := &updateTemplateRequest{
+			TargetGroupType:       activitiesModel.TargetGroupTypeAngebot,
+			SourceCareOfferingIDs: nullableInt64Slice{Set: true, Value: nil},
+		}
+		applyOfferingSourcePresence(req, storedClasses)
+		assert.Empty(t, req.SourceSchoolClasses.Value)
+		assert.Empty(t, req.SourceGradeLevels.Value)
+	})
+
+	t.Run("submitted class filter without a source remains for validation", func(t *testing.T) {
+		req := &updateTemplateRequest{
+			TargetGroupType:     activitiesModel.TargetGroupTypeAngebot,
+			SourceSchoolClasses: nullableStringSlice{Set: true, Value: []string{"1b"}},
+		}
+		applyOfferingSourcePresence(req, templateResponse{TargetGroupType: activitiesModel.TargetGroupTypeAngebot})
+		assert.Equal(t, []string{"1b"}, req.SourceSchoolClasses.Value,
+			"the model must reject a submitted class filter without an offering source")
 	})
 }

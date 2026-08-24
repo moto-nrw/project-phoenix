@@ -14,6 +14,8 @@ import (
 // =============================================================================
 
 func TestStudentArrivalSchedule_Validate(t *testing.T) {
+	t.Parallel()
+
 	validTime := time.Date(2024, 1, 1, 7, 50, 0, 0, time.UTC)
 
 	tests := []struct {
@@ -115,7 +117,11 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 			errMsg:  "weekday must be between 1 (Monday) and 5 (Friday)",
 		},
 		{
-			name: "missing expected_arrival",
+			// Business rule changed with #2414 / ADR 0005: a row without a
+			// time is not incomplete, it is a care day whose time comes from
+			// the child's class timetable. A time without a care day is what
+			// must not exist, and that is expressed by the absence of a row.
+			name: "missing expected_arrival means the class timetable supplies it",
 			setup: func() *StudentArrivalSchedule {
 				return &StudentArrivalSchedule{
 					StudentID: 1,
@@ -123,8 +129,7 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 					CreatedBy: 1,
 				}
 			},
-			wantErr: true,
-			errMsg:  "expected_arrival is required",
+			wantErr: false,
 		},
 		{
 			name: "missing created_by",
@@ -172,6 +177,8 @@ func TestStudentArrivalSchedule_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name         string
 		weekday      int
@@ -197,12 +204,16 @@ func TestStudentArrivalSchedule_GetWeekdayName(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetID(t *testing.T) {
+	t.Parallel()
+
 	s := &StudentArrivalSchedule{}
 	s.ID = 42
 	assert.Equal(t, int64(42), s.GetID())
 }
 
 func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.CreatedAt = now
@@ -210,6 +221,8 @@ func TestStudentArrivalSchedule_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	s := &StudentArrivalSchedule{}
 	s.UpdatedAt = now
@@ -221,6 +234,8 @@ func TestStudentArrivalSchedule_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalException_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
@@ -350,6 +365,8 @@ func TestStudentArrivalException_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalException_IsAbsent(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 	validTime := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
 
@@ -396,12 +413,16 @@ func TestStudentArrivalException_IsAbsent(t *testing.T) {
 }
 
 func TestStudentArrivalException_GetID(t *testing.T) {
+	t.Parallel()
+
 	exception := &StudentArrivalException{}
 	exception.ID = 42
 	assert.Equal(t, int64(42), exception.GetID())
 }
 
 func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.CreatedAt = now
@@ -409,6 +430,8 @@ func TestStudentArrivalException_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	exception := &StudentArrivalException{}
 	exception.UpdatedAt = now
@@ -420,6 +443,8 @@ func TestStudentArrivalException_GetUpdatedAt(t *testing.T) {
 // =============================================================================
 
 func TestStudentArrivalNote_Validate(t *testing.T) {
+	t.Parallel()
+
 	validDate := timezone.NewDate(2024, 1, 15)
 
 	tests := []struct {
@@ -560,12 +585,16 @@ func TestStudentArrivalNote_Validate(t *testing.T) {
 }
 
 func TestStudentArrivalNote_GetID(t *testing.T) {
+	t.Parallel()
+
 	note := &StudentArrivalNote{}
 	note.ID = 42
 	assert.Equal(t, int64(42), note.GetID())
 }
 
 func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.CreatedAt = now
@@ -573,8 +602,29 @@ func TestStudentArrivalNote_GetCreatedAt(t *testing.T) {
 }
 
 func TestStudentArrivalNote_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	note := &StudentArrivalNote{}
 	note.UpdatedAt = now
 	assert.Equal(t, now, note.GetUpdatedAt())
+}
+
+// TestStudentArrivalScheduleInheritsClassTime pins the meaning the #2414 split
+// gave the row: it is the care-day marker, the time on it is optional.
+func TestStudentArrivalScheduleInheritsClassTime(t *testing.T) {
+	t.Parallel()
+
+	careDayOnly := &StudentArrivalSchedule{StudentID: 1, Weekday: WeekdayMonday, CreatedBy: 1}
+	require.NoError(t, careDayOnly.Validate())
+	assert.True(t, careDayOnly.InheritsClassTime())
+
+	deviating := &StudentArrivalSchedule{
+		StudentID:       1,
+		Weekday:         WeekdayMonday,
+		ExpectedArrival: time.Date(2000, 1, 1, 12, 15, 0, 0, time.UTC),
+		CreatedBy:       1,
+	}
+	require.NoError(t, deviating.Validate())
+	assert.False(t, deviating.InheritsClassTime())
 }

@@ -1320,6 +1320,18 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 	selectionMode string,
 	grandfathered GrandfatheredOfferings,
 ) ([][]materializedOfferingSelection, error) {
+	return materializeAndValidateChildrenOfferingSelectionsForAdjustment(
+		children, openByID, selectionMode, grandfathered, false,
+	)
+}
+
+func materializeAndValidateChildrenOfferingSelectionsForAdjustment(
+	children []SubmitChild,
+	openByID map[int64]*enrollmentModels.CareOffering,
+	selectionMode string,
+	grandfathered GrandfatheredOfferings,
+	allowCompleteWithdrawal bool,
+) ([][]materializedOfferingSelection, error) {
 	out := make([][]materializedOfferingSelection, len(children))
 	for i := range children {
 		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
@@ -1355,8 +1367,22 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
 		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, materializeByID)
-		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, availableByID); err != nil {
+		completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(selections, materializeByID)
+		if err := validateOfferingGroupRulesWithMissingRequiredAllowed(
+			[]SubmitChild{children[i]}, availableByID, completeWithdrawal,
+		); err != nil {
 			return nil, err
+		}
+		if (len(openByID) == 0 || hasChoosableCareOffering(availableByID)) && completeWithdrawal {
+			if err := validateCareOfferingSelectionModeAllowingMissing(
+				[]SubmitChild{manualChild}, availableByID, selectionMode,
+			); err != nil {
+				return nil, err
+			}
+		}
+		if completeWithdrawal {
+			out[i] = selections
+			continue
 		}
 		if err := validateRequiredOfferings([]SubmitChild{children[i]}, availableByID); err != nil {
 			return nil, err
@@ -1369,6 +1395,26 @@ func materializeAndValidateChildrenOfferingSelectionsGrandfathering(
 		out[i] = selections
 	}
 	return out, nil
+}
+
+func materializedSelectionsHaveCareDays(
+	selections []materializedOfferingSelection,
+	offerings map[int64]*enrollmentModels.CareOffering,
+) bool {
+	for _, selection := range selections {
+		offering := offerings[selection.OfferingID]
+		if offering == nil || !offering.CountsAsCare {
+			continue
+		}
+		hasCareDays := len(selection.SelectedDays) > 0
+		if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+			hasCareDays = len(offering.AvailableDays) > 0
+		}
+		if hasCareDays {
+			return true
+		}
+	}
+	return false
 }
 
 // GrandfatheredOfferings splits the bookings a child already holds by how an
@@ -1778,6 +1824,17 @@ func validateRequiredOfferings(children []SubmitChild, openByID map[int64]*enrol
 // package plus a choose-one-time-slot rule): the contradiction this
 // function is designed to avoid.
 func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
+	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, false)
+}
+
+// validateCareOfferingSelectionModeAllowingMissing waives only the lower
+// bound for a confirmed complete withdrawal. The exactly-one upper bound
+// remains binding for non-care offerings that stay selected.
+func validateCareOfferingSelectionModeAllowingMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string) error {
+	return validateCareOfferingSelectionModeWithMissing(children, openByID, mode, true)
+}
+
+func validateCareOfferingSelectionModeWithMissing(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering, mode string, allowMissing bool) error {
 	if mode == "" || mode == enrollmentModels.PhaseCareOfferingSelectionOptional {
 		return nil
 	}
@@ -1807,11 +1864,11 @@ func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int6
 		}
 		switch mode {
 		case enrollmentModels.PhaseCareOfferingSelectionAtLeastOne:
-			if choosableCount == 0 {
+			if choosableCount == 0 && !allowMissing {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingMissing, i)
 			}
 		case enrollmentModels.PhaseCareOfferingSelectionExactlyOne:
-			if choosableCount != 1 {
+			if choosableCount > 1 || (choosableCount == 0 && !allowMissing) {
 				return fmt.Errorf("%w: child %d", ErrCareOfferingExactlyOneRequired, i)
 			}
 		}
@@ -2606,6 +2663,30 @@ func editModeForChildren(children []*enrollmentModels.RequestChild) string {
 	return EditModeDirectEdit
 }
 
+// ChildTakenOver reports whether an enrollment child has already been taken
+// over into care: an approval materialized it into a student. From that moment
+// change wishes for this child run exclusively through the parent app, so the
+// status link keeps the child readable but locks it in the change form
+// (ADR 0003).
+func ChildTakenOver(child *enrollmentModels.RequestChild) bool {
+	return child != nil && child.CreatedStudentID != nil && *child.CreatedStudentID > 0
+}
+
+// allChildrenTakenOver reports whether every child of the enrollment is past
+// the takeover. Then there is nothing left the status link could change and the
+// change form disappears entirely.
+func allChildrenTakenOver(children []*enrollmentModels.RequestChild) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, child := range children {
+		if !ChildTakenOver(child) {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, req *enrollmentModels.Request, children []*enrollmentModels.RequestChild) error {
 	if req == nil || req.WithdrawnAt != nil {
 		return ErrEditNotAllowed
@@ -2623,6 +2704,9 @@ func (s *requestService) ensureChangeRequestDraftAvailable(ctx context.Context, 
 		if c.Status == enrollmentModels.ChildStatusWithdrawn {
 			return ErrEditNotAllowed
 		}
+	}
+	if allChildrenTakenOver(children) {
+		return ErrEditNotAllowed
 	}
 	return nil
 }

@@ -24,12 +24,16 @@ type wtmMockSessionReader struct {
 	lastFrom timezone.Date
 }
 
-func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+func (m *wtmMockSessionReader) ListOverlappingByStaffID(_ context.Context, _ int64, from time.Time, to *time.Time) ([]*activeModels.WorkSession, error) {
 	m.calls++
-	m.lastFrom = from
+	m.lastFrom = timezone.DateFromTime(from)
 	var result []*activeModels.WorkSession
 	for _, s := range m.sessions {
-		if !s.Date.Before(from) && !s.Date.After(to) {
+		end := time.Now()
+		if s.CheckOutTime != nil {
+			end = *s.CheckOutTime
+		}
+		if end.After(from) && (to == nil || s.CheckInTime.Before(*to)) {
 			result = append(result, s)
 		}
 	}
@@ -37,11 +41,17 @@ func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, f
 }
 
 type wtmMockBreakReader struct {
-	activeBreaks map[int64]*activeModels.WorkSessionBreak
+	breaks     map[int64][]*activeModels.WorkSessionBreak
+	batchCalls int
 }
 
-func (m *wtmMockBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
-	return m.activeBreaks[sessionID], nil
+func (m *wtmMockBreakReader) GetBySessionID(_ context.Context, sessionID int64) ([]*activeModels.WorkSessionBreak, error) {
+	return m.breaks[sessionID], nil
+}
+
+func (m *wtmMockBreakReader) GetBySessionIDs(_ context.Context, _ []int64) (map[int64][]*activeModels.WorkSessionBreak, error) {
+	m.batchCalls++
+	return m.breaks, nil
 }
 
 type wtmMockAbsenceReader struct {
@@ -137,7 +147,7 @@ type wtmFixture struct {
 func newWTMFixture() *wtmFixture {
 	f := &wtmFixture{
 		sessions: &wtmMockSessionReader{},
-		breaks:   &wtmMockBreakReader{activeBreaks: map[int64]*activeModels.WorkSessionBreak{}},
+		breaks:   &wtmMockBreakReader{breaks: map[int64][]*activeModels.WorkSessionBreak{}},
 		absences: &wtmMockAbsenceReader{},
 		shifts:   &wtmMockShiftReader{},
 		schedules: &wtmMockScheduleReader{entries: []*configModels.StaffWorkSchedule{
@@ -185,6 +195,8 @@ func wtmShift(date timezone.Date, minutes int, cancelled bool) *scheduleModels.S
 // aggregate — and query — seven decades of days for a reader that cannot
 // exist; the bound turns that into a 400 before the first query (#1842).
 func TestWTMMonthSummary_RejectsFarFutureMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 
 	_, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2100, 12)
@@ -196,6 +208,8 @@ func TestWTMMonthSummary_RejectsFarFutureMonth(t *testing.T) {
 // The bound is a year of headroom, not a ban on the future: month-by-month
 // forward navigation stays usable against planned shifts and absences.
 func TestWTMMonthSummary_AcceptsMonthWithinFutureBound(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	ctx := context.Background()
 
@@ -216,6 +230,8 @@ func TestWTMMonthSummary_AcceptsMonthWithinFutureBound(t *testing.T) {
 // the floor and present a wrong opening/closing Stundenkonto as authoritative
 // (#1842). No real Stundenkonto reaches back this far.
 func TestWTMMonthSummary_RejectsAncientAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2000-01-01" // 26 years before the requested month
 	ctx := context.Background()
@@ -235,6 +251,8 @@ func TestWTMMonthSummary_RejectsAncientAccountStart(t *testing.T) {
 // still begins exactly on the configured date, so the bound cannot silently
 // drop carry for a legitimate Stundenkonto.
 func TestWTMMonthSummary_RealisticAccountStartNotClamped(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture() // account start 2026-06-01, today 2026-07-15
 	ctx := context.Background()
 
@@ -247,6 +265,8 @@ func TestWTMMonthSummary_RealisticAccountStartNotClamped(t *testing.T) {
 
 // June 2026 Mondays: 1, 8, 15, 22, 29 → 5 × 480 = 2400 target minutes.
 func TestWTMMonthSummary_PastMonthComputation(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	ctx := context.Background()
 
@@ -296,6 +316,8 @@ func TestWTMMonthSummary_PastMonthComputation(t *testing.T) {
 }
 
 func TestWTMMonthSummary_NoShiftsMeansNilPlanned(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
 	require.NoError(t, err)
@@ -303,6 +325,8 @@ func TestWTMMonthSummary_NoShiftsMeansNilPlanned(t *testing.T) {
 }
 
 func TestWTMMonthSummary_LiveCarry(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-05-01"
 	// May 2026 Mondays: 4, 11, 18, 25 → 4 × 480 = 1920 target; one 480 session.
@@ -324,6 +348,8 @@ func TestWTMMonthSummary_LiveCarry(t *testing.T) {
 }
 
 func TestWTMMonthSummary_CurrentMonthProRated(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	// July 2026 Mondays: 6, 13, 20, 27. Today = Jul 15 → to-date counts 6 + 13.
@@ -345,6 +371,8 @@ func TestWTMMonthSummary_CurrentMonthProRated(t *testing.T) {
 }
 
 func TestWTMMonthSummary_ModelFallback(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.schedules.entries = nil
 	modelID := int64(9)
@@ -368,6 +396,8 @@ func TestWTMMonthSummary_ModelFallback(t *testing.T) {
 // before it belong to no balance, in the card itself and in every later
 // carry. June 2026 Mondays from the 15th on: 15, 22, 29 → 3 × 480.
 func TestWTMMonthSummary_MidMonthAccountStartClampsAnchorMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-06-15"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -392,6 +422,8 @@ func TestWTMMonthSummary_MidMonthAccountStartClampsAnchorMonth(t *testing.T) {
 }
 
 func TestWTMMonthSummary_MidMonthAccountStartCarry(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-06-15"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -406,6 +438,8 @@ func TestWTMMonthSummary_MidMonthAccountStartCarry(t *testing.T) {
 
 // A month entirely before the account start is summarized standalone.
 func TestWTMMonthSummary_MonthBeforeAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-06-15"
 
@@ -418,6 +452,8 @@ func TestWTMMonthSummary_MonthBeforeAccountStart(t *testing.T) {
 // A failing settings read must surface, not silently fall back to January:
 // the fallback would return a materially wrong Stundenkonto with HTTP 200.
 func TestWTMMonthSummary_SettingsErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.err = errors.New("settings unavailable")
 
@@ -427,6 +463,8 @@ func TestWTMMonthSummary_SettingsErrorPropagates(t *testing.T) {
 }
 
 func TestWTMMonthSummary_InvalidMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	_, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 13)
 	assert.Error(t, err)
@@ -438,6 +476,8 @@ func TestWTMMonthSummary_InvalidMonth(t *testing.T) {
 // enter the balance: targets and credits are clamped at today, so counting its
 // Ist would invent a plus in the current month and carry it forward forever.
 func TestWTMMonthSummary_FutureSessionExcludedFromActual(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 
 	// today = 2026-07-15; July Mondays up to today: 6, 13 → 960 target_to_date.
@@ -457,6 +497,8 @@ func TestWTMMonthSummary_FutureSessionExcludedFromActual(t *testing.T) {
 // The future-dated session must not leak into a later month's Übertrag either
 // — the carry sums the same per-month balances.
 func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -469,10 +511,63 @@ func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
 	assert.Equal(t, -960, summary.CarryInMinutes, "future session must not inflate the carry")
 }
 
+func TestWTMMonthSummary_AssignsOvernightSessionToBothDays(t *testing.T) {
+	t.Parallel()
+	f := newWTMFixture()
+	start := timezone.NewDate(2026, time.June, 30).BerlinMidnight().Add(22 * time.Hour)
+	end := start.Add(4 * time.Hour)
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		StaffID:      wtmStaffID,
+		Date:         timezone.NewDate(2026, time.June, 30),
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  start,
+		CheckOutTime: &end,
+	}}
+
+	june, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	assert.Equal(t, 120, june.ActualMinutes)
+
+	july, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 120, july.ActualMinutes)
+}
+
+func TestBalanceSessionEnd_AllowsOpenNightBlockButCapsStaleBlock(t *testing.T) {
+	t.Parallel()
+	yesterday := timezone.NewDate(2026, time.July, 21)
+	now := yesterday.AddDays(1).BerlinMidnight().Add(6 * time.Hour)
+	night := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(22 * time.Hour)}
+	assert.Equal(t, now, balanceSessionEnd(night, now, timezone.DateFromTime(now)))
+
+	stale := &activeModels.WorkSession{Date: yesterday, CheckInTime: yesterday.BerlinMidnight().Add(8 * time.Hour)}
+	assert.Equal(t, stale.CheckInTime.Add(maxOpenWorkSessionDuration), balanceSessionEnd(stale, now, timezone.DateFromTime(now)))
+
+	lateCheckout := now
+	stale.CheckOutTime = &lateCheckout
+	assert.Equal(t, lateCheckout, balanceSessionEnd(stale, now, timezone.DateFromTime(now)), "a completed block must retain its recorded check-out")
+}
+
+func TestBalanceSessionEnd_PreservesCompletedLongNightBlock(t *testing.T) {
+	t.Parallel()
+	day := timezone.NewDate(2026, time.July, 21)
+	start := day.BerlinMidnight().Add(18 * time.Hour)
+	checkOut := start.Add(13 * time.Hour)
+	session := &activeModels.WorkSession{
+		Date:         day,
+		CheckInTime:  start,
+		CheckOutTime: &checkOut,
+	}
+
+	assert.Equal(t, checkOut, balanceSessionEnd(session, checkOut.Add(time.Hour), timezone.DateFromTime(checkOut.Add(time.Hour))))
+}
+
 // Editing a schedule overwrites users.staff.rotation_anchor_date. A historical
 // version carrying its own anchor must keep the parity it was written with,
 // instead of being re-parityed by the current anchor (#1842).
 func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-06-01"
 
@@ -502,10 +597,12 @@ func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
 	assert.Equal(t, 3*480, summary.TargetMinutes, "the version's own anchor must decide the parity")
 }
 
-// GetDailyTargets is what the daily table reads, and it must resolve each day
+// GetDailyProjection is what the daily table reads, and it must resolve each day
 // against the schedule version valid ON that day — the card and the rows
 // beneath it are otherwise free to disagree.
 func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 
 	// Old version: Mondays 480, closed on 2026-07-01. New version: Mondays 240.
@@ -536,14 +633,16 @@ func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
 }
 
 // A mid-month account start makes the card skip every day of the anchor month
-// before the start date. The table reads GetDailyTargets, so it has to skip the
+// before the start date. The table reads GetDailyProjection, so it has to skip the
 // same days — otherwise its Soll column bills days the card never counted and
 // the two contradict each other on the very first month of the account.
 func TestWTMDailyTargets_ZeroesDaysBeforeMidMonthAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-08"
 
-	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.June, 29), timezone.NewDate(2026, time.July, 13))
 	require.NoError(t, err)
 
@@ -562,11 +661,13 @@ func TestWTMDailyTargets_ZeroesDaysBeforeMidMonthAccountStart(t *testing.T) {
 // The guarantee the table depends on, stated end to end: for a mid-month start
 // the per-day targets must sum to exactly the card's Summe Soll.
 func TestWTMDailyTargets_SumMatchesCardForMidMonthStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-08"
 	ctx := context.Background()
 
-	targets, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2026, time.July, 1), timezone.NewDate(2026, time.July, 31))
 	require.NoError(t, err)
 	sum := 0
@@ -581,6 +682,8 @@ func TestWTMDailyTargets_SumMatchesCardForMidMonthStart(t *testing.T) {
 }
 
 func TestWTMRangeAggregate_ZeroesBalanceBeforeMidWeekAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-08"
 
@@ -599,6 +702,8 @@ func TestWTMRangeAggregate_ZeroesBalanceBeforeMidWeekAccountStart(t *testing.T) 
 }
 
 func TestWTMRangeAggregate_ExcludesActualBeforeMidWeekAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-08"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -621,6 +726,8 @@ func TestWTMRangeAggregate_ExcludesActualBeforeMidWeekAccountStart(t *testing.T)
 }
 
 func TestWTMRangeAggregate_ExcludesPreviousMonthBeforeAccountStart(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -642,6 +749,8 @@ func TestWTMRangeAggregate_ExcludesPreviousMonthBeforeAccountStart(t *testing.T)
 }
 
 func TestWTMRangeAggregate_UnsetAccountStartUsesPeriodEndYear(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = ""
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -662,6 +771,8 @@ func TestWTMRangeAggregate_UnsetAccountStartUsesPeriodEndYear(t *testing.T) {
 }
 
 func TestPrefetchedMonthService_FiltersSessionsToRequestedRange(t *testing.T) {
+	t.Parallel()
+
 	accountStart := timezone.NewDate(2026, time.July, 8)
 	prefetch := &monthPrefetch{
 		staff: map[int64]*userModels.Staff{
@@ -686,10 +797,12 @@ func TestPrefetchedMonthService_FiltersSessionsToRequestedRange(t *testing.T) {
 // An unset account start must not zero anything: chainAnchor then falls back to
 // January 1st, and no day can precede January 1st of its own year.
 func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = ""
 
-	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+	targets, err := f.svc.GetDailyProjection(context.Background(), wtmStaffID,
 		timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 31))
 	require.NoError(t, err)
 
@@ -701,14 +814,16 @@ func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {
 }
 
 func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	ctx := context.Background()
 
-	_, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+	_, err := f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2026, time.July, 10), timezone.NewDate(2026, time.July, 1))
 	assert.Error(t, err, "to before from")
 
-	_, err = f.svc.GetDailyTargets(ctx, wtmStaffID,
+	_, err = f.svc.GetDailyProjection(ctx, wtmStaffID,
 		timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1))
 	assert.Error(t, err, "range beyond the cap")
 }
@@ -717,6 +832,8 @@ func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
 // one: the handlers render ErrInvalidTargetRange as 400 and everything else as
 // 500, so an oversized window must not reach the internal-error branch.
 func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	ctx := context.Background()
 
@@ -728,7 +845,7 @@ func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			_, err := f.svc.GetDailyTargets(ctx, wtmStaffID, tc.from, tc.to)
+			_, err := f.svc.GetDailyProjection(ctx, wtmStaffID, tc.from, tc.to)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, ErrInvalidTargetRange)
 		})
@@ -741,6 +858,8 @@ func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
 // schedule didn't exist yet, and would contradict a wider query, which loads
 // the snapshot rows and resolves those same days to zero.
 func TestWTMMonthSummary_NoModelFallbackBeforeFirstSnapshot(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.schedules.entries = nil
 	f.schedules.hasHistory = true
@@ -764,13 +883,15 @@ func TestWTMMonthSummary_NoModelFallbackBeforeFirstSnapshot(t *testing.T) {
 // breaks only, so the live card would count the break as worked time and show
 // a growing plus until the break is closed.
 func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
-	now := time.Now()
-	// A live open session belongs to the current day; pin today to the real
-	// calendar date so the now-relative timestamps stay on the session's own
-	// day and the day cap does not clamp the still-running span.
+	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, timezone.Berlin)
+	// A live open session belongs to the current day. Pin the clock to midday
+	// so all timestamps stay on the session's own Berlin calendar day.
 	today := timezone.DateFromTime(now)
 	f.svc.todayFunc = func() timezone.Date { return today }
+	f.svc.nowFunc = func() time.Time { return now }
 	f.settings.accountStart = today.String()
 
 	session := &activeModels.WorkSession{
@@ -782,11 +903,11 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 		BreakMinutes: 0, // break still running → not in the cache yet
 	}
 	f.sessions.sessions = []*activeModels.WorkSession{session}
-	f.breaks.activeBreaks[session.ID] = &activeModels.WorkSessionBreak{
+	f.breaks.breaks[session.ID] = []*activeModels.WorkSessionBreak{{
 		Model:     base.Model{ID: 5},
 		SessionID: session.ID,
 		StartedAt: now.Add(-30 * time.Minute),
-	}
+	}}
 
 	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year, int(today.Month))
 	require.NoError(t, err)
@@ -798,6 +919,8 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 // An ended break is already in the session cache; deducting it again would
 // halve the recorded break.
 func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	f.sessions.sessions = []*activeModels.WorkSession{
@@ -812,13 +935,16 @@ func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
 // The admin correction API accepts a check_out_time later than the current
 // instant. On TODAY's session the now cap keeps only the minutes already
 // worked from counting; the future tail must not credit Ist against a target
-// that only accrues up to today. The fixture pins today to the real calendar
-// day so the session's own day does not clamp the span before now does.
+// that only accrues up to today. The fixture pins the clock to midday so the
+// session's own day does not clamp the span before now does.
 func TestWTMMonthSummary_TodayFutureCheckOutClampedAtNow(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
-	now := time.Now()
+	now := time.Date(2026, time.July, 15, 12, 0, 0, 0, timezone.Berlin)
 	todayDate := timezone.DateFromTime(now)
 	f.svc.todayFunc = func() timezone.Date { return todayDate }
+	f.svc.nowFunc = func() time.Time { return now }
 	f.settings.accountStart = todayDate.String() // single month, no long chain
 
 	checkOut := now.Add(120 * time.Minute)
@@ -842,6 +968,8 @@ func TestWTMMonthSummary_TodayFutureCheckOutClampedAtNow(t *testing.T) {
 // through now. Without the day cap the whole span since check-in bills as Ist
 // and, via the carry chain, inflates every later balance.
 func TestWTMMonthSummary_PastFutureCheckOutClampedAtDayEnd(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 
@@ -868,6 +996,8 @@ func TestWTMMonthSummary_PastFutureCheckOutClampedAtDayEnd(t *testing.T) {
 // through now — that would add days or months of presence that never happened.
 // The day cap bounds it at the session day's end.
 func TestWTMMonthSummary_PastUnclosedSessionClampedAtDayEnd(t *testing.T) {
+	t.Parallel()
+
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 

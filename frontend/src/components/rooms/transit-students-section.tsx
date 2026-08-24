@@ -23,10 +23,8 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
-import {
-  useAttendanceWebEnabled,
-  useOpenCareGroupMode,
-} from "~/lib/tenant-context";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 
 const DETAIL_CARD_CLASS =
   "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
@@ -62,8 +60,13 @@ export function TransitStudentsSection({
   const router = useTenantRouter();
   const { data: session } = useSession();
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  const openCare = useOpenCareGroupMode();
-  const showAllTargets = canUseAllMoveTargets(session) || openCare;
+  // Mirrors the backend's move authorization exactly (#2380): callers the
+  // school-wide overview covers may move children into any running module,
+  // everyone else only into a module they supervise themselves. Gating on
+  // the organisational group mode here would offer targets the server then
+  // rejects with 403.
+  const { overviewEnabled } = useOptionalSupervision();
+  const showAllTargets = canUseAllMoveTargets(session) || overviewEnabled;
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [collapsibleExpanded, setCollapsibleExpanded] = useState(false);
@@ -73,16 +76,16 @@ export function TransitStudentsSection({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const { success: toastSuccess } = useToast();
   const mutateKey = useTenantMutate();
-  // "supervision-visits-" and "timetable-roster-" keep the
-  // /active-supervisions room grid and roster in sync when this section
-  // is embedded there — without them the assigned children only appear
-  // once an SSE event happens to arrive.
+  // "dashboard" (matching the aggregated active-supervision-dashboard key,
+  // which carries the room's visits since #2096) and "timetable-roster-"
+  // keep the /active-supervisions room grid and roster in sync when this
+  // section is embedded there — without them the assigned children only
+  // appear once an SSE event happens to arrive.
   const mutateMatching = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
     "rooms-list",
     "dashboard",
-    "supervision-visits-",
     "timetable-roster-",
   ]);
 

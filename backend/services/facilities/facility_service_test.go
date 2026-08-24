@@ -3,7 +3,6 @@ package facilities_test
 import (
 	"context"
 	"fmt"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,12 +19,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var facilityTenantCounter int64 = time.Now().UnixNano()
-
 func createFacilityTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 
-	tenantID := atomic.AddInt64(&facilityTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	return tenantID
@@ -57,26 +54,15 @@ func createRoomWithExactName(t *testing.T, db *bun.DB, tenantID int64, name stri
 	return room
 }
 
-// cleanupRoom removes a room by ID.
-func cleanupRoom(t *testing.T, db *bun.DB, tenantID int64, roomID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(tenantID)
-	_, _ = db.NewDelete().
-		TableExpr("facilities.rooms").
-		Where("id = ?", roomID).
-		Exec(ctx)
-}
-
 // setupFacilitiesService creates a facilities service with real database connection.
 func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db)
 
-	return facilitiesSvc.NewService(
-		repoFactory.Room,
-		repoFactory.ActiveGroup,
-	)
+	return facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+		RoomRepo: repoFactory.Room, ActiveGroupRepo: repoFactory.ActiveGroup,
+	})
 }
 
 // ============================================================================
@@ -84,16 +70,15 @@ func setupFacilitiesService(t *testing.T, db *bun.DB) facilitiesSvc.Service {
 // ============================================================================
 
 func TestFacilitiesService_GetRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns room for valid ID", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "GetRoom-Valid")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		result, err := service.GetRoom(ctx, room.ID)
@@ -130,16 +115,15 @@ func TestFacilitiesService_GetRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns room with occupancy status - unoccupied", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "Occupancy-Unoccupied")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		result, err := service.GetRoomWithOccupancy(ctx, room.ID)
@@ -156,9 +140,7 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "Occupancy-Occupied")
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupyingGroup")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
 		// ACT
 		result, err := service.GetRoomWithOccupancy(ctx, room.ID)
@@ -192,14 +174,8 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 
 		student1 := testpkg.CreateTestStudent(t, db, "MGStu", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "MGStu", "Two", "1a")
-		visit1 := testpkg.CreateTestVisit(t, db, student1.ID, active1.ID, time.Now(), nil)
-		visit2 := testpkg.CreateTestVisit(t, db, student2.ID, active2.ID, time.Now(), nil)
-
-		defer testpkg.CleanupActivityFixtures(
-			t, db,
-			room.ID, ag1.ID, ag2.ID, active1.ID, active2.ID,
-			student1.ID, student2.ID, visit1.ID, visit2.ID,
-		)
+		_ = testpkg.CreateTestVisit(t, db, student1.ID, active1.ID, time.Now(), nil)
+		_ = testpkg.CreateTestVisit(t, db, student2.ID, active2.ID, time.Now(), nil)
 
 		// ACT
 		result, err := service.GetRoomWithOccupancy(ctx, room.ID)
@@ -223,11 +199,11 @@ func TestFacilitiesService_GetRoomWithOccupancy(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_CreateRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	for _, name := range []string{constants.SchulhofRoomName, "schulhof", "SCHULHOF"} {
 		t.Run("rejects reserved Schulhof room name "+name, func(t *testing.T) {
@@ -260,7 +236,6 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 		assert.NotZero(t, room.ID)
 
 		// Cleanup
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// Verify it was created
 		retrieved, err := service.GetRoom(ctx, room.ID)
@@ -272,7 +247,6 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 	t.Run("rejects duplicate room name", func(t *testing.T) {
 		// ARRANGE
 		room1 := testpkg.CreateTestRoom(t, db, "DuplicateName")
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID)
 
 		room2 := &facilities.Room{
 			Name:     room1.Name, // Same name
@@ -313,7 +287,6 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 
 		// ASSERT - empty building is allowed
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 	})
 }
 
@@ -322,16 +295,15 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_UpdateRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates room successfully", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "UpdateRoom-Original")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// Modify the room
 		newCapacity := 50
@@ -371,7 +343,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		// ARRANGE
 		room1 := testpkg.CreateTestRoom(t, db, "UpdateDup-First")
 		room2 := testpkg.CreateTestRoom(t, db, "UpdateDup-Second")
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID, room2.ID)
 
 		// Try to rename room2 to room1's name
 		room2.Name = room1.Name
@@ -387,7 +358,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	t.Run("allows update without changing name", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "UpdateSameName")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// Update capacity but keep same name
 		newCapacity := 100
@@ -409,7 +379,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		room.Name = "Spielplatz"
 
@@ -424,7 +393,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 	for _, reservedName := range []string{constants.SchulhofRoomName, "schulhof"} {
 		t.Run("blocks renaming a normal room to "+reservedName, func(t *testing.T) {
 			room := testpkg.CreateTestRoom(t, db, "UpdateToSchulhof")
-			defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 			originalName := room.Name
 			room.Name = reservedName
 
@@ -442,7 +410,6 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		newCapacity := 25
 		room.Capacity = &newCapacity
@@ -465,11 +432,11 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_DeleteRoom(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes room successfully", func(t *testing.T) {
 		// ARRANGE
@@ -492,8 +459,7 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-ActiveGroup")
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ActiveInRoom")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activityGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -506,7 +472,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 	t.Run("clears device room reference before deleting room", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-DeviceReference")
 		device := testpkg.CreateTestDevice(t, db, "delete-room-device-reference")
-		defer testpkg.CleanupActivityFixtures(t, db, device.ID, room.ID)
 
 		_, err := db.NewUpdate().
 			Model((*iot.Device)(nil)).
@@ -543,7 +508,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "Schulhof")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -558,7 +522,6 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		tenantID := createFacilityTestTenant(t, db)
 		ctx := testpkg.TenantContext(tenantID)
 		room := createRoomWithExactName(t, db, tenantID, "WC")
-		defer cleanupRoom(t, db, tenantID, room.ID)
 
 		// ACT
 		err := service.DeleteRoom(ctx, room.ID)
@@ -570,14 +533,13 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 }
 
 func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	repos := repositories.NewFactory(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("locks then maps materializability conflict", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-CareOffering")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 		locked := false
 		validated := false
 		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
@@ -604,7 +566,6 @@ func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 
 	t.Run("configured validator fails closed without lock", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-MissingLock")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 		validated := false
 		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
 			RoomRepo:        repos.Room,
@@ -628,17 +589,16 @@ func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_ListRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all rooms with nil options", func(t *testing.T) {
 		// ARRANGE
 		room1 := testpkg.CreateTestRoom(t, db, "ListRooms-1")
 		room2 := testpkg.CreateTestRoom(t, db, "ListRooms-2")
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID, room2.ID)
 
 		// ACT
 		rooms, err := service.ListRooms(ctx, nil)
@@ -664,7 +624,6 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 	t.Run("lists rooms with filter", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "ListFilter-Test")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		options := base.NewQueryOptions()
@@ -688,9 +647,7 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "ListOccupancy")
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "ListOccupyingGroup")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
 		// ACT
 		rooms, err := service.ListRooms(ctx, nil)
@@ -713,16 +670,15 @@ func TestFacilitiesService_ListRooms(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_FindRoomByName(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds room by exact name", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "FindByName-Exact")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		result, err := service.FindRoomByName(ctx, room.Name)
@@ -750,11 +706,11 @@ func TestFacilitiesService_FindRoomByName(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rooms by category", func(t *testing.T) {
 		// ARRANGE
@@ -768,7 +724,6 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 		}
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		rooms, err := service.FindRoomsByCategory(ctx, category)
@@ -794,11 +749,11 @@ func TestFacilitiesService_FindRoomsByCategory(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns rooms with sufficient capacity", func(t *testing.T) {
 		// ARRANGE
@@ -810,7 +765,6 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 		}
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		rooms, err := service.GetAvailableRooms(ctx, 30)
@@ -840,7 +794,6 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 		}
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		rooms, err := service.GetAvailableRooms(ctx, 100)
@@ -860,11 +813,11 @@ func TestFacilitiesService_GetAvailableRooms(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns rooms with occupancy status", func(t *testing.T) {
 		// ARRANGE
@@ -876,7 +829,6 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 		}
 		err := service.CreateRoom(ctx, room)
 		require.NoError(t, err)
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		// ACT
 		rooms, err := service.GetAvailableRoomsWithOccupancy(ctx, 20)
@@ -907,9 +859,7 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 		require.NoError(t, err)
 
 		activityGroup := testpkg.CreateTestActivityGroup(t, db, "OccupyGroup")
-		activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID)
+		_ = testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
 		// ACT - Use GetRoomWithOccupancy for a direct, reliable check
 		// GetAvailableRoomsWithOccupancy may have timing issues in parallel tests
@@ -931,11 +881,11 @@ func TestFacilitiesService_GetAvailableRoomsWithOccupancy(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetBuildingList(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of unique buildings", func(t *testing.T) {
 		// ARRANGE - Create rooms in different buildings
@@ -958,8 +908,6 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 		require.NoError(t, err)
 		err = service.CreateRoom(ctx, room2)
 		require.NoError(t, err)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID, room2.ID)
 
 		// ACT
 		buildings, err := service.GetBuildingList(ctx)
@@ -1001,11 +949,11 @@ func TestFacilitiesService_GetBuildingList(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetCategoryList(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns list of unique categories", func(t *testing.T) {
 		// ARRANGE
@@ -1030,8 +978,6 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 		require.NoError(t, err)
 		err = service.CreateRoom(ctx, room2)
 		require.NoError(t, err)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room1.ID, room2.ID)
 
 		// ACT
 		categories, err := service.GetCategoryList(ctx)
@@ -1073,11 +1019,11 @@ func TestFacilitiesService_GetCategoryList(t *testing.T) {
 // ============================================================================
 
 func TestFacilitiesService_GetRoomHistory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupFacilitiesService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent room", func(t *testing.T) {
 		// ARRANGE
@@ -1095,7 +1041,6 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 	t.Run("returns empty history for room with no sessions", func(t *testing.T) {
 		// ARRANGE
 		room := testpkg.CreateTestRoom(t, db, "HistoryEmpty")
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
 
 		startTime := time.Now().Add(-24 * time.Hour)
 		endTime := time.Now()
@@ -1121,14 +1066,12 @@ func TestFacilitiesService_GetRoomHistory(t *testing.T) {
 		outsideWindowStudent := testpkg.CreateTestStudent(t, db, "History", "OutsideWindow", "1b")
 
 		entryTime := time.Now().Add(-1 * time.Hour)
-		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
+		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, entryTime, nil)
 
 		startTime := time.Now().Add(-24 * time.Hour)
 		endTime := time.Now().Add(1 * time.Hour)
 		oldExitTime := startTime.Add(-1 * time.Hour)
-		oldVisit := testpkg.CreateTestVisit(t, db, outsideWindowStudent.ID, activeGroup.ID, startTime.Add(-2*time.Hour), &oldExitTime)
-
-		defer testpkg.CleanupActivityFixtures(t, db, room.ID, activityGroup.ID, activeGroup.ID, student.ID, outsideWindowStudent.ID, visit.ID, oldVisit.ID)
+		_ = testpkg.CreateTestVisit(t, db, outsideWindowStudent.ID, activeGroup.ID, startTime.Add(-2*time.Hour), &oldExitTime)
 
 		// ACT
 		history, err := service.GetRoomHistory(ctx, room.ID, startTime, endTime, nil)

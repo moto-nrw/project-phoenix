@@ -4,10 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDevice_Validate(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name    string
 		device  Device
@@ -78,6 +81,8 @@ func TestDevice_Validate(t *testing.T) {
 }
 
 func TestDevice_IsActive(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		status   DeviceStatus
@@ -121,6 +126,8 @@ func TestDevice_IsActive(t *testing.T) {
 }
 
 func TestDevice_UpdateLastSeen(t *testing.T) {
+	t.Parallel()
+
 	device := Device{
 		DeviceID:   "dev-001",
 		DeviceType: "terminal",
@@ -148,6 +155,8 @@ func TestDevice_UpdateLastSeen(t *testing.T) {
 }
 
 func TestDevice_SetStatus(t *testing.T) {
+	t.Parallel()
+
 	device := Device{
 		DeviceID:   "dev-001",
 		DeviceType: "terminal",
@@ -174,6 +183,8 @@ func TestDevice_SetStatus(t *testing.T) {
 }
 
 func TestDevice_GetLastSeenDuration(t *testing.T) {
+	t.Parallel()
+
 	// Test with nil LastSeen
 	device := Device{
 		DeviceID:   "dev-001",
@@ -207,6 +218,8 @@ func TestDevice_GetLastSeenDuration(t *testing.T) {
 // services/iot for coverage of that logic.
 
 func TestDevice_HasAPIKey(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		apiKey   *string
@@ -219,12 +232,12 @@ func TestDevice_HasAPIKey(t *testing.T) {
 		},
 		{
 			name:     "empty API key",
-			apiKey:   base.StringPtr(""),
+			apiKey:   ptrtest.Ptr(""),
 			expected: false,
 		},
 		{
 			name:     "valid API key",
-			apiKey:   base.StringPtr("abc123xyz"),
+			apiKey:   ptrtest.Ptr("abc123xyz"),
 			expected: true,
 		},
 	}
@@ -245,6 +258,8 @@ func TestDevice_HasAPIKey(t *testing.T) {
 }
 
 func TestDevice_IsOffline(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		status   DeviceStatus
@@ -288,6 +303,8 @@ func TestDevice_IsOffline(t *testing.T) {
 }
 
 func TestDevice_GetID(t *testing.T) {
+	t.Parallel()
+
 	device := &Device{
 		Model:      base.Model{ID: 42},
 		DeviceID:   "dev-001",
@@ -301,6 +318,8 @@ func TestDevice_GetID(t *testing.T) {
 }
 
 func TestDevice_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	device := &Device{
 		Model:      base.Model{CreatedAt: now},
@@ -315,6 +334,8 @@ func TestDevice_GetCreatedAt(t *testing.T) {
 }
 
 func TestDevice_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	device := &Device{
 		Model:      base.Model{UpdatedAt: now},

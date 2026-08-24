@@ -23,6 +23,8 @@ import (
 //     rows and re-materializes from templates. Active/completed/cancelled/
 //     spontaneous instances survive untouched.
 func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
+	t.Parallel()
+
 	s := newScenario(t)
 	defer s.teardown()
 
@@ -33,14 +35,11 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowD-Room")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupTableRecords(t, s.db, "facilities.rooms", room.ID)
 	})
 
 	staff := testpkg.CreateTestStaff(t, s.db, "FlowD", "Staff")
 	student := testpkg.CreateTestStudent(t, s.db, "Dora", "FlowD", "3a")
 	s.extraCleanup = append(s.extraCleanup, func() {
-		testpkg.CleanupStaffFixtures(t, s.db, staff.ID)
-		testpkg.CleanupTableRecords(t, s.db, "users.students", student.ID)
 	})
 
 	// Four templates at distinct times on Thursday.
@@ -68,7 +67,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 
 	// --- Step 1: materialize the four templates ----------------------------
 	matReq := map[string]any{"from_date": fromS, "to_date": fromS}
-	rr := s.do("POST", "/materialize", matReq, primaryAdminClaims())
+	rr := s.do("POST", "/materialize", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "materialize body=%s", rr.Body.String())
 	var matResp struct {
 		InstancesCreated int `json:"instances_created"`
@@ -84,15 +83,15 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 		instActive.ID, instCompleted.ID, instCancelled.ID, instPlanned.ID)
 
 	// --- Step 2: drive the three lifecycle transitions ---------------------
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instActive.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instActive.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "start active body=%s", rr.Body.String())
 
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instCompleted.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/start", instCompleted.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "start completed body=%s", rr.Body.String())
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/complete", instCompleted.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/complete", instCompleted.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "complete body=%s", rr.Body.String())
 
-	rr = s.do("POST", fmt.Sprintf("/instances/%d/cancel", instCancelled.ID), nil, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/cancel", instCancelled.ID), nil, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "cancel body=%s", rr.Body.String())
 
 	// --- Step 3: add a spontaneous instance (planned, is_spontaneous=true) -
@@ -107,7 +106,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 		Status:        scheduleModel.InstanceStatusPlanned,
 		IsSpontaneous: true,
 	}
-	spont.SetTenantID(primaryTenantID)
+	spont.SetTenantID(s.primaryTenant)
 	_, err := s.db.NewInsert().Model(spont).
 		ModelTableExpr(`schedule.activity_instances`).Exec(s.tenantCtx())
 	require.NoError(t, err, "insert spontaneous instance")
@@ -126,7 +125,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	require.True(t, beforeSpont.IsSpontaneous)
 
 	// --- Step 4: re-plan the week -----------------------------------------
-	rr = s.do("POST", "/instances/re-plan-week", matReq, primaryAdminClaims())
+	rr = s.do("POST", "/instances/re-plan-week", matReq, s.primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "re-plan body=%s", rr.Body.String())
 
 	var replanResp struct {
@@ -162,7 +161,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 	// --- Step 6: tenant isolation -----------------------------------------
 	// Secondary tenant re-plans their (empty) week. No primary data sees it,
 	// so deleted_instances stays zero.
-	rr = s.do("POST", "/instances/re-plan-week", matReq, secondaryAdminClaims())
+	rr = s.do("POST", "/instances/re-plan-week", matReq, s.secondaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "tenant2 body=%s", rr.Body.String())
 	var t2Resp struct {
 		DeletedInstances int `json:"deleted_instances"`
@@ -181,7 +180,7 @@ func reload(t *testing.T, s *scenario, id int64) scheduleModel.ActivityInstance 
 	err := s.db.NewSelect().Model(&inst).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
 		Where(`"activity_instance".id = ?`, id).
-		Where(`"activity_instance".tenant_id = ?`, primaryTenantID).
+		Where(`"activity_instance".tenant_id = ?`, s.primaryTenant).
 		Scan(s.tenantCtx())
 	require.NoError(t, err, "reload instance %d", id)
 	return inst

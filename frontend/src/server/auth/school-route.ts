@@ -1,0 +1,1 @@
+export { withSchoolAuth } from "./school";

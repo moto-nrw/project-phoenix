@@ -67,6 +67,8 @@ function summary(
     submitted_at: "2026-01-01T00:00:00Z",
     children: [child()],
     ...overrides,
+    care_offering_selection_mode:
+      overrides.care_offering_selection_mode ?? "optional",
   };
 }
 
@@ -302,6 +304,7 @@ describe("enrollment-admin-api", () => {
           child_id: "child-1",
           offerings: [{ offering_id: "offering-1", selected_days: ["mon"] }],
           reason: "Elternwunsch",
+          complete_withdrawal_confirmed: false,
         }),
       },
     );

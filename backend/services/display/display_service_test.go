@@ -14,6 +14,8 @@ import (
 )
 
 func TestBuildActivitiesExposeStableStringIDs(t *testing.T) {
+	t.Parallel()
+
 	templateID := int64(41)
 	template := &activitiesModels.Group{Name: "Schach"}
 	template.ID = templateID

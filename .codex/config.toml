@@ -1,11 +1,32 @@
-# Codex loads lifecycle hooks (.codex/hooks.json - including the Stop hook
-# that enforces the quorum re-request) only behind this experimental feature
-# flag. "hooks" is the current flag name, "codex_hooks" the pre-rename alias
-# still accepted for older CLI versions. If the Stop hook still does not fire
-# with this repo config, set the flag in ~/.codex/config.toml.
+# Codex loads lifecycle hooks from .codex/hooks.json when this feature is enabled.
 [features]
 hooks = true
-codex_hooks = true
+
+[skills]
+config = [
+  # Prefer native Codex skills over their Claude variants.
+  { path = ".claude/skills/creating-team-skills/SKILL.md", enabled = false },
+  { path = ".claude/skills/env-docker-sync/SKILL.md", enabled = false },
+  { path = ".claude/skills/find-skills/SKILL.md", enabled = false },
+  { path = ".claude/skills/help-guide-sync/SKILL.md", enabled = false },
+  { path = ".claude/skills/moto-einfache-sprache/SKILL.md", enabled = false },
+  { path = ".claude/skills/settings/SKILL.md", enabled = false },
+
+  # Prefer this repository's skills over personal copies while in this project.
+  { path = "~/.agents/skills/code-review/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/codebase-design/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/diagnosing-bugs/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/domain-modeling/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/find-skills/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/grilling/SKILL.md", enabled = false },
+  { path = "~/.claude/skills/moto-einfache-sprache/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/prototype/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/research/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/resolving-merge-conflicts/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/tdd/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/wizard/SKILL.md", enabled = false },
+  { path = "~/.agents/skills/writing-for-agents/SKILL.md", enabled = false },
+]
 
 [shell_environment_policy]
 inherit = "core"

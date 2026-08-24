@@ -21,6 +21,7 @@ import (
 // users:manage — the same permission /auth/register uses for exactly this
 // reason (issue #1021).
 func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
+	t.Parallel()
 	tc := setupTestContext(t)
 	router := testutil.NewTenantRouter(tc.db)
 	router.Mount("/auth", tc.resource.Router())
@@ -30,7 +31,6 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 	// The accepted request provisions the person → staff chain in the same
 	// transaction as the role (#2222), so the account is no longer the only row
 	// to clean up.
-	defer testpkg.CleanupAccountWithIdentity(t, tc.db, account.ID)
 
 	adminRole := testpkg.GetOrCreateTestRole(t, tc.db, "admin")
 
@@ -45,7 +45,7 @@ func TestLinkToTenant_RequiresUsersManage(t *testing.T) {
 	}
 	claims := jwtPkg.AppClaims{
 		ID:       int(account.ID),
-		TenantID: 1,
+		TenantID: testpkg.Tenant(t),
 		Sub:      account.Email,
 		Username: "link-perm-test",
 		Roles:    []string{"user"},

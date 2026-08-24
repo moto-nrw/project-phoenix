@@ -13,6 +13,8 @@ import (
 
 // TestParseDepartureDayColumns covers the unified per-day Gehweise columns (#1610).
 func TestParseDepartureDayColumns(t *testing.T) {
+	t.Parallel()
+
 	t.Run("returns nil when no Gehweise column has a value", func(t *testing.T) {
 		mapper := NewColumnMapper(
 			map[string]int{"gehweise.mo": 0, "gehweise.di": 1},
@@ -84,6 +86,8 @@ func TestParseDepartureDayColumns(t *testing.T) {
 // TestBoundedNotePtr covers the import companion-note cap (#1694): trim, drop
 // empty to nil, and truncate by rune count (multibyte-safe) rather than reject.
 func TestBoundedNotePtr(t *testing.T) {
+	t.Parallel()
+
 	t.Run("empty and whitespace become nil", func(t *testing.T) {
 		assert.Nil(t, boundedNotePtr(""))
 		assert.Nil(t, boundedNotePtr("   "))
@@ -108,6 +112,8 @@ func TestBoundedNotePtr(t *testing.T) {
 // the new Gehweise columns win; otherwise the legacy Bus(.Mo..Fr) + Abholstatus
 // columns are folded so old templates keep importing.
 func TestDeparturePlanFromImportRow(t *testing.T) {
+	t.Parallel()
+
 	t.Run("Gehweise columns take precedence", func(t *testing.T) {
 		row := importModels.StudentImportRow{
 			DepartureDays: map[string]string{"mon": "bus", "wed": "pickup"},

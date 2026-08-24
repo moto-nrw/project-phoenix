@@ -34,6 +34,8 @@ func gradeCountsByOffering(
 func int16Ptr(v int16) *int16 { return &v }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
@@ -68,6 +70,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_GroupsByGrade(t *
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGradeSeparately(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
@@ -94,6 +98,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ReportsMissingGra
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOncePerOffering(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
@@ -127,6 +133,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_CountsAChildOnceP
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalChildren(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
@@ -151,6 +159,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesTerminalC
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervalsOutsideTheWindow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	endedAt := from.AddDays(-10)
@@ -176,6 +186,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_ExcludesIntervals
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWindow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
 	today := timezone.TodayDate()
 
@@ -189,6 +201,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_RejectsAnEmptyWin
 }
 
 func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTheQuery(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, _ := setupChildOfferingTest(t)
 	today := timezone.TodayDate()
 
@@ -208,6 +222,8 @@ func TestRequestChildOfferingRepository_CountActiveGradeLevels_EmptyInputSkipsTh
 // no display. They count the same population unconditionally, including
 // across phases (see Aggregates_CountEveryPhaseLikeTheGate).
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSingleOfferingVariant(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)
@@ -242,6 +258,8 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_MatchesTheSin
 }
 
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOfferings(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	phaseID := phaseIDOfOffering(t, db, tenantID, offeringID)
 	from := timezone.TodayDate()
@@ -268,6 +286,8 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_SeparatesOffe
 }
 
 func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInput(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, _, offeringID := setupChildOfferingTest(t)
 	today := timezone.TodayDate()
 
@@ -294,6 +314,8 @@ func TestRequestChildOfferingRepository_CountMaxActiveByIDsInRange_GuardsItsInpu
 // that feed the admin dialog must too. Scoping them to one phase made the
 // dialog show a free slot the gate then refused as full.
 func TestRequestChildOfferingRepository_Aggregates_CountEveryPhaseLikeTheGate(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID, childID, offeringID := setupChildOfferingTest(t)
 	from := timezone.TodayDate()
 	until := from.AddDays(90)

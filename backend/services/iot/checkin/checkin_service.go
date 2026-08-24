@@ -39,6 +39,7 @@ type CheckinService struct {
 	pickup     scheduleSvc.PickupScheduleService
 	education  educationSvc.Service
 	logger     *slog.Logger
+	now        func() time.Time
 }
 
 // CheckinServiceDeps groups the collaborators for NewCheckinService.
@@ -70,6 +71,13 @@ func NewCheckinService(deps CheckinServiceDeps) *CheckinService {
 // getLogger returns a nil-safe logger, falling back to slog.Default().
 func (s *CheckinService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *CheckinService) currentTime() time.Time {
+	if s.now != nil {
+		return s.now()
+	}
+	return time.Now()
 }
 
 // SelectedActiveGroup is the active group chosen (or created) for a check-in,
@@ -168,6 +176,9 @@ func (s *CheckinService) ResolveStudentFromPerson(ctx context.Context, personID 
 	if student != nil && student.Status == users.StudentStatusAlumnus {
 		return nil, nil
 	}
+	// Care-ended children remain resolvable here so an already-open attendance
+	// or visit can be checked out. The active service rejects only a new
+	// check-in under its locked state transition (#2487).
 	return student, nil
 }
 
@@ -351,8 +362,10 @@ func (s *CheckinService) processCheckin(ctx context.Context, student *users.Stud
 		// 404 "not a student" the pre-resolution path already returns for an
 		// alumnus, instead of letting the generic wrapper below turn it into a 500
 		// that tells the kiosk to retry (#405).
-		if errors.Is(err, activeSvc.ErrStudentGraduated) {
-			s.getLogger().InfoContext(ctx, "check-in rejected: student graduated mid-scan",
+		// Same for a care exit that took effect in that window (#2487).
+		if errors.Is(err, activeSvc.ErrStudentGraduated) ||
+			errors.Is(err, activeSvc.ErrStudentCareEnded) {
+			s.getLogger().InfoContext(ctx, "check-in rejected: student not in care",
 				slog.Int64("student_id", student.ID),
 			)
 			return nil, nil, newNotFoundError(checkinErrPersonNotStudent)
@@ -505,7 +518,7 @@ func (s *CheckinService) findOrCreateActiveGroupForRoom(ctx context.Context, roo
 	// stay reusable, or scans would 404 until the next EndDailySessions run.
 	currentGroups := activeGroups
 	if room.Name == constants.SchulhofRoomName || constants.IsWCRoomName(room.Name) {
-		now := timeNow()
+		now := s.currentTime()
 		if err := s.endPreviousDayActiveGroups(ctx, activeGroups, now); err != nil {
 			s.getLogger().ErrorContext(ctx, "failed to end stale special-room session",
 				slog.Int64("room_id", room.ID),

@@ -34,7 +34,8 @@
     "golangci-lint@2.8.0",
     "fzf@latest",
     "sops@latest",
-    "age@latest"
+    "age@latest",
+    "graphviz@latest"
   ],
   "env": {
     "GOPATH":      "$PWD/.devbox/go",
@@ -43,6 +44,9 @@
     "PATH":        "$HOME/go/bin:$PATH"
   },
   "shell": {
+    "scripts": {
+      "test-backend": "scripts/test-backend.sh"
+    },
     "init_hook": [
       "unset DEVELOPER_DIR",
       "lefthook install --force > /dev/null 2>&1 || true",

@@ -481,6 +481,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isPrimary: s.is_primary,
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
+    isSickAbsence: s.is_sick_absence === true,
     absenceReason: s.absence_reason ?? undefined,
   }));
   const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({
@@ -990,6 +991,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
           ? template.source_care_offering_ids.map(String)
           : undefined,
       sourceGradeLevels: template.source_grade_levels ?? undefined,
+      sourceSchoolClasses: template.source_school_classes ?? undefined,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
@@ -1055,7 +1057,11 @@ export function mapCombinedOfferingCounts(
     const parsed = Number(grade);
     if (!Number.isNaN(parsed)) gradeCounts[parsed] = count;
   }
-  return { totalCount: raw.total_count ?? 0, gradeCounts };
+  const students = (raw.students ?? []).map((student) => ({
+    studentId: String(student.student_id),
+    schoolClass: student.school_class ?? "",
+  }));
+  return { totalCount: raw.total_count ?? 0, gradeCounts, students };
 }
 
 export function mapOfferingSourceOptions(
@@ -1079,6 +1085,7 @@ export function mapOfferingSourceOptions(
         id: String(template.id),
         name: template.name,
         gradeLevels: template.grade_levels ?? [],
+        schoolClasses: template.school_classes ?? [],
       })),
       legacyLinkedTemplateId:
         offering.legacy_linked_template_id !== undefined &&
@@ -1087,6 +1094,21 @@ export function mapOfferingSourceOptions(
           : undefined,
     };
   });
+}
+
+/**
+ * Bringt einen Klassennamen auf die Form, in der verglichen wird: getrimmt
+ * und kleingeschrieben.
+ *
+ * Muss mit `internal/schoolclass.Normalize` im Backend übereinstimmen, denn
+ * beide Seiten entscheiden über dieselben Kinder: der Editor zeigt an, wen
+ * ein Klassenfilter erfasst, der Resync plant sie tatsächlich ein. Go
+ * verwendet `strings.ToLower` (ohne Locale), deshalb hier `toLowerCase()` und
+ * NICHT `toLocaleLowerCase("de")` — sonst können die beiden Seiten bei
+ * ungewöhnlichen Zeichen unterschiedlich urteilen (#2482).
+ */
+export function normalizeSchoolClass(schoolClass: string): string {
+  return schoolClass.trim().toLowerCase();
 }
 
 /**

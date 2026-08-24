@@ -16,11 +16,12 @@ import (
 // ============================================================================
 
 func TestRecurrenceRuleRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates daily recurrence rule", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -32,7 +33,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, rule.ID)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates weekly recurrence rule with weekdays", func(t *testing.T) {
@@ -47,7 +47,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, 3, len(rule.Weekdays))
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates monthly recurrence rule with month days", func(t *testing.T) {
@@ -62,7 +61,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.Equal(t, 3, len(rule.MonthDays))
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates rule with end date", func(t *testing.T) {
@@ -79,7 +77,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotZero(t, rule.ID)
 		assert.NotNil(t, rule.EndDate)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("creates rule with count", func(t *testing.T) {
@@ -96,7 +93,6 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 		assert.NotNil(t, rule.Count)
 		assert.Equal(t, 10, *rule.Count)
 
-		testpkg.CleanupTableRecords(t, db, "schedule.recurrence_rules", rule.ID)
 	})
 
 	t.Run("create with nil rule should fail", func(t *testing.T) {
@@ -131,11 +127,12 @@ func TestRecurrenceRuleRepository_Create(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing recurrence rule", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -161,11 +158,12 @@ func TestRecurrenceRuleRepository_FindByID(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates recurrence rule", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -196,11 +194,12 @@ func TestRecurrenceRuleRepository_Update(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing recurrence rule", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -223,12 +222,12 @@ func TestRecurrenceRuleRepository_Delete(t *testing.T) {
 // ============================================================================
 
 func TestRecurrenceRuleRepository_List(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all recurrence rules", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -252,12 +251,12 @@ func TestRecurrenceRuleRepository_List(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by frequency", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -328,12 +327,12 @@ func TestRecurrenceRuleRepository_FindByFrequency(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by weekday", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -383,12 +382,12 @@ func TestRecurrenceRuleRepository_FindByWeekday(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules by month day", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{
@@ -438,12 +437,12 @@ func TestRecurrenceRuleRepository_FindByMonthDay(t *testing.T) {
 }
 
 func TestRecurrenceRuleRepository_FindByDateRange(t *testing.T) {
+	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).RecurrenceRule
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("finds rules with no end date", func(t *testing.T) {
 		rule := &schedule.RecurrenceRule{

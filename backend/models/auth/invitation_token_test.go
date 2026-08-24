@@ -4,12 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // NOTE: base package is used for StringPtr helper and Model struct
 
 func TestInvitationToken_Validate(t *testing.T) {
+	t.Parallel()
+
 	futureTime := time.Now().Add(48 * time.Hour)
 
 	tests := []struct {
@@ -23,7 +26,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: false,
@@ -34,11 +37,11 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
-				FirstName: base.StringPtr("John"),
-				LastName:  base.StringPtr("Doe"),
-				Position:  base.StringPtr("Teacher"),
+				FirstName: ptrtest.Ptr("John"),
+				LastName:  ptrtest.Ptr("Doe"),
+				Position:  ptrtest.Ptr("Teacher"),
 			},
 			wantErr: false,
 		},
@@ -48,7 +51,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -59,7 +62,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "   ",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -70,7 +73,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -81,7 +84,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    0,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -92,7 +95,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    -1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -113,7 +116,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(0),
+				CreatedBy: ptrtest.Ptr(int64(0)),
 				ExpiresAt: futureTime,
 			},
 			wantErr: true,
@@ -124,7 +127,7 @@ func TestInvitationToken_Validate(t *testing.T) {
 				Email:     "invite@example.com",
 				Token:     "abc123token",
 				RoleID:    1,
-				CreatedBy: base.Int64Ptr(1),
+				CreatedBy: ptrtest.Ptr(int64(1)),
 				ExpiresAt: time.Time{},
 			},
 			wantErr: true,
@@ -142,6 +145,8 @@ func TestInvitationToken_Validate(t *testing.T) {
 }
 
 func TestInvitationToken_IsUsed(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -176,6 +181,8 @@ func TestInvitationToken_IsUsed(t *testing.T) {
 }
 
 func TestInvitationToken_SetExpiry(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		duration time.Duration
@@ -214,6 +221,8 @@ func TestInvitationToken_SetExpiry(t *testing.T) {
 }
 
 func TestInvitationToken_EmailTracking(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	errMsg := "SMTP connection failed"
 
@@ -248,6 +257,8 @@ func TestInvitationToken_EmailTracking(t *testing.T) {
 }
 
 func TestInvitationToken_GetID(t *testing.T) {
+	t.Parallel()
+
 	token := &InvitationToken{
 		Model: base.Model{ID: 42},
 	}
@@ -259,6 +270,8 @@ func TestInvitationToken_GetID(t *testing.T) {
 }
 
 func TestInvitationToken_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &InvitationToken{
 		Model: base.Model{CreatedAt: now},
@@ -270,6 +283,8 @@ func TestInvitationToken_GetCreatedAt(t *testing.T) {
 }
 
 func TestInvitationToken_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	token := &InvitationToken{
 		Model: base.Model{UpdatedAt: now},

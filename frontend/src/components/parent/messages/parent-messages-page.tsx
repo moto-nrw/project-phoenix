@@ -46,6 +46,7 @@ interface ChildConversation {
   readonly lastEventType?: string;
   readonly lastRequestType?: string;
   readonly lastRequestStatus?: string;
+  readonly lastMessagePayload?: Record<string, unknown>;
   readonly lastMessageReadByStaff: boolean;
   readonly unread: number;
 }
@@ -70,6 +71,7 @@ function buildRows(
       lastEventType: thread?.last_event_type,
       lastRequestType: thread?.last_request_type,
       lastRequestStatus: thread?.last_request_status,
+      lastMessagePayload: thread?.last_message_payload,
       lastMessageReadByStaff: thread?.last_message_read_by_staff ?? false,
       unread: thread?.unread ?? 0,
     };
@@ -237,12 +239,16 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
     : "";
   // Systemtexte kommen deutsch von der Schnittstelle; aus den strukturierten
   // Feldern wird die Vorschau in der Sprache des Elternteils gebaut.
-  const descriptor = parentThreadPreviewI18nDescriptor({
-    last_message_kind: row.lastMessageKind,
-    last_event_type: row.lastEventType,
-    last_request_type: row.lastRequestType,
-    last_request_status: row.lastRequestStatus,
-  });
+  const descriptor = parentThreadPreviewI18nDescriptor(
+    {
+      last_message_kind: row.lastMessageKind,
+      last_event_type: row.lastEventType,
+      last_request_type: row.lastRequestType,
+      last_request_status: row.lastRequestStatus,
+      last_message_payload: row.lastMessagePayload,
+    },
+    locale,
+  );
   const body = descriptor
     ? tMsg(descriptor.key, descriptor.values)
     : (row.lastMessageBody ?? "");

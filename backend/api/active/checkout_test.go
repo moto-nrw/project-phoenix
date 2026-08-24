@@ -17,6 +17,8 @@ import (
 // =============================================================================
 
 func TestParseStudentIDFromRequest_Valid(t *testing.T) {
+	t.Parallel()
+
 	// Create a request with chi context
 	req := httptest.NewRequest("GET", "/students/123/checkout", nil)
 
@@ -31,6 +33,8 @@ func TestParseStudentIDFromRequest_Valid(t *testing.T) {
 }
 
 func TestParseStudentIDFromRequest_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students/invalid/checkout", nil)
 
 	rctx := chi.NewRouteContext()
@@ -42,6 +46,8 @@ func TestParseStudentIDFromRequest_InvalidID(t *testing.T) {
 }
 
 func TestParseStudentIDFromRequest_EmptyID(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students//checkout", nil)
 
 	rctx := chi.NewRouteContext()
@@ -53,6 +59,8 @@ func TestParseStudentIDFromRequest_EmptyID(t *testing.T) {
 }
 
 func TestParseStudentIDFromRequest_NegativeID(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students/-1/checkout", nil)
 
 	rctx := chi.NewRouteContext()
@@ -66,6 +74,8 @@ func TestParseStudentIDFromRequest_NegativeID(t *testing.T) {
 }
 
 func TestParseStudentIDFromRequest_LargeID(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("GET", "/students/9999999999/checkout", nil)
 
 	rctx := chi.NewRouteContext()
@@ -82,6 +92,8 @@ func TestParseStudentIDFromRequest_LargeID(t *testing.T) {
 // =============================================================================
 
 func TestBuildCheckoutResponse_WithAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	checkInTime := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
 	checkOutTime := time.Date(2024, 1, 15, 15, 30, 0, 0, time.UTC)
 
@@ -116,6 +128,8 @@ func TestBuildCheckoutResponse_WithAttendanceStatus(t *testing.T) {
 }
 
 func TestBuildCheckoutResponse_WithoutAttendanceStatus(t *testing.T) {
+	t.Parallel()
+
 	result := &checkoutResult{
 		Result: &activeService.AttendanceResult{
 			Action:       "checkout",
@@ -145,6 +159,8 @@ func TestBuildCheckoutResponse_WithoutAttendanceStatus(t *testing.T) {
 // =============================================================================
 
 func TestCheckoutErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	assert.NotNil(t, ErrNotCheckedIn)
 	assert.NotNil(t, ErrNotAuthorized)
 	assert.NotNil(t, ErrStaffNotFound)
@@ -161,6 +177,8 @@ func TestCheckoutErrorVariables(t *testing.T) {
 // =============================================================================
 
 func TestHandleCheckoutContextError_NotCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -171,6 +189,8 @@ func TestHandleCheckoutContextError_NotCheckedIn(t *testing.T) {
 }
 
 func TestHandleCheckoutContextError_OtherError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -185,6 +205,8 @@ func TestHandleCheckoutContextError_OtherError(t *testing.T) {
 // =============================================================================
 
 func TestHandleAuthorizationError_NotAuthorized(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)
@@ -195,6 +217,8 @@ func TestHandleAuthorizationError_NotAuthorized(t *testing.T) {
 }
 
 func TestHandleAuthorizationError_OtherError(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/test", nil)

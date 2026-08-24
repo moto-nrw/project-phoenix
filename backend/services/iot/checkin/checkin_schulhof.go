@@ -31,6 +31,7 @@ var schulhofSpace = systemSpace{
 	categoryName:    constants.SchulhofCategoryName,
 	categoryDesc:    constants.SchulhofCategoryDescription,
 	color:           constants.SchulhofColor,
+	roomColorless:   true,
 	activityName:    constants.SchulhofActivityName,
 	maxParticipants: constants.SchulhofMaxParticipants,
 	selectActivity: func(groups []*activities.Group, room *facilityModels.Room) *activities.Group {
@@ -41,16 +42,6 @@ var schulhofSpace = systemSpace{
 		}
 		return nil
 	},
-}
-
-// ensureSchulhofRoom finds or creates the Schulhof room.
-func (s *CheckinService) ensureSchulhofRoom(ctx context.Context) (*facilityModels.Room, error) {
-	return s.ensureSystemRoom(ctx, schulhofSpace)
-}
-
-// ensureSchulhofCategory finds or creates the Schulhof activity category.
-func (s *CheckinService) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
-	return s.ensureSystemCategory(ctx, schulhofSpace)
 }
 
 // schulhofActivityGroup finds or creates the permanent Schulhof activity group,

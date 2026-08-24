@@ -51,7 +51,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub)
 func seedMealPlanWeek(t *testing.T, db *bun.DB, monday timezone.Date) {
 	t.Helper()
 	repo := repositories.NewFactory(db).MealPlanEntry
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	require.NoError(t, repo.ReplaceDay(ctx, monday, []*mealplanModels.MealPlanEntry{
 		{Date: monday, Position: 0, Dish: "Spaghetti"},
 		{Date: monday, Position: 1, Dish: "Salat"},
@@ -60,10 +60,10 @@ func seedMealPlanWeek(t *testing.T, db *bun.DB, monday timezone.Date) {
 }
 
 func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	seedMealPlanWeek(t, db, currentMonday)
@@ -77,10 +77,10 @@ func TestMealPlanWeek_ReturnsCurrentWeekEntries(t *testing.T) {
 }
 
 func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	nextMonday := currentMonday.AddDays(7)
@@ -93,10 +93,10 @@ func TestMealPlanWeek_AllowsNextWeek(t *testing.T) {
 }
 
 func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, nil))
@@ -107,10 +107,10 @@ func TestMealPlanWeek_DisabledReturnsSentinel(t *testing.T) {
 // TestMealPlanWeek_PastWeekOutOfRange asserts parents cannot reach a staff draft
 // for a past week by supplying a crafted week_start.
 func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	lastWeek := currentMonday.AddDays(-7)
@@ -120,10 +120,10 @@ func TestMealPlanWeek_PastWeekOutOfRange(t *testing.T) {
 }
 
 func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	weekAfterNext := currentMonday.AddDays(14)
@@ -133,12 +133,11 @@ func TestMealPlanWeek_FarFutureWeekOutOfRange(t *testing.T) {
 }
 
 func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 	other := testpkg.CreateTestStudent(t, db, "Mara", "Fremd", "2b")
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, db, other.ID) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(true, nil))
@@ -148,10 +147,10 @@ func TestMealPlanWeek_NotOwnedChildRejected(t *testing.T) {
 }
 
 func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	currentMonday, _ := mealplanService.WeekRange(timezone.TodayDate())
 	svc := buildMealPlanService(t, db, mealPlanSettings(false, errors.New("settings down")))
@@ -163,10 +162,10 @@ func TestMealPlanWeek_SettingErrorPropagates(t *testing.T) {
 // TestChildFeatures_ReflectsMealPlanSetting verifies the meal-plan flag on the
 // aggregate feature response tracks the tenant setting.
 func TestChildFeatures_ReflectsMealPlanSetting(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	t.Cleanup(func() { testpkg.CleanupParentGuardianChain(t, db, chain) })
 
 	svcOn := buildMealPlanService(t, db, mealPlanSettings(true, nil))
 	flags, err := svcOn.ChildFeatures(context.Background(), chain.AccountID, chain.StudentID)

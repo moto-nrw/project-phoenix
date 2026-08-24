@@ -48,6 +48,8 @@ func timetableSet(ids ...int64) map[int64]struct{} {
 // lose the timetable signal — otherwise the student search reports "kommt
 // heute" while the timetable roster leaves them out (#1747).
 func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		10: scheduleService.CareDayScheduled,
 		11: scheduleService.CareDayNotScheduled,
@@ -67,6 +69,8 @@ func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 // timetable signal: a school that does not maintain arrival/pickup plans still
 // sees its full roster.
 func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
+	t.Parallel()
+
 	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		20: scheduleService.CareDayUnknown,
 	}}
@@ -86,6 +90,8 @@ func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 // a weekend "kommt heute nicht" would otherwise arrive as a bare HasTimetable
 // and be reported as "kommt heute" while the roster says abgemeldet (#1747).
 func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
+	t.Parallel()
+
 	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
 		21: scheduleService.CareDayCancelled,
 	}}
@@ -102,6 +108,8 @@ func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
 // A student the resolver returns no entry for must not silently lose the
 // signal — an empty verdict is not a "not booked" statement.
 func TestFilterTimetableIDsByCareDayKeepsMissingVerdict(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{ResourceConfig: ResourceConfig{
 		CareDayService: &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{}},
 	}}
@@ -117,6 +125,8 @@ func TestFilterTimetableIDsByCareDayKeepsMissingVerdict(t *testing.T) {
 // Without the service wired the pre-#1747 behaviour stands: every assignment
 // counts.
 func TestFilterTimetableIDsByCareDayWithoutServiceIsUnfiltered(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	got, err := rs.filterTimetableIDsByCareDay(
@@ -128,6 +138,8 @@ func TestFilterTimetableIDsByCareDayWithoutServiceIsUnfiltered(t *testing.T) {
 }
 
 func TestFilterTimetableIDsByCareDayPropagatesError(t *testing.T) {
+	t.Parallel()
+
 	stub := &stubCareDayService{err: errors.New("boom")}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 

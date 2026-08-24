@@ -26,6 +26,8 @@ func singleModeSchemaFields() []enrollmentModels.FormField {
 }
 
 func TestEnsureSingleModeGradesCollectable_RejectsWithCollectionOff(t *testing.T) {
+	t.Parallel()
+
 	settings := &configtest.Mock{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			require.Equal(t, configModel.KeyEnrollmentCollectGradeLevel, key)
@@ -40,6 +42,8 @@ func TestEnsureSingleModeGradesCollectable_RejectsWithCollectionOff(t *testing.T
 }
 
 func TestEnsureSingleModeGradesCollectable_PassesWithCollectionOn(t *testing.T) {
+	t.Parallel()
+
 	settings := &configtest.Mock{
 		ResolveBoolFn: func(context.Context, string) (bool, error) { return true, nil },
 	}
@@ -48,6 +52,8 @@ func TestEnsureSingleModeGradesCollectable_PassesWithCollectionOn(t *testing.T) 
 }
 
 func TestEnsureSingleModeGradesCollectable_SkipsWithoutRule(t *testing.T) {
+	t.Parallel()
+
 	// No single_mode_grades anywhere → no settings read at all.
 	settings := &configtest.Mock{
 		ResolveBoolFn: func(context.Context, string) (bool, error) {
@@ -65,11 +71,15 @@ func TestEnsureSingleModeGradesCollectable_SkipsWithoutRule(t *testing.T) {
 }
 
 func TestEnsureSingleModeGradesCollectable_NilSettingsSkips(t *testing.T) {
+	t.Parallel()
+
 	s := &formSchemaService{}
 	assert.NoError(t, s.ensureSingleModeGradesCollectable(context.Background(), singleModeSchemaFields()))
 }
 
 func TestEnsureSingleModeGradesCollectable_TakesSharedLock(t *testing.T) {
+	t.Parallel()
+
 	// Same #1663 reasoning as the phase-side guards: validate-then-write
 	// must serialize against a concurrent settings write disabling grade
 	// collection.

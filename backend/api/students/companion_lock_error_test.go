@@ -30,6 +30,8 @@ func rendererStatus(t *testing.T, renderer interface{}) *common.ErrResponse {
 }
 
 func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
+	t.Parallel()
+
 	t.Run("busy lock is a retriable conflict", func(t *testing.T) {
 		resp := rendererStatus(t, updateStudentTxErrorRenderer(userService.ErrCompanionLockBusy))
 
@@ -65,6 +67,8 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 }
 
 func TestDeleteStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
+	t.Parallel()
+
 	// Deleting a child drops its links, which takes the same far-end locks as an
 	// update — so the delete path needs the identical classification.
 	t.Run("busy lock is a retriable conflict", func(t *testing.T) {
@@ -90,6 +94,8 @@ func TestDeleteStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 // with a confirmation — but re-sending this list is exactly the write that was
 // refused, so the client has to reload first.
 func TestUpdateStudentTxErrorRenderer_CompanionsChanged(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a stale list is a coded, retriable conflict", func(t *testing.T) {
 		resp := rendererStatus(t, updateStudentTxErrorRenderer(userService.ErrCompanionsChanged))
 

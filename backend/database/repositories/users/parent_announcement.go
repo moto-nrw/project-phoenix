@@ -742,7 +742,8 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 // version the client loaded. published_at = ? already implies NOT NULL. Mirrors
 // announcementIsLive in the service, but evaluated in the same statement as the
 // write so a concurrent correction cannot slip a stale read/ack onto the
-// corrected wording.
+// corrected wording. Publication is already validated by the service and
+// version match; expiry is evaluated by PostgreSQL at statement time.
 //
 // Both methods gate the read/ack write on EXISTS(guard) AND return EXISTS(guard)
 // as their result, so the caller can tell a genuine no-op (guard missed — a
@@ -755,8 +756,8 @@ const liveVersionGuardCTE = `WITH guard AS (
 		WHERE a.id = ? AND a.tenant_id = ?
 			AND a.active
 			AND a.published_at = ?
-			AND a.published_at <= NOW()
-			AND (a.expires_at IS NULL OR a.expires_at > NOW())
+			AND a.published_at <= clock_timestamp()
+			AND (a.expires_at IS NULL OR a.expires_at > clock_timestamp())
 	)`
 
 // MarkRead upserts the account's read row for an announcement (idempotent: a
@@ -767,6 +768,7 @@ const liveVersionGuardCTE = `WITH guard AS (
 // applied or a prior read already existed) and false when the version guard
 // missed — the caller maps false to a stale conflict rather than a silent 200.
 func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
+	now := time.Now()
 	var live bool
 	if err := base.GetDB(ctx, r.DB).NewRaw(liveVersionGuardCTE+`,
 		ins AS (
@@ -777,7 +779,7 @@ func (r *ParentAnnouncementRepository) MarkRead(ctx context.Context, tenantID, a
 		)
 		SELECT EXISTS (SELECT 1 FROM guard)`,
 		announcementID, tenantID, expectedPublishedAt, // guard CTE
-		tenantID, announcementID, accountID, time.Now(), // insert values
+		tenantID, announcementID, accountID, now, // insert values
 	).Scan(ctx, &live); err != nil {
 		return false, &modelBase.DatabaseError{Op: "mark parent announcement read", Err: err}
 	}

@@ -71,6 +71,11 @@ type OfferingRosterResyncInput struct {
 	OfferingIDs []int64
 	// GradeLevels is the Jahrgang filter; empty admits every enrolled child.
 	GradeLevels []int
+	// SchoolClasses is the Schulklassen filter (#2482); empty admits every
+	// enrolled child. Mutually exclusive with GradeLevels — the validation
+	// paths reject a payload carrying both, so the resync never has to decide
+	// how they combine.
+	SchoolClasses []string
 	// CalendarPeriodID is the template's period pin, stamped onto seeded rows
 	// and validated against the offerings' phase window.
 	CalendarPeriodID *int64

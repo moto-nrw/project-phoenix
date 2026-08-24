@@ -77,6 +77,9 @@ func TestPrintStudentBreakdown_Empty(_ *testing.T) {
 	printStudentBreakdown("Test Header", "Count", map[int64]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStudentBreakdown_WithData(t *testing.T) {
 	// Capture output
 	oldStdout := os.Stdout
@@ -110,6 +113,9 @@ func TestPrintDateBreakdown_Empty(_ *testing.T) {
 	printDateBreakdown(map[string]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintDateBreakdown_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -142,6 +148,9 @@ func TestPrintStudentBreakdownWithTotal_Empty(_ *testing.T) {
 	printStudentBreakdownWithTotal("Count", map[int64]int{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintStudentBreakdownWithTotal_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -175,6 +184,9 @@ func TestPrintMonthlyBreakdownWithTotal_Empty(_ *testing.T) {
 	printMonthlyBreakdownWithTotal("Test Header", map[string]int64{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintMonthlyBreakdownWithTotal_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
@@ -207,6 +219,9 @@ func TestPrintRecentDeletions_Empty(_ *testing.T) {
 	printRecentDeletions([]recentDeletionRow{})
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestPrintRecentDeletions_WithData(t *testing.T) {
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()

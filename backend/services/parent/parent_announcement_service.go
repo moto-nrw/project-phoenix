@@ -9,6 +9,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -384,6 +385,17 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	// same statement, so a deadline that passes between here and the write cannot
 	// let a late answer through. A missed guard is a 409, never a silent 200.
 	return tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		// Poll authorization above uses a snapshot. Lock and re-read the student
+		// in this write transaction so a concurrent care exit cannot leave a new
+		// response behind after the child became read-only.
+		studentCtx := tenant.WithTenantID(adminCtx, announcementTenantID)
+		student, err := s.StudentRepo.FindByIDForUpdate(studentCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		applied, err := s.AnnouncementRepo.SetResponse(adminCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 		if err != nil {
 			return err

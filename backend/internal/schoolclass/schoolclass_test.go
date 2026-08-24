@@ -3,6 +3,8 @@ package schoolclass
 import "testing"
 
 func TestGradePrefix(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name  string
 		class string

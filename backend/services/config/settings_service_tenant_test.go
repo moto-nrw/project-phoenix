@@ -127,7 +127,6 @@ func TestResolveBoolForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -147,7 +146,6 @@ func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -176,7 +174,6 @@ func TestResolveIntForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -196,7 +193,6 @@ func TestResolveIntForTenant_TenantOverrideWins(t *testing.T) {
 	})
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -220,7 +216,6 @@ func TestResolveIntForTenant_UnknownKey_ReturnsError(t *testing.T) {
 	t.Cleanup(func() { config.ResetRegistry() })
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)

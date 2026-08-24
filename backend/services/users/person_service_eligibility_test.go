@@ -10,6 +10,8 @@ import (
 )
 
 func TestFilterStudentsEligibleOnDate_UsesEnrollmentWindowForPastDates(t *testing.T) {
+	t.Parallel()
+
 	date := timezone.TodayDate().AddDays(-1)
 	fromBeforeDate := date.AddDays(-1)
 	fromToday := timezone.TodayDate()
@@ -26,6 +28,8 @@ func TestFilterStudentsEligibleOnDate_UsesEnrollmentWindowForPastDates(t *testin
 }
 
 func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToday(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
 
@@ -43,6 +47,8 @@ func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToda
 // the same boundary slotlists.eligibleOn applies (#1565). A past day must keep
 // the bound, and a non-active child never gets the override.
 func TestFilterStudentsEligibleOnDate_ImmediateActivationOnlyFromTodayOnward(t *testing.T) {
+	t.Parallel()
+
 	today := timezone.TodayDate()
 	yesterday := today.AddDays(-1)
 	nextWeek := today.AddDays(7)

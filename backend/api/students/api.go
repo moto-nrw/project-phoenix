@@ -61,17 +61,25 @@ type ResourceConfig struct {
 	// "kommt heute" on every weekday, including the ones they are not booked
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
-	CareDayService          scheduleService.CareDayService
-	SchoolService           platformSvc.SchoolService
-	SettingsService         configService.SettingsService
-	StudentService          userService.StudentService
-	StudentDeletionService  userService.StudentDeletionService
+	CareDayService  scheduleService.CareDayService
+	SchoolService   platformSvc.SchoolService
+	SettingsService configService.SettingsService
+	StudentService  userService.StudentService
+	// ClassListEntryService supplies the class-list-only entries (#2382) the
+	// "Klassenliste" export merges into the Klassenverband. Optional: nil
+	// exports without entries (bare test Resources).
+	ClassListEntryService  userService.ClassListEntryService
+	StudentDeletionService userService.StudentDeletionService
+	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
+	// exit, which is deliberately NOT a deletion.
+	CareLifecycleService    userService.CareLifecycleService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
 	OfferingChangeService   enrollmentService.OfferingChangeRequestService
+	PickupAdjustmentService enrollmentService.PickupAdjustmentService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
@@ -162,44 +170,47 @@ func (rs *Resource) Router() chi.Router {
 		// supervisor) is enforced inside the handler.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/change-history", rs.getStudentChangeHistory)
 
-		// Parent Stammdaten change-request review queue (Track B). Requests can
+		// Parent Stammdaten change-request decision (Track B). Requests can
 		// contain parent-submitted name, birthday, and departure-plan changes.
 		// Gated on users:update — the same permission as editing a child directly
 		// (PUT /{id}) — because deciding a request is that same write. The service
-		// additionally scopes both the list and the decision per child (admin or
-		// the child's group supervisor), so a supervisor sees and decides only
-		// their own group's requests. Static paths take precedence over the /{id}
-		// param route in chi.
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/master-data-change-requests", rs.listMasterDataChangeRequests)
+		// additionally scopes the decision per child (admin or the child's group
+		// supervisor), so a supervisor decides only their own group's requests.
+		// Reading the queue itself goes through the aggregated list below.
+		// Static paths take precedence over the /{id} param route in chi.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/master-data-change-requests/{requestId}/decide", rs.decideMasterDataChangeRequest)
 
-		// Parent care-schedule change-request review queue (#1803). Decisions
-		// rewrite the child's permanent weekly plan, so they share the users:update
-		// gate + per-child write scope of the master-data queue — both are decided
-		// on the same Änderungsanfragen page.
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
+		// Parent care-schedule change-request decision (#1803). Decisions rewrite
+		// the child's permanent weekly plan, so they share the users:update gate +
+		// per-child write scope of the master-data queue — both are decided in the
+		// same Anfragen module.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
 
 		// Post-enrollment offering change requests (#1665). Approving one moves
 		// the child between activity groups on a chosen date, so it shares the
-		// users:update gate of the queues it sits next to on the same page.
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/offering-change-requests", rs.listOfferingChangeRequests)
+		// users:update gate of the queues it sits next to in the Anfragen module.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/preview", rs.previewOfferingChangeRequest)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/offering-change-requests/{requestId}/decide", rs.decideOfferingChangeRequest)
 
-		// Excused-absence approval requests (#1845): staff review queue.
-		// Deciding one writes status days, so it is gated like the staff-side
-		// absence actions: users:update OR users:absence at the route, with the
-		// per-child absence gate deciding inside the service (#2232).
-		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
+		// Excused-absence approval requests (#1845): staff decision. Deciding one
+		// writes status days, so it is gated like the staff-side absence actions:
+		// users:update OR users:absence at the route, with the per-child absence
+		// gate deciding inside the service (#2232).
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
 
-		// Combined pending count across both review queues, driving the
-		// Änderungsanfragen sidebar badge. Same gate + per-child scope as the
+		// Combined pending count across the review queues, driving the
+		// Anfragen sidebar badge. Same gate + per-child scope as the
 		// queues it summarizes (the count sums their scoped lists), including
 		// the excused queue's users:absence path — a caller who only holds that
 		// permission counts excused requests and nothing else.
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
+
+		// Aggregated Eltern request list (#2432): all four queues as ONE list
+		// (open or history) with search, filters and keyset pagination. Same
+		// route gate as the badge; inside, an absence-only caller is narrowed
+		// to the excused queue — the only one whose per-type routes accept
+		// users:absence.
+		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests", rs.listAggregatedChangeRequests)
 
 		// Routes requiring users:create permission
 		r.With(authorize.RequiresPermission(permissions.UsersCreate), withTx).Post("/", rs.createStudent)
@@ -218,6 +229,21 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/status-days/bulk", rs.bulkCreateStudentStatusDays)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Post("/{id}/status-days", rs.createStudentStatusDays)
 		r.With(authorize.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Delete("/{id}/status-days/{statusDayId}", rs.deleteStudentStatusDay)
+
+		// "Betreuung beenden" (#2487). Behind users:delete like the permanent
+		// deletion — ending a care relationship and reading why it ended are
+		// the two halves of one sensitive decision — but a deliberately
+		// separate surface: a regular exit is not a data deletion.
+		// Static paths are registered before /{id} so chi never routes
+		// "care-end" into the id parameter.
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/preview", rs.previewCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end", rs.confirmCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/cancel", rs.cancelCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/care-withdrawals", rs.listCareWithdrawals)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end/preview", rs.previewWithdrawalCareEnd)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end", rs.confirmWithdrawalCareEnd)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/care-end/resume", rs.resumeCare)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/ended-care", rs.listEndedCare)
 
 		// Routes requiring users:delete permission
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStudent)
@@ -242,6 +268,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/partial-absences", rs.getStudentPartialAbsences)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/preview", rs.previewStudentPickupAdjustment)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/apply", rs.applyStudentPickupAdjustment)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/reset-offering", rs.resetStudentPickupToOffering)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/pickup-schedules/bulk", rs.bulkUpsertPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)
@@ -260,6 +288,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
 
 		// Arrival schedule routes (full access required - checked in handlers)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/arrival-settings", rs.getArrivalSettings)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/arrival-schedules", rs.getStudentArrivalSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/arrival-schedules", rs.updateStudentArrivalSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/arrival-exceptions", rs.createStudentArrivalException)
@@ -273,7 +302,9 @@ func (rs *Resource) Router() chi.Router {
 
 		// Bulk arrival schedule and time endpoints
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/arrival-schedules/bulk", rs.bulkUpsertArrivalSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-schedules/status", rs.getBulkArrivalScheduleStatus)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
+		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-times/{schoolClass}", rs.getClassArrivalTimes)
 
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
 		// The users:checkin permission is the gate; any verified staff member may

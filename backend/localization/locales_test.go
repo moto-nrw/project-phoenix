@@ -8,12 +8,16 @@ import "testing"
 // fallback (locales.json).
 
 func TestDefaultLocale(t *testing.T) {
+	t.Parallel()
+
 	if got := DefaultLocale(); got != "de" {
 		t.Fatalf("DefaultLocale() = %q, want %q (fallback in locales.json)", got, "de")
 	}
 }
 
 func TestIsSupported(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		raw  string
@@ -42,6 +46,8 @@ func TestIsSupported(t *testing.T) {
 }
 
 func TestNormalizeLocale(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		raw  string
@@ -72,6 +78,8 @@ func TestNormalizeLocale(t *testing.T) {
 // locales: anything IsSupported accepts must normalize to itself, and anything
 // it rejects must fall back to the default rather than pass through.
 func TestIsSupportedAndNormalizeAgree(t *testing.T) {
+	t.Parallel()
+
 	raws := []string{"de", "en", "ru", "sq", "en-US", "DE", "xx", "", "  "}
 	for _, raw := range raws {
 		if IsSupported(raw) {
@@ -92,6 +100,8 @@ func TestIsSupportedAndNormalizeAgree(t *testing.T) {
 // shipping a broken locale table.
 
 func TestIndexLocales_PanicsOnDuplicateCode(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("indexLocales must panic on a duplicate locale code")
@@ -104,6 +114,8 @@ func TestIndexLocales_PanicsOnDuplicateCode(t *testing.T) {
 }
 
 func TestIndexLocales_PanicsOnEmptyCode(t *testing.T) {
+	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Fatal("indexLocales must panic on an empty locale code")
@@ -113,6 +125,8 @@ func TestIndexLocales_PanicsOnEmptyCode(t *testing.T) {
 }
 
 func TestIndexLocales_LowercasesCode(t *testing.T) {
+	t.Parallel()
+
 	out := indexLocales([]Locale{{Code: "EN", Label: "English"}})
 	if _, ok := out["en"]; !ok {
 		t.Fatalf("indexLocales must key entries by lowercased code, got keys %v", out)
@@ -120,6 +134,8 @@ func TestIndexLocales_LowercasesCode(t *testing.T) {
 }
 
 func TestFindFallbackLocale_PrefersExplicitFallback(t *testing.T) {
+	t.Parallel()
+
 	got := findFallbackLocale([]Locale{
 		{Code: "en", Label: "English"},
 		{Code: "de", Label: "Deutsch", Fallback: true},
@@ -130,6 +146,8 @@ func TestFindFallbackLocale_PrefersExplicitFallback(t *testing.T) {
 }
 
 func TestFindFallbackLocale_DefaultsToFirstWhenNoneFlagged(t *testing.T) {
+	t.Parallel()
+
 	got := findFallbackLocale([]Locale{
 		{Code: "en", Label: "English"},
 		{Code: "ru", Label: "Русский"},

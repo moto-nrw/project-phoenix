@@ -6,6 +6,8 @@ import (
 )
 
 func TestMatchesGradeLevel(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		schoolClass string
@@ -37,6 +39,8 @@ func TestMatchesGradeLevel(t *testing.T) {
 // mean the same thing so a hand-built URL is not silently truncated to its
 // first value (#2218).
 func TestParseMultiValueParam(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  []string
@@ -71,6 +75,8 @@ func TestParseMultiValueParam(t *testing.T) {
 // An unusable id has always meant "no restriction" rather than a 400, and the
 // multi-value form must not turn one bad entry into an empty list.
 func TestParseGroupIDList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  []string
@@ -92,6 +98,8 @@ func TestParseGroupIDList(t *testing.T) {
 }
 
 func TestParseGradeLevelList(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		raw  []string

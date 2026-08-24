@@ -54,13 +54,16 @@ func postBatchCheckin(t *testing.T, tc *testContext, accountID int64, body map[s
 }
 
 func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	first := testpkg.CreateTestStudent(t, tc.db, "BatchIn", "First", "1a")
 	second := testpkg.CreateTestStudent(t, tc.db, "BatchIn", "Second", "1a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchIn", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, first.ID, second.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchIn", "Caller")
 
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
@@ -80,13 +83,16 @@ func TestSchoolCheckinBatch_CheckInMultiple(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	present := testpkg.CreateTestStudent(t, tc.db, "BatchMixed", "Present", "2a")
 	absent := testpkg.CreateTestStudent(t, tc.db, "BatchMixed", "Absent", "2a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMixed", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, present.ID, absent.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMixed", "Caller")
 
 	// Check the first student in beforehand via the single endpoint.
 	inBody, _ := json.Marshal(map[string]string{"action": "in"})
@@ -118,12 +124,15 @@ func TestSchoolCheckinBatch_MixedStates_IdempotentPerStudent(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchSkip", "Known", "3a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchSkip", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchSkip", "Caller")
 
 	// An id that cannot exist: far outside any sequence used by fixtures.
 	unknownID := student.ID + 1_000_000
@@ -150,12 +159,15 @@ func TestSchoolCheckinBatch_UnknownStudentSkipped_RestProcessed(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
+	// The virtual WEB-MANUAL device is per tenant, so this test's own
+	// tenant (#2419) needs its own row before a manual check-in.
+	_ = testpkg.EnsureWebManualDevice(t, tc.db)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchDup", "Target", "4a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchDup", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchDup", "Caller")
 
 	resp, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
@@ -169,12 +181,12 @@ func TestSchoolCheckinBatch_DuplicateIDsCollapse(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchInvalid", "Target", "5a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchInvalid", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchInvalid", "Caller")
 
 	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "toggle",
@@ -185,11 +197,11 @@ func TestSchoolCheckinBatch_InvalidAction_Rejects(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMalformed", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchMalformed", "Caller")
 
 	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",
@@ -203,12 +215,12 @@ func TestSchoolCheckinBatch_MalformedID_Rejects(t *testing.T) {
 // the RAW list before deduplication (review #2372): a payload of duplicates
 // must not slip past the limit by collapsing to a single student.
 func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchCap", "Target", "6a")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchCap", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchCap", "Caller")
 
 	// One over maxSchoolCheckinBatchSize, all the same student.
 	ids := make([]string, 1001)
@@ -228,12 +240,12 @@ func TestSchoolCheckinBatch_TooManyIDs_Rejects(t *testing.T) {
 // the JSON decoder (review #2372): a body past maxSchoolCheckinBatchBytes
 // fails during decode instead of being read into memory whole.
 func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchBytes", "Target", "6b")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchBytes", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchBytes", "Caller")
 
 	// Enough duplicate entries to exceed the 64KB body cap regardless of how
 	// long the fixture's id happens to be (each entry costs len+3 bytes for
@@ -257,12 +269,12 @@ func TestSchoolCheckinBatch_OversizedBody_Rejects(t *testing.T) {
 // value, so trailing bytes would otherwise stay unread and an oversized or
 // malformed tail would slip past the advertised size limit.
 func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
 	student := testpkg.CreateTestStudent(t, tc.db, "BatchTrail", "Target", "6c")
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchTrail", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchTrail", "Caller")
 
 	payload := fmt.Sprintf(`{"action":"in","student_ids":[%q]}{"trailing":"junk"}`, idStr(student.ID))
 	req := testutil.NewRequest("POST", "/school-checkin/batch", bytesReader([]byte(payload)))
@@ -274,11 +286,11 @@ func TestSchoolCheckinBatch_TrailingBody_Rejects(t *testing.T) {
 }
 
 func TestSchoolCheckinBatch_EmptyIDs_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 
-	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchEmpty", "Caller")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID, staff.PersonID)
-	defer testpkg.CleanupAccount(t, tc.db, account.ID)
+	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "BatchEmpty", "Caller")
 
 	_, code, body := postBatchCheckin(t, tc, account.ID, map[string]any{
 		"action":      "in",

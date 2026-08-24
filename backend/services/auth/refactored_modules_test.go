@@ -31,11 +31,12 @@ func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
 // =============================================================================
 
 func TestAuthService_DeleteRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes role with all associations successfully", func(t *testing.T) {
 		// ARRANGE - create role with permission assignment
@@ -59,6 +60,7 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
 		require.NoError(t, err)
@@ -103,11 +105,12 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when updating a system role", func(t *testing.T) {
 		// ARRANGE
@@ -124,11 +127,12 @@ func TestAuthService_UpdateRole_SystemRoleProtection(t *testing.T) {
 }
 
 func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when assigning permission to a system role", func(t *testing.T) {
 		// ARRANGE
@@ -149,11 +153,12 @@ func TestAuthService_AssignPermissionToRole_SystemRoleProtection(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromRole_SystemRoleProtection(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error when removing permission from a system role", func(t *testing.T) {
 		// ARRANGE
@@ -169,11 +174,12 @@ func TestAuthService_RemovePermissionFromRole_SystemRoleProtection(t *testing.T)
 }
 
 func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
@@ -196,6 +202,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		err = service.AssignRoleToAccount(ctx, int(account.ID), 99999999)
@@ -212,6 +219,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("idempotent-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
@@ -241,11 +249,12 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("removes role from account successfully", func(t *testing.T) {
 		// ARRANGE
@@ -255,6 +264,7 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
@@ -279,11 +289,12 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list for account with no roles", func(t *testing.T) {
 		// ARRANGE
@@ -293,6 +304,7 @@ func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Remove any default roles
 		roles, _ := service.GetAccountRoles(ctx, int(account.ID))
@@ -314,11 +326,12 @@ func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_DeletePermission_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes permission with role association", func(t *testing.T) {
 		// ARRANGE
@@ -362,6 +375,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -379,11 +393,12 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 }
 
 func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent permission", func(t *testing.T) {
 		// ARRANGE
@@ -393,6 +408,7 @@ func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), 99999999)
@@ -403,11 +419,12 @@ func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("removes permission from account", func(t *testing.T) {
 		// ARRANGE
@@ -423,6 +440,7 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -436,11 +454,12 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent role", func(t *testing.T) {
 		// ARRANGE
@@ -472,11 +491,12 @@ func TestAuthService_AssignPermissionToRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("removes permission from role", func(t *testing.T) {
 		// ARRANGE
@@ -509,11 +529,12 @@ func TestAuthService_RemovePermissionFromRole_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns empty list for role with no permissions", func(t *testing.T) {
 		// ARRANGE
@@ -566,11 +587,12 @@ func TestAuthService_GetRolePermissions_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_ActivateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("activates already active account (idempotent)", func(t *testing.T) {
 		// ARRANGE
@@ -580,6 +602,7 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Account is already active by default
 
@@ -597,11 +620,12 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deactivates account and invalidates tokens", func(t *testing.T) {
 		// ARRANGE
@@ -611,7 +635,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Login to create tokens
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
@@ -641,6 +665,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate first
 		err = service.DeactivateAccount(ctx, int(account.ID))
@@ -655,11 +680,12 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("preserves password hash when not provided", func(t *testing.T) {
 		// ARRANGE
@@ -669,6 +695,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Get the original password hash
 		original, err := service.GetAccountByID(ctx, int(account.ID))
@@ -706,11 +733,12 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_ListAccounts_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns accounts with email filter", func(t *testing.T) {
 		// ARRANGE
@@ -720,6 +748,7 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		filters := map[string]interface{}{
@@ -741,11 +770,12 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns accounts with specific role", func(t *testing.T) {
 		// ARRANGE
@@ -760,6 +790,7 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
 		require.NoError(t, err)
@@ -793,12 +824,15 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 // Token Cleanup Extended Tests (token_cleanup.go)
 // =============================================================================
 
+// Deliberately NOT parallel: unscoped sweep — CleanupExpiredTokens runs the
+// orphan-push and pending-wipe sweeps across every account and tenant, so
+// beside a parallel test it deletes that test's unbound push rows and
+// tokens (#2419).
 func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns zero when no expired tokens", func(t *testing.T) {
 		// ACT
@@ -811,11 +845,12 @@ func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns count of cleaned tokens", func(t *testing.T) {
 		// ACT
@@ -828,11 +863,12 @@ func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns count of cleaned rate limits", func(t *testing.T) {
 		// ACT
@@ -845,11 +881,12 @@ func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
 }
 
 func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("succeeds for account with no tokens", func(t *testing.T) {
 		// ARRANGE
@@ -873,11 +910,12 @@ func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns multiple tokens after multiple logins", func(t *testing.T) {
 		// ARRANGE
@@ -887,7 +925,7 @@ func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Login multiple times to create tokens
 		_, _, err = service.Login(ctx, email, "Test1234%")
@@ -909,11 +947,12 @@ func TestAuthService_GetActiveTokens_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_CreateParentAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for weak password", func(t *testing.T) {
 		// ACT
@@ -942,11 +981,12 @@ func TestAuthService_CreateParentAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_GetParentAccountByEmail_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("normalizes email case", func(t *testing.T) {
 		// ARRANGE
@@ -966,11 +1006,12 @@ func TestAuthService_GetParentAccountByEmail_Extended(t *testing.T) {
 }
 
 func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("preserves password when not provided", func(t *testing.T) {
 		// ARRANGE
@@ -1002,11 +1043,12 @@ func TestAuthService_UpdateParentAccount_Extended(t *testing.T) {
 }
 
 func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns accounts with active filter", func(t *testing.T) {
 		// ARRANGE
@@ -1037,11 +1079,12 @@ func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_ResetPassword_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for invalid token", func(t *testing.T) {
 		// ACT
@@ -1074,11 +1117,12 @@ func TestAuthService_ResetPassword_Extended(t *testing.T) {
 }
 
 func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns nil for non-existent email (security)", func(t *testing.T) {
 		// ACT
@@ -1114,11 +1158,12 @@ func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
 // =============================================================================
 
 func TestAuthService_Login_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("normalizes email case on login", func(t *testing.T) {
 		// ARRANGE
@@ -1129,7 +1174,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT - Login with uppercase
 		accessToken, refreshToken, err := service.Login(ctx, fmt.Sprintf("LOGIN-CASE-%s@TEST.LOCAL", uniqueID), "Test1234%")
@@ -1148,6 +1193,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate account
 		err = service.DeactivateAccount(ctx, int(account.ID))
@@ -1162,11 +1208,12 @@ func TestAuthService_Login_Extended(t *testing.T) {
 }
 
 func TestAuthService_Register_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("normalizes email case on registration", func(t *testing.T) {
 		// ARRANGE
@@ -1200,11 +1247,12 @@ func TestAuthService_Register_Extended(t *testing.T) {
 }
 
 func TestAuthService_RefreshToken_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("fails for deactivated account", func(t *testing.T) {
 		// ARRANGE
@@ -1214,7 +1262,7 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
 		require.NoError(t, err)
@@ -1232,11 +1280,12 @@ func TestAuthService_RefreshToken_Extended(t *testing.T) {
 }
 
 func TestAuthService_Logout_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("is idempotent - double logout succeeds", func(t *testing.T) {
 		// ARRANGE
@@ -1246,7 +1295,7 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
-		testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		_, refreshToken, err := service.Login(ctx, email, "Test1234%")
 		require.NoError(t, err)
@@ -1264,11 +1313,12 @@ func TestAuthService_Logout_Extended(t *testing.T) {
 }
 
 func TestAuthService_ChangePassword_Extended(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ACT

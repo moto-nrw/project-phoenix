@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,7 @@ import (
 func CreateTestOperator(tb testing.TB, db *bun.DB) *platform.Operator {
 	tb.Helper()
 	return CreateTestOperatorWithEmail(tb, db,
-		fmt.Sprintf("op-%d@test.local", time.Now().UnixNano()), "Test Operator")
+		fmt.Sprintf("op-%d@test.local", uniqueFixtureSuffix()), "Test Operator")
 }
 
 // CreateTestOperatorWithEmail inserts a platform operator with the given email
@@ -45,7 +44,7 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 
 // CleanupOperator removes an operator and its audit-log rows. All other
 // operator-scoped tables (tokens, MFA, passkeys) cascade on delete; rows in
-// domain tables referencing the operator (announcements, suggestion comments)
+// domain tables referencing the operator (announcements)
 // must be removed by the caller's own cleanup first.
 func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()

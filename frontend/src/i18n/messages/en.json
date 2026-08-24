@@ -440,16 +440,21 @@
     "sick": {
       "title": "Report an absence",
       "intro": "Tell the OGS that your child will not attend care on the selected days. Their OGS registration remains unchanged.",
-      "introApproval": "Tell the OGS that your child will not attend care on the selected days. Sick notes take effect immediately; the OGS confirms excused absences. Their OGS registration remains unchanged.",
       "kindLabel": "Reason for the absence",
       "kindSick": "Report sick",
       "kindExcused": "Excuse absence",
       "kindHintSick": "For days when your child is ill. The OGS sees the sick note immediately.",
+      "kindHintSickApproval": "The OGS confirms the sick note. Until then, your child is still expected.",
+      "kindHintSickUnknown": "For sick days. The OGS receives your sick note.",
       "kindHintExcused": "For appointments or other planned absences. Briefly state the reason.",
+      "kindHintExcusedApproval": "The OGS confirms the absence. Until then, your child is still expected.",
+      "kindHintExcusedUnknown": "For appointments or other absences. Enter the reason.",
       "periodLabel": "Days of absence",
       "from": "First day",
       "to": "Last day",
       "daysCount": "{count, plural, one {Your child will be reported absent for this day.} other {Your child will be reported absent for # days.}}",
+      "requestDaysCount": "You are requesting an absence for the selected days.",
+      "unknownDaysCount": "{count, plural, one {One day is selected.} other {# days are selected.}}",
       "reasonLabel": "Note to the OGS",
       "reasonPlaceholder": "For example, fever or a medical appointment",
       "invalidDate": "Please pick a valid date. The end date must not be before the start date.",
@@ -461,7 +466,9 @@
       "submitExcused": "Send excuse to the OGS",
       "reasonLabelRequired": "Reason / note to the OGS",
       "reasonRequiredError": "Enter a short note for the OGS.",
-      "approvalHint": "The OGS must confirm this excused absence."
+      "approvalHint": "After you send it, the OGS must still confirm the absence.",
+      "requestSentTitle": "Request sent",
+      "requestSentBody": "The OGS must still confirm the absence. Until then, your child is still expected."
     },
     "summary": {
       "none": "No absence",
@@ -922,6 +929,15 @@
       "home": "Private",
       "work": "Work",
       "other": "Other"
+    },
+    "locked": {
+      "badge": "Already in care",
+      "birthday": "Date of birth",
+      "grade": "Grade",
+      "care": "Booked offerings",
+      "noCare": "No offerings booked.",
+      "hint": "Changes for {name} now go through the parents app.",
+      "noAccess": "No access to the parents app yet? The OGS can invite you."
     }
   },
   "enrollmentStatus": {
@@ -1105,7 +1121,12 @@
     "renewalAdjustHint": "You can continue care unchanged, adjust only offerings or weekdays, or end care at the end of the current period. All other data stays unchanged.",
     "adjustTitle": "Adjust offerings and weekdays",
     "adjustDescription": "Adjust only the care offerings and booked weekdays. All other data stays unchanged and is not requested again.",
-    "adjustSubmit": "Send adjustment"
+    "adjustSubmit": "Send adjustment",
+    "lockedChildHint": "Changes for this child go through the parents app.",
+    "lockedAllTitle": "Changes go through the parents app",
+    "lockedAllBodyOne": "Your child is already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
+    "lockedAllBodyMany": "Your children are already in care. Please make changes in the parents app. No access yet? The OGS can invite you.",
+    "lockedAllAction": "Go to parents app"
   },
   "parentMasterData": {
     "title": "Details and care",
@@ -1327,11 +1348,14 @@
     "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
     "eventRequestCreatedExcusedAbsence": "Excused absence requested",
     "eventRequestConfirmedExcusedAbsence": "Request confirmed, absence recorded",
+    "eventRequestCreatedSickAbsence": "Sick note requested",
+    "eventRequestConfirmedSickAbsence": "Request confirmed, sick note recorded",
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",
     "eventRequestCreatedCareOffering": "Care offering change requested",
-    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched"
+    "eventRequestConfirmedCareOffering": "Request confirmed, care offerings will be switched",
+    "eventRequestConfirmedCareOfferingDated": "Request confirmed, care offerings will be switched from {date}"
   },
   "parentFeedback": {
     "kicker": "Feedback",
@@ -1442,6 +1466,10 @@
     "overviewKicker": "Children at a glance",
     "overviewDescription": "Choose a child to view care, details and contacts.",
     "ogsLabel": "OGS",
+    "careEnded": {
+      "title": "Care has ended",
+      "body": "Your child is no longer in care at this school. You can still view everything from before. New reports are no longer possible."
+    },
     "loadError": "Your child's details could not be loaded right now. Please try again later.",
     "notFound": "There is no child at this address in your account.",
     "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",

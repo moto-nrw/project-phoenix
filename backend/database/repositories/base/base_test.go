@@ -37,22 +37,23 @@ func jsonValue(s string) json.RawMessage {
 	return json.RawMessage(fmt.Sprintf("%q", s))
 }
 
-// newSettingValue builds a SettingValue with tenant 1 and the given key/value.
+// newSettingValue builds a SettingValue in the calling test's tenant with the given key/value.
 // updatedBy is optional (pass nil to leave the FK unset).
-func newSettingValue(key, value string, updatedBy *int64) *configModels.SettingValue {
+func newSettingValue(tb testing.TB, key, value string, updatedBy *int64) *configModels.SettingValue {
 	sv := &configModels.SettingValue{
 		SettingKey: key,
 		Value:      jsonValue(value),
 		UpdatedBy:  updatedBy,
 	}
-	sv.SetTenantID(1)
+	sv.SetTenantID(testpkg.Tenant(tb))
 	return sv
 }
 
 // TestNewRepository tests repository creation
 func TestNewRepository(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
 	require.NotNil(t, repo)
@@ -63,13 +64,14 @@ func TestNewRepository(t *testing.T) {
 
 // TestRepository_Create tests the Create method
 func TestRepository_Create(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sv := newSettingValue(uniqueKey("create"), "test_value", nil)
+	sv := newSettingValue(t, uniqueKey("create"), "test_value", nil)
 
 	// Cleanup after test
 	defer func() {
@@ -86,11 +88,12 @@ func TestRepository_Create(t *testing.T) {
 
 // TestRepository_Create_NilEntity tests Create with nil entity
 func TestRepository_Create_NilEntity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	var nilSV *configModels.SettingValue
 	err := repo.Create(ctx, nilSV)
@@ -100,14 +103,15 @@ func TestRepository_Create_NilEntity(t *testing.T) {
 
 // TestRepository_FindByID tests the FindByID method
 func TestRepository_FindByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert a test row using schema-qualified table
-	sv := newSettingValue(uniqueKey("find"), "find_value", nil)
+	sv := newSettingValue(t, uniqueKey("find"), "find_value", nil)
 	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
 	require.NoError(t, err)
 
@@ -126,11 +130,12 @@ func TestRepository_FindByID(t *testing.T) {
 
 // TestRepository_FindByID_NotFound tests FindByID with non-existent ID
 func TestRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	_, err := repo.FindByID(ctx, 999999)
 	require.Error(t, err)
@@ -138,14 +143,15 @@ func TestRepository_FindByID_NotFound(t *testing.T) {
 
 // TestRepository_Update tests the Update method
 func TestRepository_Update(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
-	sv := newSettingValue(uniqueKey("update"), "original_value", nil)
+	sv := newSettingValue(t, uniqueKey("update"), "original_value", nil)
 	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
 	require.NoError(t, err)
 	require.NotZero(t, sv.ID)
@@ -171,11 +177,12 @@ func TestRepository_Update(t *testing.T) {
 
 // TestRepository_Update_NilEntity tests Update with nil entity
 func TestRepository_Update_NilEntity(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	var nilSV *configModels.SettingValue
 	err := repo.Update(ctx, nilSV)
@@ -185,14 +192,15 @@ func TestRepository_Update_NilEntity(t *testing.T) {
 
 // TestRepository_Delete tests the Delete method
 func TestRepository_Delete(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert a test row
-	sv := newSettingValue(uniqueKey("delete"), "delete_value", nil)
+	sv := newSettingValue(t, uniqueKey("delete"), "delete_value", nil)
 	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
 	require.NoError(t, err)
 
@@ -215,19 +223,20 @@ func TestRepository_Delete(t *testing.T) {
 // to this test's rows only — required because base_test.go runs in parallel
 // with other tests touching config.setting_values.
 func TestRepository_List(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	acct := testpkg.CreateTestAccount(t, db, "base_repo_list")
 	updatedBy := acct.ID
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert two test rows tagged with this test's account
 	settings := []*configModels.SettingValue{
-		newSettingValue(uniqueKey("list_1"), "v1", &updatedBy),
-		newSettingValue(uniqueKey("list_2"), "v2", &updatedBy),
+		newSettingValue(t, uniqueKey("list_1"), "v1", &updatedBy),
+		newSettingValue(t, uniqueKey("list_2"), "v2", &updatedBy),
 	}
 	for _, s := range settings {
 		_, err := db.NewInsert().Model(s).ModelTableExpr(baseTestTable).Exec(ctx)
@@ -249,15 +258,16 @@ func TestRepository_List(t *testing.T) {
 
 // TestRepository_List_NoFilters tests List with empty filters
 func TestRepository_List_NoFilters(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	// Insert one row so the result slice is non-nil even on a freshly reset DB.
 	// bun returns a nil slice when SELECT matches zero rows.
-	sv := newSettingValue(uniqueKey("list_no_filters"), "v", nil)
+	sv := newSettingValue(t, uniqueKey("list_no_filters"), "v", nil)
 	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -309,29 +319,19 @@ func setSettingValueCreatedAt(t *testing.T, db *bun.DB, id int64, createdAt time
 		TableExpr(baseTestTable).
 		Set("created_at = ?", createdAt).
 		Where("id = ?", id).
-		Exec(testpkg.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }
 
-// cleanupTenantSettingValues removes every row the test created for a tenant.
-func cleanupTenantSettingValues(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	_, _ = db.NewDelete().
-		TableExpr(baseTestTable).
-		Where("tenant_id = ?", tenantID).
-		Exec(testpkg.TenantContext(tenantID))
-}
-
 func TestRepository_CountWithOptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, otherTenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -367,12 +367,12 @@ func TestRepository_CountWithOptions(t *testing.T) {
 }
 
 func TestRepository_OldestBefore(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -410,15 +410,14 @@ func TestRepository_OldestBefore(t *testing.T) {
 }
 
 func TestRepository_DeleteOlderThan(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
-	defer cleanupTenantSettingValues(t, db, tenantID)
-	defer cleanupTenantSettingValues(t, db, otherTenantID)
 
 	repo := newTenantScopedRepo(db)
 	ctx := testpkg.TenantContext(tenantID)
@@ -451,13 +450,14 @@ func TestRepository_DeleteOlderThan(t *testing.T) {
 }
 
 func TestRepository_UpdateColumns(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := base.NewRepository[*configModels.SettingValue](db, baseTestTable, baseTestEntityName)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
-	sv := newSettingValue(uniqueKey("update_columns"), "original", nil)
+	sv := newSettingValue(t, uniqueKey("update_columns"), "original", nil)
 	_, err := db.NewInsert().Model(sv).ModelTableExpr(baseTestTable).Exec(ctx)
 	require.NoError(t, err)
 	defer func() {
@@ -482,7 +482,7 @@ func TestRepository_UpdateColumns(t *testing.T) {
 	})
 
 	t.Run("returns zero rows for missing entity without error", func(t *testing.T) {
-		ghost := newSettingValue(uniqueKey("update_columns_ghost"), "ghost", nil)
+		ghost := newSettingValue(t, uniqueKey("update_columns_ghost"), "ghost", nil)
 		ghost.ID = 999999999
 		updated, err := repo.UpdateColumns(ctx, ghost, "value")
 		require.NoError(t, err)

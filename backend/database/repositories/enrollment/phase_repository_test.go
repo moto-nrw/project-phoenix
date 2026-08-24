@@ -19,14 +19,13 @@ import (
 // uniquePhaseName produces a per-test phase name so the (tenant_id,
 // name) unique constraint doesn't collide when tests run together.
 func uniquePhaseName(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
+	return fmt.Sprintf("%s-%d", prefix, testpkg.UniqueSuffix())
 }
 
 func setupPhaseRepoTest(t *testing.T) (*bun.DB, enrollmentModels.PhaseRepository, int64) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-	var tenantID int64 = 1
+	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	return db, enrollmentRepo.NewPhaseRepository(db), tenantID
 }
@@ -60,6 +59,8 @@ func makeValidPhase(name string) *enrollmentModels.Phase {
 // --- Create + Validation -----------------------------------------------
 
 func TestPhaseRepository_Create_PersistsAndReturnsID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("create")
 	defer wipePhases(db, tenantID, name)
@@ -74,6 +75,8 @@ func TestPhaseRepository_Create_PersistsAndReturnsID(t *testing.T) {
 }
 
 func TestPhaseRepository_Create_RejectsInvalidPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	phase := makeValidPhase("")
@@ -87,6 +90,8 @@ func TestPhaseRepository_Create_RejectsInvalidPhase(t *testing.T) {
 // --- FindByID ----------------------------------------------------------
 
 func TestPhaseRepository_FindByID_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("findbyid")
 	defer wipePhases(db, tenantID, name)
@@ -109,6 +114,8 @@ func TestPhaseRepository_FindByID_HappyPath(t *testing.T) {
 }
 
 func TestPhaseRepository_FindByID_NotFound(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	var got *enrollmentModels.Phase
@@ -125,6 +132,8 @@ func TestPhaseRepository_FindByID_NotFound(t *testing.T) {
 // --- Update ------------------------------------------------------------
 
 func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("update")
 	defer wipePhases(db, tenantID, name)
@@ -157,6 +166,8 @@ func TestPhaseRepository_Update_PersistsChanges(t *testing.T) {
 }
 
 func TestPhaseRepository_Update_RejectsZeroID(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	phase := makeValidPhase(uniquePhaseName("noid"))
@@ -169,6 +180,8 @@ func TestPhaseRepository_Update_RejectsZeroID(t *testing.T) {
 }
 
 func TestPhaseRepository_Update_MissingRowErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	phase := makeValidPhase(uniquePhaseName("nope"))
@@ -181,6 +194,8 @@ func TestPhaseRepository_Update_MissingRowErrors(t *testing.T) {
 }
 
 func TestPhaseRepository_Update_RejectsInvalidPhase(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("invalidupdate")
 	defer wipePhases(db, tenantID, name)
@@ -203,6 +218,8 @@ func TestPhaseRepository_Update_RejectsInvalidPhase(t *testing.T) {
 // --- Delete ------------------------------------------------------------
 
 func TestPhaseRepository_Delete_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("delete")
 	defer wipePhases(db, tenantID, name)
@@ -227,6 +244,8 @@ func TestPhaseRepository_Delete_HappyPath(t *testing.T) {
 }
 
 func TestPhaseRepository_Delete_MissingIDErrors(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	err := runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -239,6 +258,8 @@ func TestPhaseRepository_Delete_MissingIDErrors(t *testing.T) {
 // --- ListByTenant ------------------------------------------------------
 
 func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	a := uniquePhaseName("listA")
 	b := uniquePhaseName("listB")
@@ -286,6 +307,8 @@ func TestPhaseRepository_ListByTenant_OrdersByServiceStartDesc(t *testing.T) {
 // --- ListPublicOpen ----------------------------------------------------
 
 func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	openInactive := uniquePhaseName("openInactive")
 	closedActive := uniquePhaseName("closedActive")
@@ -345,6 +368,8 @@ func TestPhaseRepository_ListPublicOpen_OnlyReturnsActiveInWindow(t *testing.T) 
 }
 
 func TestPhaseRepository_ListPublicOpen_NullBoundsTreatedAsUnbounded(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	name := uniquePhaseName("nullBounds")
 	defer wipePhases(db, tenantID, name)
@@ -375,6 +400,8 @@ func TestPhaseRepository_ListPublicOpen_NullBoundsTreatedAsUnbounded(t *testing.
 // --- ListWithExpiredRolloverDeadline -----------------------------------
 
 func TestPhaseRepository_ListWithExpiredRolloverDeadline_OnlyReturnsExpired(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	noDeadline := uniquePhaseName("noDeadline")
 	pending := uniquePhaseName("pending")
@@ -419,6 +446,8 @@ func TestPhaseRepository_ListWithExpiredRolloverDeadline_OnlyReturnsExpired(t *t
 // --- ExistsByFormSchemaID ----------------------------------------------
 
 func TestPhaseRepository_ExistsByFormSchemaID_TrueWhenReferenced(t *testing.T) {
+	t.Parallel()
+
 	// We need a real form_schema row first so the FK constraint on
 	// enrollment.phases.form_schema_id passes.
 	db, repo, tenantID := setupPhaseRepoTest(t)
@@ -460,6 +489,8 @@ func TestPhaseRepository_ExistsByFormSchemaID_TrueWhenReferenced(t *testing.T) {
 }
 
 func TestPhaseRepository_ExistsByFormSchemaID_FalseWhenUnreferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	var exists bool
@@ -475,6 +506,8 @@ func TestPhaseRepository_ExistsByFormSchemaID_FalseWhenUnreferenced(t *testing.T
 // --- ExistsByRolloverSourcePhaseID -------------------------------------
 
 func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 	sourceName := uniquePhaseName("rolloverSource")
 	rolloverName := uniquePhaseName("rolloverTarget")
@@ -508,6 +541,8 @@ func TestPhaseRepository_ExistsByRolloverSourcePhaseID_TrueAfterRollover(t *test
 }
 
 func TestPhaseRepository_ExistsByRolloverSourcePhaseID_FalseWhenUnreferenced(t *testing.T) {
+	t.Parallel()
+
 	db, repo, tenantID := setupPhaseRepoTest(t)
 
 	var exists bool

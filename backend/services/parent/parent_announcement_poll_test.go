@@ -68,9 +68,11 @@ func seedPublishedPoll(
 }
 
 func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -119,12 +121,29 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	assert.Empty(t, pending, "an answered child must not be reminded")
 }
 
+func TestAnnouncementPoll_CareEndedChildCannotRespond(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
+	svc, db, repos := buildAnnouncementService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
+	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+
+	endCareFor(t, db, chain.StudentID)
+	err := svc.RespondToAnnouncement(context.Background(), chain.AccountID, poll.ID, chain.StudentID,
+		[]int64{poll.Options[0].ID}, *poll.PublishedAt)
+	require.ErrorIs(t, err, parentService.ErrChildCareEnded)
+}
+
 // A portal-visible child without a guardian who may answer remains visible to
 // staff, but cannot make completion or reminders look permanently outstanding.
 func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	_, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -155,9 +174,11 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 // Re-answering replaces the previous selection rather than adding a second vote:
 // a single-choice poll must never count one child twice.
 func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -182,9 +203,11 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 // The deadline is the answer cut-off, checked in the same statement as the
 // write. A closed poll rejects the answer instead of silently dropping it.
 func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	future := time.Now().Add(time.Hour)
@@ -207,11 +230,12 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 
 // A guardian may not answer for a child that is not theirs.
 func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 	other := testpkg.CreateTestStudent(t, db, "Mila", "Fremd", "2b")
-	defer testpkg.CleanupActivityFixtures(t, db, other.ID)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
@@ -222,9 +246,11 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 
 // A plain Mitteilung accepts no answers at all.
 func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
@@ -236,9 +262,11 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 // The unread badge keeps counting an open poll the guardian has already read but
 // not answered — that is the whole point of the reminder.
 func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
+	t.Parallel()
+
+	testpkg.OwnTenant(t)
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")

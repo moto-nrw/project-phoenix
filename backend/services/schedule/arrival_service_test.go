@@ -15,6 +15,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,9 +34,6 @@ func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 
 	staff := testpkg.CreateTestStaff(t, db, "Arrival", fmt.Sprintf("Creator-%d", time.Now().UnixNano()))
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, db, staff.ID)
-	})
 
 	return staff.ID
 }
@@ -45,15 +43,15 @@ func createArrivalServiceTestStaffID(t *testing.T, db *bun.DB) int64 {
 // =============================================================================
 
 func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday} {
 			sched := &scheduleModels.StudentArrivalSchedule{
@@ -81,15 +79,15 @@ func TestArrivalScheduleService_GetStudentArrivalSchedules(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns schedule for specific weekday", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -117,15 +115,15 @@ func TestArrivalScheduleService_GetStudentArrivalScheduleForWeekday(t *testing.T
 }
 
 func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates new schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -142,7 +140,6 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 
 	t.Run("updates existing schedule", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -179,15 +176,15 @@ func TestArrivalScheduleService_UpsertStudentArrivalSchedule(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates multiple schedules in transaction", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedules := []*scheduleModels.StudentArrivalSchedule{
 			{
@@ -218,7 +215,6 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 
 	t.Run("rolls back on validation error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		schedules := []*scheduleModels.StudentArrivalSchedule{
 			{
@@ -249,16 +245,86 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 	})
 }
 
-func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
+func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	repos := repositories.NewFactory(db)
+	service := setupArrivalScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")
+	staffID := createArrivalServiceTestStaffID(t, db)
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	lockDone := make(chan error, 1)
+	go func() {
+		lockDone <- tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			if _, err := repos.Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-locked:
+	case err := <-lockDone:
+		require.NoError(t, err)
+		t.Fatal("student transaction ended before holding the lock")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out while acquiring the student lock")
+	}
+
+	released := false
+	releaseLock := func() {
+		if !released {
+			close(release)
+			released = true
+		}
+	}
+	defer releaseLock()
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- service.UpsertBulkStudentArrivalSchedules(ctx, student.ID, []*scheduleModels.StudentArrivalSchedule{
+			{
+				Weekday:         scheduleModels.WeekdayMonday,
+				ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
+				CreatedBy:       staffID,
+			},
+		})
+	}()
+
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+		t.Fatal("arrival write bypassed the held student lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	releaseLock()
+	require.NoError(t, <-lockDone)
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("arrival write did not resume after the student lock was released")
+	}
+}
+
+func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes schedule by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -280,15 +346,15 @@ func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all schedules for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		for _, weekday := range []int{scheduleModels.WeekdayMonday, scheduleModels.WeekdayWednesday, scheduleModels.WeekdayFriday} {
 			sched := &scheduleModels.StudentArrivalSchedule{
@@ -316,15 +382,15 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalSchedules(t *testing.T) {
 // =============================================================================
 
 func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -341,7 +407,6 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 
 	t.Run("returns error when exception already exists for date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exceptionDate := timezone.NewDate(2024, 3, 20)
 		exception1 := &scheduleModels.StudentArrivalException{
@@ -380,15 +445,15 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := -2; i <= 2; i++ {
@@ -410,15 +475,15 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns only upcoming exceptions", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 
@@ -455,15 +520,15 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 }
 
 func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates exception successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -488,12 +553,12 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupArrivalScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "ArrivalPatch", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createArrivalServiceTestStaffID(t, db)
@@ -530,12 +595,12 @@ func TestArrivalScheduleService_UpdateExceptionPreservesOmittedArrivalTime(t *te
 }
 
 func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	service := setupArrivalScheduleService(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Test", "ArrivalClear", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createArrivalServiceTestStaffID(t, db)
@@ -567,15 +632,15 @@ func TestArrivalScheduleService_UpdateExceptionClearsArrivalTime(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes exception by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
@@ -597,15 +662,15 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all exceptions for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := 1; i <= 5; i++ {
@@ -634,15 +699,15 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 // =============================================================================
 
 func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("creates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -672,7 +737,6 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 
 	t.Run("fails validation for empty content", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -689,15 +753,15 @@ func TestArrivalScheduleService_CreateStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -718,15 +782,15 @@ func TestArrivalScheduleService_GetStudentArrivalNoteByID(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := 0; i < 3; i++ {
@@ -755,15 +819,15 @@ func TestArrivalScheduleService_GetStudentArrivalNotes(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		targetDate := timezone.NewDate(2024, 3, 20)
 
@@ -798,15 +862,15 @@ func TestArrivalScheduleService_GetStudentArrivalNotesForDate(t *testing.T) {
 }
 
 func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("updates note successfully", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -844,15 +908,15 @@ func TestArrivalScheduleService_UpdateStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes note by ID", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		note := &scheduleModels.StudentArrivalNote{
 			StudentID: student.ID,
@@ -874,15 +938,15 @@ func TestArrivalScheduleService_DeleteStudentArrivalNote(t *testing.T) {
 }
 
 func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		baseDate := timezone.TodayDate()
 		for i := 1; i <= 5; i++ {
@@ -911,15 +975,15 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalNotes(t *testing.T) {
 // =============================================================================
 
 func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns combined schedule, exception, and note data", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -958,15 +1022,15 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns exception when present", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		recurringNote := "Arrives at side gate"
 		sched := &scheduleModels.StudentArrivalSchedule{
@@ -1004,7 +1068,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("returns schedule when no exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		sched := &scheduleModels.StudentArrivalSchedule{
 			StudentID:       student.ID,
@@ -1029,7 +1092,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("returns nil arrival time for weekend", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 13, 2024 is a Saturday, noon UTC stays Saturday in Berlin
 		testDate := timezone.NewDate(2024, 1, 13)
@@ -1042,7 +1104,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("returns nil when no schedule and no exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 10, 2024 is a Wednesday
 		testDate := timezone.NewDate(2024, 1, 10)
@@ -1056,7 +1117,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("returns schedule with notes", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		notes := "Walks with sibling"
 		sched := &scheduleModels.StudentArrivalSchedule{
@@ -1082,7 +1142,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("falls back to recurring schedule notes when exception reason is blank", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		recurringNote := "Wait at the side entrance"
 		sched := &scheduleModels.StudentArrivalSchedule{
@@ -1117,7 +1176,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("handles Sunday correctly", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 14, 2024 is a Sunday
 		testDate := timezone.NewDate(2024, 1, 14)
@@ -1130,7 +1188,6 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 
 	t.Run("absent exception returns nil arrival time", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 8, 2024 is a Monday
 		testDate := timezone.NewDate(2024, 1, 8)
@@ -1155,17 +1212,17 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 }
 
 func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns effective times for multiple students", func(t *testing.T) {
 		student1 := testpkg.CreateTestStudent(t, db, "ArrStudent", "One", "1a")
 		student2 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Two", "1b")
 		student3 := testpkg.CreateTestStudent(t, db, "ArrStudent", "Three", "1c")
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
 
 		// January 11, 2024 is a Thursday
 		testDate := timezone.NewDate(2024, 1, 11)
@@ -1228,7 +1285,6 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 
 	t.Run("handles weekend correctly for all students", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 14, 2024 is a Sunday
 		testDate := timezone.NewDate(2024, 1, 14)
@@ -1242,7 +1298,6 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 
 	t.Run("returns schedule notes in bulk lookup", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// January 8, 2024 is a Monday
 		testDate := timezone.NewDate(2024, 1, 8)
@@ -1269,7 +1324,6 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 
 	t.Run("falls back to recurring schedule notes in bulk lookup when exception reason is blank", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		testDate := timezone.NewDate(2024, 1, 8)
 
@@ -1310,11 +1364,12 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 // =============================================================================
 
 func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error without a filter", func(t *testing.T) {
 		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{}, []schedule.ArrivalScheduleInput{
@@ -1343,7 +1398,6 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		selectedA := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentA", "SEL-A")
 		selectedB := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentB", "SEL-B")
 		unselected := testpkg.CreateTestStudent(t, db, "BulkSelected", "StudentC", "SEL-A")
-		defer testpkg.CleanupActivityFixtures(t, db, selectedA.ID, selectedB.ID, unselected.ID)
 		note := "Förderkurs"
 		err := service.UpsertStudentArrivalSchedule(ctx, &scheduleModels.StudentArrivalSchedule{
 			StudentID: selectedA.ID, Weekday: 4,
@@ -1379,7 +1433,6 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	t.Run("rejects the whole explicit selection when one student is unauthorized", func(t *testing.T) {
 		allowed := testpkg.CreateTestStudent(t, db, "BulkAuthorized", "Student", "AUTH-A")
 		denied := testpkg.CreateTestStudent(t, db, "BulkDenied", "Student", "AUTH-B")
-		defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
 		result, err := service.BulkUpsertArrivalSchedules(
 			ctx,
@@ -1400,12 +1453,35 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		assert.Empty(t, rows, "authorization failure must roll back every selected student")
 	})
 
+	t.Run("rejects a class timetable update when one matched student is unauthorized", func(t *testing.T) {
+		className := fmt.Sprintf("BulkClassAuth-%d", time.Now().UnixNano())
+		allowed := testpkg.CreateTestStudent(t, db, "BulkClassAuth", "Allowed", className)
+		testpkg.CreateTestStudent(t, db, "BulkClassAuth", "Denied", className)
+
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{
+				SchoolClass: className,
+				Authorize: func(_ context.Context, student *usersModels.Student) (bool, error) {
+					return student.ID == allowed.ID, nil
+				},
+			},
+			[]schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "08:40"}},
+			createArrivalServiceTestStaffID(t, db),
+		)
+
+		require.ErrorIs(t, err, schedule.ErrBulkStudentUnauthorized)
+		assert.Nil(t, result)
+		classTimes, findErr := service.GetClassArrivalTimes(ctx, className)
+		require.NoError(t, findErr)
+		assert.Empty(t, classTimes.Times, "authorization failure must not write the shared class timetable")
+	})
+
 	// Production canUpdateStudent returns (false, err) on deny; that must map to
 	// ErrBulkStudentUnauthorized (HTTP 403), not a bare authorize error (HTTP 500).
 	t.Run("maps production-style authorize denial to unauthorized", func(t *testing.T) {
 		allowed := testpkg.CreateTestStudent(t, db, "BulkAuthErrAllowed", "Student", "AUTH-E1")
 		denied := testpkg.CreateTestStudent(t, db, "BulkAuthErrDenied", "Student", "AUTH-E2")
-		defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
 		result, err := service.BulkUpsertArrivalSchedules(
 			ctx,
@@ -1454,30 +1530,80 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 	// re-runs and inflate StudentsAffected. CI isn't affected because it
 	// starts each run from a fresh test DB. Hermetic tests should not
 	// reuse the same school_class literal on a long-lived test DB.
-	t.Run("upserts schedules for class with students", func(t *testing.T) {
+	// Business rule changed with #2414 / ADR 0005: setting the time for a
+	// school class writes the class timetable, it does not invent care days.
+	// A child is in care on a weekday because it is booked or because the OGS
+	// entered that day, never because its class has lessons then — otherwise
+	// children get arrival times on days they do not attend, which is the
+	// confusion this issue exists to remove.
+	t.Run("sets the class timetable without inventing care days", func(t *testing.T) {
 		className := fmt.Sprintf("BC1-%d", time.Now().UnixNano())
+		staffID := createArrivalServiceTestStaffID(t, db)
 
-		// Create students in the same class
-		student1 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", className)
-		student2 := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", className)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		withCareDay := testpkg.CreateTestStudent(t, db, "BulkArr", "Student1", className)
+		withoutCareDay := testpkg.CreateTestStudent(t, db, "BulkArr", "Student2", className)
+		testpkg.CreateTestArrivalSchedule(t, db, withCareDay.ID, 1, staffID, "")
 
 		schedules := []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "07:45"},
 			{Weekday: 3, ArrivalTime: "08:15"},
 		}
 
-		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, createArrivalServiceTestStaffID(t, db))
+		result, err := service.BulkUpsertArrivalSchedules(ctx, schedule.ArrivalScheduleBulkFilter{SchoolClass: className}, schedules, staffID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, result.StudentsAffected)
 
-		// Verify schedules were created for both students
-		for _, studentID := range []int64{student1.ID, student2.ID} {
-			results, err := service.GetStudentArrivalSchedules(ctx, studentID)
-			require.NoError(t, err)
-			assert.Len(t, results, 2)
-		}
+		inCare, err := service.GetStudentArrivalSchedules(ctx, withCareDay.ID)
+		require.NoError(t, err)
+		require.Len(t, inCare, 1, "the child keeps its one care day, Wednesday is not invented")
+		assert.Equal(t, "07:45", inCare[0].ExpectedArrival.Format("15:04"))
+
+		none, err := service.GetStudentArrivalSchedules(ctx, withoutCareDay.ID)
+		require.NoError(t, err)
+		assert.Empty(t, none, "a child without care days gets no arrival time from its class")
+	})
+
+	// Naming a class means "everyone in it", and a child whose care has ended
+	// is not in it any more (#2487). Before this, the class-wide write aborted
+	// at the locked re-check as soon as ONE child of the class had left —
+	// with a message naming a child the office cannot even see any more.
+	t.Run("skips children whose care has ended instead of failing the class", func(t *testing.T) {
+		className := fmt.Sprintf("BCCARE-%d", time.Now().UnixNano())
+		staffID := createArrivalServiceTestStaffID(t, db)
+		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
+		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
+		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
+		_, err := db.NewUpdate().
+			Table("users.students").
+			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+			Where("id = ?", departed.ID).
+			Exec(ctx)
+		require.NoError(t, err)
+
+		schedules := []schedule.ArrivalScheduleInput{{Weekday: 1, ArrivalTime: "07:45"}}
+		result, err := service.BulkUpsertArrivalSchedules(
+			ctx,
+			schedule.ArrivalScheduleBulkFilter{SchoolClass: className},
+			schedules,
+			staffID,
+		)
+
+		require.NoError(t, err, "one departed child must not abort the whole class")
+		assert.Equal(t, 1, result.StudentsAffected)
+
+		kept, err := service.GetStudentArrivalSchedules(ctx, staying.ID)
+		require.NoError(t, err)
+		assert.Len(t, kept, 1, "the existing care day remains a class-time marker")
+
+		classTimes, err := service.GetClassArrivalTimes(ctx, className)
+		require.NoError(t, err)
+		require.NotNil(t, classTimes)
+		assert.Equal(t, "07:45", classTimes.Times["mon"])
+
+		none, err := service.GetStudentArrivalSchedules(ctx, departed.ID)
+		require.NoError(t, err)
+		assert.Empty(t, none, "a departed child gets no new weekly plan")
 	})
 
 	t.Run("upserts schedules only for students in the selected group", func(t *testing.T) {
@@ -1486,15 +1612,6 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		targetStudent1 := testpkg.CreateTestStudent(t, db, "BulkGroup", "Student1", "1a")
 		targetStudent2 := testpkg.CreateTestStudent(t, db, "BulkGroup", "Student2", "2b")
 		otherStudent := testpkg.CreateTestStudent(t, db, "BulkOther", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(
-			t,
-			db,
-			targetGroup.ID,
-			otherGroup.ID,
-			targetStudent1.ID,
-			targetStudent2.ID,
-			otherStudent.ID,
-		)
 
 		testpkg.AssignStudentToGroup(t, db, targetStudent1.ID, targetGroup.ID)
 		testpkg.AssignStudentToGroup(t, db, targetStudent2.ID, targetGroup.ID)
@@ -1522,10 +1639,9 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		assert.Empty(t, otherRows)
 	})
 
-	t.Run("returns overwrite warnings when schedules differ", func(t *testing.T) {
+	t.Run("preserves an own time when the class time changes", func(t *testing.T) {
 		className := fmt.Sprintf("BOW1-%d", time.Now().UnixNano())
 		student := testpkg.CreateTestStudent(t, db, "BulkOverwrite", "Student", className)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create existing schedule with a different time
 		existingSched := &scheduleModels.StudentArrivalSchedule{
@@ -1545,13 +1661,17 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, result.StudentsAffected)
-		assert.GreaterOrEqual(t, len(result.OverwrittenStudents), 1)
+		assert.Empty(t, result.OverwrittenStudents)
+
+		stored, findErr := service.GetStudentArrivalSchedules(ctx, student.ID)
+		require.NoError(t, findErr)
+		require.Len(t, stored, 1)
+		assert.Equal(t, "07:30", stored[0].ExpectedArrival.Format("15:04"))
 	})
 
 	t.Run("returns error for invalid arrival time format", func(t *testing.T) {
 		className := fmt.Sprintf("BBT1-%d", time.Now().UnixNano())
-		student := testpkg.CreateTestStudent(t, db, "BulkBadTime", "Student", className)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "BulkBadTime", "Student", className)
 
 		schedules := []schedule.ArrivalScheduleInput{
 			{Weekday: 1, ArrivalTime: "invalid"},

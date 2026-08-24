@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -29,6 +28,7 @@ import (
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,16 +39,9 @@ func init() {
 	testutil.SeedTestJWTConfig()
 }
 
-// displayTenantCounter seeds unique tenant IDs for this package. Deliberately
-// SMALL numbers (not UnixNano): the tenant ID travels through JWT claims,
-// which JSON-decode as float64 — IDs above 2^53 silently lose precision and
-// the FK to platform.schools no longer matches. Uniqueness only needs to hold
-// within this package's cloned test database.
-var displayTenantCounter int64 = 780_000 + time.Now().UnixNano()%100_000
-
 func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
-	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	enableDisplayFeature(t, db, tenantID)
 	return tenantID
@@ -72,17 +65,29 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 	repos := repositories.NewFactory(db)
 	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
 	svc := displayService.NewService(displayService.Dependencies{
-		DisplayRepo:       repos.Display,
-		SchoolRepo:        repos.School,
-		Facilities:        facilities.NewService(repos.Room, repos.ActiveGroup),
+		DisplayRepo: repos.Display,
+		SchoolRepo:  repos.School,
+		Facilities: facilities.NewServiceWithConfig(facilities.ServiceConfig{
+			RoomRepo: repos.Room, ActiveGroupRepo: repos.ActiveGroup,
+		}),
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,
 		InstanceRepo:      repos.ActivityInstance,
 		AttendanceRepo:    repos.Attendance,
-		PickupSchedule:    schedule.NewPickupScheduleServiceWithBulk(repos.StudentPickupSchedule, repos.StudentPickupException, repos.StudentPickupNote, repos.Student, repos.Person, nil, db, slog.Default()),
-		SettingsService:   settingsService,
-		DB:                db,
+		PickupSchedule: schedule.NewPickupScheduleServiceWithBulk(
+			repos.StudentPickupSchedule,
+			repos.StudentPickupException,
+			repos.StudentPickupNote,
+			repos.Student,
+			repos.Person,
+			nil,
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			db,
+			slog.Default(),
+		),
+		SettingsService: settingsService,
+		DB:              db,
 	})
 	return displayAPI.NewResource(svc, settingsService, db).Router()
 }
@@ -144,22 +149,12 @@ func createDisplayViaAPI(t *testing.T, router http.Handler, adminJWT, name strin
 	return fmt.Sprintf("%d", created.Display.ID), created.Token
 }
 
-func cleanupDisplays(t *testing.T, db *bun.DB, tenantID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewDelete().
-		TableExpr("display.displays").
-		Where("tenant_id = ?", tenantID).
-		Exec(ctx)
-}
-
 func TestDisplayAdminCRUD(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-admin-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:read", "display:manage"})
@@ -243,11 +238,11 @@ func TestDisplayAdminCRUD(t *testing.T) {
 }
 
 func TestDisplayDashboardPublic(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-dash-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -257,7 +252,6 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, db, tenantID, activityGroup.ID, room.ID)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Emma", "Testkind", "1a")
 	testpkg.CreateTestVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, timezone.Now().Add(-30*time.Minute), nil)
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, room.ID, activityGroup.ID, activeGroup.ID, student.ID)
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Eingang")
 
@@ -360,13 +354,12 @@ func buildInstance(tenantID int64, title string, roomID int64, start time.Time) 
 }
 
 func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantA := newDisplayTestTenant(t, db)
 	tenantB := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantA)
-	defer cleanupDisplays(t, db, tenantB)
 	router := newDisplayRouter(t, db)
 
 	accountA := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-a-%d@test.local", tenantA))
@@ -374,8 +367,7 @@ func TestDisplayDashboardCrossTenantIsolation(t *testing.T) {
 	jwtA := displayTestJWT(t, accountA.ID, tenantA, []string{"display:read", "display:manage"})
 	jwtB := displayTestJWT(t, accountB.ID, tenantB, []string{"display:read", "display:manage"})
 
-	roomB := testpkg.CreateTestRoomForTenant(t, db, tenantB, "Geheimraum B")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantB, roomB.ID)
+	_ = testpkg.CreateTestRoomForTenant(t, db, tenantB, "Geheimraum B")
 
 	_, tokenA := createDisplayViaAPI(t, router, jwtA, "Display A")
 	createDisplayViaAPI(t, router, jwtB, "Display B")
@@ -405,8 +397,9 @@ func gjsonSchoolName(t *testing.T, body []byte) string {
 }
 
 func TestDisplayDashboardPickupBuckets(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	today := timezone.TodayDate()
 	weekday := int(today.Weekday())
@@ -415,7 +408,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	}
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-pickup-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -425,7 +417,6 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 	present1 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Anna", "Anwesend", "2b")
 	present2 := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Ben", "Anwesend", "2b")
 	checkedOut := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Carla", "Weg", "2b")
-	defer testpkg.CleanupActivityFixturesForTenant(t, db, tenantID, staff.ID, device.ID, present1.ID, present2.ID, checkedOut.ID)
 
 	now := timezone.Now()
 	checkoutTime := now.Add(-10 * time.Minute)
@@ -505,15 +496,15 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 // live tenant data once its school is disabled or offboarded: the dashboard
 // must 404 (dead link), not keep aggregating.
 func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	router := newDisplayRouter(t, db)
 
 	setupDashboard := func(t *testing.T, label string) (int64, string) {
 		t.Helper()
 		tenantID := newDisplayTestTenant(t, db)
-		t.Cleanup(func() { cleanupDisplays(t, db, tenantID) })
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-%s-%d@test.local", label, tenantID))
 		adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
 		_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Lifecycle "+label)
@@ -560,11 +551,11 @@ func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 // regeneration move the row's updated_at (the API otherwise keeps returning
 // the creation timestamp forever).
 func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	tenantID := newDisplayTestTenant(t, db)
-	defer cleanupDisplays(t, db, tenantID)
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-touch-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -624,6 +615,8 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 // Guard against accidental reintroduction of identity fields in the payload
 // structs themselves (compile-time-ish check via JSON round trip).
 func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
+	t.Parallel()
+
 	payload := displayService.DashboardPayload{}
 	raw, err := json.Marshal(payload)
 	require.NoError(t, err)
@@ -638,16 +631,16 @@ func TestDashboardPayloadHasNoIdentityFields(t *testing.T) {
 // and the public dashboard must reject a tenant that never turned it on,
 // and must resume working once the tenant enables it.
 func TestDisplayFeatureGate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	// Deliberately NOT using newDisplayTestTenant here — it enables the
 	// feature by default for the rest of this package's tests. This test
 	// needs a tenant that starts with display.enabled at its registry
 	// default (false).
-	tenantID := atomic.AddInt64(&displayTenantCounter, 1)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer cleanupDisplays(t, db, tenantID)
 
 	router := newDisplayRouter(t, db)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-gate-%d@test.local", tenantID))

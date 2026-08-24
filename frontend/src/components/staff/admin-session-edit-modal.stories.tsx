@@ -5,7 +5,7 @@ import type { StaffHistorySession } from "~/lib/staff-api";
 import { AdminSessionEditModal } from "./admin-session-edit-modal";
 
 const sampleSession: StaffHistorySession = {
-  id: 42,
+  id: "42",
   date: "2026-06-10",
   status: "present",
   net_minutes: 450,

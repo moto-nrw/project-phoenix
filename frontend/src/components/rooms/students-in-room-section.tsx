@@ -40,10 +40,8 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
-import {
-  useAttendanceWebEnabled,
-  useOpenCareGroupMode,
-} from "~/lib/tenant-context";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
@@ -74,8 +72,13 @@ export function StudentsInRoomSection({
   const router = useTenantRouter();
   const { data: session } = useSession();
   const attendanceWebEnabled = useAttendanceWebEnabled();
-  const openCare = useOpenCareGroupMode();
-  const showAllTargets = canUseAllMoveTargets(session) || openCare;
+  // Mirrors the backend's move authorization exactly (#2380): callers the
+  // school-wide overview covers may move children into any running module,
+  // everyone else only into a module they supervise themselves. Gating on
+  // the organisational group mode here would offer targets the server then
+  // rejects with 403.
+  const { overviewEnabled } = useOptionalSupervision();
+  const showAllTargets = canUseAllMoveTargets(session) || overviewEnabled;
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",

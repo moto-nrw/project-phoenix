@@ -75,6 +75,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(rs.authRateLimiter)
 			}
 			r.Post("/login", rs.login)
+			r.Post("/password-reset", rs.initiatePasswordReset)
+			r.Post("/password-reset/confirm", rs.resetPassword)
 			// School MFA exchange: redeems ONLY challenges started with
 			// the school challenge scope and mints school-scope tokens.
 			r.Post("/mfa/verify", rs.mfaVerify)

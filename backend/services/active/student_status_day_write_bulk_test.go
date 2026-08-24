@@ -16,16 +16,16 @@ import (
 )
 
 func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(40)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -38,7 +38,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	err := service.CreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
@@ -61,18 +61,18 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 // CreateForDates does: any active conflict rejects the whole selection and
 // leaves every student's rows unchanged.
 func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 
 	withConflict := testpkg.CreateTestStudent(t, db, "BulkStatusConflict", "Student", "BSC1")
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
-	defer testpkg.CleanupActivityFixtures(t, db, withConflict.ID, clear.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	conflictDate := timezone.TodayDate().AddDays(50)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -85,7 +85,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 
 	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize:      func(context.Context, *userModels.Student) bool { return true },
 		AfterCommit:    func(int64) {},
@@ -113,6 +113,8 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 }
 
 func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
+	t.Parallel()
+
 	rows := make([]*activeModels.StudentStatusDay, 0, MaxStudentStatusDayConflictDetails+5)
 	for i := 0; i < MaxStudentStatusDayConflictDetails+5; i++ {
 		rows = append(rows, &activeModels.StudentStatusDay{StudentID: int64(i + 1)})
@@ -131,22 +133,22 @@ func TestStudentStatusDayConflictError_SampleAndTotal(t *testing.T) {
 // Mixed-scope bulk status writes must fail closed before any row lands.
 // Regression for the class-trip bulk partial-commit path under outer withTx.
 func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repoFactory := repositories.NewFactory(db)
-	service := NewStudentStatusDayService(repoFactory.StudentStatusDay)
+	service := NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil)
 	studentService := users.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil)
 
 	allowed := testpkg.CreateTestStudent(t, db, "BulkStatusAllowed", "Student", "BSA1")
 	denied := testpkg.CreateTestStudent(t, db, "BulkStatusDenied", "Student", "BSD1")
-	defer testpkg.CleanupActivityFixtures(t, db, allowed.ID, denied.ID)
 
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	dates := []timezone.Date{timezone.NewDate(2026, 5, 12)}
 	err := service.BulkCreateForDates(ctx, StatusDayWriteContext{
 		DB:             db,
-		TenantID:       1,
+		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		Authorize: func(_ context.Context, student *userModels.Student) bool {
 			return student.ID == allowed.ID

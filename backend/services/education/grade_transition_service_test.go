@@ -40,22 +40,22 @@ func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTrans
 	})
 
 	cleanup := func() {
-		_ = db.Close()
 	}
 
 	return service, db, cleanup
 }
 
 func TestGradeTransitionService_Create(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	// Create a test account for created_by
 	account := testpkg.CreateTestAccount(t, db, "transition-creator@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("create transition without mappings", func(t *testing.T) {
 		req := educationService.CreateTransitionRequest{
@@ -66,7 +66,6 @@ func TestGradeTransitionService_Create(t *testing.T) {
 		transition, err := service.Create(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, transition)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		assert.Equal(t, "2025-2026", transition.AcademicYear)
 		assert.Equal(t, education.TransitionStatusDraft, transition.Status)
@@ -87,7 +86,6 @@ func TestGradeTransitionService_Create(t *testing.T) {
 		transition, err := service.Create(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, transition)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		assert.Equal(t, "2026-2027", transition.AcademicYear)
 		assert.Len(t, transition.Mappings, 2)
@@ -104,7 +102,6 @@ func TestGradeTransitionService_Create(t *testing.T) {
 		transition, err := service.Create(ctx, req)
 		require.NoError(t, err)
 		require.NotNil(t, transition)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		require.NotNil(t, transition.Notes)
 		assert.Equal(t, notes, *transition.Notes)
@@ -137,18 +134,18 @@ func TestGradeTransitionService_Create(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-updater@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("update academic year", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		newYear := "2026-2027"
 		req := educationService.UpdateTransitionRequest{
@@ -162,7 +159,6 @@ func TestGradeTransitionService_Update(t *testing.T) {
 
 	t.Run("update notes", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		notes := "Updated notes"
 		req := educationService.UpdateTransitionRequest{
@@ -178,7 +174,6 @@ func TestGradeTransitionService_Update(t *testing.T) {
 	t.Run("update mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		req := educationService.UpdateTransitionRequest{
 			Mappings: []educationService.MappingRequest{
@@ -194,7 +189,6 @@ func TestGradeTransitionService_Update(t *testing.T) {
 
 	t.Run("cannot update applied transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Mark as applied
 		now := time.Now()
@@ -228,14 +222,15 @@ func TestGradeTransitionService_Update(t *testing.T) {
 }
 
 func TestGradeTransitionService_Delete(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-deleter@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("delete draft transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
@@ -250,7 +245,6 @@ func TestGradeTransitionService_Delete(t *testing.T) {
 
 	t.Run("cannot delete applied transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Mark as applied
 		now := time.Now()
@@ -278,20 +272,20 @@ func TestGradeTransitionService_Delete(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetByID(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-getter@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("get transition with mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "2a", testpkg.StrPtr("3a"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.GetByID(ctx, transition.ID)
 		require.NoError(t, err)
@@ -307,21 +301,21 @@ func TestGradeTransitionService_GetByID(t *testing.T) {
 }
 
 func TestGradeTransitionService_List(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-lister@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("list transitions with pagination", func(t *testing.T) {
 		// Create multiple transitions
-		t1 := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		t2 := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-		t3 := testpkg.CreateTestGradeTransition(t, db, "2027-2028", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, t1.ID, t2.ID, t3.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2027-2028", account.ID)
 
 		options := base.NewQueryOptions()
 		options.WithPagination(1, 2)
@@ -333,8 +327,7 @@ func TestGradeTransitionService_List(t *testing.T) {
 	})
 
 	t.Run("list transitions with filter", func(t *testing.T) {
-		t1 := testpkg.CreateTestGradeTransition(t, db, "2029-2030", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, t1.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2029-2030", account.ID)
 
 		options := base.NewQueryOptions()
 		filter := base.NewFilter()
@@ -350,14 +343,15 @@ func TestGradeTransitionService_List(t *testing.T) {
 }
 
 func TestGradeTransitionService_Preview(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-preview@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("preview with students", func(t *testing.T) {
 		// Create unique class names to ensure test isolation
@@ -367,16 +361,14 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 		class4 := fmt.Sprintf("4a-%s", suffix)
 
 		// Create students in specific classes
-		student1 := testpkg.CreateTestStudent(t, db, "Preview", "Student1", class1)
-		student2 := testpkg.CreateTestStudent(t, db, "Preview", "Student2", class1)
-		student3 := testpkg.CreateTestStudent(t, db, "Preview", "Student3", class4)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID, student3.ID)
+		testpkg.CreateTestStudent(t, db, "Preview", "Student1", class1)
+		testpkg.CreateTestStudent(t, db, "Preview", "Student2", class1)
+		testpkg.CreateTestStudent(t, db, "Preview", "Student3", class4)
 
 		// Create transition with mappings
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class4, nil) // graduate
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
 		require.NoError(t, err)
@@ -395,13 +387,11 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 		targetClass := fmt.Sprintf("2a-%s", suffix)
 
 		// Create student in unmapped class
-		student := testpkg.CreateTestStudent(t, db, "Unmapped", "Student", unmappedClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "Unmapped", "Student", unmappedClass)
 
 		// Create transition without mapping for unmappedClass
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, mappedClass, testpkg.StrPtr(targetClass))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
 		require.NoError(t, err)
@@ -426,14 +416,15 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-applier@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("apply transition promotes students", func(t *testing.T) {
 		// Create unique class names to ensure test isolation
@@ -443,13 +434,11 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 
 		// Create students in fromClass
 		student1 := testpkg.CreateTestStudent(t, db, "Apply", "Student1", fromClass)
-		student2 := testpkg.CreateTestStudent(t, db, "Apply", "Student2", fromClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student1.ID, student2.ID)
+		testpkg.CreateTestStudent(t, db, "Apply", "Student2", fromClass)
 
 		// Create transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -477,11 +466,9 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 		toClass := fmt.Sprintf("3b-%s", suffix)
 
 		student := testpkg.CreateTestStudent(t, db, "History", "Student", fromClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -508,7 +495,6 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 	t.Run("cannot apply already applied transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "9z", testpkg.StrPtr("10z"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// First apply
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -522,7 +508,6 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 
 	t.Run("cannot apply transition without mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.Error(t, err)
@@ -531,14 +516,15 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-reverter@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("revert applied transition", func(t *testing.T) {
 		// Create unique class names to ensure test isolation
@@ -548,12 +534,10 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 
 		// Create students
 		student := testpkg.CreateTestStudent(t, db, "Revert", "Student", fromClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create and apply transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -588,7 +572,6 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 	t.Run("cannot revert draft transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "5x", testpkg.StrPtr("6x"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Revert(ctx, transition.ID, account.ID)
 		require.Error(t, err)
@@ -598,7 +581,6 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 	t.Run("cannot revert already reverted transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "6y", testpkg.StrPtr("7y"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply then revert
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -614,15 +596,16 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 }
 
 func TestGradeTransitionService_SuggestMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("suggests promotion for lower grades", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Suggest", "Student", "1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "Suggest", "Student", "1a")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -642,8 +625,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	})
 
 	t.Run("suggests graduation for grade 4+", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Graduate", "Student", "4b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "Graduate", "Student", "4b")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -664,8 +646,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	t.Run("prefixed class names suggest increment with prefix kept", func(t *testing.T) {
 		// "Klasse 1a" style names are common in German schools — the grade
 		// number inside must be incremented while the prefix is preserved.
-		student := testpkg.CreateTestStudent(t, db, "Prefixed", "Student", "Klasse 1a")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "Prefixed", "Student", "Klasse 1a")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -684,8 +665,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	})
 
 	t.Run("prefixed grade 4 suggests graduation", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "PrefixedGrad", "Student", "Klasse 4b")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "PrefixedGrad", "Student", "Klasse 4b")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -705,8 +685,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	t.Run("digit-only class names suggest increment", func(t *testing.T) {
 		// Some schools name classes just "1", "2", ... — those must be
 		// promoted numerically, not suggested as graduation.
-		student := testpkg.CreateTestStudent(t, db, "DigitOnly", "Student", "2")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "DigitOnly", "Student", "2")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -725,8 +704,7 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 	})
 
 	t.Run("non-standard class names suggest graduation", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "NonStd", "Student", "special")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+		testpkg.CreateTestStudent(t, db, "NonStd", "Student", "special")
 
 		suggestions, err := service.SuggestMappings(ctx)
 		require.NoError(t, err)
@@ -746,18 +724,19 @@ func TestGradeTransitionService_SuggestMappings(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetDistinctClasses(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("returns distinct classes", func(t *testing.T) {
 		// Create students in different classes
-		s1 := testpkg.CreateTestStudent(t, db, "Class", "Test1", "ClassA")
-		s2 := testpkg.CreateTestStudent(t, db, "Class", "Test2", "ClassA") // duplicate class
-		s3 := testpkg.CreateTestStudent(t, db, "Class", "Test3", "ClassB")
-		defer testpkg.CleanupActivityFixtures(t, db, s1.ID, s2.ID, s3.ID)
+		testpkg.CreateTestStudent(t, db, "Class", "Test1", "ClassA")
+		testpkg.CreateTestStudent(t, db, "Class", "Test2", "ClassA") // duplicate class
+		testpkg.CreateTestStudent(t, db, "Class", "Test3", "ClassB")
 
 		classes, err := service.GetDistinctClasses(ctx)
 		require.NoError(t, err)
@@ -773,22 +752,21 @@ func TestGradeTransitionService_GetDistinctClasses(t *testing.T) {
 }
 
 func TestGradeTransitionService_GetHistory(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-history@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("returns history after apply", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "History", "Test", "1d")
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1d", testpkg.StrPtr("2d"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply transition
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -816,7 +794,6 @@ func TestGradeTransitionService_GetHistory(t *testing.T) {
 
 	t.Run("empty history for transition without apply", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		history, err := service.GetHistory(ctx, transition.ID)
 		require.NoError(t, err)
@@ -829,14 +806,15 @@ func TestGradeTransitionService_GetHistory(t *testing.T) {
 // ============================================================================
 
 func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-apply-reverted@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("cannot apply reverted transition", func(t *testing.T) {
 		// Create unique class names
@@ -847,7 +825,6 @@ func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
 		// Create transition and mapping
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply then revert
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -863,14 +840,15 @@ func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_Create_InvalidAcademicYearFormat(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-invalid-year@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("create fails with invalid academic year format", func(t *testing.T) {
 		req := educationService.CreateTransitionRequest{
@@ -896,18 +874,18 @@ func TestGradeTransitionService_Create_InvalidAcademicYearFormat(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_InvalidAcademicYearFormat(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-invalid@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("update fails with invalid academic year format", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		invalidYear := "bad-format"
 		req := educationService.UpdateTransitionRequest{
@@ -921,19 +899,19 @@ func TestGradeTransitionService_Update_InvalidAcademicYearFormat(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-update-invalid-map@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("update fails with invalid mapping (same from and to)", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		notes := "must not be saved"
 		req := educationService.UpdateTransitionRequest{
@@ -958,7 +936,6 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 
 	t.Run("update fails with empty from_class", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		req := educationService.UpdateTransitionRequest{
 			Mappings: []educationService.MappingRequest{
@@ -972,15 +949,17 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 	})
 }
 
+// Deliberately NOT parallel: the rollback check counts grade transitions by
+// academic year alone, with no tenant filter, so it also sees the rows of
+// tests running beside it.
 func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-create-invalid-map@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("create fails with empty from_class", func(t *testing.T) {
 		req := educationService.CreateTransitionRequest{
@@ -1027,10 +1006,12 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("revert non-existent transition", func(t *testing.T) {
@@ -1041,10 +1022,12 @@ func TestGradeTransitionService_Revert_NonExistentTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply_NonExistentTransition(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("apply non-existent transition", func(t *testing.T) {
@@ -1055,10 +1038,12 @@ func TestGradeTransitionService_Apply_NonExistentTransition(t *testing.T) {
 }
 
 func TestGradeTransitionService_SuggestMappings_EmptyResult(t *testing.T) {
+	t.Parallel()
+
 	service, _, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	t.Run("suggest mappings returns sorted results", func(t *testing.T) {
@@ -1072,14 +1057,15 @@ func TestGradeTransitionService_SuggestMappings_EmptyResult(t *testing.T) {
 }
 
 func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-graduate@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("apply transition graduates students and creates warning", func(t *testing.T) {
 		// Create unique class names
@@ -1088,12 +1074,10 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 
 		// Create student to be graduated (soft-deactivated as alumnus)
 		student := testpkg.CreateTestStudent(t, db, "Graduate", "Student", graduateClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create transition with graduate mapping
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -1128,14 +1112,15 @@ func TestGradeTransitionService_Apply_GraduateStudents(t *testing.T) {
 // the 3a children must NOT be graduated just because they land in 4a. Only the
 // original 4a members graduate; the promoted-in 3a children stay active.
 func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-cascade@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	lower := fmt.Sprintf("3c-%s", suffix) // promoted into `upper`
@@ -1143,12 +1128,10 @@ func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
 
 	promoted := testpkg.CreateTestStudent(t, db, "Promoted", "Kid", lower)
 	graduating := testpkg.CreateTestStudent(t, db, "Graduating", "Kid", upper)
-	defer testpkg.CleanupActivityFixtures(t, db, promoted.ID, graduating.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, lower, &upper) // promote 3c -> 4c
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, upper, nil)    // graduate 4c
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	result, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -1192,14 +1175,15 @@ func TestGradeTransitionService_Apply_CascadingGraduation(t *testing.T) {
 }
 
 func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-grad@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("revert restores graduated students to active", func(t *testing.T) {
 		// Create unique class names
@@ -1208,12 +1192,10 @@ func TestGradeTransitionService_Revert_WithGraduatedStudents(t *testing.T) {
 
 		// Create student to be graduated (soft-deactivated, restorable)
 		student := testpkg.CreateTestStudent(t, db, "GradRevert", "Student", graduateClass)
-		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		// Create and apply transition with graduate
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -1274,8 +1256,9 @@ func (r *recordingRosterReconciler) CurrentRosterBaseline(_ context.Context) (in
 // inactive student back on upcoming timetables — reverting half of a change the
 // admin never asked to revert (#405 review).
 func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -1286,22 +1269,19 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 		DB:               db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-partial@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4partial-%s", suffix)
 
 	restorable := testpkg.CreateTestStudent(t, db, "Zurueck", "Kommt", graduateClass)
 	handChanged := testpkg.CreateTestStudent(t, db, "Bleibt", "Weg", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, restorable.ID, handChanged.ID)
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -1335,8 +1315,9 @@ func TestGradeTransitionService_Revert_ReconcilesOnlyReactivatedStudents(t *test
 // and the apply's roster removal is the correct end state for them (#405
 // review).
 func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	reconciler := &recordingRosterReconciler{}
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
@@ -1347,18 +1328,16 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 		DB:               db,
 	})
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 20*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-revert-pending@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	graduateClass := fmt.Sprintf("4pend-%s", suffix)
 
 	activeChild := testpkg.CreateTestStudent(t, db, "Aktiv", "Zurueck", graduateClass)
 	pendingChild := testpkg.CreateTestStudent(t, db, "Wartet", "Noch", graduateClass)
-	defer testpkg.CleanupActivityFixtures(t, db, activeChild.ID, pendingChild.ID)
 
 	// A future enrollment that never started: the child graduates with
 	// from_status = pending and must come back as exactly that.
@@ -1368,7 +1347,6 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, graduateClass, nil)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	_, err = service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)
@@ -1389,18 +1367,18 @@ func TestGradeTransitionService_Revert_SkipsRosterReplayForNonActiveRestores(t *
 }
 
 func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-preview-none@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("preview with no mappings shows zero totals", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
 		require.NoError(t, err)
@@ -1412,18 +1390,18 @@ func TestGradeTransitionService_Preview_NoMappings(t *testing.T) {
 }
 
 func TestGradeTransitionService_List_NilOptions(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-list-nil@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("list with nil options", func(t *testing.T) {
-		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
+		testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 
 		transitions, total, err := service.List(ctx, nil)
 		require.NoError(t, err)
@@ -1433,19 +1411,19 @@ func TestGradeTransitionService_List_NilOptions(t *testing.T) {
 }
 
 func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-clear-map@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	t.Run("update with empty mappings clears existing", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Verify mapping exists
 		initial, err := service.GetByID(ctx, transition.ID)
@@ -1469,21 +1447,21 @@ func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
 // preview counts, suggestions, and a subsequent apply — otherwise every next
 // school year would re-count last year's leavers.
 func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-alumni-excl@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class := fmt.Sprintf("3alum-%s", suffix)
 
-	active := testpkg.CreateTestStudent(t, db, "Active", "Kid", class)
+	testpkg.CreateTestStudent(t, db, "Active", "Kid", class)
 	alumnus := testpkg.CreateTestStudent(t, db, "Former", "Kid", class)
-	defer testpkg.CleanupActivityFixtures(t, db, active.ID, alumnus.ID)
 
 	// Mark one student as alumnus directly (as a previous transition would)
 	_, err := db.NewUpdate().
@@ -1496,7 +1474,6 @@ func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
 	t.Run("preview counts exclude alumni", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class, nil)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
 		require.NoError(t, err)
@@ -1517,7 +1494,6 @@ func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
 	t.Run("apply graduates only non-alumni", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class, nil)
-		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.Apply(ctx, transition.ID, account.ID)
 		require.NoError(t, err)
@@ -1528,21 +1504,21 @@ func TestGradeTransitionService_AlumniExcluded(t *testing.T) {
 // TestGradeTransitionService_PromotionSkipsAlumni verifies the bulk promotion
 // UPDATE does not drag alumni into the next class.
 func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
+	t.Parallel()
+
 	service, db, cleanup := setupGradeTransitionServiceTest(t)
 	defer cleanup()
 
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 10*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
 
 	account := testpkg.CreateTestAccount(t, db, "transition-alumni-promo@test.local")
-	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("2promo-%s", suffix)
 	toClass := fmt.Sprintf("3promo-%s", suffix)
 
 	alumnus := testpkg.CreateTestStudent(t, db, "FormerPromo", "Kid", fromClass)
-	defer testpkg.CleanupActivityFixtures(t, db, alumnus.ID)
 
 	_, err := db.NewUpdate().
 		TableExpr(`users.students`).
@@ -1553,7 +1529,6 @@ func TestGradeTransitionService_PromotionSkipsAlumni(t *testing.T) {
 
 	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
 	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
-	defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 	result, err := service.Apply(ctx, transition.ID, account.ID)
 	require.NoError(t, err)

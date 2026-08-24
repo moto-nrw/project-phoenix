@@ -12,6 +12,8 @@ import (
 )
 
 func TestErrorRenderer_PersonNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "GetPerson",
 		Err: usersSvc.ErrPersonNotFound,
@@ -28,6 +30,8 @@ func TestErrorRenderer_PersonNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_AccountNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "GetAccount",
 		Err: usersSvc.ErrAccountNotFound,
@@ -44,6 +48,8 @@ func TestErrorRenderer_AccountNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_RFIDCardNotFound(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "GetRFIDCard",
 		Err: usersSvc.ErrRFIDCardNotFound,
@@ -60,6 +66,8 @@ func TestErrorRenderer_RFIDCardNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_AccountAlreadyLinked(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "LinkAccount",
 		Err: usersSvc.ErrAccountAlreadyLinked,
@@ -76,6 +84,8 @@ func TestErrorRenderer_AccountAlreadyLinked(t *testing.T) {
 }
 
 func TestErrorRenderer_RFIDCardAlreadyLinked(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "LinkRFIDCard",
 		Err: usersSvc.ErrRFIDCardAlreadyLinked,
@@ -92,6 +102,8 @@ func TestErrorRenderer_RFIDCardAlreadyLinked(t *testing.T) {
 }
 
 func TestErrorRenderer_PersonIdentifierRequired(t *testing.T) {
+	t.Parallel()
+
 	err := &usersSvc.UsersError{
 		Op:  "FindPerson",
 		Err: usersSvc.ErrPersonIdentifierRequired,
@@ -108,6 +120,8 @@ func TestErrorRenderer_PersonIdentifierRequired(t *testing.T) {
 }
 
 func TestErrorRenderer_GuardianNotFound(t *testing.T) {
+	t.Parallel()
+
 	// GuardianNotFound is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "GetGuardian",
@@ -125,6 +139,8 @@ func TestErrorRenderer_GuardianNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_StaffNotFound(t *testing.T) {
+	t.Parallel()
+
 	// StaffNotFound is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "GetStaff",
@@ -142,6 +158,8 @@ func TestErrorRenderer_StaffNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_TeacherNotFound(t *testing.T) {
+	t.Parallel()
+
 	// TeacherNotFound is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "GetTeacher",
@@ -159,6 +177,8 @@ func TestErrorRenderer_TeacherNotFound(t *testing.T) {
 }
 
 func TestErrorRenderer_StaffAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	// StaffAlreadyExists is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "CreateStaff",
@@ -176,6 +196,8 @@ func TestErrorRenderer_StaffAlreadyExists(t *testing.T) {
 }
 
 func TestErrorRenderer_TeacherAlreadyExists(t *testing.T) {
+	t.Parallel()
+
 	// TeacherAlreadyExists is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "CreateTeacher",
@@ -193,6 +215,8 @@ func TestErrorRenderer_TeacherAlreadyExists(t *testing.T) {
 }
 
 func TestErrorRenderer_InvalidPIN(t *testing.T) {
+	t.Parallel()
+
 	// InvalidPIN is not explicitly mapped, should fall to default case
 	err := &usersSvc.UsersError{
 		Op:  "ValidatePIN",
@@ -210,6 +234,8 @@ func TestErrorRenderer_InvalidPIN(t *testing.T) {
 }
 
 func TestErrorRenderer_NonUsersError(t *testing.T) {
+	t.Parallel()
+
 	// Non-UsersError should be treated as internal server error
 	err := errors.New("some random error")
 
@@ -224,6 +250,8 @@ func TestErrorRenderer_NonUsersError(t *testing.T) {
 }
 
 func TestErrorRenderer_UnknownUsersError(t *testing.T) {
+	t.Parallel()
+
 	// UsersError with unknown underlying error should fall to default case
 	unknownErr := errors.New("unknown users error")
 	err := &usersSvc.UsersError{

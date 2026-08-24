@@ -258,6 +258,44 @@ func (h *Hub) BroadcastToGroup(tenantID int64, activeGroupID string, event Event
 	return nil
 }
 
+// BroadcastToGroups sends an identical event once per client across all
+// supplied topics. The recipient set is built while holding the read lock so
+// Register/Unregister cannot close a channel between collection and delivery.
+func (h *Hub) BroadcastToGroups(tenantID int64, topics []string, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := make(map[*Client]struct{})
+	for _, topic := range topics {
+		for _, client := range h.groupClients[tenantGroupKey(tenantID, topic)] {
+			recipients[client] = struct{}{}
+		}
+	}
+
+	droppedCount := 0
+	for client := range recipients {
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping multi-topic event",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+
+	h.getLogger().Debug("SSE event broadcast to topic union",
+		slog.Int64("tenant_id", tenantID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("topic_count", len(topics)),
+		slog.Int("recipient_count", len(recipients)),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "groups", droppedCount)
+	return nil
+}
+
 // BroadcastToTenant sends an event to every staff client whose
 // Client.TenantID matches tenantID. It reads the tenantClients index
 // (maintained in Register/Unregister) for O(recipients) delivery instead

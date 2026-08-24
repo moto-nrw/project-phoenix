@@ -6,8 +6,19 @@ import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
-import { ABSENCE_TYPE_LABEL, formatAbsenceRange } from "~/lib/absence-helpers";
-import { staffAbsenceService, type StaffAbsenceRow } from "~/lib/staff-api";
+import { absenceRowLabel, formatAbsenceRange } from "~/lib/absence-helpers";
+import {
+  staffAbsenceService,
+  type StaffAbsenceRequestRow,
+  type StaffAbsenceRow,
+} from "~/lib/staff-api";
+
+type AbsenceDecisionRow = Omit<
+  StaffAbsenceRow,
+  "id" | "staff_id" | "approved_by"
+> & {
+  id: string | number;
+};
 
 // Shared note-entry modal for the deny and Rückfrage decisions (#1419).
 // Extracted from abwesenheiten-tab.tsx so the /staff inbox reuses the exact
@@ -25,7 +36,7 @@ function AbsenceNoteModal({
   onClose,
   onDone,
 }: {
-  readonly absence: StaffAbsenceRow;
+  readonly absence: AbsenceDecisionRow | StaffAbsenceRequestRow;
   readonly title: string;
   readonly noteLabel: string;
   readonly placeholder: string;
@@ -89,7 +100,7 @@ function AbsenceNoteModal({
       <div className="space-y-3">
         <p className="text-sm text-gray-700">
           Antrag {formatAbsenceRange(absence.date_start, absence.date_end)} (
-          {ABSENCE_TYPE_LABEL[absence.absence_type] ?? absence.absence_type})
+          {absenceRowLabel(absence)})
         </p>
         <label
           htmlFor="decision-note"
@@ -116,7 +127,7 @@ export function DenyAbsenceModal({
   onClose,
   onDenied,
 }: {
-  readonly absence: StaffAbsenceRow;
+  readonly absence: AbsenceDecisionRow | StaffAbsenceRequestRow;
   readonly onClose: () => void;
   readonly onDenied: () => void | Promise<void>;
 }) {
@@ -142,7 +153,7 @@ export function QuestionAbsenceModal({
   onClose,
   onQuestioned,
 }: {
-  readonly absence: StaffAbsenceRow;
+  readonly absence: AbsenceDecisionRow | StaffAbsenceRequestRow;
   readonly onClose: () => void;
   readonly onQuestioned: () => void | Promise<void>;
 }) {

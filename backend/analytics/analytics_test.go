@@ -15,24 +15,32 @@ import (
 )
 
 func TestNewNoopIsSafe(t *testing.T) {
+	t.Parallel()
+
 	tracker := NewNoop()
 	tracker.Capture("school:x", "some_event", map[string]any{"key": "value"})
 	require.NoError(t, tracker.Close())
 }
 
 func TestNewWithoutAPIKeyReturnsNoop(t *testing.T) {
+	t.Parallel()
+
 	tracker, err := New("", "", nil)
 	require.NoError(t, err)
 	require.IsType(t, noopTracker{}, tracker)
 }
 
 func TestNewWithAPIKeyButNoHostFails(t *testing.T) {
+	t.Parallel()
+
 	tracker, err := New("phc_test", "", nil)
 	require.Error(t, err)
 	require.Nil(t, tracker)
 }
 
 func TestNewWithInvalidHostFails(t *testing.T) {
+	t.Parallel()
+
 	for _, host := range []string{"not a url", "eu.i.posthog.com", "://missing-scheme"} {
 		tracker, err := New("phc_test", host, nil)
 		require.Error(t, err, "host %q should be rejected", host)
@@ -41,6 +49,8 @@ func TestNewWithInvalidHostFails(t *testing.T) {
 }
 
 func TestNewWithAPIKeyAndHost(t *testing.T) {
+	t.Parallel()
+
 	tracker, err := New("phc_test", "https://eu.i.posthog.com", nil)
 	require.NoError(t, err)
 	require.NotNil(t, tracker)
@@ -76,6 +86,8 @@ func newTestLogger() (*slog.Logger, *bytes.Buffer) {
 }
 
 func TestCapturePostsBatchPayload(t *testing.T) {
+	t.Parallel()
+
 	rs := &recordingServer{status: http.StatusOK}
 	server := httptest.NewServer(rs.handler())
 	defer server.Close()
@@ -113,6 +125,8 @@ func TestCapturePostsBatchPayload(t *testing.T) {
 }
 
 func TestCaptureDoesNotMutateCallerProps(t *testing.T) {
+	t.Parallel()
+
 	rs := &recordingServer{status: http.StatusOK}
 	server := httptest.NewServer(rs.handler())
 	defer server.Close()
@@ -129,6 +143,8 @@ func TestCaptureDoesNotMutateCallerProps(t *testing.T) {
 }
 
 func TestCaptureWithNilPropsSucceeds(t *testing.T) {
+	t.Parallel()
+
 	rs := &recordingServer{status: http.StatusOK}
 	server := httptest.NewServer(rs.handler())
 	defer server.Close()
@@ -145,6 +161,8 @@ func TestCaptureWithNilPropsSucceeds(t *testing.T) {
 }
 
 func TestCaptureLogsWarningOnServerError(t *testing.T) {
+	t.Parallel()
+
 	rs := &recordingServer{status: http.StatusInternalServerError}
 	server := httptest.NewServer(rs.handler())
 	defer server.Close()
@@ -161,6 +179,8 @@ func TestCaptureLogsWarningOnServerError(t *testing.T) {
 }
 
 func TestCaptureLogsWarningOnNetworkError(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.NotFoundHandler())
 	server.Close() // connection refused from here on
 
@@ -175,6 +195,8 @@ func TestCaptureLogsWarningOnNetworkError(t *testing.T) {
 }
 
 func TestCaptureLogsWarningOnUnmarshalableProps(t *testing.T) {
+	t.Parallel()
+
 	rs := &recordingServer{status: http.StatusOK}
 	server := httptest.NewServer(rs.handler())
 	defer server.Close()
@@ -191,6 +213,8 @@ func TestCaptureLogsWarningOnUnmarshalableProps(t *testing.T) {
 }
 
 func TestNilLoggerFallsBackToDefault(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.NotFoundHandler())
 	server.Close()
 

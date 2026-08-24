@@ -17,8 +17,9 @@ import (
 )
 
 func TestIssueTokensForAuthenticatedAccount_HappyPath(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -41,8 +42,9 @@ func TestIssueTokensForAuthenticatedAccount_HappyPath(t *testing.T) {
 }
 
 func TestIssueTokensForAuthenticatedAccount_UnknownAccount_ReturnsAccountNotFound(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 
@@ -55,8 +57,9 @@ func TestIssueTokensForAuthenticatedAccount_UnknownAccount_ReturnsAccountNotFoun
 }
 
 func TestIssueTokensForAuthenticatedAccount_InactiveAccount_Rejected(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupAuthService(t, db)
 

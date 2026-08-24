@@ -27,7 +27,9 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: |
+            backend/go.sum
+            backend/tools/go.sum
 
       - name: Check Go formatting
         working-directory: backend
@@ -46,6 +48,13 @@ jobs:
             echo "All Go files are properly formatted"
           fi
 
+      - name: Check backend package architecture
+        run: scripts/backend-architecture.sh check
+
+      - name: Run backend source ratchets
+        working-directory: backend
+        run: go test ./test -run Ratchet -count=1
+
       - name: Validate migration dependencies
         working-directory: backend
         run: go run main.go migrate validate
@@ -55,32 +64,7 @@ jobs:
         run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
 
       - name: Run dead code detection
-        working-directory: backend
-        run: |
-          echo "🔍 Running dead code detection..."
-
-          # Run deadcode (a go.mod tool directive, locked via go.sum) and
-          # capture output. On a cold module cache the go toolchain prints
-          # "go: downloading ..." progress to stderr — strip it, or it gets
-          # mistaken for findings.
-          DEADCODE_OUTPUT=$(go tool deadcode -test ./... 2>&1 | grep -v '^go: ' || true)
-
-          # Check if any dead code remains
-          if [[ -n "$DEADCODE_OUTPUT" ]]; then
-            echo ""
-            echo "❌ Dead code detected:"
-            echo ""
-            echo "$DEADCODE_OUTPUT" | while IFS= read -r line; do
-              if [[ -n "$line" ]]; then
-                echo "  $line"
-              fi
-            done
-            echo ""
-            echo "Please remove dead code or document why it should be kept."
-            exit 1
-          else
-            echo "No dead code detected"
-          fi
+        run: scripts/check-deadcode.sh
 
       - name: Check Go dependency licenses
         working-directory: backend
@@ -117,7 +101,7 @@ jobs:
       - name: golang ci lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
-          version: latest
+          version: v2.12.2 # pinned: v2.13.0 crashes (staticcheck nilness panics on sentry-go)
           args: --timeout 10m
           working-directory: backend
 
@@ -135,6 +119,7 @@ jobs:
       API_URL: "http://localhost:8080"
       NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
       NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
       TENANT_DOMAIN: "localhost"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,6 +153,10 @@ jobs:
       - name: Check for unused code
         working-directory: frontend
         run: pnpm knip
+
+      - name: Check for production files used only by tests or stories
+        working-directory: frontend
+        run: pnpm knip:production
 
       - name: Check npm dependency licenses
         working-directory: frontend
@@ -236,6 +225,14 @@ jobs:
           node-version: "24"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
+
+      - name: Cache Next.js build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: frontend/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-${{ hashFiles('frontend/**/*.js', 'frontend/**/*.jsx', 'frontend/**/*.ts', 'frontend/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('frontend/pnpm-lock.yaml') }}-
 
       - name: Install dependencies
         working-directory: frontend

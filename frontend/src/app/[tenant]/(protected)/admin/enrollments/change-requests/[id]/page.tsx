@@ -5,7 +5,8 @@ import { AdminEnrollmentChangeRequestDetail } from "~/components/enrollment/admi
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
-import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
+import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -15,7 +16,7 @@ export default function AdminEnrollmentChangeRequestDetailPage({
   params,
 }: PageProps) {
   const { id } = use(params);
-  const { isReady } = useRequireAdmin();
+  const { isReady } = useRequirePermission(canReviewEnrollmentChangeRequests);
   if (!isReady)
     return (
       <SkeletonRegion

@@ -11,6 +11,8 @@ import (
 )
 
 func TestEvaluateLifecycleAvailability_PlannedBoundaries(t *testing.T) {
+	t.Parallel()
+
 	instance := &scheduleModel.ActivityInstance{
 		Date:      timezone.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 13, 45, 0, 0, time.UTC),
@@ -30,6 +32,8 @@ func TestEvaluateLifecycleAvailability_PlannedBoundaries(t *testing.T) {
 }
 
 func TestEvaluateLifecycleAvailability_SettingsAndSpontaneous(t *testing.T) {
+	t.Parallel()
+
 	instance := &scheduleModel.ActivityInstance{
 		Date:      timezone.NewDate(2026, 8, 13),
 		StartTime: time.Date(1, 1, 1, 13, 45, 0, 0, time.UTC),

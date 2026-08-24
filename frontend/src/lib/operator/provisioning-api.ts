@@ -31,6 +31,8 @@ import type {
   UpdateSchoolRequest,
   BackendDeviceTransferStatus,
   DeviceTransferStatus,
+  BackendSchoolPWAUsage,
+  SchoolPWAUsage,
 } from "./provisioning-helpers";
 import {
   mapOrganization,
@@ -45,6 +47,7 @@ import {
   mapOperatorPerson,
   mapUnregisteredTagScan,
   mapDeviceTransferStatus,
+  mapSchoolPWAUsage,
 } from "./provisioning-helpers";
 
 class OperatorProvisioningService {
@@ -240,6 +243,13 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return { id: result.id.toString(), email: result.email };
+  }
+
+  async getSchoolPWAUsage(schoolId: string): Promise<SchoolPWAUsage> {
+    const data = await operatorFetch<BackendSchoolPWAUsage>(
+      `/api/operator/provisioning/schools/${encodeURIComponent(schoolId)}/pwa-usage`,
+    );
+    return mapSchoolPWAUsage(data);
   }
 
   async listSchoolPersons(schoolId: string): Promise<OperatorPerson[]> {

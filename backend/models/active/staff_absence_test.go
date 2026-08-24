@@ -10,6 +10,8 @@ import (
 )
 
 func TestStaffAbsence_Validate(t *testing.T) {
+	t.Parallel()
+
 	validAbsence := func() *StaffAbsence {
 		return &StaffAbsence{
 			StaffID:     1,
@@ -108,6 +110,8 @@ func TestStaffAbsence_Validate(t *testing.T) {
 }
 
 func TestStaffAbsence_DurationDays(t *testing.T) {
+	t.Parallel()
+
 	t.Run("single day", func(t *testing.T) {
 		a := &StaffAbsence{
 			DateStart: timezone.NewDate(2024, 3, 1),
@@ -142,6 +146,8 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 }
 
 func TestStaffAbsence_Getters(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	a := &StaffAbsence{}
 	a.ID = 99
@@ -154,6 +160,8 @@ func TestStaffAbsence_Getters(t *testing.T) {
 }
 
 func TestAbsenceTypeConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "sick", AbsenceTypeSick)
 	assert.Equal(t, "vacation", AbsenceTypeVacation)
 	assert.Equal(t, "training", AbsenceTypeTraining)
@@ -161,6 +169,8 @@ func TestAbsenceTypeConstants(t *testing.T) {
 }
 
 func TestAbsenceStatusConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "reported", AbsenceStatusReported)
 	assert.Equal(t, "approved", AbsenceStatusApproved)
 	assert.Equal(t, "declined", AbsenceStatusDeclined)

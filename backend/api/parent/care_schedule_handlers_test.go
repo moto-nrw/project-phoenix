@@ -12,6 +12,8 @@ import (
 )
 
 func TestToCareScheduleResponseIncludesResolvedFieldCapabilities(t *testing.T) {
+	t.Parallel()
+
 	response := toCareScheduleResponse(&parentService.ChildCareSchedule{
 		CanRequest: true,
 		RequestCapabilities: parentService.CareScheduleRequestCapabilities{
@@ -28,6 +30,8 @@ func TestToCareScheduleResponseIncludesResolvedFieldCapabilities(t *testing.T) {
 }
 
 func TestToCareScheduleResponseIncludesCareDayStatus(t *testing.T) {
+	t.Parallel()
+
 	response := toCareScheduleResponse(&parentService.ChildCareSchedule{
 		Weekdays: []parentService.CareScheduleWeekday{
 			{Weekday: 1, Status: scheduleService.CareDayScheduled},
@@ -40,6 +44,8 @@ func TestToCareScheduleResponseIncludesCareDayStatus(t *testing.T) {
 }
 
 func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T) {
+	t.Parallel()
+
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/me/children/1/care-schedule/requests", nil)
 	request = request.WithContext(context.Background())
@@ -51,6 +57,8 @@ func TestRenderParentWriteErrorMapsDisabledCareFieldToForbiddenCode(t *testing.T
 }
 
 func TestRenderParentWriteErrorMapsAlreadyLeftToConflictCode(t *testing.T) {
+	t.Parallel()
+
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/me/children/1/care-exception", nil)
 

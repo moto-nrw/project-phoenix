@@ -14,6 +14,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -46,12 +47,11 @@ func wallClockAt(h, m int) *time.Time {
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		repos.StudentPickupSchedule,
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)
@@ -62,6 +62,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 		repos.Student,
 		repos.Person,
 		syncer,
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		db,
 		nil,
 	)
@@ -87,10 +88,8 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	}
 	require.Equal(t, time.Monday, date.Weekday(), "fixture date must be a Monday")
 
-	var scheduleIDs []int64
 	if withBaseline {
-		weekly := testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "16:00")
-		scheduleIDs = append(scheduleIDs, weekly.ID)
+		testpkg.CreateTestPickupSchedule(t, db, student.ID, 1, staff.ID, "16:00")
 	}
 
 	before := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -106,19 +105,9 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 	overlapRow := testpkg.CreateTestInstanceStudent(t, db, overlap.ID, student.ID, scheduleModel.AttendanceStatusExpected)
 	afterRow := testpkg.CreateTestInstanceStudent(t, db, after.ID, student.ID, scheduleModel.AttendanceStatusExpected)
 
-	t.Cleanup(func() {
-		testpkg.CleanupScheduleFixturesB11(
-			t, db,
-			nil, nil, scheduleIDs, nil,
-			[]int64{beforeRow.ID, overlapRow.ID, afterRow.ID},
-			[]int64{before.ID, overlap.ID, after.ID},
-		)
-		testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, room.ID)
-	})
-
 	return &autoExcusalHarness{
 		db:         db,
-		ctx:        testpkg.TenantContext(1),
+		ctx:        testpkg.Ctx(t),
 		svc:        svc,
 		partial:    partial,
 		student:    &fixtureStudent{ID: student.ID},
@@ -145,6 +134,8 @@ func (h *autoExcusalHarness) attendance(t *testing.T, rowID int64) *scheduleMode
 func (h *autoExcusalHarness) resolveStaff() (int64, error) { return h.staffID, nil }
 
 func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -167,6 +158,8 @@ func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_MovingPickupBackReleasesBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -185,6 +178,8 @@ func TestAutoExcusal_MovingPickupBackReleasesBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -202,6 +197,8 @@ func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
 }
 
 func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -221,6 +218,8 @@ func TestAutoExcusal_DeletingTheExceptionRestoresBlocks(t *testing.T) {
 }
 
 func TestAutoExcusal_NoWeeklyBaselineMeansNoCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, false)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -231,6 +230,8 @@ func TestAutoExcusal_NoWeeklyBaselineMeansNoCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_LaterThanBaselineMeansNoCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(17, 0), nil, h.staffID, h.resolveStaff)
@@ -241,6 +242,8 @@ func TestAutoExcusal_LaterThanBaselineMeansNoCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	// A manual partial absence from 13:30 (staff decision, own dialog).
@@ -267,6 +270,8 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -291,6 +296,8 @@ func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -304,6 +311,8 @@ func TestAutoExcusal_ManualDeleteRefusesAutoRows(t *testing.T) {
 }
 
 func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	// 14:45 pickup pulls forward against the 16:00 baseline → auto excusal.
@@ -352,6 +361,8 @@ func (h *autoExcusalHarness) exception(t *testing.T) *scheduleModel.StudentPicku
 }
 
 func TestAutoExcusal_WeeklyBaselineMovedEarlierReleasesCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -379,6 +390,8 @@ func TestAutoExcusal_WeeklyBaselineMovedEarlierReleasesCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_WeeklyBaselineDeletedReleasesCoupling(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -397,6 +410,8 @@ func TestAutoExcusal_WeeklyBaselineDeletedReleasesCoupling(t *testing.T) {
 }
 
 func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, false)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -425,6 +440,8 @@ func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
 }
 
 func TestAutoExcusal_BulkWeeklyUpsertResyncsExceptions(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 
 	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student.ID, h.date, wallClockAt(14, 45), nil, h.staffID, h.resolveStaff)
@@ -449,6 +466,8 @@ func TestAutoExcusal_BulkWeeklyUpsertResyncsExceptions(t *testing.T) {
 }
 
 func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
+	t.Parallel()
+
 	h := setupAutoExcusalHarness(t, true)
 	repos := repositories.NewFactory(h.db)
 
@@ -457,9 +476,6 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 	require.True(t, row.ExcusedAuto)
 
 	statusDay := testpkg.CreateTestStudentStatusDay(t, h.db, h.student.ID, h.date, "sick")
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, h.db, "active.student_status_days", statusDay.ID)
-	})
 	// Project the sick day onto the slots the way the production repo does.
 	_, err = repos.InstanceStudent.ApplyStatusDay(h.ctx, h.student.ID, h.date, statusDay.ID, scheduleModel.AttendanceSubstatusSick)
 	require.NoError(t, err)

@@ -39,6 +39,8 @@ func mkChild(id int64) *enrollmentModels.RequestChild {
 // (the listing path leaves it nil to keep the payload light).
 
 func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
+	t.Parallel()
+
 	phone := "+49 170 1234567"
 	withdrawn := time.Date(2026, 6, 1, 10, 0, 0, 0, time.UTC)
 	req := mkRequest(1234, 5678)
@@ -58,14 +60,18 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 	child.ActivationMode = "auto"
 
 	in := &enrollmentService.RequestSummary{
-		Request:  req,
-		Phase:    &enrollmentModels.Phase{Name: "Schuljahr 2026/27"},
+		Request: req,
+		Phase: &enrollmentModels.Phase{
+			Name:                      "Schuljahr 2026/27",
+			CareOfferingSelectionMode: enrollmentModels.PhaseCareOfferingSelectionOptional,
+		},
 		Children: []*enrollmentModels.RequestChild{child},
 	}
 	out := toAdminRequestSummary(in)
 	assert.Equal(t, "1234", out.ID, "int64 ID stringified per CLAUDE rule 4")
 	assert.Equal(t, "5678", out.PhaseID)
 	assert.Equal(t, "Schuljahr 2026/27", out.PhaseName)
+	assert.Equal(t, enrollmentModels.PhaseCareOfferingSelectionOptional, out.CareOfferingSelectionMode)
 	assert.Equal(t, "anna@example.test", out.GuardianEmail)
 	require.NotNil(t, out.GuardianPhone)
 	assert.Equal(t, phone, *out.GuardianPhone)
@@ -79,6 +85,8 @@ func TestToAdminRequestSummary_StringifiesIDsAndFormatsDOB(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
+	t.Parallel()
+
 	req := mkRequest(1234, 5678)
 	req.StatusToken = "token-abc"
 
@@ -94,6 +102,8 @@ func TestToAdminRequestSummary_DoesNotExposeStatusToken(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
+	t.Parallel()
+
 	// Listing endpoints intentionally skip Phase to keep the payload
 	// light. The shaper must not panic on a nil Phase pointer.
 	in := &enrollmentService.RequestSummary{
@@ -107,6 +117,8 @@ func TestToAdminRequestSummary_NilPhaseLeavesPhaseNameEmpty(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_EmptyChildrenSliceNotNil(t *testing.T) {
+	t.Parallel()
+
 	// JSON consumers (frontend list page) iterate Children without a
 	// null check; "" / nil distinction matters when marshalling.
 	in := &enrollmentService.RequestSummary{
@@ -119,6 +131,8 @@ func TestToAdminRequestSummary_EmptyChildrenSliceNotNil(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
+	t.Parallel()
+
 	// GuardianPhone nil, WithdrawnAt nil, ReviewedAt/By nil per child —
 	// they must round-trip as nil so omitempty drops them from JSON.
 	req := mkRequest(1234, 5678)
@@ -145,6 +159,8 @@ func TestToAdminRequestSummary_PreservesNilOptionalPointers(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
+	t.Parallel()
+
 	g := int16(2)
 	reason := "Grade level above max"
 	reviewed := time.Date(2026, 4, 5, 9, 0, 0, 0, time.UTC)
@@ -173,6 +189,8 @@ func TestToAdminRequestSummary_TargetGradeLevelPassesThrough(t *testing.T) {
 }
 
 func TestToAdminRequestSummary_PreservesCustomDataMap(t *testing.T) {
+	t.Parallel()
+
 	child := mkChild(999)
 	child.FirstName = "Lara"
 	child.LastName = "Beispiel"

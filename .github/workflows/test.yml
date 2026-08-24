@@ -9,12 +9,21 @@ on:
       run-frontend:
         type: boolean
         default: true
+      run-seed-smoke:
+        type: boolean
+        required: true
       is-pr:
         type: boolean
         default: false
       base_ref:
         type: string
         default: ""
+      full-backend-suite:
+        type: boolean
+        required: true
+      full-frontend-suite:
+        type: boolean
+        required: true
 
 defaults:
   run:
@@ -23,7 +32,10 @@ defaults:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # PRs run only affected packages without coverage; four vCPUs avoid paying
+    # the 8-vCPU rate for that smaller workload. Protected-branch pushes keep
+    # eight vCPUs for the full instrumented suite consumed by SonarCloud.
+    runs-on: ${{ inputs.is-pr && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -47,6 +59,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # PR test selection needs origin/<base_ref>. Keeping one checkout
+          # shape for both event types avoids an untested expression branch.
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -54,6 +70,9 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
+
+      - name: Test affected-package selection
+        run: scripts/backend-affected-packages_test.sh
 
       - name: Restore migrated DB snapshot
         id: db-snapshot
@@ -69,7 +88,7 @@ jobs:
         if: steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: |
           # pg_dump omits global objects (roles, ALTER ROLE ... SET). Recreate
           # them exactly as migration 001014001_create_tenant_roles.go does,
@@ -96,7 +115,7 @@ jobs:
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
@@ -112,13 +131,15 @@ jobs:
           docker exec -i "$PG_CONTAINER" pg_dump -U postgres phoenix_test \
             > backend/.db-snapshot/dump.sql
 
-      - name: Run Go tests with coverage
+      - name: Run Go tests
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
           # The route-table golden builds the production API, whose serve
-          # connection uses the role created above with this password.
-          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
+          # connection uses the role created above with this password. The
+          # value must stay identical to testdb.AuthRolePassword — the test
+          # lifecycle pins the cluster-global phoenix_auth role to it.
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_test
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and
@@ -126,18 +147,41 @@ jobs:
           AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
           FRONTEND_URL: http://localhost:3000
           PARENTS_URL: http://parents.localhost:3000
+          SCHOOL_URL: http://schule.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-        # Single pass produces junit.xml AND coverage.out. No --rerun-fails:
-        # gotestsum reruns overwrite the coverage profile (upstream issue;
-        # fix PR unmerged), and flaky tests should fail loudly, not retry.
-        # gotestsum is a go.mod tool directive, so its whole dependency
-        # graph is locked by go.sum (sonar githubactions:S8545).
+          BASE_REF: ${{ inputs.base_ref }}
+          FULL_SUITE: ${{ inputs.full-backend-suite }}
+          IS_PR: ${{ inputs.is-pr }}
         run: |
-          go tool gotestsum \
-            --format pkgname-and-test-fails \
-            --junitfile junit.xml \
-            -- -covermode=atomic -coverpkg=./... -coverprofile=coverage.out ./...
+          packages=(./...)
+          if [ "$IS_PR" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+            affected_output=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+            packages=()
+            while IFS= read -r package; do
+              [ -n "$package" ] && packages+=("$package")
+            done <<< "$affected_output"
+            if [ "${#packages[@]}" -eq 0 ]; then
+              echo "No changed Go packages"
+              exit 0
+            fi
+            echo "Running ${#packages[@]} changed/affected Go packages"
+          fi
+
+          test_args=(-parallel 8)
+          if [ "$IS_PR" = true ]; then
+            test_args+=(-p 4)
+          else
+            # Coverage is consumed only by the post-merge SonarCloud job.
+            # Keeping it off PRs avoids instrumenting every dependency and
+            # merging a large profile that no PR job reads.
+            test_args+=(-p 6 -covermode=atomic -coverpkg=./... -coverprofile=coverage.out)
+          fi
+
+          # Single pass produces junit.xml and, on pushes, coverage.out. No
+          # retries: flaky tests should fail loudly, not be hidden.
+          go tool gotestsum --format pkgname-and-test-fails \
+            --junitfile junit.xml -- "${test_args[@]}" "${packages[@]}"
 
       - name: Fix Go coverage paths for SonarCloud
         if: ${{ always() && hashFiles('backend/coverage.out') != '' }}
@@ -175,11 +219,11 @@ jobs:
             backend/coverage.out
             backend/junit.xml
           retention-days: 7
-        if: always()
+        if: ${{ always() && ! inputs.is-pr && hashFiles('backend/coverage.out', 'backend/junit.xml') != '' }}
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@d9f48fc87bc235f7e214acf696ca5abc0a986f16 # v6.4.2
-        if: always()
+        if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
           check_name: Backend Test Results
@@ -212,15 +256,26 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Run changed frontend tests with coverage
-        if: ${{ inputs.is-pr && inputs.base_ref != '' }}
+      - name: Check frontend route invariants
+        if: ${{ inputs.is-pr }}
         working-directory: frontend
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: pnpm vitest run --changed "origin/${BASE_REF}" --coverage
+        run: >-
+          pnpm vitest run
+          src/lib/app-route-invariants.test.ts
+          src/lib/analytics-routes.test.ts
+
+      - name: Run changed frontend tests
+        if: ${{ inputs.is-pr && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
+        working-directory: frontend
+        run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
+
+      - name: Run full frontend tests
+        if: ${{ inputs.is-pr && (inputs.full-frontend-suite || inputs.base_ref == '') }}
+        working-directory: frontend
+        run: pnpm run test:run
 
       - name: Run full frontend tests with coverage
-        if: ${{ !inputs.is-pr || inputs.base_ref == '' }}
+        if: ${{ ! inputs.is-pr }}
         working-directory: frontend
         run: pnpm run test:run --coverage
 
@@ -230,4 +285,147 @@ jobs:
           name: coverage-frontend
           path: frontend/coverage/lcov.info
           retention-days: 7
+        if: ${{ always() && hashFiles('frontend/coverage/lcov.info') != '' }}
+
+  # The seeder is the widest end-to-end path in this repo: roughly a hundred
+  # real API calls across auth, enrollment, parent portal, time tracking and
+  # IoT. Until this job existed it ran nowhere automatically, so a tightened
+  # request contract could break it unnoticed — a mandatory `reason` field on
+  # the parent pickup-change endpoint did exactly that in July 2026 and only
+  # surfaced a month later, when a developer seeded by hand.
+  seed-smoke:
+    name: Seed & simulate smoke
+    if: ${{ inputs.run-seed-smoke }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: phoenix_seed
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          TZ: Europe/Berlin
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 10
+      mailpit:
+        # Operator login enrolls MFA and reads the code back out of mailpit's
+        # REST API, so the seeder cannot authenticate without a mail sink.
+        image: axllent/mailpit:v1.30
+        ports:
+          - 1025:1025
+          - 8025:8025
+
+    env:
+      DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+      PHOENIX_AUTH_PASSWORD: phoenix_auth_test
+      # validateServeConfig() in cmd/serve.go requires every one of these:
+      # there are no fallback defaults anywhere in this codebase.
+      PORT: "8080"
+      APP_ENV: development
+      LOG_LEVEL: info
+      LOG_TEXTLOGGING: "true"
+      AUTH_JWT_SECRET: ci-test-secret-must-be-at-least-32-chars-long
+      AUTH_JWT_EXPIRY: 15m
+      AUTH_JWT_REFRESH_EXPIRY: 168h
+      # Read by os.Getenv in migration 001011003, which creates the operator
+      # account the seeder logs in with.
+      OPERATOR_EMAIL: operator@example.com
+      OPERATOR_PASSWORD: SeedSmoke1234%
+      OPERATOR_DISPLAY_NAME: CI Operator
+      ADMIN_EMAIL: admin@example.com
+      ADMIN_PASSWORD: SeedSmoke1234%
+      FRONTEND_URL: http://localhost:3000
+      PARENTS_URL: http://parents.localhost:3000
+      SCHOOL_URL: http://schule.localhost:3000
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
+      NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
+      TENANT_DOMAIN: localhost
+      # api/server.go refuses to build the server without it.
+      METRICS_BEARER_TOKEN: ci-metrics-token
+      # No tenant override exists on a fresh seed, so device auth falls back to
+      # this env var. It must match the seeder's --pin, or every RFID call in
+      # the simulation returns 401.
+      OGS_DEVICE_PIN: "1234"
+      EMAIL_SMTP_HOST: localhost
+      EMAIL_SMTP_PORT: 1025
+      EMAIL_FROM_ADDRESS: noreply@localhost
+      EMAIL_FROM_NAME: moto CI
+      MAILPIT_URL: http://localhost:8025
+      # The schedulers would mutate seeded rows behind the coverage check.
+      CLEANUP_SCHEDULER_ENABLED: "false"
+      SESSION_END_SCHEDULER_ENABLED: "false"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Build backend binary
+        working-directory: backend
+        run: go build -o "${RUNNER_TEMP}/phoenix" .
+
+      - name: Run migrations
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" migrate
+
+      - name: Start server
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" serve > "${RUNNER_TEMP}/server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/server.pid"
+          for _ in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/health > /dev/null; then
+              echo "server up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "server did not become healthy in 60s"
+          exit 1
+
+      - name: Seed demo data
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" seed \
+            --email "${OPERATOR_EMAIL}" \
+            --password "${OPERATOR_PASSWORD}" \
+            --pin 1234 \
+            --url http://localhost:8080 \
+            --tenant-slug demo-school \
+            --staff-password 'SeedSmoke1234%' \
+            --admin-email school-admin@example.com
+
+      - name: Simulate a full care day
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate full-day
+
+      - name: Check seed coverage ratchet
+        working-directory: backend
+        env:
+          SEED_COVERAGE_DSN: postgres://postgres:postgres@localhost:5432/phoenix_seed?sslmode=disable
+        run: go test ./seed/api/ -run TestSeedCoverageRatchet -v
+
+      - name: Server log
         if: always()
+        run: tail -n 200 "${RUNNER_TEMP}/server.log" || true
+
+      - name: Stop server
+        if: always()
+        run: kill "$(cat "${RUNNER_TEMP}/server.pid")" 2>/dev/null || true

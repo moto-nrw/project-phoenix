@@ -62,6 +62,8 @@ func roomCapacityErr() error {
 }
 
 func TestRenderCheckinError_ActivityCapacity_SettingOn_IncludesDetails(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: settingsMock(true, true)}
 	body := renderGatedError(t, rs, activityCapacityErr())
 
@@ -73,6 +75,8 @@ func TestRenderCheckinError_ActivityCapacity_SettingOn_IncludesDetails(t *testin
 }
 
 func TestRenderCheckinError_ActivityCapacity_SettingOff_OmitsDetails(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: settingsMock(false, true)}
 	body := renderGatedError(t, rs, activityCapacityErr())
 
@@ -82,6 +86,8 @@ func TestRenderCheckinError_ActivityCapacity_SettingOff_OmitsDetails(t *testing.
 }
 
 func TestRenderCheckinError_RoomCapacity_SettingOn_IncludesDetails(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: settingsMock(false, true)}
 	body := renderGatedError(t, rs, roomCapacityErr())
 
@@ -93,6 +99,8 @@ func TestRenderCheckinError_RoomCapacity_SettingOn_IncludesDetails(t *testing.T)
 }
 
 func TestRenderCheckinError_RoomCapacity_SettingOff_OmitsDetails(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{SettingsService: settingsMock(false, false)}
 	body := renderGatedError(t, rs, roomCapacityErr())
 
@@ -104,6 +112,8 @@ func TestRenderCheckinError_RoomCapacity_SettingOff_OmitsDetails(t *testing.T) {
 // A nil settings service (bare-struct construction) must fall back to the
 // registry defaults: activity details hidden, room details shown.
 func TestRenderCheckinError_NilSettingsService_UsesPerKeyDefaults(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{}
 
 	activityBody := renderGatedError(t, rs, activityCapacityErr())

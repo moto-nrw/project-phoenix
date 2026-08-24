@@ -18,6 +18,7 @@ package test
 
 import (
 	"bufio"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -44,6 +45,14 @@ var unmappedDateColumns = map[string]string{
 	// a timezone.Date parameter there and never scanned into a struct, so the
 	// table has no model to carry a field.
 	"calendar.appointment_reminder_push_deliveries.occurrence_date": "claim table touched only through calendar.claim/release_appointment_reminder_push_delivery — no model struct",
+	// The care-exit ledger (#2487) is written and replayed entirely in SQL:
+	// both columns are copied straight from and back into
+	// activities.student_enrollments, whose own fields are already
+	// timezone.Date. Nothing ever scans them into Go, so there is no struct to
+	// carry a field — and giving them one would invite a round trip through a
+	// type the restore does not need.
+	"users.student_care_exit_removals.valid_from":           "care-exit ledger, copied column-to-column in SQL — no model struct",
+	"users.student_care_exit_removals.previous_valid_until": "care-exit ledger, copied column-to-column in SQL — no model struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
@@ -69,6 +78,8 @@ var droppedDateColumns = map[string]string{
 var truncate24hAllowlist = map[string]string{}
 
 func TestDateColumnTypes(t *testing.T) {
+	t.Parallel()
+
 	backendRoot, err := findBackendRoot()
 	if err != nil {
 		t.Skipf("Could not find backend root: %v", err)
@@ -258,7 +269,7 @@ func scanMigrationsForDateColumns(t *testing.T, root string) map[string]string {
 				continue
 			}
 
-			ref := "database/migrations/" + entry.Name() + ":" + itoa(lineNo)
+			ref := fmt.Sprintf("database/migrations/%s:%d", entry.Name(), lineNo)
 			if m := addColRe.FindStringSubmatch(line); m != nil {
 				result[currentTable+"."+m[1]] = ref
 			} else if m := colDeclRe.FindStringSubmatch(line); m != nil {
@@ -354,7 +365,7 @@ func scanModelDateFields(t *testing.T, root string, dateColumns map[string]strin
 				result[key] = append(result[key], fi)
 				if strings.Contains(bunTag, "type:date") {
 					if _, known := dateColumns[key]; !known {
-						dateColumns[key] = rel + ":" + itoa(fi.line) + " (type:date tag)"
+						dateColumns[key] = fmt.Sprintf("%s:%d (type:date tag)", rel, fi.line)
 					}
 				}
 			}

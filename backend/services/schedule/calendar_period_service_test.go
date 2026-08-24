@@ -16,6 +16,8 @@ import (
 // by the calendar period service preserves errors.Is semantics for the
 // ErrCalendarPeriodNameConflict sentinel. Callers (API handler) rely on this.
 func TestScheduleErrorUnwrapsSentinel(t *testing.T) {
+	t.Parallel()
+
 	wrapped := &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	assert.True(t, errors.Is(wrapped, schedule.ErrCalendarPeriodNameConflict),
 		"ScheduleError must unwrap to the sentinel so handlers can detect via errors.Is")
@@ -26,6 +28,8 @@ func TestScheduleErrorUnwrapsSentinel(t *testing.T) {
 // schoolYearPeriodDefaults (timetables/page.tsx): the school year flips on
 // August 1st and always spans Aug 1 – Jul 31.
 func TestDefaultSchoolYearBounds(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name      string
 		today     timezone.Date
@@ -83,6 +87,8 @@ func TestDefaultSchoolYearBounds(t *testing.T) {
 // TestFindActiveOverlaps_FastPaths verifies the no-repo-roundtrip branches:
 // inactive and nil periods can never produce advisory overlap warnings.
 func TestFindActiveOverlaps_FastPaths(t *testing.T) {
+	t.Parallel()
+
 	svc := &calendarPeriodService{} // nil repo — must not be touched
 
 	t.Run("nil period returns nil", func(t *testing.T) {
@@ -106,6 +112,8 @@ func TestFindActiveOverlaps_FastPaths(t *testing.T) {
 }
 
 func TestGetUsageCounts_WrapsRepositoryError(t *testing.T) {
+	t.Parallel()
+
 	repoErr := errors.New("usage query failed")
 	svc := &calendarPeriodService{
 		repo: usageCountsErrorRepo{
@@ -131,6 +139,8 @@ func (r usageCountsErrorRepo) UsageCounts(context.Context) (map[int64]schedule.C
 }
 
 func TestShouldMaterialize(t *testing.T) {
+	t.Parallel()
+
 	svc := &calendarPeriodService{}
 
 	// Anchor: Monday 2025-09-01 = "Week A"
@@ -271,12 +281,11 @@ func TestShouldMaterialize(t *testing.T) {
 	t.Run("large week offset still correct", func(t *testing.T) {
 		// 52 weeks (364 days) after anchor
 		// 364 / 7 = 52, 52 % 2 = 0 → pattern 1 (week A)
-		date := timezone.NewDate(2026, 8, 31) // ~364 days after 2025-09-01
+		timezone.NewDate(2026, 8, 31) // ~364 days after 2025-09-01
 		// Actually compute exactly: 2025-09-01 + 364 days = 2026-08-31
 		exactDate := anchor.AddDays(364)
 		assert.True(t, svc.ShouldMaterialize(1, exactDate, abPeriod))
 		assert.False(t, svc.ShouldMaterialize(2, exactDate, abPeriod))
-		_ = date // used for documentation
 	})
 
 	t.Run("DST boundary does not break A/B pattern", func(t *testing.T) {

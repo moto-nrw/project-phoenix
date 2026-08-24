@@ -1700,29 +1700,6 @@ func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Tok
 	return current, false, ErrInvalidToken
 }
 
-// fetchAndValidateAccount retrieves account and checks if active
-func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (*auth.Account, error) {
-	account, err := s.repos.Account.FindByID(ctx, accountID)
-	if err != nil {
-		if modelBase.IsNoRows(err) {
-			return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
-		}
-		// A transient database failure is not evidence that the account was
-		// deleted. Preserve the original error so the refresh endpoint returns
-		// 5xx and the frontend retries instead of destroying a valid session.
-		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
-	}
-
-	if !account.Active {
-		if ipAddress != "" {
-			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
-		}
-		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
-	}
-
-	return account, nil
-}
-
 // createAndPersistNewToken creates a successor and persists the bounded
 // predecessor handoff atomically.
 func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, scope string, now time.Time) (*auth.Token, error) {
@@ -2134,7 +2111,15 @@ func (s *Service) ChangePassword(ctx context.Context, accountID int, currentPass
 
 // GetAccountByID retrieves an account by ID
 func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, error) {
-	account, err := s.repos.Account.FindByID(ctx, int64(id))
+	var (
+		account *auth.Account
+		err     error
+	)
+	if claims := jwt.ClaimsFromCtx(ctx); claims.ID == id {
+		account, err = s.repos.Account.FindByID(ctx, int64(id))
+	} else {
+		account, err = s.repos.Account.FindManageableByID(ctx, int64(id))
+	}
 	if err != nil {
 		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
 	}

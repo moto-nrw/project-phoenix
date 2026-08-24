@@ -91,16 +91,20 @@ var (
 	// on the unique index (e.g. a double-click); the change was not saved and
 	// the caller should reload and retry.
 	ErrCareExceptionRaced = errors.New("parent: this day was just changed, please reload and try again")
-	// ErrExcusedRequestNotFound means the excused-absence request id does not
-	// belong to a request the caller submitted for this child (#1845).
+	// ErrExcusedRequestNotFound is the legacy-named error for an absence request
+	// the caller did not submit for this child.
 	ErrExcusedRequestNotFound = errors.New("parent: excused absence request not found")
-	// ErrExcusedRequestNotPending means the excused-absence request was already
-	// decided or withdrawn, so it can no longer be withdrawn.
+	// ErrExcusedRequestNotPending means the legacy-named absence request was
+	// already decided or withdrawn, so it can no longer be withdrawn.
 	ErrExcusedRequestNotPending = errors.New("parent: excused absence request is not pending")
-	// ErrExcusedRequestOverlap means a different pending excused request already
-	// covers one of the submitted dates (#1845). An identical resubmit is handled
-	// idempotently by the request service and never reaches this error.
+	// ErrExcusedRequestOverlap means a different pending absence request already
+	// covers one of the submitted dates. An identical resubmit is idempotent.
 	ErrExcusedRequestOverlap = errors.New("parent: excused absence request overlaps an existing pending request")
+	// ErrChildCareEnded means the child's care at this school has ended (#2487).
+	// Every parent WRITE for that child is refused from the day after the last
+	// care day; reading what happened before stays open, which is why this is
+	// checked per write path and not in resolvePermittedChild itself.
+	ErrChildCareEnded = errors.New("parent: care for this child has ended")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student
@@ -109,6 +113,20 @@ var (
 // trusts a studentID it can't prove ownership of.
 func (s *service) resolveOwnedChild(ctx context.Context, accountID, studentID int64) (*parentChild, error) {
 	return s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+}
+
+// requireCareRunningForUpdate locks the child before a parent write so a
+// concurrent care exit cannot turn an already-authorized operation into a
+// post-exit write.
+func (s *service) requireCareRunningForUpdate(ctx context.Context, studentID int64) error {
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return ErrChildCareEnded
+	}
+	return nil
 }
 
 func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, requiredPermission string) (*parentChild, error) {
@@ -137,6 +155,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
+			careEnded:           child.CareEnded(timezone.TodayDate()),
 		}
 		return nil
 	})
@@ -164,6 +183,21 @@ type parentChild struct {
 	// + child label); resolved once here from the cross-tenant child lookup.
 	studentName string
 	schoolName  string
+	// careEnded mirrors the child's enrollment interval as of today (#2487).
+	careEnded bool
+}
+
+// requireCareRunning refuses a write for a child whose care has ended. Reads
+// deliberately do not call it: a family keeps access to what happened while
+// their child was here.
+func (c *parentChild) requireCareRunning() error {
+	if c == nil {
+		return ErrChildNotLinked
+	}
+	if c.careEnded {
+		return ErrChildCareEnded
+	}
+	return nil
 }
 
 func (c *parentChild) hasPermission(permission string) bool {
@@ -176,9 +210,8 @@ func (c *parentChild) hasPermission(permission string) bool {
 }
 
 // SickNoteResult is the outcome of a parent absence submission. Exactly one of
-// its fields is populated: StatusDays for a direct write (sick, or excused when
-// the approval gate is off), PendingRequest when an excused report was turned
-// into a pending office-approval request (#1845).
+// its fields is populated: StatusDays for a direct write, PendingRequest when
+// the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*activeModels.StudentStatusDay
 	PendingRequest *activeModels.ExcusedAbsenceRequest
@@ -190,11 +223,9 @@ type SickNoteResult struct {
 // "entschuldigte Abmeldung": stored with NO live flag, per issue #1735). A note
 // is mandatory for both absence types.
 //
-// When operations.parent_excused_requires_approval is on for the child's tenant,
-// an excused report does NOT write a status day; it creates a PENDING request
-// (#1845) that staff must confirm, and the result carries PendingRequest. Sick
-// reports, and excused reports while the gate is off, are written directly and
-// the result carries StatusDays.
+// Each absence type has an independent approval setting. When its gate is on,
+// the report creates a PENDING request and writes no status day until staff
+// approve it. With the gate off, the report is applied directly.
 func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string) (*SickNoteResult, error) {
 	if len(dates) == 0 {
 		return nil, ErrNoDates
@@ -205,6 +236,11 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionSickNoteSubmit)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 
@@ -226,17 +262,16 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, ErrEmptyNote
 	}
 
-	// Optional office-approval gate for excused absences (#1845). When on, the
-	// report becomes a pending request instead of a direct status-day write, so
-	// the child stays "expected" until staff decide.
+	approvalKey := configModels.KeyParentSickRequiresApproval
 	if status == activeModels.StudentStatusDayExcused {
-		requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentExcusedRequiresApproval)
-		if err != nil {
-			return nil, fmt.Errorf("parent: resolve excused-approval setting: %w", err)
-		}
-		if requiresApproval {
-			return s.submitExcusedRequest(ctx, child, accountID, studentID, dates, trimmedNote)
-		}
+		approvalKey = configModels.KeyParentExcusedRequiresApproval
+	}
+	requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, approvalKey)
+	if err != nil {
+		return nil, fmt.Errorf("parent: resolve absence-approval setting %s: %w", approvalKey, err)
+	}
+	if requiresApproval {
+		return s.submitAbsenceRequest(ctx, child, accountID, studentID, dates, trimmedNote, status)
 	}
 
 	now := time.Now()
@@ -255,6 +290,12 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
+		}
+		// resolvePermittedChild ran before this transaction. Re-check the
+		// interval after acquiring the same row lock as care exits so a care exit
+		// cannot commit between authorization and this write.
+		if fresh.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
 		}
 		if err := s.ensureNoPartialAbsenceForStatusWrite(txCtx, studentID, dates); err != nil {
 			return err
@@ -406,18 +447,31 @@ func isNewParentReportableAbsence(student *usersModels.Student, status string) b
 	}
 }
 
-// submitExcusedRequest turns an excused report into a pending office-approval
-// request (#1845) inside the child's tenant transaction, then returns it as the
-// submission result. The note was already validated as non-empty and within the
-// length bound by the caller. Errors from the request service map onto the
-// parent sentinels so the handler renders stable status codes.
-func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, accountID, studentID int64, dates []timezone.Date, note string) (*SickNoteResult, error) {
+// submitAbsenceRequest turns a sick or excused report into a pending office
+// request inside the child's tenant transaction.
+func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, accountID, studentID int64, dates []timezone.Date, note, status string) (*SickNoteResult, error) {
 	if s.ExcusedRequests == nil {
-		return nil, fmt.Errorf("parent: excused request service not configured")
+		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
 	var req *activeModels.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		created, err := s.ExcusedRequests.CreateRequest(txCtx, studentID, accountID, dates, note)
+		// The initial authorization snapshot may predate a concurrent care exit.
+		// Lock and re-read the child before creating a pending request so both
+		// absence paths obey the same read-only boundary.
+		fresh, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if fresh.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
+		var created *activeModels.ExcusedAbsenceRequest
+		if status == activeModels.StudentStatusDayExcused {
+			// Keep the original interface entry point for existing callers and fakes.
+			created, err = s.ExcusedRequests.CreateRequest(txCtx, studentID, accountID, dates, note)
+		} else {
+			created, err = s.ExcusedRequests.CreateRequestForStatus(txCtx, studentID, accountID, dates, note, status)
+		}
 		if err != nil {
 			return err
 		}
@@ -441,22 +495,23 @@ func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, 
 		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
 			return nil, ErrCareExceptionConflict
 		default:
-			return nil, fmt.Errorf("parent: submit excused request: %w", txErr)
+			return nil, fmt.Errorf("parent: submit absence request: %w", txErr)
 		}
 	}
-	s.Logger.Info("parent submitted excused absence request",
+	s.Logger.Info("parent submitted absence request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
 		slog.Int64("request_id", req.ID),
+		slog.String("status", status),
 		slog.Int("days", len(dates)),
 	)
 	return &SickNoteResult{PendingRequest: req}, nil
 }
 
-// ListExcusedRequests returns the child's pending excused-absence requests plus
-// any decided in the recent window, newest-first (#1845). Read-only: a linked
-// guardian with portal access may see them.
+// ListExcusedRequests is the legacy-named read path for the child's pending and
+// recently decided absence requests. A linked guardian with portal access may
+// see both sick and excused requests.
 func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -484,11 +539,12 @@ func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 }
 
 // WithdrawExcusedRequest withdraws the caller's own pending excused-absence
-// request (#1845). Gated ONLY on portal access, not parent_portal.sick_note.submit:
+// request (#1845). It stays available after parent_portal.sick_note.submit is
+// revoked, but not after the child has left care:
 // a guardian must be able to wind down their OWN outstanding request even after
 // the school revokes their submit permission — ListExcusedRequests still
 // surfaces the pending request and the UI still offers withdrawal, so the write
-// gate must match that read gate. Ownership (submitted_by) and the
+// gate must match that read gate while care is running. Ownership (submitted_by) and the
 // pending-status check are enforced inside excusedRequests.WithdrawRequest,
 // which binds the request to this accountID and studentID. Mirrors
 // WithdrawCareScheduleRequest.
@@ -497,11 +553,21 @@ func (s *service) WithdrawExcusedRequest(ctx context.Context, accountID, student
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.ExcusedRequests == nil {
 		return nil, ErrExcusedRequestNotFound
 	}
 	var out *activeModels.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		req, err := s.ExcusedRequests.WithdrawRequest(txCtx, requestID, studentID, accountID)
 		if err != nil {
 			return err
@@ -531,6 +597,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	keys := []string{
 		configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval,
 		configModels.KeyParentNotesEnabled,
 		configModels.KeyParentPickupChangeEnabled,
@@ -567,6 +634,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	sick, err := resolveBool(configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-note setting: %w", err)
+	}
+	sickApproval, err := resolveBool(configModels.KeyParentSickRequiresApproval)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-approval setting: %w", err)
 	}
 	excusedApproval, err := resolveBool(configModels.KeyParentExcusedRequiresApproval)
 	if err != nil {
@@ -611,9 +682,27 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	canEditMasterData := masterEdit && child.hasPermission(authorize.GuardianPermissionMasterDataEdit)
 	canManagePickup := child.hasPermission(authorize.GuardianPermissionPickupManage)
 	canManageGuardianContacts := child.hasPermission(authorize.GuardianPermissionGuardianEdit)
+
+	// The child has left the OGS (#2487). Every WRITE capability goes off in
+	// this one place rather than in each screen: the portal builds its buttons
+	// from these flags, so a family sees a read-only profile instead of
+	// affordances that would all end in the same 403. CareEnded travels
+	// alongside so the portal can say why, and the read flags (meal plan, news)
+	// stay untouched — what happened stays readable.
+	if child.careEnded {
+		return ChildFeatureFlags{
+			CareEnded:               true,
+			SickRequiresApproval:    sickApproval,
+			ExcusedRequiresApproval: excusedApproval,
+			MealPlanEnabled:         mealPlan,
+			NewsEnabled:             news,
+		}, nil
+	}
+
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, studentID),
 		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		SickRequiresApproval:         sickApproval,
 		ExcusedRequiresApproval:      excusedApproval,
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
@@ -793,6 +882,11 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err != nil {
 		return nil, err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
@@ -813,6 +907,13 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
@@ -913,11 +1014,21 @@ func (s *service) WithdrawPickupChangeRequest(ctx context.Context, accountID, st
 	if err != nil {
 		return nil, err
 	}
+	if err := child.requireCareRunning(); err != nil {
+		return nil, err
+	}
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		withdrawn, withdrawErr := s.CareRequests.WithdrawPickupChangeRequest(txCtx, requestID, studentID, accountID)
 		if withdrawErr != nil {
 			return withdrawErr
@@ -938,6 +1049,11 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
+		return nil, err
+	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
 		return nil, err
 	}
 
@@ -964,6 +1080,13 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 	guardianID := accountID
 	var result *CareException
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}
@@ -1237,6 +1360,11 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 	if err != nil {
 		return err
 	}
+	// A child whose care at this school has ended keeps read access to
+	// what happened, but nothing new can be submitted for them (#2487).
+	if err := child.requireCareRunning(); err != nil {
+		return err
+	}
 
 	today := timezone.TodayDate()
 	if date.Before(today) {
@@ -1245,6 +1373,13 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 
 	pickupDeleted := false
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		if student.CareEndedOn(timezone.TodayDate()) {
+			return ErrChildCareEnded
+		}
 		if err := scheduleService.LockCareExceptionDay(txCtx, s.DB, studentID, date); err != nil {
 			return err
 		}

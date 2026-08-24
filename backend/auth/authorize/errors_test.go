@@ -14,6 +14,8 @@ import (
 // =============================================================================
 
 func TestErrResponse_Render(t *testing.T) {
+	t.Parallel()
+
 	errResp := &ErrResponse{
 		HTTPStatusCode: http.StatusForbidden,
 		StatusText:     "Forbidden",
@@ -28,6 +30,8 @@ func TestErrResponse_Render(t *testing.T) {
 }
 
 func TestErrResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	testErr := http.ErrBodyNotAllowed
 	errResp := &ErrResponse{
 		Err:            testErr,
@@ -49,12 +53,16 @@ func TestErrResponse_Fields(t *testing.T) {
 // =============================================================================
 
 func TestErrForbidden(t *testing.T) {
+	t.Parallel()
+
 	require.NotNil(t, ErrForbidden)
 	assert.Equal(t, http.StatusForbidden, ErrForbidden.HTTPStatusCode)
 	assert.Equal(t, http.StatusText(http.StatusForbidden), ErrForbidden.StatusText)
 }
 
 func TestErrForbidden_Render(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 

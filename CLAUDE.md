@@ -71,6 +71,7 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 | Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` scoped to `.{TENANT_DOMAIN}` (localhost: `authjs.session-token`, host-only) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only) | `/api/operator/auth` | `"platform"` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` (host-only) | `/api/parent/auth` | `"parent"` | `POST /parent/auth/login` |
+| School ("moto schule") | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token` (host-only, SameSite=Strict) | `/api/school/auth` | `"school"` | `POST /school/auth/login` |
 
 **Login policy** (enforced in `services/auth/auth_login*.go`):
 - Tenant login refuses guardian-only accounts (returns `ErrParentMustUseParentPortal` → 403). Dual-role accounts (e.g. teacher AND guardian at the same school) pass through unchanged.
@@ -79,7 +80,7 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 - `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
 - **MFA exists and alters login flows**: tenant and operator logins can require a challenge step between credentials and session (`services/auth/mfa_service.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`, dedicated challenge/enrollment JWT claims in `backend/auth/jwt/`, trusted devices via `security.mfa_*` settings). Touch login flows only with MFA in mind.
 
-**Fourth portal in progress — school ("moto schule", #2207)**: the backend scope exists; the frontend mantle (host, cookie, PWA) follows. JWT scope `"school"` is tenant-bound (unlike `parent`): `POST /school/auth/login` requires a school-portal role (today: the `lehrkraft` system role) on an active mapping and pins that school as `tenant_id`. `auth/jwt/SchoolMiddleware` rejects everything except `scope=school`, `TenantMiddleware` rejects `scope=school` symmetrically, and `/school/*` runs through `common.ProtectedSchoolGroup` (incl. `TenantTxMiddleware`). The class-day surface is double-mounted (`/api/class-day` + `/school/class-day`) until the cutover removes tenant-portal Lehrkraft access. `TestSchoolScopeRejectedOnAllAPIRoutes` pins that a school token unlocks nothing under `/api`.
+**Fourth portal — school ("moto schule", #2207)**: JWT scope `"school"` is tenant-bound (unlike `parent`): `POST /school/auth/login` requires a school-portal role (today: the `lehrkraft` system role) on an active mapping and pins that school as `tenant_id`. `auth/jwt/SchoolMiddleware` rejects everything except `scope=school`, `TenantMiddleware` rejects `scope=school` symmetrically, and `/school/*` runs through `common.ProtectedSchoolGroup` (incl. `TenantTxMiddleware`). The class-day surface is double-mounted (`/api/class-day` + `/school/class-day`) until the cutover (PR 3) removes tenant-portal Lehrkraft access. `TestSchoolScopeRejectedOnAllAPIRoutes` pins that a school token unlocks nothing under `/api`. Frontend mantle: `app/school/*` (login incl. MFA-Kette, Klassenansicht via shared `components/class-day`, invite accept), NextAuth instance in `server/auth/school*.ts`, host routing in `proxy.ts`, PWA identity "moto schule" (favicon variants `schule`/`schule-staging`). Lehrkraft invitation emails link to `SCHOOL_URL/invite` instead of `FRONTEND_URL/invite`.
 
 **Embedded enrollment**: the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` using the same `EnrollmentForm` component as `{slug}.TENANT_DOMAIN/enroll/{phaseId}`, via injected `profileFetcher`/`submitter`/`skipCaptcha` props. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over email matching.
 
@@ -91,8 +92,10 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 | `NEXT_PUBLIC_TENANT_DOMAIN` | Client-side tenant domain |
 | `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
 | `NEXT_PUBLIC_PARENTS_HOSTNAME` | Parents subdomain (e.g., `parents.localhost:3000`) |
+| `NEXT_PUBLIC_SCHOOL_HOSTNAME` | School subdomain (e.g., `schule.localhost:3000`) |
 | `FRONTEND_URL` | Backend-side staff/admin URL (used in admin notification emails) |
 | `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Required — the server refuses to start without it; must be `https://` in production. |
+| `SCHOOL_URL` | Backend-side school-portal URL (Lehrkraft invitation email links). Required — the server refuses to start without it; must be `https://` in production. |
 
 ### Reserved Slugs
 
@@ -115,6 +118,10 @@ Layer discipline, repository generics, model conventions, and the CI ratchet tes
 ### 0. Frontend: Reuse the UI Kit (MANDATORY)
 
 Build all new UI from `frontend/src/components/ui/`; brand colors come only from `LOCATION_COLORS` in `frontend/src/lib/location-helper.ts` — never generic Tailwind hues. Full component map, hex table, and design checklist: `.claude/rules/frontend-ui-kit.md`.
+
+### 0b. Verständlichkeit: Build for the Worst Plausible Reading (MANDATORY)
+
+**RULE: Every user-visible change (tenant portal, parents portal, kiosk, e-mails, help guide) runs the Verständlichkeit checklist before it is done, and the PR description records the result.** What can be misunderstood will be misunderstood: read-only blocks must not look clickable, functions with a precondition state it in the product, and two headings sharing a word stem need a visible boundary. Binding text standard: the `moto-einfache-sprache` skill. Checklist, negative patterns from the school feedback, and the fix hierarchy: `.claude/rules/verstaendlichkeit.md`.
 
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
 ```go
@@ -183,18 +190,28 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 | Reset DB | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
 | View logs | `docker compose logs -f server` |
 | Quality check (frontend) | `cd frontend && pnpm run check` |
-| Run backend tests | `cd backend && go test ./...` |
+| Run backend tests (self-initializing; clones GC'd next run) | `cd backend && go test ./...` |
+| Full backend run incl. immediate clone sweep (gotestsum) | `scripts/test-backend.sh` |
+| Fast unit-only backend run (skips all DB tests) | `cd backend && go test -short ./...` |
+| Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
 | Generate docs | `docker compose run server go run . gendoc --routes` |
 
 **Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
 **Hermetic tests are MANDATORY** for all new backend tests (no hardcoded IDs, fixtures + cleanup, `TestHermeticTestPatterns` CI gate) — see `backend/CLAUDE.md` for the fixture catalog and rules.
 
-### Test Database (port 5433)
+### Test Database (port 5433) — self-initializing (ADR 0004)
+`go test ./...` owns the whole test-DB lifecycle: it starts `postgres-test` if
+needed, builds the template for the current migrations hash
+(`phoenix_test_<hash>` — parallel worktrees on different branches get one
+template each), and clones one run-stamped database per package.
+`scripts/test-backend.sh` is the comfort wrapper (gotestsum + sweep at the
+end); naked `go test` runs leave their clones to the next run's generation GC.
+Manual container control, if ever needed:
 ```bash
-docker compose --profile test up -d postgres-test       # Start (isolated network)
-docker compose --profile test down                       # Stop (plain `down` won't work)
-cd backend && APP_ENV=test go run . migrate reset        # Setup
+docker compose --profile test up -d postgres-test        # Start (isolated network)
+docker compose --profile test down                        # Stop (plain `down` won't work)
+cd backend && go run ./internal/testdb/cmd/sweep          # Drop leftover clones now
 ```
 
 ## No Fallbacks, No Defaults — Fail Fast (MANDATORY)
@@ -291,7 +308,7 @@ prescribed by the `responsive-screenshots` skill. One branch per PR, named
 
 ## Database Schemas
 
-`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `suggestions` · `meta` · `audit`
+`platform` · `auth` · `users` · `education` · `facilities` · `activities` · `active` · `schedule` · `iot` · `feedback` · `config` · `enrollment` · `meta` · `audit`
 
 ## Tenant-Scoped Settings System
 
@@ -302,6 +319,10 @@ prescribed by the `responsive-screenshots` skill. One branch per PR, named
 **RULE: When you add a user-facing feature flow, or substantially change a flow the guide documents, update `frontend/src/components/help/guide-data.ts` (and changed screenshots) in the SAME PR.** Backend-only, operator/parents-only, and pure-styling changes are exempt. File map, data model, and PDF-render caveat: `.claude/rules/help-guide-sync.md`.
 
 ## Agent skills
+
+### User-facing German copy
+
+`moto-einfache-sprache` (`.claude/skills/moto-einfache-sprache/SKILL.md`) is the binding text standard for every string a school user reads (both portals, kiosk, e-mails, help guide). Load it before writing or changing labels, buttons, error messages, empty states, or hints; it pairs with `.claude/rules/verstaendlichkeit.md`, which decides whether the block should exist at all.
 
 ### Issue tracker
 

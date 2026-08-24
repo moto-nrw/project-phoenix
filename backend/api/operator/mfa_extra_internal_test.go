@@ -133,6 +133,8 @@ func opWithEnrollmentClaims(r *http.Request, operatorID int64) *http.Request {
 // --- tests -------------------------------------------------------------
 
 func TestOperatorMFAVerify_InvalidJSON_Returns400(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := httptest.NewRequest(http.MethodPost, "/operator/mfa/verify", strings.NewReader("not-json"))
@@ -144,6 +146,8 @@ func TestOperatorMFAVerify_InvalidJSON_Returns400(t *testing.T) {
 }
 
 func TestOperatorMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		verifyChallengeFn: func(context.Context, string, string) (*platformSvc.OperatorVerifiedChallenge, error) {
 			return nil, authService.ErrMFACodeInvalid
@@ -162,6 +166,8 @@ func TestOperatorMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 // shape: operator resend now hands back the renewed challenge JWT so the
 // operator login flow can replace its in-flight token.
 func TestOperatorMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		resendChallengeFn: func(context.Context, string, net.IP) (string, error) { return "renewed-tok", nil },
 	}}
@@ -178,6 +184,8 @@ func TestOperatorMFAResend_Success_ReturnsRenewedToken(t *testing.T) {
 }
 
 func TestOperatorMFAResend_BindRejectsEmptyToken(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/resend", MFAResendRequest{})
@@ -188,6 +196,8 @@ func TestOperatorMFAResend_BindRejectsEmptyToken(t *testing.T) {
 }
 
 func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		resendChallengeFn: func(context.Context, string, net.IP) (string, error) {
 			return "", authService.ErrMFARateLimited
@@ -203,6 +213,8 @@ func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 }
 
 func TestOperatorMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/start", nil)
@@ -213,6 +225,8 @@ func TestOperatorMFAEnrollStart_RequiresEnrollmentClaim(t *testing.T) {
 }
 
 func TestOperatorMFAEnrollStart_Success(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		startChallengeFn: func(context.Context, int64, net.IP) (string, error) { return "ch", nil },
 	}}
@@ -225,6 +239,8 @@ func TestOperatorMFAEnrollStart_Success(t *testing.T) {
 }
 
 func TestOperatorMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
@@ -236,6 +252,8 @@ func TestOperatorMFAEnrollConfirm_RequiresEnrollmentClaim(t *testing.T) {
 }
 
 func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		verifyCodeFn: func(context.Context, int64, string) error { return authService.ErrMFACodeInvalid },
 	}}
@@ -249,6 +267,8 @@ func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 }
 
 func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
+	t.Parallel()
+
 	// Item #1 of #1430 review (operator side): confirm now mints a full
 	// access/refresh pair instead of returning 204, so the enrollment
 	// token doesn't outlive enrollment. ErrMFAAlreadyEnrolled is still
@@ -277,6 +297,8 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 }
 
 func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		listDevicesFn: func(context.Context, int64) ([]*platformModels.OperatorMFATrustedDevice, error) {
 			return []*platformModels.OperatorMFATrustedDevice{}, nil
@@ -291,6 +313,8 @@ func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {
 }
 
 func TestOperatorMFAListTrustedDevices_RequiresClaim(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{}}
 
 	r := httptest.NewRequest(http.MethodGet, "/operator/mfa/trusted-devices", nil)
@@ -301,6 +325,8 @@ func TestOperatorMFAListTrustedDevices_RequiresClaim(t *testing.T) {
 }
 
 func TestOperatorMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
+	t.Parallel()
+
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		listDevicesFn: func(context.Context, int64) ([]*platformModels.OperatorMFATrustedDevice, error) {
 			return nil, errors.New("db down")

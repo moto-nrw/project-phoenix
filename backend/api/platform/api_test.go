@@ -12,6 +12,8 @@ import (
 
 // TestNewResource verifies that the platform resource can be constructed successfully.
 func TestNewResource(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates resource with nil services", func(t *testing.T) {
 		cfg := platform.ResourceConfig{
 			AnnouncementsService: nil,
@@ -44,6 +46,8 @@ func TestNewResource(t *testing.T) {
 
 // TestRouter verifies that the platform router can be constructed.
 func TestRouter(t *testing.T) {
+	t.Parallel()
+
 	t.Run("creates router successfully", func(t *testing.T) {
 		cfg := platform.ResourceConfig{}
 		resource := platform.NewResource(cfg)

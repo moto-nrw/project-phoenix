@@ -120,6 +120,17 @@ export async function requestParentPasswordReset(
 }
 
 /**
+ * Password reset from the school portal (#2207): same account-level reset
+ * as the staff flow, but through a school-host route — the proxy blocks
+ * /api/auth/* on the school host, so the request needs its own path.
+ */
+export async function requestSchoolPasswordReset(
+  email: string,
+): Promise<{ message: string }> {
+  return requestPasswordResetAt("/api/school/auth/password-reset", email);
+}
+
+/**
  * Confirm password reset with token and new password
  * @param token - The reset token from the email link
  * @param password - The new password
@@ -175,4 +186,29 @@ export async function confirmParentPasswordReset(
     });
     throw error;
   }
+}
+
+export async function confirmSchoolPasswordReset(
+  token: string,
+  password: string,
+  confirmPassword: string,
+): Promise<{ message: string }> {
+  const response = await fetch("/api/school/auth/password-reset/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token,
+      new_password: password,
+      confirm_password: confirmPassword,
+    }),
+  });
+
+  if (!response.ok) {
+    throw await buildApiError(
+      response,
+      "Fehler beim Zurücksetzen des Passworts",
+    );
+  }
+
+  return (await response.json()) as { message: string };
 }

@@ -152,6 +152,25 @@ function make500Error(config: AxiosRequestConfig = {}): AxiosError {
   return err;
 }
 
+function make429Error(config: AxiosRequestConfig = {}): AxiosError {
+  const err = new Error("Request failed with status code 429") as AxiosError;
+  err.response = {
+    status: 429,
+    statusText: "Too Many Requests",
+    data: {},
+    headers: { "retry-after": "17" },
+    config: config as AxiosRequestConfig & {
+      headers: AxiosRequestHeaders;
+    },
+  };
+  err.config = config as AxiosRequestConfig & {
+    headers: AxiosRequestHeaders;
+  };
+  err.isAxiosError = true;
+  err.toJSON = () => ({});
+  return err;
+}
+
 function setupBrowserEnv() {
   const original = globalThis.window;
   Object.defineProperty(globalThis, "window", {
@@ -209,12 +228,15 @@ describe("response interceptor token refresh queue", () => {
 
   it("request interceptor injects auth token in browser context", async () => {
     const restore = setupBrowserEnv();
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
     try {
       mockGetSession.mockResolvedValue({ user: { token: "browser-token" } });
 
       const result = await requestInterceptorFulfilled({
         method: "get",
-        url: "/api/test",
+        url: "/api/students?search=Mustermann",
         headers: {},
       });
 
@@ -222,27 +244,44 @@ describe("response interceptor token refresh queue", () => {
       expect(result.headers).toMatchObject({
         Authorization: "Bearer browser-token",
       });
+      expect(consoleDebug).toHaveBeenCalledWith("token injected in request", {
+        method: "GET",
+        url: "/api/students",
+        has_token: true,
+      });
     } finally {
+      consoleDebug.mockRestore();
       restore();
     }
   });
 
   it("request interceptor leaves headers unchanged when browser session has no token", async () => {
     const restore = setupBrowserEnv();
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
     try {
       mockGetSession.mockResolvedValue({ user: {} });
       const headers = {};
 
       const result = await requestInterceptorFulfilled({
         method: "get",
-        url: "/api/test",
+        url: "/api/students?email=erika%40example.com",
         headers,
       });
 
       expect(mockGetSession).toHaveBeenCalledTimes(1);
       expect(result.headers).toBe(headers);
       expect(result.headers).not.toHaveProperty("Authorization");
+      expect(consoleDebug).toHaveBeenCalledWith(
+        "no token available for request",
+        {
+          method: "GET",
+          url: "/api/students",
+        },
+      );
     } finally {
+      consoleDebug.mockRestore();
       restore();
     }
   });
@@ -461,6 +500,9 @@ describe("response interceptor token refresh queue", () => {
 
   it("multiple concurrent 401s: all queued requests reject on failure", async () => {
     const restore = setupBrowserEnv();
+    const consoleDebug = vi
+      .spyOn(console, "debug")
+      .mockImplementation(() => {});
     try {
       // Create a deferred promise so we can control when handleAuthFailure resolves
       let rejectAuthFailure!: () => void;
@@ -482,7 +524,7 @@ describe("response interceptor token refresh queue", () => {
 
       // Second and third 401s: should get queued (isRefreshing is true)
       const error2 = make401Error({
-        url: "/api/request-2",
+        url: "/api/students?first_name=Erika",
         method: "get",
         headers: {},
       });
@@ -494,6 +536,11 @@ describe("response interceptor token refresh queue", () => {
       const promise2 = responseInterceptorRejected(error2);
       const promise3 = responseInterceptorRejected(error3);
 
+      expect(consoleDebug).toHaveBeenCalledWith(
+        "token refresh in progress, queueing request",
+        expect.objectContaining({ url: "/api/students" }),
+      );
+
       // Now fail the refresh
       rejectAuthFailure();
 
@@ -502,6 +549,7 @@ describe("response interceptor token refresh queue", () => {
       await expect(promise2).rejects.toThrow("Token refresh failed");
       await expect(promise3).rejects.toThrow("Token refresh failed");
     } finally {
+      consoleDebug.mockRestore();
       restore();
     }
   });
@@ -602,5 +650,19 @@ describe("response interceptor token refresh queue", () => {
     } as AxiosResponse;
     const result = responseInterceptorFulfilled(mockResponse);
     expect(result).toBe(mockResponse);
+  });
+
+  it("records Axios 429 responses and blocks subsequent browser requests", async () => {
+    const error = make429Error({ method: "get", url: "/api/students" });
+
+    await expect(responseInterceptorRejected(error)).rejects.toBe(error);
+    await expect(
+      requestInterceptorFulfilled({
+        method: "get",
+        url: "/api/students",
+        headers: {},
+      }),
+    ).rejects.toMatchObject({ status: 429, response: { status: 429 } });
+    expect(mockGetSession).not.toHaveBeenCalled();
   });
 });

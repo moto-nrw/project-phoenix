@@ -47,6 +47,10 @@ const (
 	// (Rule 12): the 30-day default + 1..31 bounds moved off the
 	// PrivacyConsent model into this per-tenant setting.
 	KeyPrivacyConsentRetentionDays = "gdpr.privacy_consent_retention_days"
+	// Retention window (days) for PWA standalone-usage rows
+	// (iot.pwa_standalone_usage, issue #2189). The metric only needs a
+	// 30-day activity window, so stale rows carry no value and are swept.
+	KeyGDPRPWAUsageRetentionDays = "gdpr.pwa_usage_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.
@@ -66,9 +70,10 @@ const (
 
 // Checkout button settings (devices tab).
 const (
-	KeyCheckoutRaumwechselEnabled = "checkout.raumwechsel_enabled"
-	KeyCheckoutSchulhofEnabled    = "checkout.schulhof_enabled"
-	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
+	KeyCheckoutRaumwechselEnabled       = "checkout.raumwechsel_enabled"
+	KeyCheckoutSchulhofEnabled          = "checkout.schulhof_enabled"
+	KeyCheckoutWCEnabled                = "checkout.wc_enabled"
+	KeyCheckoutDailyFromAllRoomsEnabled = "checkout.daily_checkout_from_all_rooms_enabled"
 )
 
 // Checkin capacity-detail disclosure settings (issue #1879, devices tab).
@@ -114,7 +119,7 @@ const (
 	KeySessionCleanupIntervalMinutes   = "operations.session_cleanup_interval_minutes"
 	KeySessionAbandonedThresholdMin    = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin     = "operations.session_inactivity_timeout_minutes"
-	KeyAdminSupervisionOverview        = "operations.admin_supervision_overview"
+	KeyOperationalOverviewScope        = "operations.operational_overview_scope"
 	KeyStatusFlagClearTime             = "operations.status_flag_clear_time"
 	KeySickClearMode                   = "operations.sick_clear_mode"
 	KeyExcusedClearMode                = "operations.excused_clear_mode"
@@ -128,7 +133,9 @@ const (
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
 	KeyCareConcept                     = "operations.care_concept"
+	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentSickRequiresApproval      = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentCareArrivalRequestEnabled = "operations.parent_care_arrival_request_enabled"
@@ -185,6 +192,22 @@ const (
 	GroupModeOpenCare    = "open_care"
 )
 
+// OperationalOverviewScope option values for KeyOperationalOverviewScope
+// (#2380). The setting is the ONLY rule deciding who may see and operate every
+// running module of the school; the organisational group mode
+// (KeyGroupMode) deliberately no longer grants operational access.
+const (
+	// OverviewScopeOwn keeps every caller on the modules they supervise
+	// themselves. Administrators included — this is the default.
+	OverviewScopeOwn = "own"
+	// OverviewScopeAdmins opens every running module to administrators.
+	OverviewScopeAdmins = "admins"
+	// OverviewScopeAllStaff opens every running module to administrators and
+	// to every verified staff member of the tenant. Role permissions still
+	// decide WHICH actions those callers may perform.
+	OverviewScopeAllStaff = "all_staff"
+)
+
 // CareConcept option values for KeyCareConcept.
 const (
 	CareConceptFixedSchedule = "fixed_schedule"
@@ -234,6 +257,7 @@ const (
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
+	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"

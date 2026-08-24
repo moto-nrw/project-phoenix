@@ -4,10 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestTimeframe_Validate(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	future := now.Add(2 * time.Hour)
 	past := now.Add(-2 * time.Hour)
@@ -78,6 +81,8 @@ func TestTimeframe_Validate(t *testing.T) {
 }
 
 func TestTimeframe_Duration(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 
 	tests := []struct {
@@ -89,7 +94,7 @@ func TestTimeframe_Duration(t *testing.T) {
 			name: "with end time - 2 hours",
 			timeframe: &Timeframe{
 				StartTime: now,
-				EndTime:   base.TimePtr(now.Add(2 * time.Hour)),
+				EndTime:   ptrtest.Ptr(now.Add(2 * time.Hour)),
 			},
 			expected: 2 * time.Hour,
 		},
@@ -97,7 +102,7 @@ func TestTimeframe_Duration(t *testing.T) {
 			name: "with end time - 30 minutes",
 			timeframe: &Timeframe{
 				StartTime: now,
-				EndTime:   base.TimePtr(now.Add(30 * time.Minute)),
+				EndTime:   ptrtest.Ptr(now.Add(30 * time.Minute)),
 			},
 			expected: 30 * time.Minute,
 		},
@@ -122,6 +127,8 @@ func TestTimeframe_Duration(t *testing.T) {
 }
 
 func TestTimeframe_IsOpen(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	future := now.Add(time.Hour)
 	zeroTime := time.Time{}
@@ -168,6 +175,8 @@ func TestTimeframe_IsOpen(t *testing.T) {
 }
 
 func TestTimeframe_Contains(t *testing.T) {
+	t.Parallel()
+
 	// Create a timeframe from 10:00 to 12:00
 	start := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	end := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
@@ -249,6 +258,8 @@ func TestTimeframe_Contains(t *testing.T) {
 }
 
 func TestTimeframe_Overlaps(t *testing.T) {
+	t.Parallel()
+
 	// Base timeframe: 10:00 - 12:00
 	baseStart := time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC)
 	baseEnd := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
@@ -283,7 +294,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -292,7 +303,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -301,7 +312,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 10, 30, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 11, 30, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -310,7 +321,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -319,7 +330,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 13, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -328,7 +339,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  closedTimeframe,
 			tf2: &Timeframe{
 				StartTime: baseEnd,
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 14, 0, 0, 0, time.UTC)),
 			},
 			expected: false,
 		},
@@ -337,7 +348,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  openTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 11, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)),
 			},
 			expected: true,
 		},
@@ -346,7 +357,7 @@ func TestTimeframe_Overlaps(t *testing.T) {
 			tf1:  openTimeframe,
 			tf2: &Timeframe{
 				StartTime: time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC),
-				EndTime:   base.TimePtr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
+				EndTime:   ptrtest.Ptr(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC)),
 			},
 			expected: false, // Other ends before tf1 starts
 		},
@@ -381,6 +392,8 @@ func TestTimeframe_Overlaps(t *testing.T) {
 }
 
 func TestTimeframe_IsActiveFlag(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default is false", func(t *testing.T) {
 		tf := &Timeframe{
 			StartTime: time.Now(),
@@ -404,6 +417,8 @@ func TestTimeframe_IsActiveFlag(t *testing.T) {
 }
 
 func TestTimeframe_GetID(t *testing.T) {
+	t.Parallel()
+
 	tf := &Timeframe{
 		Model:     base.Model{ID: 42},
 		StartTime: time.Now(),
@@ -415,6 +430,8 @@ func TestTimeframe_GetID(t *testing.T) {
 }
 
 func TestTimeframe_GetCreatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tf := &Timeframe{
 		Model:     base.Model{CreatedAt: now},
@@ -427,6 +444,8 @@ func TestTimeframe_GetCreatedAt(t *testing.T) {
 }
 
 func TestTimeframe_GetUpdatedAt(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	tf := &Timeframe{
 		Model:     base.Model{UpdatedAt: now},

@@ -55,10 +55,14 @@ function pendingSchedule() {
   } as unknown as Awaited<ReturnType<typeof getChildCareSchedule>>;
 }
 
-function renderSection() {
+function renderSection(careEnded = false) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
-      <BookedCareSection studentId="42" childFirstName="Hannah" />
+      <BookedCareSection
+        studentId="42"
+        childFirstName="Hannah"
+        careEnded={careEnded}
+      />
     </NextIntlClientProvider>,
   );
 }
@@ -226,6 +230,39 @@ describe("BookedCareSection", () => {
     expect(requestedChange).toBeInTheDocument();
     expect(bookedCare.closest("section")).toContainElement(requestedChange);
     expect(screen.getByText("In Prüfung")).toBeInTheDocument();
+  });
+
+  it("zeigt nach dem Betreuungsende keine Angebotsaktionen", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "o1",
+          name: "Ganztag bis 16 Uhr",
+          weekdays: [1, 2, 3, 4, 5],
+          includes_lunch: true,
+          includes_holiday_care: false,
+        },
+      ],
+      groups: [],
+      can_request: true,
+      pending_request: {
+        id: "p1",
+        created_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        diff: [],
+        submitted_by_self: true,
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection(true);
+
+    await screen.findByText("Ganztag bis 16 Uhr");
+    expect(
+      screen.queryByRole("button", { name: "Betreuung ändern" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Änderung zurückziehen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("ordnet die letzte Entscheidung der gebuchten Betreuung unter", async () => {

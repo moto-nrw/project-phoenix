@@ -11,6 +11,8 @@ import (
 // =============================================================================
 
 func TestImportModeConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, ImportMode("create"), ImportModeCreate)
 	assert.Equal(t, ImportMode("update"), ImportModeUpdate)
 }
@@ -20,6 +22,8 @@ func TestImportModeConstants(t *testing.T) {
 // =============================================================================
 
 func TestErrorSeverityConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, ErrorSeverity("error"), ErrorSeverityError)
 	assert.Equal(t, ErrorSeverity("warning"), ErrorSeverityWarning)
 	assert.Equal(t, ErrorSeverity("info"), ErrorSeverityInfo)
@@ -30,6 +34,8 @@ func TestErrorSeverityConstants(t *testing.T) {
 // =============================================================================
 
 func TestImportRequest_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	req := ImportRequest[StudentImportRow]{}
 
 	assert.Empty(t, req.Rows)
@@ -41,6 +47,8 @@ func TestImportRequest_DefaultValues(t *testing.T) {
 }
 
 func TestImportRequest_WithValues(t *testing.T) {
+	t.Parallel()
+
 	req := ImportRequest[StudentImportRow]{
 		Rows: []StudentImportRow{
 			{FirstName: "Max", LastName: "Mustermann", SchoolClass: "1a"},
@@ -65,6 +73,8 @@ func TestImportRequest_WithValues(t *testing.T) {
 // =============================================================================
 
 func TestImportResult_DefaultValues(t *testing.T) {
+	t.Parallel()
+
 	result := ImportResult[StudentImportRow]{}
 
 	assert.Zero(t, result.TotalRows)
@@ -83,6 +93,8 @@ func TestImportResult_DefaultValues(t *testing.T) {
 // =============================================================================
 
 func TestValidationError_Fields(t *testing.T) {
+	t.Parallel()
+
 	fix := &AutoFix{
 		Action:      "replace",
 		Replacement: "1A",
@@ -109,6 +121,8 @@ func TestValidationError_Fields(t *testing.T) {
 }
 
 func TestValidationError_MinimalFields(t *testing.T) {
+	t.Parallel()
+
 	ve := ValidationError{
 		Field:    "first_name",
 		Message:  "Pflichtfeld",
@@ -127,6 +141,8 @@ func TestValidationError_MinimalFields(t *testing.T) {
 // =============================================================================
 
 func TestAutoFix_Fields(t *testing.T) {
+	t.Parallel()
+
 	fix := AutoFix{
 		Action:      "replace",
 		Replacement: "Gruppe 1A",
@@ -143,6 +159,8 @@ func TestAutoFix_Fields(t *testing.T) {
 // =============================================================================
 
 func TestBulkAction_Fields(t *testing.T) {
+	t.Parallel()
+
 	ba := BulkAction{
 		Title:        "5 Zeilen verwenden 'Gruppe A'",
 		Description:  "Alle zu 'Gruppe 1A' ändern?",
@@ -166,6 +184,8 @@ func TestBulkAction_Fields(t *testing.T) {
 // =============================================================================
 
 func TestImportError_Fields(t *testing.T) {
+	t.Parallel()
+
 	ie := ImportError[StudentImportRow]{
 		RowNumber: 5,
 		Data:      StudentImportRow{FirstName: "Test", LastName: "User"},

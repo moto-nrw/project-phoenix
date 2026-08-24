@@ -15,6 +15,8 @@ import (
 )
 
 func TestRequireWebAttendanceEnabled(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name       string
 		settings   configService.SettingsService

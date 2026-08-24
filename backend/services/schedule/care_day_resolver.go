@@ -144,17 +144,22 @@ type CareDayService interface {
 
 	// ResolveForRange returns the care-day status of every requested child for
 	// every date in the inclusive [from, to] window, keyed student → date.
-	// Costs the same four queries as ResolveForDate regardless of window
-	// length: weekly plans are recurring, so they are loaded once and combined
-	// with the window's exceptions in memory.
+	// Query count stays constant regardless of window length: recurring staff
+	// plans, booking-derived pickup baselines and exceptions are batch-loaded
+	// and combined in memory.
 	ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]CareDayStatus, error)
 }
 
-// CareDayDependencies carries the four repositories the derivation reads.
+// CareDayDependencies carries the read boundaries the derivation uses.
 type CareDayDependencies struct {
+	// ArrivalBaselines resolves the arrival plan the same way every other
+	// reader sees it (#2414): with the booking mode on, a stale row on an
+	// unbooked weekday plans nothing. Without it the resolver would keep
+	// marking a deregistered child as expected — the 19.08. incident.
+	ArrivalBaselines  ArrivalBaselineReader
 	ArrivalSchedules  schedule.StudentArrivalScheduleRepository
 	ArrivalExceptions schedule.StudentArrivalExceptionRepository
-	PickupSchedules   schedule.StudentPickupScheduleRepository
+	PickupBaselines   PickupBaselineReader
 	PickupExceptions  schedule.StudentPickupExceptionRepository
 }
 
@@ -165,7 +170,7 @@ type careDayService struct {
 // NewCareDayService builds the care-day derivation.
 func NewCareDayService(deps CareDayDependencies) CareDayService {
 	if deps.ArrivalSchedules == nil || deps.ArrivalExceptions == nil ||
-		deps.PickupSchedules == nil || deps.PickupExceptions == nil {
+		deps.PickupBaselines == nil || deps.PickupExceptions == nil {
 		panic("schedule.NewCareDayService: required dependency is nil")
 	}
 	return &careDayService{deps: deps}
@@ -208,12 +213,13 @@ func (s *careDayService) ResolveForRange(
 
 // carePlans is the in-memory projection every date lookup reads from.
 type carePlans struct {
-	// arrivalByStudentWeekday / pickupByStudentWeekday hold the recurring
-	// weekly plan; hasPlan records that a child has ANY plan row, which is what
-	// separates "not booked today" from "no plan on file".
+	// The arrival plan is undated. Pickup baselines can change within the
+	// range when booking validity changes, so they are keyed by date.
 	arrivalByStudentWeekday map[int64]map[int]*schedule.StudentArrivalSchedule
-	pickupByStudentWeekday  map[int64]map[int]*schedule.StudentPickupSchedule
-	hasPlan                 map[int64]bool
+	arrivalByStudentDate    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule
+	pickupByStudentDate     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule
+	hasPlan                 map[int64]map[timezone.Date]bool
+	bookingsAuthoritative   bool
 
 	arrivalExceptions map[int64]map[timezone.Date]*schedule.StudentArrivalException
 	pickupExceptions  map[int64]map[timezone.Date]*schedule.StudentPickupException
@@ -222,17 +228,73 @@ type carePlans struct {
 func (s *careDayService) loadCarePlans(
 	ctx context.Context, studentIDs []int64, from, to timezone.Date,
 ) (*carePlans, error) {
-	plans := &carePlans{
+	plans := newCarePlans()
+	if err := s.loadArrivalPlans(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	if err := s.loadPickupPlans(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	if err := s.loadCareExceptions(ctx, plans, studentIDs, from, to); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
+func newCarePlans() *carePlans {
+	return &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
-		pickupByStudentWeekday:  map[int64]map[int]*schedule.StudentPickupSchedule{},
-		hasPlan:                 map[int64]bool{},
+		arrivalByStudentDate:    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule{},
+		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
+		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
 		pickupExceptions:        map[int64]map[timezone.Date]*schedule.StudentPickupException{},
 	}
+}
 
+func (s *careDayService) loadArrivalPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
+	if s.deps.ArrivalBaselines == nil {
+		return s.loadStoredArrivalPlans(ctx, plans, studentIDs, from, to)
+	}
+	arrivals, err := s.deps.ArrivalBaselines.Project(ctx, studentIDs, from, to)
+	if err != nil {
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
+	}
+	plans.bookingsAuthoritative = arrivals.BookingsAuthoritative
+	for _, studentID := range studentIDs {
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if arrivals.HasPlan(studentID, date) {
+				plans.markHasPlan(studentID, date)
+			}
+			row := arrivals.ForDate(studentID, date)
+			if row == nil {
+				continue
+			}
+			if plans.arrivalByStudentDate[studentID] == nil {
+				plans.arrivalByStudentDate[studentID] = make(map[timezone.Date]*schedule.StudentArrivalSchedule)
+			}
+			plans.arrivalByStudentDate[studentID][date] = row
+		}
+	}
+	return nil
+}
+
+// loadStoredArrivalPlans is the pre-#2414 path, kept for callers wired without
+// a baseline reader (CLI, older tests).
+func (s *careDayService) loadStoredArrivalPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
 	arrivals, err := s.deps.ArrivalSchedules.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, row := range arrivals {
 		if row == nil {
@@ -244,59 +306,90 @@ func (s *careDayService) loadCarePlans(
 			plans.arrivalByStudentWeekday[row.StudentID] = byWeekday
 		}
 		byWeekday[row.Weekday] = row
-		plans.hasPlan[row.StudentID] = true
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			plans.markHasPlan(row.StudentID, date)
+		}
 	}
+	return nil
+}
 
-	pickups, err := s.deps.PickupSchedules.FindByStudentIDs(ctx, studentIDs)
+func (s *careDayService) loadPickupPlans(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
+	pickups, err := s.deps.PickupBaselines.Project(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
-	for _, row := range pickups {
-		if row == nil {
-			continue
+	for _, studentID := range studentIDs {
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			if pickups.HasPlan(studentID, date) {
+				plans.markHasPlan(studentID, date)
+			}
+			row := pickups.ForDate(studentID, date)
+			if row == nil {
+				continue
+			}
+			if plans.pickupByStudentDate[studentID] == nil {
+				plans.pickupByStudentDate[studentID] = make(map[timezone.Date]*schedule.StudentPickupSchedule)
+			}
+			plans.pickupByStudentDate[studentID][date] = row
 		}
-		byWeekday, ok := plans.pickupByStudentWeekday[row.StudentID]
-		if !ok {
-			byWeekday = map[int]*schedule.StudentPickupSchedule{}
-			plans.pickupByStudentWeekday[row.StudentID] = byWeekday
-		}
-		byWeekday[row.Weekday] = row
-		plans.hasPlan[row.StudentID] = true
 	}
+	return nil
+}
 
+func (s *careDayService) loadCareExceptions(
+	ctx context.Context,
+	plans *carePlans,
+	studentIDs []int64,
+	from, to timezone.Date,
+) error {
 	arrivalExceptions, err := s.deps.ArrivalExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, exc := range arrivalExceptions {
-		if exc == nil {
-			continue
-		}
-		byDate, ok := plans.arrivalExceptions[exc.StudentID]
-		if !ok {
-			byDate = map[timezone.Date]*schedule.StudentArrivalException{}
-			plans.arrivalExceptions[exc.StudentID] = byDate
-		}
-		byDate[exc.ExceptionDate] = exc
+		plans.addArrivalException(exc)
 	}
 
 	pickupExceptions, err := s.deps.PickupExceptions.FindByStudentIDsAndDateRange(ctx, studentIDs, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: opResolveCareDay, Err: err}
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
 	}
 	for _, exc := range pickupExceptions {
-		if exc == nil {
-			continue
-		}
-		byDate, ok := plans.pickupExceptions[exc.StudentID]
-		if !ok {
-			byDate = map[timezone.Date]*schedule.StudentPickupException{}
-			plans.pickupExceptions[exc.StudentID] = byDate
-		}
-		byDate[exc.ExceptionDate] = exc
+		plans.addPickupException(exc)
 	}
+	return nil
+}
 
-	return plans, nil
+func (p *carePlans) addArrivalException(row *schedule.StudentArrivalException) {
+	if row == nil {
+		return
+	}
+	if p.arrivalExceptions[row.StudentID] == nil {
+		p.arrivalExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentArrivalException)
+	}
+	p.arrivalExceptions[row.StudentID][row.ExceptionDate] = row
+}
+
+func (p *carePlans) addPickupException(row *schedule.StudentPickupException) {
+	if row == nil {
+		return
+	}
+	if p.pickupExceptions[row.StudentID] == nil {
+		p.pickupExceptions[row.StudentID] = make(map[timezone.Date]*schedule.StudentPickupException)
+	}
+	p.pickupExceptions[row.StudentID][row.ExceptionDate] = row
+}
+
+func (p *carePlans) markHasPlan(studentID int64, date timezone.Date) {
+	if p.hasPlan[studentID] == nil {
+		p.hasPlan[studentID] = make(map[timezone.Date]bool)
+	}
+	p.hasPlan[studentID][date] = true
 }
 
 // statusFor derives one child's status on one date.
@@ -313,6 +406,13 @@ func (s *careDayService) loadCarePlans(
 // it makes the student search report "kommt heute" for a child the timetable
 // roster and the expected counts leave out.
 func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus {
+	// With authoritative bookings, the arrival projection's dated row is the
+	// positive care-day signal. Pickup schedules and one-day exceptions may add
+	// details to that day, but cannot create a day the child did not book.
+	if p.bookingsAuthoritative && p.arrivalByStudentDate[studentID][date] == nil {
+		return CareDayNotScheduled
+	}
+
 	// The whole-day cancellation rule (a timeless "Kommt heute nicht"
 	// exception on either leg cancels the day, whatever the other leg says)
 	// lives INSIDE ResolveDayPlanning, so the student search, the parent
@@ -332,12 +432,24 @@ func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus
 		// cancellation branch of ResolveDayPlanning. Somebody stated the child
 		// is out today, which is an absence to record, not a missing booking.
 		return CareDayCancelled
-	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID]:
+	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID][date]:
 		return CareDayUnknown
+	case p.hasPlan[studentID][date] && p.hasArrivalSchedule(studentID, date):
+		// A care day remains scheduled even when its own and its class arrival
+		// time are both absent. The missing wall-clock time is not an absence of
+		// the care-day booking.
+		return CareDayScheduled
 	default:
 		// The plan covers other weekdays, just not this one.
 		return CareDayNotScheduled
 	}
+}
+
+func (p *carePlans) hasArrivalSchedule(studentID int64, date timezone.Date) bool {
+	if p.arrivalByStudentDate[studentID][date] != nil {
+		return true
+	}
+	return p.arrivalByStudentWeekday[studentID][isoWeekday(date)] != nil
 }
 
 // effectiveArrival mirrors the exception-beats-schedule merge of
@@ -356,7 +468,13 @@ func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *Effec
 	if weekday > schedule.WeekdayFriday {
 		return result
 	}
-	if sched, ok := p.arrivalByStudentWeekday[studentID][weekday]; ok && sched != nil {
+	sched := p.arrivalByStudentDate[studentID][date]
+	if sched == nil {
+		sched = p.arrivalByStudentWeekday[studentID][weekday]
+	}
+	// A care day whose class carries no time has no arrival time. Copying the
+	// zero value here would render as 00:00 everywhere (#2414).
+	if sched != nil && !sched.ExpectedArrival.IsZero() {
 		arrival := sched.ExpectedArrival
 		result.ArrivalTime = &arrival
 	}
@@ -376,7 +494,7 @@ func (p *carePlans) effectivePickup(studentID int64, date timezone.Date) *Effect
 	if weekday > schedule.WeekdayFriday {
 		return result
 	}
-	if sched, ok := p.pickupByStudentWeekday[studentID][weekday]; ok && sched != nil {
+	if sched, ok := p.pickupByStudentDate[studentID][date]; ok && sched != nil {
 		pickup := sched.PickupTime
 		result.PickupTime = &pickup
 	}

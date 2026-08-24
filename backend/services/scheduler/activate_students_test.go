@@ -93,6 +93,8 @@ func (f *fakeStudentLifecycleRepo) TransitionStatus(
 // -----------------------------------------------------------------------------
 
 func TestSetStudentLifecycleRepo(t *testing.T) {
+	t.Parallel()
+
 	s := NewScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
 	assert.Nil(t, s.studentLifecycleRepo)
 
@@ -106,6 +108,8 @@ func TestSetStudentLifecycleRepo(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:   make(chan struct{}),
 		logger: slog.Default(),
@@ -116,6 +120,8 @@ func TestScheduleActivateStudentsTask_NilRepo(t *testing.T) {
 }
 
 func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		done:                 make(chan struct{}),
 		logger:               slog.Default(),
@@ -140,6 +146,8 @@ func TestScheduleActivateStudentsTask_RegistersTask(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
+	t.Parallel()
+
 	pending := []*userModels.Student{
 		{Status: userModels.StudentStatusPending},
 		{Status: userModels.StudentStatusPending},
@@ -153,7 +161,7 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -164,6 +172,8 @@ func TestRunActivateStudentsForTenant_PendingToActive(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
+	t.Parallel()
+
 	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
 	due[0].ID = 201
 
@@ -173,7 +183,7 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -183,6 +193,8 @@ func TestRunActivateStudentsForTenant_ActiveToInactive(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
+	t.Parallel()
+
 	pending := []*userModels.Student{{Status: userModels.StudentStatusPending}}
 	pending[0].ID = 301
 	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
@@ -197,7 +209,7 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -210,6 +222,8 @@ func TestRunActivateStudentsForTenant_BothDirections(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
+	t.Parallel()
+
 	// After the first run flips the student to active, a second run sees no due
 	// pending rows. Simulate by clearing pendingDue between calls.
 	pending := []*userModels.Student{{Status: userModels.StudentStatusPending}}
@@ -220,7 +234,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	// "Re-query" empty-handed: the repo would now return no rows because the
 	// previous tick already moved them to active. Clear the test fixture to
@@ -229,7 +243,7 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 	repo.pendingDue = nil
 	repo.mu.Unlock()
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -237,6 +251,8 @@ func TestRunActivateStudentsForTenant_Idempotent(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *testing.T) {
+	t.Parallel()
+
 	due := []*userModels.Student{{Status: userModels.StudentStatusActive}}
 	due[0].ID = 501
 
@@ -249,7 +265,7 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -258,6 +274,8 @@ func TestRunActivateStudentsForTenant_FindPendingError_StillProcessesActive(t *t
 }
 
 func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeStudentLifecycleRepo{
 		activeErr: errors.New("active query failed"),
 	}
@@ -266,9 +284,7 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 		studentLifecycleRepo: repo,
 	}
 
-	assert.NotPanics(t, func() {
-		s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
-	})
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -276,6 +292,8 @@ func TestRunActivateStudentsForTenant_FindActiveError_NoUpdates(t *testing.T) {
 }
 
 func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *testing.T) {
+	t.Parallel()
+
 	pending := []*userModels.Student{
 		{Status: userModels.StudentStatusPending},
 		{Status: userModels.StudentStatusPending},
@@ -293,7 +311,7 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -302,13 +320,15 @@ func TestRunActivateStudentsForTenant_UpdateError_SkipsRowContinuesBatch(t *test
 }
 
 func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
+	t.Parallel()
+
 	repo := &fakeStudentLifecycleRepo{}
 	s := &Scheduler{
 		logger:               slog.Default(),
 		studentLifecycleRepo: repo,
 	}
 
-	s.runActivateStudentsForTenant(context.Background(), 7, time.Now())
+	assert.NoError(t, s.runActivateStudentsForTenantWithError(context.Background(), 7, time.Now()))
 
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -322,12 +342,16 @@ func TestRunActivateStudentsForTenant_NoDueRows_NoUpdates(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 func TestResolveActivateStudentsInterval_DefaultWhenUnset(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{logger: slog.Default()}
 	got := s.resolveActivateStudentsInterval()
 	assert.Equal(t, 60*time.Minute, got, "no settings resolver → registry default 60m")
 }
 
 func TestResolveActivateStudentsInterval_TenantOverride(t *testing.T) {
+	t.Parallel()
+
 	s := &Scheduler{
 		logger: slog.Default(),
 		settings: &fakeSettingsResolver{

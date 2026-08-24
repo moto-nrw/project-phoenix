@@ -20,6 +20,7 @@ import {
   isCaregiver,
   isLehrkraftOnly,
 } from "~/lib/auth-utils";
+import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -224,13 +225,6 @@ const OPERATOR_MAIN_ITEMS: NavItem[] = [
     ],
   },
   {
-    href: "/operator/suggestions",
-    label: "Feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
-  },
-  {
     href: "/operator/announcements",
     label: "Ankündigungen",
     iconKey: "bell",
@@ -367,6 +361,15 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
+    // canOpenRequestsPage: requiresPermission kann das
+    // users:absence+users:read-Paar nicht ausdrücken.
+    href: "/anfragen",
+    label: "Anfragen",
+    iconKey: "tray",
+    concept: "requests",
+  },
+  {
     href: "/calendar",
     label: "Mein Kalender",
     iconKey: "calendar",
@@ -431,13 +434,6 @@ const additionalNavItems: AdditionalNavItem[] = [
     newTab: true,
   },
   {
-    href: "/suggestions",
-    label: "Feedback",
-    iconKey: "feedback",
-    concept: "feedback",
-    alwaysShow: true,
-  },
-  {
     href: "/settings",
     label: "Einstellungen",
     iconKey: "settings",
@@ -494,7 +490,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     routingMode,
   );
   // Prefixes tenant-scoped hrefs with the slug in path-routing mode (no-op in
-  // subdomain/operator/parent mode). Used for the Eltern hub link below.
+  // subdomain/operator/parent mode). Used for tenant-scoped navigation links.
   const tenantPath = useTenantAwarePath();
   const [isOverflowMenuOpen, setIsOverflowMenuOpen] = useState(false);
 
@@ -514,7 +510,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isSupervising,
     isLoadingGroups,
     isLoadingSupervision,
-    adminOverviewEnabled,
+    overviewEnabled,
   } = useOptionalSupervision();
 
   // Get shell auth mode
@@ -602,11 +598,12 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           : hasRole(session, "admin")
             ? ADMIN_MAIN_ITEMS
             : STAFF_MAIN_ITEMS;
-  // Admins with supervision overview: inject "Aufsicht" tab dynamically.
-  // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
-  // than just isSupervising so a synthetic Schulhof entry does not surface
-  // the admin tab when the setting is off. Dual-role teacher-admins see the
-  // tab too, the tenant setting is the explicit opt-in signal.
+  // Callers covered by the school-wide overview (#2380): inject the
+  // "Aufsicht" tab dynamically. This includes effective admins and verified
+  // staff under all_staff. Gate on overviewEnabled (confirmed via
+  // /supervisors/all 200) rather than just isSupervising so a synthetic
+  // Schulhof entry does not surface the tab when the school keeps everyone
+  // on their own supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
@@ -614,10 +611,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
-    hasRole(session, "admin") &&
-    !isLoadingSupervision &&
-    adminOverviewEnabled &&
-    !alreadyHasSupervisionTab
+    !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
           ...baseMain.slice(0, 1),
           {
@@ -668,6 +662,8 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
+    // Schul-Portal (#2207): im Overflow bleibt nur die Hilfe — alles andere
+    // sind Tenant-Seiten, die es auf dem Schul-Host nicht gibt.
     // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
     // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
     // als Haupt-Tab.)
@@ -675,6 +671,9 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
     // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
     if (item.href === "/klassen") return hasRole(session, "lehrkraft");
+    // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
+    // change-request-access.
+    if (item.href === "/anfragen") return canOpenRequestsPage(session);
     // Hide items marked as hideForAdmin for admin users
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) {
       return false;
@@ -806,10 +805,13 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   // The Eltern hub is a tenant-scoped [tenant]/eltern route. In
                   // path-routing mode a bare "/eltern" href is captured as the
                   // tenant slug, so prefix it the same way the /eltern page
-                  // prefixes its card links. Other entries stay bare — /help is
-                  // host-agnostic and must not carry the slug.
+                  // prefixes its card links. Anfragen is also tenant-scoped.
+                  // Other entries stay bare — /help is host-agnostic and must
+                  // not carry the slug.
                   const href =
-                    item.href === "/eltern" || isPlanningPageHref(item.href)
+                    item.href === "/eltern" ||
+                    item.href === "/anfragen" ||
+                    isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;
 

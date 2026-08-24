@@ -25,6 +25,8 @@ import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import {
   OPEN_MONTH_REFRESH_MS,
+  targetsFromProjection,
+  type DayProjection,
   type MonthSummary,
   type StaffAbsence,
   type WeeklySummary,
@@ -55,7 +57,8 @@ export interface PeriodMetrics {
  *
  * Sources, all server-computed:
  * - month  -> the current month's Monatskarte (`month-summary`)
- * - week   -> `schedule-targets` for the week + the week's sessions/absences
+ * - week   -> `schedule-targets` (the per-day projection) for the week + the
+ *             week's sessions/absences
  * - Saldo  -> `useAccountBalance`
  *
  * Pass a `staffId` for the admin (`time_tracking:manage`) endpoints; omit it to
@@ -91,20 +94,35 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   const weekEnd = useMemo(() => endOfWeek(today), [today]);
   const weekFromKey = toDateKey(weekStart);
   const weekToKey = toDateKey(weekEnd);
+  const weekHistoryFromKey = useMemo(() => {
+    const previousDay = new Date(weekStart);
+    previousDay.setDate(previousDay.getDate() - 1);
+    return toDateKey(previousDay);
+  }, [weekStart]);
 
-  const { data: weekTargets } = useSWRAuth<ReadonlyMap<string, number>>(
+  // Dieselbe Nutzlast wie die Tagestabelle unter demselben Key: die
+  // Tagesprojektion (#2443). Hier zählt nur ihr Soll — aber ein SWR-Key trägt
+  // EINEN Datentyp, und wer sonst das Rennen verliert, liest die Form des
+  // anderen (siehe Kommentar unten zu Sessions/Abwesenheiten).
+  const { data: weekProjection } = useSWRAuth<
+    ReadonlyMap<string, DayProjection>
+  >(
     staffId
       ? `staff-schedule-targets-${staffId}-${weekFromKey}-${weekToKey}`
       : `time-tracking-schedule-targets-${weekFromKey}-${weekToKey}`,
     () =>
       staffId
-        ? staffMonthSummaryService.getScheduleTargets(
+        ? staffMonthSummaryService.getDailyProjection(
             staffId,
             weekFromKey,
             weekToKey,
           )
-        : timeTrackingService.getScheduleTargets(weekFromKey, weekToKey),
+        : timeTrackingService.getDailyProjection(weekFromKey, weekToKey),
     { revalidateOnFocus: false },
+  );
+  const weekTargets = useMemo(
+    () => (weekProjection ? targetsFromProjection(weekProjection) : undefined),
+    [weekProjection],
   );
 
   // Sessions and absences are fetched per portal rather than behind one
@@ -127,17 +145,23 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
 
   const { data: adminSessions } = useSWRAuth<readonly StaffHistorySession[]>(
-    staffId ? `staff-history-${staffId}-${weekFromKey}-${weekToKey}` : null,
+    staffId
+      ? `staff-history-${staffId}-${weekHistoryFromKey}-${weekToKey}`
+      : null,
     () =>
-      staffHistoryService.getHistory(staffId as string, weekFromKey, weekToKey),
+      staffHistoryService.getHistory(
+        staffId as string,
+        weekHistoryFromKey,
+        weekToKey,
+      ),
     { refreshInterval },
   );
   const { data: ownHistory } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
   }>(
-    staffId ? null : `time-tracking-table-${weekFromKey}-${weekToKey}`,
-    () => timeTrackingService.getHistory(weekFromKey, weekToKey),
+    staffId ? null : `time-tracking-table-${weekHistoryFromKey}-${weekToKey}`,
+    () => timeTrackingService.getHistory(weekHistoryFromKey, weekToKey),
     {
       refreshInterval: (latest) =>
         latest?.sessions.some((s) => !s.checkOutTime)

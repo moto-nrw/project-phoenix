@@ -26,6 +26,8 @@ import (
 // --- sick reason normalization (pure) ---
 
 func TestNormalizeSickReason(t *testing.T) {
+	t.Parallel()
+
 	assert.Nil(t, strutil.TrimPtrToNil(nil), "nil stays nil")
 
 	blank := "   "
@@ -44,7 +46,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
 		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent, rf.StudentCompanion, nil),
-		StudentStatusDayService: activeSvc.NewStudentStatusDayService(rf.StudentStatusDay),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})
@@ -59,8 +61,9 @@ func staffNotesRouter(rs *Resource) chi.Router {
 }
 
 func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 	router := staffNotesRouter(newStaffNotesResource(db))
 
 	student := testpkg.CreateTestStudent(t, db, "Reason", "Kind", "1a")
@@ -75,11 +78,11 @@ func TestStaffStatusDay_ReasonStoredAndReturned(t *testing.T) {
 		"dates":  []string{"2026-05-25"},
 		"reason": "Fieber",
 	})
-	createRR := executeStatusDayHandler(router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	createRR := executeStatusDayHandler(t, router, createReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, createRR.Code, createRR.Body.String())
 
 	getReq := testutil.NewRequest("GET", fmt.Sprintf("/%d/status-days?from=2026-05-25&to=2026-05-26", student.ID), nil)
-	getRR := executeStatusDayHandler(router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
+	getRR := executeStatusDayHandler(t, router, getReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, getRR.Code, getRR.Body.String())
 
 	var env struct {

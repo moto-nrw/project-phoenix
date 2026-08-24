@@ -9,10 +9,24 @@ import {
   useTenantMutateMatching,
 } from "~/lib/swr";
 import { TransitStudentsSection } from "./transit-students-section";
-import {
-  useAttendanceWebEnabled,
-  useOpenCareGroupMode,
-} from "~/lib/tenant-context";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
+import { useOptionalSupervision } from "~/lib/supervision-context";
+
+/** Default supervision context: no school-wide overview. */
+const EMPTY_SUPERVISION = {
+  hasGroups: false,
+  isLoadingGroups: false,
+  groups: [],
+  isSupervising: false,
+  supervisedRooms: [],
+  isLoadingSupervision: false,
+  overviewEnabled: false,
+  refresh: vi.fn(),
+};
+
+vi.mock("~/lib/supervision-context", () => ({
+  useOptionalSupervision: vi.fn(),
+}));
 
 const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -199,7 +213,7 @@ function mockTransitData({
 describe("TransitStudentsSection", () => {
   beforeEach(() => {
     vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
-    vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
+    vi.mocked(useOptionalSupervision).mockReturnValue(EMPTY_SUPERVISION);
     vi.clearAllMocks();
     mockSearchParamsToString.mockReturnValue("room=__transit__");
     mockUseSession.mockReturnValue({
@@ -322,8 +336,13 @@ describe("TransitStudentsSection", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps all active target rooms visible in open-care mode", () => {
-    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+  // #2380: the move targets follow the school-wide overview, not the
+  // organisational group mode — the backend authorizes the move the same way.
+  it("keeps all active target rooms visible under the school-wide overview", () => {
+    vi.mocked(useOptionalSupervision).mockReturnValue({
+      ...EMPTY_SUPERVISION,
+      overviewEnabled: true,
+    });
     mockTransitData({
       activeGroups: [
         mockGroups[0]!,
@@ -347,6 +366,32 @@ describe("TransitStudentsSection", () => {
     expect(
       screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
     ).toBeInTheDocument();
+  });
+
+  // The deactivation case: without the school-wide overview a caregiver may
+  // only move children into a module they supervise themselves — exactly what
+  // the backend authorizes.
+  it("limits target rooms to own supervisions without the overview", () => {
+    mockTransitData({
+      activeGroups: [
+        mockGroups[0]!,
+        {
+          ...mockGroups[0]!,
+          id: "103",
+          roomId: "303",
+          room: { id: 303, name: "Werkraum" },
+          actualGroup: { id: 203, name: "Gruppe C" },
+        },
+      ],
+      activeSupervisions: [],
+    });
+
+    render(<TransitStudentsSection />);
+
+    fireEvent.click(screen.getByLabelText("Zielraum"));
+    expect(
+      screen.queryByRole("option", { name: "Werkraum · Gruppe C" }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders transit students read-only when web attendance is disabled", () => {
@@ -380,13 +425,13 @@ describe("TransitStudentsSection", () => {
     expect(mutateKey).toHaveBeenCalledWith("rooms-list");
     expect(mutateMatching).toHaveBeenCalledTimes(1);
     // The needle list must cover the /active-supervisions caches too:
-    // when this section is embedded there, the room grid
-    // (supervision-visits-*) and roster (timetable-roster-*) would
-    // otherwise only refresh via SSE.
+    // when this section is embedded there, the aggregated dashboard key
+    // (matched via "dashboard", carrying the room's visits since #2096)
+    // and roster (timetable-roster-*) would otherwise only refresh via SSE.
     expect(vi.mocked(useTenantMutateMatching)).toHaveBeenCalledWith(
       expect.arrayContaining([
         "room-students-",
-        "supervision-visits-",
+        "dashboard",
         "timetable-roster-",
       ]),
     );

@@ -160,19 +160,29 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	// --- Admin Supervision Overview ---
+	// --- Schulweite Sicht auf alle laufenden Räume (#2380) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyAdminSupervisionOverview,
-		Label:           "Administrator-Aufsichtsübersicht",
-		Description:     "Administratoren können alle aktiven Aufsichten und anwesende Kinder einsehen",
-		Type:            config.FieldBoolean,
-		Default:         false,
+		Key:   config.KeyOperationalOverviewScope,
+		Label: "Sicht auf alle Räume",
+		Description: "Legt fest, wer in der Aktuellen Aufsicht alle Räume der Schule sieht. " +
+			"Ohne Freigabe sieht jede Person nur ihre eigenen Räume. " +
+			"Die Freigabe gibt keine neuen Rechte. " +
+			"Wer etwas sonst nicht darf, darf es auch hier nicht.",
+		Type:            config.FieldSelect,
+		Default:         config.OverviewScopeOwn,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "aufsicht",
 		SortOrder:       1,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur eigene Räume", Value: config.OverviewScopeOwn},
+				{Label: "Alle Räume für Administratoren", Value: config.OverviewScopeAdmins},
+				{Label: "Alle Räume für alle Mitarbeitenden", Value: config.OverviewScopeAllStaff},
+			},
+		},
 	})
 
 	// --- Zeiterfassung ---
@@ -379,9 +389,10 @@ func init() {
 	// --- Organisationsmodell (setup-level decisions) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyGroupMode,
-		Label:           "Arbeit mit festen Gruppen",
-		Description:     "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten.",
+		Key:   config.KeyGroupMode,
+		Label: "Arbeit mit festen Gruppen",
+		Description: "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten. " +
+			"Diese Einstellung beschreibt nur die Organisation. Wer welche Räume in der Aktuellen Aufsicht sieht, steht unter \"Sicht auf alle Räume\".",
 		Type:            config.FieldSelect,
 		Default:         config.GroupModeFixedGroups,
 		ReadPermission:  "config:read",
@@ -471,6 +482,20 @@ func init() {
 		SortOrder: 50,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyRequirePickupOfferingReview,
+		Label:           "Angebotsabgleich für dauerhafte Gehzeiten",
+		Description:     "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "betreuungszeiten",
+		SortOrder:       1,
+		AccessPolicy:    config.AccessShared,
+	})
+
 	// --- Geburtstage (#1542) ---
 	//
 	// Two switches, not one, because the two populations are not comparable.
@@ -528,26 +553,35 @@ func init() {
 		SortOrder:       60,
 	})
 
-	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
-	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
-	// excused absence is written straight to the child's status days exactly like
-	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
-	// absence becomes a PENDING request in the change-request queue that staff
-	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
-	// Only meaningful while the sick-note feature above is enabled; DependsOn
-	// hides it otherwise.
+	// Parent-submitted absences require approval by default (#2447/#2449). Schools
+	// can opt out independently for sick and excused reports. Both switches are
+	// only meaningful while the parent absence feature above is enabled.
 	config.Register(config.Definition{
-		Key:             config.KeyParentExcusedRequiresApproval,
-		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
-		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Key:             config.KeyParentSickRequiresApproval,
+		Label:           "Krankmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Krankmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
 		Type:            config.FieldBoolean,
-		Default:         false,
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       62,
-		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Eltern senden eine Anfrage. Das Team bestätigt die Abmeldung oder lehnt sie ab. Bis dahin gilt das Kind als erwartet.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       63,
+		DependsOn:       config.DependsOnEq(config.KeyParentSickNoteEnabled, true),
 	})
 
 	config.Register(config.Definition{

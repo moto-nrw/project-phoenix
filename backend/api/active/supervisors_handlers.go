@@ -7,11 +7,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ===== Supervisor Handlers =====
@@ -276,42 +274,22 @@ func (rs *Resource) endSupervision(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, response, "Supervision ended successfully")
 }
 
-// getAllActiveSupervisions returns all active groups with room info for the
-// admin overview or for permission-bearing staff in open-care mode.
+// getAllActiveSupervisions returns all active groups with room info for every
+// caller the school-wide overview scope covers (#2380).
 // Returns the same response format as /api/me/groups/supervised so the frontend
-// can consume both endpoints identically.
+// can consume both endpoints identically — a 403 here is the client's signal
+// to fall back to its own supervisions.
 // GET /api/active/supervisors/all
 func (rs *Resource) getAllActiveSupervisions(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// The route already requires groups:read. These settings may broaden the
-	// operational group scope, but never replace the permission check.
-	claims := jwt.ClaimsFromCtx(ctx)
+	// The route already requires groups:read. The overview scope may broaden
+	// WHICH groups the caller sees, but never replaces the permission check.
 	if rs.SettingsService == nil {
 		common.RenderError(w, r, ErrorForbidden(errors.New("operational group overview is not available")))
 		return
 	}
-
-	allowed := false
-	if claims.IsAdmin {
-		enabled, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
-		if err != nil {
-			rs.getLogger().WarnContext(ctx, "admin supervision overview setting check failed", "error", err.Error())
-			common.RenderError(w, r, ErrorForbidden(errors.New("operational group overview setting could not be resolved")))
-			return
-		}
-		allowed = enabled
-	}
-	if !allowed {
-		mode, err := rs.SettingsService.ResolveString(ctx, configModel.KeyGroupMode)
-		if err != nil {
-			rs.getLogger().WarnContext(ctx, "operational group mode setting check failed", "error", err.Error())
-			common.RenderError(w, r, ErrorForbidden(errors.New("operational group mode could not be resolved")))
-			return
-		}
-		allowed = mode == configModel.GroupModeOpenCare
-	}
-	if !allowed {
+	if !rs.operationalOverview(ctx) {
 		common.RenderError(w, r, ErrorForbidden(errors.New("all-group operational access is not enabled for this school")))
 		return
 	}

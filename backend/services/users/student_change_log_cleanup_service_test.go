@@ -32,8 +32,8 @@ func insertFieldEdit(tb testing.TB, db *bun.DB, studentID int64, createdAt time.
 	_, err := db.NewRaw(
 		`INSERT INTO audit.student_field_edits
 			(tenant_id, student_id, edited_by, edited_by_name, field_name, old_value, new_value, created_at)
-		 VALUES (1, ?, 1, 'Test Editor', 'supervisor_notes', 'alt', 'neu', ?)`,
-		studentID, createdAt,
+		 VALUES (?, ?, 1, 'Test Editor', 'supervisor_notes', 'alt', 'neu', ?)`,
+		testpkg.Tenant(tb), studentID, createdAt,
 	).Exec(ctx)
 	require.NoError(tb, err, "failed to insert student_field_edit")
 }
@@ -65,14 +65,6 @@ func countChangeLogDeletions(tb testing.TB, db *bun.DB, studentID int64) int {
 	return count
 }
 
-func cleanupChangeLogRows(tb testing.TB, db *bun.DB, studentID int64) {
-	tb.Helper()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, _ = db.NewRaw(`DELETE FROM audit.data_deletions WHERE student_id = ?`, studentID).Exec(ctx)
-	_, _ = db.NewRaw(`DELETE FROM audit.student_field_edits WHERE student_id = ?`, studentID).Exec(ctx)
-}
-
 func changeLogSettings(retentionDays int) *configtest.Mock {
 	return &configtest.Mock{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
@@ -84,14 +76,15 @@ func changeLogSettings(retentionDays int) *configtest.Mock {
 	}
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Old", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer cleanupChangeLogRows(t, db, student.ID)
 
 	// Two expired edits (200d, 400d) and one fresh (10d, inside the 90d window).
 	insertFieldEdit(t, db, student.ID, daysAgo(200))
@@ -117,14 +110,15 @@ func TestStudentChangeLogCleanup_DeletesOldEdits(t *testing.T) {
 	assert.Equal(t, 1, countChangeLogDeletions(t, db, student.ID), "one audit row for the affected student")
 }
 
+// Deliberately NOT parallel: the code under test sweeps rows across tenants.
+// These service-level tests call it with a plain tenant context instead of a
+// tenant transaction, so RLS never narrows the query and the sweep also picks
+// up the rows of every test running beside it.
 func TestStudentChangeLogCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Cleanup", "Fresh", "1a")
-	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
-	defer cleanupChangeLogRows(t, db, student.ID)
 
 	insertFieldEdit(t, db, student.ID, daysAgo(5))
 	insertFieldEdit(t, db, student.ID, daysAgo(30))

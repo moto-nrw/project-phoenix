@@ -12,6 +12,8 @@ import (
 )
 
 func TestIsReservedRoomColor(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects every status badge color", func(t *testing.T) {
 		// Mirrors LOCATION_COLORS in frontend/src/lib/location-helper.ts.
 		// If the frontend list grows, the backend list must too — this test
@@ -87,6 +89,8 @@ func TestIsReservedRoomColor(t *testing.T) {
 }
 
 func TestRoomValidate_ReservedColor(t *testing.T) {
+	t.Parallel()
+
 	t.Run("rejects a reserved color", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Reserved Color Room",

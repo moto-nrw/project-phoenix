@@ -16,12 +16,16 @@ import (
 )
 
 func TestErrorMessageConstants(t *testing.T) {
+	t.Parallel()
+
 	assert.NotEmpty(t, shared.ErrMsgPersonNotStudent)
 	assert.NotEmpty(t, shared.ErrMsgRFIDTagNotFound)
 }
 
 // Test RoomCapacityExceededError
 func TestErrorRenderer_IoTErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		err                error
@@ -52,6 +56,8 @@ func TestErrorRenderer_IoTErrors(t *testing.T) {
 
 // Test ErrorRenderer for Active Service Errors
 func TestErrorRenderer_ActiveErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -79,6 +85,7 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 		{"ErrInvalidTimeRange", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidTimeRange}},
 		{"ErrCannotDeleteActiveGroup", &activeSvc.ActiveError{Err: activeSvc.ErrCannotDeleteActiveGroup}},
 		{"ErrInvalidData", &activeSvc.ActiveError{Err: activeSvc.ErrInvalidData}},
+		{"ErrNoRoomAvailable", &activeSvc.ActiveError{Err: activeSvc.ErrNoRoomAvailable}},
 		// Database errors
 		{"ErrDatabaseOperation", &activeSvc.ActiveError{Err: activeSvc.ErrDatabaseOperation}},
 	}
@@ -91,8 +98,21 @@ func TestErrorRenderer_ActiveErrors(t *testing.T) {
 	}
 }
 
+func TestErrorRenderer_NoRoomAvailableUsesKioskContract(t *testing.T) {
+	t.Parallel()
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/sessions", nil)
+	require.NoError(t, render.Render(rec, req, shared.ErrorRenderer(activeSvc.ErrNoRoomAvailable)))
+
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Contains(t, rec.Body.String(), "no room available for this activity")
+}
+
 // Test ErrorRenderer for Feedback Service Errors
 func TestErrorRenderer_FeedbackErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -113,12 +133,16 @@ func TestErrorRenderer_FeedbackErrors(t *testing.T) {
 
 // Test ErrorRenderer for Unknown Errors
 func TestErrorRenderer_UnknownError(t *testing.T) {
+	t.Parallel()
+
 	unknownErr := errors.New("unknown error")
 	renderer := shared.ErrorRenderer(unknownErr)
 	assert.NotNil(t, renderer)
 }
 
 func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
+	t.Parallel()
+
 	renderer := shared.ErrorRenderer(&activeSvc.RoomCapacityError{
 		RoomID:           42,
 		RoomName:         "Mensa",
@@ -144,6 +168,8 @@ func TestErrorRenderer_RoomCapacityExceeded(t *testing.T) {
 // must be the documented 404 "person is not a student" instead, which the kiosk
 // already renders in German.
 func TestErrorRenderer_StudentGraduatedUsesContractString(t *testing.T) {
+	t.Parallel()
+
 	renderer := shared.ErrorRenderer(&activeSvc.ActiveError{
 		Op:  "create visit",
 		Err: activeSvc.ErrStudentGraduated,
@@ -158,4 +184,29 @@ func TestErrorRenderer_StudentGraduatedUsesContractString(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), shared.ErrMsgPersonNotStudent)
 	assert.NotContains(t, rec.Body.String(), "graduated",
 		"the kiosk contract string must not leak the internal graduation wording")
+}
+
+// TestErrorRenderer_StudentCareEndedUsesContractString is the #2487 sibling of
+// the test above: a care exit that takes effect between the kiosk's lookup and
+// the write must reach PyrePortal as the SAME documented 404 string. The kiosk
+// maps one message for "this tag belongs to nobody we care for"; a second
+// English sentence would arrive unmapped and show as a generic error, telling
+// the person at the tablet to retry a scan that can never succeed.
+func TestErrorRenderer_StudentCareEndedUsesContractString(t *testing.T) {
+	t.Parallel()
+
+	renderer := shared.ErrorRenderer(&activeSvc.ActiveError{
+		Op:  "create visit",
+		Err: activeSvc.ErrStudentCareEnded,
+	})
+	require.NotNil(t, renderer)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/iot/checkin", nil)
+	require.NoError(t, render.Render(rec, req, renderer))
+
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), shared.ErrMsgPersonNotStudent)
+	assert.NotContains(t, rec.Body.String(), "care has ended",
+		"the kiosk contract string must not leak the internal care-exit wording")
 }

@@ -43,7 +43,6 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -77,10 +76,6 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		} {
 			_, _ = db.NewDelete().ModelTableExpr(table+" AS t").Where("t.tenant_id = ?", tenantID).Exec(context.Background())
 		}
-		testpkg.CleanupStaffFixtures(t, db, staffA.ID, staffB.ID, admin.ID)
-		testpkg.CleanupTableRecords(t, db, "users.persons", adminPerson.ID)
-		testpkg.CleanupTableRecords(t, db, "auth.accounts", adminAccount.ID)
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 	})
 
 	// Session + two edit rows from one save action.
@@ -189,6 +184,8 @@ func eventsBySource(events []*active.AuditLogEvent) map[string][]*active.AuditLo
 }
 
 func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	page, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{})
@@ -264,6 +261,8 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 }
 
 func TestTimeTrackingAuditLog_Filters(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	t.Run("staff filter keeps grouped events the person is part of", func(t *testing.T) {
@@ -341,6 +340,8 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 }
 
 func TestTimeTrackingAuditLog_KeysetPagination(t *testing.T) {
+	t.Parallel()
+
 	f := newAuditLogFixture(t)
 
 	all, err := f.svc.ListAuditLog(f.ctx, active.AuditLogListRequest{})

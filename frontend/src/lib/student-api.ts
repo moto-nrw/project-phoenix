@@ -592,7 +592,13 @@ export interface StudentDeletionImpact {
 }
 
 export type StudentDeletionReason =
-  "test_data" | "incorrect_entry" | "duplicate" | "privacy_request";
+  | "test_data"
+  | "incorrect_entry"
+  | "duplicate"
+  | "privacy_request"
+  // Nur für Kinder, deren Betreuung beendet ist (#2487): der reguläre
+  // Austritt liegt lange genug zurück, die Aufbewahrungsfrist ist um.
+  | "retention_expired";
 
 export interface DeleteStudentWithDataInput {
   expected_fingerprint: string;

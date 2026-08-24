@@ -52,6 +52,19 @@ describe("messaging-status — ChatMessage type", () => {
     expect(msg.read_by_staff).toBe(false);
   });
 
+  it("accepts every backend request type on event messages", () => {
+    const requestTypes: NonNullable<ChatMessage["request_type"]>[] = [
+      "care_schedule",
+      "pickup_change",
+      "master_data",
+      "excused_absence",
+      "sick_absence",
+      "care_offering",
+    ];
+
+    expect(requestTypes).toHaveLength(6);
+  });
+
   it("allows optional read-receipt fields to be absent", () => {
     const msg: ChatMessage = {
       id: "3",
@@ -193,6 +206,14 @@ describe("parentEventI18nDescriptor", () => {
         kind: "event",
         event_type: "request_created",
         request_status: "offen",
+        request_type: "sick_absence",
+      }),
+    ).toEqual({ key: "eventRequestCreatedSickAbsence" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_created",
+        request_status: "offen",
         request_type: "care_offering",
       }),
     ).toEqual({ key: "eventRequestCreatedCareOffering" });
@@ -207,6 +228,14 @@ describe("parentEventI18nDescriptor", () => {
         request_type: "excused_absence",
       }),
     ).toEqual({ key: "eventRequestConfirmedExcusedAbsence" });
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "sick_absence",
+      }),
+    ).toEqual({ key: "eventRequestConfirmedSickAbsence" });
   });
 
   it("maps a confirmed care-offering request to its own localized key (#1665)", () => {
@@ -218,6 +247,39 @@ describe("parentEventI18nDescriptor", () => {
         request_type: "care_offering",
       }),
     ).toEqual({ key: "eventRequestConfirmedCareOffering" });
+  });
+
+  it("names the confirmed date of a care-offering approval (#2484)", () => {
+    expect(
+      parentEventI18nDescriptor({
+        kind: "event",
+        event_type: "request_status",
+        request_status: "erledigt",
+        request_type: "care_offering",
+        payload: { effective_from: "2026-09-01" },
+      }),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "01.09.2026" },
+    });
+  });
+
+  it("formats the confirmed date in the guardian's locale (#2484)", () => {
+    expect(
+      parentEventI18nDescriptor(
+        {
+          kind: "event",
+          event_type: "request_status",
+          request_status: "erledigt",
+          request_type: "care_offering",
+          payload: { effective_from: "2026-09-01" },
+        },
+        "en-US",
+      ),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "09/01/2026" },
+    });
   });
 
   it("returns null for sick_note / care_exception pills so the raw German body renders (#1803)", () => {
@@ -271,6 +333,24 @@ describe("parentThreadPreviewI18nDescriptor", () => {
         last_request_type: "care_schedule",
       }),
     ).toEqual({ key: "eventRequestConfirmedCareSchedule" });
+  });
+
+  it("keeps the confirmed offering date in a thread preview (#2484)", () => {
+    expect(
+      parentThreadPreviewI18nDescriptor(
+        {
+          last_message_kind: "event",
+          last_event_type: "request_status",
+          last_request_status: "erledigt",
+          last_request_type: "care_offering",
+          last_message_payload: { effective_from: "2026-09-01" },
+        },
+        "en-US",
+      ),
+    ).toEqual({
+      key: "eventRequestConfirmedCareOfferingDated",
+      values: { date: "09/01/2026" },
+    });
   });
 
   it("omits the reject reason in previews (localized status only)", () => {

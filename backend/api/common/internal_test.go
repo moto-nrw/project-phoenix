@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 )
@@ -15,11 +15,15 @@ import (
 // =============================================================================
 
 func TestFilterCheckedInStudents_Empty(t *testing.T) {
+	t.Parallel()
+
 	result := filterCheckedInStudents(map[int64]*activeService.AttendanceStatus{})
 	assert.Empty(t, result)
 }
 
 func TestFilterCheckedInStudents_AllCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	attendances := map[int64]*activeService.AttendanceStatus{
 		1: {StudentID: 1, Status: "checked_in"},
 		2: {StudentID: 2, Status: "checked_in"},
@@ -30,6 +34,8 @@ func TestFilterCheckedInStudents_AllCheckedIn(t *testing.T) {
 }
 
 func TestFilterCheckedInStudents_NoneCheckedIn(t *testing.T) {
+	t.Parallel()
+
 	attendances := map[int64]*activeService.AttendanceStatus{
 		1: {StudentID: 1, Status: "not_checked_in"},
 		2: {StudentID: 2, Status: "checked_out"},
@@ -39,6 +45,8 @@ func TestFilterCheckedInStudents_NoneCheckedIn(t *testing.T) {
 }
 
 func TestFilterCheckedInStudents_Mixed(t *testing.T) {
+	t.Parallel()
+
 	attendances := map[int64]*activeService.AttendanceStatus{
 		1: {StudentID: 1, Status: "checked_in"},
 		2: {StudentID: 2, Status: "not_checked_in"},
@@ -51,6 +59,8 @@ func TestFilterCheckedInStudents_Mixed(t *testing.T) {
 }
 
 func TestFilterCheckedInStudents_NilValue(t *testing.T) {
+	t.Parallel()
+
 	attendances := map[int64]*activeService.AttendanceStatus{
 		1: {StudentID: 1, Status: "checked_in"},
 		2: nil, // Nil value should be skipped
@@ -65,11 +75,15 @@ func TestFilterCheckedInStudents_NilValue(t *testing.T) {
 // =============================================================================
 
 func TestExtractActiveGroupIDs_Empty(t *testing.T) {
+	t.Parallel()
+
 	result := extractActiveGroupIDs(map[int64]*activeModels.Visit{})
 	assert.Empty(t, result)
 }
 
 func TestExtractActiveGroupIDs_AllWithGroups(t *testing.T) {
+	t.Parallel()
+
 	visits := map[int64]*activeModels.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 200},
@@ -80,6 +94,8 @@ func TestExtractActiveGroupIDs_AllWithGroups(t *testing.T) {
 }
 
 func TestExtractActiveGroupIDs_DuplicateGroups(t *testing.T) {
+	t.Parallel()
+
 	visits := map[int64]*activeModels.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 100}, // Same group
@@ -90,6 +106,8 @@ func TestExtractActiveGroupIDs_DuplicateGroups(t *testing.T) {
 }
 
 func TestExtractActiveGroupIDs_ZeroGroupID(t *testing.T) {
+	t.Parallel()
+
 	visits := map[int64]*activeModels.Visit{
 		1: {ActiveGroupID: 100},
 		2: {ActiveGroupID: 0}, // Zero should be skipped
@@ -100,6 +118,8 @@ func TestExtractActiveGroupIDs_ZeroGroupID(t *testing.T) {
 }
 
 func TestExtractActiveGroupIDs_NilVisit(t *testing.T) {
+	t.Parallel()
+
 	visits := map[int64]*activeModels.Visit{
 		1: {ActiveGroupID: 100},
 		2: nil, // Nil should be skipped
@@ -114,6 +134,8 @@ func TestExtractActiveGroupIDs_NilVisit(t *testing.T) {
 // =============================================================================
 
 func TestCoalesceMap_NonNilPrimary(t *testing.T) {
+	t.Parallel()
+
 	primary := map[int64]*activeService.AttendanceStatus{
 		1: {StudentID: 1},
 	}
@@ -125,6 +147,8 @@ func TestCoalesceMap_NonNilPrimary(t *testing.T) {
 }
 
 func TestCoalesceMap_NilPrimary(t *testing.T) {
+	t.Parallel()
+
 	fallback := map[int64]*activeService.AttendanceStatus{
 		2: {StudentID: 2},
 	}
@@ -133,6 +157,8 @@ func TestCoalesceMap_NilPrimary(t *testing.T) {
 }
 
 func TestCoalesceMap_BothNil(t *testing.T) {
+	t.Parallel()
+
 	result := coalesce[int64, *activeService.AttendanceStatus](nil, nil)
 	assert.Nil(t, result)
 }
@@ -142,6 +168,8 @@ func TestCoalesceMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestCoalesceVisitMap_NonNilPrimary(t *testing.T) {
+	t.Parallel()
+
 	primary := map[int64]*activeModels.Visit{
 		1: {StudentID: 1},
 	}
@@ -153,6 +181,8 @@ func TestCoalesceVisitMap_NonNilPrimary(t *testing.T) {
 }
 
 func TestCoalesceVisitMap_NilPrimary(t *testing.T) {
+	t.Parallel()
+
 	fallback := map[int64]*activeModels.Visit{
 		2: {StudentID: 2},
 	}
@@ -161,6 +191,8 @@ func TestCoalesceVisitMap_NilPrimary(t *testing.T) {
 }
 
 func TestCoalesceVisitMap_BothNil(t *testing.T) {
+	t.Parallel()
+
 	result := coalesce[int64, *activeModels.Visit](nil, nil)
 	assert.Nil(t, result)
 }
@@ -170,28 +202,32 @@ func TestCoalesceVisitMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestCoalesceGroupMap_NonNilPrimary(t *testing.T) {
-	// Using base.Int64Ptr rather than local int64 literals keeps this test
-	// hermetic: the verifier flags bare `:= int64(1..9)` as a fixture-ID
-	// smell even when the value is only a pointer target.
+	t.Parallel()
+
+	// Typed pointer literals keep the fixture-ID intent explicit.
 	primary := map[int64]*activeModels.Group{
-		1: {GroupID: base.Int64Ptr(1)},
+		101: {GroupID: ptrtest.Ptr(int64(101))},
 	}
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: base.Int64Ptr(2)},
+		102: {GroupID: ptrtest.Ptr(int64(102))},
 	}
 	result := coalesce(primary, fallback)
 	assert.Equal(t, primary, result)
 }
 
 func TestCoalesceGroupMap_NilPrimary(t *testing.T) {
+	t.Parallel()
+
 	fallback := map[int64]*activeModels.Group{
-		2: {GroupID: base.Int64Ptr(2)},
+		102: {GroupID: ptrtest.Ptr(int64(102))},
 	}
 	result := coalesce(nil, fallback)
 	assert.Equal(t, fallback, result)
 }
 
 func TestCoalesceGroupMap_BothNil(t *testing.T) {
+	t.Parallel()
+
 	result := coalesce[int64, *activeModels.Group](nil, nil)
 	assert.Nil(t, result)
 }
@@ -201,6 +237,8 @@ func TestCoalesceGroupMap_BothNil(t *testing.T) {
 // =============================================================================
 
 func TestNewEmptyLocationSnapshot(t *testing.T) {
+	t.Parallel()
+
 	snapshot := newEmptyLocationSnapshot(PresenceModeDetailed)
 
 	assert.NotNil(t, snapshot)
@@ -214,11 +252,15 @@ func TestNewEmptyLocationSnapshot(t *testing.T) {
 }
 
 func TestNewEmptyLocationSnapshot_BinaryMode(t *testing.T) {
+	t.Parallel()
+
 	snapshot := newEmptyLocationSnapshot(PresenceModeBinary)
 	assert.Equal(t, PresenceModeBinary, snapshot.Mode)
 }
 
 func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
+	t.Parallel()
+
 	snapshot := newEmptyLocationSnapshot("")
 	assert.Equal(t, PresenceModeDetailed, snapshot.Mode)
 }
@@ -228,12 +270,16 @@ func TestNewEmptyLocationSnapshot_EmptyModeDefaultsToDetailed(t *testing.T) {
 // =============================================================================
 
 func TestStudentLocationInfo_ZeroValue(t *testing.T) {
+	t.Parallel()
+
 	var info StudentLocationInfo
 	assert.Empty(t, info.Location)
 	assert.Nil(t, info.Since)
 }
 
 func TestStudentLocationInfo_WithValues(t *testing.T) {
+	t.Parallel()
+
 	now := time.Now()
 	info := StudentLocationInfo{
 		Location: "Test Location",

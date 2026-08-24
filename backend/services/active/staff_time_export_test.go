@@ -58,7 +58,6 @@ func (f *overviewFixture) cleanupAccessLogs(t *testing.T) {
 func (f *overviewFixture) newActorAccount(t *testing.T) int64 {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, f.db, "time-export-actor")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, f.db, account.ID) })
 	return account.ID
 }
 
@@ -66,6 +65,8 @@ func (f *overviewFixture) newActorAccount(t *testing.T) int64 {
 // Monatskarte of every staff member — the file must not be able to disagree
 // with the card an admin drills into.
 func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 3)
 
 	// Differentiate: part-time contract, sick day, payout + comp-time bookings.
@@ -144,6 +145,8 @@ func TestMonthExportRows_MatchMonthSummary(t *testing.T) {
 // really starts from), with the live difference visible as drift — never
 // silently smoothed.
 func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0].ID
 	closedMonth := timezone.NewDate(f.today.Year, f.today.Month, 1).AddDays(-1)
@@ -188,6 +191,8 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 // TestMonthExportRows_YearSpansMonths: month=0 exports January through the
 // running month, one row per staff member and month.
 func TestMonthExportRows_YearSpansMonths(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 2)
 
 	rows, err := f.svc.GetMonthExportRows(f.ctx, f.today.Year, 0)
@@ -200,6 +205,8 @@ func TestMonthExportRows_YearSpansMonths(t *testing.T) {
 }
 
 func TestMonthExportRows_RejectsFutureMonth(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 
 	next := f.today.AddDays(40)
@@ -215,6 +222,8 @@ func TestMonthExportRows_RejectsFutureMonth(t *testing.T) {
 // TestStaffTimeExport_CSVAndAudit exercises the full orchestrator: CSV bytes
 // with BOM + header, and the GDPR access-audit row.
 func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 2)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -262,6 +271,8 @@ func (failingAccessLogRepo) ExistsSince(context.Context, int64, string, map[stri
 // TestStaffTimeExport_NoFileWithoutAudit: when the access-audit row cannot be
 // written, no file leaves the service (same contract as enrollment exports).
 func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := active.NewStaffTimeExportService(
@@ -279,6 +290,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 // TestStaffTimeExport_DayRowsMatchSingleExport: a day in the cross-staff file
 // must be identical to the same day in the per-staff download.
 func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 2)
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
@@ -305,6 +318,8 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 }
 
 func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
+	t.Parallel()
+
 	f := newOverviewFixture(t, 1)
 	exportSvc := f.newExportService()
 

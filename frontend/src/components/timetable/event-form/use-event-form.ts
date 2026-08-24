@@ -39,6 +39,7 @@ import {
   getGermanWeekdayLong,
   latestISODate,
   materializedRecurrenceDates,
+  normalizeSchoolClass,
   offeringPhaseStartWarning,
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
@@ -58,17 +59,20 @@ import {
   isoWeekday,
   parseMaxParticipants,
   parseRequiredStaffOverride,
+  plannedStudentIds,
   rosterForWeekday,
   rosterSeedForWeekday,
   schoolClassLabel,
   seedWeekdayRosters,
   sortPeople,
+  sourceScopesOverlap,
   targetCohortActionLabel,
 } from "./form-model";
 import type {
   EventFormState,
   PersonOption,
   RepeatMode,
+  SourceFilterMode,
   WeekdayRosterState,
 } from "./form-model";
 import type {
@@ -1176,6 +1180,10 @@ export function useEventForm({
         nextType === "angebot" ? current.sourceCareOfferingIds : [],
       sourceGradeLevels:
         nextType === "angebot" ? current.sourceGradeLevels : [],
+      sourceSchoolClasses:
+        nextType === "angebot" ? current.sourceSchoolClasses : [],
+      sourceFilterMode:
+        nextType === "angebot" ? current.sourceFilterMode : "alle",
       // Leaving "angebot" clears the source above, so the manual roster
       // stashed when the source was picked must come back with it, exactly
       // like clearing the source in place. Keeping the emptied list would
@@ -1446,11 +1454,23 @@ export function useEventForm({
       form.sourceCareOfferingIds.length > 0
         ? form.sourceCareOfferingIds.map(Number)
         : null,
+    // Jahrgang und Klasse schließen sich aus (#2482): der aktive Modus
+    // bestimmt, welche Liste gesendet wird; die andere geht als explizites
+    // null raus, damit ein gespeicherter Filter beim Umschalten wirklich
+    // fällt statt vom presence-aware PUT wieder hereingezogen zu werden.
     source_grade_levels:
       form.targetGroupType === "angebot" &&
       form.sourceCareOfferingIds.length > 0 &&
+      form.sourceFilterMode === "jahrgang" &&
       form.sourceGradeLevels.length > 0
         ? [...form.sourceGradeLevels].sort((a, b) => a - b)
+        : null,
+    source_school_classes:
+      form.targetGroupType === "angebot" &&
+      form.sourceCareOfferingIds.length > 0 &&
+      form.sourceFilterMode === "klasse" &&
+      form.sourceSchoolClasses.length > 0
+        ? [...form.sourceSchoolClasses].sort((a, b) => a.localeCompare(b, "de"))
         : null,
     targets:
       form.targetGroupType === "jahrgang"
@@ -1813,6 +1833,13 @@ export function useEventForm({
         template.sourceGradeLevels &&
         template.sourceGradeLevels.length > 0
           ? template.sourceGradeLevels
+          : null,
+      source_school_classes:
+        template.sourceCareOfferingIds &&
+        template.sourceCareOfferingIds.length > 0 &&
+        template.sourceSchoolClasses &&
+        template.sourceSchoolClasses.length > 0
+          ? template.sourceSchoolClasses
           : null,
       targets: template.targets?.map((target) => ({
         type: target.type,
@@ -3016,6 +3043,9 @@ export function useEventForm({
   // The manual shared roster as it was before a source was selected in this
   // session — restored when the source is cleared again (#2147 review).
   const preSourceStudentIdsRef = useRef<string[]>([]);
+  // Same value as render-visible state: the Umstiegs-Vorschau (#2482) has to
+  // re-render when the stash changes, and a ref never triggers that.
+  const [preSourceStudentIds, setPreSourceStudentIds] = useState<string[]>([]);
   const wantsOfferingSources =
     expanded && isSeriesFlow && form.targetGroupType === "angebot";
   useEffect(() => {
@@ -3066,12 +3096,19 @@ export function useEventForm({
   // until it answers, the per-offering sums serve as an optimistic preview.
   const [combinedSourceCounts, setCombinedSourceCounts] =
     useState<CombinedOfferingCounts | null>(null);
+  // Without this the Klassen-Auswahl would sit in "wird ermittelt ..."
+  // forever after a failed request — a dead end with nothing the admin can
+  // act on (.claude/rules/verstaendlichkeit.md).
+  const [combinedSourceCountsError, setCombinedSourceCountsError] = useState<
+    string | null
+  >(null);
   const combinedCountsKey = form.sourceCareOfferingIds.join(",");
   useEffect(() => {
     // Reset FIRST: after adding or removing an offering the previous exact
     // counts describe the old selection — until the new answer lands, the
     // per-offering sums must serve as the preview again.
     setCombinedSourceCounts(null);
+    setCombinedSourceCountsError(null);
     if (!wantsOfferingSources || combinedCountsKey === "") {
       return;
     }
@@ -3088,7 +3125,12 @@ export function useEventForm({
         logger.error("combined_offering_counts_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (!cancelled) setCombinedSourceCounts(null);
+        if (!cancelled) {
+          setCombinedSourceCounts(null);
+          setCombinedSourceCountsError(
+            "Die Kinder der gewählten Angebote konnten nicht geladen werden. Bitte schließen Sie das Fenster und öffnen Sie es erneut.",
+          );
+        }
       });
     return () => {
       cancelled = true;
@@ -3123,26 +3165,153 @@ export function useEventForm({
     return [...grades].sort((a, b) => a - b);
   }, [form.sourceGradeLevels, selectedOfferingSources]);
 
+  // The class filter (#2482) is evaluated on the child list the combined
+  // endpoint returns — Klassen are free text and cannot be derived from the
+  // per-offering Jahrgang buckets. While the answer is outstanding the editor
+  // says so instead of showing a wrong "0 Kinder".
+  const sourceCountsPending =
+    selectedOfferingSources.length > 0 &&
+    combinedSourceCounts === null &&
+    combinedSourceCountsError === null;
+
+  // Klassen offered for the filter: every class with enrolled children plus
+  // the already-selected ones, so a saved filter stays visible even when its
+  // class currently has no children.
+  const sourceClassOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const student of combinedSourceCounts?.students ?? []) {
+      const label = student.schoolClass.trim();
+      if (label === "") continue;
+      const key = normalizeSchoolClass(label);
+      if (!byKey.has(key)) byKey.set(key, label);
+    }
+    for (const selected of form.sourceSchoolClasses) {
+      const label = selected.trim();
+      if (label === "") continue;
+      const key = normalizeSchoolClass(label);
+      if (!byKey.has(key)) byKey.set(key, label);
+    }
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b, "de"));
+  }, [combinedSourceCounts, form.sourceSchoolClasses]);
+
+  const sourceClassCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const student of combinedSourceCounts?.students ?? []) {
+      const key = normalizeSchoolClass(student.schoolClass);
+      if (key === "") continue;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }, [combinedSourceCounts]);
+
+  // The children the current filter captures, by id. Only derivable once the
+  // combined endpoint answered; the counts below fall back to sums until then.
+  const sourceFilteredStudentIds = useMemo(() => {
+    const students = combinedSourceCounts?.students ?? [];
+    if (students.length === 0) return [] as string[];
+    if (form.sourceFilterMode === "klasse") {
+      const selected = new Set(
+        form.sourceSchoolClasses.map(normalizeSchoolClass),
+      );
+      if (selected.size === 0) return students.map((s) => s.studentId);
+      return students
+        .filter((student) =>
+          selected.has(normalizeSchoolClass(student.schoolClass)),
+        )
+        .map((student) => student.studentId);
+    }
+    if (
+      form.sourceFilterMode === "jahrgang" &&
+      form.sourceGradeLevels.length > 0
+    ) {
+      const selected = new Set(form.sourceGradeLevels);
+      return students
+        .filter((student) => {
+          const grade = getSchoolYear(student.schoolClass.trim());
+          return grade !== null && selected.has(Number(grade));
+        })
+        .map((student) => student.studentId);
+    }
+    return students.map((student) => student.studentId);
+  }, [
+    combinedSourceCounts,
+    form.sourceFilterMode,
+    form.sourceGradeLevels,
+    form.sourceSchoolClasses,
+  ]);
+
   // Live count of children the current filter captures — deduplicated
   // across the selected offerings once the combined endpoint answered.
   const sourceFilteredCount = useMemo(() => {
     if (selectedOfferingSources.length === 0) return 0;
-    if (form.sourceGradeLevels.length === 0) {
-      if (combinedSourceCounts) return combinedSourceCounts.totalCount;
-      return selectedOfferingSources.reduce(
-        (sum, offering) => sum + offering.totalCount,
+    if (combinedSourceCounts) {
+      if (
+        form.sourceFilterMode === "alle" ||
+        (form.sourceFilterMode === "jahrgang" &&
+          form.sourceGradeLevels.length === 0) ||
+        (form.sourceFilterMode === "klasse" &&
+          form.sourceSchoolClasses.length === 0)
+      ) {
+        return combinedSourceCounts.totalCount;
+      }
+      return sourceFilteredStudentIds.length;
+    }
+    // Before the exact answer lands only the Jahrgang path has per-offering
+    // sums to fall back on.
+    if (
+      form.sourceFilterMode === "jahrgang" &&
+      form.sourceGradeLevels.length > 0
+    ) {
+      return form.sourceGradeLevels.reduce(
+        (sum, grade) => sum + (sourceGradeCounts[grade] ?? 0),
         0,
       );
     }
-    return form.sourceGradeLevels.reduce(
-      (sum, grade) => sum + (sourceGradeCounts[grade] ?? 0),
+    if (form.sourceFilterMode === "klasse") return 0;
+    return selectedOfferingSources.reduce(
+      (sum, offering) => sum + offering.totalCount,
       0,
     );
   }, [
+    form.sourceFilterMode,
     form.sourceGradeLevels,
+    form.sourceSchoolClasses,
     selectedOfferingSources,
     combinedSourceCounts,
     sourceGradeCounts,
+    sourceFilteredStudentIds,
+  ]);
+
+  // Umstiegs-Vorschau (#2482): converting a manually curated Regeltermin into
+  // a sourced one replaces its child list. Naming who joins and who drops out
+  // BEFORE the save is the "keine stille Übernahme falscher Kinderlisten"
+  // requirement — the school at Berg had wrong manual lists and no way to see
+  // it. Only shown while a manual roster was actually replaced in this
+  // session and the exact child set is known.
+  const sourceRosterDiff = useMemo(() => {
+    if (preSourceStudentIds.length === 0) return null;
+    if (selectedOfferingSources.length === 0) return null;
+    if (!combinedSourceCounts) return null;
+    const nameOf = (id: string) =>
+      students.find((student) => student.id === id)?.name ?? "Unbekanntes Kind";
+    const next = new Set(sourceFilteredStudentIds);
+    const previous = new Set(preSourceStudentIds);
+    const added = sourceFilteredStudentIds
+      .filter((id) => !previous.has(id))
+      .map(nameOf)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    const removed = preSourceStudentIds
+      .filter((id) => !next.has(id))
+      .map(nameOf)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    if (added.length === 0 && removed.length === 0) return null;
+    return { added, removed };
+  }, [
+    preSourceStudentIds,
+    selectedOfferingSources,
+    combinedSourceCounts,
+    sourceFilteredStudentIds,
+    students,
   ]);
 
   // OGS am Berg: series start before the phase service window leaves the first
@@ -3151,13 +3320,21 @@ export function useEventForm({
     return offeringPhaseStartWarning(selectedOfferingSources[0], form.date);
   }, [selectedOfferingSources, form.date]);
 
-  // Other Termine sourcing the same offering whose Jahrgang subsets overlap
-  // the current filter (empty filter = alle Jahrgänge). Advisory only — the
-  // save is never blocked, mirroring the conflict warnings.
+  // Other Termine sourcing the same offering whose Zielgruppe overlaps the
+  // current filter (kein Filter = alle Kinder). Advisory only — the save is
+  // never blocked, mirroring the conflict warnings. Klassen- und
+  // Jahrgangsfilter (#2482) werden gemeinsam geprüft: „1b“ und „Jahrgang 1“
+  // greifen auf dieselben Kinder zu, auch wenn die Listen nichts gemeinsam
+  // haben.
   const sourceOverlapWarnings = useMemo(() => {
     if (selectedOfferingSources.length === 0) return [] as string[];
     const currentTemplateId = effectiveSeries?.id;
-    const selected = form.sourceGradeLevels;
+    const selectedGrades =
+      form.sourceFilterMode === "jahrgang" ? form.sourceGradeLevels : [];
+    const selectedClasses =
+      form.sourceFilterMode === "klasse"
+        ? form.sourceSchoolClasses.map(normalizeSchoolClass)
+        : [];
     const seen = new Set<string>();
     const warnings: string[] = [];
     for (const offering of selectedOfferingSources) {
@@ -3165,26 +3342,37 @@ export function useEventForm({
         if (template.id === currentTemplateId || seen.has(template.id)) {
           continue;
         }
-        const other = template.gradeLevels;
+        const otherClasses = template.schoolClasses.map(normalizeSchoolClass);
         if (
-          selected.length > 0 &&
-          other.length > 0 &&
-          !other.some((grade) => selected.includes(grade))
+          !sourceScopesOverlap(
+            selectedGrades,
+            selectedClasses,
+            template.gradeLevels,
+            otherClasses,
+          )
         ) {
           continue;
         }
         seen.add(template.id);
         const scope =
-          template.gradeLevels.length > 0
-            ? `Jahrgang ${template.gradeLevels.join(", ")}`
-            : "alle Jahrgänge";
+          otherClasses.length > 0
+            ? `Klasse ${template.schoolClasses.join(", ")}`
+            : template.gradeLevels.length > 0
+              ? `Jahrgang ${template.gradeLevels.join(", ")}`
+              : "alle Kinder des Angebots";
         warnings.push(
-          `„${template.name}“ nutzt dasselbe Angebot „${offering.name}“ (${scope}). Kinder mit gemeinsamem Jahrgang werden in beiden Regelterminen eingeplant.`,
+          `„${template.name}“ nutzt dasselbe Angebot „${offering.name}“ (${scope}). Kinder, die in beide Zielgruppen fallen, werden in beiden Regelterminen eingeplant.`,
         );
       }
     }
     return warnings;
-  }, [form.sourceGradeLevels, effectiveSeries?.id, selectedOfferingSources]);
+  }, [
+    form.sourceFilterMode,
+    form.sourceGradeLevels,
+    form.sourceSchoolClasses,
+    effectiveSeries?.id,
+    selectedOfferingSources,
+  ]);
 
   const applySourceOfferingIds = (nextIds: string[]) => {
     // Selecting the first source clears the manual roster (server-managed).
@@ -3193,7 +3381,13 @@ export function useEventForm({
     // on save (#2147 review). The ref is touched here, outside the updater,
     // so the updater stays pure.
     if (nextIds.length > 0 && form.sourceCareOfferingIds.length === 0) {
+      // The ref feeds the RESTORE path, so it keeps the shared list verbatim:
+      // clearing the last source puts exactly that list back. The diff state
+      // instead takes every child the manual plan held, per-weekday lists
+      // included — otherwise the Umstiegs-Vorschau reports "nothing falls
+      // away" for a plan whose children live per weekday (#2482).
       preSourceStudentIdsRef.current = form.studentIds;
+      setPreSourceStudentIds(plannedStudentIds(form));
     }
     if (nextIds.length > 0 && form.perWeekdayRoster) {
       staffRosterTouched.current = true;
@@ -3208,6 +3402,10 @@ export function useEventForm({
         // survives adding/removing single offerings and falls only with the
         // last source.
         sourceGradeLevels: nextIds.length > 0 ? current.sourceGradeLevels : [],
+        sourceSchoolClasses:
+          nextIds.length > 0 ? current.sourceSchoolClasses : [],
+        sourceFilterMode:
+          nextIds.length > 0 ? current.sourceFilterMode : "alle",
         // The sourced roster is server-managed; clearing the last source
         // restores the manual roster picked before the first source was set.
         studentIds:
@@ -3261,6 +3459,7 @@ export function useEventForm({
     // template would otherwise restore (and save) another template's picks
     // (#2147 review round 10).
     preSourceStudentIdsRef.current = [];
+    setPreSourceStudentIds([]);
   }, [isOpen]);
 
   const changeSourceOfferings = (nextIds: string[]) => {
@@ -3289,6 +3488,33 @@ export function useEventForm({
       sourceGradeLevels: current.sourceGradeLevels.includes(grade)
         ? current.sourceGradeLevels.filter((item) => item !== grade)
         : [...current.sourceGradeLevels, grade].sort((a, b) => a - b),
+    }));
+  };
+
+  const toggleSourceSchoolClass = (schoolClass: string) => {
+    const key = normalizeSchoolClass(schoolClass);
+    setForm((current) => ({
+      ...current,
+      sourceSchoolClasses: current.sourceSchoolClasses.some(
+        (item) => normalizeSchoolClass(item) === key,
+      )
+        ? current.sourceSchoolClasses.filter(
+            (item) => normalizeSchoolClass(item) !== key,
+          )
+        : [...current.sourceSchoolClasses, schoolClass.trim()].sort((a, b) =>
+            a.localeCompare(b, "de"),
+          ),
+    }));
+  };
+
+  // Jahrgang und Klasse schließen sich aus (#2482): der Wechsel leert die
+  // Liste, die nicht mehr gilt, damit im Formular nie beide gefüllt sind.
+  const changeSourceFilterMode = (mode: SourceFilterMode) => {
+    setForm((current) => ({
+      ...current,
+      sourceFilterMode: mode,
+      sourceGradeLevels: mode === "jahrgang" ? current.sourceGradeLevels : [],
+      sourceSchoolClasses: mode === "klasse" ? current.sourceSchoolClasses : [],
     }));
   };
 
@@ -3471,7 +3697,12 @@ export function useEventForm({
     sourcePhaseLockId,
     sourceGradeOptions,
     sourceGradeCounts,
+    sourceClassOptions,
+    sourceClassCounts,
     sourceFilteredCount,
+    sourceCountsPending,
+    sourceCountsError: combinedSourceCountsError,
+    sourceRosterDiff,
     sourcePhaseKidsFromWarning,
     sourceOverlapWarnings,
     changeSourceOfferings,
@@ -3479,6 +3710,8 @@ export function useEventForm({
     confirmPendingSourceOffering,
     cancelPendingSourceOffering,
     toggleSourceGradeLevel,
+    toggleSourceSchoolClass,
+    changeSourceFilterMode,
     targetCohort,
     missingTargetCohortCount,
     targetCohortButtonLabel,

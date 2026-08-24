@@ -13,6 +13,8 @@ const enrollmentTestSecret = "test-secret-must-be-at-least-32-characters-long"
 // --- MFAEnrollmentClaims.ParseClaims happy + rejection paths -----------------
 
 func TestMFAEnrollmentClaims_TenantRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
 	require.NoError(t, err)
 
@@ -46,6 +48,8 @@ func TestMFAEnrollmentClaims_TenantRoundTrip(t *testing.T) {
 }
 
 func TestMFAEnrollmentClaims_PlatformRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
 	require.NoError(t, err)
 
@@ -72,6 +76,8 @@ func TestMFAEnrollmentClaims_PlatformRoundTrip(t *testing.T) {
 }
 
 func TestMFAEnrollmentClaims_RejectsMissingAccountID(t *testing.T) {
+	t.Parallel()
+
 	var c MFAEnrollmentClaims
 	err := c.ParseClaims(map[string]any{
 		"mfa_enrollment_pending": true,
@@ -81,6 +87,8 @@ func TestMFAEnrollmentClaims_RejectsMissingAccountID(t *testing.T) {
 }
 
 func TestMFAEnrollmentClaims_RejectsBadScope(t *testing.T) {
+	t.Parallel()
+
 	var c MFAEnrollmentClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":             float64(4242),
@@ -91,6 +99,8 @@ func TestMFAEnrollmentClaims_RejectsBadScope(t *testing.T) {
 }
 
 func TestMFAEnrollmentClaims_RejectsNonPendingToken(t *testing.T) {
+	t.Parallel()
+
 	var c MFAEnrollmentClaims
 	err := c.ParseClaims(map[string]any{
 		"account_id":             float64(4242),
@@ -103,6 +113,8 @@ func TestMFAEnrollmentClaims_RejectsNonPendingToken(t *testing.T) {
 // --- ParseMFAEnrollmentJWT round-trip + edge cases ---------------------------
 
 func TestParseMFAEnrollmentJWT_TenantRoundTrip(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
 	require.NoError(t, err)
 
@@ -121,6 +133,8 @@ func TestParseMFAEnrollmentJWT_TenantRoundTrip(t *testing.T) {
 }
 
 func TestParseMFAEnrollmentJWT_RejectsGarbage(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
 	require.NoError(t, err)
 	_, err = ta.ParseMFAEnrollmentJWT("not-a-jwt")
@@ -128,6 +142,8 @@ func TestParseMFAEnrollmentJWT_RejectsGarbage(t *testing.T) {
 }
 
 func TestParseMFAEnrollmentJWT_RejectsExpired(t *testing.T) {
+	t.Parallel()
+
 	ta, err := NewTokenAuthWithSecret(enrollmentTestSecret)
 	require.NoError(t, err)
 
@@ -142,6 +158,8 @@ func TestParseMFAEnrollmentJWT_RejectsExpired(t *testing.T) {
 }
 
 func TestParseMFAEnrollmentJWT_RejectsRegularAccessToken(t *testing.T) {
+	t.Parallel()
+
 	// A regular access JWT happens to be valid signed JSON but lacks
 	// mfa_enrollment_pending — ParseMFAEnrollmentJWT must reject it so a
 	// regular session token can never authorize /auth/mfa/enroll/*.
@@ -165,6 +183,8 @@ func TestParseMFAEnrollmentJWT_RejectsRegularAccessToken(t *testing.T) {
 // --- AppClaims defense-in-depth: reject mfa_pending and mfa_enrollment_pending ---
 
 func TestAppClaims_RejectsMFAPendingToken(t *testing.T) {
+	t.Parallel()
+
 	// A challenge JWT happens to ALSO have id/sub/roles populated. Without
 	// the explicit reject, AppClaims.ParseClaims would accept it and the
 	// regular Authenticator would treat it as a fully authenticated
@@ -182,6 +202,8 @@ func TestAppClaims_RejectsMFAPendingToken(t *testing.T) {
 }
 
 func TestAppClaims_RejectsMFAEnrollmentPendingToken(t *testing.T) {
+	t.Parallel()
+
 	// Same shape as TestAppClaims_RejectsMFAPendingToken but for the new
 	// enrollment-pending discriminator (Item #1 of the #1430 review).
 	var c AppClaims

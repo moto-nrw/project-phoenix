@@ -9,9 +9,14 @@ import React, {
   useMemo,
 } from "react";
 import { useSession } from "next-auth/react";
-import { hasPermission, isAdmin, isCaregiver } from "~/lib/auth-utils";
+import {
+  hasEffectiveAdminScope,
+  hasPermission,
+  isCaregiver,
+} from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { useLatest } from "~/lib/hooks/use-latest";
+import { useOperationalOverviewScope } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "SupervisionContext" });
 
@@ -44,6 +49,7 @@ interface SchulhofStatus {
 
 const SCHULHOF_ROOM_NAME = "Schulhof";
 const SCHULHOF_TAB_ID = "schulhof";
+const RESYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 interface SupervisionState {
   // Group supervision
@@ -58,11 +64,13 @@ interface SupervisionState {
   supervisedRooms: SupervisedRoom[];
   isLoadingSupervision: boolean;
 
-  // True when the caller fetched supervision rooms via the admin overview
-  // endpoint (/api/active/supervisors/all). False for regular staff or when
-  // the setting is disabled. Used by pages to gate admin-only views so that
-  // a synthetic Schulhof entry does not count as an enabled overview.
-  adminOverviewEnabled: boolean;
+  // True when the caller fetched supervision rooms via the school-wide
+  // overview endpoint (/api/active/supervisors/all), i.e. the server confirmed
+  // this person may see and operate every running module (#2380). False when
+  // the school keeps everyone on their own supervisions. Pages gate on this
+  // rather than on room count, so a synthetic Schulhof entry never counts as
+  // an enabled overview.
+  overviewEnabled: boolean;
 }
 
 interface SupervisionContextType extends SupervisionState {
@@ -97,22 +105,33 @@ export function SupervisionProvider({
     supervisedRoomName: undefined,
     supervisedRooms: [],
     isLoadingSupervision: true,
-    adminOverviewEnabled: false,
+    overviewEnabled: false,
   });
 
   // Debounce mechanism to prevent rapid successive calls
   const isRefreshingRef = React.useRef(false);
   const lastRefreshRef = React.useRef<number>(0);
   const pendingGroupsRefreshRef = React.useRef(false);
+  const pendingFullRefreshRef = React.useRef(false);
 
   // Store token and admin status in refs to avoid dependency loops.
-  // Any admin (including dual-role teacher-admins) tries the admin-overview
-  // endpoint first. The server-side setting is the single source of truth for
-  // whether all rooms are visible; users without opt-in fall back to their
-  // own scope via the staff endpoint.
+  // EVERY caller with `groups:read` tries the school-wide overview endpoint
+  // first — admins and caregivers alike (#2380). The server-side scope
+  // setting is the single source of truth for whether all rooms are visible;
+  // a 403 means this school keeps the caller on their own supervisions, and
+  // the staff endpoint answers instead.
   const tokenRef = useLatest(session?.user?.token);
-  const sessionIsAdmin = isAdmin(session);
-  const isAdminRef = useLatest(sessionIsAdmin);
+  const sessionHasEffectiveAdminScope = hasEffectiveAdminScope(session);
+
+  // The tenant's configured scope tells us whether asking for the school-wide
+  // list can succeed at all. It is a hint that saves a guaranteed 403 per
+  // refresh, never the decision: the server answers every request itself, and
+  // a 403 still falls back to the caller's own supervisions below.
+  const overviewScope = useOperationalOverviewScope();
+  const mayHaveOverview =
+    overviewScope === "all_staff" ||
+    (overviewScope === "admins" && sessionHasEffectiveAdminScope);
+  const mayHaveOverviewRef = useLatest(mayHaveOverview);
 
   // Whether the user may read group/supervision data. The Schulhof status
   // endpoint is gated by `groups:read` on the backend, so accounts with an
@@ -124,7 +143,7 @@ export function SupervisionProvider({
   const sessionPermissions = session?.user?.permissions;
   const hasExplicitPermissions = Array.isArray(sessionPermissions);
   const canReadGroups =
-    sessionIsAdmin ||
+    sessionHasEffectiveAdminScope ||
     hasPermission(session, "groups:read") ||
     (!hasExplicitPermissions && isCaregiver(session));
   const canReadGroupsRef = useLatest(canReadGroups);
@@ -239,40 +258,42 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
       }));
       return;
     }
 
-    // Tracks whether the admin overview endpoint actually responded with data
-    // (i.e. the setting is enabled). Only set to true on a successful response.
-    let adminOverviewOk = false;
+    // Tracks whether the school-wide overview endpoint actually responded
+    // with data. Only set to true on a successful response.
+    let overviewOk = false;
 
     try {
-      // Admins: try the admin overview endpoint first. On any non-OK
-      // response (403 = setting disabled; 5xx/network = transient), fall
+      // Try the school-wide overview endpoint first for every caller who may
+      // read groups at all. On any non-OK response (403 = this school keeps
+      // the caller on their own supervisions; 5xx/network = transient), fall
       // back to the regular staff endpoint so the user at least keeps their
       // own supervisions instead of an empty sidebar.
-      // Regular staff: fetch own supervised groups directly.
+      // The endpoint is gated on `groups:read`, so accounts without it skip
+      // straight to the permission-less /me endpoint.
       const fetchSupervisedGroups = async (): Promise<Response> => {
-        if (!isAdminRef.current) {
+        if (!canReadGroupsRef.current || !mayHaveOverviewRef.current) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
           });
         }
-        const adminResponse = await fetch("/api/active/supervisors/all", {
+        const overviewResponse = await fetch("/api/active/supervisors/all", {
           headers: { "Content-Type": "application/json" },
           cache: "no-store",
         });
-        if (!adminResponse.ok) {
+        if (!overviewResponse.ok) {
           return fetch("/api/me/groups/supervised", {
             headers: { "Content-Type": "application/json" },
             cache: "no-store",
           });
         }
-        adminOverviewOk = true;
-        return adminResponse;
+        overviewOk = true;
+        return overviewResponse;
       };
 
       // Fetch supervised groups and Schulhof status in parallel.
@@ -405,7 +426,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: newSupervisedRooms,
               isLoadingSupervision: false,
-              adminOverviewEnabled: adminOverviewOk,
+              overviewEnabled: overviewOk,
             };
           });
         } else {
@@ -439,7 +460,7 @@ export function SupervisionProvider({
               supervisedRoomName: newRoomName,
               supervisedRooms: roomsWithSchulhof,
               isLoadingSupervision: false,
-              adminOverviewEnabled: adminOverviewOk,
+              overviewEnabled: overviewOk,
             };
           });
         }
@@ -471,7 +492,7 @@ export function SupervisionProvider({
             supervisedRoomName: newRoomName,
             supervisedRooms: roomsOnError,
             isLoadingSupervision: false,
-            adminOverviewEnabled: false,
+            overviewEnabled: false,
           };
         });
       }
@@ -495,11 +516,11 @@ export function SupervisionProvider({
           supervisedRoomName: undefined,
           supervisedRooms: [],
           isLoadingSupervision: false,
-          adminOverviewEnabled: false,
+          overviewEnabled: false,
         };
       });
     }
-  }, [canReadGroupsRef, isAdminRef, tokenRef]);
+  }, [canReadGroupsRef, mayHaveOverviewRef, tokenRef]);
 
   // Check Schulhof status and add to supervised rooms if exists
   // Refresh all supervision states with debouncing
@@ -542,7 +563,11 @@ export function SupervisionProvider({
         : [checkGroups(), checkSupervision()];
       await Promise.all(work).finally(() => {
         isRefreshingRef.current = false;
-        if (pendingGroupsRefreshRef.current) {
+        if (pendingFullRefreshRef.current) {
+          pendingFullRefreshRef.current = false;
+          pendingGroupsRefreshRef.current = false;
+          void refreshRef.current?.({ silent: true, force: true });
+        } else if (pendingGroupsRefreshRef.current) {
           pendingGroupsRefreshRef.current = false;
           void refreshRef.current?.({
             silent: true,
@@ -559,6 +584,17 @@ export function SupervisionProvider({
   useEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
+
+  const previousOverviewScopeRef = React.useRef(overviewScope);
+
+  // Saving the setting refreshes supervision before tenant metadata has
+  // necessarily revalidated. Refresh once more after the resolved scope
+  // changes so the room list cannot remain widened or restricted until SSE.
+  useEffect(() => {
+    if (previousOverviewScopeRef.current === overviewScope) return;
+    previousOverviewScopeRef.current = overviewScope;
+    void refreshRef.current?.({ silent: true, force: true });
+  }, [overviewScope]);
 
   // Initial load and refresh on session changes only
   useEffect(() => {
@@ -580,35 +616,43 @@ export function SupervisionProvider({
         supervisedRoomName: undefined,
         supervisedRooms: [],
         isLoadingSupervision: false,
-        adminOverviewEnabled: false,
+        overviewEnabled: false,
       });
     }
   }, [session?.user?.token]); // Only depend on token
 
-  // A group handover or Vertretung changed which groups this account may open
-  // (#2084). This provider holds its group list in local state behind its own
-  // fetch, not SWR, so the global SSE cache invalidation cannot reach it — and
-  // the sidebar's "Meine Gruppen" list is exactly what a colleague looks at
-  // after a handover. useGlobalSSE announces the change on this window event
-  // (mirroring the reminders / care-schedule decoupling) and the provider owns
-  // the refetch. force: true bypasses the 5-second throttle, which a handover
-  // arriving right after another refresh would otherwise swallow, leaving the
-  // group invisible until the next minute tick.
+  // SSE is a trigger channel, not durable state. A low-frequency resync
+  // repairs missed events or an unavailable connection without restoring the
+  // former per-minute request load.
   useEffect(() => {
     if (!session?.user?.token) return;
 
-    const handleStale = () => {
-      // groupsOnly: a group-access change cannot touch the supervision half.
-      // checkSupervision reads active.supervisors and active.groups (Schulhof
-      // status), neither of which education.group_teacher or
-      // education.group_substitution writes — running it here would fire two
-      // guaranteed-no-op requests per client on every handover.
+    const interval = setInterval(() => {
+      refreshRef.current?.({ silent: true, force: true }).catch(() => {
+        // Intentionally ignored - silent background refresh
+      });
+    }, RESYNC_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [session?.user?.token]);
+
+  // SSE announces access changes and activity lifecycle changes. The provider
+  // owns these raw fetches, so it also owns the precise refresh scope.
+  useEffect(() => {
+    if (!session?.user?.token) return;
+
+    const handleStale = (event: Event) => {
+      const groupsOnly =
+        !(event instanceof CustomEvent) || event.detail?.groupsOnly !== false;
       if (isRefreshingRef.current) {
-        pendingGroupsRefreshRef.current = true;
+        if (groupsOnly) {
+          pendingGroupsRefreshRef.current = true;
+        } else {
+          pendingFullRefreshRef.current = true;
+        }
         return;
       }
       refreshRef
-        .current?.({ silent: true, force: true, groupsOnly: true })
+        .current?.({ silent: true, force: true, groupsOnly })
         .catch(() => {
           // Intentionally ignored - silent background refresh
         });
@@ -617,25 +661,10 @@ export function SupervisionProvider({
     window.addEventListener("phoenix:supervision-stale", handleStale);
     return () => {
       pendingGroupsRefreshRef.current = false;
+      pendingFullRefreshRef.current = false;
       window.removeEventListener("phoenix:supervision-stale", handleStale);
     };
   }, [session?.user?.token]);
-
-  // Periodic refresh every minute for timely supervision updates (silent mode)
-  useEffect(() => {
-    if (!session?.user?.token) return;
-
-    const interval = setInterval(() => {
-      // Use silent refresh to avoid UI flicker - errors handled internally
-      if (refreshRef.current) {
-        refreshRef.current({ silent: true }).catch(() => {
-          // Intentionally ignored - silent background refresh
-        });
-      }
-    }, 60000); // 1 minute - ensures supervision changes are reflected quickly
-
-    return () => clearInterval(interval);
-  }, [session?.user?.token]); // Only depend on token
 
   const value = useMemo<SupervisionContextType>(
     () => ({ ...state, refresh }),
@@ -671,7 +700,7 @@ const EMPTY_SUPERVISION: SupervisionContextType = {
   isSupervising: false,
   supervisedRooms: [],
   isLoadingSupervision: false,
-  adminOverviewEnabled: false,
+  overviewEnabled: false,
   // eslint-disable-next-line no-empty-function -- safe no-op default for operator context
   refresh: async () => {},
 };

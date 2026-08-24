@@ -89,6 +89,8 @@ func opVerifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
 }
 
 func TestOperatorMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 4242},
@@ -111,6 +113,8 @@ func TestOperatorMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 }
 
 func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{access: "a", refresh: "r"}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult:   &platformSvc.OperatorVerifiedChallenge{OperatorID: 4242},
@@ -144,6 +148,8 @@ func TestOperatorMFAVerify_RememberDeviceIssuesCookie(t *testing.T) {
 }
 
 func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{access: "a", refresh: "r"}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
@@ -165,6 +171,8 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 }
 
 func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorInactiveError{}}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
@@ -182,6 +190,8 @@ func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 }
 
 func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorNotFoundError{}}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},
@@ -198,6 +208,8 @@ func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
 }
 
 func TestOperatorMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
+	t.Parallel()
+
 	auth := &completeOperatorMFAAuthStub{err: errors.New("kafka is on fire")}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: &platformSvc.OperatorVerifiedChallenge{OperatorID: 1},

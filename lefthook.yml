@@ -72,21 +72,14 @@ pre-push:
       glob: "backend/**/*.go"
       run: cd backend && golangci-lint run --timeout 5m
 
+    backend-architecture:
+      glob: "{backend/**/*.go,backend/.go-arch-lint.yml,backend/tools/go.{mod,sum},scripts/backend-architecture.sh}"
+      run: scripts/backend-architecture.sh check
+
     # Dead code detection (matches CI)
     go-deadcode:
       glob: "backend/**/*.go"
-      run: |
-        cd backend
-        # Use deadcode from PATH or fallback to ~/go/bin (install if missing)
-        DEADCODE=$(which deadcode 2>/dev/null || echo "$HOME/go/bin/deadcode")
-        [ -x "$DEADCODE" ] || go install golang.org/x/tools/cmd/deadcode@latest
-        # Run with exclusions matching CI
-        OUTPUT=$($DEADCODE -test ./... 2>&1 | grep -vE "cmd/root.go:.*Execute" || true)
-        if [ -n "$OUTPUT" ]; then
-          echo "❌ Dead code detected:"
-          echo "$OUTPUT"
-          exit 1
-        fi
+      run: scripts/check-deadcode.sh
 
     # Security vulnerability detection
     # TEMPORARILY SKIPPED: Requires Go 1.25.6, which is not yet available in the nix package
@@ -109,7 +102,7 @@ pre-push:
     # Frontend unused code detection (matches CI)
     frontend-knip:
       glob: "frontend/**/*.{ts,tsx,js,jsx}"
-      run: cd frontend && pnpm knip
+      run: cd frontend && pnpm knip && pnpm knip:production
 
 # Post-merge: Check env sync after git pull
 post-merge:

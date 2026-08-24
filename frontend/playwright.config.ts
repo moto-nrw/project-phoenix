@@ -44,6 +44,7 @@ const webServerEnv = {
   NEXT_PUBLIC_API_URL: requiredEnv("NEXT_PUBLIC_API_URL"),
   NEXT_PUBLIC_OPERATOR_HOSTNAME: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
   NEXT_PUBLIC_PARENTS_HOSTNAME: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
+  NEXT_PUBLIC_SCHOOL_HOSTNAME: requiredEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME"),
   TENANT_DOMAIN: requiredEnv("TENANT_DOMAIN"),
 };
 
@@ -55,12 +56,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
   reporter: "html",
   use: {
     baseURL: "http://localhost:3000",
-    trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
   projects: [

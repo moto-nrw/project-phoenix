@@ -36,8 +36,20 @@ type StudentChangeRecorder interface {
 	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
 }
 
+// StudentPickupPlanRecorder is the narrow append-only audit seam used by the
+// permanent pickup-time adjustment coordinator.
+type StudentPickupPlanRecorder interface {
+	RecordPickupPlanForActor(
+		ctx context.Context,
+		studentID int64,
+		before, after, result, reason string,
+		editedBy int64,
+	) error
+}
+
 type StudentAuditService interface {
 	StudentChangeRecorder
+	StudentPickupPlanRecorder
 
 	// RecordSystemStatusChange records an automated lifecycle transition.
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
@@ -98,15 +110,45 @@ func (s *studentAuditService) RecordChangesForActor(
 	before, after *userModels.Student,
 	editedBy int64,
 ) error {
-	claims := jwt.ClaimsFromCtx(ctx)
-	name := ""
-	if int64(claims.ID) == editedBy {
-		name = strings.TrimSpace(claims.FirstName + " " + claims.LastName)
-		if name == "" {
-			name = claims.Username
-		}
+	return s.RecordChanges(ctx, before, after, editedBy, actorDisplayName(ctx, editedBy))
+}
+
+func (s *studentAuditService) RecordPickupPlanForActor(
+	ctx context.Context,
+	studentID int64,
+	before, after, result, reason string,
+	editedBy int64,
+) error {
+	name := actorDisplayName(ctx, editedBy)
+	newValue := strings.TrimSpace(result) + " · " + strings.TrimSpace(after)
+	if reason = strings.TrimSpace(reason); reason != "" {
+		newValue += " · Grund: " + reason
 	}
-	return s.RecordChanges(ctx, before, after, editedBy, name)
+	oldValue := strings.TrimSpace(before)
+	edit := &auditModels.StudentFieldEdit{
+		StudentID:    studentID,
+		EditedBy:     editedBy,
+		EditedByName: name,
+		FieldName:    auditModels.StudentFieldPickupSchedule,
+		OldValue:     &oldValue,
+		NewValue:     &newValue,
+	}
+	return s.repo.CreateBatch(ctx, []*auditModels.StudentFieldEdit{edit})
+}
+
+func actorDisplayName(ctx context.Context, editedBy int64) string {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if int64(claims.ID) != editedBy {
+		return "Unbekannt"
+	}
+	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
+	if name == "" {
+		name = strings.TrimSpace(claims.Username)
+	}
+	if name == "" {
+		return "Unbekannt"
+	}
+	return name
 }
 
 func (s *studentAuditService) RecordSystemStatusChange(
@@ -154,6 +196,7 @@ func diffStudentFields(before, after *userModels.Student) []*auditModels.Student
 	add(auditModels.StudentFieldExtraInfo, derefString(before.ExtraInfo), derefString(after.ExtraInfo))
 	add(auditModels.StudentFieldHealthInfo, derefString(before.HealthInfo), derefString(after.HealthInfo))
 	add(auditModels.StudentFieldPickupStatus, derefString(before.PickupStatus), derefString(after.PickupStatus))
+	add(auditModels.StudentFieldCareEnd, careEndLabel(before), careEndLabel(after))
 	add(auditModels.StudentFieldDepartureDays, departureLabel(before), departureLabel(after))
 	add(
 		auditModels.StudentFieldDepartureCompanionNote,
@@ -226,4 +269,14 @@ func departureLabel(student *userModels.Student) string {
 		parts = append(parts, weekdayLabels[day]+": "+strings.Join(labels, " / "))
 	}
 	return strings.Join(parts, ", ")
+}
+
+// careEndLabel renders the last care day as a German date, or "" when the
+// child has no end of care recorded. Empty on both sides is a no-op for `add`,
+// so untouched children never grow a history row (#2487).
+func careEndLabel(student *userModels.Student) string {
+	if student == nil || student.EnrolledUntil == nil {
+		return ""
+	}
+	return student.EnrolledUntil.Format("02.01.2006")
 }

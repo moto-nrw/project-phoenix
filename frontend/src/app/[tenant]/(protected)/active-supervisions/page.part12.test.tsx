@@ -271,11 +271,16 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
+
+const defaultPageHeader = vi
+  .mocked(PageHeaderWithSearch)
+  .getMockImplementation()!;
 
 vi.mock("~/lib/student-api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("~/lib/student-api")>();
@@ -310,6 +315,21 @@ vi.mock("~/lib/timetable-operations-api", async (importOriginal) => {
 import { fireEvent } from "@testing-library/react";
 import { fetchStudents } from "~/lib/student-api";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+
+beforeEach(() => {
+  vi.mocked(PageHeaderWithSearch)
+    .mockReset()
+    .mockImplementation(defaultPageHeader);
+  vi.mocked(useSWRAuth)
+    .mockReset()
+    .mockReturnValue({
+      data: null,
+      isLoading: true,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+});
 
 const makeStudent = (id: string, first: string, last: string) => ({
   id,

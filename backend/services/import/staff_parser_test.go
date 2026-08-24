@@ -31,6 +31,8 @@ func buildStaffXLSX(t *testing.T, rows [][]string) io.Reader {
 }
 
 func TestParseStaffCSV_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	csvData := "Vorname,Nachname,Email,Rolle,Position\n" +
 		"Anna,Lehmann,anna@example.com,Lehrer,Klassenlehrerin\n" +
 		"Bernd,Schulz,bernd@example.com,Admin,"
@@ -51,6 +53,8 @@ func TestParseStaffCSV_MapsColumns(t *testing.T) {
 }
 
 func TestParseStaffCSV_CaseInsensitiveAndOptionalAnnotations(t *testing.T) {
+	t.Parallel()
+
 	// Lowercase headers and an "(optional)" annotation must still map.
 	csvData := "vorname,nachname,email,rolle,position (optional)\n" +
 		"Anna,Lehmann,anna@example.com,Lehrer,Foo"
@@ -63,6 +67,8 @@ func TestParseStaffCSV_CaseInsensitiveAndOptionalAnnotations(t *testing.T) {
 }
 
 func TestParseStaffCSV_SkipsEmptyRows(t *testing.T) {
+	t.Parallel()
+
 	csvData := "Vorname,Nachname,Email,Rolle\n" +
 		",,,\n" +
 		"Anna,Lehmann,anna@example.com,Betreuer\n" +
@@ -77,6 +83,8 @@ func TestParseStaffCSV_SkipsEmptyRows(t *testing.T) {
 }
 
 func TestParseStaffCSV_MissingRequiredColumn(t *testing.T) {
+	t.Parallel()
+
 	// Missing the "Rolle" column must be rejected before any row is parsed.
 	csvData := "Vorname,Nachname,Email\nAnna,Lehmann,anna@example.com"
 
@@ -86,11 +94,15 @@ func TestParseStaffCSV_MissingRequiredColumn(t *testing.T) {
 }
 
 func TestParseStaffCSV_NoDataRows(t *testing.T) {
+	t.Parallel()
+
 	_, err := ParseStaffCSV(strings.NewReader("Vorname,Nachname,Email,Rolle"))
 	require.Error(t, err)
 }
 
 func TestParseStaffXLSX_MapsColumns(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Email", "Rolle", "Position"},
 		{"Anna", "Lehmann", "anna@example.com", "Lehrer", "Klassenlehrerin"},
@@ -109,6 +121,8 @@ func TestParseStaffXLSX_MapsColumns(t *testing.T) {
 }
 
 func TestParseStaffXLSX_SkipsEmptyRows(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Email", "Rolle"},
 		{"", "", "", ""},
@@ -125,6 +139,8 @@ func TestParseStaffXLSX_SkipsEmptyRows(t *testing.T) {
 }
 
 func TestParseStaffXLSX_MissingRequiredColumn(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Email"},
 		{"Anna", "Lehmann", "anna@example.com"},
@@ -136,6 +152,8 @@ func TestParseStaffXLSX_MissingRequiredColumn(t *testing.T) {
 }
 
 func TestParseStaffXLSX_NoDataRows(t *testing.T) {
+	t.Parallel()
+
 	reader := buildStaffXLSX(t, [][]string{
 		{"Vorname", "Nachname", "Email", "Rolle"},
 	})
@@ -145,6 +163,8 @@ func TestParseStaffXLSX_NoDataRows(t *testing.T) {
 }
 
 func TestStaffImportConfig_EntityNameAndUpdate(t *testing.T) {
+	t.Parallel()
+
 	config := NewStaffImportConfig(StaffImportDeps{})
 
 	assert.Equal(t, "Mitarbeiter", config.EntityName())

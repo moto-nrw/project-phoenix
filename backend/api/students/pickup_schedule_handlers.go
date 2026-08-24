@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -30,12 +31,13 @@ type PickupScheduleResponse struct {
 	PickupTime  string  `json:"pickup_time"` // HH:MM format
 	Notes       *string `json:"notes,omitempty"`
 	// Source marks the row's provenance: "staff" (manually maintained) or
-	// "care_offering" (materialized Angebots-Gehzeit, #2290).
-	Source         string  `json:"source"`
-	CareOfferingID *string `json:"care_offering_id,omitempty"`
-	CreatedBy      int64   `json:"created_by"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
+	// "care_offering" (booking-derived Angebots-Gehzeit).
+	Source           string  `json:"source"`
+	CareOfferingID   *string `json:"care_offering_id,omitempty"`
+	CareOfferingName string  `json:"care_offering_name,omitempty"`
+	CreatedBy        int64   `json:"created_by"`
+	CreatedAt        string  `json:"created_at"`
+	UpdatedAt        string  `json:"updated_at"`
 }
 
 // PickupExceptionResponse represents a pickup exception in API responses
@@ -69,9 +71,16 @@ type PickupNoteResponse struct {
 
 // PickupDataResponse represents combined pickup data
 type PickupDataResponse struct {
-	Schedules  []PickupScheduleResponse  `json:"schedules"`
-	Exceptions []PickupExceptionResponse `json:"exceptions"`
-	Notes      []PickupNoteResponse      `json:"notes"`
+	Schedules          []PickupScheduleResponse      `json:"schedules"`
+	EffectiveSchedules []DatedPickupScheduleResponse `json:"effective_schedules,omitempty"`
+	Exceptions         []PickupExceptionResponse     `json:"exceptions"`
+	Notes              []PickupNoteResponse          `json:"notes"`
+}
+
+type DatedPickupScheduleResponse struct {
+	Date             string                  `json:"date"`
+	Schedule         *PickupScheduleResponse `json:"schedule"`
+	OfferingSchedule *PickupScheduleResponse `json:"offering_schedule"`
 }
 
 // PickupScheduleRequest represents a request to create/update a pickup schedule
@@ -83,12 +92,14 @@ type PickupScheduleRequest struct {
 
 // BulkPickupScheduleRequest represents a request to update all weekly schedules
 type BulkPickupScheduleRequest struct {
-	Schedules []PickupScheduleRequest `json:"schedules"`
+	Schedules     []PickupScheduleRequest `json:"schedules"`
+	EffectiveDate *timezone.Date          `json:"effective_date,omitempty"`
 }
 
 type BulkPickupSchedulePatchRequest struct {
-	StudentIDs []int64                               `json:"student_ids"`
-	Schedules  []scheduleService.PickupScheduleInput `json:"schedules"`
+	StudentIDs         []int64                               `json:"student_ids"`
+	Schedules          []scheduleService.PickupScheduleInput `json:"schedules"`
+	ConfirmedException bool                                  `json:"confirmed_exception"`
 }
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
@@ -192,16 +203,17 @@ func (r *PickupExceptionRequest) Bind(_ *http.Request) error {
 // mapScheduleToResponse converts a schedule model to API response
 func mapScheduleToResponse(s *schedule.StudentPickupSchedule) PickupScheduleResponse {
 	resp := PickupScheduleResponse{
-		ID:          s.ID,
-		StudentID:   s.StudentID,
-		Weekday:     s.Weekday,
-		WeekdayName: s.GetWeekdayName(),
-		PickupTime:  s.PickupTime.Format("15:04"),
-		Notes:       s.Notes,
-		Source:      s.Source,
-		CreatedBy:   s.CreatedBy,
-		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
+		ID:               s.ID,
+		StudentID:        s.StudentID,
+		Weekday:          s.Weekday,
+		WeekdayName:      s.GetWeekdayName(),
+		PickupTime:       s.PickupTime.Format("15:04"),
+		Notes:            s.Notes,
+		Source:           s.Source,
+		CareOfferingName: s.CareOfferingName,
+		CreatedBy:        s.CreatedBy,
+		CreatedAt:        s.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        s.UpdatedAt.Format(time.RFC3339),
 	}
 	if resp.Source == "" {
 		resp.Source = schedule.PickupScheduleSourceStaff
@@ -336,7 +348,17 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	from, to, hasRange, err := pickupScheduleDateRange(r)
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var data *scheduleService.StudentPickupData
+	if hasRange {
+		data, err = rs.PickupScheduleService.GetStudentPickupDataForRange(r.Context(), student.ID, from, to)
+	} else {
+		data, err = rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
+	}
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -347,12 +369,36 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules retrieved successfully")
 }
 
+func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, bool, error) {
+	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
+	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
+	if fromRaw == "" && toRaw == "" {
+		return timezone.Date{}, timezone.Date{}, false, nil
+	}
+	if fromRaw == "" || toRaw == "" {
+		return timezone.Date{}, timezone.Date{}, false, errors.New("from and to must be provided together")
+	}
+	from, err := timezone.ParseDate(fromRaw)
+	if err != nil {
+		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid from date: %w", err)
+	}
+	to, err := timezone.ParseDate(toRaw)
+	if err != nil {
+		return timezone.Date{}, timezone.Date{}, false, fmt.Errorf("invalid to date: %w", err)
+	}
+	if to.Before(from) || to.After(from.AddDays(31)) {
+		return timezone.Date{}, timezone.Date{}, false, errors.New("pickup schedule date range must span at most 32 days")
+	}
+	return from, to, true, nil
+}
+
 // buildPickupDataResponse converts service pickup data to API response
 func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupDataResponse {
 	response := PickupDataResponse{
-		Schedules:  make([]PickupScheduleResponse, 0, len(data.Schedules)),
-		Exceptions: make([]PickupExceptionResponse, 0, len(data.Exceptions)),
-		Notes:      make([]PickupNoteResponse, 0, len(data.Notes)),
+		Schedules:          make([]PickupScheduleResponse, 0, len(data.Schedules)),
+		EffectiveSchedules: make([]DatedPickupScheduleResponse, 0, len(data.EffectiveSchedules)),
+		Exceptions:         make([]PickupExceptionResponse, 0, len(data.Exceptions)),
+		Notes:              make([]PickupNoteResponse, 0, len(data.Notes)),
 	}
 
 	for _, s := range data.Schedules {
@@ -360,6 +406,21 @@ func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupData
 	}
 	for _, e := range data.Exceptions {
 		response.Exceptions = append(response.Exceptions, mapExceptionToResponse(e))
+	}
+	for _, dated := range data.EffectiveSchedules {
+		var scheduleResponse *PickupScheduleResponse
+		if dated.Schedule != nil {
+			mapped := mapScheduleToResponse(dated.Schedule)
+			scheduleResponse = &mapped
+		}
+		var offeringResponse *PickupScheduleResponse
+		if dated.OfferingSchedule != nil {
+			mapped := mapScheduleToResponse(dated.OfferingSchedule)
+			offeringResponse = &mapped
+		}
+		response.EffectiveSchedules = append(response.EffectiveSchedules, DatedPickupScheduleResponse{
+			Date: dated.Date.String(), Schedule: scheduleResponse, OfferingSchedule: offeringResponse,
+		})
 	}
 	for _, n := range data.Notes {
 		response.Notes = append(response.Notes, mapNoteToResponse(n))
@@ -444,7 +505,6 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
@@ -457,7 +517,11 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
+		date := timezone.TodayDate()
+		if req.EffectiveDate != nil {
+			date = *req.EffectiveDate
+		}
+		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedulesForDate(ctx, student.ID, date, schedules)
 	}); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -498,19 +562,29 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
+	if rs.PickupAdjustmentService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("pickup adjustment service not configured")))
+		return
+	}
 	permissions := jwt.PermissionsFromCtx(r.Context())
-	result, err := rs.PickupScheduleService.BulkUpsertPickupSchedules(
-		r.Context(),
-		scheduleService.ArrivalScheduleBulkFilter{
-			StudentIDs: req.StudentIDs,
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.PickupAdjustmentService.ApplyBulkExceptions(
+		r.Context(), enrollmentService.PickupAdjustmentBulkInput{
+			StudentIDs: req.StudentIDs, Schedules: req.Schedules,
+			ConfirmedException: req.ConfirmedException, CreatedByStaffID: staffID,
+			ActorAccountID: int64(claims.ID),
 			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
 				return canUpdateStudent(ctx, permissions, student, rs.UserContextService)
 			},
 		},
-		req.Schedules,
-		staffID,
 	)
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPickupAdjustmentBulkConfirmation) {
+			renderError(w, r, common.ErrorInvalidRequestWithCode(
+				err, "pickup.bulk_exception_confirmation_required",
+			))
+			return
+		}
 		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
@@ -895,20 +969,29 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 // ResetOfferingPickupRequest selects the weekday to reset onto the
 // Angebots-Gehzeit (#2290).
 type ResetOfferingPickupRequest struct {
-	Weekday int `json:"weekday"`
+	Weekday int    `json:"weekday"`
+	Date    string `json:"date"`
+	date    timezone.Date
 }
 
 func (r *ResetOfferingPickupRequest) Bind(_ *http.Request) error {
 	if r.Weekday < schedule.WeekdayMonday || r.Weekday > schedule.WeekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
+	date, err := timezone.ParseDate(strings.TrimSpace(r.Date))
+	if err != nil {
+		return fmt.Errorf("date must be YYYY-MM-DD: %w", err)
+	}
+	if int(date.Weekday()) != r.Weekday {
+		return errors.New("date does not match weekday")
+	}
+	r.date = date
 	return nil
 }
 
 // resetStudentPickupToOffering handles
 // POST /students/{id}/pickup-schedules/reset-offering: the weekday's Gehzeit
-// goes back to the Angebots-Gehzeit (or is removed when the booked offerings
-// carry none for that day).
+// goes back to the Angebots-Gehzeit that applies on the requested date.
 func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.Request) {
 	student := rs.requirePickupWriteAccess(w, r, "reset pickup schedule to offering")
 	if student == nil {
@@ -924,13 +1007,11 @@ func (rs *Resource) resetStudentPickupToOffering(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, err := svc.ResetStudentPickupDayToOffering(ctx, student.ID, req.Weekday, int64(claims.ID))
-		return err
+		return svc.ResetStudentPickupDayToOffering(ctx, student.ID, req.date)
 	}); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, pickupResetErrorRenderer(err))
 		return
 	}
 	tenant.RegisterAfterCommit(r.Context(), func() {

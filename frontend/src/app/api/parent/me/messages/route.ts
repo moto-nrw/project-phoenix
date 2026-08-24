@@ -9,6 +9,7 @@ interface BackendThreadSummary {
   last_message_at?: string;
   last_sender_kind?: "guardian" | "staff";
   last_message_body?: string;
+  last_message_payload?: Record<string, unknown>;
   unread: number;
 }
 

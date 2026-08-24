@@ -19,6 +19,8 @@ import (
 )
 
 func TestParseClassRosterExportRequestAcceptsNumericPhaseID(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("POST", "/enrollment/admin/reports/class-roster/export", strings.NewReader(`{
 		"format":"xlsx",
 		"filters":{"phase_id":42,"school_class":" 1a "}
@@ -33,6 +35,8 @@ func TestParseClassRosterExportRequestAcceptsNumericPhaseID(t *testing.T) {
 }
 
 func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
+	t.Parallel()
+
 	req := httptest.NewRequest("POST", "/enrollment/admin/reports/class-roster/export", strings.NewReader(`{
 		"format":"pdf",
 		"filters":{"phase_id":"42"}
@@ -44,6 +48,9 @@ func TestParseClassRosterExportRequestRejectsMissingClass(t *testing.T) {
 	assert.Contains(t, err.Error(), "school_class is required")
 }
 
+// Deliberately NOT parallel: the test reaches process-global state (env
+// variables, viper keys, the settings registry, os.Stdout) that the whole
+// test binary shares.
 func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	router := (&Resource{
@@ -67,6 +74,8 @@ func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
 }
 
 func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
+	t.Parallel()
+
 	report := &enrollmentService.ClassRosterReport{
 		Phase: enrollmentService.CareUsagePhase{ID: 42, Name: "Schuljahr 2026"},
 		Filters: enrollmentService.ClassRosterAppliedFilters{
@@ -144,6 +153,8 @@ func TestBuildClassRosterTableDocumentRendersPhaseAwareCells(t *testing.T) {
 }
 
 func TestClassRosterWeeklyCellPickupTimeWithOfferingFallback(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		row  enrollmentService.ClassRosterRow
@@ -230,6 +241,8 @@ func TestClassRosterWeeklyCellPickupTimeWithOfferingFallback(t *testing.T) {
 // assigned per day (never summarized), multiple rules on one day survive, and
 // companion details appear only on the affected days.
 func TestClassRosterWeeklyCellDailyDepartureRule(t *testing.T) {
+	t.Parallel()
+
 	mixedWeek := enrollmentService.ClassRosterRow{
 		CareDays:    []string{"mon", "fri"},
 		PickupByDay: map[string]string{"mon": "14:30", "fri": "15:00"},
@@ -323,6 +336,8 @@ func (s *fakeClassRosterReportService) ExportClassRoster(_ context.Context, filt
 // #2290: the maintained Kind-Gehzeit (schedule.student_pickup_schedules,
 // incl. rolled-out Angebots-Gehzeiten) outranks the enrollment-form answer.
 func TestClassRosterWeeklyCellSchedulePickupPriority(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		row  enrollmentService.ClassRosterRow

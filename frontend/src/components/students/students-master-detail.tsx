@@ -29,14 +29,15 @@ import { FilteredBulkArrivalModal } from "./class-bulk-arrival-modal";
 import { ClassTripBulkStatusModal } from "./class-trip-bulk-status-modal";
 import { SelectionBulkPickupModal } from "./selection-bulk-pickup-modal";
 import { Button } from "~/components/ui/button";
-import { ArrivalScheduleManager } from "./arrival-schedule-manager";
-import { StudentAbholungTab } from "./student-abholung-tab";
+import { CareScheduleManager } from "./care-schedule-manager";
 import { StudentGuardiansTab } from "./student-guardians-tab";
 import { StudentHistorieTab } from "./student-historie-tab";
 import { StudentEnrollmentsTab } from "./student-enrollments-tab";
 import { StudentStammdatenTab } from "./student-stammdaten-tab";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { getInitials } from "~/lib/format-utils";
+import { hasPlannedCareExit } from "~/lib/care-exit-api";
+import { formatDate } from "~/lib/date-helpers";
 import type { Student } from "~/lib/api";
 import type { BulkArrivalFilter } from "~/lib/student-arrival-api";
 
@@ -61,6 +62,11 @@ interface StudentsMasterDetailProps {
   onToggleStudentSelection?: (studentId: string) => void;
   onClearSelection?: () => void;
   onFinishSelection?: () => void;
+  /** Wählt genau die gerade angezeigten Kinder aus (#2487). */
+  onSelectAllVisible?: (studentIds: string[]) => void;
+  /** Öffnet "Betreuung beenden" für die Auswahl. Ohne die Berechtigung
+   *  "Benutzer löschen" nicht gesetzt — dann fehlt der Knopf. */
+  onEndCare?: () => void;
 }
 
 const UNKNOWN_CLASS_LABEL = "Ohne Klasse";
@@ -109,6 +115,8 @@ export function StudentsMasterDetail({
   onToggleStudentSelection,
   onClearSelection,
   onFinishSelection,
+  onSelectAllVisible,
+  onEndCare,
 }: StudentsMasterDetailProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
   const [bulkTarget, setBulkTarget] = useState<BulkArrivalTarget | null>(null);
@@ -274,6 +282,14 @@ export function StudentsMasterDetail({
 
     const subtitleParts: string[] = [];
     if (student.group_name) subtitleParts.push(student.group_name);
+    // Ein eingetragener Austritt steht vorne: er ändert, was mit dem Kind noch
+    // geplant werden kann (#2487). Das bloße Ende der Anmeldephase steht hier
+    // nicht — es hätte fast jedes Kind und wäre damit keine Nachricht mehr.
+    if (hasPlannedCareExit(student) && student.care_ends_on) {
+      subtitleParts.unshift(
+        `Betreuung endet am ${formatDate(student.care_ends_on)}`,
+      );
+    }
     if (arrivalSummary) {
       subtitleParts.push(arrivalSummary);
     } else if (!hasArrival) {
@@ -329,6 +345,13 @@ export function StudentsMasterDetail({
           onClassTrip={() =>
             setClassTripTarget({ label: "Auswahl", students: selectedStudents })
           }
+          onSelectAllVisible={
+            onSelectAllVisible
+              ? () => onSelectAllVisible(students.map(keyForStudent))
+              : undefined
+          }
+          visibleCount={students.length}
+          onEndCare={onEndCare}
         />
       ) : null}
       <GroupedList
@@ -444,6 +467,10 @@ interface SelectionBarProps {
   onArrival: () => void;
   onPickup: () => void;
   onClassTrip: () => void;
+  /** Anzahl der gerade angezeigten Kinder — beziffert "Alle auswählen". */
+  visibleCount?: number;
+  onSelectAllVisible?: () => void;
+  onEndCare?: () => void;
 }
 
 function SelectionBar({
@@ -453,6 +480,9 @@ function SelectionBar({
   onArrival,
   onPickup,
   onClassTrip,
+  visibleCount = 0,
+  onSelectAllVisible,
+  onEndCare,
 }: SelectionBarProps) {
   const disabled = count === 0;
   return (
@@ -467,6 +497,16 @@ function SelectionBar({
           {count} ausgewählt
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
+          {onSelectAllVisible && visibleCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={onSelectAllVisible}
+            >
+              Alle {visibleCount} auswählen
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -514,6 +554,17 @@ function SelectionBar({
         >
           Klassenfahrt
         </Button>
+        {onEndCare ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={onEndCare}
+            disabled={disabled}
+          >
+            Betreuung beenden
+          </Button>
+        ) : null}
       </div>
     </div>
   );
@@ -565,19 +616,13 @@ function buildTabs({
       id: "betreuungszeiten",
       label: "Betreuungszeiten",
       content: (
-        <div className="space-y-6">
-          <ArrivalScheduleManager
-            key={studentId}
-            studentId={studentId}
-            onUpdate={onArrivalDataChanged}
-          />
-          <StudentAbholungTab
-            studentId={studentId}
-            isSick={student.sick}
-            isExcused={student.excused}
-            onUpdate={onArrivalDataChanged}
-          />
-        </div>
+        <CareScheduleManager
+          key={studentId}
+          studentId={studentId}
+          isSick={student.sick}
+          isExcused={student.excused}
+          onUpdate={onArrivalDataChanged}
+        />
       ),
     },
     {

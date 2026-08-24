@@ -15,6 +15,8 @@ import (
 // lockout decision left the model in issue #586 (Rule 12). The decision is now
 // a pure account read with the clock injected, so no repos are needed.
 func TestService_IsPINLocked(t *testing.T) {
+	t.Parallel()
+
 	s := &Service{}
 	now := time.Now()
 
@@ -72,6 +74,8 @@ func (s lockoutSettingsStub) ResolveInt(_ context.Context, key string) (int, err
 }
 
 func TestService_RecordFailedPINAttempt_UsesTenantLockoutSettings(t *testing.T) {
+	t.Parallel()
+
 	accountRepo := &capturePINAccountRepo{}
 	s := &Service{
 		repos: &repositories.Factory{Account: accountRepo},
@@ -94,6 +98,8 @@ func TestService_RecordFailedPINAttempt_UsesTenantLockoutSettings(t *testing.T) 
 }
 
 func TestService_RecordFailedPINAttempt_FallsBackWhenSettingsMissing(t *testing.T) {
+	t.Parallel()
+
 	accountRepo := &capturePINAccountRepo{}
 	s := &Service{repos: &repositories.Factory{Account: accountRepo}}
 

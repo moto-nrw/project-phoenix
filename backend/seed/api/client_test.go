@@ -19,12 +19,16 @@ import (
 // =============================================================================
 
 func TestExtractResponseSummary_WithStatus(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{"status": "success"}
 	result := extractResponseSummary(resp)
 	assert.Equal(t, "{status=success}", result)
 }
 
 func TestExtractResponseSummary_WithDataID(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"status": "success",
 		"data":   map[string]any{"id": float64(42)},
@@ -35,6 +39,8 @@ func TestExtractResponseSummary_WithDataID(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithDataFields(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"data": map[string]any{
 			"id":    float64(1),
@@ -49,6 +55,8 @@ func TestExtractResponseSummary_WithDataFields(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithTagID(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"data": map[string]any{"tag_id": "ABC123"},
 	}
@@ -57,6 +65,8 @@ func TestExtractResponseSummary_WithTagID(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithStudentID(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"data": map[string]any{"student_id": float64(99)},
 	}
@@ -65,6 +75,8 @@ func TestExtractResponseSummary_WithStudentID(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithActiveGroupID(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"data": map[string]any{"active_group_id": float64(7)},
 	}
@@ -73,6 +85,8 @@ func TestExtractResponseSummary_WithActiveGroupID(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithActivityName(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"data": map[string]any{"activity_name": "Fußball"},
 	}
@@ -81,6 +95,8 @@ func TestExtractResponseSummary_WithActivityName(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithArrayData(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"status": "success",
 		"data":   []any{1, 2, 3},
@@ -90,6 +106,8 @@ func TestExtractResponseSummary_WithArrayData(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithMessage(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"message": "Student enrolled successfully",
 	}
@@ -98,6 +116,8 @@ func TestExtractResponseSummary_WithMessage(t *testing.T) {
 }
 
 func TestExtractResponseSummary_WithLongMessage(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"message": "This is a very long message that should be truncated to avoid excessive log output",
 	}
@@ -106,12 +126,16 @@ func TestExtractResponseSummary_WithLongMessage(t *testing.T) {
 }
 
 func TestExtractResponseSummary_EmptyResponse(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{}
 	result := extractResponseSummary(resp)
 	assert.Equal(t, "ok", result)
 }
 
 func TestExtractResponseSummary_MessageNotShownWhenSpecificFieldsPresent(t *testing.T) {
+	t.Parallel()
+
 	resp := map[string]any{
 		"status":  "success",
 		"data":    map[string]any{"id": float64(1), "name": "Test"},
@@ -127,14 +151,20 @@ func TestExtractResponseSummary_MessageNotShownWhenSpecificFieldsPresent(t *test
 // =============================================================================
 
 func TestJoinStrings_Empty(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "", strings.Join([]string{}, ", "))
 }
 
 func TestJoinStrings_Single(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "hello", strings.Join([]string{"hello"}, ", "))
 }
 
 func TestJoinStrings_Multiple(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "a, b, c", strings.Join([]string{"a", "b", "c"}, ", "))
 }
 
@@ -149,6 +179,8 @@ func newTestClient(baseURL string, verbose bool) *Client {
 }
 
 func TestNewClient(t *testing.T) {
+	t.Parallel()
+
 	c := newTestClient("http://localhost:8080", true)
 	assert.Equal(t, "http://localhost:8080", c.baseURL)
 	assert.True(t, c.verbose)
@@ -156,6 +188,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClient_CheckHealth_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/health", r.URL.Path)
 		w.WriteHeader(http.StatusOK)
@@ -168,6 +202,8 @@ func TestClient_CheckHealth_Success(t *testing.T) {
 }
 
 func TestClient_CheckHealth_ServerDown(t *testing.T) {
+	t.Parallel()
+
 	c := newTestClient("http://localhost:1", false)
 	err := c.CheckHealth()
 	assert.Error(t, err)
@@ -175,6 +211,8 @@ func TestClient_CheckHealth_ServerDown(t *testing.T) {
 }
 
 func TestClient_CheckHealth_NonOK(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
@@ -187,6 +225,8 @@ func TestClient_CheckHealth_NonOK(t *testing.T) {
 }
 
 func TestClient_Login_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/auth/login", r.URL.Path)
 		assert.Equal(t, "POST", r.Method)
@@ -208,6 +248,8 @@ func TestClient_Login_Success(t *testing.T) {
 }
 
 func TestClient_Login_NoToken(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"access_token":""}`)
@@ -221,6 +263,8 @@ func TestClient_Login_NoToken(t *testing.T) {
 }
 
 func TestClient_Login_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = fmt.Fprint(w, `{"error":"invalid credentials"}`)
@@ -234,6 +278,8 @@ func TestClient_Login_ServerError(t *testing.T) {
 }
 
 func TestClient_Post_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Equal(t, "/api/rooms", r.URL.Path)
@@ -253,6 +299,8 @@ func TestClient_Post_Success(t *testing.T) {
 }
 
 func TestClient_Get_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "/api/active/visits", r.URL.Path)
@@ -272,6 +320,8 @@ func TestClient_Get_Success(t *testing.T) {
 }
 
 func TestClient_Put_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "PUT", r.Method)
 		assert.Equal(t, "/api/students/1", r.URL.Path)
@@ -290,6 +340,8 @@ func TestClient_Put_Success(t *testing.T) {
 }
 
 func TestClient_Post_ServerError(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = fmt.Fprint(w, `{"error":"internal"}`)
@@ -305,6 +357,8 @@ func TestClient_Post_ServerError(t *testing.T) {
 }
 
 func TestClient_Post_NoAuth(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// When no token is set and auth=true, Authorization header should be empty
 		assert.Empty(t, r.Header.Get("Authorization"))
@@ -320,6 +374,8 @@ func TestClient_Post_NoAuth(t *testing.T) {
 }
 
 func TestClient_Get_NilBody(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		// GET requests should have no Content-Type
@@ -337,6 +393,8 @@ func TestClient_Get_NilBody(t *testing.T) {
 }
 
 func TestClient_DeviceGet_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "/api/iot/session/current", r.URL.Path)
@@ -356,6 +414,8 @@ func TestClient_DeviceGet_Success(t *testing.T) {
 }
 
 func TestClient_DevicePut_Success(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "PUT", r.Method)
 		assert.Equal(t, "/api/iot/session/5/supervisors", r.URL.Path)
@@ -376,6 +436,8 @@ func TestClient_DevicePut_Success(t *testing.T) {
 }
 
 func TestClient_Verbose_Logging(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":1}}`)
@@ -391,6 +453,8 @@ func TestClient_Verbose_Logging(t *testing.T) {
 }
 
 func TestClient_Login_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, `not json`)
@@ -408,22 +472,30 @@ func TestClient_Login_InvalidJSON(t *testing.T) {
 // =============================================================================
 
 func TestLogAPIResponse_SuccessJSON(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"status":"success","data":{"id":1}}`)
 	// Should not panic
 	logAPIResponse(200, body)
 }
 
 func TestLogAPIResponse_ErrorStatus(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`{"status":"error","message":"not found"}`)
 	logAPIResponse(404, body)
 }
 
 func TestLogAPIResponse_InvalidJSON(t *testing.T) {
+	t.Parallel()
+
 	body := []byte(`not json at all`)
 	logAPIResponse(200, body)
 }
 
 func TestLogAPIResponse_LongNonJSON(t *testing.T) {
+	t.Parallel()
+
 	body := make([]byte, 200)
 	for i := range body {
 		body[i] = 'x'
@@ -432,6 +504,8 @@ func TestLogAPIResponse_LongNonJSON(t *testing.T) {
 }
 
 func TestLogAPIResponse_EmptyBody(t *testing.T) {
+	t.Parallel()
+
 	logAPIResponse(200, []byte{})
 }
 
@@ -440,17 +514,25 @@ func TestLogAPIResponse_EmptyBody(t *testing.T) {
 // =============================================================================
 
 func TestLogAPIRequest_WithBody(t *testing.T) {
+	t.Parallel()
+
 	logAPIRequest("POST", "/api/rooms", map[string]string{"name": "Room"}, "")
 }
 
 func TestLogAPIRequest_WithAuthContext(t *testing.T) {
+	t.Parallel()
+
 	logAPIRequest("POST", "/api/rooms", map[string]string{"name": "Room"}, "admin")
 }
 
 func TestLogAPIRequest_NilBody(t *testing.T) {
+	t.Parallel()
+
 	logAPIRequest("GET", "/api/rooms", nil, "")
 }
 
 func TestLogAPIRequest_WithAuthContextNoBody(t *testing.T) {
+	t.Parallel()
+
 	logAPIRequest("GET", "/api/roles", nil, "jwt")
 }

@@ -31,8 +31,9 @@ func careDayClock(hhmm string) time.Time {
 func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 	plans := &carePlans{
 		arrivalByStudentWeekday: map[int64]map[int]*schedule.StudentArrivalSchedule{},
-		pickupByStudentWeekday:  map[int64]map[int]*schedule.StudentPickupSchedule{},
-		hasPlan:                 map[int64]bool{},
+		arrivalByStudentDate:    map[int64]map[timezone.Date]*schedule.StudentArrivalSchedule{},
+		pickupByStudentDate:     map[int64]map[timezone.Date]*schedule.StudentPickupSchedule{},
+		hasPlan:                 map[int64]map[timezone.Date]bool{},
 		arrivalExceptions:       map[int64]map[timezone.Date]*schedule.StudentArrivalException{},
 		pickupExceptions:        map[int64]map[timezone.Date]*schedule.StudentPickupException{},
 	}
@@ -46,7 +47,9 @@ func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 			}
 		}
 		plans.arrivalByStudentWeekday[studentID] = byWeekday
-		plans.hasPlan[studentID] = true
+		plans.hasPlan[studentID] = map[timezone.Date]bool{
+			careDayMonday: true, careDayThursday: true, careDaySaturday: true,
+		}
 	}
 	return plans
 }
@@ -57,6 +60,8 @@ func plansForStudent(studentID int64, arrivalWeekdays ...int) *carePlans {
 // them either hides children at schools that keep no plans, or never filters
 // anything at schools that do.
 func TestCareDayStatusFor_NoPlanVersusNotBookedToday(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 42
 
 	t.Run("no care plan at all stays unknown", func(t *testing.T) {
@@ -83,6 +88,8 @@ func TestCareDayStatusFor_NoPlanVersusNotBookedToday(t *testing.T) {
 }
 
 func TestCareDayStatusFor_Exceptions(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 43
 
 	// A cancellation is NOT a non-booking: the child is not expected, but the
@@ -115,8 +122,8 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	// not resurrect the day (#1725 contract in mergeCareExceptions).
 	t.Run("timeless arrival exception cancels the day despite a pickup schedule", func(t *testing.T) {
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
-		plans.pickupByStudentWeekday[studentID] = map[int]*schedule.StudentPickupSchedule{
-			schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
+		plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+			careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
 		}
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
@@ -168,22 +175,70 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 // A pickup-only plan is still a plan: schools that record only the going-home
 // side must not have every child collapse to "not scheduled".
 func TestCareDayStatusFor_PickupOnlyPlan(t *testing.T) {
+	t.Parallel()
+
 	const studentID int64 = 44
 	pickup := careDayClock("16:00")
 
 	plans := plansForStudent(studentID)
-	plans.pickupByStudentWeekday[studentID] = map[int]*schedule.StudentPickupSchedule{
-		schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: pickup},
+	plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: pickup},
 	}
-	plans.hasPlan[studentID] = true
+	plans.hasPlan[studentID] = map[timezone.Date]bool{
+		careDayMonday: true, careDayThursday: true, careDaySaturday: true,
+	}
 
 	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
 	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayThursday))
 }
 
+// In booking mode a pickup time describes a booked day; it must never create
+// the care day itself. Otherwise a stale/manual pickup row can bypass the
+// tenant's authoritative booking boundary and put an unbooked child back into
+// expected counts.
+func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
+	t.Parallel()
+
+	const studentID int64 = 46
+	plans := plansForStudent(studentID)
+	plans.bookingsAuthoritative = true
+	plans.pickupByStudentDate[studentID] = map[timezone.Date]*schedule.StudentPickupSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
+	}
+	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+
+	assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday),
+		"a pickup row must not add a care day when bookings are authoritative")
+
+	// The arrival projection carries a placeholder row even when neither the
+	// child nor the class has an arrival time. That row is the positive booking
+	// signal; pickup details may enrich the day once it exists.
+	plans.arrivalByStudentDate[studentID] = map[timezone.Date]*schedule.StudentArrivalSchedule{
+		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
+	}
+	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
+}
+
+func TestCareDayStatusFor_ArrivalPlanWithoutTime(t *testing.T) {
+	t.Parallel()
+
+	const studentID int64 = 45
+	plans := plansForStudent(studentID)
+	plans.arrivalByStudentWeekday[studentID] = map[int]*schedule.StudentArrivalSchedule{
+		schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
+	}
+	plans.hasPlan[studentID] = map[timezone.Date]bool{careDayMonday: true}
+
+	status := plans.statusFor(studentID, careDayMonday)
+	assert.Equal(t, CareDayScheduled, status)
+	assert.True(t, status.Expected(), "a booked care day stays expected when its class time is unknown")
+}
+
 // Children never resolved (walk-ins, unwired service) must fall through as
 // expected rather than silently vanishing from a roster.
 func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, CareDayUnknown.Expected())
 	assert.True(t, CareDayScheduled.Expected())
 	assert.True(t, CareDayStatus("").Expected())
@@ -195,6 +250,8 @@ func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {
 // cancellation would drop the row from the attendance history and the exports,
 // because the completed-instance filter hides surviving 'expected' rows.
 func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
+	t.Parallel()
+
 	assert.True(t, CareDayNotScheduled.ExemptFromAbsence())
 	assert.False(t, CareDayCancelled.ExemptFromAbsence())
 	assert.False(t, CareDayScheduled.ExemptFromAbsence())
@@ -207,6 +264,8 @@ func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
 // so the decision is recognized by its own stamp — and it outranks the
 // derivation both while the block runs and once it is over (#1747 review).
 func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
+	t.Parallel()
+
 	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)
 
 	manual := &schedule.InstanceStudent{
@@ -236,6 +295,8 @@ func TestAttendanceRowCareDay_ManualDecisionOutranksThePlan(t *testing.T) {
 // planner must keep counting those children as non-scheduled — the same
 // treatment a broad day status gets via student_status_day_id.
 func TestAttendanceRowCareDay_PartialExcusalProvenanceIsNotScheduled(t *testing.T) {
+	t.Parallel()
+
 	exceptionID := int64(90)
 	statusDayID := int64(30)
 	stamp := time.Date(2026, 4, 20, 13, 0, 0, 0, time.UTC)

@@ -20,6 +20,10 @@ import {
   useShowTimetableCounts,
 } from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
+import {
+  clearOwnAttendanceMutation,
+  markOwnAttendanceMutation,
+} from "~/lib/sse-optimistic-mutations";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -48,12 +52,10 @@ import {
   StudentAbsenceRow,
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
-import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
-import { fetchBulkArrivalTimes } from "~/lib/student-arrival-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { useMinuteClock } from "~/lib/pickup-helpers";
-import { toISODate } from "~/lib/date-helpers";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { createLogger } from "~/lib/logger";
 import { activeService } from "~/lib/active-api";
@@ -68,7 +70,7 @@ import type {
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
 import { isCareDayExpected, isNotScheduledRow } from "~/lib/timetable-types";
-import { isAdmin, isCaregiver } from "~/lib/auth-utils";
+import { isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import type { Student } from "~/lib/student-helpers";
@@ -116,6 +118,20 @@ import type {
 } from "~/components/active-supervisions/view-model";
 
 const logger = createLogger({ component: "ActiveSupervisionsPage" });
+
+async function runOwnAttendanceMutation<T>(
+  eventType: "student_checkin" | "student_checkout",
+  studentId: string,
+  request: () => Promise<T>,
+): Promise<T> {
+  markOwnAttendanceMutation(eventType, studentId);
+  try {
+    return await request();
+  } catch (error) {
+    clearOwnAttendanceMutation(eventType, studentId);
+    throw error;
+  }
+}
 
 type ActiveRoom = ActiveSupervisionRoom;
 type StudentWithVisit = ActiveSupervisionStudent;
@@ -251,6 +267,31 @@ interface BFFDashboardResponse {
     endTime: string;
   }>;
   plannedNow: PlannedTimetableInstance[];
+  // Folded-in sections of the selected session (#2096): the aggregate
+  // resolves group_id (or the first supervised session) and ships its
+  // visits, tracking indicators, and pickup/arrival times in the same
+  // response. Optional so a cached payload from an older backend degrades
+  // gracefully instead of breaking the page.
+  selectedGroupId?: string | null;
+  trackingIndicators?: TrackingIndicatorsResponse;
+  pickupTimes?: Array<{
+    studentId: string;
+    date: string;
+    weekdayName: string;
+    pickupTime: string | null;
+    isException: boolean;
+    notes: string;
+    dayNotes: Array<{ id: string; content: string }>;
+  }>;
+  arrivalTimes?: Array<{
+    studentId: string;
+    date: string;
+    weekdayName: string;
+    expectedArrival: string | null;
+    isException: boolean;
+    notes: string;
+    dayNotes: Array<{ id: string; content: string }>;
+  }>;
 }
 
 /** Check if a student matches the current search, group, and year filters */
@@ -334,6 +375,39 @@ function RosterSummaryStat({
 
 type RosterAction =
   "check-in" | "check-out" | "excused" | "absent" | "expected";
+
+async function runRosterActionRequest(
+  action: RosterAction,
+  instanceId: string,
+  studentId: string,
+): Promise<TimetableRoster | null> {
+  if (action === "check-in") {
+    return runOwnAttendanceMutation("student_checkin", studentId, () =>
+      timetableOperationsApi.checkIn(instanceId, studentId),
+    );
+  }
+  if (action === "check-out") {
+    return runOwnAttendanceMutation("student_checkout", studentId, () =>
+      timetableOperationsApi.checkOut(instanceId, studentId),
+    );
+  }
+  if (action === "expected") {
+    await timetableOperationsApi.patchAttendance(instanceId, studentId, {
+      status: "expected",
+      substatus: null,
+      note: null,
+    });
+    return null;
+  }
+  await timetableOperationsApi.patchAttendance(
+    instanceId,
+    studentId,
+    action === "excused"
+      ? { status: "absent", substatus: "excused" }
+      : { status: "absent" },
+  );
+  return null;
+}
 
 interface RosterRowActionsProps {
   readonly row: TimetableRosterRow;
@@ -1042,37 +1116,6 @@ function MeinRaumPageContent() {
       : (currentRoom?.name ?? currentRoom?.room_name),
   });
 
-  // Helper function to load visits for a specific room
-  const loadRoomVisits = useCallback(
-    async (
-      roomId: string,
-      roomName?: string,
-      groupNameToId?: Map<string, string>,
-      roomColor?: string | null,
-    ): Promise<StudentWithVisit[]> => {
-      try {
-        // Use bulk endpoint to fetch visits with display data for specific room
-        const visits =
-          await activeService.getActiveGroupVisitsWithDisplay(roomId);
-
-        return mapVisitsToSupervisionStudents(visits, {
-          roomName,
-          roomColor,
-          groupNameToId,
-        });
-      } catch (error) {
-        // Handle 403 Forbidden gracefully - user might not have group access
-        if (error instanceof Error && error.message.includes("403")) {
-          logger.warn("no permission to view group", { group_id: roomId });
-          return []; // Return empty array instead of throwing
-        }
-        // Re-throw other errors
-        throw error;
-      }
-    },
-    [],
-  );
-
   const currentRoomRef = useRef<ActiveRoom | null>(null);
   const hasSupervisionRef = useRef(false);
   const groupNameToIdMapRef = useRef<Map<string, string>>(new Map());
@@ -1098,108 +1141,30 @@ function MeinRaumPageContent() {
   );
 
   // SSE is handled globally by TenantAuthWrapper - no page-level setup needed.
-  // When student_checkin/checkout events occur, global SSE invalidates "visit*" caches,
-  // which triggers SWR refetch for supervision-visits-* keys automatically.
+  // When relevant events occur, global SSE invalidates the aggregated
+  // "active-supervision-dashboard-" cache, which triggers the SWR refetch.
   // NOTE: Do NOT call useGlobalSSE() here - it's already called in TenantAuthWrapper.
   // Calling it again would create a duplicate SSE connection.
+  //
+  // There is deliberately NO client-side fallback fan-out when the aggregate
+  // fails: silently-empty partial payloads are the failure mode #2096
+  // removed. Errors surface via dashboardError instead.
 
-  // Admin fallback: when BFF fails, load supervised groups directly
-  const fetchAdminDashboardFallback =
-    useCallback(async (): Promise<BFFDashboardResponse> => {
-      const [groupsRes, schulhofRes] = await Promise.all([
-        fetch("/api/active/supervisors/all", {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }),
-        fetch("/api/active/schulhof/status", {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        }).catch(() => null),
-      ]);
-
-      let supervisedGroups: BFFDashboardResponse["supervisedGroups"] = [];
-      if (groupsRes.ok) {
-        const json = (await groupsRes.json()) as {
-          data?: Array<{
-            id: number;
-            name?: string;
-            room_id?: number;
-            room?: { id: number; name: string };
-          }>;
-        };
-        supervisedGroups = (json.data ?? []).map((g) => ({
-          id: g.id.toString(),
-          name: g.name ?? "",
-          room_id: g.room_id?.toString(),
-          room: g.room
-            ? { id: g.room.id.toString(), name: g.room.name }
-            : undefined,
-        }));
-      }
-
-      let schulhofStatus: BFFDashboardResponse["schulhofStatus"] = null;
-      if (schulhofRes?.ok) {
-        const json = (await schulhofRes.json()) as {
-          data?: {
-            data?: {
-              exists: boolean;
-              room_id?: number;
-              room_name: string;
-              active_group_id?: number;
-              is_user_supervising: boolean;
-              supervision_id?: number;
-              supervisor_count: number;
-              student_count: number;
-              supervisors?: Array<{
-                id: number;
-                staff_id: number;
-                name: string;
-                is_current_user: boolean;
-              }>;
-            };
-          };
-        };
-        const s = json.data?.data;
-        if (s?.exists) {
-          schulhofStatus = {
-            exists: true,
-            roomId: s.room_id?.toString() ?? null,
-            roomName: s.room_name,
-            activityGroupId: null,
-            activeGroupId: s.active_group_id?.toString() ?? null,
-            isUserSupervising: s.is_user_supervising,
-            supervisionId: s.supervision_id?.toString() ?? null,
-            supervisorCount: s.supervisor_count,
-            studentCount: s.student_count,
-            supervisors: (s.supervisors ?? []).map((sup) => ({
-              id: sup.id.toString(),
-              staffId: sup.staff_id.toString(),
-              name: sup.name,
-              isCurrentUser: sup.is_current_user,
-            })),
-          };
-        }
-      }
-
-      return {
-        supervisedGroups,
-        unclaimedGroups: [],
-        currentStaff: null,
-        educationalGroups: [],
-        firstRoomVisits: [],
-        firstRoomId:
-          supervisedGroups.length > 0
-            ? (supervisedGroups[0]?.room_id ?? null)
-            : null,
-        schulhofStatus,
-        plannedNow: [],
-      };
-    }, []);
-
-  // Get current room ID for per-room SWR subscription
+  // Get current room ID (the selected session's active group id)
   const currentRoomId = currentRoom?.id;
 
-  // SWR-based BFF data fetching with caching
+  // The aggregate is parameterized by the selected session (#2096). The SWR
+  // key stays `active-supervision-dashboard-${refreshKey}` — the global SSE
+  // invalidation contract and the page tests match on that prefix — so the
+  // fetcher reads the selection from a ref; room switches re-run it via
+  // mutateDashboard() instead of spawning per-room cache keys.
+  const requestedGroupIdRef = useRef<string | null>(null);
+  const now = useMinuteClock();
+  const dashboardDay = berlinTodayISO(now);
+  const previousDashboardDayRef = useRef(dashboardDay);
+  const lastDashboardReconciliationRef = useRef<string | null>(null);
+
+  // SWR-based aggregate fetching with caching
   // Cache key "active-supervision-dashboard" will be invalidated by global SSE on relevant events
   const {
     data: dashboardData,
@@ -1209,24 +1174,35 @@ function MeinRaumPageContent() {
   } = useSWRAuth<BFFDashboardResponse>(
     session?.user?.token ? `active-supervision-dashboard-${refreshKey}` : null,
     async () => {
-      logger.debug("SWR fetching BFF data");
+      logger.debug("SWR fetching dashboard data");
       const start = performance.now();
 
-      const response = await fetch("/api/active-supervision-dashboard", {
-        headers: {
-          Authorization: `Bearer ${session?.user?.token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const fetchDashboard = async (groupId: string | null) => {
+        const query =
+          groupId && /^[1-9]\d{0,18}$/.test(groupId)
+            ? `?group_id=${encodeURIComponent(groupId)}`
+            : "";
+        return fetch(`/api/active-supervision-dashboard${query}`, {
+          headers: {
+            Authorization: `Bearer ${session?.user?.token}`,
+            "Content-Type": "application/json",
+          },
+        });
+      };
+
+      const requestedGroupId = requestedGroupIdRef.current;
+      let response = await fetchDashboard(requestedGroupId);
+      // A stale selection (supervision revoked, session ended) is a backend
+      // 403 — retry once without group_id so the backend resolves the
+      // caller's first supervised session; the sync effect then re-aligns
+      // the selection from the response.
+      if (!response.ok && response.status === 403 && requestedGroupId) {
+        response = await fetchDashboard(null);
+      }
 
       if (!response.ok) {
-        // Admin fallback: load data directly from individual endpoints
-        if (isAdmin(session)) {
-          logger.info("bff_failed_admin_fallback", {
-            status: response.status,
-          });
-          return await fetchAdminDashboardFallback();
-        }
+        // No silent fallback fan-out (#2096): a failed aggregate is an
+        // error, never a partial-empty payload — admins included.
         throw new Error(`BFF request failed: ${response.status}`);
       }
 
@@ -1244,6 +1220,35 @@ function MeinRaumPageContent() {
       revalidateOnFocus: false,
     },
   );
+
+  // Pickup and arrival rows are resolved for the backend's current Berlin
+  // calendar day. The SWR key deliberately stays stable for SSE invalidation,
+  // so roll the aggregate forward explicitly when the minute clock crosses
+  // Berlin midnight (or catches up after a backgrounded tab resumes).
+  useEffect(() => {
+    if (previousDashboardDayRef.current === dashboardDay) return;
+    previousDashboardDayRef.current = dashboardDay;
+    void mutateDashboard();
+  }, [dashboardDay, mutateDashboard]);
+
+  // Reconcile selection and aggregate: whenever the visible session changes
+  // through any path (tab click, Schulhof open, URL/localStorage restore)
+  // and the cached aggregate belongs to another session, re-run the fetch.
+  useEffect(() => {
+    requestedGroupIdRef.current = currentRoomId ?? null;
+    if (!currentRoomId || !dashboardData) return;
+    const resolved = dashboardData.selectedGroupId;
+    if (resolved === currentRoomId) {
+      lastDashboardReconciliationRef.current = null;
+      return;
+    }
+    const reconciliation = `${resolved ?? "none"}:${currentRoomId}`;
+    if (lastDashboardReconciliationRef.current === reconciliation) return;
+    lastDashboardReconciliationRef.current = reconciliation;
+    void Promise.resolve(mutateDashboard()).catch(() => {
+      // Errors surface via dashboardError handling
+    });
+  }, [currentRoomId, dashboardData, mutateDashboard]);
 
   // Title + plan window per running session, so tab labels can show
   // "Aktivitätsname · Planzeit" (#2265). Sessions without a timetable
@@ -1347,17 +1352,23 @@ function MeinRaumPageContent() {
 
     setAllRooms(activeRooms);
 
-    // Use pre-loaded visits from BFF for the first room
-    // IMPORTANT: Only apply first room visits when the first room is selected.
-    // When SSE triggers revalidation while user views another room, we must NOT
-    // overwrite their current view with the first room's data.
+    // The aggregate carries the visits of the session the backend resolved
+    // (requested group_id, or the first supervised session). Apply them only
+    // when that session is the one the user is looking at — an SSE
+    // revalidation while the user views another room must NOT overwrite
+    // their current view.
     const firstRoom = activeRooms[0];
+    // A payload without selectedGroupId (older backend) keeps the former
+    // semantics: its visits belong to the first room.
+    const selectedRoom = data.selectedGroupId
+      ? activeRooms.find((r) => r.id === data.selectedGroupId)
+      : firstRoom;
 
     // If the previously selected room no longer exists in the refreshed list
-    // (e.g., supervision revoked, session ended), reset to the first room so
-    // the student data stays in sync with what the UI displays.
+    // (e.g., supervision revoked, session ended), reset to the session the
+    // backend resolved so the student data stays in sync with the UI.
     if (selectedRoomId && !activeRooms.some((r) => r.id === selectedRoomId)) {
-      setSelectedRoomId(firstRoom?.id ?? null);
+      setSelectedRoomId(selectedRoom?.id ?? firstRoom?.id ?? null);
     }
 
     // Skip first-room preload when Schulhof tab is active — Schulhof uses
@@ -1375,29 +1386,42 @@ function MeinRaumPageContent() {
     if (
       !isSchulhofTabSelected &&
       !isUrlTargetingDifferentRoom &&
-      (!selectedRoomId || selectedRoomId === firstRoom?.id)
+      selectedRoom &&
+      (!selectedRoomId || selectedRoomId === selectedRoom.id)
     ) {
-      // When no room is explicitly selected yet, lock in the first room's ID
-      // so the URL-sync effect won't try to "switch" to it via localStorage.
-      if (!selectedRoomId && firstRoom) {
-        setSelectedRoomId(firstRoom.id);
+      // When no room is explicitly selected yet, lock in the resolved
+      // session's ID so the URL-sync effect won't try to "switch" to it via
+      // localStorage.
+      if (!selectedRoomId) {
+        setSelectedRoomId(selectedRoom.id);
       }
-      if (firstRoom && data.firstRoomVisits.length > 0) {
-        const studentsFromVisits = mapVisitsToSupervisionStudents(
-          data.firstRoomVisits,
-          {
-            roomName: firstRoom.room_name,
-            roomColor: firstRoom.room_color,
-            groupNameToId: nameToIdMap,
-          },
-        );
+      const studentsFromVisits = mapVisitsToSupervisionStudents(
+        data.firstRoomVisits,
+        {
+          roomName: selectedRoom.room_name,
+          roomColor: selectedRoom.room_color,
+          groupNameToId: nameToIdMap,
+        },
+      );
+      setStudents(studentsFromVisits);
+      updateRoomStudentCount(selectedRoom.id, studentsFromVisits.length);
+    }
 
-        setStudents(studentsFromVisits);
-        updateRoomStudentCount(firstRoom.id, studentsFromVisits.length);
-      } else if (firstRoom) {
-        setStudents([]);
-        updateRoomStudentCount(firstRoom.id, 0);
-      }
+    // Schulhof tab: the aggregate resolves the Schulhof session when it was
+    // requested (user supervising the yard) — apply its visits under the
+    // Schulhof heading.
+    if (
+      isSchulhofTabSelected &&
+      data.selectedGroupId &&
+      data.schulhofStatus?.isUserSupervising &&
+      data.schulhofStatus.activeGroupId === data.selectedGroupId
+    ) {
+      setStudents(
+        mapVisitsToSupervisionStudents(data.firstRoomVisits, {
+          roomName: SCHULHOF_ROOM_NAME,
+          groupNameToId: nameToIdMap,
+        }),
+      );
     }
 
     setError(null);
@@ -1423,18 +1447,12 @@ function MeinRaumPageContent() {
       if (isSchulhofTabSelected) return;
       setIsSchulhofTabSelected(true);
       setSelectedRoomId(null);
-      // Load Schulhof visits if supervising
-      if (schulhofStatus?.isUserSupervising && schulhofStatus.activeGroupId) {
-        loadRoomVisits(
-          schulhofStatus.activeGroupId,
-          SCHULHOF_ROOM_NAME,
-          groupNameToIdMapRef.current,
-        )
-          .then(setStudents)
-          .catch(() => {
-            // Error already handled in loadRoomVisits
-          });
-      } else {
+      // When supervising, the selection-reconciliation effect re-runs the
+      // aggregate for the yard session and the sync effect applies its
+      // visits; otherwise there is nothing to show.
+      if (!(
+        schulhofStatus?.isUserSupervising && schulhofStatus.activeGroupId
+      )) {
         setStudents([]);
       }
     };
@@ -1484,40 +1502,9 @@ function MeinRaumPageContent() {
     schulhofStatus?.isUserSupervising,
   ]);
 
-  // SWR-based per-room visit subscription for real-time updates.
-  // When global SSE invalidates "visit*" or "supervision*" caches, this triggers a refetch.
-  // This ensures non-first rooms also receive real-time check-in/checkout updates.
-  const { data: swrVisitsData } = useSWRAuth<StudentWithVisit[]>(
-    hasAccess && currentRoomId ? `supervision-visits-${currentRoomId}` : null,
-    async () => {
-      if (!currentRoom) return [];
-
-      const visits = await activeService.getActiveGroupVisitsWithDisplay(
-        currentRoomId!,
-      );
-
-      return mapVisitsToSupervisionStudents(visits, {
-        roomName: currentRoom.room_name,
-        roomColor: currentRoom.room_color,
-        groupNameToId: groupNameToIdMapRef.current,
-      });
-    },
-    {
-      // Never expose one room's children under another room's heading while
-      // the new key loads. Same-key SSE revalidation still keeps its cache.
-      keepPreviousData: false,
-      revalidateOnFocus: false, // Handled by global SSE
-    },
-  );
-
-  // Sync SWR visit data with local state
-  // This runs when SSE triggers cache invalidation, ensuring real-time updates for ALL rooms
-  useEffect(() => {
-    if (swrVisitsData && currentRoomId) {
-      setStudents(swrVisitsData);
-      updateRoomStudentCount(currentRoomId, swrVisitsData.length);
-    }
-  }, [swrVisitsData, currentRoomId, updateRoomStudentCount]);
+  // Per-room visits ride in the aggregate (#2096): SSE invalidates the
+  // dashboard key, the fetcher re-requests the selected session, and the
+  // sync effect above applies its visits — no separate per-room fetch.
 
   const timetableRosterKey = activeSupervisionRosterKey({
     selectedTimetableInstanceId,
@@ -1626,42 +1613,45 @@ function MeinRaumPageContent() {
     };
   }, [activeTimetableInstanceId, addStudentSearch]);
 
-  // Tracking indicators: fetch when student list changes (SSE-driven via SWR revalidation)
-  const trackingStudentIds = useMemo(
-    () => students.map((s) => s.id),
-    [students],
-  );
-  const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
-    trackingStudentIds.length > 0
-      ? `tracking-supervisions-${currentRoomId}-${trackingStudentIds.join(",")}`
-      : null,
-    async () => activeService.getTrackingIndicators(trackingStudentIds),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
+  // Tracking indicators, pickup times, and arrival times ride in the
+  // aggregate for the selected session (#2096) — no separate fetches, no
+  // extra tenant transactions. SSE invalidation of the dashboard key keeps
+  // them fresh together with the visits they belong to.
+  const trackingData = dashboardData?.trackingIndicators;
 
-  // Current time for pickup urgency calculation (updates every minute)
-  const now = useMinuteClock();
+  const pickupTimesData = useMemo(() => {
+    if (!dashboardData?.pickupTimes) return undefined;
+    const map = new Map<string, BulkPickupTime>();
+    for (const pickup of dashboardData.pickupTimes) {
+      map.set(pickup.studentId, {
+        studentId: pickup.studentId,
+        date: pickup.date,
+        weekdayName: pickup.weekdayName,
+        pickupTime: pickup.pickupTime ?? undefined,
+        isException: pickup.isException,
+        notes: pickup.notes || undefined,
+        dayNotes: pickup.dayNotes,
+      });
+    }
+    return map;
+  }, [dashboardData?.pickupTimes]);
 
-  // Pickup times: fetch when student list or date changes
-  const todayKey = toISODate(now);
-  const { data: pickupTimesData } = useSWRAuth<Map<string, BulkPickupTime>>(
-    trackingStudentIds.length > 0 && currentRoomId
-      ? `pickup-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
-      : null,
-    async () => fetchBulkPickupTimes(trackingStudentIds),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
-
-  // Arrival times: fetch when student list or date changes
-  const { data: arrivalTimesRaw } = useSWRAuth<Map<string, BulkArrivalTime>>(
-    trackingStudentIds.length > 0 && currentRoomId
-      ? `arrival-supervisions-${todayKey}-${trackingStudentIds.join(",")}`
-      : null,
-    async () => fetchBulkArrivalTimes(trackingStudentIds),
-    { keepPreviousData: true, revalidateOnFocus: false },
-  );
-  const arrivalTimesData: Map<string, BulkArrivalTime> | undefined =
-    arrivalTimesRaw instanceof Map ? arrivalTimesRaw : undefined;
+  const arrivalTimesData = useMemo(() => {
+    if (!dashboardData?.arrivalTimes) return undefined;
+    const map = new Map<string, BulkArrivalTime>();
+    for (const arrival of dashboardData.arrivalTimes) {
+      map.set(arrival.studentId, {
+        studentId: arrival.studentId,
+        date: arrival.date,
+        weekdayName: arrival.weekdayName,
+        expectedArrival: arrival.expectedArrival ?? undefined,
+        isException: arrival.isException,
+        notes: arrival.notes || undefined,
+        dayNotes: arrival.dayNotes,
+      });
+    }
+    return map;
+  }, [dashboardData?.arrivalTimes]);
 
   // Handle dashboard error
   useEffect(() => {
@@ -1827,55 +1817,25 @@ function MeinRaumPageContent() {
     localStorage.setItem("supervision-last-session", SCHULHOF_TAB_ID);
     localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
     localStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
-    // The keyed SWR subscription becomes active with the Schulhof tab and is
-    // the single owner of loading its visits. A second manual request can land
-    // later and overwrite a fresher SSE revalidation.
+    // The selection-reconciliation effect re-runs the aggregate for the
+    // Schulhof session and is the single owner of loading its visits. A
+    // second manual request can land later and overwrite a fresher SSE
+    // revalidation.
     setStudents([]);
   }, [router, schulhofStatusRef]);
 
   const handleRosterAction = useCallback(
-    async (
-      action: "check-in" | "check-out" | "excused" | "absent" | "expected",
-      row: TimetableRosterRow,
-    ) => {
+    async (action: RosterAction, row: TimetableRosterRow) => {
       if (!activeTimetableInstanceId) return;
       const instanceId = activeTimetableInstanceId;
       setMoveNotice(null);
+      let roster: TimetableRoster | null;
       try {
-        if (action === "check-in") {
-          const roster = await timetableOperationsApi.checkIn(
-            instanceId,
-            row.studentId,
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "check-out") {
-          const roster = await timetableOperationsApi.checkOut(
-            instanceId,
-            row.studentId,
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster(roster, { revalidate: false });
-        } else if (action === "expected") {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            { status: "expected", substatus: null, note: null },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        } else {
-          await timetableOperationsApi.patchAttendance(
-            instanceId,
-            row.studentId,
-            action === "excused"
-              ? { status: "absent", substatus: "excused" }
-              : { status: "absent" },
-          );
-          if (activeTimetableInstanceIdRef.current !== instanceId) return;
-          await mutateRoster();
-        }
+        roster = await runRosterActionRequest(
+          action,
+          instanceId,
+          row.studentId,
+        );
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed timetable roster action", {
@@ -1884,6 +1844,25 @@ function MeinRaumPageContent() {
           error: err instanceof Error ? err.message : String(err),
         });
         setError("Aktion im Betreuungsplan konnte nicht ausgeführt werden.");
+        return;
+      }
+      if (activeTimetableInstanceIdRef.current !== instanceId) return;
+      try {
+        if (action === "check-in" && roster) {
+          setMoveNotice(moveNoticeFromRoster(roster, row.studentId));
+        }
+        await (roster
+          ? mutateRoster(roster, { revalidate: false })
+          : mutateRoster());
+      } catch (err) {
+        if (activeTimetableInstanceIdRef.current !== instanceId) return;
+        logger.warn("timetable_roster_sync_failed_after_successful_action", {
+          action,
+          student_id: row.studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void logger.flush();
+        window.location.reload();
       }
     },
     [activeTimetableInstanceId, activeTimetableInstanceIdRef, mutateRoster],
@@ -1963,9 +1942,10 @@ function MeinRaumPageContent() {
         let nextRoster: TimetableRoster | null = null;
         const notices: string[] = [];
         for (const row of rows) {
-          nextRoster = await timetableOperationsApi.checkIn(
-            instanceId,
+          nextRoster = await runOwnAttendanceMutation(
+            "student_checkin",
             row.studentId,
+            () => timetableOperationsApi.checkIn(instanceId, row.studentId),
           );
           if (activeTimetableInstanceIdRef.current !== instanceId) continue;
           const notice = moveNoticeFromRoster(nextRoster, row.studentId);
@@ -1978,10 +1958,8 @@ function MeinRaumPageContent() {
         } else {
           await mutateRoster();
         }
-        if (activeTimetableInstanceIdRef.current !== instanceId) return;
         await mutateDashboard();
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
-        setRefreshKey((prev) => prev + 1);
       } catch (err) {
         if (activeTimetableInstanceIdRef.current !== instanceId) return;
         logger.error("failed to confirm expected timetable students", {
@@ -2009,9 +1987,10 @@ function MeinRaumPageContent() {
       setMoveNotice(null);
       try {
         setIsAddingStudent(true);
-        const roster = await timetableOperationsApi.checkIn(
-          instanceId,
+        const roster = await runOwnAttendanceMutation(
+          "student_checkin",
           studentId,
+          () => timetableOperationsApi.checkIn(instanceId, studentId),
         );
         if (activeTimetableInstanceIdRef.current !== instanceId) return false;
         setMoveNotice(moveNoticeFromRoster(roster, studentId));
@@ -2178,26 +2157,10 @@ function MeinRaumPageContent() {
     setStudents([]); // Clear current students
 
     try {
-      // Use bulk endpoint to fetch visits for selected room
-      const studentsFromVisits = await loadRoomVisits(
-        selectedRoom.id,
-        selectedRoom.room_name,
-        groupNameToIdMapRef.current,
-        selectedRoom.room_color,
-      );
-
-      // Set students state
-      setStudents([...studentsFromVisits]);
-
-      // Update room with actual student count
-      setAllRooms((prev) =>
-        prev.map((room) =>
-          room.id === roomId
-            ? { ...room, student_count: studentsFromVisits.length }
-            : room,
-        ),
-      );
-
+      // Re-run the aggregate for the newly selected session; the sync
+      // effect applies its visits and student count when the data arrives.
+      requestedGroupIdRef.current = roomId;
+      await mutateDashboard();
       setError(null);
     } catch (err) {
       // Handle 403 gracefully - show message but don't break the UI
@@ -2815,8 +2778,8 @@ function MeinRaumPageContent() {
   );
 }
 
-// Gate component: allows caregivers always, admins only when they have supervised rooms
-// (i.e., admin_supervision_overview setting is active and there are active groups)
+// Gate component: allows caregivers always, everyone else only when the
+// server confirmed the school-wide overview covers them (#2380).
 function ActiveSupervisionGate({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -2826,8 +2789,7 @@ function ActiveSupervisionGate({
       redirect("/");
     },
   });
-  const { adminOverviewEnabled, isLoadingSupervision } =
-    useOptionalSupervision();
+  const { overviewEnabled, isLoadingSupervision } = useOptionalSupervision();
 
   if (status === "loading" || isLoadingSupervision) {
     return <ActiveSupervisionLoadingView />;
@@ -2838,11 +2800,11 @@ function ActiveSupervisionGate({
     return <>{children}</>;
   }
 
-  // Admins only when the admin_supervision_overview setting is confirmed
-  // enabled (i.e. /api/active/supervisors/all returned OK). Checking
-  // supervisedRooms.length would incorrectly let admins through when the
-  // setting is OFF but a synthetic Schulhof entry is present.
-  if (isAdmin(session) && adminOverviewEnabled) {
+  // The overview endpoint confirms the backend granted this caller access.
+  // That includes effective admins and verified staff under all_staff.
+  // Checking supervisedRooms.length would incorrectly let callers through
+  // when the scope is "own" but a synthetic Schulhof entry is present.
+  if (overviewEnabled) {
     return <>{children}</>;
   }
 

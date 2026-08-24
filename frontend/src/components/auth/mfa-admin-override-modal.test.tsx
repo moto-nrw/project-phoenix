@@ -46,6 +46,7 @@ const props = {
 describe("MFAAdminOverrideModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    global.fetch = ok({ override: "none", enrolled: false });
   });
 
   afterEach(() => {

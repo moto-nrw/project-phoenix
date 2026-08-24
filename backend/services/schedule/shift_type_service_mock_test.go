@@ -93,6 +93,8 @@ func validShiftType() *scheduleModels.ShiftType {
 // ----------------------------------------------------------------------------
 
 func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("non-positive id is not found", func(t *testing.T) {
@@ -148,6 +150,8 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 }
 
 func TestShiftTypeService_ListShiftTypes_Delegates(t *testing.T) {
+	t.Parallel()
+
 	rows := []*scheduleModels.ShiftType{validShiftType()}
 	svc := NewShiftTypeService(&shiftTypeMockRepo{
 		listAllFunc: func(context.Context) ([]*scheduleModels.ShiftType, error) { return rows, nil },
@@ -162,6 +166,8 @@ func TestShiftTypeService_ListShiftTypes_Delegates(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("invalid input is rejected before hitting the repo", func(t *testing.T) {
@@ -223,6 +229,8 @@ func TestShiftTypeService_CreateShiftType_Branches(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	withID := func(id int64) *scheduleModels.ShiftType {
 		st := validShiftType()
@@ -347,6 +355,8 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	existing := validShiftType()
 	existing.ID = 5
@@ -412,6 +422,8 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestShiftTypeService_CreateDefaults_Branches(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 
 	t.Run("initial list error propagates", func(t *testing.T) {
@@ -457,6 +469,8 @@ func TestShiftTypeService_CreateDefaults_Branches(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestIsShiftTypeNameConflict(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, isShiftTypeNameConflict(nil), "nil is never a conflict")
 	assert.False(t, isShiftTypeNameConflict(errors.New("plain")), "a plain error is not a pg conflict")
 	// A pgdriver.Error zero value has no SQLSTATE, so the 23505 check fails.

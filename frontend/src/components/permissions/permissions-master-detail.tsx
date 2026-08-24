@@ -1,10 +1,8 @@
 "use client";
 
-import { Pencil } from "lucide-react";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
-import { DetailDeleteButton } from "~/components/database/detail-delete-button";
 import {
   DetailPanel,
   type DetailTab,
@@ -35,8 +33,6 @@ interface PermissionsMasterDetailProps {
   // survives a search narrowing the visible rows.
   selectedPermission: Permission | null;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
 }
 
 function keyForPermission(permission: Permission): string {
@@ -64,8 +60,6 @@ export function PermissionsMasterDetail({
   selectedId,
   selectedPermission,
   onSelect,
-  onEditClick,
-  onDeleteClick,
 }: PermissionsMasterDetailProps) {
   const groupDefinitions = useGroupedItems(
     permissions,
@@ -97,11 +91,7 @@ export function PermissionsMasterDetail({
   );
 
   const detailNode = selectedPermission ? (
-    <PermissionDetailContent
-      permission={selectedPermission}
-      onEditClick={onEditClick}
-      onDeleteClick={onDeleteClick}
-    />
+    <PermissionDetailContent permission={selectedPermission} />
   ) : (
     <EmptyDetailState
       title="Keine Berechtigung ausgewählt"
@@ -125,30 +115,10 @@ export function PermissionsMasterDetail({
 
 interface PermissionDetailContentProps {
   permission: Permission;
-  onEditClick: () => void;
-  onDeleteClick: () => void;
 }
 
-function PermissionDetailContent({
-  permission,
-  onEditClick,
-  onDeleteClick,
-}: PermissionDetailContentProps) {
+function PermissionDetailContent({ permission }: PermissionDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
-
-  const headerActions = (
-    <>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <DetailDeleteButton onClick={onDeleteClick} />
-    </>
-  );
 
   const tabs: DetailTab[] = [
     {
@@ -171,7 +141,6 @@ function PermissionDetailContent({
           }
           title={getTitle(permission)}
           subtitle={permission.name || "Systemberechtigung"}
-          actions={headerActions}
         />
       }
       tabs={tabs}

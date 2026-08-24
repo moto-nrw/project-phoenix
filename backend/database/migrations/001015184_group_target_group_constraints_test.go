@@ -14,18 +14,10 @@ import (
 // recorded 1.15.182 cannot hide a missing upgrade migration.
 func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	t.Cleanup(func() {
-		cleanupCtx := context.Background()
-		testpkg.CleanupTenantTestData(t, db, tenantID)
-		_, err := db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-		_, err = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
-		require.NoError(t, err)
-	})
+	testpkg.CleanupTenantTestData(t, db, tenantID)
 	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Target-Class-Whitespace")
 
 	require.Error(t, setTargetSchoolClassForConstraintTest(db, tenantID, group.ID, " \t\n\r "))

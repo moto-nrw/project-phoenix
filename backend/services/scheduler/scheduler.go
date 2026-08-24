@@ -15,6 +15,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -23,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -119,6 +121,8 @@ type Scheduler struct {
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
+	pwaUsageCleanup            pwaSvc.UsageService
+	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
 	settings                   SettingsResolver
@@ -152,6 +156,7 @@ type Scheduler struct {
 	lastTimetableCleanup        sync.Map // tenant_id → time.Time (WP-B14)
 	lastTimeTrackingCleanup     sync.Map // tenant_id → time.Time (Tranche 0b)
 	lastStudentChangeLogCleanup sync.Map // tenant_id → time.Time (issue #1455)
+	lastPWAUsageCleanup         sync.Map // tenant_id → time.Time (issue #2189)
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -170,6 +175,7 @@ type Scheduler struct {
 	// Nil → activate-students task does not register.
 	studentLifecycleRepo  StudentLifecycleRepository
 	studentLifecycleAudit StudentLifecycleAuditor
+	careExitEffector      CareExitEffector
 
 	// Outbox worker (parent-enrollment PR 5). Wired via SetOutboxWorker.
 	// Nil → outbox task does not register.
@@ -314,6 +320,19 @@ func (s *Scheduler) SetTimeTrackingCleanup(svc active.TimeTrackingCleanupService
 // simply doesn't register in Start().
 func (s *Scheduler) SetStudentChangeLogCleanup(svc usersSvc.StudentChangeLogCleanupService) {
 	s.studentChangeLogCleanup = svc
+}
+
+// SetPWAUsageCleanup wires the PWA standalone-usage retention cleanup
+// (issue #2189). Same opt-in shape — nil is fine, the task simply doesn't
+// register in Start().
+func (s *Scheduler) SetPWAUsageCleanup(svc pwaSvc.UsageService) {
+	s.pwaUsageCleanup = svc
+}
+
+// SetBookingConsistencyAudit wires the tenant-scoped booking consistency
+// audit. Nil disables the daily check.
+func (s *Scheduler) SetBookingConsistencyAudit(repo auditModel.BookingConsistencyRepository) {
+	s.bookingConsistency = repo
 }
 
 func (s *Scheduler) SetEnrollmentRejectedCleanup(svc enrollmentSvc.RejectedEnrollmentCleaner) {
@@ -501,6 +520,13 @@ func (s *Scheduler) Start() {
 	// Schedule daily per-child change-history GDPR cleanup (issue #1455).
 	// Same toggle + cleanup-time as the other retention jobs.
 	s.scheduleStudentChangeLogCleanupTask()
+
+	// Schedule daily PWA standalone-usage GDPR cleanup (issue #2189).
+	// Same toggle + cleanup-time as the other retention jobs.
+	s.schedulePWAUsageCleanupTask()
+
+	// Compare authoritative booking windows with their planning projections.
+	s.scheduleBookingConsistencyAuditTask()
 
 	// Schedule daily session end at configurable time (default 6 PM)
 	s.scheduleSessionEndTask()
@@ -2292,6 +2318,62 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(task *ScheduledTask) {
 				slog.Int("students_affected", result.StudentsAffected),
 				slog.Int("retention_days", result.RetentionDays),
 				slog.Int64("duration_ms", result.DurationMS),
+			)
+		}
+		return nil
+	})
+}
+
+// --- PWA standalone-usage GDPR cleanup (issue #2189) ---
+//
+// Per-tenant iteration via forEachTenantSettings; dedupe via
+// lastPWAUsageCleanup. Mirrors the student change-log cleanup task.
+
+// schedulePWAUsageCleanupTask registers the daily PWA usage cleanup when a
+// pwa.UsageService has been wired in. Nil → no task.
+func (s *Scheduler) schedulePWAUsageCleanupTask() {
+	if s.pwaUsageCleanup == nil {
+		s.getLogger().Info("pwa usage GDPR cleanup not configured (no pwa.UsageService)")
+		return
+	}
+
+	s.registerTask("pwa-usage-cleanup", "1m-poll", s.runPWAUsageCleanupTaskPolling)
+}
+
+// runPWAUsageCleanupTaskPolling ticks every minute and defers to
+// checkAndRunPWAUsageCleanup. Minute-aligned so HH:MM:00 ticks land
+// deterministically.
+func (s *Scheduler) runPWAUsageCleanupTaskPolling(task *ScheduledTask) {
+	s.runMinutePolling(task, "panic in pwa usage cleanup task",
+		"pwa usage cleanup task using minute-polling for per-tenant scheduling",
+		s.checkAndRunPWAUsageCleanup)
+}
+
+// checkAndRunPWAUsageCleanup evaluates each tenant's cleanup settings and
+// sweeps stale standalone-usage rows when the configured cleanup time
+// matches now. Shares the same data-cleanup toggle/time/timeout as the
+// other retention jobs.
+func (s *Scheduler) checkAndRunPWAUsageCleanup(task *ScheduledTask) {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastPWAUsageCleanup, "pwa-usage-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
+		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
+		defer cleanupCancel()
+
+		result, err := s.pwaUsageCleanup.CleanupExpiredUsage(cleanupCtx)
+		if err != nil {
+			s.getLogger().Error("pwa usage cleanup failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("pwa usage cleanup for tenant %d: %w", tenantID, err)
+		}
+
+		if result.RowsDeleted > 0 {
+			s.getLogger().Info("pwa usage cleanup completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("cleanup_time", cleanupTime),
+				slog.Int("rows_deleted", result.RowsDeleted),
+				slog.Int("retention_days", result.RetentionDays),
 			)
 		}
 		return nil

@@ -17,6 +17,14 @@ vi.mock("next-auth/react", () => ({
 
 const { useSession } = await import("next-auth/react");
 
+const { useOperationalOverviewScope } = await import("~/lib/tenant-context");
+const mockOverviewScope = vi.mocked(useOperationalOverviewScope);
+
+/** Configure the tenant's operations.operational_overview_scope (#2380). */
+function setOverviewScope(scope: "own" | "admins" | "all_staff") {
+  mockOverviewScope.mockReturnValue(scope);
+}
+
 // Mock fetch globally with URL-based routing
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
@@ -281,8 +289,8 @@ describe("SupervisionProvider", () => {
     expect(mockFetch.mock.calls.length).toBe(initialFetchCount);
   });
 
-  it("should setup periodic refresh when token exists", async () => {
-    // Mock setInterval to verify it's called
+  it("does not setup the former periodic refresh when token exists", async () => {
+    // Spy on setInterval to prove the deleted poll is not reintroduced.
     const intervalSpy = vi.spyOn(global, "setInterval");
 
     setupFetchMock(); // Use defaults
@@ -296,8 +304,7 @@ describe("SupervisionProvider", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    // Verify that setInterval was called with 60000ms (1 minute)
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60000);
+    expect(intervalSpy).not.toHaveBeenCalledWith(expect.any(Function), 60000);
 
     unmount();
     intervalSpy.mockRestore();
@@ -619,16 +626,18 @@ describe("useIsSupervising", () => {
   });
 });
 
-describe("SupervisionProvider admin paths", () => {
+describe("SupervisionProvider school-wide overview paths", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setOverviewScope("own");
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("should fetch from admin endpoint when user is admin", async () => {
+  it("should fetch from the overview endpoint when user is admin", async () => {
+    setOverviewScope("admins");
     setupFetchMock({
       adminAll: {
         success: true,
@@ -660,6 +669,7 @@ describe("SupervisionProvider admin paths", () => {
   });
 
   it("should fall back to staff endpoint when admin gets 403", async () => {
+    setOverviewScope("admins");
     setupFetchMock({
       adminAll: { status: 403 }, // Setting disabled
       supervised: {
@@ -685,13 +695,131 @@ describe("SupervisionProvider admin paths", () => {
     expect(result.current.isSupervising).toBe(true);
     expect(result.current.supervisedRoomName).toBe("Staff Room");
 
-    // Verify both endpoints were called (admin first, then staff fallback)
+    // Verify both endpoints were called (overview first, then staff fallback)
     const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
     expect(fetchCalls).toContain("/api/active/supervisors/all");
     expect(fetchCalls).toContain("/api/me/groups/supervised");
+    expect(result.current.overviewEnabled).toBe(false);
   });
 
-  it("should use staff endpoint directly for non-admin users", async () => {
+  it.each(["admin:*", "*:*"])(
+    "fetches the overview endpoint for the %s effective admin scope",
+    async (permission) => {
+      setOverviewScope("admins");
+      setupFetchMock();
+
+      const { result } = renderHook(() => useSupervision(), {
+        wrapper: createWrapper("test-token", ["custom"], [permission]),
+      });
+
+      await waitFor(() => {
+        expect(result.current.isLoadingSupervision).toBe(false);
+      });
+
+      expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+        "/api/active/supervisors/all",
+      );
+    },
+  );
+
+  // #2380: with the all_staff scope a plain caregiver gets the school-wide
+  // list — the very case the admin-only rule could not express.
+  it("fetches the overview endpoint for caregivers under the all_staff scope", async () => {
+    setOverviewScope("all_staff");
+    setupFetchMock({
+      adminAll: {
+        success: true,
+        data: [
+          {
+            id: 11,
+            room_id: 110,
+            group_id: 55,
+            room: { id: 110, name: "Fremder Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["user"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.supervisedRoomName).toBe("Fremder Raum");
+    expect(result.current.overviewEnabled).toBe(true);
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).toContain("/api/active/supervisors/all");
+  });
+
+  // Deactivation: back on the restrictive scope, the client stops asking for
+  // the school-wide list entirely instead of collecting 403s.
+  it("never asks for the overview endpoint under the own scope", async () => {
+    setOverviewScope("own");
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 12,
+            room_id: 120,
+            group_id: 60,
+            room: { id: 120, name: "Eigener Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["admin"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+
+    expect(result.current.supervisedRoomName).toBe("Eigener Raum");
+    expect(result.current.overviewEnabled).toBe(false);
+    const fetchCalls = mockFetch.mock.calls.map((call) => call[0] as string);
+    expect(fetchCalls).not.toContain("/api/active/supervisors/all");
+  });
+
+  it("refreshes supervision after the resolved overview scope changes", async () => {
+    setupFetchMock({
+      supervised: {
+        data: [
+          {
+            id: 12,
+            room_id: 120,
+            group_id: 60,
+            room: { id: 120, name: "Eigener Raum" },
+          },
+        ],
+      },
+    });
+
+    const { result, rerender } = renderHook(() => useSupervision(), {
+      wrapper: createWrapper("test-token", ["user"]),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isLoadingSupervision).toBe(false);
+    });
+    mockFetch.mockClear();
+
+    setOverviewScope("all_staff");
+    rerender();
+
+    await waitFor(() => {
+      expect(mockFetch.mock.calls.map((call) => call[0])).toContain(
+        "/api/active/supervisors/all",
+      );
+    });
+  });
+
+  it("should use staff endpoint directly for non-admin users under the admins scope", async () => {
+    setOverviewScope("admins");
     setupFetchMock({
       supervised: {
         data: [
@@ -1935,7 +2063,7 @@ describe("SupervisionProvider uncovered condition coverage", () => {
   });
 });
 
-describe("SupervisionProvider periodic interval setup", () => {
+describe("SupervisionProvider refresh scheduling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -1944,11 +2072,11 @@ describe("SupervisionProvider periodic interval setup", () => {
     vi.restoreAllMocks();
   });
 
-  it("should cleanup interval on unmount", async () => {
-    const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+  it("installs a low-frequency supervision resync interval", async () => {
+    const setIntervalSpy = vi.spyOn(global, "setInterval");
     setupFetchMock();
 
-    const { unmount } = renderHook(() => useSupervision(), {
+    renderHook(() => useSupervision(), {
       wrapper: createWrapper("test-token"),
     });
 
@@ -1956,11 +2084,10 @@ describe("SupervisionProvider periodic interval setup", () => {
       expect(mockFetch).toHaveBeenCalled();
     });
 
-    unmount();
-
-    // clearInterval should have been called during cleanup
-    expect(clearIntervalSpy).toHaveBeenCalled();
-    clearIntervalSpy.mockRestore();
+    expect(setIntervalSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      5 * 60 * 1000,
+    );
   });
 });
 

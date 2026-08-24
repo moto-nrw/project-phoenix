@@ -10,6 +10,8 @@ import (
 // per weekday no matter which child the caller edits, so removing the link from
 // one card removes the same row from the other.
 func TestNewStudentCompanion_NormalizesOrder(t *testing.T) {
+	t.Parallel()
+
 	const (
 		lower  = int64(41)
 		higher = int64(77)
@@ -64,6 +66,8 @@ func TestNewStudentCompanion_NormalizesOrder(t *testing.T) {
 // invalid combinations must never reach the database, where they would either
 // violate the CHECK constraint or silently store an unreadable weekday.
 func TestNewStudentCompanion_Rejects(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name        string
 		studentID   int64
@@ -120,6 +124,8 @@ func TestNewStudentCompanion_Rejects(t *testing.T) {
 // TestNewStudentCompanion_RejectsMissingIDs guards the zero/negative id case,
 // which would otherwise insert a row pointing at no child at all.
 func TestNewStudentCompanion_RejectsMissingIDs(t *testing.T) {
+	t.Parallel()
+
 	for _, tt := range []struct {
 		name        string
 		studentID   int64
@@ -141,6 +147,8 @@ func TestNewStudentCompanion_RejectsMissingIDs(t *testing.T) {
 // from a child that is not part of the edge at all — the "ok" flag is what
 // keeps unrelated edges out of a child's companion list.
 func TestStudentCompanion_Other(t *testing.T) {
+	t.Parallel()
+
 	edge, err := NewStudentCompanion(10, 20, 1)
 	if err != nil {
 		t.Fatalf("NewStudentCompanion() unexpected error: %v", err)
@@ -180,6 +188,8 @@ func TestStudentCompanion_Other(t *testing.T) {
 // TestCompanionWeekdayNumber pins the key<->number translation both API
 // directions depend on.
 func TestCompanionWeekdayNumber(t *testing.T) {
+	t.Parallel()
+
 	for key, want := range map[string]int{
 		PickupDayMonday:    1,
 		PickupDayTuesday:   2,
@@ -209,6 +219,8 @@ func TestCompanionWeekdayNumber(t *testing.T) {
 // are ordered Mon..Fri (not insertion order, not numeric-string order), and
 // edges that do not touch the child are dropped.
 func TestCompanionLinksFromEdges_FoldsWeekdays(t *testing.T) {
+	t.Parallel()
+
 	const (
 		student   = int64(100)
 		companion = int64(50)
@@ -256,6 +268,8 @@ func TestCompanionLinksFromEdges_FoldsWeekdays(t *testing.T) {
 // TestCompanionLinksFromEdges_NoMatches pins the empty (non-nil) result the API
 // layer serializes as [] rather than null.
 func TestCompanionLinksFromEdges_NoMatches(t *testing.T) {
+	t.Parallel()
+
 	edges := []*StudentCompanion{mustEdge(t, 700, 800, 1)}
 
 	links := CompanionLinksFromEdges(100, edges)
@@ -281,6 +295,8 @@ func mustEdge(t *testing.T, studentID, companionID int64, weekday int) *StudentC
 // order (or with the weekdays shuffled) must not read as a foreign change and
 // refuse a legitimate save.
 func TestCompanionLinksFingerprint_OrderIndependent(t *testing.T) {
+	t.Parallel()
+
 	a := []CompanionLink{
 		{CompanionStudentID: 42, Weekdays: []string{PickupDayMonday, PickupDayWednesday}},
 		{CompanionStudentID: 7, Weekdays: []string{PickupDayFriday}},
@@ -300,6 +316,8 @@ func TestCompanionLinksFingerprint_OrderIndependent(t *testing.T) {
 // companionsFingerprint() in frontend/src/lib/student-companion-api.ts. A
 // silent format change on either side would make every save look stale.
 func TestCompanionLinksFingerprint_MirrorsFrontendFormat(t *testing.T) {
+	t.Parallel()
+
 	links := []CompanionLink{
 		{CompanionStudentID: 42, Weekdays: []string{PickupDayWednesday, PickupDayMonday}},
 		{CompanionStudentID: 7, Weekdays: []string{PickupDayFriday}},
@@ -316,6 +334,8 @@ func TestCompanionLinksFingerprint_MirrorsFrontendFormat(t *testing.T) {
 // TestCompanionLinksFingerprint_DetectsChange pins the case the check exists
 // for: a link someone else added must not fingerprint like the list without it.
 func TestCompanionLinksFingerprint_DetectsChange(t *testing.T) {
+	t.Parallel()
+
 	loaded := []CompanionLink{{CompanionStudentID: 7, Weekdays: []string{PickupDayFriday}}}
 	stored := []CompanionLink{
 		{CompanionStudentID: 7, Weekdays: []string{PickupDayFriday}},
@@ -336,6 +356,8 @@ func TestCompanionLinksFingerprint_DetectsChange(t *testing.T) {
 // weekdays unless the link covers the whole week, so a Monday-only
 // Laufgemeinschaft cannot be read off a paper list as a standing arrangement.
 func TestFormatCompanionLinks(t *testing.T) {
+	t.Parallel()
+
 	got := FormatCompanionLinks([]CompanionLink{
 		{CompanionStudentID: 7, FirstName: "Mia", LastName: "Schulz", Weekdays: []string{PickupDayMonday, PickupDayTuesday}},
 		{CompanionStudentID: 9, FirstName: "Tom", LastName: "Meier", Weekdays: PickupDayOrder},

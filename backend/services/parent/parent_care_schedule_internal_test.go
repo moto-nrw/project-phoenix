@@ -14,6 +14,8 @@ import (
 // status codes). A miss here would collapse a specific 404/409 into a generic
 // 500, so each mapping is pinned.
 func TestMapCareRequestError(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name string
 		in   error
@@ -35,6 +37,8 @@ func TestMapCareRequestError(t *testing.T) {
 }
 
 func TestMapCareRequestError_WrapsUnknown(t *testing.T) {
+	t.Parallel()
+
 	underlying := errors.New("db exploded")
 	got := mapCareRequestError(underlying, "withdraw")
 	// An unmapped error must NOT masquerade as a known parent sentinel...

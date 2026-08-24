@@ -18,14 +18,14 @@ import (
 // applied group-field changes — instead of the historical Warn-and-commit
 // partial write.
 func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
 
 	group := testpkg.CreateTestActivityGroup(t, db, "rollback-original")
-	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 
 	// Rename + attach a nonexistent supervisor: the FK violation from the
 	// supervisor insert must roll the rename back too.
@@ -47,16 +47,15 @@ func TestUpdateGroupWithDetails_RollsBackOnSupervisorFailure(t *testing.T) {
 // TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules covers the
 // happy path: fields, supervisor set, and schedule replacement all land.
 func TestUpdateGroupWithDetails_UpdatesFieldsSupervisorsAndSchedules(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	service := setupActivityService(t, db)
 	ctx := context.Background()
 
 	group := testpkg.CreateTestActivityGroup(t, db, "with-details-original")
-	defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
-	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID)
 
 	group.Name = "with-details-renamed"
 

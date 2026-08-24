@@ -28,6 +28,8 @@ import (
 )
 
 func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	assignedID := int64(210)
 	absentID := int64(211)
@@ -70,6 +72,8 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 }
 
 func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	assignedID := int64(212)
 	instanceID := int64(340)
@@ -92,9 +96,11 @@ func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
 }
 
 func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 		instanceWithTimes(330, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
 	}
@@ -110,10 +116,12 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 // Since #2161 the Schulhof is a regular plannable room: its planned blocks
 // appear in the "Jetzt starten" list exactly like any other room's.
 func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	const schulhofRoomID int64 = 811
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
 		Model: modelBase.Model{ID: schulhofRoomID},
 		Name:  constants.SchulhofRoomName,
@@ -134,11 +142,13 @@ func TestTimetableOperationsPlannedNowIncludesSchulhof(t *testing.T) {
 }
 
 func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
+	t.Parallel()
+
 	t.Run("does not return future-date instances as overdue today", func(t *testing.T) {
 		now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 		tomorrowStart := time.Date(2026, time.May, 11, 8, 0, 0, 0, time.UTC)
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 			instanceWithTimes(334, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour)),
 		}
@@ -163,6 +173,8 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 }
 
 func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 
 	t.Run("forbids accounts without staff when admin overview is disabled", func(t *testing.T) {
@@ -177,7 +189,7 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 
 	t.Run("admin overview allows missing person profile", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 		deps.personService.accountErr = usersSvc.ErrPersonNotFound
 		deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
 			instanceWithTimes(336, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
@@ -256,6 +268,8 @@ func TestTimetableOperationsPlannedNowErrorBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	deps.settings.leadMinutes = 60
@@ -272,6 +286,8 @@ func TestTimetableOperationsPlannedNowIncludesStartLeadWindow(t *testing.T) {
 }
 
 func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 628, 434, 227, 337)
@@ -306,6 +322,8 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 // blocks and never-started planned blocks whose end has passed. Running,
 // cancelled, still-open planned, and spontaneous planned instances stay out.
 func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 632, 438, 231, 360)
@@ -339,6 +357,8 @@ func TestTimetableOperationsPlannedNowPastScopeSelectsFinishedBlocks(t *testing.
 // Past-scope visibility mirrors the default scope: unassigned staff see
 // nothing, the admin overview sees everything (#2335).
 func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 15, 0, 0, 0, time.UTC)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 633, 439, 232, 370)
@@ -354,15 +374,17 @@ func TestTimetableOperationsPlannedNowPastScopeKeepsVisibilityRules(t *testing.T
 	require.Len(t, result, 1)
 	assert.Equal(t, int64(370), result[0].ID)
 
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	result, err = deps.service.PlannedNow(context.Background(), 633, true, timezone.DateFromTime(now), now, PlannedNowOptions{Scope: PlannedNowScopePast})
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 }
 
 func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
+	t.Parallel()
+
 	deps := newTimetableOpsDeps()
-	deps.settings.enabled = true
+	deps.settings.scope = configModel.OverviewScopeAdmins
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 430
 
@@ -374,6 +396,8 @@ func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
 }
 
 func TestTimetableOperationsStartDelegatesWhenStaffIsAssigned(t *testing.T) {
+	t.Parallel()
+
 	staffID := int64(230)
 	instanceID := int64(350)
 	deps := newTimetableOpsDeps()
@@ -393,6 +417,8 @@ func TestTimetableOperationsStartDelegatesWhenStaffIsAssigned(t *testing.T) {
 }
 
 func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(360)
 	activeGroupID := int64(260)
 	groupID := int64(270)
@@ -432,6 +458,8 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 // contradictory attendance state (#2265). Rows without such an overlap stay
 // unmarked, and rosters of non-active instances never query for it.
 func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(368)
 	activeGroupID := int64(268)
 	otherInstanceID := int64(369)
@@ -474,6 +502,8 @@ func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
 }
 
 func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(371)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 661, 483, 251, instanceID)
@@ -497,6 +527,8 @@ func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *te
 }
 
 func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(372)
 	activeGroupID := int64(272)
 	deps := newTimetableOpsDeps()
@@ -518,6 +550,8 @@ func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T)
 // return the same roster state — the backend truth two parallel clients
 // converge on via SSE-triggered refetches (#2265 acceptance criterion).
 func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(373)
 	activeGroupID := int64(273)
 	deps := newTimetableOpsDeps()
@@ -553,6 +587,8 @@ func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
 // historical row while the weekly list, parent calendar, and attendance history
 // keep the completion-time answer (#1747 review).
 func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(366)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 656, 456, 246, instanceID)
@@ -581,6 +617,8 @@ func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *te
 // than a re-derived plan verdict, so a plan edit cannot retroactively push a
 // finished row out of the expected block either.
 func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(367)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 657, 457, 247, instanceID)
@@ -609,6 +647,8 @@ func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testin
 // owed — the roster has to report the non-booking verdict so the frontend groups
 // the row under "Heute nicht eingeplant" instead of "Abwesend" (#1747 review).
 func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testing.T) {
+	t.Parallel()
+
 	statusDayID := int64(9100)
 	instanceID := int64(368)
 	deps := newTimetableOpsDeps()
@@ -643,6 +683,8 @@ func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testin
 // absence on an unbooked day belongs under "nicht eingeplant", or the card
 // reports 0 while the slide-over shows one (#1747 review).
 func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) {
+	t.Parallel()
+
 	statusDayID := int64(9101)
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	inst := instanceWithTimes(369, scheduleModel.InstanceStatusPlanned, now, now.Add(time.Hour))
@@ -667,6 +709,8 @@ func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) 
 }
 
 func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(361)
 	activeGroupID := int64(261)
 	activityGroupID := int64(271)
@@ -703,6 +747,8 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 }
 
 func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(363)
 	activeGroupID := int64(263)
 	activityGroupID := int64(273)
@@ -755,6 +801,8 @@ func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
 }
 
 func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(362)
 	activeGroupID := int64(262)
 	studentID := int64(533)
@@ -797,6 +845,8 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(380)
 	activeGroupID := int64(280)
 	studentID := int64(540)
@@ -831,6 +881,8 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 }
 
 func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(381)
 	targetActiveGroupID := int64(281)
 	originActiveGroupID := int64(282)
@@ -866,6 +918,8 @@ func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) 
 // The cross-group 409 was retired with #2386: a child still recorded present
 // in another running block now moves automatically instead of being rejected.
 func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(400)
 	activeGroupID := int64(290)
 	originInstanceID := int64(405)
@@ -990,6 +1044,8 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 }
 
 func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(401)
 	activeGroupID := int64(292)
 	studentID := int64(551)
@@ -1009,6 +1065,8 @@ func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
 }
 
 func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(413)
 	activeGroupID := int64(299)
 	studentID := int64(559)
@@ -1028,6 +1086,8 @@ func TestTimetableOperationsCheckOutAlreadyEndedReturnsRoster(t *testing.T) {
 }
 
 func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(403)
 	activeGroupID := int64(293)
 	studentID := int64(552)
@@ -1076,6 +1136,8 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 }
 
 func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(427)
 	studentID := int64(567)
 	deps := newTimetableOpsDeps()
@@ -1098,6 +1160,8 @@ func TestTimetableOperationsPatchAttendanceRejectsCompletedInstance(t *testing.T
 }
 
 func TestTimetableOperationsReopenRequiresCompleterOrAdmin(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(428)
 	deps := newTimetableOpsDeps()
 	completed := activeInstance(instanceID, 306)
@@ -1129,6 +1193,8 @@ func TestTimetableOperationsReopenRequiresCompleterOrAdmin(t *testing.T) {
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(405)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 673, 495, 254, instanceID)
@@ -1142,6 +1208,8 @@ func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) 
 }
 
 func TestTimetableOperationsRosterByActiveGroupReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
 	deps := newTimetableOpsDeps()
 
 	result, err := deps.service.RosterByActiveGroup(context.Background(), 674, false, 295)
@@ -1151,6 +1219,8 @@ func TestTimetableOperationsRosterByActiveGroupReturnsNotFound(t *testing.T) {
 }
 
 func TestTimetableOperationsRosterByActiveGroupSuccess(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(416)
 	activeGroupID := int64(301)
 	deps := newTimetableOpsDeps()
@@ -1165,6 +1235,8 @@ func TestTimetableOperationsRosterByActiveGroupSuccess(t *testing.T) {
 }
 
 func TestTimetableOperationsPermissionBranches(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(409)
 	activeGroupID := int64(296)
 
@@ -1193,9 +1265,9 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("open care allows staff without instance assignment or supervision", func(t *testing.T) {
+	t.Run("all_staff scope allows staff without instance assignment or supervision", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.mode = configModel.GroupModeOpenCare
+		deps.settings.scope = configModel.OverviewScopeAllStaff
 		wireAssignedStaff(deps, 693, 515, 274, instanceID)
 		deps.staffRepo.byInstance[instanceID] = nil
 
@@ -1205,7 +1277,21 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
 	})
 
-	t.Run("group mode resolution failure keeps fixed-group checks", func(t *testing.T) {
+	// The organisational group mode no longer opens running modules (#2380):
+	// on its own it leaves the school on the restrictive default.
+	t.Run("open care alone does not open foreign modules", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+		wireAssignedStaff(deps, 698, 518, 277, instanceID)
+		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 279}}
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Roster(context.Background(), 698, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("overview scope resolution failure keeps fixed-group checks", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		deps.settings.stringErr = errors.New("settings unavailable")
 		wireAssignedStaff(deps, 694, 516, 275, instanceID)
@@ -1231,18 +1317,18 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		assert.Empty(t, deps.instanceService.completed)
 	})
 
-	t.Run("open care still requires a staff identity", func(t *testing.T) {
+	t.Run("all_staff scope still requires a staff identity", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.mode = configModel.GroupModeOpenCare
+		deps.settings.scope = configModel.OverviewScopeAllStaff
 
 		_, err := deps.service.Roster(context.Background(), 695, false, instanceID)
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
 	})
 
-	t.Run("admin overview allows an admin without a staff identity", func(t *testing.T) {
+	t.Run("admins scope allows an admin without a staff identity", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.settings.enabled = true
+		deps.settings.scope = configModel.OverviewScopeAdmins
 
 		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
 
@@ -1268,6 +1354,8 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsCheckInBranches(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(410)
 	activeGroupID := int64(297)
 	studentID := int64(557)
@@ -1347,6 +1435,8 @@ func TestTimetableOperationsCheckInBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsCheckOutBranches(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(412)
 	deps := newTimetableOpsDeps()
 	wireAssignedStaff(deps, 681, 503, 262, instanceID)
@@ -1362,6 +1452,8 @@ func TestTimetableOperationsCheckOutBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsActiveVisitLookupPropagatesErrors(t *testing.T) {
+	t.Parallel()
+
 	deps := newTimetableOpsDeps()
 	deps.visitRepo.err = errors.New("visit query failed")
 
@@ -1372,6 +1464,8 @@ func TestTimetableOperationsActiveVisitLookupPropagatesErrors(t *testing.T) {
 }
 
 func TestTimetableOperationsPatchAttendanceBranches(t *testing.T) {
+	t.Parallel()
+
 	deps := newTimetableOpsDeps()
 	instanceID := int64(413)
 	wireAssignedStaff(deps, 682, 504, 263, instanceID)
@@ -1425,6 +1519,8 @@ func TestTimetableOperationsPatchAttendanceBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
+	t.Parallel()
+
 	instanceID := int64(417)
 	activeGroupID := int64(302)
 
@@ -1509,6 +1605,8 @@ func TestTimetableOperationsDependencyErrorsPropagate(t *testing.T) {
 }
 
 func TestTimetableOperationsBroadcastBranches(t *testing.T) {
+	t.Parallel()
+
 	ctx := tenant.WithTenantID(context.Background(), 722)
 
 	t.Run("skips when broadcaster is nil", func(t *testing.T) {
@@ -1548,6 +1646,8 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 }
 
 func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
+	t.Parallel()
+
 	assert.Equal(t, "timetable attendance validation failed", (&TimetableAttendanceValidationError{}).Error())
 
 	assert.Panics(t, func() {
@@ -1555,9 +1655,11 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 	})
 
 	deps := newTimetableOpsDeps()
+	// A settings fault must fail closed for every caller shape (#2380).
 	deps.settings.err = errors.New("settings down")
-	assert.False(t, deps.service.(*timetableOperationsService).adminOverviewEnabled(context.Background(), true))
-	assert.False(t, deps.service.(*timetableOperationsService).adminOverviewEnabled(context.Background(), false))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), true, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, true))
+	assert.False(t, deps.service.(*timetableOperationsService).operationalOverview(context.Background(), false, false))
 
 	deps.personService.accountPerson = &usersModel.Person{}
 	deps.personService.accountPerson.ID = 505
@@ -1580,6 +1682,8 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 }
 
 func TestTimetableOperationHelpers(t *testing.T) {
+	t.Parallel()
+
 	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
 	assert.True(t, plannedNowWindow(instanceWithTimes(406, scheduleModel.InstanceStatusPlanned, now.Add(-16*time.Minute), now.Add(time.Hour)), now, 0))
 	assert.True(t, plannedNowWindow(instanceWithTimes(407, scheduleModel.InstanceStatusPlanned, now.Add(14*time.Minute), now.Add(2*time.Hour)), now, 0))
@@ -1598,6 +1702,8 @@ func TestTimetableOperationHelpers(t *testing.T) {
 }
 
 func TestTimetableOperationDirectHelperBranches(t *testing.T) {
+	t.Parallel()
+
 	t.Run("load roster template group ignores missing and unbound groups", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
 		svc := deps.service.(*timetableOperationsService)
@@ -2132,20 +2238,23 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled     bool
 	err         error
 	mode        string
+	scope       string
 	stringErr   error
 	leadMinutes int
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
-	return s.enabled, s.err
+	return false, s.err
 }
 
-func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, error) {
+func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if s.stringErr != nil {
 		return "", s.stringErr
+	}
+	if key == configModel.KeyOperationalOverviewScope {
+		return s.scope, nil
 	}
 	return s.mode, nil
 }
@@ -2162,6 +2271,8 @@ func (s *fakeOpsSettings) ResolveInt(_ context.Context, _ string) (int, error) {
 // (#2265). Planned and completed instances stay out; so do active rows
 // without a live session.
 func TestTimetableOperationsActiveSessions(t *testing.T) {
+	t.Parallel()
+
 	deps := newTimetableOpsDeps()
 	now := time.Date(2026, time.May, 10, 13, 0, 0, 0, time.UTC)
 

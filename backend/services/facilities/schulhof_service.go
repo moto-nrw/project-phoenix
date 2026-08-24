@@ -346,13 +346,14 @@ func (s *schulhofService) ensureSchulhofRoom(ctx context.Context) (*facilities.R
 
 	capacity := constants.SchulhofRoomCapacity
 	category := constants.SchulhofCategoryName
-	color := constants.SchulhofColor
 
+	// No color stamped on purpose (#2405): the Schulhof room's color is
+	// admin-configurable now, and leaving it unset is what makes the
+	// documented orange default apply until someone picks something else.
 	newRoom := &facilities.Room{
 		Name:     constants.SchulhofRoomName,
 		Capacity: &capacity,
 		Category: &category,
-		Color:    &color,
 		IsSystem: true,
 	}
 

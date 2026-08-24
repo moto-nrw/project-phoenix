@@ -13,22 +13,19 @@ import (
 // FindByStudentAndActiveGroupIDs returns only the student's visits whose
 // active_group_id matches one of the given IDs. Empty slice must short-circuit.
 func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
-	defer cleanupVisitTestData(t, db, data)
 
 	now := time.Now()
 	v1 := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), nil)
-	v2 := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-1*time.Hour), nil)
+	testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-1*time.Hour), nil)
 
 	defer func() {
-		for _, id := range []int64{v1.ID, v2.ID} {
-			testpkg.CleanupTableRecords(t, db, "active.visits", id)
-		}
 	}()
 
 	t.Run("empty id slice short-circuits", func(t *testing.T) {
@@ -60,13 +57,13 @@ func TestVisitRepository_FindByStudentAndActiveGroupIDs(t *testing.T) {
 }
 
 func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := repositories.NewFactory(db).ActiveVisit
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	data := createVisitTestData(t, db)
-	defer cleanupVisitTestData(t, db, data)
 
 	now := time.Now()
 	yesterday := now.Add(-24 * time.Hour)
@@ -74,22 +71,19 @@ func TestVisitRepository_FindByStudentAndTimeRange(t *testing.T) {
 
 	// Create visits across different times
 	exit1 := twoDaysAgo.Add(2 * time.Hour)
-	v1 := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, twoDaysAgo, &exit1)
+	testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, twoDaysAgo, &exit1)
 
 	exit2 := yesterday.Add(3 * time.Hour)
-	v2 := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, yesterday, &exit2)
+	testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, yesterday, &exit2)
 
 	exit3 := now.Add(-30 * time.Minute)
-	v3 := testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), &exit3)
+	testpkg.CreateTestVisit(t, db, data.Student1.ID, data.ActiveGroup.ID, now.Add(-2*time.Hour), &exit3)
 
 	// Student2 visit — for isolation check
 	exit4 := now.Add(-1 * time.Hour)
-	v4 := testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-3*time.Hour), &exit4)
+	testpkg.CreateTestVisit(t, db, data.Student2.ID, data.ActiveGroup.ID, now.Add(-3*time.Hour), &exit4)
 
 	defer func() {
-		for _, id := range []int64{v1.ID, v2.ID, v3.ID, v4.ID} {
-			testpkg.CleanupTableRecords(t, db, "active.visits", id)
-		}
 	}()
 
 	t.Run("returns_all_visits_in_range", func(t *testing.T) {

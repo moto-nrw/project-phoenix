@@ -2,11 +2,13 @@ package auth_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authrepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,14 +17,14 @@ import (
 )
 
 func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
@@ -34,14 +36,14 @@ func TestAccountRepository_UpdateAvatar_Success(t *testing.T) {
 }
 
 func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET .*avatar.* WHERE .*id.*`).
@@ -57,15 +59,38 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
+func TestAccountRepository_UpdateManageable_NoMatchingMembershipIsNotFound(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
+	repo := authrepo.NewAccountRepository(db)
+	account := &authModel.Account{
+		Model:  modelBase.Model{ID: 42},
+		Email:  "revoked@example.test",
+		Active: true,
+	}
+
+	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.UpdateManageable(context.Background(), account)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
+
+	db := bun.NewDB(sqlDB, pgdialect.New())
 
 	repo := authrepo.NewAccountRepository(db)
 
@@ -76,14 +101,14 @@ func TestAccountRepository_FindAvatarsByAccountIDs_EmptyIDs(t *testing.T) {
 }
 
 func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 
@@ -103,14 +128,14 @@ func TestAccountRepository_FindAvatarsByAccountIDs_Success(t *testing.T) {
 }
 
 func TestAccountRepository_FindAvatarsByAccountIDs_ReturnsDatabaseError(t *testing.T) {
+	t.Parallel()
+
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() {
-		require.NoError(t, sqlDB.Close())
-	}()
+	// sqlmock without ExpectClose complains on Close; the close error is noise.
+	defer func() { _ = sqlDB.Close() }()
 
 	db := bun.NewDB(sqlDB, pgdialect.New())
-	defer func() { _ = db.Close() }()
 
 	repo := authrepo.NewAccountRepository(db)
 	mock.ExpectQuery(`SELECT "id", "avatar" FROM auth\.accounts`).

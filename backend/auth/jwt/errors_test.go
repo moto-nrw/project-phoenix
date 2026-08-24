@@ -15,12 +15,16 @@ import (
 // =============================================================================
 
 func TestErrorVariables(t *testing.T) {
+	t.Parallel()
+
 	assert.EqualError(t, ErrTokenUnauthorized, "token unauthorized")
 	assert.EqualError(t, ErrTokenExpired, "token expired")
 	assert.EqualError(t, ErrInvalidAccessToken, "invalid access token")
 }
 
 func TestErrorVariables_AreDistinct(t *testing.T) {
+	t.Parallel()
+
 	errs := []error{
 		ErrTokenUnauthorized,
 		ErrTokenExpired,
@@ -36,6 +40,8 @@ func TestErrorVariables_AreDistinct(t *testing.T) {
 }
 
 func TestErrorVariables_CanBeWrapped(t *testing.T) {
+	t.Parallel()
+
 	wrapped := errors.Join(ErrTokenExpired, errors.New("additional context"))
 	assert.True(t, errors.Is(wrapped, ErrTokenExpired))
 }
@@ -45,6 +51,8 @@ func TestErrorVariables_CanBeWrapped(t *testing.T) {
 // =============================================================================
 
 func TestErrResponse_Fields(t *testing.T) {
+	t.Parallel()
+
 	testErr := ErrTokenExpired
 	errResp := &ErrResponse{
 		Err:            testErr,
@@ -66,6 +74,8 @@ func TestErrResponse_Fields(t *testing.T) {
 // =============================================================================
 
 func TestErrUnauthorized_WithTokenErrors(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		err  error
@@ -90,6 +100,8 @@ func TestErrUnauthorized_WithTokenErrors(t *testing.T) {
 }
 
 func TestErrUnauthorized_Render(t *testing.T) {
+	t.Parallel()
+
 	renderer := ErrUnauthorized(ErrTokenExpired)
 	errResp, ok := renderer.(*ErrResponse)
 	require.True(t, ok)
@@ -102,6 +114,8 @@ func TestErrUnauthorized_Render(t *testing.T) {
 }
 
 func TestErrUnauthorized_CustomError(t *testing.T) {
+	t.Parallel()
+
 	customErr := errors.New("custom error message")
 	renderer := ErrUnauthorized(customErr)
 	require.NotNil(t, renderer)

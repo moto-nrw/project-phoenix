@@ -10,18 +10,16 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { useTenantRouter } from "~/lib/tenant-router";
-import { useNFCEnabled } from "~/lib/tenant-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { studentService } from "~/lib/api";
-import { activeService } from "~/lib/active-service";
-import type { ActiveGroup } from "~/lib/active-helpers";
+import { schoolCheckinStudent } from "~/lib/student-api";
 import {
   useStudentData,
   type ExtendedStudent,
@@ -49,18 +47,23 @@ import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
 import {
+  AggregatedRequestList,
+  type AggregatedRequestFilters,
+} from "~/components/students/aggregated-request-list";
+import { SectionCard } from "~/components/ui/section-card";
+import {
   StudentCheckoutSection,
   StudentCheckinSection,
   StudentSickReportSection,
   StudentExcusedReportSection,
   StudentStatusActionsMenu,
-  getStudentActionType,
 } from "~/components/students/student-checkout-section";
-import { performImmediateCheckin } from "~/lib/checkin-api";
 import { createLogger } from "~/lib/logger";
+import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { CareExitModal } from "~/components/students/care-exit-modal";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
@@ -79,6 +82,10 @@ import {
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import {
+  fetchStudentCareWithdrawal,
+  type CareWithdrawalCompletion,
+} from "~/lib/care-exit-api";
 import { fetchStudentCarePlanDay } from "~/lib/student-care-plan-api";
 import {
   deleteStudentPartialAbsence,
@@ -109,6 +116,7 @@ type StudentTabId =
   | "betreuungszeiten"
   | "anmeldungen"
   | "dokumente"
+  | "aenderungsprotokoll"
   | "historie";
 
 const TAB_LABELS: Record<StudentTabId, string> = {
@@ -119,6 +127,7 @@ const TAB_LABELS: Record<StudentTabId, string> = {
   betreuungszeiten: "Betreuungszeiten",
   anmeldungen: "Anmeldungen",
   dokumente: "Dokumente",
+  aenderungsprotokoll: "Änderungsprotokoll",
   historie: "Historie",
 };
 
@@ -132,11 +141,13 @@ const FULL_ACCESS_BASE_TABS: StudentTabId[] = [
   "betreuungsplan",
   "betreuungszeiten",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_BASE_TABS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
+  "aenderungsprotokoll",
   "historie",
 ];
 const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
@@ -147,12 +158,14 @@ const FULL_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "betreuungszeiten",
   "anmeldungen",
   "dokumente",
+  "aenderungsprotokoll",
   "historie",
 ];
 const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "stammdaten",
   "erziehungsberechtigte",
   "anmeldungen",
+  "aenderungsprotokoll",
   "historie",
 ];
 
@@ -177,6 +190,7 @@ function studentTabs(
   canViewEnrollments: boolean,
   canViewCarePlan: boolean,
   canViewDocuments: boolean,
+  canViewRequestLog: boolean,
 ): StudentTabId[] {
   const base = hasStudentReadAccess
     ? canViewEnrollments
@@ -208,9 +222,15 @@ function studentTabs(
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
-  return canViewDocuments
+  const withDocuments = canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
+  // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
+  // RequiresAnyPermission(users:update, users:absence). Without either, the
+  // list would only answer 403, so the tab stays away.
+  return canViewRequestLog
+    ? withDocuments
+    : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
 // Shared classes for every tab panel. forceMount (below) keeps inactive panels
@@ -309,7 +329,6 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
-  const nfcEnabled = useNFCEnabled();
   const { mutate } = useSWRConfig();
   const router = useTenantRouter();
   const params = useParams();
@@ -385,6 +404,22 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal"));
+  // Same gate the aggregate request route uses (#2437).
+  const canViewRequestLog =
+    sessionStatus === "authenticated" &&
+    (hasPermission(session, "users:update") ||
+      hasPermission(session, "users:absence"));
+  // Mirrors the backend gate on POST /students/{id}/school-checkin exactly.
+  const canCheckin =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "users:checkin");
+  const canCompleteCareWithdrawal =
+    sessionStatus === "authenticated" && canReviewCareWithdrawals(session);
+  const [careWithdrawal, setCareWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
+  const [careWithdrawalLoadFailed, setCareWithdrawalLoadFailed] =
+    useState(false);
+  const [careWithdrawalModalOpen, setCareWithdrawalModalOpen] = useState(false);
   const visibleTabs = useMemo(
     () =>
       studentTabs(
@@ -392,8 +427,15 @@ function StudentDetailPageContent() {
         canViewEnrollments,
         canViewCarePlan,
         canViewDocuments,
+        canViewRequestLog,
       ),
-    [canViewEnrollments, canViewCarePlan, hasFullAccess, canViewDocuments],
+    [
+      canViewEnrollments,
+      canViewCarePlan,
+      hasFullAccess,
+      canViewDocuments,
+      canViewRequestLog,
+    ],
   );
   const tabResolutionTabs =
     sessionStatus === "loading"
@@ -464,10 +506,6 @@ function StudentDetailPageContent() {
   const [deletingPlannedStatusDayId, setDeletingPlannedStatusDayId] = useState<
     string | null
   >(null);
-  const [selectedActiveGroupId, setSelectedActiveGroupId] =
-    useState<string>("");
-  const [activeGroups, setActiveGroups] = useState<ActiveGroup[]>([]);
-  const [loadingActiveGroups, setLoadingActiveGroups] = useState(false);
 
   // Today's pickup info (for header display). SWR-cached under a
   // "pickup-data-" key like its arrival twin below, so a Gehzeit write
@@ -556,34 +594,6 @@ function StudentDetailPageContent() {
     );
     return row?.note ?? undefined;
   }, [student?.sick, statusDays]);
-  // Load active groups when check-in modal opens
-  useEffect(() => {
-    if (!showConfirmCheckin) {
-      // Reset state when modal closes
-      setSelectedActiveGroupId("");
-      return;
-    }
-
-    const loadActiveGroups = async () => {
-      setLoadingActiveGroups(true);
-      try {
-        const groups = await activeService.getActiveGroups({ active: true });
-        // Filter to only groups with rooms
-        const groupsWithRooms = groups.filter((g) => g.room?.name);
-        setActiveGroups(groupsWithRooms);
-      } catch (err) {
-        logger.error("failed to load active groups", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setActiveGroups([]);
-      } finally {
-        setLoadingActiveGroups(false);
-      }
-    };
-
-    void loadActiveGroups();
-  }, [showConfirmCheckin]);
-
   // Today's pickup slot for the header. Mirrors todayArrival below: a failed
   // fetch (e.g. permission denied for non-full-access users) leaves pickupData
   // undefined, which renders the same empty header as "no pickup planned".
@@ -662,6 +672,38 @@ function StudentDetailPageContent() {
   // while data is still loading: hasFullAccess defaults to false then, so acting
   // early would wrongly strip a valid full-access deep-link before it resolves.
   const urlTab = searchParams.get("tab");
+  useEffect(() => {
+    if (!canCompleteCareWithdrawal || !studentId) {
+      setCareWithdrawal(null);
+      setCareWithdrawalLoadFailed(false);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      void fetchStudentCareWithdrawal(studentId)
+        .then((result) => {
+          if (cancelled) return;
+          setCareWithdrawal(result);
+          setCareWithdrawalLoadFailed(false);
+        })
+        .catch((error: unknown) => {
+          if (cancelled) return;
+          logger.warn("care_withdrawal_warning_load_failed", {
+            student_id: studentId,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          setCareWithdrawal(null);
+          setCareWithdrawalLoadFailed(true);
+        });
+    };
+    load();
+    window.addEventListener("change-requests-refresh", load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("change-requests-refresh", load);
+    };
+  }, [canCompleteCareWithdrawal, studentId]);
+
   useEffect(() => {
     if (loading || !student || sessionStatus === "loading") return;
     if (urlTab !== null && urlTab !== activeTab) {
@@ -765,10 +807,7 @@ function StudentDetailPageContent() {
 
     setCheckingOut(true);
     try {
-      // Use dedicated checkout endpoint which:
-      // 1. Ends current visit (if any)
-      // 2. Toggles attendance to checked_out (daily checkout)
-      await activeService.checkoutStudent(studentId);
+      await schoolCheckinStudent(studentId, "out");
       refreshData();
       setShowConfirmCheckout(false);
       toast.success(`${student.name} wurde erfolgreich abgemeldet`);
@@ -784,14 +823,11 @@ function StudentDetailPageContent() {
   };
 
   const handleConfirmCheckin = async () => {
-    if (!student || !selectedActiveGroupId) return;
+    if (!student) return;
 
     setCheckingIn(true);
     try {
-      await performImmediateCheckin(
-        Number.parseInt(studentId, 10),
-        Number.parseInt(selectedActiveGroupId, 10),
-      );
+      await schoolCheckinStudent(studentId, "in");
       refreshData();
       setShowConfirmCheckin(false);
       toast.success(`${student.name} wurde erfolgreich angemeldet`);
@@ -1074,71 +1110,10 @@ function StudentDetailPageContent() {
   // COMPUTED VALUES
   // =============================================================================
 
-  // Determine what action is available based on access (group membership / room supervision)
-  const studentActionType = getStudentActionType(
-    { group_id: student.group_id, current_location: student.current_location },
-    myGroups,
-    mySupervisedRooms,
-  );
-  const showCheckout = studentActionType === "checkout";
-  const showCheckin = studentActionType === "checkin";
-
-  // =============================================================================
-  // RENDER HELPERS
-  // =============================================================================
-
-  const renderRoomSelector = () => {
-    if (loadingActiveGroups) {
-      return (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            />
-          </svg>
-          Räume werden geladen...
-        </div>
-      );
-    }
-
-    if (activeGroups.length === 0) {
-      return (
-        <p className="text-moto-amber-strong text-sm">
-          Keine aktiven Räume verfügbar. Bitte starten Sie zuerst eine aktive
-          Aufsicht in einem Raum über{" "}
-          {nfcEnabled ? "ein NFC-Tablet" : "die Web-App"}.
-        </p>
-      );
-    }
-
-    return (
-      <CustomSelect
-        id="room-select"
-        ariaLabelledBy="room-select-label"
-        value={selectedActiveGroupId}
-        options={[
-          // Selectable like the old native <option value="">, so an already
-          // chosen room can be cleared again before confirming.
-          { value: "", label: "Bitte Raum auswählen..." },
-          ...activeGroups.map((group) => ({
-            value: group.id,
-            label: `${group.room?.name ?? "Unbekannter Raum"} (${group.actualGroup?.name ?? "Gruppe"})`,
-          })),
-        ]}
-        onChange={setSelectedActiveGroupId}
-      />
-    );
-  };
+  const isAtHome =
+    !student.current_location || student.current_location.startsWith("Zuhause");
+  const showCheckout = canCheckin && !isAtHome;
+  const showCheckin = canCheckin && isAtHome;
 
   // =============================================================================
   // RENDER
@@ -1165,6 +1140,44 @@ function StudentDetailPageContent() {
           isArrivalAbsent={todayArrival.isAbsent}
           sickReason={currentSickReason}
         />
+
+        {careWithdrawalLoadFailed ? (
+          <div className="mt-4">
+            <Alert
+              type="error"
+              message="Die offene Abmeldung konnte nicht geladen werden."
+            />
+          </div>
+        ) : careWithdrawal ? (
+          <div className="mt-4">
+            <Alert
+              type="warning"
+              message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  onClick={() => setCareWithdrawalModalOpen(true)}
+                >
+                  Betreuung beenden
+                </Button>
+              }
+            />
+            <CareExitModal
+              isOpen={careWithdrawalModalOpen}
+              studentIds={[studentId]}
+              completionId={careWithdrawal.id}
+              firstBookinglessDay={careWithdrawal.firstBookinglessDay}
+              onClose={() => setCareWithdrawalModalOpen(false)}
+              onFinished={() => {
+                setCareWithdrawalModalOpen(false);
+                setCareWithdrawal(null);
+                window.dispatchEvent(new Event("change-requests-refresh"));
+              }}
+            />
+          </div>
+        ) : null}
 
         {hasFullAccess ? (
           <FullAccessView
@@ -1251,24 +1264,11 @@ function StudentDetailPageContent() {
         confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingIn}
-        isConfirmDisabled={!selectedActiveGroupId}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
       >
-        <div className="space-y-4">
-          <p>
-            Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
-          </p>
-          <div>
-            <label
-              id="room-select-label"
-              htmlFor="room-select"
-              className="mb-2 block text-sm font-medium text-gray-700"
-            >
-              Raum auswählen
-            </label>
-            {renderRoomSelector()}
-          </div>
-        </div>
+        <p>
+          Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+        </p>
       </ConfirmationModal>
 
       {/* Sick Report Confirmation Modal */}
@@ -1457,6 +1457,23 @@ function LimitedAccessView({
   plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
+  // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
   return (
     <>
       {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
@@ -1526,6 +1543,27 @@ function LimitedAccessView({
             <StudentEnrollmentsTab studentId={student.id} />
           </TabsContent>
         ) : null}
+
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection
@@ -1612,6 +1650,16 @@ function FullAccessView({
   plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
+    () => ({
+      search: "",
+      studentId,
+      includeEnrollment: false,
+      types: [],
+      statuses: [],
+    }),
+    [studentId],
+  );
   const { groups: enrollmentExtraGroups } = useStudentEnrollmentExtraFields(
     studentId,
     true,
@@ -1636,6 +1684,14 @@ function FullAccessView({
   );
   useEffect(() => {
     if (activeTab === "dokumente") setDocumentsTabSeen(true);
+  }, [activeTab]);
+  // Das Änderungsprotokoll fragt fünf Historien-Quellen ab (#2437) — erst beim
+  // ersten Öffnen laden, danach gemountet lassen.
+  const [protocolTabSeen, setProtocolTabSeen] = useState(
+    activeTab === "aenderungsprotokoll",
+  );
+  useEffect(() => {
+    if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
   }, [activeTab]);
   return (
     <>
@@ -1766,6 +1822,27 @@ function FullAccessView({
         <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
           {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
         </TabsContent>
+
+        {tabs.includes("aenderungsprotokoll") && (
+          <TabsContent
+            value="aenderungsprotokoll"
+            forceMount
+            className={TAB_CONTENT_CLASS}
+          >
+            {protocolTabSeen && (
+              <SectionCard
+                kicker="Kinderkartei"
+                title="Änderungsprotokoll"
+                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+              >
+                <AggregatedRequestList
+                  view="history"
+                  filters={changeProtocolFilters}
+                />
+              </SectionCard>
+            )}
+          </TabsContent>
+        )}
 
         <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
           <StudentHistorySection

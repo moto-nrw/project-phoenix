@@ -329,7 +329,7 @@ describe("OperatorShellProvider", () => {
     });
     expect(result.current.status).toBe("authenticated");
     expect(result.current.mode).toBe("operator");
-    expect(result.current.homeUrl).toBe("/operator/suggestions");
+    expect(result.current.homeUrl).toBe("/operator/organizations");
     expect(result.current.profileUrl).toBe("/operator/settings");
   });
 

@@ -9,6 +9,8 @@ import (
 )
 
 func TestGroupExportResponsesByClassKeepsWithinClassOrder(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Emma", LastName: "Anders", SchoolClass: "10a"},
 		{ID: 2, FirstName: "Finn", LastName: "Becker", SchoolClass: "2a"},
@@ -25,6 +27,8 @@ func TestGroupExportResponsesByClassKeepsWithinClassOrder(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Finn", LastName: "Becker", SchoolClass: "1a"},
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
@@ -32,7 +36,7 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Conrad", SchoolClass: ""},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	require.Len(t, rows, 7)
 	assert.Equal(t, "Klasse 1a", rows[0].GroupTitle)
@@ -47,6 +51,8 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
+	t.Parallel()
+
 	// Case/spacing variants of one logical class arrive sort-adjacent
 	// (the comparator treats them as equal) and must share one heading.
 	students := []StudentResponse{
@@ -56,7 +62,7 @@ func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Dreyer", SchoolClass: "1b"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	var headings []string
 	for _, row := range rows {
@@ -69,12 +75,14 @@ func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
 }
 
 func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
+	t.Parallel()
+
 	students := []StudentResponse{
 		{ID: 1, FirstName: "Finn", LastName: "Becker", SchoolClass: "1a"},
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
+	rows := buildExportRowSources(responseRowSources(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true), true)
 
 	require.Len(t, rows, 3)
 	headings := 0
@@ -87,6 +95,8 @@ func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
 }
 
 func TestExportFilterLabelsIncludesGroupByClass(t *testing.T) {
-	labels := exportFilterLabels(studentExportFilters{GroupByClass: true})
+	t.Parallel()
+
+	labels := exportFilterLabelsForDate(studentExportFilters{GroupByClass: true}, testExportDate, true)
 	assert.Contains(t, labels, "Nach Klassen getrennt")
 }

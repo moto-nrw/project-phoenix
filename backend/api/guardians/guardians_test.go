@@ -79,11 +79,11 @@ func bearer(t *testing.T, claims jwt.AppClaims) testutil.RequestOption {
 // request clears the route's RequiresPermission gate and is then denied by the
 // handler's own staff/supervisor check — the 403 the old bare-handler
 // "Forbidden_NonStaff" tests asserted.
-func nonStaffClaims(perms ...string) jwt.AppClaims {
+func nonStaffClaims(tb testing.TB, perms ...string) jwt.AppClaims {
 	return jwt.AppClaims{
 		ID:          1,
 		Sub:         "nonstaff@example.com",
-		TenantID:    1,
+		TenantID:    testpkg.Tenant(tb),
 		Roles:       []string{"user"},
 		Permissions: perms,
 	}
@@ -97,43 +97,14 @@ func withPerms(claims jwt.AppClaims, perms ...string) jwt.AppClaims {
 	return claims
 }
 
-// cleanupGuardian cleans up a guardian profile and related records
-func cleanupGuardian(t *testing.T, db *bun.DB, guardianID int64) {
-	t.Helper()
-	ctx := testpkg.TenantContext(1)
-
-	// Delete phone numbers
-	_, _ = db.NewDelete().
-		TableExpr("users.guardian_phone_numbers").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete student-guardian relationships (column is guardian_profile_id, not guardian_id)
-	_, _ = db.NewDelete().
-		TableExpr("users.students_guardians").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete guardian invitations (column is guardian_profile_id, not guardian_id)
-	_, _ = db.NewDelete().
-		TableExpr("auth.guardian_invitations").
-		Where("guardian_profile_id = ?", guardianID).
-		Exec(ctx)
-
-	// Delete guardian profile
-	_, _ = db.NewDelete().
-		TableExpr("users.guardian_profiles").
-		Where("id = ?", guardianID).
-		Exec(ctx)
-}
-
 // =============================================================================
 // LIST GUARDIANS TESTS
 // =============================================================================
 
 func TestListGuardians_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -151,8 +122,9 @@ func TestListGuardians_Success(t *testing.T) {
 }
 
 func TestListGuardians_WithSearchFilter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -170,8 +142,9 @@ func TestListGuardians_WithSearchFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetGuardian_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -185,8 +158,9 @@ func TestGetGuardian_NotFound(t *testing.T) {
 }
 
 func TestGetGuardian_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -204,8 +178,9 @@ func TestGetGuardian_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestCreateGuardian_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -232,15 +207,13 @@ func TestCreateGuardian_Success(t *testing.T) {
 	assert.NotZero(t, data["id"])
 
 	// Cleanup created guardian
-	if id, ok := data["id"].(float64); ok {
-		cleanupGuardian(t, ctx.db, int64(id))
-	}
 }
 
 func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
+	t.Parallel()
+
 	// Non-staff users cannot create guardian profiles
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -253,7 +226,7 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body,
-		bearer(t, nonStaffClaims("users:create")),
+		bearer(t, nonStaffClaims(t, "users:create")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -262,8 +235,9 @@ func TestCreateGuardian_Forbidden_NonStaffUser(t *testing.T) {
 }
 
 func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -283,18 +257,12 @@ func TestCreateGuardian_Success_MissingFirstName(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -314,20 +282,14 @@ func TestCreateGuardian_Success_MissingLastName(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
+	t.Parallel()
+
 	// With the flexible phone numbers system, guardians can be created without
 	// immediate contact methods - phone numbers are added in a separate step
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -348,13 +310,6 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 	// Should succeed - phone numbers can be added separately
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Cleanup created guardian
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]any); ok {
-		if id, ok := data["id"].(float64); ok {
-			cleanupGuardian(t, ctx.db, int64(id))
-		}
-	}
 }
 
 // =============================================================================
@@ -362,9 +317,10 @@ func TestCreateGuardian_Success_WithoutContactMethod(t *testing.T) {
 // =============================================================================
 
 func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	// Non-staff users cannot update guardian profiles
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -373,7 +329,7 @@ func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/99999", body,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -382,8 +338,9 @@ func TestUpdateGuardian_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestUpdateGuardian_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -402,8 +359,9 @@ func TestUpdateGuardian_NotFound(t *testing.T) {
 }
 
 func TestUpdateGuardian_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -425,14 +383,15 @@ func TestUpdateGuardian_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteGuardian_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	// Non-staff users cannot delete guardian profiles
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/99999", nil,
-		bearer(t, nonStaffClaims("users:delete")),
+		bearer(t, nonStaffClaims(t, "users:delete")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -441,8 +400,9 @@ func TestDeleteGuardian_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestDeleteGuardian_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -457,8 +417,9 @@ func TestDeleteGuardian_NotFound(t *testing.T) {
 }
 
 func TestDeleteGuardian_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -472,8 +433,9 @@ func TestDeleteGuardian_InvalidID(t *testing.T) {
 }
 
 func TestGuardianDeletePreview_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -487,12 +449,11 @@ func TestGuardianDeletePreview_NotFound(t *testing.T) {
 }
 
 func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	t.Parallel()
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-preview")
-	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+	ctx := setupTestContext(t)
+
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-preview")
 
 	router := ctx.resource.Router()
 
@@ -517,7 +478,7 @@ func TestGuardianDeletePreview_SuccessIncludesAffectedLinkIDs(t *testing.T) {
 // test's own teardown).
 func createLinkedGuardian(t *testing.T, ctx *testContext, emailSeed string) (guardianID, studentID int64) {
 	t.Helper()
-	tenantCtx := testpkg.TenantContext(1)
+	tenantCtx := testpkg.Ctx(t)
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, emailSeed)
 	student := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Child", "1a")
 	_, err := ctx.services.Guardian.LinkGuardianToStudent(tenantCtx, usersSvc.StudentGuardianCreateRequest{
@@ -542,16 +503,14 @@ func linkedGuardianErrorText(t *testing.T, rrBody string) string {
 // is still linked to a student, WITHOUT ?force=true, is refused with 409 rather
 // than silently unlinking siblings (#819).
 func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	t.Parallel()
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-conflict")
-	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+	ctx := setupTestContext(t)
+
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-conflict")
 
 	sibling := testpkg.CreateTestStudent(t, ctx.db, "Linked", "Sibling", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, sibling.ID)
-	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err := ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         sibling.ID,
 		GuardianProfileID: guardianID,
 		RelationshipType:  "parent",
@@ -571,36 +530,33 @@ func TestDeleteGuardian_WithLinks_Conflict(t *testing.T) {
 	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Linked Child")
 
 	// Guardian must still exist after the refused delete.
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
 
 func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Delete", "Supervisor")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "DeletePrivacy")
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "delete-privacy")
-	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Private", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
 		Where("id = ?", student.ID).
-		Where("tenant_id = ?", 1).
-		Exec(testpkg.TenantContext(1))
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -627,16 +583,15 @@ func TestDeleteGuardian_WithLinks_NonAdminConflictDoesNotExposeNames(t *testing.
 // fully delete a linked guardian with ?force=true: the guardian and all its
 // student links are removed.
 func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	t.Parallel()
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force")
-	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+	ctx := setupTestContext(t)
+
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force")
 
 	router := ctx.resource.Router()
 
-	impact, err := ctx.services.Guardian.GetGuardianDeleteImpact(testpkg.TenantContext(1), guardianID)
+	impact, err := ctx.services.Guardian.GetGuardianDeleteImpact(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	require.Len(t, impact.LinkIDs, 1)
 
@@ -649,17 +604,16 @@ func TestDeleteGuardian_WithLinks_ForceAdmin_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	// Guardian is gone.
-	gone, _ := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	gone, _ := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	assert.Nil(t, gone)
 }
 
 func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
-	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
+	t.Parallel()
 
-	guardianID, studentID := createLinkedGuardian(t, ctx, "delete-force-stale")
-	defer cleanupGuardian(t, ctx.db, guardianID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, studentID)
+	ctx := setupTestContext(t)
+
+	guardianID, _ := createLinkedGuardian(t, ctx, "delete-force-stale")
 
 	router := ctx.resource.Router()
 
@@ -672,7 +626,7 @@ func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusConflict)
 	assert.Contains(t, linkedGuardianErrorText(t, rr.Body.String()), "Vorschau")
 
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardianID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardianID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
@@ -682,30 +636,27 @@ func TestDeleteGuardian_WithLinks_ForceAdminRejectsStalePreview(t *testing.T) {
 // ?force=true: the full delete reaches across siblings they may not supervise,
 // so the blast radius is restricted to admins (403). The guardian survives.
 func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, ctx.db, "Force", "Supervisor")
-	defer testpkg.CleanupAuthFixtures(t, ctx.db, account.ID)
 
 	group := testpkg.CreateTestEducationGroup(t, ctx.db, "ForceForbidden")
 	testpkg.CreateTestGroupTeacher(t, ctx.db, group.ID, teacher.ID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, group.ID, teacher.Staff.ID, teacher.ID)
 
 	guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "force-forbidden")
-	defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Force", "Child", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
 		Set("group_id = ?", group.ID).
 		Where("id = ?", student.ID).
-		Where("tenant_id = ?", 1).
-		Exec(testpkg.TenantContext(1))
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.TenantContext(1), usersSvc.StudentGuardianCreateRequest{
+	_, err = ctx.services.Guardian.LinkGuardianToStudent(testpkg.Ctx(t), usersSvc.StudentGuardianCreateRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "parent",
@@ -724,7 +675,7 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
 
 	// Guardian must still exist after the refused force delete.
-	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.TenantContext(1), guardian.ID)
+	survivor, err := ctx.services.Guardian.GetGuardianByID(testpkg.Ctx(t), guardian.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, survivor)
 }
@@ -734,8 +685,9 @@ func TestDeleteGuardian_WithLinks_ForceNonAdmin_Forbidden(t *testing.T) {
 // =============================================================================
 
 func TestListGuardiansWithoutAccount_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -753,8 +705,9 @@ func TestListGuardiansWithoutAccount_Success(t *testing.T) {
 }
 
 func TestListInvitableGuardians_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -772,8 +725,9 @@ func TestListInvitableGuardians_Success(t *testing.T) {
 }
 
 func TestListPendingInvitations_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -795,11 +749,11 @@ func TestListPendingInvitations_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentGuardians_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Guardian", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -817,8 +771,9 @@ func TestGetStudentGuardians_Success(t *testing.T) {
 }
 
 func TestGetStudentGuardians_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -832,11 +787,11 @@ func TestGetStudentGuardians_InvalidStudentID(t *testing.T) {
 }
 
 func TestStudentGuardianEndpoints_AlumnusRejected(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Former", "Student", "4a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr("users.students").
@@ -865,9 +820,10 @@ func TestStudentGuardianEndpoints_AlumnusRejected(t *testing.T) {
 }
 
 func TestGetGuardianStudents_NonExistent_ReturnsEmptyArray(t *testing.T) {
+	t.Parallel()
+
 	// API returns 200 with empty array for non-existent guardian (valid design choice)
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -886,8 +842,9 @@ func TestGetGuardianStudents_NonExistent_ReturnsEmptyArray(t *testing.T) {
 }
 
 func TestGetGuardianStudents_InvalidID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -905,8 +862,9 @@ func TestGetGuardianStudents_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestRouter_ReturnsValidRouter(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	assert.NotNil(t, router, "Router should not be nil")
@@ -917,8 +875,9 @@ func TestRouter_ReturnsValidRouter(t *testing.T) {
 // =============================================================================
 
 func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -932,7 +891,7 @@ func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/students/1/guardians", body,
-		bearer(t, nonStaffClaims("users:create")),
+		bearer(t, nonStaffClaims(t, "users:create")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -941,8 +900,9 @@ func TestLinkGuardianToStudent_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestLinkGuardianToStudent_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -962,12 +922,12 @@ func TestLinkGuardianToStudent_InvalidStudentID(t *testing.T) {
 }
 
 func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create a student with a group for the test
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -987,11 +947,11 @@ func TestLinkGuardianToStudent_BadRequest_MissingGuardianID(t *testing.T) {
 }
 
 func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link2", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -1010,11 +970,11 @@ func TestLinkGuardianToStudent_BadRequest_MissingRelationshipType(t *testing.T) 
 }
 
 func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	student := testpkg.CreateTestStudent(t, ctx.db, "Link3", "TestStudent", "1a")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, student.ID)
 
 	router := ctx.resource.Router()
 
@@ -1038,8 +998,9 @@ func TestLinkGuardianToStudent_BadRequest_InvalidEmergencyPriority(t *testing.T)
 // =============================================================================
 
 func TestUpdateStudentGuardianRelationship_InvalidRelationshipID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1057,8 +1018,9 @@ func TestUpdateStudentGuardianRelationship_InvalidRelationshipID(t *testing.T) {
 }
 
 func TestUpdateStudentGuardianRelationship_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1080,13 +1042,14 @@ func TestUpdateStudentGuardianRelationship_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestRemoveGuardianFromStudent_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/students/1/guardians/1", nil,
-		bearer(t, nonStaffClaims("users:delete")),
+		bearer(t, nonStaffClaims(t, "users:delete")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1095,8 +1058,9 @@ func TestRemoveGuardianFromStudent_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestRemoveGuardianFromStudent_InvalidStudentID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1110,8 +1074,9 @@ func TestRemoveGuardianFromStudent_InvalidStudentID(t *testing.T) {
 }
 
 func TestRemoveGuardianFromStudent_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1129,8 +1094,9 @@ func TestRemoveGuardianFromStudent_InvalidGuardianID(t *testing.T) {
 // =============================================================================
 
 func TestSendInvitation_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1144,8 +1110,9 @@ func TestSendInvitation_InvalidGuardianID(t *testing.T) {
 }
 
 func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1158,9 +1125,9 @@ func TestSendInvitation_Unauthorized_NoClaims(t *testing.T) {
 	testutil.AssertUnauthorized(t, rr)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *testing.T) {
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	prevEnv := viper.GetString("app_env")
 	t.Cleanup(func() { viper.Set("app_env", prevEnv) })
@@ -1172,7 +1139,6 @@ func TestSendInvitation_SeedTokenHeaderDoesNotExposeTokenOutsideLocalDev(t *test
 			viper.Set("app_env", appEnv)
 
 			guardian := testpkg.CreateTestGuardianProfile(t, ctx.db, "invite-"+appEnv)
-			defer cleanupGuardian(t, ctx.db, guardian.ID)
 
 			req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/invite", guardian.ID), nil,
 				bearer(t, withPerms(testutil.DefaultTestClaims(), "users:create")),
@@ -1253,11 +1219,11 @@ func createTestGuardianWithPhones(t *testing.T, ctx *testContext) (int64, int64,
 // =============================================================================
 
 func TestListGuardianPhoneNumbers_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1275,8 +1241,9 @@ func TestListGuardianPhoneNumbers_Success(t *testing.T) {
 }
 
 func TestListGuardianPhoneNumbers_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1290,8 +1257,9 @@ func TestListGuardianPhoneNumbers_InvalidGuardianID(t *testing.T) {
 }
 
 func TestListGuardianPhoneNumbers_EmptyList(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1313,7 +1281,6 @@ func TestListGuardianPhoneNumbers_EmptyList(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// List phones
 	listReq := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/%d/phone-numbers", guardianID), nil,
@@ -1334,8 +1301,9 @@ func TestListGuardianPhoneNumbers_EmptyList(t *testing.T) {
 // =============================================================================
 
 func TestAddPhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
@@ -1355,7 +1323,6 @@ func TestAddPhoneNumber_Success(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// Add phone number
 	phoneReq := map[string]any{
@@ -1380,8 +1347,9 @@ func TestAddPhoneNumber_Success(t *testing.T) {
 }
 
 func TestAddPhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1392,7 +1360,7 @@ func TestAddPhoneNumber_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/phone-numbers", phoneReq,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1401,8 +1369,9 @@ func TestAddPhoneNumber_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestAddPhoneNumber_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1422,11 +1391,11 @@ func TestAddPhoneNumber_InvalidGuardianID(t *testing.T) {
 }
 
 func TestAddPhoneNumber_BadRequest_MissingPhoneNumber(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1445,11 +1414,11 @@ func TestAddPhoneNumber_BadRequest_MissingPhoneNumber(t *testing.T) {
 }
 
 func TestAddPhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1469,8 +1438,9 @@ func TestAddPhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
 }
 
 func TestAddPhoneNumber_DefaultPhoneType(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
@@ -1490,7 +1460,6 @@ func TestAddPhoneNumber_DefaultPhoneType(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardianID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	// Add phone without specifying type
 	phoneReq := map[string]any{
@@ -1514,11 +1483,11 @@ func TestAddPhoneNumber_DefaultPhoneType(t *testing.T) {
 // =============================================================================
 
 func TestUpdatePhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1544,8 +1513,9 @@ func TestUpdatePhoneNumber_Success(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1563,11 +1533,11 @@ func TestUpdatePhoneNumber_InvalidGuardianID(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_InvalidPhoneID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1585,11 +1555,11 @@ func TestUpdatePhoneNumber_InvalidPhoneID(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1607,8 +1577,9 @@ func TestUpdatePhoneNumber_NotFound(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1617,7 +1588,7 @@ func TestUpdatePhoneNumber_Forbidden_NonStaff(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/1/phone-numbers/1", updateReq,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1626,11 +1597,11 @@ func TestUpdatePhoneNumber_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_BadRequest_EmptyPhoneNumber(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1649,11 +1620,11 @@ func TestUpdatePhoneNumber_BadRequest_EmptyPhoneNumber(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1672,15 +1643,15 @@ func TestUpdatePhoneNumber_BadRequest_InvalidPhoneType(t *testing.T) {
 }
 
 func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -1697,7 +1668,6 @@ func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to update guardian1's phone via guardian2's endpoint
 	updateReq := map[string]any{
@@ -1716,11 +1686,11 @@ func TestUpdatePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 // =============================================================================
 
 func TestDeletePhoneNumber_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1734,8 +1704,9 @@ func TestDeletePhoneNumber_Success(t *testing.T) {
 }
 
 func TestDeletePhoneNumber_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1749,11 +1720,11 @@ func TestDeletePhoneNumber_InvalidGuardianID(t *testing.T) {
 }
 
 func TestDeletePhoneNumber_InvalidPhoneID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1767,11 +1738,11 @@ func TestDeletePhoneNumber_InvalidPhoneID(t *testing.T) {
 }
 
 func TestDeletePhoneNumber_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1785,13 +1756,14 @@ func TestDeletePhoneNumber_NotFound(t *testing.T) {
 }
 
 func TestDeletePhoneNumber_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/1/phone-numbers/1", nil,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1800,15 +1772,15 @@ func TestDeletePhoneNumber_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -1825,7 +1797,6 @@ func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to delete guardian1's phone via guardian2's endpoint
 	deleteReq := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d/phone-numbers/%d", guardian2ID, phone1ID), nil, adminBearer)
@@ -1840,11 +1811,11 @@ func TestDeletePhoneNumber_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 // =============================================================================
 
 func TestSetPrimaryPhone_Success(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, phone2ID := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1862,8 +1833,9 @@ func TestSetPrimaryPhone_Success(t *testing.T) {
 }
 
 func TestSetPrimaryPhone_InvalidGuardianID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
@@ -1877,11 +1849,11 @@ func TestSetPrimaryPhone_InvalidGuardianID(t *testing.T) {
 }
 
 func TestSetPrimaryPhone_InvalidPhoneID(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1895,11 +1867,11 @@ func TestSetPrimaryPhone_InvalidPhoneID(t *testing.T) {
 }
 
 func TestSetPrimaryPhone_NotFound(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	guardianID, _, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardianID)
 
 	router := ctx.resource.Router()
 
@@ -1913,13 +1885,14 @@ func TestSetPrimaryPhone_NotFound(t *testing.T) {
 }
 
 func TestSetPrimaryPhone_Forbidden_NonStaff(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/1/phone-numbers/1/set-primary", nil,
-		bearer(t, nonStaffClaims("users:update")),
+		bearer(t, nonStaffClaims(t, "users:update")),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -1928,15 +1901,15 @@ func TestSetPrimaryPhone_Forbidden_NonStaff(t *testing.T) {
 }
 
 func TestSetPrimaryPhone_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
+	t.Parallel()
+
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
 	adminBearer := bearer(t, testutil.AdminTestClaims(999))
 
 	// Create first guardian with phones
-	guardian1ID, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
-	defer cleanupGuardian(t, ctx.db, guardian1ID)
+	_, phone1ID, _ := createTestGuardianWithPhones(t, ctx)
 
 	// Create second guardian
 	guardianReq := map[string]any{
@@ -1953,7 +1926,6 @@ func TestSetPrimaryPhone_Forbidden_PhoneNotBelongToGuardian(t *testing.T) {
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]any)
 	guardian2ID := int64(data["id"].(float64))
-	defer cleanupGuardian(t, ctx.db, guardian2ID)
 
 	// Try to set guardian1's phone as primary via guardian2's endpoint
 	setPrimaryReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/phone-numbers/%d/set-primary", guardian2ID, phone1ID), nil, adminBearer)

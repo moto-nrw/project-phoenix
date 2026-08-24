@@ -41,14 +41,14 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestListDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -58,14 +58,14 @@ func TestListDevices_Success(t *testing.T) {
 }
 
 func TestListDevices_WithTypeFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?device_type=terminal", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -75,14 +75,14 @@ func TestListDevices_WithTypeFilter(t *testing.T) {
 }
 
 func TestListDevices_WithStatusFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?status=active", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -92,14 +92,14 @@ func TestListDevices_WithStatusFilter(t *testing.T) {
 }
 
 func TestListDevices_WithSearchFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?search=test", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -113,19 +113,18 @@ func TestListDevices_WithSearchFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	uniqueID := fmt.Sprintf("test-device-%d", time.Now().UnixNano())
 	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/%d", device.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -135,14 +134,14 @@ func TestGetDevice_Success(t *testing.T) {
 }
 
 func TestGetDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/999999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -152,14 +151,14 @@ func TestGetDevice_NotFound(t *testing.T) {
 }
 
 func TestGetDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -173,19 +172,18 @@ func TestGetDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestGetDeviceByDeviceID_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - the fixture appends its own unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "test-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	// Use device.DeviceID which includes the fixture's unique suffix
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/device/%s", device.DeviceID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -195,14 +193,14 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 }
 
 func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/device/nonexistent-device", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -218,8 +216,8 @@ func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestCreateDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -232,7 +230,7 @@ func TestCreateDevice_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -240,18 +238,11 @@ func TestCreateDevice_Success(t *testing.T) {
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
 
-	// Parse response to get device ID for cleanup
-	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
-	if data, ok := response["data"].(map[string]interface{}); ok {
-		if deviceID, ok := data["id"].(float64); ok {
-			defer testpkg.CleanupActivityFixtures(t, ctx.db, int64(deviceID))
-		}
-	}
 }
 
 func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -264,7 +255,7 @@ func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -274,16 +265,14 @@ func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 
 	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
 	data := response["data"].(map[string]interface{})
-	deviceID := int64(data["id"].(float64))
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, deviceID)
 
 	// A newly created device has no room — location is auto-derived from sessions
 	assert.Nil(t, data["room_name"], "new device should have no room_name before any session")
 }
 
 func TestCreateDevice_MissingDeviceID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -294,7 +283,7 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -304,8 +293,8 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 }
 
 func TestCreateDevice_MissingDeviceType(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -317,7 +306,7 @@ func TestCreateDevice_MissingDeviceType(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -331,13 +320,12 @@ func TestCreateDevice_MissingDeviceType(t *testing.T) {
 // =============================================================================
 
 func TestUpdateDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	uniqueID := fmt.Sprintf("update-device-%d", time.Now().UnixNano())
 	device := testpkg.CreateTestDevice(t, ctx.db, uniqueID)
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -349,7 +337,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/devices/%d", device.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -359,12 +347,11 @@ func TestUpdateDevice_Success(t *testing.T) {
 }
 
 func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	device := testpkg.CreateTestDevice(t, ctx.db, "update-room-device")
 	room := testpkg.CreateTestRoom(t, ctx.db, "UpdateDevice-SessionRoom")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID, room.ID)
 
 	// Simulate a session having set the device's room_id (as auto-derive would)
 	_, err := ctx.db.NewUpdate().
@@ -372,7 +359,7 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 		ModelTableExpr(`iot.devices`).
 		Set("room_id = ?", room.ID).
 		Where("id = ?", device.ID).
-		Exec(testutil.TenantContext(1))
+		Exec(testpkg.Ctx(t))
 	assert.NoError(t, err)
 
 	router := testutil.NewTenantRouter(ctx.db)
@@ -386,7 +373,7 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/devices/%d", device.ID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -402,8 +389,8 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 }
 
 func TestUpdateDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -415,7 +402,7 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/devices/999999", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -425,8 +412,8 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 }
 
 func TestUpdateDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -437,7 +424,7 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/devices/invalid", body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -451,8 +438,8 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestDeleteDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device
 	uniqueID := fmt.Sprintf("delete-device-%d", time.Now().UnixNano())
@@ -463,7 +450,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/devices/%d", device.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -473,14 +460,14 @@ func TestDeleteDevice_Success(t *testing.T) {
 }
 
 func TestDeleteDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/999999", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -490,14 +477,14 @@ func TestDeleteDevice_NotFound(t *testing.T) {
 }
 
 func TestDeleteDevice_InvalidID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -511,12 +498,11 @@ func TestDeleteDevice_InvalidID(t *testing.T) {
 // =============================================================================
 
 func TestUpdateDeviceStatus_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -526,7 +512,7 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -536,12 +522,11 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 }
 
 func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "status-missing")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
@@ -549,7 +534,7 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 	body := map[string]interface{}{}
 
 	req := testutil.NewAuthenticatedRequest(t, "PATCH", fmt.Sprintf("/devices/%s/status", device.DeviceID), body,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -563,18 +548,17 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 // =============================================================================
 
 func TestPingDevice_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test device - use device.DeviceID which includes fixture's unique suffix
 	device := testpkg.CreateTestDevice(t, ctx.db, "ping-device")
-	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/devices/%s/ping", device.DeviceID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -584,14 +568,14 @@ func TestPingDevice_Success(t *testing.T) {
 }
 
 func TestPingDevice_NotFound(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/nonexistent-device/ping", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:update"),
 	)
 
@@ -607,14 +591,14 @@ func TestPingDevice_NotFound(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByType_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/type/terminal", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -628,14 +612,14 @@ func TestGetDevicesByType_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByStatus_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/active", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -645,14 +629,14 @@ func TestGetDevicesByStatus_Success(t *testing.T) {
 }
 
 func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/invalid_status", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -666,18 +650,17 @@ func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	// Create test person
 	person := testpkg.CreateTestPerson(t, ctx.db, "RegisteredBy", "Test")
-	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/registered-by/%d", person.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -687,14 +670,14 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 }
 
 func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/registered-by/invalid", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -708,14 +691,14 @@ func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
 // =============================================================================
 
 func TestGetActiveDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/active", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -729,14 +712,14 @@ func TestGetActiveDevices_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/maintenance", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -750,14 +733,14 @@ func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
 // =============================================================================
 
 func TestGetOfflineDevices_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -767,14 +750,14 @@ func TestGetOfflineDevices_Success(t *testing.T) {
 }
 
 func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline?duration=30m", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -788,14 +771,14 @@ func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
 // =============================================================================
 
 func TestGetDeviceStatistics_Success(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/statistics", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:read"),
 	)
 
@@ -817,14 +800,14 @@ func TestGetDeviceStatistics_Success(t *testing.T) {
 // =============================================================================
 
 func TestDetectNewDevices_NotImplemented(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/detect-new", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 
@@ -841,14 +824,14 @@ func TestDetectNewDevices_NotImplemented(t *testing.T) {
 // =============================================================================
 
 func TestScanNetwork_NotImplemented(t *testing.T) {
+	t.Parallel()
 	ctx := setupTestContext(t)
-	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/scan-network", nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		testutil.WithClaims(t, testutil.DefaultTestClaims()),
 		testutil.WithPermissions("iot:manage"),
 	)
 

@@ -23,10 +23,11 @@ const accountTableAlias = `auth.accounts AS "account"`
 // =============================================================================
 
 func TestFilter_ApplyToQuery_Equal(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Create filter with Equal condition using table alias
 	filter := base.NewFilter().WithTableAlias("account").Equal("active", true)
@@ -49,10 +50,11 @@ func TestFilter_ApplyToQuery_Equal(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_ILike(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").ILike("email", "%@example.com")
 
@@ -73,10 +75,11 @@ func TestFilter_ApplyToQuery_ILike(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").IsNull("last_login")
 
@@ -97,10 +100,11 @@ func TestFilter_ApplyToQuery_IsNull(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").IsNotNull("email")
 
@@ -121,10 +125,11 @@ func TestFilter_ApplyToQuery_IsNotNull(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_In(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").In("active", true, false)
 
@@ -141,10 +146,11 @@ func TestFilter_ApplyToQuery_In(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Use filter with explicit table alias
 	filter := base.NewFilter().
@@ -167,10 +173,11 @@ func TestFilter_ApplyToQuery_WithTableAlias(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().
 		WithTableAlias("account").
@@ -194,10 +201,11 @@ func TestFilter_ApplyToQuery_MultipleConditions(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Test GreaterThan on id field
 	filter := base.NewFilter().WithTableAlias("account").GreaterThan("id", 0)
@@ -218,10 +226,11 @@ func TestFilter_ApplyToQuery_Comparisons(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").LessThan("id", 999999)
 
@@ -245,16 +254,15 @@ func TestFilter_ApplyToQuery_LessThan(t *testing.T) {
 // =============================================================================
 
 func TestPagination_ApplyToQuery(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Create fixture accounts to guarantee at least 2 records exist
-	acct1 := testpkg.CreateTestAccount(t, db, "pagination-test-1")
-	acct2 := testpkg.CreateTestAccount(t, db, "pagination-test-2")
-	defer testpkg.CleanupAuthFixtures(t, db, acct1.ID)
-	defer testpkg.CleanupAuthFixtures(t, db, acct2.ID)
+	testpkg.CreateTestAccount(t, db, "pagination-test-1")
+	testpkg.CreateTestAccount(t, db, "pagination-test-2")
 
 	// Test page 1 with size 1
 	pagination := base.NewPagination(1, 1)
@@ -293,10 +301,11 @@ func TestPagination_ApplyToQuery(t *testing.T) {
 }
 
 func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Test with large page size
 	pagination := base.NewPagination(1, 1000)
@@ -319,10 +328,11 @@ func TestPagination_ApplyToQuery_LargePageSize(t *testing.T) {
 // =============================================================================
 
 func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	sorting := &base.Sorting{}
 	sorting.AddField("id", base.SortAsc)
@@ -344,10 +354,11 @@ func TestSorting_ApplyToQuery_Ascending(t *testing.T) {
 }
 
 func TestSorting_ApplyToQuery_Descending(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	sorting := &base.Sorting{}
 	sorting.AddField("id", base.SortDesc)
@@ -369,10 +380,11 @@ func TestSorting_ApplyToQuery_Descending(t *testing.T) {
 }
 
 func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	sorting := &base.Sorting{}
 	sorting.AddField("active", base.SortDesc).AddField("id", base.SortAsc)
@@ -394,10 +406,11 @@ func TestSorting_ApplyToQuery_MultipleFields(t *testing.T) {
 // =============================================================================
 
 func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	qo := base.NewQueryOptions()
 	qo.Filter.WithTableAlias("account").Equal("active", true)
@@ -418,10 +431,11 @@ func TestQueryOptions_ApplyToQuery_FilterOnly(t *testing.T) {
 }
 
 func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	qo := base.NewQueryOptions()
 
@@ -442,10 +456,11 @@ func TestQueryOptions_ApplyToQuery_Empty(t *testing.T) {
 // =============================================================================
 
 func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	// Create main filter
 	mainFilter := base.NewFilter().WithTableAlias("account").Equal("active", true)
@@ -468,8 +483,9 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	type logicalRow struct {
 		Active bool   `bun:"active"`
@@ -493,10 +509,11 @@ func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_Like(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").Like("email", "%@%")
 
@@ -516,10 +533,11 @@ func TestFilter_ApplyToQuery_Like(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").GreaterThanOrEqual("id", 1)
 
@@ -539,10 +557,11 @@ func TestFilter_ApplyToQuery_GreaterThanOrEqual(t *testing.T) {
 }
 
 func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	filter := base.NewFilter().WithTableAlias("account").LessThanOrEqual("id", 999999)
 
@@ -566,18 +585,20 @@ func TestFilter_ApplyToQuery_LessThanOrEqual(t *testing.T) {
 // =============================================================================
 
 func TestTxHandler_NewTxHandler(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	handler := base.NewTxHandler(db)
 	require.NotNil(t, handler)
 }
 
 func TestTxHandler_RunInTx_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
 
 	executed := false
@@ -597,10 +618,11 @@ func TestTxHandler_RunInTx_Success(t *testing.T) {
 }
 
 func TestTxHandler_RunInTx_Rollback(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
 
 	expectedErr := errors.New("intentional error for rollback")
@@ -613,10 +635,11 @@ func TestTxHandler_RunInTx_Rollback(t *testing.T) {
 }
 
 func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
 
 	tx, isNew, err := handler.GetTx(ctx)
@@ -628,10 +651,11 @@ func TestTxHandler_GetTx_NewTransaction(t *testing.T) {
 }
 
 func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	defer func() { _ = tx.Rollback() }()
@@ -656,24 +680,29 @@ func TestTxHandler_RunInTx_ReusesContextTransaction(t *testing.T) {
 }
 
 func TestContextWithTx_NoTxInContext(t *testing.T) {
+	t.Parallel()
+
 	// Test that TxFromContext returns false when no tx in context
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	tx, ok := base.TxFromContext(ctx)
 	assert.False(t, ok, "Should return false when no tx in context")
 	assert.Nil(t, tx)
 }
 
 func TestIsRetryableTxError(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, base.IsRetryableTxError(nil), "nil is not retryable")
 	assert.False(t, base.IsRetryableTxError(errors.New("some error")), "plain errors are not retryable")
 	assert.False(t, base.IsRetryableTxError(fmt.Errorf("wrap: %w", errors.New("inner"))), "non-pg wrapped errors are not retryable")
 }
 
 func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
 
 	calls := 0
@@ -686,10 +715,11 @@ func TestTxHandler_RunInTxWithRetry_Success(t *testing.T) {
 }
 
 func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 	handler := base.NewTxHandler(db)
 
 	expected := errors.New("business rule violation")
@@ -708,17 +738,17 @@ func TestTxHandler_RunInTxWithRetry_NonRetryableRunsOnce(t *testing.T) {
 // the two switches does not fail to compile — it drops the WHERE clause and
 // answers with every row, so both paths are exercised here (#2218 review).
 func TestFilter_ApplyToQuery_FirstNumberIn(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
+	t.Parallel()
 
-	ctx := testpkg.TenantContext(1)
+	db := testpkg.SetupTestDB(t)
+
+	ctx := testpkg.Ctx(t)
 
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 	third := testpkg.CreateTestStudent(t, db, "Grade", "Third", "3a-"+suffix)
 	thirteenth := testpkg.CreateTestStudent(t, db, "Grade", "Thirteenth", "13a-"+suffix)
 	labelled := testpkg.CreateTestStudent(t, db, "Grade", "Labelled", "Klasse 3b-"+suffix)
 	named := testpkg.CreateTestStudent(t, db, "Grade", "Named", "Bienen-"+suffix)
-	defer testpkg.CleanupActivityFixtures(t, db, third.ID, thirteenth.ID, labelled.ID, named.ID)
 
 	assertGradeThree := func(t *testing.T, ids []int64) {
 		t.Helper()

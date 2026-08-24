@@ -132,8 +132,10 @@ func (rs *AttendanceResource) findStudentByRFID(w http.ResponseWriter, r *http.R
 
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil || student.Status == users.StudentStatusAlumnus {
-		// Alumni (graduated, soft-deleted) must not check in — same wire error
-		// as an unknown student so PyrePortal needs no new mapping.
+		// Alumni (graduated, soft-deleted) are never valid for either side of
+		// the kiosk state machine. Care-ended children continue to the active
+		// service, which permits an existing presence to check out but rejects a
+		// new check-in.
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil, nil, false
 	}

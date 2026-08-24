@@ -16,17 +16,23 @@ import (
 )
 
 func TestResolveStudentReadScope_AdminSeesAll(t *testing.T) {
+	t.Parallel()
+
 	// Admin permission short-circuits before any userCtx lookup.
 	assert.True(t, ResolveStudentReadScope(context.Background(), []string{"admin:*"}, nil))
 }
 
 func TestResolveStudentReadScope_StaffSeesAll(t *testing.T) {
+	t.Parallel()
+
 	// #2329: a verified staff record grants tenant-wide read.
 	uc := &stubUserCtx{staff: &users.Staff{}}
 	assert.True(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, uc))
 }
 
 func TestResolveStudentReadScope_NonStaffReadsNothing(t *testing.T) {
+	t.Parallel()
+
 	// A guardian/guest holding users:read has no staff record and is NOT
 	// promoted to tenant-wide read.
 	uc := &stubUserCtx{staffErr: errors.New("no staff record")}
@@ -34,10 +40,14 @@ func TestResolveStudentReadScope_NonStaffReadsNothing(t *testing.T) {
 }
 
 func TestResolveStudentReadScope_NilUserContextReadsNothing(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, nil))
 }
 
 func TestResolveStudentReadScope_StaffLookupErrorReadsNothing(t *testing.T) {
+	t.Parallel()
+
 	uc := &stubUserCtx{staffErr: errors.New("DB outage")}
 	assert.False(t, ResolveStudentReadScope(context.Background(), []string{"users:read"}, uc),
 		"a staff lookup error must fail closed to no access")

@@ -15,6 +15,8 @@ import (
 )
 
 func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
+	t.Parallel()
+
 	birthday := timezone.NewDate(2018, 3, 4)
 	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider", Birthday: &birthday}
 	student := &usersModels.Student{
@@ -61,6 +63,8 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 }
 
 func TestTrackBFieldState_SchoolClass(t *testing.T) {
+	t.Parallel()
+
 	person := &usersModels.Person{}
 	student := &usersModels.Student{SchoolClass: "1a"}
 
@@ -87,6 +91,8 @@ func TestTrackBFieldState_SchoolClass(t *testing.T) {
 }
 
 func TestTrackBFieldState_InvalidInputs(t *testing.T) {
+	t.Parallel()
+
 	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider"}
 	student := &usersModels.Student{}
 
@@ -110,6 +116,8 @@ func TestTrackBFieldState_InvalidInputs(t *testing.T) {
 }
 
 func TestMasterDataSmallHelpers(t *testing.T) {
+	t.Parallel()
+
 	primary := &usersModels.GuardianPhoneNumber{Model: modelBase.Model{ID: 2}, PhoneNumber: "2", IsPrimary: true}
 	secondary := &usersModels.GuardianPhoneNumber{Model: modelBase.Model{ID: 1}, PhoneNumber: "1"}
 	assert.Equal(t, primary, pickPrimaryPhone([]*usersModels.GuardianPhoneNumber{secondary, primary}))
@@ -145,6 +153,8 @@ func TestMasterDataSmallHelpers(t *testing.T) {
 }
 
 func TestParentWritePermissionHelpers(t *testing.T) {
+	t.Parallel()
+
 	permissions := map[string]interface{}{
 		authorize.GuardianPermissionMasterDataEdit: true,
 	}

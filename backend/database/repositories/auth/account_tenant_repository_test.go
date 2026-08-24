@@ -13,13 +13,14 @@ import (
 )
 
 func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant")
-	tenantID := account.ID + 1000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
@@ -40,8 +41,10 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	t.Run("finds active mappings by account id", func(t *testing.T) {
 		items, err := repo.FindActiveByAccountID(ctx, account.ID)
 		require.NoError(t, err)
-		require.Len(t, items, 1)
-		assert.Equal(t, tenantID, items[0].TenantID)
+		// Two: the one created above, plus the one CreateTestAccount claims
+		// for this test's own tenant (#2419).
+		require.Len(t, items, 2)
+		assert.Contains(t, activeTenantIDs(items), tenantID)
 	})
 
 	t.Run("exists by account and tenant returns true", func(t *testing.T) {
@@ -57,12 +60,23 @@ func TestAccountTenantRepository_CreateAndQuery(t *testing.T) {
 	})
 }
 
+// activeTenantIDs projects mappings onto their tenant IDs, so assertions can
+// name the tenants they care about instead of an index.
+func activeTenantIDs(items []authModels.AccountTenant) []int64 {
+	ids := make([]int64, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.TenantID)
+	}
+	return ids
+}
+
 func TestAccountTenantRepository_CreateValidation(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 
 	err := repo.Create(ctx, nil)
 	require.Error(t, err)
@@ -74,13 +88,14 @@ func TestAccountTenantRepository_CreateValidation(t *testing.T) {
 }
 
 func TestAccountTenantRepository_EnsureActive(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-reactivate")
-	tenantID := account.ID + 2000
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?`, account.ID)
@@ -119,14 +134,15 @@ func TestAccountTenantRepository_EnsureActive(t *testing.T) {
 }
 
 func TestAccountTenantRepository_Deactivate(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
 
 	repo := authRepo.NewAccountTenantRepository(db)
-	ctx := testpkg.TenantContext(1)
+	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "acctenant-deactivate")
-	tenantID := account.ID + 3000
-	otherTenantID := account.ID + 3001
+	tenantID := testpkg.UniqueTestTenantID(t)
+	otherTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	testpkg.EnsureTestTenant(t, db, otherTenantID)
 	t.Cleanup(func() {
@@ -170,8 +186,12 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 
 		active, err := repo.FindActiveByAccountID(ctx, account.ID)
 		require.NoError(t, err)
-		require.Len(t, active, 1)
-		assert.Equal(t, otherTenantID, active[0].TenantID)
+		tenants := activeTenantIDs(active)
+		assert.Contains(t, tenants, otherTenantID, "the other mapping stays active")
+		assert.NotContains(t, tenants, tenantID, "the deactivated mapping is gone")
+		// The third is this test's own tenant, which CreateTestAccount claims
+		// for every fixture account (#2419).
+		assert.Len(t, tenants, 2)
 	})
 
 	t.Run("EnsureActive reactivates the deactivated mapping", func(t *testing.T) {
@@ -188,10 +208,12 @@ func TestAccountTenantRepository_Deactivate(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90001)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, "list-by-tenant")
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
@@ -208,7 +230,6 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -238,10 +259,12 @@ func TestAccountTenantRepository_ListAccountsByTenantID(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitations(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90002)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	role := testpkg.GetOrCreateTestRole(t, db, "admin")
 
@@ -254,7 +277,6 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.invitation_tokens WHERE id = ?`, invitation.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -274,10 +296,12 @@ func TestAccountTenantRepository_ListAccountsByTenantID_IncludesPendingInvitatio
 }
 
 func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90003)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	orgID := tenantID // EnsureTestTenant creates org with same ID
 
@@ -289,7 +313,6 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -317,10 +340,12 @@ func TestAccountTenantRepository_ListAccountsByOrganizationID(t *testing.T) {
 }
 
 func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90004)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "list-all")
@@ -331,7 +356,6 @@ func TestAccountTenantRepository_ListAllAccounts(t *testing.T) {
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	}()
 
 	repo := authRepo.NewAccountTenantRepository(db)
@@ -363,13 +387,19 @@ func containsAccount(accounts []authModels.OrgAccountInfo, email string) bool {
 // the global org-accounts listing hides accounts whose tenant school is in the
 // Papierkorb (soft-deleted), and re-includes them after restore.
 func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testing.T) {
+	t.Parallel()
+
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	tenantID := int64(90011)
+	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
 	account := testpkg.CreateTestAccount(t, db, "list-all-deleted")
+	// The subject here is an account whose ONLY school is soft-deleted, so the
+	// mapping CreateTestAccount adds for the test's own tenant has to go
+	// (#2419) — otherwise the account stays visible through that second school.
+	testpkg.UnclaimTestAccount(t, db, account.ID)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	t.Cleanup(func() {
@@ -377,7 +407,6 @@ func TestAccountTenantRepository_ListAllAccounts_ExcludesDeletedSchool(t *testin
 		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, tenantID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, tenantID)
-		_ = db.Close()
 	})
 
 	repo := authRepo.NewAccountTenantRepository(db)

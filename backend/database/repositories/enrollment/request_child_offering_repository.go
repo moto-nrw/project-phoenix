@@ -63,7 +63,9 @@ func (r *RequestChildOfferingRepository) ScheduleReplacementForRequestChild(ctx 
 		}
 		row.RequestChildID = requestChildID
 		row.ValidFrom = &effectiveFrom
-		row.ValidUntil = &phaseEndExclusive
+		if row.ValidUntil == nil || phaseEndExclusive.Before(*row.ValidUntil) {
+			row.ValidUntil = &phaseEndExclusive
+		}
 		base.EnsureTenantID(ctx, row)
 	}
 	if _, err := db.NewInsert().Model(&rows).ModelTableExpr("enrollment.request_child_offerings").Exec(ctx); err != nil {
@@ -723,17 +725,18 @@ func (r *RequestChildOfferingRepository) resolveApprovedOfferingChildren(
 	return result, nil
 }
 
-// ListApprovedByStudentIDsOnDate returns the approved offering links of the
-// given students that are active on onDate (valid_from <= onDate and
-// valid_until > onDate). Alumni are excluded.
-// Tenant isolation comes from RLS on the tenant transaction (#2290).
-func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsOnDate(
+// ListApprovedByStudentIDsInRange returns approved offering links whose
+// half-open validity interval overlaps the inclusive [from, to] calendar
+// window. Alumni are excluded. This custom query is necessary because the
+// generic repository filters cannot express the approved-child/student joins
+// together with half-open interval overlap. Tenant isolation comes from RLS.
+func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsInRange(
 	ctx context.Context,
 	studentIDs []int64,
-	onDate timezone.Date,
+	from, to timezone.Date,
 ) ([]*enrollment.ApprovedOfferingChild, error) {
 	result := make([]*enrollment.ApprovedOfferingChild, 0)
-	if len(studentIDs) == 0 {
+	if len(studentIDs) == 0 || to.Before(from) {
 		return result, nil
 	}
 	links := make([]*enrollment.RequestChildOffering, 0)
@@ -745,12 +748,12 @@ func (r *RequestChildOfferingRepository) ListApprovedByStudentIDsOnDate(
 		Where(`"student".id IN (?)`, bun.List(studentIDs)).
 		Where(`"student".status <> 'alumnus'`).
 		Where(`"child".status = ?`, enrollment.ChildStatusApproved).
-		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, onDate).
-		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, onDate).
+		Where(`("request_child_offering".valid_from IS NULL OR "request_child_offering".valid_from <= ?)`, to).
+		Where(`("request_child_offering".valid_until IS NULL OR "request_child_offering".valid_until > ?)`, from).
 		OrderExpr(`"request_child_offering".id ASC`).
 		Scan(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list approved offering links for students: %w", err)
+		return nil, fmt.Errorf("failed to list approved offering links for students in range: %w", err)
 	}
 	return r.resolveApprovedOfferingChildren(ctx, links)
 }

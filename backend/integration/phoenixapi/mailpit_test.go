@@ -18,21 +18,25 @@ import (
 // MailpitURL Tests
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_Default(t *testing.T) {
 	t.Setenv("MAILPIT_URL", "")
 	assert.Equal(t, "http://mailpit:8025", MailpitURL())
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_FromEnv(t *testing.T) {
 	t.Setenv("MAILPIT_URL", "http://localhost:8025")
 	assert.Equal(t, "http://localhost:8025", MailpitURL())
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_TrimsTrailingSlash(t *testing.T) {
 	t.Setenv("MAILPIT_URL", "http://mp.local:8025/")
 	assert.Equal(t, "http://mp.local:8025", MailpitURL())
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestMailpitURL_TrimsWhitespace(t *testing.T) {
 	t.Setenv("MAILPIT_URL", "   http://mp.local:8025  ")
 	assert.Equal(t, "http://mp.local:8025", MailpitURL())
@@ -43,21 +47,29 @@ func TestMailpitURL_TrimsWhitespace(t *testing.T) {
 // =============================================================================
 
 func TestAddressedTo_Match(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "op@test.de"}, {Address: "other@test.de"}}
 	assert.True(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_CaseInsensitive(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "Op@Test.De"}}
 	assert.True(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_NoMatch(t *testing.T) {
+	t.Parallel()
+
 	addrs := []mailpitAddress{{Address: "other@test.de"}}
 	assert.False(t, addressedTo(addrs, "op@test.de"))
 }
 
 func TestAddressedTo_Empty(t *testing.T) {
+	t.Parallel()
+
 	assert.False(t, addressedTo(nil, "op@test.de"))
 }
 
@@ -65,6 +77,7 @@ func TestAddressedTo_Empty(t *testing.T) {
 // fetchCodeFromMessage Tests (helper that pulls the code out of one message)
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_TextBody(t *testing.T) {
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "Ihr Code: 123456 — gültig 10 Minuten."},
@@ -77,6 +90,7 @@ func TestFetchCodeFromMessage_TextBody(t *testing.T) {
 	assert.Equal(t, "123456", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", HTML: `<p style="letter-spacing:0.4em;">654321</p>`},
@@ -89,6 +103,7 @@ func TestFetchCodeFromMessage_HTMLFallback(t *testing.T) {
 	assert.Equal(t, "654321", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NoCode(t *testing.T) {
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "no digits here"},
@@ -101,6 +116,7 @@ func TestFetchCodeFromMessage_NoCode(t *testing.T) {
 	assert.Empty(t, code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 	srv := newMailpitServer(t, map[string]mailpitMessageDetail{
 		"abc": {ID: "abc", Text: "IP 192.168.1.1 — code 111222"},
@@ -114,6 +130,7 @@ func TestFetchCodeFromMessage_IgnoresShortRuns(t *testing.T) {
 	assert.Equal(t, "111222", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_NonOK(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -126,6 +143,7 @@ func TestFetchCodeFromMessage_NonOK(t *testing.T) {
 	assert.Contains(t, err.Error(), "mailpit detail")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -142,6 +160,7 @@ func TestFetchCodeFromMessage_InvalidJSON(t *testing.T) {
 // FetchLatestMFACode Tests (the public entry point)
 // =============================================================================
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 	now := time.Now()
 	srv := newMailpitServer(t,
@@ -160,6 +179,7 @@ func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 	assert.Equal(t, "424242", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 	now := time.Now()
 	stale := now.Add(-1 * time.Hour)
@@ -185,6 +205,7 @@ func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 	assert.Equal(t, "999999", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 	now := time.Now()
 	srv := newMailpitServer(t,
@@ -205,6 +226,7 @@ func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 	assert.Equal(t, "222222", code)
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
 	srv := newMailpitServer(t, nil, nil) // always empty
 	defer srv.Close()
@@ -218,11 +240,14 @@ func TestFetchLatestMFACode_ContextCanceled(t *testing.T) {
 }
 
 func TestFetchLatestMFACode_EmptyRecipient(t *testing.T) {
+	t.Parallel()
+
 	_, err := FetchLatestMFACode(context.Background(), "", time.Now())
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "recipient is required")
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
 	var hits int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -242,6 +267,7 @@ func TestFetchLatestMFACode_ListServerError_RetriesUntilContext(t *testing.T) {
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&hits), int32(2))
 }
 
+// Deliberately NOT parallel: mutates process-global configuration.
 func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 	now := time.Now()
 	var pollCount int32

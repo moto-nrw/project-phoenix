@@ -33,6 +33,8 @@ var reservedSlugs = map[string]bool{
 	"operator":   true, // operator dashboard
 	"parents":    true, // parents.moto-app.de — legacy guardian portal redirect
 	"eltern":     true, // eltern.moto-app.de — guardian portal (cross-tenant)
+	"schule":     true, // schule.moto-app.de — school portal "moto schule" (#2207)
+	"school":     true, // /school path namespace inside the App Router
 	"grafana":    true, // grafana.moto-app.de monitoring
 	"pyreportal": true, // pyreportal.moto-app.de kiosk SPA
 	"help":       true, // public /help docs — top-level app route shadows [tenant]

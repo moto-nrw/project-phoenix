@@ -48,6 +48,7 @@ export interface InstanceStaffSummary {
   isPrimary: boolean;
   isAbsent: boolean;
   isSubstitute: boolean;
+  isSickAbsence?: boolean;
   absenceReason?: string;
 }
 
@@ -219,6 +220,7 @@ interface BackendInstanceStaffSummary {
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
+  is_sick_absence?: boolean;
   absence_reason?: string | null;
 }
 
@@ -470,6 +472,8 @@ export interface TimetableTemplate {
    * empty grade list = alle Kinder. */
   sourceCareOfferingIds?: string[];
   sourceGradeLevels?: number[];
+  /** Klassenfilter (#2482) — schließt sourceGradeLevels aus. */
+  sourceSchoolClasses?: string[];
   enrollmentCount: number;
   supervisorCount: number;
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
@@ -559,6 +563,7 @@ export interface BackendTimetableTemplate {
   }>;
   source_care_offering_ids?: number[];
   source_grade_levels?: number[];
+  source_school_classes?: string[];
   enrollment_count: number;
   supervisor_count: number;
   required_staff_count: number;
@@ -808,14 +813,19 @@ export interface ApplyDeviationsInput {
   cancelReason?: string;
   understaffedAck?: boolean;
   understaffedNote?: string;
-  absences?: Array<{ staffId: string; reason?: string }>;
+  absences?: Array<{
+    staffId: string;
+    reason?: string;
+    instanceIds?: string[];
+  }>;
   substitutions?: Array<{
     absentStaffId: string;
     substituteStaffId: string;
     reason?: string;
+    instanceIds?: string[];
   }>;
-  /** Staff to mark present again — clears a persisted day-wide absence (#1840). */
-  presences?: string[];
+  substitutionRemovals?: Array<{ staffId: string; instanceIds?: string[] }>;
+  presences?: Array<{ staffId: string; instanceIds?: string[] }>;
 }
 
 export interface ApplyDeviationsResponse {
@@ -1029,6 +1039,9 @@ export interface CreateTemplateBody {
    * enrollment phase. */
   source_care_offering_ids?: number[] | null;
   source_grade_levels?: number[] | null;
+  /** Klassenfilter (#2482), gleiche Presence-Semantik. Schließt
+   * source_grade_levels aus: beide gesetzt ist ein 400. */
+  source_school_classes?: string[] | null;
   /**
    * Series start (#2135): schedules get it as valid_from, so no instances
    * materialize before it and the roster becomes valid from it. Must lie
@@ -1134,6 +1147,7 @@ interface OfferingSourcedTemplate {
   id: string;
   name: string;
   gradeLevels: number[];
+  schoolClasses: string[];
 }
 
 interface BackendOfferingSourceOption {
@@ -1148,6 +1162,7 @@ interface BackendOfferingSourceOption {
     id: number;
     name: string;
     grade_levels?: number[];
+    school_classes?: string[];
   }[];
   legacy_linked_template_id?: number;
 }
@@ -1164,11 +1179,26 @@ export interface CombinedOfferingCounts {
   totalCount: number;
   /** Jahrgang → Anzahl unterschiedlicher Kinder; key 0 = ohne Jahrgang. */
   gradeCounts: Record<number, number>;
+  /**
+   * Die Kinder hinter den Zahlen (#2482), jeweils mit ihrer Schulklasse.
+   * Daraus leitet der Editor die Klassenauswahl, die Klassen-Zahlen und den
+   * namentlichen Abgleich mit einer bisher manuell gepflegten Kinderliste ab.
+   */
+  students: OfferingSourceStudent[];
+}
+
+interface OfferingSourceStudent {
+  studentId: string;
+  schoolClass: string;
 }
 
 export interface BackendCombinedOfferingCountsResponse {
   total_count: number;
   grade_counts: Record<string, number>;
+  students?: {
+    student_id: number;
+    school_class?: string;
+  }[];
 }
 
 export interface CreateTemplateResult {

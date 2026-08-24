@@ -18,9 +18,11 @@ import (
 )
 
 func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Partial", "Absence", "PA1")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Partial", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Partial", "Teacher")
 	room := testpkg.CreateTestRoom(t, tc.db, "Partial absence room")
 
 	date := timezone.NewDate(2026, 9, 15)
@@ -53,11 +55,6 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 		t, tc.db, actual.ID, student.ID, scheduleModel.AttendanceStatusPresent,
 		testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt},
 	)
-	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.instance_students", morningRow.ID, overlapRow.ID, afternoonRow.ID, actualRow.ID)
-		testpkg.CleanupTableRecords(t, tc.db, "schedule.activity_instances", morning.ID, overlap.ID, afternoon.ID, actual.ID)
-		testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID, room.ID)
-	})
 
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
 		"date":      date.String(),
@@ -102,13 +99,12 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 }
 
 func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Override", "PA2")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Pickup", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Pickup", "Teacher")
 	date := timezone.NewDate(2026, 9, 16)
-	t.Cleanup(func() {
-		testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID)
-	})
 	pickupReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/pickup-exceptions", student.ID), map[string]any{
 		"exception_date": date.String(), "pickup_time": "16:00",
 	})
@@ -127,7 +123,7 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	deleteRR := authExec(t, tc, deleteReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, deleteRR.Code, deleteRR.Body.String())
 
-	fresh, err := tc.services.PickupSchedule.GetStudentPickupExceptionByID(testpkg.TenantContext(1), exceptionID)
+	fresh, err := tc.services.PickupSchedule.GetStudentPickupExceptionByID(testpkg.Ctx(t), exceptionID)
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.PickupTime)
@@ -136,11 +132,12 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 }
 
 func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Conflict", "Partial", "PA3")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Conflict", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Conflict", "Teacher")
 	date := timezone.NewDate(2026, 9, 17)
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID) })
 
 	partialReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
 		"date": date.String(), "from_time": "13:30",
@@ -155,21 +152,22 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 	require.Equal(t, http.StatusConflict, statusRR.Code, statusRR.Body.String())
 	assert.Contains(t, statusRR.Body.String(), "partial absence")
 
-	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.TenantContext(1), student.ID, date, date)
+	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, date, date)
 	require.NoError(t, err)
 	assert.Empty(t, rows)
 }
 
 func TestPartialAbsenceIsAPlannedPickupTimeWithoutAFullDayStatus(t *testing.T) {
+	t.Parallel()
+
 	tc := setupTestContext(t)
 	// Pin the clock to a fixed Monday: the effective-time resolver skips
 	// Saturday/Sunday entirely (weekday > WeekdayFriday), so a real-today
 	// date makes this test fail on every weekend CI run.
 	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 	student := testpkg.CreateTestStudent(t, tc.db, "Planning", "Partial", "PA4")
-	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Planning", "Teacher")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Planning", "Teacher")
 	date := timezone.NewDate(2026, 6, 1)
-	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID) })
 
 	partialReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
 		"date": date.String(), "from_time": "13:30", "reason": "Arzttermin",

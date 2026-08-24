@@ -4,7 +4,15 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { ListChecks, Trash2 } from "lucide-react";
+import {
+  ClipboardList,
+  GraduationCap,
+  ListChecks,
+  LogOut,
+  Trash2,
+  Undo2,
+  UserMinus,
+} from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
@@ -28,6 +36,13 @@ import {
   type GroupingMode,
 } from "@/components/students/students-master-detail";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
+import { CareExitModal } from "~/components/students/care-exit-modal";
+import { CareResumeModal } from "~/components/students/care-resume-modal";
+import {
+  canResumeCare,
+  cancelCareExit,
+  hasPlannedCareExit,
+} from "~/lib/care-exit-api";
 import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { studentsConfig } from "@/components/database/configs/students.config";
@@ -36,6 +51,7 @@ import type { StudentGuardianPayload } from "@/lib/guardian-helpers";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { hasPermission } from "~/lib/auth-utils";
+import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
@@ -90,6 +106,17 @@ function StudentsPageContent() {
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  // "Betreuung beenden" (#2487): entweder für das ausgewählte Kind im Detail
+  // oder für die Mehrfachauswahl. Beide Wege führen durch dieselbe Vorschau.
+  const [careExitIds, setCareExitIds] = useState<string[] | null>(null);
+  // Der bereits eingetragene letzte Betreuungstag, wenn ein geplantes Ende
+  // korrigiert wird (#2487). Nur der Einzelweg aus der Detailansicht setzt ihn;
+  // eine Sammelaktion vergibt einen gemeinsamen neuen Tag.
+  const [careExitPlannedDay, setCareExitPlannedDay] = useState<string | null>(
+    null,
+  );
+  const [resumeTarget, setResumeTarget] = useState<Student | null>(null);
+  const [cancellingExit, setCancellingExit] = useState(false);
   const [arrivalRevision, setArrivalRevision] = useState(0);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
@@ -159,6 +186,52 @@ function StudentsPageContent() {
     setSelectionMode(false);
     setSelectedStudentIds(new Set());
   }, []);
+
+  // Storniert ein noch nicht wirksames Betreuungsende (#2487). Ein bereits
+  // wirksamer Austritt kann nur über "Wieder aufnehmen" zurückgenommen werden,
+  // mit neuem Beginn und ausdrücklicher Prüfung.
+  const cancelPlannedExit = useCallback(
+    async (student: Student) => {
+      setCancellingExit(true);
+      try {
+        await cancelCareExit([String(student.id)]);
+        // Sagt beides: das Ende ist weg UND der Plan ist zurück. Ohne den
+        // zweiten Halbsatz bliebe offen, ob die Termine neu eingetragen werden
+        // müssen (#2487).
+        toastSuccess(
+          `Das geplante Betreuungsende von ${studentsConfig.list.item.title(student)} wurde storniert. Termine und Angebote gelten wieder.`,
+        );
+        await tenantMutate("database-students-list");
+      } catch (cancelError) {
+        const message =
+          cancelError instanceof Error
+            ? cancelError.message
+            : "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
+        logger.error("care_exit_cancel_failed", {
+          student_id: String(student.id),
+          error: message,
+        });
+        toastError(message);
+      } finally {
+        setCancellingExit(false);
+      }
+    },
+    [tenantMutate, toastError, toastSuccess],
+  );
+
+  // "Alle angezeigten auswählen" (#2487): Suche und Filter bestimmen, was
+  // angezeigt wird, und die Auswahl folgt genau dem, nicht der ganzen Kartei.
+  const selectAllVisible = useCallback(
+    (studentIds: string[]) => {
+      if (studentIds.length > 500) {
+        toastError("Maximal 500 Kinder können ausgewählt werden");
+        setSelectedStudentIds(new Set(studentIds.slice(0, 500)));
+        return;
+      }
+      setSelectedStudentIds(new Set(studentIds));
+    },
+    [toastError],
+  );
 
   const { data: allGroups = [] } = useSWRAuth<
     Array<{ value: string; label: string }>
@@ -276,6 +349,23 @@ function StudentsPageContent() {
     }
     return chips;
   }, [searchTerm, groupFilter, allGroups]);
+
+  // Class-list-only entry (#2382): created straight from the "+ Kinder"
+  // modal's "Nur Klassenliste" mode. The entry does NOT appear in this list
+  // (it is no student) — the toast says where it lives instead.
+  const handleCreateListEntry = useCallback(
+    async (input: {
+      firstName: string;
+      lastName: string;
+      schoolClass: string;
+    }) => {
+      await createClassListEntry(input);
+      toastSuccess(
+        "Klassenlisteneintrag angelegt — zu finden im Menü oben rechts unter Klassenliste",
+      );
+    },
+    [toastSuccess],
+  );
 
   const handleCreateStudent = useCallback(
     async (
@@ -399,19 +489,75 @@ function StudentsPageContent() {
 
   const canShowDetail = !loading && filteredStudents.length > 0;
   const canViewEnrollments = hasPermission(session, "config:manage");
+  const canCreateStudents = hasPermission(session, "users:create");
   const canDeleteStudents = hasPermission(session, "users:delete");
   const canUpdateStudents = hasPermission(session, "users:update");
 
+  // Kopfzeilen-Aktionen des Detailbereichs. "Betreuung beenden" steht neben
+  // "Löschen", weil beides dieselbe Berechtigung braucht — aber ein regulärer
+  // Austritt löscht nichts, deshalb ist er kein roter Knopf (#2487).
   const detailActions =
     selectedStudent && canDeleteStudents ? (
-      <button
-        type="button"
-        onClick={() => setDeleteTarget(selectedStudent)}
-        className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-      >
-        <Trash2 className="h-3.5 w-3.5" aria-hidden />
-        Löschen
-      </button>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {selectedStudent.care_ended ? (
+          // Wieder aufnehmen kann nur, wer einen hinterlegten Austritt
+          // zurücknimmt. Lief die Betreuung mit der Anmeldephase aus, weist
+          // der Server die Wiederaufnahme ab; dann steht der Knopf gar nicht
+          // erst da, wie in der Ansicht "Beendete Betreuungen" auch (#2487).
+          canResumeCare(selectedStudent) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => setResumeTarget(selectedStudent)}
+            >
+              <Undo2 className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Wieder aufnehmen
+            </Button>
+          )
+        ) : (
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={() => {
+                setCareExitPlannedDay(
+                  hasPlannedCareExit(selectedStudent)
+                    ? (selectedStudent.care_ends_on ?? null)
+                    : null,
+                );
+                setCareExitIds([String(selectedStudent.id)]);
+              }}
+            >
+              <LogOut className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              {hasPlannedCareExit(selectedStudent)
+                ? "Ende ändern"
+                : "Betreuung beenden"}
+            </Button>
+            {hasPlannedCareExit(selectedStudent) ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                isLoading={cancellingExit}
+                loadingText="Wird storniert…"
+                onClick={() => void cancelPlannedExit(selectedStudent)}
+              >
+                Ende stornieren
+              </Button>
+            ) : null}
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => setDeleteTarget(selectedStudent)}
+          className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong hover:bg-moto-red/10 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
+        >
+          <Trash2 className="h-3.5 w-3.5" aria-hidden />
+          Löschen
+        </button>
+      </div>
     ) : null;
 
   return (
@@ -445,6 +591,38 @@ function StudentsPageContent() {
             setSearchTerm("");
             setGroupFilter("all");
           }}
+          // Sekundäre Navigationsziele (Jahrgangswechsel, Klassenliste) liegen
+          // im Kebab-Menü: als vierter und fünfter Textbutton sprengten sie
+          // die Aktionszeile auf üblichen Laptop-Breiten (#2382 Review).
+          overflowMenu={[
+            ...(hasPermission(session, "grade_transitions:read")
+              ? [
+                  {
+                    label: "Jahrgangswechsel",
+                    icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                    href: "/database/grade-transitions",
+                    // Navigation only — OverflowMenu verlangt onClick auch bei href.
+                    onClick: () => undefined,
+                  },
+                ]
+              : []),
+            {
+              label: "Klassenliste",
+              icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+              href: "/database/students/class-list",
+              onClick: () => undefined,
+            },
+            ...(canDeleteStudents
+              ? [
+                  {
+                    label: "Beendete Betreuungen",
+                    icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                    href: "/database/students/ended-care",
+                    onClick: () => undefined,
+                  },
+                ]
+              : []),
+          ]}
           actionButton={
             <div className="flex items-center gap-2">
               {!isMobile ? (
@@ -454,14 +632,6 @@ function StudentsPageContent() {
                     options={STUDENTS_GROUPING_OPTIONS}
                     onChange={handleGroupingChange}
                   />
-                  {hasPermission(session, "grade_transitions:read") && (
-                    <Link
-                      href="/database/grade-transitions"
-                      className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      Jahrgangswechsel
-                    </Link>
-                  )}
                   <Link
                     href="/database/students/import"
                     className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -529,6 +699,15 @@ function StudentsPageContent() {
             onToggleStudentSelection={toggleStudentSelection}
             onClearSelection={() => setSelectedStudentIds(new Set())}
             onFinishSelection={finishSelection}
+            onSelectAllVisible={selectAllVisible}
+            onEndCare={
+              canDeleteStudents
+                ? () => {
+                    setCareExitPlannedDay(null);
+                    setCareExitIds([...selectedStudentIds]);
+                  }
+                : undefined
+            }
           />
         </div>
       ) : !loading ? (
@@ -548,7 +727,12 @@ function StudentsPageContent() {
           }
           description={
             searchTerm || groupFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
+              ? // Ohne diesen Hinweis ist die leere Suche eine Sackgasse: das
+                // Kind KANN es geben, es ist nur nicht mehr in Betreuung
+                // (#2487).
+                canDeleteStudents
+                ? "Versuchen Sie andere Suchkriterien oder Filter. Kinder, deren Betreuung beendet ist, stehen im Menü oben rechts unter Beendete Betreuungen."
+                : "Versuchen Sie andere Suchkriterien oder Filter."
               : "Es wurden noch keine Kinder erstellt."
           }
         />
@@ -558,8 +742,45 @@ function StudentsPageContent() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onCreate={handleCreateStudent}
+        // Same gate as POST /api/class-list-entries (users:create) — without
+        // the permission the modal must not offer the "Nur Klassenliste" mode.
+        onCreateListEntry={
+          canCreateStudents ? handleCreateListEntry : undefined
+        }
         groups={allGroups}
       />
+
+      {careExitIds ? (
+        <CareExitModal
+          isOpen
+          studentIds={careExitIds}
+          plannedLastCareDay={careExitPlannedDay ?? undefined}
+          onClose={() => {
+            setCareExitIds(null);
+            setCareExitPlannedDay(null);
+          }}
+          onFinished={async () => {
+            setCareExitIds(null);
+            setCareExitPlannedDay(null);
+            finishSelection();
+            handleSelect(null);
+            await tenantMutate("database-students-list");
+          }}
+        />
+      ) : null}
+
+      {resumeTarget ? (
+        <CareResumeModal
+          isOpen
+          studentId={String(resumeTarget.id)}
+          displayName={studentsConfig.list.item.title(resumeTarget)}
+          onClose={() => setResumeTarget(null)}
+          onResumed={async () => {
+            setResumeTarget(null);
+            await tenantMutate("database-students-list");
+          }}
+        />
+      ) : null}
 
       {deleteTarget ? (
         <StudentDeletionModal

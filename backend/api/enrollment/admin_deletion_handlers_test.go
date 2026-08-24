@@ -31,6 +31,8 @@ func (deletionServiceStub) DeleteChild(context.Context, int64, int64, int64, str
 }
 
 func TestAdminEnrollmentDeletionRoutesRequireConfigManage(t *testing.T) {
+	t.Parallel()
+
 	rs := &Resource{DeletionService: deletionServiceStub{}}
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

@@ -14,6 +14,20 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentCreateModal } from "./student-create-modal";
 import { handleStudentFormSubmit } from "~/lib/student-form-validation";
 
+const { mockFetchArrivalSettings } = vi.hoisted(() => ({
+  mockFetchArrivalSettings: vi.fn(),
+}));
+
+vi.mock("~/lib/student-arrival-api", async () => {
+  const actual = await vi.importActual<
+    typeof import("~/lib/student-arrival-api")
+  >("~/lib/student-arrival-api");
+  return {
+    ...actual,
+    fetchArrivalSettings: mockFetchArrivalSettings,
+  };
+});
+
 // Mock Modal component
 vi.mock("~/components/ui/modal", () => ({
   Modal: ({
@@ -163,12 +177,15 @@ vi.mock("./care-weekly-plan-modal", () => ({
     isOpen,
     onClose,
     onSubmit,
+    careDaysSource,
   }: {
     isOpen: boolean;
     onClose: () => void;
+    careDaysSource: "weekly_plan" | "bookings";
     onSubmit: (data: {
       arrivalSchedules: Array<{
         weekday: number;
+        inCare: boolean;
         expected_arrival: string;
         notes: string | null;
       }>;
@@ -183,14 +200,25 @@ vi.mock("./care-weekly-plan-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="care-weekly-plan-modal">
+        <span data-testid="care-days-source">{careDaysSource}</span>
         <button
           type="button"
           onClick={() =>
             // Mirror the real modal: after onSubmit resolves it closes itself.
             void onSubmit({
               arrivalSchedules: [
-                { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
-                { weekday: 3, expected_arrival: "08:00", notes: null },
+                {
+                  weekday: 1,
+                  inCare: true,
+                  expected_arrival: "07:30",
+                  notes: "Bus",
+                },
+                {
+                  weekday: 3,
+                  inCare: true,
+                  expected_arrival: "08:00",
+                  notes: null,
+                },
               ],
               pickupData: {
                 schedules: [{ weekday: 1, pickupTime: "15:00", notes: "Oma" }],
@@ -276,6 +304,9 @@ describe("StudentCreateModal", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetchArrivalSettings.mockResolvedValue({
+      care_days_source: "weekly_plan",
+    });
   });
 
   it("renders the modal when open", async () => {
@@ -422,6 +453,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     expect(form).toBeTruthy();
 
@@ -445,6 +477,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -517,6 +550,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     expect(form).toBeTruthy();
 
@@ -558,6 +592,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -574,6 +609,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -601,6 +637,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -637,6 +674,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Neu anlegen"));
     });
@@ -694,6 +732,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -716,6 +755,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -743,11 +783,91 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
 
     expect(screen.getByTestId("care-weekly-plan-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("care-days-source")).toHaveTextContent(
+      "weekly_plan",
+    );
+  });
+
+  it("routes OGS creation through manual enrollment when bookings are authoritative", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "bookings",
+    });
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        /Die Betreuungstage dieser Schule kommen aus Buchungen\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Anmeldephasen öffnen" }),
+    ).toHaveAttribute("href", "/enrollment-phases");
+    expect(
+      screen.queryByTestId("personal-info-section"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Erstellen")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps class-list-only creation available in booking mode", async () => {
+    mockFetchArrivalSettings.mockResolvedValueOnce({
+      care_days_source: "bookings",
+    });
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+        onCreateListEntry={vi.fn()}
+      />,
+    );
+
+    await screen.findByText(
+      /Die Betreuungstage dieser Schule kommen aus Buchungen\./,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Nur Klassenliste" }));
+
+    expect(
+      screen.getByRole("textbox", { name: /Vorname/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Erstellen")).toBeInTheDocument();
+  });
+
+  it("blocks direct creation when care days cannot be loaded", async () => {
+    mockFetchArrivalSettings.mockRejectedValueOnce(new Error("offline"));
+
+    render(
+      <StudentCreateModal
+        isOpen={true}
+        onClose={mockOnClose}
+        onCreate={mockOnCreate}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Betreuungstage konnten nicht geladen werden. Schließen Sie das Fenster und öffnen Sie es erneut.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("care-weekly-plan-modal"),
+    ).not.toBeInTheDocument();
   });
 
   it("stages a submitted care plan and shows the weekday summary", async () => {
@@ -759,6 +879,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -789,6 +910,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -824,6 +946,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Wochenplan hinzufügen"));
     });
@@ -849,8 +972,18 @@ describe("StudentCreateModal", () => {
       .calls[0]?.[1] as Record<string, unknown>;
     expect(submitted).toMatchObject({
       arrival_schedules: [
-        { weekday: 1, expected_arrival: "07:30", notes: "Bus" },
-        { weekday: 3, expected_arrival: "08:00", notes: null },
+        {
+          weekday: 1,
+          inCare: true,
+          expected_arrival: "07:30",
+          notes: "Bus",
+        },
+        {
+          weekday: 3,
+          inCare: true,
+          expected_arrival: "08:00",
+          notes: null,
+        },
       ],
       pickup_schedules: [{ weekday: 1, pickup_time: "15:00", notes: "Oma" }],
     });
@@ -865,6 +998,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     const form = screen.getByTestId("modal").querySelector("form");
     await act(async () => {
       fireEvent.submit(form!);
@@ -888,6 +1022,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });
@@ -904,6 +1039,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });
@@ -932,6 +1068,7 @@ describe("StudentCreateModal", () => {
       />,
     );
 
+    await screen.findByTestId("personal-info-section");
     await act(async () => {
       fireEvent.click(screen.getByText("Vorhandene/n suchen"));
     });

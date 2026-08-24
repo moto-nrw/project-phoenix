@@ -23,7 +23,7 @@ vi.mock("~/lib/supervision-context", () => ({
     isLoadingGroups: false,
     isSupervising: false,
     isLoadingSupervision: false,
-    adminOverviewEnabled: false,
+    overviewEnabled: false,
     supervisedRooms: [],
     groups: [],
     refresh: vi.fn(),
@@ -53,6 +53,28 @@ import { usePresenceMode } from "~/lib/tenant-context";
 describe("SmartRedirect", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: { id: "1", token: "valid-token" },
+        expires: "",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+    vi.mocked(useSupervision).mockReturnValue({
+      hasGroups: false,
+      isLoadingGroups: false,
+      isSupervising: false,
+      isLoadingSupervision: false,
+      overviewEnabled: false,
+      supervisedRooms: [],
+      groups: [],
+      refresh: vi.fn(),
+    });
+    vi.mocked(useSmartRedirectPath).mockReturnValue({
+      redirectPath: "/dashboard",
+      isReady: true,
+    });
     vi.mocked(usePresenceMode).mockReturnValue("detailed");
   });
 
@@ -152,7 +174,7 @@ describe("SmartRedirect", () => {
       isLoadingGroups: false,
       isSupervising: true,
       isLoadingSupervision: false,
-      adminOverviewEnabled: false,
+      overviewEnabled: false,
       supervisedRooms: [],
       groups: [],
       refresh: vi.fn(),

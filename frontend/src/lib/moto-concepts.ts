@@ -51,6 +51,7 @@ import {
   SignOutIcon,
   SunIcon,
   TranslateIcon,
+  TrayIcon,
   TrendUpIcon,
   UserCheckIcon,
   UserCircleGearIcon,
@@ -123,6 +124,16 @@ export const MOTO_CONCEPTS = {
     "gold",
     "core",
     "administration",
+  ),
+  // Schul-Portal ("moto schule", #2207): der Klassentag einer Lehrkraft.
+  // Gleiches Bild wie "Schulen", aber im Blau des Schul-Portals — dort geht
+  // es um EINE Klasse am heutigen Tag, nicht um die Schulliste des Betriebs.
+  classDay: concept(
+    "Klassenansicht",
+    ChalkboardTeacherIcon,
+    "blue",
+    "function",
+    "planning",
   ),
   people: concept("Personen", AddressBookIcon, "teal", "core", "people"),
   operators: concept("Operatoren", UsersFourIcon, "mint", "core", "people"),
@@ -404,6 +415,9 @@ export const MOTO_CONCEPTS = {
     "function",
     "administration",
   ),
+  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
+  // Mitarbeitenden, über die die OGS entscheidet.
+  requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
   rfid: concept(
     "RFID",
     ContactlessPaymentIcon,

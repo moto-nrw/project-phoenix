@@ -85,7 +85,7 @@ describe("SchoolCheckinModeMobile", () => {
       expect(wrapper?.className).toContain("left-0");
     });
 
-    it("shows the empty-state hint when nothing has been toggled yet", () => {
+    it("shows a compact ready state before the first action", () => {
       render(
         <SchoolCheckinModeMobile
           isActive
@@ -95,7 +95,7 @@ describe("SchoolCheckinModeMobile", () => {
         />,
       );
 
-      expect(screen.getByText(/Tippe auf ein Kind/i)).toBeInTheDocument();
+      expect(screen.getByText("Bereit")).toBeInTheDocument();
     });
 
     it("surfaces the success count once the user has toggled at least one", () => {
@@ -166,6 +166,98 @@ describe("SchoolCheckinModeMobile", () => {
       expect(onToggle).not.toHaveBeenCalled();
     });
 
+    it("shows compact bulk actions in the selection mode", () => {
+      const onBulkAction = vi.fn();
+      const onClearSelection = vi.fn();
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          selectedCount={3}
+          onBulkAction={onBulkAction}
+          onClearSelection={onClearSelection}
+        />,
+      );
+
+      expect(screen.getByText("3 ausgewählt")).toBeInTheDocument();
+      const checkIn = screen.getByRole("button", { name: "Anmelden" });
+      const checkOut = screen.getByRole("button", { name: "Abmelden" });
+      expect(checkIn).toHaveClass("bg-moto-green", "text-white", "rounded-lg");
+      expect(checkOut).toHaveClass("bg-moto-red", "text-white", "rounded-lg");
+
+      fireEvent.click(checkIn);
+      fireEvent.click(checkOut);
+      fireEvent.click(screen.getByRole("button", { name: "Auswahl aufheben" }));
+
+      expect(onBulkAction).toHaveBeenNthCalledWith(1, "in");
+      expect(onBulkAction).toHaveBeenNthCalledWith(2, "out");
+      expect(onClearSelection).toHaveBeenCalledOnce();
+    });
+
+    it("shows the running state only on the selected bulk action", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          selectedCount={3}
+          runningAction="in"
+          disabled
+        />,
+      );
+
+      expect(
+        screen
+          .getByRole("button", { name: "Anmelden" })
+          .querySelector(".animate-spin"),
+      ).toBeInTheDocument();
+      expect(
+        screen
+          .getByRole("button", { name: "Abmelden" })
+          .querySelector(".animate-spin"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("disables selection actions when their callbacks are missing", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          selectedCount={3}
+        />,
+      );
+
+      expect(screen.getByRole("button", { name: "Anmelden" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Abmelden" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Auswahl aufheben" }),
+      ).toBeDisabled();
+    });
+
+    it("switches between direct and multiple actions in the bottom bar", () => {
+      const onSelectionActiveChange = vi.fn();
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          onSelectionActiveChange={onSelectionActiveChange}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehrere" }));
+      expect(onSelectionActiveChange).toHaveBeenCalledWith(true);
+    });
+
     it("publishes install-hint clearance only below md", () => {
       const { unmount } = render(
         <SchoolCheckinModeMobile
@@ -189,6 +281,25 @@ describe("SchoolCheckinModeMobile", () => {
           "--moto-checkin-bar-offset",
         ),
       ).toBe("");
+    });
+
+    it("reserves more space for the selection toolbar", () => {
+      render(
+        <SchoolCheckinModeMobile
+          isActive
+          onToggle={() => undefined}
+          successCount={0}
+          pendingCount={0}
+          selectionActive
+          selectedCount={2}
+        />,
+      );
+
+      expect(
+        document.documentElement.style.getPropertyValue(
+          "--moto-checkin-bar-offset",
+        ),
+      ).toBe("6.75rem");
     });
 
     it("does not publish install-hint clearance at md and above", () => {

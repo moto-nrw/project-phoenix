@@ -15,6 +15,7 @@ import {
   handleApiError,
   apiGet,
   checkAuth,
+  ApiResponseError as ServerApiResponseError,
 } from "./api-helpers.server";
 import { suppressConsole } from "~/test/helpers/console";
 
@@ -122,6 +123,14 @@ describe("ApiResponseError", () => {
     expect(error.body()).toBeNull();
     expect(error.body()).toBeNull();
   });
+
+  it("preserves Retry-After on a rate-limit error", () => {
+    const error = new ServerApiResponseError(429, "slow down", {
+      retryAfter: "17",
+    });
+
+    expect(error.retryAfter).toBe("17");
+  });
 });
 
 describe("handleApiError", () => {
@@ -135,6 +144,15 @@ describe("handleApiError", () => {
 
     expect(response.status).toBe(404);
     expect(body.error).toBe("API error (404): Not found");
+  });
+
+  it("forwards Retry-After from a backend 429", () => {
+    const response = handleApiError(
+      new ServerApiResponseError(429, "rate limited", { retryAfter: "17" }),
+    );
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("17");
   });
 
   it("extracts status code from 'API error: XXX' format", () => {
@@ -747,6 +765,50 @@ describe("fetchWithRetry", () => {
     expect(result.response).toBeNull();
     expect(result.data).toBeNull();
     expect(consoleSpies.warn).toHaveBeenCalled();
+  });
+
+  // Issue #2105: these log lines are shipped to /api/logs and land in Loki,
+  // so query values (student names, e-mail addresses from staff-UI searches)
+  // must never appear in them.
+  it("strips query values from logged URLs", async () => {
+    mockFetchRetry.mockResolvedValueOnce({
+      ok: false,
+      status: 403,
+      text: () => Promise.resolve("Forbidden"),
+    } as Response);
+
+    await fetchWithRetry(
+      "http://api.test/api/students?search=Mustermann&first_name=Erika",
+      "test-token",
+    );
+
+    expect(consoleSpies.warn).toHaveBeenCalledWith(
+      "api access denied",
+      expect.objectContaining({ url: "http://api.test/api/students" }),
+    );
+    expect(JSON.stringify(consoleSpies.warn.mock.calls)).not.toContain(
+      "Mustermann",
+    );
+  });
+
+  it("strips query values from error-level logs", async () => {
+    mockFetchRetry.mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve("boom"),
+    } as Response);
+
+    await expect(
+      fetchWithRetry("http://api.test/api/students?search=Mustermann", "t"),
+    ).rejects.toThrow("API error: 500");
+
+    expect(consoleSpies.error).toHaveBeenCalledWith(
+      "api error",
+      expect.objectContaining({ url: "http://api.test/api/students" }),
+    );
+    expect(JSON.stringify(consoleSpies.error.mock.calls)).not.toContain(
+      "Mustermann",
+    );
   });
 
   it("throws error for non-access-denied errors (4xx bugs)", async () => {

@@ -20,12 +20,16 @@ func makeEligibilityTestPhase() *Phase {
 }
 
 func TestPhaseValidate_AudienceDefaultsToOpen(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	require.NoError(t, p.Validate())
 	assert.Equal(t, PhaseAudienceOpen, p.Audience)
 }
 
 func TestPhaseValidate_AcceptsKnownAudiences(t *testing.T) {
+	t.Parallel()
+
 	for _, audience := range []string{PhaseAudienceOpen, PhaseAudienceNewStudents, PhaseAudienceExistingStudents, PhaseAudienceLinkedParents} {
 		p := makeEligibilityTestPhase()
 		p.Audience = audience
@@ -35,6 +39,8 @@ func TestPhaseValidate_AcceptsKnownAudiences(t *testing.T) {
 }
 
 func TestPhaseValidate_RejectsUnknownAudience(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.Audience = "everyone"
 	err := p.Validate()
@@ -43,6 +49,8 @@ func TestPhaseValidate_RejectsUnknownAudience(t *testing.T) {
 }
 
 func TestPhaseValidate_AcceptsGrade1EligibleClassWhenOffered(t *testing.T) {
+	t.Parallel()
+
 	// Grade-1 concrete classes ARE supported now (#1663): when the phase also
 	// offers the class the form collects it, so a grade-1 restriction is
 	// satisfiable and must validate. Each eligible class must be one the phase
@@ -58,6 +66,8 @@ func TestPhaseValidate_AcceptsGrade1EligibleClassWhenOffered(t *testing.T) {
 }
 
 func TestPhaseValidate_RejectsGrade1EligibleClassNotOffered(t *testing.T) {
+	t.Parallel()
+
 	// The disjoint-list rule still applies to grade 1: an eligible class the
 	// phase never offers rejects every submission, so it is rejected at save
 	// (#1663) — but now for the "not offered" reason, not a blanket grade-1 ban.
@@ -70,6 +80,8 @@ func TestPhaseValidate_RejectsGrade1EligibleClassNotOffered(t *testing.T) {
 }
 
 func TestPhaseValidate_AcceptsGrade2PlusEligibleClasses(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	// Every eligible class must also be offered by the phase (#1663), so the
 	// pick list mirrors the eligibility list here.
@@ -79,6 +91,8 @@ func TestPhaseValidate_AcceptsGrade2PlusEligibleClasses(t *testing.T) {
 }
 
 func TestPhaseValidate_RejectsEligibleClassNotAvailable(t *testing.T) {
+	t.Parallel()
+
 	// A class listed as eligible but not offered by available_school_classes
 	// is unsatisfiable: the form never presents it, so every submission is
 	// rejected with class_not_eligible. Reject the disjoint config up front
@@ -101,6 +115,8 @@ func TestPhaseValidate_RejectsEligibleClassNotAvailable(t *testing.T) {
 }
 
 func TestPhaseValidate_CoalescesNilEligibleSchoolClasses(t *testing.T) {
+	t.Parallel()
+
 	p := makeEligibilityTestPhase()
 	p.EligibleSchoolClasses = nil
 	require.NoError(t, p.Validate())
