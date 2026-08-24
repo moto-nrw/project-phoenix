@@ -504,3 +504,6 @@ tmp-screens-1841/
 # IoT simulator config written by the seed command — carries per-device API
 # keys for the local dev fleet and is regenerated on every seed
 backend/simulator/iot/simulator.yaml
+
+# Local Codex agent working directory (never tracked)
+.codex-work/
