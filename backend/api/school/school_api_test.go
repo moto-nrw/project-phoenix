@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/school"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -51,10 +52,22 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 // MFA service (pass nil for the real one from the factory).
 func newSchoolRouter(db *bun.DB, factory *services.Factory, mfa authService.MFAService) http.Handler {
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	timetableResource := newSchoolTimetableResource(db, factory)
 	if mfa == nil {
-		return school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
+		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource).Router()
 	}
-	return school.NewResource(factory.Auth, mfa, classDayResource).Router()
+	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource).Router()
+}
+
+// newSchoolTimetableResource builds the timetable resource behind
+// /school/supervisions (#2527) with the deps that surface actually consumes.
+func newSchoolTimetableResource(db *bun.DB, factory *services.Factory) *timetable.Resource {
+	return timetable.NewResource(timetable.Dependencies{
+		OperationsService: factory.TimetableOperations,
+		ReportService:     factory.EnrollmentReport,
+		SettingsService:   factory.Settings,
+		DB:                db,
+	})
 }
 
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
@@ -84,7 +97,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
+	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory)).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

@@ -423,6 +423,15 @@ type GuardianEmergencyContactRow struct {
 	LastName          sql.NullString `bun:"last_name"`
 	Email             sql.NullString `bun:"email"`
 	PhoneNumber       sql.NullString `bun:"phone_number"`
+	// RelationshipType, CanPickup and IsEmergencyContact carry the role of the
+	// relationship (#2527). The emergency list itself ignores them — it wants
+	// every reachable adult — but the supervision sheet must tell "darf
+	// abholen" apart from "im Notfall anrufen", and both answers come from the
+	// same join.
+	RelationshipType   sql.NullString `bun:"relationship_type"`
+	PickupNotes        sql.NullString `bun:"pickup_notes"`
+	CanPickup          bool           `bun:"can_pickup"`
+	IsEmergencyContact bool           `bun:"is_emergency_contact"`
 }
 
 type StudentGuardianRepository interface {

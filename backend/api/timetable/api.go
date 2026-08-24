@@ -113,6 +113,9 @@ type Dependencies struct {
 	// OfferingSourceOptions serves the offering-source editor support
 	// endpoint (#2137); implemented by the enrollment decision service.
 	OfferingSourceOptions enrollmentSvc.OfferingSourceOptionLister
+	// ReportService serves the per-child supervision sheet of the school
+	// portal (#2527). Only SchoolSupervisionRouter consumes it.
+	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
 	PlanningTrackService scheduleSvc.PlanningTrackService

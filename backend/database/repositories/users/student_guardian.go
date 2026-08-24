@@ -490,6 +490,10 @@ func (r *StudentGuardianRepository) ListEmergencyContactRows(ctx context.Context
 		ColumnExpr(`"guardian".last_name`).
 		ColumnExpr(`"guardian".email`).
 		ColumnExpr(`"phone".phone_number`).
+		ColumnExpr(`"student_guardian".relationship_type`).
+		ColumnExpr(`"student_guardian".pickup_notes`).
+		ColumnExpr(`"student_guardian".can_pickup`).
+		ColumnExpr(`"student_guardian".is_emergency_contact`).
 		Join(`JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
 		Join(`LEFT JOIN users.guardian_phone_numbers AS "phone" ON "phone".guardian_profile_id = "guardian".id`).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)).
