@@ -132,6 +132,7 @@ export interface PickupAdjustmentPayload {
   effective_from: string;
   selections?: PickupAdjustmentSelection[];
   excluded_auto_offering_ids?: string[];
+  complete_withdrawal_confirmed?: boolean;
 }
 
 export type PickupAdjustmentResolution = "exception" | "offering";
@@ -251,6 +252,7 @@ export async function applyStudentPickupAdjustment(
     preview_token: string;
     resolution: PickupAdjustmentResolution;
     reason?: string;
+    complete_withdrawal_confirmed?: boolean;
   },
 ): Promise<{ resolution: PickupAdjustmentResolution }> {
   const response = await fetch(

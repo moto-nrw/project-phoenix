@@ -55,6 +55,7 @@ func newCareLifecycleServiceWithLock(
 		TagReleaser:           repos.GradeTransition,
 		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: lockCareBookingWrites,
+		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		DB:                    db,
 		Logger:                slog.Default(),
 	})
@@ -760,10 +761,10 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	require.Empty(t, rows, "the exit removed the roster row")
 	pickupSchedules, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
-	assert.Empty(t, pickupSchedules, "the exit removes the weekly pickup plan")
+	assert.Len(t, pickupSchedules, 1, "the weekly pickup plan remains until the exit takes effect")
 	arrivalSchedules, err := repos.StudentArrivalSchedule.FindByStudentID(ctx, student.ID)
 	require.NoError(t, err)
-	assert.Empty(t, arrivalSchedules, "the exit removes the weekly arrival plan")
+	assert.Len(t, arrivalSchedules, 1, "the weekly arrival plan remains until the exit takes effect")
 
 	cancelled, err := svc.Cancel(ctx, []int64{student.ID}, actorID)
 	require.NoError(t, err)

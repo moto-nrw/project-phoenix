@@ -15,10 +15,11 @@ const (
 	CareWithdrawalStateResolved = "resolved"
 	CareWithdrawalStateObsolete = "obsolete"
 
-	CareWithdrawalTriggerDirectSchool = "direct_school"
-	CareWithdrawalOutcomeCareEnded    = "care_ended"
-	CareWithdrawalObsoleteRebooked    = "rebooked_without_gap"
-	CareWithdrawalObsoleteWeeklyPlans = "weekly_plan_mode"
+	CareWithdrawalTriggerDirectSchool   = "direct_school"
+	CareWithdrawalTriggerBookingExpired = "booking_expired"
+	CareWithdrawalOutcomeCareEnded      = "care_ended"
+	CareWithdrawalObsoleteRebooked      = "rebooked_without_gap"
+	CareWithdrawalObsoleteWeeklyPlans   = "weekly_plan_mode"
 
 	CareWithdrawalUrgencyPlanned = "planned"
 	CareWithdrawalUrgencyOverdue = "overdue"

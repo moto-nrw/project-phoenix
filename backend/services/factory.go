@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -1638,6 +1639,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AuditService:   studentAuditService,
 		LockCareBookingWrites: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 		},
 		DB:     db,
 		Logger: logger.With("service", "care_lifecycle"),

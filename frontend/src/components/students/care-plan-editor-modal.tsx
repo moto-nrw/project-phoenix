@@ -73,6 +73,7 @@ export interface CarePlanWeeklyAdjustment {
   readonly reason?: string;
   /** false refreshes the offering consequences; true performs the write. */
   readonly confirm: boolean;
+  readonly completeWithdrawalConfirmed?: boolean;
 }
 
 interface CarePlanEditorModalProps {
@@ -541,6 +542,10 @@ export function CarePlanEditorModal({
         effectiveFrom: offeringEffectiveFrom,
         reason: offeringReason,
         confirm: true,
+        completeWithdrawalConfirmed: offeringRemovesAllCareDays(
+          weeklyAdjustment,
+          offeringSelections,
+        ),
       });
       toast.success("Angebot und Wochenplan wurden geändert");
       onClose();
@@ -853,6 +858,19 @@ export function CarePlanEditorModal({
         </div>
       </ConfirmationModal>
     </>
+  );
+}
+
+function offeringRemovesAllCareDays(
+  preview: PickupAdjustmentPreview,
+  selections: PickupAdjustmentSelection[],
+) {
+  if (!preview.offering_catalog) return false;
+  const selected = new Set(
+    selections.map((selection) => selection.offering_id),
+  );
+  return !preview.offering_catalog.items.some(
+    (item) => item.counts_as_care && selected.has(item.offering_id),
   );
 }
 

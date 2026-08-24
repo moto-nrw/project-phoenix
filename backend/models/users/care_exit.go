@@ -195,6 +195,13 @@ type CareExitCleanupRepository interface {
 	// removes recurring/future arrival and pickup plans, recording reversible
 	// snapshots for a planned exit.
 	EndSourceBookingsAndSchedules(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
+	// EndSourceBookings caps/deletes source bookings while a planned exit is
+	// still reversible; recurring arrival and pickup plans remain usable until
+	// the effect day.
+	EndSourceBookings(ctx context.Context, studentIDs []int64, validUntil timezone.Date) (int64, error)
+	// FindCareWithdrawalBookingExpiries finds active children whose last
+	// authoritative care booking ended on asOf.
+	FindCareWithdrawalBookingExpiries(ctx context.Context, asOf timezone.Date) ([]CareWithdrawalBookingChange, error)
 
 	// RestoreRemovals puts back what the children's current exit removed from
 	// the plan and clears the ledger. It is what makes a planned exit

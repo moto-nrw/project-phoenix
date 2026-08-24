@@ -289,13 +289,14 @@ type DirectOfferingAdjustmentPreview struct {
 }
 
 type DirectOfferingAdjustmentInput struct {
-	StudentID               int64
-	EffectiveFrom           timezone.Date
-	Selections              []OfferingChangeSelection
-	ExcludedAutoOfferingIDs []int64
-	Reason                  string
-	ActorAccountID          int64
-	ActorRole               string
+	StudentID                   int64
+	EffectiveFrom               timezone.Date
+	Selections                  []OfferingChangeSelection
+	ExcludedAutoOfferingIDs     []int64
+	Reason                      string
+	ActorAccountID              int64
+	ActorRole                   string
+	CompleteWithdrawalConfirmed bool
 }
 
 // DirectOfferingAdjustmentCoordinator is the narrow staff-only seam used by

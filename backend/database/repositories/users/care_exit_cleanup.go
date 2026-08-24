@@ -648,15 +648,72 @@ func (r *CareExitCleanupRepository) EndSourceBookingsAndSchedules(
 		return 0, nil
 	}
 	tenantID := tenant.FromContext(ctx)
-	if err := r.snapshotSourceBookings(ctx, studentIDs, validUntil, tenantID); err != nil {
-		return 0, err
-	}
-	bookings, err := r.endSourceBookingRows(ctx, studentIDs, validUntil, tenantID)
+	bookings, err := r.EndSourceBookings(ctx, studentIDs, validUntil)
 	if err != nil {
 		return 0, err
 	}
 	plans, err := r.endCarePlanRows(ctx, studentIDs, validUntil, tenantID)
 	return bookings + plans, err
+}
+
+func (r *CareExitCleanupRepository) EndSourceBookings(
+	ctx context.Context, studentIDs []int64, validUntil timezone.Date,
+) (int64, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if err := r.snapshotSourceBookings(ctx, studentIDs, validUntil, tenantID); err != nil {
+		return 0, err
+	}
+	return r.endSourceBookingRows(ctx, studentIDs, validUntil, tenantID)
+}
+
+func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
+	ctx context.Context, asOf timezone.Date,
+) ([]userModels.CareWithdrawalBookingChange, error) {
+	rows := make([]userModels.CareWithdrawalBookingChange, 0)
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT rc.created_student_id AS student_id,
+		       ? AS first_bookingless_day,
+		       jsonb_agg(jsonb_build_object(
+				'name', co.name,
+				'days', COALESCE(NULLIF(rco.selected_days, '[]'::jsonb), co.available_days, '[]'::jsonb)
+			)) AS source_offerings
+		FROM enrollment.request_child_offerings AS rco
+		JOIN enrollment.request_children AS rc
+		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
+		JOIN enrollment.care_offerings AS co
+		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
+		JOIN users.students AS student
+		  ON student.id = rc.created_student_id AND student.tenant_id = rc.tenant_id
+		WHERE rco.tenant_id = ? AND rco.valid_until = ? AND co.counts_as_care
+		  AND student.status = 'active'
+		  AND (student.enrolled_until IS NULL OR student.enrolled_until >= ?)
+		  AND NOT EXISTS (
+			SELECT 1 FROM enrollment.request_child_offerings AS later
+			JOIN enrollment.care_offerings AS later_offering
+			  ON later_offering.id = later.care_offering_id AND later_offering.tenant_id = later.tenant_id
+			WHERE later.tenant_id = rco.tenant_id AND later.request_child_id = rco.request_child_id
+			  AND later_offering.counts_as_care
+			  AND COALESCE(later.valid_from, '-infinity'::date) <= ?
+			  AND (later.valid_until IS NULL OR later.valid_until > ?)
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM users.care_withdrawal_completions AS completion
+			WHERE completion.tenant_id = rco.tenant_id
+			  AND completion.student_id = rc.created_student_id
+			  AND completion.first_bookingless_day = ?
+		  )
+		GROUP BY rc.created_student_id
+	`, asOf, tenant.FromContext(ctx), asOf, asOf, asOf, asOf, asOf).Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: err}
+	}
+	for index := range rows {
+		rows[index].WasCompleteWithdrawal = true
+	}
+	return rows, nil
 }
 
 func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64) error {

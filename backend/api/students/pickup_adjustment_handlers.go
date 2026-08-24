@@ -23,15 +23,16 @@ type pickupAdjustmentSelectionRequest struct {
 }
 
 type pickupAdjustmentRequest struct {
-	Schedules               []PickupScheduleRequest             `json:"schedules"`
-	ArrivalSchedules        *[]ArrivalScheduleRequestItem       `json:"arrival_schedules,omitempty"`
-	CareDays                []int                               `json:"care_days"`
-	EffectiveFrom           *timezone.Date                      `json:"effective_from,omitempty"`
-	Selections              *[]pickupAdjustmentSelectionRequest `json:"selections,omitempty"`
-	ExcludedAutoOfferingIDs []string                            `json:"excluded_auto_offering_ids,omitempty"`
-	PreviewToken            string                              `json:"preview_token,omitempty"`
-	Resolution              string                              `json:"resolution,omitempty"`
-	Reason                  string                              `json:"reason,omitempty"`
+	Schedules                   []PickupScheduleRequest             `json:"schedules"`
+	ArrivalSchedules            *[]ArrivalScheduleRequestItem       `json:"arrival_schedules,omitempty"`
+	CareDays                    []int                               `json:"care_days"`
+	EffectiveFrom               *timezone.Date                      `json:"effective_from,omitempty"`
+	Selections                  *[]pickupAdjustmentSelectionRequest `json:"selections,omitempty"`
+	ExcludedAutoOfferingIDs     []string                            `json:"excluded_auto_offering_ids,omitempty"`
+	PreviewToken                string                              `json:"preview_token,omitempty"`
+	Resolution                  string                              `json:"resolution,omitempty"`
+	Reason                      string                              `json:"reason,omitempty"`
+	CompleteWithdrawalConfirmed bool                                `json:"complete_withdrawal_confirmed,omitempty"`
 }
 
 func (r *pickupAdjustmentRequest) Bind(_ *http.Request) error {
@@ -208,7 +209,8 @@ func (rs *Resource) pickupAdjustmentApplyInput(
 		PickupAdjustmentPreviewInput: input,
 		PreviewToken:                 body.PreviewToken, Resolution: body.Resolution, Reason: body.Reason,
 		ActorAccountID: int64(claims.ID), ActorRole: strings.Join(claims.Roles, ","),
-		CreatedByStaffID: staffID,
+		CreatedByStaffID:            staffID,
+		CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
 		Authorize: func(ctx context.Context, fresh *users.Student) (bool, error) {
 			return canUpdateStudent(ctx, permissions, fresh, rs.UserContextService)
 		},

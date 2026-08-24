@@ -272,6 +272,7 @@ function BookingConsequences({
 }
 
 function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
+  const removesAllCareDays = offeringRemovesAllCareDays(props);
   return (
     <>
       <label
@@ -284,8 +285,9 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
           onChange={(event) => props.onConfirmedChange(event.target.checked)}
         />
         <span>
-          Ich bestätige: Das Angebot gilt ab {formatDate(props.effectiveFrom)}.
-          Die Gehzeiten folgen dem Angebot.
+          {removesAllCareDays
+            ? `Ich bestätige: Ab ${formatDate(props.effectiveFrom)} gibt es keine Betreuungstage mehr.`
+            : `Ich bestätige: Das Angebot gilt ab ${formatDate(props.effectiveFrom)}. Die Gehzeiten folgen dem Angebot.`}
           {(props.preview.removed_manual_notes?.length ?? 0) > 0
             ? " Die oben genannten Gehzeit-Notizen werden entfernt."
             : ""}
@@ -301,6 +303,18 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
         Angebot ändern und speichern
       </Button>
     </>
+  );
+}
+
+function offeringRemovesAllCareDays(props: PickupAdjustmentDecisionProps) {
+  if (!props.preview.offering_catalog) return false;
+  const selected = new Set(
+    props.preview.matching_offerings
+      .find((offering) => offering.offering_id === props.selectedOfferingId)
+      ?.selections.map((selection) => selection.offering_id) ?? [],
+  );
+  return !props.preview.offering_catalog.items.some(
+    (item) => item.counts_as_care && selected.has(item.offering_id),
   );
 }
 

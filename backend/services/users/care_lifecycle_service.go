@@ -183,6 +183,7 @@ type careLifecycleService struct {
 	careExitRepo          userModels.CareExitRepository
 	cleanupRepo           userModels.CareExitCleanupRepository
 	withdrawalRepo        userModels.CareWithdrawalCompletionRepository
+	bookingsAuthoritative func(context.Context) (bool, error)
 	tagReleaser           CareExitTagReleaser
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
@@ -205,6 +206,7 @@ type CareLifecycleDependencies struct {
 	// rebooking and care-end confirmation a total order instead of allowing a
 	// stale exit to commit beside newly booked care.
 	LockCareBookingWrites func(context.Context) error
+	BookingsAuthoritative func(context.Context) (bool, error)
 	DB                    *bun.DB
 	Logger                *slog.Logger
 }
@@ -217,6 +219,7 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		careExitRepo:          deps.CareExitRepo,
 		cleanupRepo:           deps.CleanupRepo,
 		withdrawalRepo:        deps.WithdrawalRepo,
+		bookingsAuthoritative: deps.BookingsAuthoritative,
 		tagReleaser:           deps.TagReleaser,
 		auditService:          deps.AuditService,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
@@ -470,7 +473,9 @@ func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, sta
 	if err != nil {
 		return err
 	}
-	sourceEnded, err := s.cleanupRepo.EndSourceBookingsAndSchedules(ctx, state.studentIDs, validUntil)
+	// Recurring arrival and pickup plans have no date range. They must remain
+	// effective through a future last care day and are removed by ApplyDueEffects.
+	sourceEnded, err := s.cleanupRepo.EndSourceBookings(ctx, state.studentIDs, validUntil)
 	if err != nil {
 		return err
 	}
@@ -701,14 +706,25 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 		return nil
 	}
 	studentID := change.StudentID
-	actorID := change.ConfirmedBy
+	var actorID *int64
+	if change.ConfirmedBy > 0 {
+		actorID = &change.ConfirmedBy
+	}
+	trigger := userModels.CareWithdrawalTriggerDirectSchool
+	if change.SourceAdjustmentID == 0 {
+		trigger = userModels.CareWithdrawalTriggerBookingExpired
+	}
+	role := strings.TrimSpace(change.ConfirmedRole)
+	if role == "" {
+		role = "system"
+	}
 	return s.withdrawalRepo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID:               &studentID,
 		FirstBookinglessDay:     change.FirstBookinglessDay,
-		Trigger:                 userModels.CareWithdrawalTriggerDirectSchool,
-		SourceAdjustmentID:      &change.SourceAdjustmentID,
-		WithdrawalConfirmedBy:   &actorID,
-		WithdrawalConfirmedRole: strings.TrimSpace(change.ConfirmedRole),
+		Trigger:                 trigger,
+		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
+		WithdrawalConfirmedBy:   actorID,
+		WithdrawalConfirmedRole: role,
 		WithdrawalConfirmedAt:   now,
 		SourceOfferings:         change.SourceOfferings,
 	})
@@ -799,6 +815,9 @@ func (s *careLifecycleService) validateWithdrawalCareEnd(
 // scheduler for every tenant and is idempotent: a second pass finds nothing
 // open, no tag to release and no request to close.
 func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error) {
+	if err := s.reconcileExpiredCareBookings(ctx, asOf); err != nil {
+		return 0, err
+	}
 	// The candidate set is exactly the one the activate-students tick is about
 	// to move to 'inactive': still 'active', interval already run out. That
 	// makes the pass self-limiting — once the status has flipped, the same
@@ -886,6 +905,33 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 		)
 	}
 	return applied, nil
+}
+
+func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context, asOf timezone.Date) error {
+	if s.bookingsAuthoritative == nil {
+		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
+	}
+	authoritative, err := s.bookingsAuthoritative(ctx)
+	if err != nil || !authoritative {
+		return err
+	}
+	expiries, err := s.cleanupRepo.FindCareWithdrawalBookingExpiries(ctx, asOf)
+	if err != nil {
+		return err
+	}
+	for _, expiry := range expiries {
+		if err := s.ReconcileAuthoritativeBookingChange(ctx, expiry); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func optionalPositiveID(value int64) *int64 {
+	if value <= 0 {
+		return nil
+	}
+	return &value
 }
 
 func (s *careLifecycleService) removePlansWrittenAfterExitConfirmation(
