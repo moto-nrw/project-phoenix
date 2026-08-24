@@ -1445,7 +1445,7 @@ export function ChildOfferingAdjustment({
 
   const removeAllCareDays = () => {
     const careOfferingIDs = new Set(
-      catalog
+      rawCatalog
         .filter((offering) => offering.counts_as_care)
         .map((offering) => offering.id),
     );
@@ -1454,7 +1454,7 @@ export function ChildOfferingAdjustment({
     );
   };
 
-  const hasSelectedCareDays = catalog.some(
+  const hasSelectedCareDays = rawCatalog.some(
     (offering) => offering.counts_as_care && selected.has(offering.id),
   );
 

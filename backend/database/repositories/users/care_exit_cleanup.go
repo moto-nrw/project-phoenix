@@ -544,14 +544,14 @@ func (r *CareExitCleanupRepository) ListSourceOfferingsAfter(
 	}
 	if err := base.GetDB(ctx, r.db).NewRaw(`
 		SELECT rc.created_student_id AS student_id, co.name,
-		       COALESCE(rco.selected_days, '[]'::jsonb) AS days
+		       COALESCE(NULLIF(rco.selected_days, '[]'::jsonb), co.available_days, '[]'::jsonb) AS days
 		FROM enrollment.request_child_offerings AS rco
 		JOIN enrollment.request_children AS rc
 		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 		JOIN enrollment.care_offerings AS co
 		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
 		WHERE rco.tenant_id = ? AND rc.created_student_id IN (?)
-		  AND (rco.valid_until IS NULL OR rco.valid_until >= ?)
+		  AND (rco.valid_until IS NULL OR rco.valid_until > ?)
 		ORDER BY rc.created_student_id, co.sort_order, co.id
 	`, tenant.FromContext(ctx), bun.List(studentIDs), validUntil).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list source offerings for care exit preview", Err: err}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { CareExitModal } from "~/components/students/care-exit-modal";
+import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { RequestReviewCard } from "~/components/students/request-review-card";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -17,6 +18,7 @@ export function CareWithdrawalTaskItem({
   onFinished: () => void;
 }>) {
   const [open, setOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const name = `${row.firstName} ${row.lastName}`.trim();
   const overdue = row.urgency === "overdue";
 
@@ -39,14 +41,24 @@ export function CareWithdrawalTaskItem({
           tone: overdue ? "red" : "orange",
         }}
         action={
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => setOpen(true)}
-          >
-            Betreuung beenden
-          </Button>
+          <div className="flex flex-wrap gap-1">
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setOpen(true)}
+            >
+              Betreuung beenden
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={() => setDeleteOpen(true)}
+            >
+              Kind löschen
+            </Button>
+          </div>
         }
       >
         <p className="text-sm text-gray-600">
@@ -62,6 +74,16 @@ export function CareWithdrawalTaskItem({
         onClose={() => setOpen(false)}
         onFinished={() => {
           setOpen(false);
+          onFinished();
+        }}
+      />
+      <StudentDeletionModal
+        isOpen={deleteOpen}
+        studentId={row.studentId}
+        displayName={name}
+        onClose={() => setDeleteOpen(false)}
+        onDeleted={() => {
+          setDeleteOpen(false);
           onFinished();
         }}
       />

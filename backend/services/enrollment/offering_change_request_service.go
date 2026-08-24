@@ -1926,6 +1926,9 @@ func (s *offeringChangeRequestService) applyApproved(
 		ActorRole:                cmpOr(strings.TrimSpace(input.ActorRole), "admin"),
 		EffectiveFrom:            &effectiveFrom,
 		ExcludedAutoAddTargetIDs: excluded,
+		// The parent explicitly requested the booked care days to be removed;
+		// the staff approval is the second recorded confirmation.
+		CompleteWithdrawalConfirmed: true,
 	}
 	applied, err := s.Applier.applyApprovedChangeRequestOfferingsWithResult(ctx, adjustment)
 	if err != nil {
