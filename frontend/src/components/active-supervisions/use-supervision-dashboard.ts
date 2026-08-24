@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -205,6 +206,8 @@ export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
   const { sessionToken, now, sessionParam, roomParam } = options;
+  const { data: session } = useSession();
+  const accountId = session?.user.id;
 
   const [refreshKey, setRefreshKey] = useState(0);
   const refresh = useCallback(() => setRefreshKey((prev) => prev + 1), []);
@@ -228,14 +231,17 @@ export function useSupervisionDashboard(
 
   // SWR-based aggregate fetching with caching. The key prefix
   // "active-supervision-dashboard-" is invalidated by global SSE on relevant
-  // events; the Berlin day suffix rolls the aggregate forward at midnight.
+  // events; the account suffix prevents cached data crossing account changes
+  // in the same tenant; the Berlin day suffix rolls the aggregate forward at
+  // midnight.
   const {
     data: dashboardData,
     error: dashboardError,
     mutate: mutateDashboard,
+    isLoading: isDashboardLoading,
   } = useSWRAuth<BFFDashboardResponse>(
     sessionToken
-      ? `active-supervision-dashboard-${refreshKey}-${dashboardDay}`
+      ? `active-supervision-dashboard-${refreshKey}-${accountId}-${dashboardDay}`
       : null,
     async () => {
       logger.debug("SWR fetching dashboard data");
@@ -291,7 +297,18 @@ export function useSupervisionDashboard(
   // "storing information from previous renders" pattern), replacing the
   // former dozen per-field setState copies.
   const [snapshot, setSnapshot] = useState<BFFDashboardResponse | null>(null);
-  if (dashboardData && dashboardData !== snapshot) {
+  const [snapshotSessionToken, setSnapshotSessionToken] =
+    useState(sessionToken);
+  if (snapshotSessionToken !== sessionToken) {
+    // A token change can mean another account signed in on this tenant. Do
+    // not retain the previous account's aggregate while the new key loads.
+    setSnapshotSessionToken(sessionToken);
+    setSnapshot(null);
+  } else if (
+    dashboardData &&
+    !isDashboardLoading &&
+    dashboardData !== snapshot
+  ) {
     setSnapshot(dashboardData);
   }
 
