@@ -785,7 +785,7 @@ export function PhasesEditor() {
         </div>
       )}
 
-      {!editingId && !rolloverSource ? (
+      {!loading && !editingId && !rolloverSource ? (
         <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
       ) : null}
 
