@@ -39,26 +39,11 @@ import {
 import { createLogger } from "~/lib/logger";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { useSWRAuth } from "~/lib/swr";
+import { DayChangesPanel } from "./day-changes-panel";
 import { reconcileSelectedClass } from "./selected-class";
+import { statusColor, statusLabel } from "./status-labels";
 
 const logger = createLogger({ component: "ClassDayView" });
-
-const STATUS_LABELS: Record<string, string> = {
-  sick: "Krank",
-  excused: "Entschuldigt",
-  class_trip: "Klassenfahrt",
-  // Abhol-Ausnahme ohne Zeit: die Betreuung für diesen Tag wurde abgesagt.
-  cancelled: "Heute abgemeldet",
-};
-
-// Status colors come from the brand table, never as re-typed hexes:
-// SICK amber, CLASS_TRIP blue, EXCUSED purple, CANCELLED neutral gray.
-const STATUS_COLORS: Record<string, string> = {
-  sick: LOCATION_COLORS.SICK,
-  class_trip: LOCATION_COLORS.CLASS_TRIP,
-  excused: LOCATION_COLORS.EXCUSED,
-  cancelled: LOCATION_COLORS.UNKNOWN,
-};
 
 function rowDetailLine(row: ClassDayRow, enrollmentKnown: boolean): string {
   // Klassenlisteneintrag (#2382): "Keine Betreuung" ist die ganze Aussage —
@@ -95,12 +80,31 @@ function StudentRow({
         ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {/* "bis HH:MM" nur für Kinder, die bleiben — bei Heimgehern und
-            Abgemeldeten wäre die Abholzeit irreführend. */}
-        {row.stays_today && row.pickup ? (
-          <span className="text-xs font-medium text-gray-600 tabular-nums">
-            bis {row.pickup}
+        {/* "bis HH:MM" für Kinder, die bleiben — bei Heimgehern und
+            Abgemeldeten wäre die Abholzeit irreführend. Ausnahme: eine vom
+            üblichen Plan abweichende Abholzeit (#2294) wird immer genannt,
+            sonst trüge die Zeile das Kennzeichen "Andere Abholzeit" ohne die
+            Zeit, um die es geht. Die Regelzeit steht darunter: ohne sie liest
+            sich "bis 12:15" wie der Normalfall. */}
+        {(row.stays_today || row.pickup_changed) && row.pickup ? (
+          <span className="text-right">
+            <span className="block text-xs font-medium text-gray-600 tabular-nums">
+              bis {row.pickup}
+            </span>
+            {row.pickup_changed && row.pickup_regular ? (
+              <span className="block text-xs text-gray-400 tabular-nums">
+                sonst {row.pickup_regular}
+              </span>
+            ) : null}
           </span>
+        ) : null}
+        {/* Abweichende Abholzeit ohne gemeldeten Status: der Status trägt
+            sonst das Badge und ist die stärkere Aussage. */}
+        {row.pickup_changed && !row.status && !row.list_entry ? (
+          <StatusDotBadge
+            label="Andere Abholzeit"
+            color={LOCATION_COLORS.WARNING}
+          />
         ) : null}
         {/* Klassenlisteneintrag (#2382): Kind ohne OGS-Datensatz — eindeutig
             als "Keine Betreuung" gekennzeichnet, unabhängig von Anmeldephasen. */}
@@ -112,8 +116,8 @@ function StudentRow({
         ) : null}
         {row.status ? (
           <StatusDotBadge
-            label={STATUS_LABELS[row.status] ?? row.status}
-            color={STATUS_COLORS[row.status] ?? LOCATION_COLORS.UNKNOWN}
+            label={statusLabel(row.status)}
+            color={statusColor(row.status)}
           />
         ) : null}
       </div>
@@ -516,6 +520,18 @@ export function ClassDayView({
                 <div className="mt-4">
                   <Alert type="error" message={error} />
                 </div>
+              )}
+
+              {/* Was heute vom üblichen Plan abweicht, klassenübergreifend
+                  (#2294) — die Frage, für die eine Lehrkraft sonst drei volle
+                  Klassenlisten durchgehen müsste. Am Wochenende gibt es keine
+                  Übergabe und damit auch keine Abweichung. */}
+              {!weekend && Object.keys(reports).length > 0 && (
+                <DayChangesPanel
+                  classes={classes ?? []}
+                  reports={reports}
+                  dateISO={dateISO}
+                />
               )}
 
               <div className="mt-4 grid gap-3 lg:grid-cols-2">
