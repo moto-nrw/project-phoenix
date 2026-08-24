@@ -19,7 +19,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatTile } from "~/components/ui/stat-tile";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   TimetableRosterContent,
@@ -37,6 +36,7 @@ import type {
 } from "~/lib/timetable-operations-types";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { StudentSheetModal } from "./student-sheet-modal";
+import { SupervisionRosterPreview } from "./roster-preview";
 import { SupervisionsOverview } from "./supervisions-overview";
 import {
   AUTO_VIEW,
@@ -108,18 +108,6 @@ function SupervisionIntro({
         {explanation}
       </p>
 
-      {!cancelled ? (
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <StatTile label="Erwartet" value={instance.expectedStudentsCount} />
-          {instance.notScheduledStudentsCount > 0 ? (
-            <StatTile
-              label="Heute nicht eingeplant"
-              value={instance.notScheduledStudentsCount}
-            />
-          ) : null}
-        </div>
-      ) : null}
-
       {showStartButton ? (
         <div className="mt-4">
           <Button
@@ -186,12 +174,18 @@ export function SchoolSupervisionsView() {
   const showRoster =
     openInstance?.status === "active" || openInstance?.status === "completed";
 
+  // Auch fuer einen geplanten Block: die Frage vor dem Start ist "wer kommt
+  // gleich", und der Server beantwortet sie. Nur ein abgesagter Termin hat
+  // keine Liste, die jemanden interessiert.
+  const wantsRoster =
+    openInstance != null && openInstance.status !== "cancelled";
+
   const {
     data: roster,
     isLoading: rosterLoading,
     mutate: reloadRoster,
   } = useSWRAuth(
-    openId && showRoster ? `school-supervision-roster-${openId}` : null,
+    openId && wantsRoster ? `school-supervision-roster-${openId}` : null,
     () => schoolSupervisionsApi.roster(openId as string),
     { keepPreviousData: false, revalidateOnFocus: false },
   );
@@ -315,6 +309,7 @@ export function SchoolSupervisionsView() {
       {!isLoading && view.mode === "overview" ? (
         <SupervisionsOverview
           instances={sortedInstances}
+          today={today}
           onOpen={(id) => setIntent({ kind: "detail", id })}
         />
       ) : null}
@@ -337,6 +332,21 @@ export function SchoolSupervisionsView() {
           instance={openInstance}
           busy={busyId === openInstance.id}
           onStart={() => void handleStart(openInstance)}
+        />
+      ) : null}
+
+      {openInstance &&
+      !showRoster &&
+      wantsRoster &&
+      rosterLoading &&
+      !rosterMatchesSelection ? (
+        <Skeleton className="h-48 w-full" />
+      ) : null}
+
+      {openInstance && !showRoster && rosterMatchesSelection ? (
+        <SupervisionRosterPreview
+          rows={roster.rows}
+          onOpenStudent={setSheetRow}
         />
       ) : null}
 

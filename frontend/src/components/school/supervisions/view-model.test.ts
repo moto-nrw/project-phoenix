@@ -4,6 +4,8 @@ import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types"
 import {
   AUTO_VIEW,
   resolveSupervisionView,
+  startProximityLabel,
+  summarizeDay,
   supervisionStartState,
   upcomingAfter,
 } from "./view-model";
@@ -157,5 +159,49 @@ describe("supervisionStartState", () => {
     expect(supervisionStartState(instance("1", "completed"), now)).toBe(
       "completed",
     );
+  });
+});
+
+describe("startProximityLabel", () => {
+  function withMinutes(minutes: number, status: PlannedTimetableInstance["status"] = "planned") {
+    return { ...instance("1", status), minutesUntilStart: minutes };
+  }
+
+  it("unterscheidet vorher, jetzt und ueberfaellig", () => {
+    expect(startProximityLabel(withMinutes(25))).toBe("in 25 Min.");
+    expect(startProximityLabel(withMinutes(0))).toBe("jetzt");
+    expect(startProximityLabel(withMinutes(-25))).toBe("seit 25 Min. fällig");
+  });
+
+  it("rundet groessere Abstaende auf Stunden", () => {
+    expect(startProximityLabel(withMinutes(74))).toBe("in etwa 1 Stunde");
+    expect(startProximityLabel(withMinutes(150))).toBe("in etwa 3 Stunden");
+    expect(startProximityLabel(withMinutes(-125))).toBe("seit 2 Stunden fällig");
+  });
+
+  it("schweigt, wo die Angabe nichts beitraegt", () => {
+    expect(startProximityLabel(withMinutes(25, "active"))).toBeNull();
+    expect(startProximityLabel(withMinutes(25, "completed"))).toBeNull();
+    expect(startProximityLabel(withMinutes(60 * 20))).toBeNull();
+  });
+});
+
+describe("summarizeDay", () => {
+  it("zaehlt Aufsichten und Kinder ohne die abgesagten", () => {
+    const list = [
+      { ...instance("1", "completed", "08:00"), expectedStudentsCount: 8 },
+      { ...instance("2", "planned", "13:00"), expectedStudentsCount: 5 },
+      { ...instance("3", "cancelled", "15:00"), expectedStudentsCount: 9 },
+    ];
+    const summary = summarizeDay(list);
+    expect(summary.count).toBe(2);
+    expect(summary.children).toBe(13);
+    expect(summary.next?.id).toBe("2");
+    expect(summary.running).toBeNull();
+  });
+
+  it("nennt die laufende Aufsicht", () => {
+    const list = [instance("1", "active"), instance("2", "planned", "15:00")];
+    expect(summarizeDay(list).running?.id).toBe("1");
   });
 });

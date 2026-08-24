@@ -121,3 +121,59 @@ function parseInstant(value: string | undefined): Date | null {
   const parsed = new Date(value);
   return Number.isFinite(parsed.getTime()) ? parsed : null;
 }
+
+/**
+ * Wie weit die Aufsicht noch weg ist, in einem Satzteil.
+ *
+ * `minutesUntilStart` kommt vom Server und wird negativ, sobald die Startzeit
+ * durch ist. Beide Richtungen brauchen ein eigenes Wort: "in 5 Minuten" und
+ * "seit 5 Minuten faellig" sagen etwas sehr Verschiedenes, und die Null
+ * dazwischen ist "jetzt", nicht "in 0 Minuten".
+ *
+ * Gibt null zurueck, wenn die Angabe nichts beitraegt (laufende, beendete oder
+ * abgesagte Aufsicht, oder mehr als ein halber Tag entfernt).
+ */
+export function startProximityLabel(
+  instance: PlannedTimetableInstance,
+): string | null {
+  if (instance.status !== "planned") return null;
+  const minutes = instance.minutesUntilStart;
+  if (!Number.isFinite(minutes) || Math.abs(minutes) > 12 * 60) return null;
+
+  if (minutes <= -60) {
+    const hours = Math.floor(-minutes / 60);
+    return `seit ${hours} ${hours === 1 ? "Stunde" : "Stunden"} fällig`;
+  }
+  if (minutes < 0) return `seit ${-minutes} Min. fällig`;
+  if (minutes === 0) return "jetzt";
+  if (minutes < 60) return `in ${minutes} Min.`;
+  const hours = Math.round(minutes / 60);
+  return `in etwa ${hours} ${hours === 1 ? "Stunde" : "Stunden"}`;
+}
+
+/** Was der Tag insgesamt bringt — die Zeile ueber der Liste. */
+export interface SupervisionDaySummary {
+  readonly count: number;
+  readonly children: number;
+  /** Die naechste Aufsicht, die noch bevorsteht; null wenn alles durch ist. */
+  readonly next: PlannedTimetableInstance | null;
+  readonly running: PlannedTimetableInstance | null;
+}
+
+export function summarizeDay(
+  instances: readonly PlannedTimetableInstance[],
+): SupervisionDaySummary {
+  const relevant = instances.filter((item) => item.status !== "cancelled");
+  return {
+    count: relevant.length,
+    // Kinder werden summiert, nicht dedupliziert: dasselbe Kind in Lernzeit
+    // UND Mensa sind zwei Aufsichten, in denen es betreut wird. "13 Kinder
+    // heute" ist die Arbeitsmenge, nicht die Kopfzahl.
+    children: relevant.reduce(
+      (sum, item) => sum + item.expectedStudentsCount,
+      0,
+    ),
+    next: relevant.find((item) => item.status === "planned") ?? null,
+    running: relevant.find((item) => item.status === "active") ?? null,
+  };
+}
