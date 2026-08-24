@@ -255,7 +255,10 @@ SELECT
                         )
                         OR (
                             target_child.status = 'approved'
-                            AND COALESCE(target_child.created_student_id, target_child.matched_student_id) = source_student.student_id
+                            AND (
+                                target_child.rollover_source_child_id = ANY(source_student.source_child_ids)
+                                OR COALESCE(target_child.created_student_id, target_child.matched_student_id) = source_student.student_id
+                            )
                             AND phase.successor_start_date <= source_student.first_affected_date
                             AND phase.successor_end_date >= source_student.first_affected_date
                             AND EXISTS (

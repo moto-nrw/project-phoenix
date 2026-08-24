@@ -208,6 +208,20 @@ func TestPhaseExpiryRepository_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	require.Len(t, completedSuccessor, 1)
 	assert.Equal(t, 0, completedSuccessor[0].UnresolvedChildren)
 
+	replacementStudent := testpkg.CreateTestStudent(t, db, "Replacement", "Successor", "2a")
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		_, err := base.GetDB(ctx, db).NewUpdate().
+			TableExpr(`enrollment.request_children AS "request_child"`).
+			Set("created_student_id = ?", replacementStudent.ID).
+			Where(`"request_child".id = ?`, targetChild.ID).
+			Exec(ctx)
+		return err
+	}))
+	lineageWithReplacementStudent := listSnapshots()
+	require.Len(t, lineageWithReplacementStudent, 1)
+	assert.Equal(t, 0, lineageWithReplacementStudent[0].UnresolvedChildren,
+		"an approved rollover child must complete the warning despite a replacement student ID")
+
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		if updateErr := childRepo.UpdateStatus(
 			ctx,
