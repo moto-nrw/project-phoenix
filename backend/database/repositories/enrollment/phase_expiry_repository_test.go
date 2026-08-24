@@ -117,8 +117,8 @@ func TestPhaseExpiryRepository_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 		return err
 	}))
 	require.Len(t, snapshots, 1)
-	assert.Equal(t, 1, snapshots[0].AffectedChildren,
-		"pending students starting after the source phase end must not trigger a warning")
+	assert.Equal(t, 2, snapshots[0].AffectedChildren,
+		"a pending rollover student must keep the source booking warning visible")
 
 	enrollmentEndedBeforePhaseEnd := phase.ServiceEndDate.AddDays(-1)
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {

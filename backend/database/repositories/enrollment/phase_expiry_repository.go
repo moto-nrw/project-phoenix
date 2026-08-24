@@ -123,7 +123,6 @@ effective_source_bookings AS (
           OR (
               student.status = 'pending'
               AND student.enrolled_from IS NOT NULL
-              AND student.enrolled_from <= source_phase.service_end_date
               AND (
                   student.enrolled_until IS NULL
                   OR student.enrolled_until >= source_phase.service_end_date
