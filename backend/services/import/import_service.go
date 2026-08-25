@@ -237,12 +237,7 @@ func recordWarnings[T any](result *importModels.ImportResult[T], rowNum int, row
 
 // recordBlockingErrors records blocking errors in the result
 func recordBlockingErrors[T any](result *importModels.ImportResult[T], rowNum int, row *T, blockingErrors, warnings []importModels.ValidationError) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors:    append(blockingErrors, warnings...),
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, append(blockingErrors, warnings...))
 	result.ErrorCount++
 }
 
