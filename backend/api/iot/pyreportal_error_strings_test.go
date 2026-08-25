@@ -22,7 +22,6 @@ package iot
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -166,9 +165,8 @@ var extraGuardSources = []string{
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
 	t.Parallel()
 
-	_, thisFile, _, ok := runtime.Caller(0)
-	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
-	iotDir := filepath.Dir(thisFile)                  // backend/api/iot
+	iotDir, err := os.Getwd()
+	require.NoError(t, err, "locating api/iot sources")
 	backendRoot := filepath.Dir(filepath.Dir(iotDir)) // backend/
 
 	var blob strings.Builder

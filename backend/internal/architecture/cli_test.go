@@ -1,9 +1,9 @@
 package architecture_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -353,9 +353,9 @@ func fixturePath(t *testing.T, parts ...string) string {
 
 func packageDir(t *testing.T) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if !ok {
+	dir, err := os.Getwd()
+	if err != nil {
 		t.Fatal("resolve test package directory")
 	}
-	return filepath.Dir(file)
+	return dir
 }
