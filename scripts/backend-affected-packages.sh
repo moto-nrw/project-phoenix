@@ -28,6 +28,7 @@ changed_dirs=$(printf '%s\n' "$backend_changes" | awk '
     print "test", path
     next
   }
+  /^backend\/architecture\/policy\.json$/ { print "test internal/architecture"; next }
   /\.go$/ {
     path = $0
     kind = path ~ /_test\.go$/ ? "test" : "production"

@@ -60,6 +60,7 @@ jobs:
               - 'backend/**/*.go'
               - 'backend/go.mod'
               - 'backend/go.sum'
+              - 'backend/architecture/policy.json'
               - 'backend/**/testdata/**'
               - 'backend/localization/locales.json'
               - 'backend/services/listexport/assets/**'

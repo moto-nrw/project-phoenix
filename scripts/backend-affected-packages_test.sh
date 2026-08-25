@@ -13,8 +13,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{core,consumer,consumerwithouttests,corex,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,localeconsumer,localization,exportconsumer,services/listexport/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
+printf '{}\n' >"$fixture/backend/architecture/policy.json"
+printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
 package core
@@ -178,6 +180,10 @@ printf 'asset\n' >"$fixture/backend/services/listexport/assets/probe.txt"
 assert_output $'example.test/project/exportconsumer\nexample.test/project/services/listexport\nexample.test/project/test'
 rm "$fixture/backend/services/listexport/assets/probe.txt"
 
+printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
+assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/policy.json
+
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'
 git -C "$fixture" restore backend/go.mod
@@ -196,6 +202,7 @@ if select_packages >/dev/null 2>&1; then
 fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
+assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' present
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present
