@@ -65,7 +65,11 @@ func TestBuildClassDayReportProjection(t *testing.T) {
 	}
 	statuses := map[int64]string{3: activeModels.StudentStatusDaySick}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, statuses, map[int64]string{1: "Abholung"}, nil, map[int64]string{1: "16:00"}, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr 2026/27", rows, classDayFacts{
+		statuses:   statuses,
+		departures: map[int64]string{1: "Abholung"},
+		pickups:    map[int64]string{1: "16:00"},
+	})
 
 	require.Len(t, report.Rows, 3)
 	assert.Equal(t, "wed", report.Weekday)
@@ -106,7 +110,7 @@ func TestBuildClassDayReportWeekend(t *testing.T) {
 		DepartureByDay: map[string]string{"mon": "fährt Bus", "tue": "wird abgeholt"},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, nil, nil, nil, nil, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 8), "", rows, newClassDayFacts())
 
 	assert.False(t, report.SchoolDay)
 	assert.Equal(t, "", report.Weekday)
@@ -305,13 +309,45 @@ func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 		3: scheduleService.CareDayNotScheduled,
 	}}}}
 
-	cancelled, notScheduled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5))
+	facts := newClassDayFacts()
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1, 2, 3}, timezone.NewDate(2026, 8, 5), &facts)
 
 	require.NoError(t, err)
 	assert.Equal(t, map[int64]bool{1: true}, cancelled)
 	// "An dem Tag nicht gebucht" is not an absence, but the child must not
 	// be listed as staying either — surfaced separately.
-	assert.Equal(t, map[int64]bool{3: true}, notScheduled)
+	assert.Equal(t, map[int64]bool{3: true}, facts.notScheduled)
+}
+
+func TestClassDayCancellationUsesArrivalExceptionReportTime(t *testing.T) {
+	t.Parallel()
+
+	reportedAt := time.Date(2026, 8, 5, 7, 24, 0, 0, time.UTC)
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
+		ArrivalScheduleSvc: &fakeArrivalScheduleService{byStudent: map[int64]*scheduleService.EffectiveArrivalTime{
+			1: {IsException: true, ChangedAt: &reportedAt},
+		}},
+		CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
+			1: scheduleService.CareDayCancelled,
+		}},
+	}}
+	facts := newClassDayFacts()
+
+	require.NoError(t, svc.classDayEffectiveTimes(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts))
+	cancelled, err := svc.classDayCancellations(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5), &facts)
+	require.NoError(t, err)
+	for studentID := range cancelled {
+		facts.statuses[studentID] = StudentStatusDayCancelled
+		if stamp, ok := facts.arrivalCancelledAt[studentID]; ok {
+			facts.statusReportedAt[studentID] = stamp
+		}
+	}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", []ClassRosterRow{{
+		StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
+	}}, facts)
+	require.NotNil(t, report.Rows[0].ReportedAt)
+	assert.Equal(t, reportedAt, *report.Rows[0].ReportedAt)
 }
 
 func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
@@ -323,7 +359,7 @@ func TestBuildClassDayReportNotScheduledOverridesOffering(t *testing.T) {
 		OfferingsByDay: map[string][]string{"wed": {"Ganztag"}},
 	}}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, nil, nil, nil, map[int64]bool{1: true})
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{notScheduled: map[int64]bool{1: true}})
 
 	require.Len(t, report.Rows, 1)
 	// The approved offering still lists Wednesday, but the parents struck
@@ -375,7 +411,7 @@ func TestClassDayStatusPrecedenceSickWins(t *testing.T) {
 		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
 	}}}}
 
-	statuses, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
+	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, activeModels.StudentStatusDaySick, statuses[1])
@@ -395,7 +431,7 @@ func TestClassDayStatusUnknownValueStillCounts(t *testing.T) {
 		{StudentID: 2, Status: activeModels.StudentStatusDayExcused},
 	}}}}
 
-	statuses, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
+	statuses, _, err := svc.classDayStatuses(context.Background(), []int64{1, 2}, timezone.NewDate(2026, 8, 5))
 
 	require.NoError(t, err)
 	assert.Equal(t, "quarantine", statuses[1])
@@ -483,7 +519,7 @@ func TestClassDayReportRendersUnknownForUnplannedDay(t *testing.T) {
 		2: classDayDeparture(noPlan, "wed", nil, nil),
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, departures, nil, nil, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{departures: departures})
 
 	require.Len(t, report.Rows, 2)
 	// A Wednesday sheet must neither print a Monday-only roster value nor
@@ -552,4 +588,185 @@ func TestClassDayRequiresSchoolClass(t *testing.T) {
 	_, err := svc.ClassDay(context.Background(), "  ", timezone.NewDate(2026, 8, 5), 42, "lehrkraft")
 
 	require.ErrorIs(t, err, ErrReportInvalidFilter)
+}
+
+// clockTime builds a wall-clock TIME value the way the driver scans one.
+func clockTime(hour, minute int) *time.Time {
+	value := time.Date(2000, 1, 1, hour, minute, 0, 0, time.UTC)
+	return &value
+}
+
+// TestApplyClassDayPickupDeviation pins what counts as "heute anders als
+// sonst" for a Lehrkraft (#2294). The distinction matters in the product: a
+// block that also announces unchanged times trains the reader to skip it.
+func TestApplyClassDayPickupDeviation(t *testing.T) {
+	t.Parallel()
+
+	recorded := time.Date(2026, 8, 24, 9, 12, 0, 0, time.UTC)
+
+	tests := []struct {
+		name        string
+		entry       *scheduleService.EffectivePickupTime
+		wantPickup  string
+		wantChanged bool
+		wantRegular string
+		wantStamp   bool
+	}{
+		{
+			name:       "plan time without exception is no deviation",
+			entry:      &scheduleService.EffectivePickupTime{PickupTime: clockTime(15, 0), RegularPickupTime: clockTime(15, 0)},
+			wantPickup: "15:00",
+		},
+		{
+			name: "earlier pickup names the regular time it replaces",
+			entry: &scheduleService.EffectivePickupTime{
+				PickupTime: clockTime(12, 15), RegularPickupTime: clockTime(15, 0),
+				IsException: true, ChangedAt: &recorded,
+			},
+			wantPickup: "12:15", wantChanged: true, wantRegular: "15:00", wantStamp: true,
+		},
+		{
+			name: "later pickup is a deviation too",
+			entry: &scheduleService.EffectivePickupTime{
+				PickupTime: clockTime(16, 30), RegularPickupTime: clockTime(15, 0),
+				IsException: true, ChangedAt: &recorded,
+			},
+			wantPickup: "16:30", wantChanged: true, wantRegular: "15:00", wantStamp: true,
+		},
+		{
+			// A parent re-entering the time the plan already holds must not
+			// reach the Lehrkraft as a change.
+			name: "exception repeating the plan time is not a deviation",
+			entry: &scheduleService.EffectivePickupTime{
+				PickupTime: clockTime(15, 0), RegularPickupTime: clockTime(15, 0),
+				IsException: true, ChangedAt: &recorded,
+			},
+			wantPickup: "15:00", wantStamp: true,
+		},
+		{
+			// The child is not normally in care that weekday; there is no
+			// "sonst" to name, but the time itself is news.
+			name: "pickup on a day without a plan time is a deviation without a regular time",
+			entry: &scheduleService.EffectivePickupTime{
+				PickupTime: clockTime(14, 0), IsException: true, ChangedAt: &recorded,
+			},
+			wantPickup: "14:00", wantChanged: true, wantStamp: true,
+		},
+		{
+			// "Kommt heute nicht" travels as a status, never as a changed
+			// pickup time — otherwise the row claims a pickup that is not
+			// happening.
+			name: "timeless exception records only when it became known",
+			entry: &scheduleService.EffectivePickupTime{
+				RegularPickupTime: clockTime(15, 0), IsException: true, ChangedAt: &recorded,
+			},
+			wantStamp: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			facts := newClassDayFacts()
+
+			applyClassDayPickup(&facts, 7, tc.entry)
+
+			assert.Equal(t, tc.wantPickup, facts.pickups[7])
+			assert.Equal(t, tc.wantChanged, facts.pickupChanged[7])
+			assert.Equal(t, tc.wantRegular, facts.pickupRegular[7])
+			_, hasStamp := facts.pickupChangedAt[7]
+			assert.Equal(t, tc.wantStamp, hasStamp)
+		})
+	}
+}
+
+// TestBuildClassDayReportCarriesPickupDeviation checks the projection onto
+// the row a Lehrkraft reads.
+func TestBuildClassDayReportCarriesPickupDeviation(t *testing.T) {
+	t.Parallel()
+
+	recorded := time.Date(2026, 8, 5, 8, 40, 0, 0, time.UTC)
+	rows := []ClassRosterRow{
+		{StudentID: 1, LastName: "Adam", Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}},
+		{StudentID: 2, LastName: "Bosch", Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}},
+	}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+		pickups:         map[int64]string{1: "12:15", 2: "15:00"},
+		pickupChanged:   map[int64]bool{1: true},
+		pickupRegular:   map[int64]string{1: "15:00"},
+		pickupChangedAt: map[int64]time.Time{1: recorded},
+	})
+
+	require.Len(t, report.Rows, 2)
+	assert.True(t, report.Rows[0].PickupChanged)
+	assert.Equal(t, "12:15", report.Rows[0].Pickup)
+	assert.Equal(t, "15:00", report.Rows[0].PickupRegular)
+	require.NotNil(t, report.Rows[0].ReportedAt)
+	assert.Equal(t, recorded, *report.Rows[0].ReportedAt)
+	// The unchanged child stays clean: no deviation, nothing to date.
+	assert.False(t, report.Rows[1].PickupChanged)
+	assert.Empty(t, report.Rows[1].PickupRegular)
+	assert.Nil(t, report.Rows[1].ReportedAt)
+	// A deviating pickup time does not take the child out of care.
+	assert.True(t, report.Rows[0].StaysToday)
+}
+
+// TestBuildClassDayReportReportedAtFollowsStatus pins the precedence: the
+// badge the reader sees is the status, so the timestamp next to it must date
+// the status and not an unrelated pickup edit.
+func TestBuildClassDayReportReportedAtFollowsStatus(t *testing.T) {
+	t.Parallel()
+
+	statusStamp := time.Date(2026, 8, 5, 7, 5, 0, 0, time.UTC)
+	pickupStamp := time.Date(2026, 8, 4, 16, 0, 0, 0, time.UTC)
+	rows := []ClassRosterRow{{StudentID: 1, Registered: true, OfferingsByDay: map[string][]string{"wed": {"Ganztag"}}}}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+		statuses:         map[int64]string{1: activeModels.StudentStatusDaySick},
+		statusReportedAt: map[int64]time.Time{1: statusStamp},
+		pickupChanged:    map[int64]bool{1: true},
+		pickupChangedAt:  map[int64]time.Time{1: pickupStamp},
+	})
+
+	require.Len(t, report.Rows, 1)
+	require.NotNil(t, report.Rows[0].ReportedAt)
+	assert.Equal(t, statusStamp, *report.Rows[0].ReportedAt)
+}
+
+// TestBuildClassDayReportListEntryHasNoDeviation guards the #2382 boundary:
+// a child without any OGS record has no plan to deviate from, so no stray
+// facts keyed on student id 0 may attach to it.
+func TestBuildClassDayReportListEntryHasNoDeviation(t *testing.T) {
+	t.Parallel()
+
+	rows := []ClassRosterRow{{ListEntry: true, ListEntryID: 42, LastName: "Cole"}}
+
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, classDayFacts{
+		pickupChanged: map[int64]bool{0: true},
+		pickupRegular: map[int64]string{0: "15:00"},
+	})
+
+	require.Len(t, report.Rows, 1)
+	assert.False(t, report.Rows[0].PickupChanged)
+	assert.Empty(t, report.Rows[0].PickupRegular)
+}
+
+// TestClassDayStatusesReportTime keeps the stamp attached to the winning
+// status: sick outranks excused, and so does its report time.
+func TestClassDayStatusesReportTime(t *testing.T) {
+	t.Parallel()
+
+	sickAt := time.Date(2026, 8, 5, 11, 24, 0, 0, time.UTC)
+	excusedAt := time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC)
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{StudentStatusDayRepo: &fakeClassDayStatusRepo{entries: []*activeModels.StudentStatusDay{
+		{StudentID: 1, Status: activeModels.StudentStatusDayExcused, ReportedAt: excusedAt},
+		{StudentID: 1, Status: activeModels.StudentStatusDaySick, ReportedAt: sickAt},
+	}}}}
+
+	statuses, stamps, err := svc.classDayStatuses(context.Background(), []int64{1}, timezone.NewDate(2026, 8, 5))
+
+	require.NoError(t, err)
+	assert.Equal(t, activeModels.StudentStatusDaySick, statuses[1])
+	assert.Equal(t, sickAt, stamps[1])
 }

@@ -989,9 +989,11 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	require.NotNil(t, row.CheckOutTime)
 	require.NotNil(t, row.CheckedOutBy)
 	assert.Equal(t, staff.ID, *row.CheckedOutBy)
+	require.NotNil(t, row.CheckedOutDeviceID)
+	assert.Equal(t, device.ID, *row.CheckedOutDeviceID)
 }
 
-func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *testing.T) {
+func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -999,28 +1001,117 @@ func TestCheckOutStudentFromDevice_FailsWithoutSupervisorAndLeavesRowOpen(t *tes
 	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	device := testpkg.CreateTestDevice(t, db, "device-checkout-no-supervisor")
-	student := testpkg.CreateTestStudent(t, db, "Device", "NoSupervisor", "5i")
-	staff := testpkg.CreateTestStaff(t, db, "Device", "CheckInOnly")
+	for _, scenario := range []string{"no active group", "group without supervisors", "group with inactive supervisor"} {
+		t.Run(scenario, func(t *testing.T) {
+			deviceRec := testpkg.CreateTestDevice(t, db, "device-checkout-no-active-supervisor")
+			student := testpkg.CreateTestStudent(t, db, "Device", "NoActiveSupervisor", "5i")
+			checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "CheckInOnly")
 
-	checkInTime := time.Now().Add(-1 * time.Hour)
-	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+			if scenario != "no active group" {
+				activity := testpkg.CreateTestActivityGroup(t, db, "device-checkout-unsupervised-activity")
+				room := testpkg.CreateTestRoom(t, db, "Device Checkout Unsupervised Room")
+				activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+				_, err := db.NewUpdate().
+					Model(activeGroup).
+					ModelTableExpr(`active.groups`).
+					Set("device_id = ?", deviceRec.ID).
+					Where("id = ?", activeGroup.ID).
+					Exec(context.Background())
+				require.NoError(t, err)
 
-	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, device.ID)
+				if scenario == "group with inactive supervisor" {
+					supervisorStaff := testpkg.CreateTestStaff(t, db, "Device", "InactiveSupervisor")
+					supervisor := testpkg.CreateTestGroupSupervisor(t, db, supervisorStaff.ID, activeGroup.ID, "supervisor")
+					_, err = db.NewUpdate().
+						Model(supervisor).
+						ModelTableExpr(`active.group_supervisors`).
+						Set("end_date = ?", timezone.TodayDate().AddDays(-1)).
+						Where("id = ?", supervisor.ID).
+						Exec(context.Background())
+					require.NoError(t, err)
+				}
+			}
 
-	require.Error(t, err)
-	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "device must have an active group")
+			open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
+			result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			assert.Equal(t, "checked_out", result.Action)
+			assert.Equal(t, open.ID, result.AttendanceID)
+
+			var row active.Attendance
+			err = db.NewSelect().
+				Model(&row).
+				ModelTableExpr(`active.attendance AS "attendance"`).
+				Where(`"attendance".id = ?`, open.ID).
+				Scan(context.Background())
+			require.NoError(t, err)
+			require.NotNil(t, row.CheckOutTime)
+			assert.Nil(t, row.CheckedOutBy)
+			require.NotNil(t, row.CheckedOutDeviceID)
+			assert.Equal(t, deviceRec.ID, *row.CheckedOutDeviceID)
+		})
+	}
+}
+
+func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	deviceRec := testpkg.CreateTestDevice(t, db, "device-checkout-authenticated-staff")
+	student := testpkg.CreateTestStudent(t, db, "Device", "AuthenticatedStaff", "5j")
+	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
+	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
+	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
+	ctx = context.WithValue(ctx, device.CtxStaff, authenticatedStaff)
+
+	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, open.ID, result.AttendanceID)
 
 	var row active.Attendance
-	err = db.NewSelect().
+	require.NoError(t, db.NewSelect().
 		Model(&row).
 		ModelTableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background())
-	require.NoError(t, err)
+		Scan(context.Background()))
+	require.NotNil(t, row.CheckedOutBy)
+	assert.Equal(t, authenticatedStaff.ID, *row.CheckedOutBy)
+	require.NotNil(t, row.CheckedOutDeviceID)
+	assert.Equal(t, deviceRec.ID, *row.CheckedOutDeviceID)
+}
+
+func TestCheckOutStudentFromDevice_DoesNotSwallowSupervisorLookupFailure(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	service := setupActiveService(t, db)
+	deviceRec := testpkg.CreateTestDevice(t, db, "device-checkout-lookup-error")
+	student := testpkg.CreateTestStudent(t, db, "Device", "LookupError", "5k")
+	staff := testpkg.CreateTestStaff(t, db, "Device", "LookupErrorStaff")
+	open := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
+	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
+	cancel()
+
+	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "resolve daily checkout staff attribution")
+
+	var row active.Attendance
+	require.NoError(t, db.NewSelect().
+		Model(&row).
+		ModelTableExpr(`active.attendance AS "attendance"`).
+		Where(`"attendance".id = ?`, open.ID).
+		Scan(context.Background()))
 	assert.Nil(t, row.CheckOutTime)
-	assert.Nil(t, row.CheckedOutBy)
 }
 
 // TestCheckOutStudent_NoOpenRow_IsIdempotent guards the state-checked UPDATE

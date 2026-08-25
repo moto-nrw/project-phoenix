@@ -504,6 +504,10 @@ func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *Effec
 	if exc, ok := p.arrivalExceptions[studentID][date]; ok {
 		result.IsException = true
 		result.ArrivalTime = exc.ExpectedArrival
+		if !exc.CreatedAt.IsZero() {
+			recorded := exc.CreatedAt
+			result.ChangedAt = &recorded
+		}
 		return result
 	}
 	// Weekends carry no weekly rows; only an exception can put a child there.

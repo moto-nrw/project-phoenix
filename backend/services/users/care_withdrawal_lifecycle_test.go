@@ -300,6 +300,22 @@ func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.
 	assert.Equal(t, 1, conflicts)
 }
 
+func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	svc := newCareLifecycleService(t, db)
+	actorID := careActor(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
+	completion := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
+	changed, err := repositories.NewFactory(db).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	_, err = svc.GetPendingWithdrawal(ctx, completion.ID)
+	require.ErrorIs(t, err, userModels.ErrCareWithdrawalAlreadyResolved)
+}
+
 func TestCareWithdrawalLifecycle_CancellingPlannedExitRestoresTask(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

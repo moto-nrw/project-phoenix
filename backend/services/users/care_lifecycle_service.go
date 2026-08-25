@@ -945,8 +945,11 @@ func (s *careLifecycleService) GetPendingWithdrawal(ctx context.Context, id int6
 	if err != nil {
 		return nil, err
 	}
-	if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+	if completion == nil {
 		return nil, ErrCareWithdrawalNotFound
+	}
+	if completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+		return nil, userModels.ErrCareWithdrawalAlreadyResolved
 	}
 	return completion, nil
 }

@@ -34,7 +34,19 @@ function isSchoolSubdomain(): boolean {
  */
 export function schoolPath(path: string): string {
   if (isSchoolSubdomain()) {
-    return path.replace(/^\/school/, "") || "/";
+    const stripped = path.replace(/^\/school/, "");
+    // Nach dem Abschneiden muss ein Pfad übrig bleiben. Bleibt nichts oder
+    // nur ein Query- bzw. Fragment-Teil ("/school?tag=..."), wäre das
+    // Ergebnis relativ zur aktuellen Seite: der Link führte dann nirgendwo
+    // hin statt auf die Startseite des Portals (#2294).
+    if (
+      stripped === "" ||
+      stripped.startsWith("?") ||
+      stripped.startsWith("#")
+    ) {
+      return `/${stripped}`;
+    }
+    return stripped;
   }
   return path.startsWith("/school") ? path : `/school${path}`;
 }

@@ -9,7 +9,14 @@
  */
 export function isSchoolNavActive(href: string, pathname: string): boolean {
   if (href === "/school") {
-    return pathname === "/school" || pathname === "/";
+    // Die Klassenseite (#2294) liegt unter der Klassenansicht: ohne sie hier
+    // stünde man auf einer Unterseite und die Navigation zeigte nirgends hin.
+    return (
+      pathname === "/school" ||
+      pathname === "/" ||
+      matchesPath("/klasse", pathname) ||
+      matchesPath("/school/klasse", pathname)
+    );
   }
 
   if (matchesPath(href, pathname)) return true;
