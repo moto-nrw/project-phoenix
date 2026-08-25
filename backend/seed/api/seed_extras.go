@@ -133,6 +133,9 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		}
 		seeded++
 	}
+	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("end statistics demo session: %w", err)
+	}
 	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
 	return nil
 }

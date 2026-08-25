@@ -98,6 +98,7 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/session/end",
 	}, paths)
 }
 
