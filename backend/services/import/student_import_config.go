@@ -152,9 +152,17 @@ func (c *StudentImportConfig) PreloadReferenceData(ctx context.Context) error {
 // Validate validates a single row of student import data
 func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.StudentImportRow) []importModels.ValidationError {
 	errors := []importModels.ValidationError{}
+	requiresCreateFields := true
+	if mode := importModeFromContext(ctx); mode == importModels.ImportModeUpdate || mode == importModels.ImportModeUpsert {
+		existing, findErr := c.FindExisting(ctx, *row)
+		if findErr != nil {
+			return []importModels.ValidationError{{Field: "student", Message: fmt.Sprintf("Kind konnte nicht geprüft werden: %s", findErr.Error()), Code: "existing_lookup_failed", Severity: importModels.ErrorSeverityError}}
+		}
+		requiresCreateFields = existing == nil
+	}
 
 	// 1. REQUIRED: Person validation
-	if strings.TrimSpace(row.FirstName) == "" {
+	if requiresCreateFields && strings.TrimSpace(row.FirstName) == "" {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "first_name",
 			Message:  "Vorname ist erforderlich",
@@ -163,7 +171,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	if strings.TrimSpace(row.LastName) == "" {
+	if requiresCreateFields && strings.TrimSpace(row.LastName) == "" {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "last_name",
 			Message:  "Nachname ist erforderlich",
@@ -178,7 +186,7 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	errors = append(errors, c.validateTag(ctx, row)...)
 
 	// 3. REQUIRED: Student validation
-	if strings.TrimSpace(row.SchoolClass) == "" {
+	if requiresCreateFields && strings.TrimSpace(row.SchoolClass) == "" {
 		errors = append(errors, importModels.ValidationError{
 			Field:    "school_class",
 			Message:  "Klasse ist erforderlich",
@@ -345,16 +353,7 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 		}}
 	}
 	if student != nil {
-		matched, err := c.findStudentWithoutTag(ctx, *row)
-		if err == nil && matched == nil {
-			matched, err = c.findStudentByName(ctx, *row)
-		}
-		if err != nil {
-			return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()), Code: "rfid_lookup_failed", Severity: importModels.ErrorSeverityError}}
-		}
-		if matched != nil && *matched == student.ID {
-			return nil
-		}
+		return nil
 	}
 	return []importModels.ValidationError{{
 		Field:       "tag_id",
@@ -659,6 +658,9 @@ func (c *StudentImportConfig) findStudentWithoutTag(ctx context.Context, row imp
 			row.FirstName, row.LastName, row.SchoolClass)
 	}
 
+	if importModeFromContext(ctx) == importModels.ImportModeCreate {
+		return nil, nil
+	}
 	return c.findStudentByNameAndBirthday(ctx, row)
 }
 

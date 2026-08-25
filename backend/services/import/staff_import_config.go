@@ -186,11 +186,19 @@ func (c *StaffImportConfig) Validate(ctx context.Context, row *importModels.Staf
 	var errs []importModels.ValidationError
 
 	trimStaffRow(row)
+	requiresCreateFields := true
+	if mode := importModeFromContext(ctx); mode == importModels.ImportModeUpdate || mode == importModels.ImportModeUpsert {
+		existing, findErr := c.FindExisting(ctx, *row)
+		if findErr != nil {
+			return []importModels.ValidationError{{Field: "staff", Message: fmt.Sprintf("Mitarbeiter konnte nicht geprüft werden: %s", findErr.Error()), Code: "existing_lookup_failed", Severity: importModels.ErrorSeverityError}}
+		}
+		requiresCreateFields = existing == nil
+	}
 
-	if row.FirstName == "" {
+	if requiresCreateFields && row.FirstName == "" {
 		errs = append(errs, requiredFieldError("first_name", "Vorname ist erforderlich"))
 	}
-	if row.LastName == "" {
+	if requiresCreateFields && row.LastName == "" {
 		errs = append(errs, requiredFieldError("last_name", "Nachname ist erforderlich"))
 	}
 	if row.Email != "" {
@@ -213,7 +221,9 @@ func (c *StaffImportConfig) Validate(ctx context.Context, row *importModels.Staf
 		})
 	}
 
-	errs = append(errs, c.validateRole(ctx, row)...)
+	if requiresCreateFields {
+		errs = append(errs, c.validateRole(ctx, row)...)
+	}
 	errs = append(errs, validateStaffMasterFields(row)...)
 
 	return errs
