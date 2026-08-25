@@ -42,6 +42,10 @@ type ImportService[T any] struct {
 	importMu sync.Mutex
 }
 
+type requestScopedConfig[T any] interface {
+	NewRequestScoped() importModels.ImportConfig[T]
+}
+
 // NewImportService creates a new import service
 func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
 	return &ImportService[T]{
@@ -92,9 +96,17 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
+	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
+		clone := *s
+		clone.config = scoped.NewRequestScoped()
+		return clone.importWithConfig(ctx, request)
+	}
 	s.importMu.Lock()
 	defer s.importMu.Unlock()
+	return s.importWithConfig(ctx, request)
+}
 
+func (s *ImportService[T]) importWithConfig(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	result := &importModels.ImportResult[T]{
 		StartedAt: time.Now(),
 		TotalRows: len(request.Rows),

@@ -135,6 +135,10 @@ func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
 	return &StaffImportConfig{StaffImportDeps: deps}
 }
 
+func (c *StaffImportConfig) NewRequestScoped() importModels.ImportConfig[importModels.StaffImportRow] {
+	return &StaffImportConfig{StaffImportDeps: c.StaffImportDeps}
+}
+
 // PreloadReferenceData loads the tenant's role names (for fuzzy suggestions on
 // unresolved roles), the school display name (for the invitation email) and the
 // existing staff (for duplicate detection and update matching).
