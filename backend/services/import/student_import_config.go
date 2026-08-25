@@ -732,36 +732,6 @@ func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, 
 	}
 }
 
-// findStudentByName resolves a uniquely named child regardless of class. It
-// is used only to verify RFID ownership during a class change; normal import
-// matching intentionally remains stricter.
-func (c *StudentImportConfig) findStudentByName(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	persons, err := c.PersonRepo.List(ctx, map[string]any{
-		"first_name": strings.TrimSpace(row.FirstName),
-		"last_name":  strings.TrimSpace(row.LastName),
-	})
-	if err != nil {
-		return nil, err
-	}
-	var matches []int64
-	for _, person := range persons {
-		student, err := c.StudentRepo.FindByPersonID(ctx, person.ID)
-		if err != nil {
-			if stdErrors.Is(err, sql.ErrNoRows) {
-				continue
-			}
-			return nil, err
-		}
-		if student != nil {
-			matches = append(matches, student.ID)
-		}
-	}
-	if len(matches) == 1 {
-		return &matches[0], nil
-	}
-	return nil, nil
-}
-
 // Create creates a new student with all related entities.
 // Uses a PostgreSQL savepoint for per-row atomicity within the outer tenant transaction.
 // If any step fails (e.g. person created but student fails), ROLLBACK TO SAVEPOINT
@@ -1129,7 +1099,7 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 	}
 	existing, err := c.GuardianPhoneRepo.FindByGuardianID(ctx, guardianID)
 	if err != nil {
-		return fmt.Errorf("Telefonnummern laden: %w", err)
+		return fmt.Errorf("Telefonnummern laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
 	}
 	existingNumbers := make(map[string]struct{}, len(existing))
 	for _, phone := range existing {
@@ -1394,7 +1364,7 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 	for _, sched := range schedules {
 		existing, err := c.ArrivalScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
 		if err != nil {
-			return fmt.Errorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err)
+			return fmt.Errorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 		if existing == nil {
 			if err := c.createArrivalSchedules(ctx, studentID, []importModels.ArrivalScheduleImportData{sched}); err != nil {
@@ -1404,14 +1374,14 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 		}
 		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
 		if err != nil {
-			return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err)
+			return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 		existing.ExpectedArrival = timezone.WallClock(parsed)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
 		if err := c.ArrivalScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
+			return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 	}
 	return nil
@@ -1424,7 +1394,7 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 	for _, sched := range schedules {
 		existing, err := c.PickupScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
 		if err != nil {
-			return fmt.Errorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err)
+			return fmt.Errorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 		if existing == nil {
 			if err := c.createPickupSchedules(ctx, studentID, []importModels.PickupScheduleImportData{sched}); err != nil {
@@ -1434,14 +1404,14 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 		}
 		parsed, err := time.Parse("15:04", sched.PickupTime)
 		if err != nil {
-			return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err)
+			return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 		existing.PickupTime = timezone.WallClock(parsed)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
 		if err := c.PickupScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
+			return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err) //nolint:staticcheck // ST1005: user-facing German message
 		}
 	}
 	return nil

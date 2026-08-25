@@ -99,8 +99,11 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
-		clone := *s
-		clone.config = scoped.NewRequestScoped()
+		clone := &ImportService[T]{
+			config:    scoped.NewRequestScoped(),
+			batchSize: s.batchSize,
+			auditRepo: s.auditRepo,
+		}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
 			defer locker.ImportLock().Unlock()
