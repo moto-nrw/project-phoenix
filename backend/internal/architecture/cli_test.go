@@ -6,6 +6,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/architecture"
 )
 
 func TestCheckRejectsUnknownPolicyFields(t *testing.T) {
@@ -96,7 +98,7 @@ func TestCheckRejectsInvalidPolicyValues(t *testing.T) {
 		{name: "owner kind", policy: "invalid-owner-kind.json", message: `owner "source" has invalid kind "misc"`},
 		{name: "role", policy: "invalid-role.json", message: `package "source" has invalid production role "helper"`},
 		{name: "scope", policy: "invalid-scope.json", message: `rule "source-uses-target" has invalid scope "all"`},
-		{name: "external class", policy: "invalid-external-class.json", message: `external package "testing" has unknown class "unknown"`},
+		{name: "external class", policy: "invalid-external-class.json", message: `external package "example.test/architecture-fixture-extra" has unknown class "unknown"`},
 	}
 
 	for _, tt := range tests {
@@ -149,6 +151,34 @@ func TestCheckEvaluatesProductionInternalAndExternalTestsSeparately(t *testing.T
 	output, err := runArchitecture(t, "check", "--project", fixturePath(t, "scopes"), "--policy", fixturePath(t, "scopes", "policy.json"))
 	if err != nil {
 		t.Fatalf("scope-aware check failed: %v\n%s", err, output)
+	}
+}
+
+func TestLoadGraphIncludesInternalAndExternalTestImports(t *testing.T) {
+	t.Parallel()
+
+	policy, err := architecture.LoadPolicy(fixturePath(t, "scopes", "policy.json"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	graph, err := architecture.LoadGraph(fixturePath(t, "scopes"), policy)
+	if err != nil {
+		t.Fatalf("load graph: %v", err)
+	}
+
+	want := map[architecture.Edge]struct{}{
+		{Scope: architecture.ScopeProduction, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/production"}:        {},
+		{Scope: architecture.ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/internal-target"}: {},
+		{Scope: architecture.ScopeInternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
+		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/external-target"}: {},
+		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "example.test/architecture-scopes/source"}:          {},
+		{Scope: architecture.ScopeExternalTest, Source: "example.test/architecture-scopes/source", Target: "testing"}:                                          {},
+	}
+	for _, edge := range graph.Edges {
+		delete(want, edge)
+	}
+	if len(want) != 0 {
+		t.Fatalf("graph is missing test import edges: %v", want)
 	}
 }
 

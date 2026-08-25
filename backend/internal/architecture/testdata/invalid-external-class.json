@@ -38,7 +38,7 @@
   ],
   "external_packages": [
     {
-      "path": "testing",
+      "path": "example.test/architecture-fixture-extra",
       "class": "unknown"
     }
   ],

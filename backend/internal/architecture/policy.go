@@ -224,7 +224,7 @@ func (p *Policy) validatePackages(owners map[string]Owner, roles map[string]stru
 func (p *Policy) validateExternalPackages(classes map[string]struct{}) error {
 	seen := make(map[string]struct{}, len(p.ExternalPackages))
 	for _, pkg := range p.ExternalPackages {
-		if pkg.Path == "" || strings.HasPrefix(pkg.Path, p.ModulePath) {
+		if pkg.Path == "" || isOwnPackage(p.ModulePath, pkg.Path) {
 			return fmt.Errorf("external package path %q is invalid", pkg.Path)
 		}
 		if _, exists := seen[pkg.Path]; exists {
