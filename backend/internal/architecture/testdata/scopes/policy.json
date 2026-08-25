@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "policy_epoch": 1,
   "module_path": "example.test/architecture-scopes",
   "shared_kernel_types": ["CorrelationID", "Date", "TenantID", "WallClock"],
@@ -15,6 +15,9 @@
     {"path": "production", "owner": "targets", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
     {"path": "source", "owner": "source", "role": "application", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"}
   ],
+  "data_objects": [],
+  "read_projections": [],
+  "legacy_composition": [],
   "external_classes": ["test"],
   "external_packages": [{"path": "testing", "class": "test"}],
   "rules": [
