@@ -1348,7 +1348,7 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, open))
 		createdIDs = append(createdIDs, open.ID)
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), data.Staff2.ID)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), data.Staff2.ID, 0)
 		require.NoError(t, err)
 		require.NotNil(t, closed, "open row must have been closed")
 		assert.Equal(t, open.ID, closed.ID)
@@ -1362,12 +1362,12 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 	t.Run("no open row returns nil without error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Close", "Idempotent", "2y")
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), timezone.TodayDate(), data.Staff1.ID)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, time.Now(), timezone.TodayDate(), data.Staff1.ID, 0)
 		require.NoError(t, err)
 		assert.Nil(t, closed, "no open row → idempotent success, repo returns nil")
 	})
 
-	t.Run("zero staff id leaves checked_out_by NULL", func(t *testing.T) {
+	t.Run("device-attributed checkout leaves checked_out_by NULL", func(t *testing.T) {
 		// Mirrors the kiosk path where deviceID owns the close but no
 		// staff PIN is in scope.
 		student := testpkg.CreateTestStudent(t, db, "Close", "NoStaff", "2z")
@@ -1383,10 +1383,32 @@ func TestAttendanceRepository_CloseOpenForToday(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, open))
 		createdIDs = append(createdIDs, open.ID)
 
-		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), 0)
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), 0, data.Device1.ID)
 		require.NoError(t, err)
 		require.NotNil(t, closed)
 		assert.Nil(t, closed.CheckedOutBy, "staffID=0 must not write a bogus FK")
+		require.NotNil(t, closed.CheckedOutDeviceID)
+		assert.Equal(t, data.Device1.ID, *closed.CheckedOutDeviceID)
+	})
+
+	t.Run("rejects checkout device from another tenant", func(t *testing.T) {
+		otherTenantID, _ := testpkg.CreateTestTenant(t, db)
+		otherDevice := testpkg.CreateTestDeviceForTenant(t, db, otherTenantID, "cross-tenant-checkout-device")
+		student := testpkg.CreateTestStudent(t, db, "Close", "CrossTenant", "2w")
+
+		now := time.Now()
+		open := &active.Attendance{
+			StudentID:   student.ID,
+			Date:        timezone.TodayDate(),
+			CheckInTime: now.Add(-time.Hour),
+			CheckedInBy: data.Staff1.ID,
+			DeviceID:    data.Device1.ID,
+		}
+		require.NoError(t, repo.Create(ctx, open))
+
+		closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.DateFromTime(now), 0, otherDevice.ID)
+		require.Error(t, err)
+		assert.Nil(t, closed)
 	})
 }
 
@@ -1419,12 +1441,12 @@ func TestAttendanceRepository_CloseOpenForTodayUsesCallerDate(t *testing.T) {
 	require.NoError(t, repo.Create(ctx, open))
 
 	// A close scoped to the CURRENT day must not touch yesterday's open row.
-	closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.TodayDate(), data.Staff1.ID)
+	closed, err := repo.CloseOpenForToday(ctx, student.ID, now, timezone.TodayDate(), data.Staff1.ID, 0)
 	require.NoError(t, err)
 	assert.Nil(t, closed, "a different-day close must not match the snapshot day's row")
 
 	// The same close scoped to the snapshot day closes exactly that row.
-	closed, err = repo.CloseOpenForToday(ctx, student.ID, now, yesterday, data.Staff1.ID)
+	closed, err = repo.CloseOpenForToday(ctx, student.ID, now, yesterday, data.Staff1.ID, 0)
 	require.NoError(t, err)
 	require.NotNil(t, closed, "the caller-supplied day's open row must be closed")
 	assert.Equal(t, open.ID, closed.ID)

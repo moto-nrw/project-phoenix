@@ -190,7 +190,7 @@ func (r *AttendanceRepository) CreateIfNoOpenForToday(ctx context.Context, atten
 // the second request's internal re-read saw the first request's commit and
 // flipped the action. Action-explicit handlers now call this method directly
 // and skip the toggle entirely.
-func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID int64) (*active.Attendance, error) {
+func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID int64, now time.Time, today timezone.Date, staffID, checkoutDeviceID int64) (*active.Attendance, error) {
 	// UPDATE … RETURNING populates the row scan target. Bun bubbles up
 	// sql.ErrNoRows when zero rows match, so we treat that as the
 	// idempotent "no open row" path rather than a database error.
@@ -211,6 +211,9 @@ func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID 
 		Returning("*")
 	if staffID > 0 {
 		q = q.Set("checked_out_by = ?", staffID)
+	}
+	if checkoutDeviceID > 0 {
+		q = q.Set("checked_out_device_id = ?", checkoutDeviceID)
 	}
 
 	if _, err := q.Exec(ctx, row); err != nil {
