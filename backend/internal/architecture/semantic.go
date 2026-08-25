@@ -20,7 +20,7 @@ var (
 	writeTablePattern = regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+(?:ONLY\s+)?([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)`)
 	truncatePattern   = regexp.MustCompile(`(?i)\bTRUNCATE(?:\s+TABLE)?\s+([^;]+)`)
 	truncateModifier  = regexp.MustCompile(`(?i)\s+(?:RESTART|CONTINUE)\s+IDENTITY\b.*$|\s+(?:CASCADE|RESTRICT)\b.*$`)
-	sqlCTEPattern     = regexp.MustCompile(`(?i)(?:\bWITH|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?\s+AS\s*\(`)
+	sqlCTEPattern     = regexp.MustCompile(`(?i)(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?(?:\s*\([^)]*\))?\s+AS\s*\(`)
 	sqlTokenPattern   = regexp.MustCompile(`(?i)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?|[(),;]`)
 	sqlSourceStops    = map[string]bool{
 		"CROSS": true, "EXCEPT": true, "FOR": true, "FULL": true, "GROUP": true,
@@ -261,6 +261,9 @@ func isRuntimeDataPackage(classification Package) bool {
 }
 
 func queryChainHasExplicitTable(call *ast.CallExpr, parents map[ast.Node]ast.Node) bool {
+	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && queryReceiverHasExplicitTable(selector.X) {
+		return true
+	}
 	for node := ast.Node(call); parents[node] != nil; node = parents[node] {
 		selector, ok := parents[node].(*ast.SelectorExpr)
 		if !ok || selector.X != node {
@@ -271,6 +274,21 @@ func queryChainHasExplicitTable(call *ast.CallExpr, parents map[ast.Node]ast.Nod
 		}
 	}
 	return false
+}
+
+func queryReceiverHasExplicitTable(expr ast.Expr) bool {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	if selector.Sel.Name == "Table" || selector.Sel.Name == "TableExpr" || selector.Sel.Name == "ModelTableExpr" {
+		return true
+	}
+	return queryReceiverHasExplicitTable(selector.X)
 }
 
 func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName, method string, args []ast.Expr) []Violation {
@@ -287,10 +305,7 @@ func (a semanticAnalyzer) queryFragmentViolations(pkg *packages.Package, classif
 	}
 	query, ok := constantString(pkg.TypesInfo, args[0])
 	if !ok {
-		if method == "Join" {
-			return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
-		}
-		return nil
+		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
 	return a.sqlStringViolations(pkg.PkgPath, classification.Owner, functionName, method, query, false)
 }
@@ -366,7 +381,8 @@ func sqlSourceDataObjects(query string) []string {
 	states := make(map[int]bool)
 	depth := 0
 	var objects []string
-	for _, token := range sqlTokenPattern.FindAllString(query, -1) {
+	tokens := sqlTokenPattern.FindAllString(query, -1)
+	for index, token := range tokens {
 		if nextDepth, handled := updateSQLSourceState(token, states, depth); handled {
 			depth = nextDepth
 			continue
@@ -381,6 +397,10 @@ func sqlSourceDataObjects(query string) []string {
 			continue
 		}
 		if expect, active := states[depth]; active && expect && keyword != "ONLY" && keyword != "LATERAL" {
+			if index+1 < len(tokens) && tokens[index+1] == "(" {
+				states[depth] = false
+				continue
+			}
 			objects = append(objects, token)
 			states[depth] = false
 		}

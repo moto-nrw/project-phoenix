@@ -17,9 +17,11 @@ func (*DB) Exec(string, ...any)     {}
 
 func (q *SelectQuery) TableExpr(string, ...any) *SelectQuery { return q }
 func (q *SelectQuery) Join(string, ...any) *SelectQuery      { return q }
+func (q *SelectQuery) Where(string, ...any) *SelectQuery     { return q }
 func (q *SelectQuery) ColumnExpr(string, ...any) *SelectQuery {
 	return q
 }
+func (q *SelectQuery) OrderExpr(string, ...any) *SelectQuery { return q }
 func (q *SelectQuery) For(string, ...any) *SelectQuery       { return q }
 func (q *InsertQuery) TableExpr(string, ...any) *InsertQuery { return q }
 func (q *InsertQuery) On(string, ...any) *InsertQuery        { return q }
