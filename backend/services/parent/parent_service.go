@@ -241,7 +241,7 @@ type Service interface {
 
 	// CreateOfferingChangeRequest stores a pending post-enrollment offering
 	// change for staff review. Requires parent_portal.request.submit.
-	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string) (*ChildCareOfferings, error)
+	CreateOfferingChangeRequest(ctx context.Context, accountID, studentID int64, selections []enrollmentSvc.OfferingChangeSelection, effectiveFrom timezone.Date, note string, completeWithdrawalConfirmed bool) (*ChildCareOfferings, error)
 
 	// WithdrawOfferingChangeRequest flips the caller's own pending offering
 	// change request to withdrawn.

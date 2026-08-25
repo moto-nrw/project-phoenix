@@ -195,6 +195,9 @@ export interface CareWithdrawalCompletion {
   schoolClass: string;
   firstBookinglessDay: string;
   urgency: "planned" | "overdue";
+  state: "pending" | "resolved";
+  outcome?: "care_ended" | "deleted";
+  resolvedAt?: string;
 }
 
 export interface CareWithdrawalPage {
@@ -206,23 +209,29 @@ export interface CareWithdrawalPage {
 
 interface WireCareWithdrawal {
   id: string;
-  student_id: string;
+  student_id?: string;
   first_name?: string;
   last_name?: string;
   school_class?: string;
   first_bookingless_day: string;
   urgency: "planned" | "overdue";
+  state?: "pending" | "resolved";
+  outcome?: "care_ended" | "deleted";
+  resolved_at?: string;
 }
 
 function mapCareWithdrawal(wire: WireCareWithdrawal): CareWithdrawalCompletion {
   return {
     id: wire.id,
-    studentId: wire.student_id,
+    studentId: wire.student_id ?? "",
     firstName: wire.first_name ?? "",
     lastName: wire.last_name ?? "",
     schoolClass: wire.school_class ?? "",
     firstBookinglessDay: wire.first_bookingless_day,
     urgency: wire.urgency,
+    state: wire.state ?? "pending",
+    outcome: wire.outcome,
+    resolvedAt: wire.resolved_at,
   };
 }
 
@@ -232,6 +241,7 @@ export async function fetchCareWithdrawals(
     studentId?: string;
     page?: number;
     pageSize?: number;
+    state?: "pending" | "resolved";
   } = {},
 ): Promise<CareWithdrawalPage> {
   const query = new URLSearchParams();
@@ -239,6 +249,7 @@ export async function fetchCareWithdrawals(
   if (params.studentId) query.set("student_id", params.studentId);
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("page_size", String(params.pageSize));
+  if (params.state) query.set("state", params.state);
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   const envelope = await request<
     Envelope<{

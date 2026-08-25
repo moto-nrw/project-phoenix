@@ -1684,6 +1684,21 @@ type studentDeletePreservedDataResponse struct {
 	SharedInstances  bool `json:"shared_instances"`
 }
 
+func toStudentDeleteImpactResponse(impact *userService.StudentDeletionPreview) studentDeleteImpactResponse {
+	return studentDeleteImpactResponse{
+		ConfirmationName: impact.ConfirmationName,
+		Fingerprint:      impact.Fingerprint,
+		Total:            impact.Counts.Total(),
+		Counts:           impact.Counts,
+		Preserved: studentDeletePreservedDataResponse{
+			GuardianProfiles: true,
+			ParentAccounts:   true,
+			OtherStudents:    true,
+			SharedInstances:  true,
+		},
+	}
+}
+
 func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
@@ -1708,18 +1723,7 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, studentDeletionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, studentDeleteImpactResponse{
-		ConfirmationName: impact.ConfirmationName,
-		Fingerprint:      impact.Fingerprint,
-		Total:            impact.Counts.Total(),
-		Counts:           impact.Counts,
-		Preserved: studentDeletePreservedDataResponse{
-			GuardianProfiles: true,
-			ParentAccounts:   true,
-			OtherStudents:    true,
-			SharedInstances:  true,
-		},
-	}, "Student deletion impact retrieved")
+	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Student deletion impact retrieved")
 }
 
 type studentDeleteRequest struct {
@@ -2041,15 +2045,35 @@ func deleteStudentTxErrorRenderer(err error) render.Renderer {
 }
 
 var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: userService.ErrStudentDeletionPreviewChanged, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
-	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionPreviewChanged, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionPreviewChanged)
+	}},
+	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionConfirmationMismatch)
+	}},
+	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionAcknowledgement)
+	}},
+	{Target: userService.ErrStudentDeletionInvalidReason, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionInvalidReason)
+	}},
+	{Target: userService.ErrStudentDeletionAlumnus, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionAlumnus)
+	}},
+	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionRetentionNotEnded)
+	}},
+	{Target: userService.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionBlocked)
+	}},
+	{Target: userService.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionLockBusy)
+	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
-		return common.ErrorConflictMessage("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen.")
+		return common.ErrorConflictWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
+			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
+			errCodeStudentDeletionConstraintsChanged,
+		)
 	}},
 }, common.ErrorInternalServer)

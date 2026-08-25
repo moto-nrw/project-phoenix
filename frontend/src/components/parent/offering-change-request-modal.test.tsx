@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OfferingChangeRequestModal } from "./offering-change-request-modal";
 import {
   getChildOfferingCatalog,
+  ParentApiError,
   type OfferingCatalog,
 } from "~/lib/parent-api";
 
@@ -116,6 +123,57 @@ describe("OfferingChangeRequestModal", () => {
         note: undefined,
       }),
     );
+  });
+
+  it("confirms a complete withdrawal and retries with the explicit flag", async () => {
+    const onSubmit = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ParentApiError(
+          "confirmation required",
+          409,
+          "enrollment.complete_withdrawal_confirmation_required",
+        ),
+      )
+      .mockResolvedValueOnce(undefined);
+    render(
+      <OfferingChangeRequestModal
+        studentId="42"
+        childName="Lara"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anfrage senden" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Betreuung vollständig abmelden?",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Danach ist für Lara kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
+      ),
+    ).toBeInTheDocument();
+
+    const confirmation = screen.getByRole("dialog", {
+      name: "Betreuung vollständig abmelden?",
+    });
+    fireEvent.click(
+      within(confirmation).getByRole("button", { name: "Anfrage senden" }),
+    );
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    expect(onSubmit).toHaveBeenLastCalledWith({
+      offerings: [{ offering_id: "5", selected_days: ["mon", "tue"] }],
+      effective_from: "2026-08-14",
+      note: undefined,
+      complete_withdrawal_confirmed: true,
+    });
   });
 
   it("explains and disables submission when the catalog is empty", async () => {

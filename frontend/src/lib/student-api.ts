@@ -609,41 +609,52 @@ export interface DeleteStudentWithDataInput {
 
 export class StudentDeletionApiError extends Error {
   readonly status: number;
+  readonly code?: string;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code?: string) {
     super(message);
     this.name = "StudentDeletionApiError";
     this.status = status;
+    this.code = code;
   }
 }
 
-function studentDeletionErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") return fallback;
-  const candidate = payload as { error?: unknown; message?: unknown };
+interface StudentDeletionErrorPayload {
+  readonly error?: unknown;
+  readonly message?: unknown;
+  readonly code?: unknown;
+}
+
+function studentDeletionErrorDetails(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") {
+    return { message: fallback, code: undefined };
+  }
+  const candidate = payload as StudentDeletionErrorPayload;
   const raw =
     typeof candidate.error === "string"
       ? candidate.error
       : typeof candidate.message === "string"
         ? candidate.message
         : "";
-  if (!raw) return fallback;
-
-  // The Next.js proxy may wrap the backend JSON inside
-  // "API error (409): {...}". Prefer the original German domain message.
-  const jsonStart = raw.indexOf("{");
-  if (jsonStart >= 0) {
+  const embedded = raw.match(/\{.*\}$/)?.[0];
+  if (embedded) {
     try {
-      const nested = JSON.parse(raw.slice(jsonStart)) as {
-        error?: unknown;
-        message?: unknown;
-      };
-      if (typeof nested.error === "string") return nested.error;
-      if (typeof nested.message === "string") return nested.message;
+      return studentDeletionErrorDetails(JSON.parse(embedded), fallback);
     } catch {
-      // Fall through to the unwrapped proxy message.
+      // Keep the proxy's text when it did not embed a complete JSON object.
     }
   }
-  return raw;
+  if (!raw) {
+    return {
+      message: fallback,
+      code: typeof candidate.code === "string" ? candidate.code : undefined,
+    };
+  }
+
+  return {
+    message: raw,
+    code: typeof candidate.code === "string" ? candidate.code : undefined,
+  };
 }
 
 async function studentDeletionResponse<T>(
@@ -652,9 +663,11 @@ async function studentDeletionResponse<T>(
 ): Promise<T> {
   const payload = (await response.json().catch(() => null)) as unknown;
   if (!response.ok) {
+    const error = studentDeletionErrorDetails(payload, fallbackError);
     throw new StudentDeletionApiError(
       response.status,
-      studentDeletionErrorMessage(payload, fallbackError),
+      error.message,
+      error.code,
     );
   }
   if (payload && typeof payload === "object" && "data" in payload) {
@@ -665,11 +678,12 @@ async function studentDeletionResponse<T>(
 
 export async function fetchStudentDeletionImpact(
   id: string,
+  completionId?: string,
 ): Promise<StudentDeletionImpact> {
-  const response = await fetch(
-    `/api/students/${encodeURIComponent(id)}/delete-impact`,
-    { cache: "no-store" },
-  );
+  const path = completionId
+    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}/deletion-impact`
+    : `/api/students/${encodeURIComponent(id)}/delete-impact`;
+  const response = await fetch(path, { cache: "no-store" });
   return studentDeletionResponse<StudentDeletionImpact>(
     response,
     "Auswirkungen der Löschung konnten nicht geladen werden.",
@@ -679,8 +693,12 @@ export async function fetchStudentDeletionImpact(
 export async function deleteStudentWithData(
   id: string,
   input: DeleteStudentWithDataInput,
+  completionId?: string,
 ): Promise<void> {
-  const response = await fetch(`/api/students/${encodeURIComponent(id)}`, {
+  const path = completionId
+    ? `/api/students/care-withdrawals/${encodeURIComponent(completionId)}`
+    : `/api/students/${encodeURIComponent(id)}`;
+  const response = await fetch(path, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),

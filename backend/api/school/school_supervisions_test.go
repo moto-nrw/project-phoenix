@@ -70,17 +70,13 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	}
 }
 
-// todayInstance creates a planned block for today in its own room. The window
-// brackets "now" so the start lifecycle is available whenever the suite runs.
+// todayInstance creates a planned block for today in its own room.
 func (f *supervisionFixture) todayInstance(t *testing.T, title string) *scheduleModel.ActivityInstance {
 	t.Helper()
 
 	room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
-	now := timezone.Now()
 	return testpkg.CreateTestActivityInstance(t, f.db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
-		Title:     title,
-		StartHHMM: now.Add(-30 * time.Minute).Format("15:04"),
-		EndHHMM:   now.Add(90 * time.Minute).Format("15:04"),
+		Title: title,
 	})
 }
 

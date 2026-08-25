@@ -235,6 +235,7 @@ func (s *service) CreateOfferingChangeRequest(
 	selections []enrollmentSvc.OfferingChangeSelection,
 	effectiveFrom timezone.Date,
 	note string,
+	completeWithdrawalConfirmed bool,
 ) (*ChildCareOfferings, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
@@ -257,11 +258,12 @@ func (s *service) CreateOfferingChangeRequest(
 			return ErrChildCareEnded
 		}
 		_, createErr := s.OfferingChanges.Create(txCtx, enrollmentSvc.CreateOfferingChangeInput{
-			StudentID:     studentID,
-			AccountID:     accountID,
-			Selections:    selections,
-			EffectiveFrom: effectiveFrom,
-			Note:          note,
+			StudentID:                   studentID,
+			AccountID:                   accountID,
+			Selections:                  selections,
+			EffectiveFrom:               effectiveFrom,
+			Note:                        note,
+			CompleteWithdrawalConfirmed: completeWithdrawalConfirmed,
 		})
 		return createErr
 	})
