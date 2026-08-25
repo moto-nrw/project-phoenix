@@ -947,7 +947,10 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 	if err != nil {
 		return fmt.Errorf("guardian %d: %w", index, err)
 	}
+	return c.createGuardianRelationship(ctx, studentID, guardianID, guardianData, index)
+}
 
+func (c *StudentImportConfig) createGuardianRelationship(ctx context.Context, studentID, guardianID int64, guardianData importModels.GuardianImportData, index int) error {
 	relationship := &users.StudentGuardian{
 		StudentID:          studentID,
 		GuardianProfileID:  guardianID,
@@ -1338,7 +1341,7 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 		}
 		rel, linked := byGuardianID[guardianID]
 		if !linked {
-			if err := c.createSingleGuardianRelationship(ctx, studentID, data, i+1); err != nil {
+			if err := c.createGuardianRelationship(ctx, studentID, guardianID, data, i+1); err != nil {
 				return err
 			}
 			continue
