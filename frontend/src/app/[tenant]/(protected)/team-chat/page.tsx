@@ -96,6 +96,11 @@ function TeamChatInboxContent() {
   // los ist - der Fehlerzustand darunter waere unerreichbar. Gleiche Regel wie
   // auf der Thread-Seite.
   const showSkeleton = isLoading && !threads && !loadFailed;
+  // Arrays sind truthy: ein zwischengespeichertes LEERES Ergebnis aus einem
+  // frueheren erfolgreichen Abruf laesst `threads` wahr werden, obwohl der
+  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung praesentiert die
+  // Seite den Fehlschlag als belastbares "keine Nachrichten".
+  const nothingToShow = !threads || threads.length === 0;
 
   return (
     <div className="-mt-1.5 w-full">
@@ -149,7 +154,7 @@ function TeamChatInboxContent() {
         <TeamChatSkeleton />
       ) : (
         <>
-          {loadFailed && threads && (
+          {loadFailed && !nothingToShow && (
             // Fehler NEBEN vorhandenen (moeglicherweise veralteten) Daten: die
             // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
             // sein muss.
@@ -161,7 +166,7 @@ function TeamChatInboxContent() {
             </div>
           )}
 
-          {loadFailed && !threads ? (
+          {loadFailed && nothingToShow ? (
             // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
             // danebenzustellen behauptet "Sie haben keine Nachrichten",
             // obwohl in Wahrheit niemand nachsehen konnte - und das ist die

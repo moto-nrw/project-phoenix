@@ -1140,28 +1140,26 @@ export function useGlobalSSE(): SSEHookState {
           // participants), so an open conversation can refetch selectively
           // instead of every mounted messaging surface reloading.
           //
-          // Den eigenen Absender NICHT wecken. Sonst laesst ein zweiter
-          // offener Tab desselben Kontos ein GetThread laufen - und das
-          // markiert serverseitig als gelesen, was die Gegenseite in der
-          // Zwischenzeit geschrieben hat, ohne dass die Person es je gesehen
-          // hat. Genau der Fehler, den PostMessage nicht mehr macht; ueber die
-          // SSE-Hintertuer darf er nicht zurueckkommen.
+          // data.source (das absendende Konto) faehrt mit, aber die Ereignisse
+          // gehen an ALLE Beteiligten - auch an die weiteren Tabs des
+          // Absenders, deren Posteingang sonst mit veralteter Vorschau,
+          // Sortierung und Ungelesen-Zahl stehenbliebe.
+          //
+          // Wer den Lesecursor VORSCHIEBT, filtert selbst: die Thread-Seite
+          // setzt ignoreOwnSource, damit der zweite Tab desselben Kontos nicht
+          // als gelesen markiert, was die Gegenseite in der Zwischenzeit
+          // geschrieben hat. Das Filtern gehoert zum lesenden Verbraucher, nicht
+          // in den Verteiler.
           if (typeof window !== "undefined") {
-            const sender = event.data?.source ?? null;
-            const ownAccountId = session?.user?.id ?? null;
-            if (
-              sender !== null &&
-              ownAccountId !== null &&
-              sender === ownAccountId
-            ) {
-              break;
-            }
             window.dispatchEvent(
               new CustomEvent("team-messages-unread-refresh"),
             );
             window.dispatchEvent(
               new CustomEvent("team-messages-activity", {
-                detail: { threadId: event.data?.thread_id ?? null },
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  source: event.data?.source ?? null,
+                },
               }),
             );
           }
@@ -1169,12 +1167,7 @@ export function useGlobalSSE(): SSEHookState {
         }
       }
     },
-    [
-      scheduleFlush,
-      collectEduGroupScope,
-      collectActiveSupervisionChange,
-      session?.user?.id,
-    ],
+    [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],
   );
 
   // Use the underlying SSE hook with global event handler.

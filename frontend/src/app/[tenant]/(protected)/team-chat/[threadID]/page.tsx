@@ -112,6 +112,10 @@ function TeamThreadContent() {
     debounceMs: 500,
     marksRead: true,
     refetchOnFocus: true,
+    // Diese Seite schiebt den Lesecursor vor. Ein eigener Send aus einem
+    // anderen Tab darf sie deshalb nicht wecken - sonst markiert sie als
+    // gelesen, was das Gegenueber in der Zwischenzeit geschrieben hat.
+    ignoreOwnSource: myAccountId || null,
   });
 
   // Loading the conversation marks it read server-side, so nudge the sidebar
