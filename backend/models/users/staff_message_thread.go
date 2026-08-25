@@ -77,8 +77,9 @@ type StaffMessageThreadRepository interface {
 	// IsParticipant reports whether the account belongs to the thread. This is
 	// the authorization predicate for reading or posting.
 	IsParticipant(ctx context.Context, threadID, accountID int64) (bool, error)
-	// DeleteEmpty removes threads that hold no messages any more, so retention
-	// cleanup does not leave orphaned conversations in the inbox. Returns the
-	// number of rows deleted.
-	DeleteEmpty(ctx context.Context) (int64, error)
+	// DeleteEmpty removes threads created before the cutoff that hold no
+	// messages any more. The cutoff is a grace period: OpenThread creates a
+	// thread before its first message, so a just-opened conversation is
+	// legitimately empty and must survive the sweep. Returns rows deleted.
+	DeleteEmpty(ctx context.Context, createdBefore time.Time) (int64, error)
 }

@@ -74,7 +74,9 @@ type StaffMessageReadRepository interface {
 	// ListMessageableStaff returns the accounts the viewer may write to: active
 	// members of the current tenant, excluding the viewer.
 	ListMessageableStaff(ctx context.Context, viewerAccountID int64) ([]*MessageableStaff, error)
-	// IsActiveTenantMember reports whether the account has an active mapping to
-	// the current tenant. Authorization predicate for opening a conversation.
-	IsActiveTenantMember(ctx context.Context, accountID int64) (bool, error)
+	// IsMessageableStaff reports whether the account may take part in an
+	// internal conversation at the current school. MUST be the same predicate
+	// ListMessageableStaff filters by - an active tenant mapping alone also
+	// covers guardian accounts, which are not colleagues.
+	IsMessageableStaff(ctx context.Context, accountID int64) (bool, error)
 }

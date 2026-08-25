@@ -172,7 +172,9 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		ColumnExpr(`at.account_id AS account_id`).
 		ColumnExpr(`COALESCE(NULLIF(btrim(COALESCE(person.first_name, '') || ' ' || COALESCE(person.last_name, '')), ''), 'Unbekannt') AS name`).
 		Join(`JOIN users.persons AS "person"
-			ON person.account_id = at.account_id AND person.deleted_at IS NULL`).
+			ON person.account_id = at.account_id
+			AND person.tenant_id = at.tenant_id
+			AND person.deleted_at IS NULL`).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
 		Where(`at.account_id <> ?`, viewerAccountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
@@ -184,19 +186,34 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 	return rows, nil
 }
 
-// IsActiveTenantMember reports whether the account has an active mapping to the
-// current tenant. Authorization predicate for opening a conversation.
-func (r *StaffMessageReadRepository) IsActiveTenantMember(ctx context.Context, accountID int64) (bool, error) {
+// IsMessageableStaff reports whether the account may take part in an internal
+// conversation at the current school. Authorization predicate for opening one.
+//
+// It MUST stay the exact predicate ListMessageableStaff filters the picker by,
+// which is why both carry the users.persons join. An active auth.account_tenants
+// row alone is NOT enough: a guardian who accepts an invitation gets exactly
+// that row (services/auth/guardian_invitation_service.go) and no persons row, so
+// checking membership only would let a caller pass a parent's account id to
+// POST /threads/open and open a "colleague" chat with them — bypassing a picker
+// that never offered them.
+//
+// The method is deliberately not called IsActiveTenantMember any more: that name
+// described the query, not the question, and invited exactly this gap.
+func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, accountID int64) (bool, error) {
 	exists, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`auth.account_tenants AS "at"`).
 		ColumnExpr(`1`).
+		Join(`JOIN users.persons AS "person"
+			ON person.account_id = at.account_id
+			AND person.tenant_id = at.tenant_id
+			AND person.deleted_at IS NULL`).
 		Where(`at.account_id = ?`, accountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
 		Limit(1).
 		Exists(ctx)
 	if err != nil {
-		return false, &modelBase.DatabaseError{Op: "check active tenant membership", Err: err}
+		return false, &modelBase.DatabaseError{Op: "check messageable staff", Err: err}
 	}
 	return exists, nil
 }

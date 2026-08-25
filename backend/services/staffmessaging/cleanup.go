@@ -46,7 +46,10 @@ func (s *Service) CleanupExpiredMessages(ctx context.Context) (CleanupResult, er
 	// Only after the messages are gone: a conversation whose entire history
 	// aged out is noise in the inbox, and leaving it there would show a
 	// counterpart with no content and no way to tell why.
-	threads, err := s.ThreadRepo.DeleteEmpty(ctx)
+	//
+	// Same cutoff as the messages, which doubles as the grace period for a
+	// thread that was opened but never written in - see DeleteEmpty.
+	threads, err := s.ThreadRepo.DeleteEmpty(ctx, cutoff)
 	if err != nil {
 		return result, err
 	}

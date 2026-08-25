@@ -217,10 +217,17 @@ func (r *StaffMessageThreadRepository) IsParticipant(ctx context.Context, thread
 // DeleteEmpty removes threads that hold no messages any more, so retention
 // cleanup does not leave orphaned conversations in the inbox. Participant and
 // read-cursor rows follow via ON DELETE CASCADE.
-func (r *StaffMessageThreadRepository) DeleteEmpty(ctx context.Context) (int64, error) {
+//
+// createdBefore is a GRACE PERIOD, not an optimization. OpenThread
+// get-or-creates the thread BEFORE the first message is sent, so a conversation
+// someone opened and has not written in yet is legitimately empty. Without the
+// bound the daily sweep would delete it under the user, and their next send
+// would fail with "Diese Unterhaltung gibt es nicht." on a chat they had open.
+func (r *StaffMessageThreadRepository) DeleteEmpty(ctx context.Context, createdBefore time.Time) (int64, error) {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*users.StaffMessageThread)(nil)).
 		ModelTableExpr(tableExprStaffMessageThreadsAsThread).
+		Where(`"staff_message_thread".created_at < ?`, createdBefore).
 		Where(`NOT EXISTS (
 			SELECT 1 FROM users.staff_messages m
 			WHERE m.thread_id = "staff_message_thread".id

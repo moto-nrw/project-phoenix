@@ -23,21 +23,32 @@ const ErrCodeStaffMessagingDisabled = "staff_messaging_disabled"
 // conversations by probing ids. "Not yours" and "not there" must be
 // indistinguishable from outside.
 var staffMessagingErrorRules = []common.ErrorRule{
-	{Target: service.ErrThreadNotFound, Render: func(err error) render.Renderer {
-		return common.ErrorNotFound(err)
+	// Beide rendern denselben deutschen Satz: "nicht deine Unterhaltung" und
+	// "gibt es nicht" muessen von aussen ununterscheidbar bleiben, sonst lassen
+	// sich Thread-IDs durchprobieren. Der Text geht wortwoertlich an den Browser,
+	// also darf hier nie der englische Go-Sentinel stehen.
+	{Target: service.ErrThreadNotFound, Render: func(_ error) render.Renderer {
+		return common.ErrorNotFoundMessage("Diese Unterhaltung gibt es nicht.")
 	}},
-	{Target: service.ErrNotParticipant, Render: func(err error) render.Renderer {
-		return common.ErrorNotFound(err)
+	{Target: service.ErrNotParticipant, Render: func(_ error) render.Renderer {
+		return common.ErrorNotFoundMessage("Diese Unterhaltung gibt es nicht.")
 	}},
 	// Stable code, not just prose: the inbox has to tell "your school switched
 	// this off" apart from "loading failed". Matching the German sentence would
 	// break the moment the wording is polished, and the page would fall back to
 	// a red error plus a compose button that dead-ends in this very 403.
-	{Target: service.ErrMessagingDisabled, Render: func(err error) render.Renderer {
-		return common.ErrorForbiddenWithCode(err, ErrCodeStaffMessagingDisabled)
+	{Target: service.ErrMessagingDisabled, Render: func(_ error) render.Renderer {
+		return common.ErrorForbiddenMessageWithCode(
+			"Der Team-Chat ist für diese Schule nicht eingeschaltet.",
+			ErrCodeStaffMessagingDisabled,
+		)
 	}},
 	{Target: service.ErrRecipientNotAvailable, Render: func(_ error) render.Renderer {
-		return common.ErrorConflictMessage("Diese Person gehört nicht mehr zu dieser Schule.")
+		// Deckt beide Faelle wahrheitsgemaess ab: jemand hat die Schule verlassen,
+		// ODER das Konto gehoert keiner Mitarbeiterin (etwa einem Elternteil).
+		// "gehoert nicht mehr zu dieser Schule" waere im zweiten Fall schlicht
+		// falsch - Sorgeberechtigte gehoeren dazu, sind nur keine Kolleginnen.
+		return common.ErrorConflictMessage("Diese Person können Sie nicht anschreiben.")
 	}},
 	{Target: service.ErrSelfConversation, Render: func(_ error) render.Renderer {
 		return common.ErrorInvalidRequestMessage("Sie können sich nicht selbst schreiben.")
@@ -48,8 +59,8 @@ var staffMessagingErrorRules = []common.ErrorRule{
 	{Target: service.ErrMessageTooLong, Render: func(_ error) render.Renderer {
 		return common.ErrorInvalidRequestMessage("Die Nachricht ist zu lang.")
 	}},
-	{Target: service.ErrNoActor, Render: func(err error) render.Renderer {
-		return common.ErrorForbidden(err)
+	{Target: service.ErrNoActor, Render: func(_ error) render.Renderer {
+		return common.ErrorForbiddenMessage("Bitte melden Sie sich erneut an.")
 	}},
 }
 

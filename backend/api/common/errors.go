@@ -257,6 +257,39 @@ func ErrorInvalidRequestMessage(message string) render.Renderer {
 	}
 }
 
+// ErrorForbiddenMessage returns a 403 Forbidden with a user-facing message
+// string. See ErrorInvalidRequestMessage for why.
+func ErrorForbiddenMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusForbidden,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
+// ErrorForbiddenMessageWithCode returns a 403 with a user-facing message AND a
+// stable code. The message reaches the browser verbatim, so it must be the
+// German sentence, not the Go sentinel: the frontend renders an unrecognized
+// error text as-is.
+func ErrorForbiddenMessageWithCode(message, code string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusForbidden,
+		Status:         "error",
+		ErrorText:      message,
+		Code:           code,
+	}
+}
+
+// ErrorNotFoundMessage returns a 404 with a user-facing message string. Same
+// reason as ErrorInvalidRequestMessage.
+func ErrorNotFoundMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusNotFound,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)

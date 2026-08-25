@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -121,11 +122,20 @@ func TestRetentionSweep(t *testing.T) {
 	require.Len(t, detail.Messages, 1)
 	assert.Equal(t, "Neue Nachricht", detail.Messages[0].Body)
 
-	// Age the survivor too — now the empty conversation must go as well.
+	// Age the survivor AND the thread itself. The thread needs ageing too: since
+	// the grace period (DeleteEmpty's cutoff) a freshly created conversation is
+	// protected even once its messages are gone, so only a thread that is itself
+	// older than the window may be swept.
 	_, err = db.NewUpdate().
 		Table("users.staff_messages").
 		Set("created_at = ?", time.Now().AddDate(0, 0, -40)).
 		Where("thread_id = ?", thread.ThreadID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		Table("users.staff_message_threads").
+		Set("created_at = ?", time.Now().AddDate(0, 0, -40)).
+		Where("id = ?", thread.ThreadID).
 		Exec(ctx)
 	require.NoError(t, err)
 
@@ -164,4 +174,79 @@ func TestRetentionRunsForDisabledSchool(t *testing.T) {
 	result, err := disabled.CleanupExpiredMessages(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.MessagesDeleted, "retention must not depend on the feature switch")
+}
+
+// TestGuardianAccountIsNotAddressable is the regression guard for the quorum
+// finding: a guardian who accepted an invitation has an ACTIVE
+// auth.account_tenants row for the school but no users.persons row. Checking
+// membership alone would let a caller pass that account id straight to
+// POST /threads/open and open a "colleague" chat with a parent, bypassing a
+// picker that never offered them.
+func TestGuardianAccountIsNotAddressable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, _ := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	// A guardian-shaped account: active tenant mapping, no persons row.
+	guardian := testpkg.CreateTestAccount(t, db, "erika.sorgeberechtigt")
+	testpkg.EnsureAccountTenant(t, db, guardian.ID, testpkg.Tenant(t))
+	_, err := db.NewUpdate().
+		Table("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusActive).
+		Where("account_id = ? AND tenant_id = ?", guardian.ID, testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// Never offered by the picker...
+	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	require.NoError(t, err)
+	for _, r := range recipients {
+		assert.NotEqual(t, guardian.ID, r.AccountID, "picker must not offer a guardian account")
+	}
+
+	// ...and the direct API path must refuse it too, not just the UI.
+	_, err = svc.OpenThread(asAccount(t, anna), guardian.ID)
+	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
+		"an account without a staff person row must not be addressable")
+}
+
+// TestFreshEmptyThreadSurvivesSweep pins the grace period: OpenThread creates
+// the thread before the first message, so the daily sweep must not delete a
+// conversation someone just opened and has not written in yet.
+func TestFreshEmptyThreadSurvivesSweep(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newServiceWithEnabled(t, db, true, 30)
+	anna, ben := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+
+	result, err := svc.CleanupExpiredMessages(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, result.ThreadsDeleted, "a just-opened conversation must survive the sweep")
+
+	// Still there, and still writable.
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Doch noch was")
+	require.NoError(t, err, "the thread must still exist after the sweep")
+
+	// An OLD empty thread is a different matter and does go.
+	_, err = db.NewUpdate().
+		Table("users.staff_message_threads").
+		Set("created_at = ?", time.Now().AddDate(0, 0, -40)).
+		Where("id = ?", thread.ThreadID).
+		Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewDelete().
+		Table("users.staff_messages").
+		Where("thread_id = ?", thread.ThreadID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	result, err = svc.CleanupExpiredMessages(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.ThreadsDeleted, "an aged-out empty conversation must go")
 }

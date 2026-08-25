@@ -4,8 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
@@ -16,6 +17,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type StaffMessage,
   fetchStaffThread,
+  isStaffMessagingDisabled,
   postStaffMessage,
 } from "~/lib/staff-messages-api";
 import { getApiErrorMessage } from "~/lib/api-error-message";
@@ -30,9 +32,7 @@ function TeamThreadContent() {
   const { data: session } = useSession();
   const { tenant } = useTenant();
   const tenantSlug = useTenantSlugSafe();
-  // Switched off → the history stays readable, but replying would hit a 403.
-  // Show the reason instead of a composer that dead-ends.
-  const chatEnabled = tenant?.staffMessagingEnabled === true;
+  const flagSaysEnabled = tenant?.staffMessagingEnabled === true;
 
   // Which bubbles are "mine". The backend stamps every message with its sender
   // account, and the session carries the viewer's — so the side a bubble sits
@@ -46,10 +46,19 @@ function TeamThreadContent() {
     isValidating,
     mutate,
   } = useSWR(
-    [`${tenantSlug ?? ""}:team-chat-thread`, threadID],
+    // Same gate as the inbox: with the feature off there is nothing to fetch,
+    // and firing anyway leaves the page in a permanent skeleton while SWR
+    // retries a 403 (isLoading is !data && isValidating). The backend code is
+    // still consulted below for the case the cached flag is stale.
+    flagSaysEnabled ? [`${tenantSlug ?? ""}:team-chat-thread`, threadID] : null,
     () => fetchStaffThread(threadID),
     {
       revalidateOnFocus: false,
+      // "Die Schule hat den Chat ausgeschaltet" ist kein transienter Fehler:
+      // SWR wuerde ihn sonst mit Backoff endlos wiederholen, und weil
+      // isLoading als (!data && isValidating) definiert ist, bliebe die Seite
+      // dauerhaft im Skelett stehen statt den Aus-Zustand zu zeigen.
+      shouldRetryOnError: (err: unknown) => !isStaffMessagingDisabled(err),
       onError: (err: unknown) =>
         logger.error("team_chat_thread_load_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -59,6 +68,20 @@ function TeamThreadContent() {
   );
 
   const messages: StaffMessage[] = thread?.messages ?? [];
+
+  // Reads are gated too: the service calls requireEnabled before loading a
+  // thread, so a switched-off school gets a 403 here, not just on send. The
+  // cached tenant flag lags that by up to the tenant-metadata cache window, and
+  // a deep-linked or bookmarked thread bypasses the inbox entirely — so the
+  // backend's stable code decides, exactly as on the inbox page. Without this
+  // the user sees "Der Verlauf konnte nicht geladen werden." for a school that
+  // simply switched the feature off.
+  const disabledByBackend = isStaffMessagingDisabled(loadError);
+  const chatEnabled = flagSaysEnabled && !disabledByBackend;
+  // Off is off, whichever side said so: the cached tenant flag (fast, may lag
+  // by the metadata cache window) or the backend's stable code (authoritative,
+  // covers a stale flag and a deep-linked thread).
+  const chatDisabled = !flagSaysEnabled || disabledByBackend;
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -136,20 +159,31 @@ function TeamThreadContent() {
     Boolean(thread) && !isLoading,
   );
 
-  const showSkeleton = !thread && isLoading;
+  // Ein Fehler beendet das Skelett. Ohne das `!loadError` haelt jede laufende
+  // SWR-Wiederholung isLoading wahr und die Seite zeigt ewig Platzhalter statt
+  // zu sagen, was los ist.
+  const showSkeleton = !thread && isLoading && !loadError && !chatDisabled;
 
   if (!showSkeleton && !thread) {
     return (
       <div className="-mt-1.5 w-full">
         <TeamChatBackNav />
-        <Alert
-          type="error"
-          message={
-            loadError
-              ? "Der Verlauf konnte nicht geladen werden."
-              : "Diese Unterhaltung gibt es nicht."
-          }
-        />
+        {chatDisabled ? (
+          <EmptyState
+            icon={<MessagesSquare size={48} className="text-gray-400" />}
+            title="Der Team-Chat ist ausgeschaltet"
+            description="Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten."
+          />
+        ) : (
+          <Alert
+            type="error"
+            message={
+              loadError
+                ? "Der Verlauf konnte nicht geladen werden."
+                : "Diese Unterhaltung gibt es nicht."
+            }
+          />
+        )}
       </div>
     );
   }
@@ -224,8 +258,7 @@ function TeamThreadContent() {
             />
           ) : (
             <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Der Team-Chat ist ausgeschaltet. Sie können den Verlauf lesen,
-              aber nicht antworten.
+              Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben.
             </p>
           )}
         </div>

@@ -42,8 +42,9 @@ var (
 	ErrNotParticipant = errors.New("staffmessaging: not a participant of this thread")
 	// ErrThreadNotFound is returned when no thread has that id in the tenant.
 	ErrThreadNotFound = errors.New("staffmessaging: thread not found")
-	// ErrRecipientNotAvailable is returned when the addressed account is not an
-	// active member of the current school.
+	// ErrRecipientNotAvailable is returned when the addressed account may not be
+	// written to: it left the school, or it is not a staff account at all (a
+	// guardian account carries an active tenant mapping too).
 	ErrRecipientNotAvailable = errors.New("staffmessaging: recipient is not an active member of this school")
 	// ErrSelfConversation is returned when someone addresses themselves.
 	ErrSelfConversation = errors.New("staffmessaging: cannot start a conversation with yourself")
@@ -219,7 +220,7 @@ func (s *Service) OpenThread(ctx context.Context, counterpartAccountID int64) (*
 }
 
 func (s *Service) requireActiveMember(ctx context.Context, accountID int64) error {
-	active, err := s.ReadRepo.IsActiveTenantMember(ctx, accountID)
+	active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
 	if err != nil {
 		return err
 	}
