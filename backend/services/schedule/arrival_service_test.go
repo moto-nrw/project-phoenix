@@ -1064,6 +1064,8 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 		assert.NotNil(t, result.ArrivalTime)
 		assert.Equal(t, 9, result.ArrivalTime.Hour())
 		assert.Equal(t, "Late arrival", result.Notes)
+		require.NotNil(t, result.ChangedAt)
+		assert.False(t, result.ChangedAt.IsZero())
 	})
 
 	t.Run("returns schedule when no exception", func(t *testing.T) {
@@ -1274,6 +1276,8 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 		assert.True(t, results[student3.ID].IsException)
 		assert.Nil(t, results[student3.ID].ArrivalTime)
 		assert.Equal(t, "Sick", results[student3.ID].Notes)
+		require.NotNil(t, results[student3.ID].ChangedAt)
+		assert.False(t, results[student3.ID].ChangedAt.IsZero())
 	})
 
 	t.Run("returns empty map for empty student IDs", func(t *testing.T) {

@@ -39,4 +39,16 @@ describe("isSchoolNavActive auf dem Schul-Host", () => {
       false,
     );
   });
+
+  it("markiert die Klassenansicht auf einer Klassenseite (#2294)", () => {
+    // Die Klassenseite liegt unter der Klassenansicht; ohne diesen Fall
+    // stünde man auf einer Unterseite und die Navigation zeigte nirgends hin.
+    // Der Klassenname steht in der Query, der Pfad endet auf /klasse.
+    expect(isSchoolNavActive("/school", "/klasse")).toBe(true);
+    expect(isSchoolNavActive("/school", "/school/klasse")).toBe(true);
+  });
+
+  it("verwechselt die Klassenseite nicht mit einem Pfad gleichen Anfangs", () => {
+    expect(isSchoolNavActive("/school", "/klassenbuch")).toBe(false);
+  });
 });
