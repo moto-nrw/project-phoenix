@@ -1304,10 +1304,25 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 		byGuardianID[rel.GuardianProfileID] = rel
 	}
 
+	linkedIDs := make([]int64, 0, len(existing))
+	for _, rel := range existing {
+		linkedIDs = append(linkedIDs, rel.GuardianProfileID)
+	}
+	linkedProfiles, err := c.loadLinkedGuardianProfiles(ctx, linkedIDs)
+	if err != nil {
+		return err
+	}
+
 	for i, data := range guardians {
-		guardianID, err := c.createOrFindGuardian(ctx, data)
+		guardianID, err := c.resolveLinkedGuardian(ctx, linkedProfiles, data)
 		if err != nil {
 			return fmt.Errorf("guardian %d: %w", i+1, err)
+		}
+		if guardianID == 0 {
+			guardianID, err = c.createOrFindGuardian(ctx, data)
+			if err != nil {
+				return fmt.Errorf("guardian %d: %w", i+1, err)
+			}
 		}
 		rel, linked := byGuardianID[guardianID]
 		if !linked {
@@ -1355,6 +1370,141 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 		}
 	}
 	return nil
+}
+
+// linkedGuardianProfile is one guardian already linked to the child, together
+// with the phone numbers stored for it, so a re-import can recognise the
+// guardian without an e-mail address.
+type linkedGuardianProfile struct {
+	profile *users.GuardianProfile
+	phones  []string
+}
+
+// loadLinkedGuardianProfiles loads the profiles and phone numbers of the
+// guardians already linked to the child.
+func (c *StudentImportConfig) loadLinkedGuardianProfiles(ctx context.Context, guardianIDs []int64) ([]linkedGuardianProfile, error) {
+	if len(guardianIDs) == 0 {
+		return nil, nil
+	}
+	phonesByGuardian, err := c.GuardianPhoneRepo.FindByGuardianIDs(ctx, guardianIDs)
+	if err != nil {
+		return nil, fmt.Errorf("Telefonnummern der Erziehungsberechtigten laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	linked := make([]linkedGuardianProfile, 0, len(guardianIDs))
+	for _, id := range guardianIDs {
+		profile, err := c.GuardianRepo.FindByID(ctx, id)
+		if err != nil {
+			return nil, fmt.Errorf("Erziehungsberechtigten %d laden: %w", id, err) //nolint:staticcheck // ST1005: user-facing German message
+		}
+		if profile == nil {
+			continue
+		}
+		var phones []string
+		for _, phone := range phonesByGuardian[id] {
+			if normalized := normalizeImportPhone(phone.PhoneNumber); normalized != "" {
+				phones = append(phones, normalized)
+			}
+		}
+		linked = append(linked, linkedGuardianProfile{profile: profile, phones: phones})
+	}
+	return linked, nil
+}
+
+// resolveLinkedGuardian recognises an imported guardian among the guardians the
+// child already has: by e-mail, otherwise by a stored phone number, otherwise
+// by a unique first and last name. The match is confined to the child's own
+// relationships, so a shared landline of two different children never merges
+// strangers. It returns 0 when nothing matches; the caller then falls back to
+// the school-wide e-mail lookup or creates the guardian. A recognised guardian
+// receives the non-empty profile fields and any new phone numbers of the row.
+func (c *StudentImportConfig) resolveLinkedGuardian(ctx context.Context, linked []linkedGuardianProfile, data importModels.GuardianImportData) (int64, error) {
+	match := matchLinkedGuardian(linked, data)
+	if match == nil {
+		return 0, nil
+	}
+	if err := c.updateExistingGuardianProfile(ctx, match, data); err != nil {
+		return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	if err := c.createGuardianPhoneNumbers(ctx, match.ID, data.PhoneNumbers); err != nil {
+		return 0, fmt.Errorf("add phone numbers to existing guardian: %w", err)
+	}
+	return match.ID, nil
+}
+
+// matchLinkedGuardian is the pure matching step of resolveLinkedGuardian.
+func matchLinkedGuardian(linked []linkedGuardianProfile, data importModels.GuardianImportData) *users.GuardianProfile {
+	if len(linked) == 0 {
+		return nil
+	}
+	if email := strings.ToLower(strings.TrimSpace(data.Email)); email != "" {
+		for _, g := range linked {
+			if g.profile.Email != nil && strings.ToLower(strings.TrimSpace(*g.profile.Email)) == email {
+				return g.profile
+			}
+		}
+		// An e-mail that matches nobody linked is resolved school-wide by the
+		// caller; a phone or name match would otherwise override the e-mail.
+		return nil
+	}
+
+	phones := importGuardianPhones(data)
+	for _, g := range linked {
+		for _, stored := range g.phones {
+			if _, ok := phones[stored]; ok {
+				return g.profile
+			}
+		}
+	}
+
+	first := strings.ToLower(strings.TrimSpace(data.FirstName))
+	last := strings.ToLower(strings.TrimSpace(data.LastName))
+	if first == "" || last == "" {
+		return nil
+	}
+	var byName *users.GuardianProfile
+	for _, g := range linked {
+		if strings.ToLower(strings.TrimSpace(g.profile.FirstName)) != first ||
+			strings.ToLower(strings.TrimSpace(g.profile.LastName)) != last {
+			continue
+		}
+		if byName != nil {
+			return nil // ambiguous: two linked guardians share the name
+		}
+		byName = g.profile
+	}
+	return byName
+}
+
+// importGuardianPhones collects every phone number of the row in normalized
+// form, including the legacy single-column fields.
+func importGuardianPhones(data importModels.GuardianImportData) map[string]struct{} {
+	phones := make(map[string]struct{}, len(data.PhoneNumbers)+2)
+	add := func(raw string) {
+		if normalized := normalizeImportPhone(raw); normalized != "" {
+			phones[normalized] = struct{}{}
+		}
+	}
+	for _, phone := range data.PhoneNumbers {
+		add(phone.PhoneNumber)
+	}
+	add(data.Phone)
+	add(data.MobilePhone)
+	return phones
+}
+
+// normalizeImportPhone reduces a phone number to its digits (a leading "+" is
+// kept) so that "0221 / 123-45" and "0221 12345" compare equal.
+func normalizeImportPhone(raw string) string {
+	var b strings.Builder
+	for i, r := range strings.TrimSpace(raw) {
+		switch {
+		case r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '+' && i == 0:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {

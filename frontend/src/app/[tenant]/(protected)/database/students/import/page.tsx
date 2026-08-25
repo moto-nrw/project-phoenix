@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Download, Info, ListChecks, X } from "lucide-react";
+import { Download, Info, ListChecks, RefreshCw, X } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -11,10 +11,12 @@ import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
-  ImportModeSelector,
+  IMPORT_MODE_HINTS,
+  IMPORT_MODE_ITEMS,
   type ImportMode,
-} from "~/components/import/import-mode-selector";
+} from "~/lib/import-mode";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -571,11 +573,24 @@ export default function StudentImportPage() {
         </div>
       </div>
 
-      <ImportModeSelector
-        value={mode}
-        onChange={handleModeChange}
-        matchHint="Vorname, Nachname und Klasse. Bei Klassenwechsel über die RFID-Karte oder den Geburtstag"
-      />
+      <div className="rounded-xl border border-gray-100 bg-white p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
+          Schritt 2: Was soll der Import tun?
+        </h3>
+        <SegmentedControl
+          items={IMPORT_MODE_ITEMS}
+          value={mode}
+          onChange={handleModeChange}
+          fullWidth
+          ariaLabel="Import-Modus"
+        />
+        <p className="mt-3 text-sm text-gray-600">{IMPORT_MODE_HINTS[mode]}</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Bekannt ist eine Zeile über Vorname, Nachname und Klasse. Bei
+          Klassenwechsel über die RFID-Karte oder den Geburtstag.
+        </p>
+      </div>
 
       {/* Upload Section */}
       <UploadSection
