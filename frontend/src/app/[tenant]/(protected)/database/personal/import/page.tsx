@@ -276,12 +276,13 @@ export default function StaffImportPage() {
   const handleModeChange = (next: ImportMode) => {
     setMode(next);
     if (uploadedFile) {
+      setPreviewData([]);
       handleFileUpload(uploadedFile, next).catch(() => undefined);
     }
   };
 
   const handleImport = async () => {
-    if (!uploadedFile) return;
+    if (!uploadedFile || isLoading) return;
 
     setIsImporting(true);
     setError(null);
@@ -600,7 +601,7 @@ export default function StaffImportPage() {
             <button
               type="button"
               onClick={() => void handleImport()}
-              disabled={stats.errors > 0 || isImporting}
+              disabled={stats.errors > 0 || isImporting || isLoading}
               className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
               {isImporting ? "Importiere..." : importLabel}

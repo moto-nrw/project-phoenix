@@ -1076,7 +1076,7 @@ describe("StudentImportPage", () => {
         Promise.resolve({
           data: {
             TotalRows: 2,
-            CreatedCount: 0,
+            CreatedCount: 2,
             UpdatedCount: 2,
             ErrorCount: 0,
             Errors: [],
@@ -1085,21 +1085,27 @@ describe("StudentImportPage", () => {
     });
 
     render(<StudentImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 Kinder importieren")).toBeInTheDocument();
+    });
     fireEvent.click(
       screen.getByRole("button", { name: "Nur bestehende aktualisieren" }),
     );
-    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    expect(screen.queryByText("2 Kinder importieren")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText("2 Kinder aktualisieren")).toBeInTheDocument();
     });
 
     const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
-    const previewCall = fetchMock.mock.calls.find(
+    const previewCalls = fetchMock.mock.calls.filter(
       (call) => call[0] === "/api/import/students/preview",
     );
-    expect(previewCall).toBeDefined();
-    const previewInit = previewCall![1] as { body: FormData };
+    expect(previewCalls).toHaveLength(2);
+    const previewInit = previewCalls[1]![1] as { body: FormData };
     expect(previewInit.body.get("mode")).toBe("update");
   });
 });

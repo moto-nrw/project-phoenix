@@ -749,6 +749,9 @@ describe("StaffImportPage", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Nur bestehende aktualisieren" }),
     );
+    expect(
+      screen.queryByText("3 Mitarbeiter übernehmen"),
+    ).not.toBeInTheDocument();
     await waitFor(() => {
       const calls = fetchMock.mock.calls.filter(
         (call) => call[0] === "/api/import/teachers/preview",

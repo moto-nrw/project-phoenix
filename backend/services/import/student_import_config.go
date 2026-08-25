@@ -1015,7 +1015,9 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 		} else if existing != nil {
 			// Guardian found - reuse it (deduplication)
 			// Update profile fields if the import provides new data
-			c.updateExistingGuardianProfile(ctx, existing, data)
+			if err := c.updateExistingGuardianProfile(ctx, existing, data); err != nil {
+				return 0, fmt.Errorf("existing guardian profile aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+			}
 
 			// Add any new phone numbers from the import data
 			if err := c.createGuardianPhoneNumbers(ctx, existing.ID, data.PhoneNumbers); err != nil {
@@ -1054,8 +1056,7 @@ func (c *StudentImportConfig) createOrFindGuardian(ctx context.Context, data imp
 
 // updateExistingGuardianProfile merges non-empty import fields into an existing guardian.
 // Only overwrites fields that are provided in the import data (non-empty).
-// Errors are logged but don't fail the import — the guardian link still works.
-func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context, existing *users.GuardianProfile, data importModels.GuardianImportData) {
+func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context, existing *users.GuardianProfile, data importModels.GuardianImportData) error {
 	updated := false
 
 	if v := strings.TrimSpace(data.AddressStreet); v != "" && !ptrEquals(existing.AddressStreet, v) {
@@ -1080,11 +1081,10 @@ func (c *StudentImportConfig) updateExistingGuardianProfile(ctx context.Context,
 	}
 
 	if !updated {
-		return
+		return nil
 	}
 
-	// Best-effort update — don't fail the import if profile update fails
-	_ = c.GuardianRepo.Update(ctx, existing)
+	return c.GuardianRepo.Update(ctx, existing)
 }
 
 // ptrEquals checks if a *string equals a plain string value
