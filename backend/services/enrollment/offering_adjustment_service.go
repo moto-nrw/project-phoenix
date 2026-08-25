@@ -36,11 +36,12 @@ type offeringAdjustmentSnapshot struct {
 // shared adjustment path. The change-request decision uses it for its snapshot
 // so a second catalog read cannot describe a different booking.
 type appliedOfferingAdjustment struct {
-	Child      *enrollmentModels.RequestChild
-	Before     []*enrollmentModels.RequestChildOffering
-	Selections []materializedOfferingSelection
-	Offerings  map[int64]*enrollmentModels.CareOffering
-	Overridden []enrollmentModels.OfferingChangeSnapshotOffering
+	Child              *enrollmentModels.RequestChild
+	Before             []*enrollmentModels.RequestChildOffering
+	Selections         []materializedOfferingSelection
+	Offerings          map[int64]*enrollmentModels.CareOffering
+	Overridden         []enrollmentModels.OfferingChangeSnapshotOffering
+	CompleteWithdrawal bool
 }
 
 func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
@@ -365,7 +366,7 @@ func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, wor
 	work.selections, work.overridden = materialized[0], overridden
 	work.afterHasCareDays = materializedSelectionsHaveCareDays(work.selections, work.offeringByID)
 	work.isCompleteWithdrawal = allowWithdrawal && !work.afterHasCareDays
-	if work.source == auditModels.OfferingAdjustmentSourceDirect && work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
+	if work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
 		return ErrCompleteWithdrawalConfirmationRequired
 	}
 	return s.buildOfferingAdjustmentReplacement(work)
@@ -500,6 +501,7 @@ func (s *decisionService) finishOfferingAdjustment(
 	return &appliedOfferingAdjustment{
 		Child: updated, Before: work.beforeLinks, Selections: work.selections,
 		Offerings: work.offeringByID, Overridden: work.overridden,
+		CompleteWithdrawal: work.isCompleteWithdrawal,
 	}, nil
 }
 

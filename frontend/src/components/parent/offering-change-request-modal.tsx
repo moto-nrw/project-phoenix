@@ -4,13 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Loader2 } from "lucide-react";
 
-import { Modal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import {
   getChildOfferingCatalog,
+  ParentApiError,
   type OfferingCatalog,
   type OfferingCatalogItem,
   type OfferingChangeSelectionInput,
@@ -94,15 +95,18 @@ function orderedDays(days: Set<string>): string[] {
  */
 export function OfferingChangeRequestModal({
   studentId,
+  childName,
   onClose,
   onSubmit,
 }: Readonly<{
   studentId: string;
+  childName?: string;
   onClose: () => void;
   onSubmit: (input: {
     offerings: OfferingChangeSelectionInput[];
     effective_from: string;
     note?: string;
+    complete_withdrawal_confirmed?: boolean;
   }) => Promise<void>;
 }>) {
   const t = useTranslations("parentMasterData");
@@ -114,6 +118,8 @@ export function OfferingChangeRequestModal({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmCompleteWithdrawal, setConfirmCompleteWithdrawal] =
+    useState(false);
   const editedOfferingIDs = useRef(new Set<string>());
   const catalogRequestID = useRef(0);
 
@@ -209,7 +215,7 @@ export function OfferingChangeRequestModal({
   const items = useMemo(() => catalog?.items ?? [], [catalog]);
   const emptyCatalog = catalog !== null && items.length === 0;
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (completeWithdrawalConfirmed = false) => {
     if (!catalog) return;
     const offerings: OfferingChangeSelectionInput[] = [];
     for (const item of items) {
@@ -234,9 +240,19 @@ export function OfferingChangeRequestModal({
         offerings,
         effective_from: effectiveFrom,
         note: note.trim() === "" ? undefined : note.trim(),
+        ...(completeWithdrawalConfirmed
+          ? { complete_withdrawal_confirmed: true }
+          : {}),
       });
       onClose();
     } catch (err) {
+      if (
+        err instanceof ParentApiError &&
+        err.code === "enrollment.complete_withdrawal_confirmation_required"
+      ) {
+        setConfirmCompleteWithdrawal(true);
+        return;
+      }
       setError(
         err instanceof Error
           ? err.message
@@ -433,6 +449,25 @@ export function OfferingChangeRequestModal({
 
         {error && <Alert type="error" message={error} />}
       </div>
+      <ConfirmationModal
+        mobileSheet
+        isOpen={confirmCompleteWithdrawal}
+        onClose={() => setConfirmCompleteWithdrawal(false)}
+        onConfirm={() => {
+          setConfirmCompleteWithdrawal(false);
+          void handleSubmit(true);
+        }}
+        title={t("careOfferingsModal.withdrawalConfirmTitle")}
+        confirmText={t("careOfferingsModal.withdrawalConfirmSubmit")}
+        cancelText={t("careOfferingsModal.withdrawalConfirmBack")}
+        isConfirmLoading={submitting}
+      >
+        <p className="text-sm text-gray-600">
+          {t("careOfferingsModal.withdrawalConfirmBody", {
+            name: childName ?? "",
+          })}
+        </p>
+      </ConfirmationModal>
     </Modal>
   );
 }

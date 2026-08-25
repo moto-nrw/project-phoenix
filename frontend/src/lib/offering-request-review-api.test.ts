@@ -72,6 +72,35 @@ describe("decideOfferingChangeRequest", () => {
       code: "offering_change_no_enrollment",
     });
   });
+
+  it("sends the explicit complete-withdrawal confirmation", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    globalThis.fetch = fetchMock;
+
+    await decideOfferingChangeRequest(
+      "77",
+      true,
+      undefined,
+      [],
+      "2026-09-01",
+      true,
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/students/offering-change-requests/77/decide",
+      expect.objectContaining({
+        body: JSON.stringify({
+          approve: true,
+          reason: "",
+          excluded_offering_ids: [],
+          effective_from: "2026-09-01",
+          complete_withdrawal_confirmed: true,
+        }),
+      }),
+    );
+  });
 });
 
 describe("previewOfferingChangeRequest", () => {

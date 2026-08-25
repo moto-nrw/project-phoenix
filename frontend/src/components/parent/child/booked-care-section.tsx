@@ -65,10 +65,12 @@ export function BookedCareSection({
   studentId,
   childFirstName,
   careEnded,
+  enrolledUntil,
 }: Readonly<{
   studentId: string;
   childFirstName: string;
   careEnded: boolean;
+  enrolledUntil?: string;
 }>) {
   const t = useTranslations("parentMasterData");
   const tc = useTranslations("parentChild");
@@ -390,7 +392,15 @@ export function BookedCareSection({
               actions={
                 decision.status === "approved" ? (
                   <StatusBadge
-                    label={t("careOfferings.decisionApproved")}
+                    label={
+                      decision.complete_withdrawal
+                        ? careEnded && enrolledUntil
+                          ? t("careOfferings.withdrawalCareEnded", {
+                              date: formatDate(enrolledUntil, false, locale),
+                            })
+                          : t("careOfferings.withdrawalApproved")
+                        : t("careOfferings.decisionApproved")
+                    }
                     tone="green"
                   />
                 ) : (
@@ -408,13 +418,21 @@ export function BookedCareSection({
                   })}
                 </p>
               </div>
-              {decision.status === "approved" && (
-                <p className="text-sm font-medium text-gray-900">
-                  {t("careOfferings.decisionApprovedFrom", {
-                    date: formatDate(decision.effective_from, false, locale),
-                  })}
-                </p>
-              )}
+              {decision.status === "approved" &&
+                decision.complete_withdrawal &&
+                !careEnded && (
+                  <p className="text-sm font-medium text-gray-900">
+                    {t("careOfferings.withdrawalApprovedHint")}
+                  </p>
+                )}
+              {decision.status === "approved" &&
+                !decision.complete_withdrawal && (
+                  <p className="text-sm font-medium text-gray-900">
+                    {t("careOfferings.decisionApprovedFrom", {
+                      date: formatDate(decision.effective_from, false, locale),
+                    })}
+                  </p>
+                )}
               {decision.reason && (
                 <p className="text-sm text-gray-600">
                   {t("careOfferings.decisionReason", {
@@ -462,6 +480,7 @@ export function BookedCareSection({
       {modalOpen && (
         <OfferingChangeRequestModal
           studentId={studentId}
+          childName={childFirstName}
           onClose={() => setModalOpen(false)}
           onSubmit={async (input) => {
             setOfferings(await submitOfferingChangeRequest(studentId, input));

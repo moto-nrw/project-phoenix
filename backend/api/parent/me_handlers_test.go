@@ -181,7 +181,7 @@ func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, in
 }
 
 func (f *fakeParentService) CreateOfferingChangeRequest(
-	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string,
+	context.Context, int64, int64, []enrollmentService.OfferingChangeSelection, timezone.Date, string, bool,
 ) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }

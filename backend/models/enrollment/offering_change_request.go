@@ -47,6 +47,15 @@ type OfferingChangeRequest struct {
 	// are exactly the ones materialized from this approved request child.
 	RequestChildID int64 `bun:"request_child_id,notnull" json:"request_child_id"`
 	SubmittedBy    int64 `bun:"submitted_by,notnull" json:"submitted_by"`
+	// CompleteWithdrawalConfirmed records the guardian's explicit confirmation
+	// when the fully materialized request removes every care day.
+	CompleteWithdrawalConfirmed bool       `bun:"complete_withdrawal_confirmed,notnull,default:false" json:"complete_withdrawal_confirmed"`
+	WithdrawalConfirmedBy       *int64     `bun:"withdrawal_confirmed_by" json:"withdrawal_confirmed_by,omitempty"`
+	WithdrawalConfirmedAt       *time.Time `bun:"withdrawal_confirmed_at" json:"withdrawal_confirmed_at,omitempty"`
+	// ApprovedCompleteWithdrawal records the result staff actually applied.
+	// It is deliberately separate from the guardian's submission confirmation:
+	// catalog and rule changes can leave care days in place at review time.
+	ApprovedCompleteWithdrawal bool `bun:"approved_complete_withdrawal,notnull,default:false" json:"approved_complete_withdrawal"`
 	// Payload is {"offerings":[{"offering_id":<int>,"selected_days":["mon",...]}]}.
 	Payload        map[string]any `bun:"payload,type:jsonb,notnull" json:"payload"`
 	EffectiveFrom  timezone.Date  `bun:"effective_from,notnull,type:date" json:"effective_from"`
@@ -148,6 +157,7 @@ type OfferingChangeRequestRepository interface {
 	// UpdateEffectiveFrom records the date an approved request was actually
 	// applied on when a delayed review moves it forward to today.
 	UpdateEffectiveFrom(ctx context.Context, id int64, effectiveFrom timezone.Date) error
+	UpdateApprovedCompleteWithdrawal(ctx context.Context, id int64, complete bool) error
 
 	// Decide moves a pending row to a terminal status, guarding the transition
 	// in SQL so two reviewers cannot both decide it. Returns
