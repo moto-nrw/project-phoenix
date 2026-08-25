@@ -1011,6 +1011,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Team-Chat mit der Liste der Unterhaltungen und der Schaltfläche für eine neue Nachricht.",
+        image: "/help/screens/team-chat.webp",
       },
       {
         id: "mitarbeiter-admin-profil",
