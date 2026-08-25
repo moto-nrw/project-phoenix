@@ -692,7 +692,7 @@ func (r *ParentAnnouncementRepository) CountReachableGuardiansForStudents(ctx co
 			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
 		WHERE s.tenant_id = ? AND s.id IN (?) AND s.status <> 'alumnus'`
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		tenantID, tenantID, tenantID, bun.In(studentIDs),
+		tenantID, tenantID, tenantID, bun.List(studentIDs),
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: err}
 	}
