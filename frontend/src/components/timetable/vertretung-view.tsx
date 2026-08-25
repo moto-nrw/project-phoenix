@@ -49,6 +49,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { BulkSubstitutionModal } from "~/components/timetable/bulk-substitution-modal";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
+import { cancelledToast } from "~/components/timetable/guardian-notice-toast";
 import { VertretungCoverageNotice } from "~/components/timetable/vertretung-coverage-notice";
 import {
   VertretungDayList,
@@ -561,7 +562,9 @@ function VertretungContent() {
           input,
         );
         if (result.cancelled) {
-          toast.success("Block abgesagt");
+          toast.success(
+            cancelledToast("Block abgesagt", result.guardianNotice),
+          );
           updateUrlParams({ block: null, verlauf: null });
         } else {
           toast.success(deviationSuccessMessage(input, result, staffNames));

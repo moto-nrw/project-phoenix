@@ -31,6 +31,12 @@ import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import {
+  GuardianNoticeFields,
+  guardianNoticeIncomplete,
+  guardianNoticePayload,
+  type GuardianNoticeDraft,
+} from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -45,6 +51,10 @@ import { canCompleteInstance } from "~/lib/timetable-lifecycle";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { InstanceParticipantNames } from "~/lib/timetable-api";
+import type {
+  GuardianNoticeInput,
+  GuardianNoticeReach,
+} from "~/lib/timetable-types";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -71,6 +81,11 @@ import type {
 import { isNotScheduledRow } from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
+
+/** Extras a lifecycle action can carry; today only the cancel notice (#2601). */
+export interface LifecycleActionOptions {
+  guardianNotice?: GuardianNoticeInput;
+}
 
 type PendingConfirmAction = "complete" | "cancel" | "delete" | "reopen";
 
@@ -109,7 +124,10 @@ const CONFIRM_DIALOGS: Record<
 interface InstanceDetailModalProps {
   instance: EnrichedInstance | null;
   onClose: () => void;
-  onLifecycleAction: (action: LifecycleAction) => Promise<void>;
+  onLifecycleAction: (
+    action: LifecycleAction,
+    options?: LifecycleActionOptions,
+  ) => Promise<void>;
   onDeleteCancelled?: (instance: EnrichedInstance) => Promise<void>;
   onDeleteFollowing?: (instance: EnrichedInstance) => Promise<void>;
   onEdit?: (instance: EnrichedInstance) => void;
@@ -571,16 +589,35 @@ export function InstanceDetailModal({
     [students],
   );
 
+  // "Eltern informieren" on cancel (#2601): the fields own the reach lookup,
+  // the modal owns the draft so it travels with the confirm.
+  const [noticeDraft, setNoticeDraft] = useState<GuardianNoticeDraft | null>(
+    null,
+  );
+  const [noticeReach, setNoticeReach] = useState<GuardianNoticeReach | null>(
+    null,
+  );
+
   useEffect(() => {
     setPendingConfirm(null);
     setDeleteScopeOpen(false);
     setPendingDeleteScope(null);
+    setNoticeDraft(null);
+    setNoticeReach(null);
   }, [instance?.id]);
 
-  const handleLifecycle = async (action: LifecycleAction) => {
+  const handleLifecycle = async (
+    action: LifecycleAction,
+    options?: LifecycleActionOptions,
+  ) => {
     setPendingAction(action);
     try {
-      await awaitReportedAction(() => onLifecycleAction(action));
+      // Callers without extras keep the plain single-argument call.
+      await awaitReportedAction(() =>
+        options
+          ? onLifecycleAction(action, options)
+          : onLifecycleAction(action),
+      );
     } finally {
       setPendingAction(null);
     }
@@ -646,6 +683,12 @@ export function InstanceDetailModal({
     setPendingConfirm(null);
     if (action === "delete") {
       await handleDeleteCancelled();
+    } else if (action === "cancel") {
+      const guardianNotice = guardianNoticePayload(noticeDraft, noticeReach);
+      await handleLifecycle(
+        action,
+        guardianNotice ? { guardianNotice } : undefined,
+      );
     } else if (action) {
       await handleLifecycle(action);
     }
@@ -1049,14 +1092,30 @@ export function InstanceDetailModal({
           confirmButtonClass={
             CONFIRM_DIALOGS[pendingConfirm].confirmButtonClass
           }
+          isConfirmDisabled={
+            pendingConfirm === "cancel" &&
+            guardianNoticeIncomplete(noticeDraft, noticeReach)
+          }
         >
-          <p className="text-sm leading-relaxed text-gray-600">
-            {pendingConfirm === "cancel" && instance?.status === "active"
-              ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
-              : pendingConfirm === "delete" && instance?.status === "planned"
-                ? "Der geplante Termin wird dauerhaft entfernt."
-                : CONFIRM_DIALOGS[pendingConfirm].body}
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-gray-600">
+              {pendingConfirm === "cancel" && instance?.status === "active"
+                ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
+                : pendingConfirm === "delete" && instance?.status === "planned"
+                  ? "Der geplante Termin wird dauerhaft entfernt."
+                  : CONFIRM_DIALOGS[pendingConfirm].body}
+            </p>
+            {pendingConfirm === "cancel" && (
+              <GuardianNoticeFields
+                block={instance}
+                today={today}
+                draft={noticeDraft}
+                onDraftChange={setNoticeDraft}
+                onReachChange={setNoticeReach}
+                disabled={pendingAction !== null}
+              />
+            )}
+          </div>
         </ConfirmationModal>
       )}
       <ChoiceModal

@@ -68,6 +68,13 @@ import {
   type PersonForm,
 } from "./substitution-deviation-input";
 import { SubstitutionPersonCard } from "./substitution-person-card";
+import {
+  GuardianNoticeFields,
+  guardianNoticeIncomplete,
+  guardianNoticePayload,
+  type GuardianNoticeDraft,
+} from "./guardian-notice-fields";
+import type { GuardianNoticeReach } from "~/lib/timetable-types";
 
 interface StaffOption {
   id: string;
@@ -178,6 +185,13 @@ export function SubstitutionSlideOver({
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
   const [cancel, setCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
+  // "Eltern informieren" on cancel (#2601); see GuardianNoticeFields.
+  const [noticeDraft, setNoticeDraft] = useState<GuardianNoticeDraft | null>(
+    null,
+  );
+  const [noticeReach, setNoticeReach] = useState<GuardianNoticeReach | null>(
+    null,
+  );
   const [unstaffed, setUnstaffed] = useState(false);
   const [unstaffedReason, setUnstaffedReason] = useState("");
   // Existing substitutes staged for removal from the opened appointment.
@@ -248,6 +262,8 @@ export function SubstitutionSlideOver({
     setPeople(seed);
     setCancel(false);
     setCancelReason("");
+    setNoticeDraft(null);
+    setNoticeReach(null);
     setUnstaffed(instance.understaffedAck === true);
     setUnstaffedReason(instance.understaffedNote ?? "");
     setRemovedSubs(new Set());
@@ -447,6 +463,7 @@ export function SubstitutionSlideOver({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
+    if (cancel && guardianNoticeIncomplete(noticeDraft, noticeReach)) return;
     setSaving(true);
     try {
       // Cancel is exclusive — it maps to the backend's cancel branch and ignores
@@ -456,6 +473,7 @@ export function SubstitutionSlideOver({
         const ok = await onApply({
           cancel: true,
           cancelReason: cancelReason.trim() || undefined,
+          guardianNotice: guardianNoticePayload(noticeDraft, noticeReach),
         });
         // Only close on a committed save — a failed cancel keeps the form open
         // so the edits survive for a retry (#1840).
@@ -864,7 +882,16 @@ export function SubstitutionSlideOver({
                         value={cancelReason}
                         maxLength={500}
                         onChange={(e) => setCancelReason(e.target.value)}
-                        placeholder="Grund (optional)"
+                        placeholder="Grund (optional, nur intern)"
+                      />
+                      <GuardianNoticeFields
+                        block={instance}
+                        today={berlinTodayISO()}
+                        draft={noticeDraft}
+                        onDraftChange={setNoticeDraft}
+                        onReachChange={setNoticeReach}
+                        disabled={saving}
+                        compact
                       />
                     </div>
                   </section>
@@ -926,7 +953,11 @@ export function SubstitutionSlideOver({
                       isLoading={saving}
                       loadingText="Speichere …"
                       disabled={
-                        saving || !hasChanges || (!cancel && !peopleValid)
+                        saving ||
+                        !hasChanges ||
+                        (!cancel && !peopleValid) ||
+                        (cancel &&
+                          guardianNoticeIncomplete(noticeDraft, noticeReach))
                       }
                     >
                       Speichern

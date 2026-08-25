@@ -714,6 +714,44 @@ export interface InstanceStatusResult {
   status: InstanceStatus;
   completedAt?: string;
   reopenUntil?: string;
+  /** Set when a cancellation informed the families (#2601). */
+  guardianNotice?: GuardianNoticeResult;
+}
+
+/**
+ * "Eltern informieren" on a cancellation (#2601): the text written for the
+ * families. Deliberately separate from the internal cancel reason.
+ */
+export interface GuardianNoticeInput {
+  title: string;
+  message: string;
+}
+
+export interface GuardianNoticeResult {
+  announcementId: string;
+  childCount: number;
+  familyCount: number;
+}
+
+/** Preview the cancel dialog shows before anything is sent. */
+export interface GuardianNoticeReach {
+  enabled: boolean;
+  defaultOn: boolean;
+  childCount: number;
+  familyCount: number;
+}
+
+export interface BackendGuardianNoticeResult {
+  announcement_id: number;
+  child_count: number;
+  family_count: number;
+}
+
+export interface BackendGuardianNoticeReach {
+  enabled: boolean;
+  default_on: boolean;
+  child_count: number;
+  family_count: number;
 }
 
 export interface BackendStartInstanceResult {
@@ -734,6 +772,7 @@ export interface BackendInstanceStatusResult {
   status: InstanceStatus;
   completed_at?: string;
   reopen_until?: string;
+  guardian_notice?: BackendGuardianNoticeResult;
 }
 
 export interface AttendancePatchBody {
@@ -811,6 +850,8 @@ interface BackendSubstituteAffectedInstance {
 export interface ApplyDeviationsInput {
   cancel?: boolean;
   cancelReason?: string;
+  /** Informs the families when cancel is set (#2601). */
+  guardianNotice?: GuardianNoticeInput;
   understaffedAck?: boolean;
   understaffedNote?: string;
   absences?: Array<{
@@ -834,6 +875,7 @@ export interface ApplyDeviationsResponse {
   understaffedAck: boolean;
   affectedInstances: SubstituteAffectedInstance[];
   warnings: SubstituteTimeConflict[];
+  guardianNotice?: GuardianNoticeResult;
 }
 
 export interface BackendApplyDeviationsResponse {
@@ -842,6 +884,7 @@ export interface BackendApplyDeviationsResponse {
   understaffed_ack: boolean;
   affected_instances: BackendSubstituteAffectedInstance[];
   warnings: BackendSubstituteTimeConflict[];
+  guardian_notice?: BackendGuardianNoticeResult;
 }
 
 /**
