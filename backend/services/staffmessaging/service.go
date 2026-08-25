@@ -299,12 +299,16 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 		return nil, err
 	}
 
-	// The sender has by definition read their own message; advancing their
-	// cursor here keeps a just-sent message out of their own unread badge even
-	// before they reopen the thread.
-	if err := s.ReadRepo.MarkReadUpTo(ctx, threadID, accountID, message.CreatedAt, message.ID); err != nil {
-		return nil, err
-	}
+	// Deliberately NO read-cursor advance here.
+	//
+	// The tempting version ("you have read what you just wrote") is both
+	// unnecessary and wrong. Unnecessary: the unread predicate already excludes
+	// the reader's own messages (sender_account_id <> reader), so a just-sent
+	// message can never count against its author. Wrong: the cursor is a
+	// thread-wide watermark, so jumping it to the new message drags it past
+	// everything the counterpart sent while this one was being typed - silently
+	// clearing their unread signal for messages the sender never saw.
+	// TestSendingDoesNotSwallowIncomingUnread pins this.
 
 	s.notifyAfterCommit(ctx, thread, message, accountID)
 	return message, nil

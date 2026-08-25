@@ -358,3 +358,53 @@ func TestInboxOnlyUnreadFilter(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, unread)
 }
+
+// TestSendingDoesNotSwallowIncomingUnread is the regression guard for the
+// interleaved-send case: while Anna composes a reply, Ben writes two messages.
+// Anna's own send must not mark those two as read - she never saw them.
+//
+// The trap it guards: advancing the sender's cursor to their just-sent message
+// looks harmless ("you have read what you wrote"), but the cursor is a
+// thread-wide watermark, so it drags past everything the counterpart sent in
+// between. It is also unnecessary - the unread predicate already excludes the
+// reader's own messages - which is why the fix was to stop advancing at all.
+func TestSendingDoesNotSwallowIncomingUnread(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+
+	// Anna opens the conversation, so her cursor sits at the start.
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Kurze Frage")
+	require.NoError(t, err)
+	_, err = svc.GetThread(asAccount(t, ben), thread.ThreadID)
+	require.NoError(t, err)
+
+	// Ben answers twice while Anna is typing.
+	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Antwort eins")
+	require.NoError(t, err)
+	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Antwort zwei")
+	require.NoError(t, err)
+
+	before, err := svc.UnreadMessageCount(asAccount(t, anna))
+	require.NoError(t, err)
+	require.Equal(t, 2, before, "Ben's two messages are unread to Anna")
+
+	// Anna sends her own message without having opened the thread.
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Ach, hat sich erledigt")
+	require.NoError(t, err)
+
+	after, err := svc.UnreadMessageCount(asAccount(t, anna))
+	require.NoError(t, err)
+	assert.Equal(t, 2, after,
+		"sending must not mark the counterpart's unseen messages as read")
+
+	// And her own message still is not unread to her - the predicate excludes it.
+	inbox, err := svc.ListInbox(asAccount(t, anna), false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, 2, inbox[0].UnreadCount)
+}
