@@ -62,6 +62,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -171,12 +172,14 @@ type Factory struct {
 	CareRequests         schedule.CareScheduleRequestService
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
-	OfferingChanges         enrollment.OfferingChangeRequestService
-	PickupAdjustments       enrollment.PickupAdjustmentService
-	ExcusedRequests         absence.ExcusedAbsenceRequestService
-	StudentStatusDays       *active.StudentStatusDayService
-	AbsenceOverview         *active.StudentStatusDayOverviewService
-	StudentHistory          active.StudentHistoryService
+	OfferingChanges   enrollment.OfferingChangeRequestService
+	PickupAdjustments enrollment.PickupAdjustmentService
+	ExcusedRequests   absence.ExcusedAbsenceRequestService
+	StudentStatusDays *active.StudentStatusDayService
+	AbsenceOverview   *active.StudentStatusDayOverviewService
+	StudentHistory    active.StudentHistoryService
+	// Statistics is the Statistik report (#2606).
+	Statistics              statistics.Service
 	OGSGroupLive            ogsgrouplive.Getter
 	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
@@ -2445,25 +2448,36 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// two narrower interfaces so that each handler depends only on the
 		// methods it actually calls. NewOperatorAuthService returns the
 		// combined interface, so both fields can be assigned directly.
-		OperatorAuth:            operatorAuthService,
-		OperatorInvitation:      operatorAuthService,
-		OperatorProvisioning:    operatorProvisioningService,
-		Announcement:            announcementService,
-		Schools:                 platform.NewSchoolService(repos.School),
-		WorkTimeModels:          workTimeModelService,
-		Students:                studentService,
-		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		StudentDeletion:         studentDeletionService,
-		CareLifecycle:           careLifecycleService,
-		StudentAudit:            studentAuditService,
-		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
-		CareRequests:            careRequestService,
-		OfferingChanges:         offeringChangeRequestService,
-		PickupAdjustments:       pickupAdjustmentService,
-		ExcusedRequests:         excusedRequestService,
-		StudentStatusDays:       studentStatusDayService,
-		AbsenceOverview:         studentStatusDayOverviewService,
-		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		OperatorAuth:         operatorAuthService,
+		OperatorInvitation:   operatorAuthService,
+		OperatorProvisioning: operatorProvisioningService,
+		Announcement:         announcementService,
+		Schools:              platform.NewSchoolService(repos.School),
+		WorkTimeModels:       workTimeModelService,
+		Students:             studentService,
+		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
+		StudentDeletion:      studentDeletionService,
+		CareLifecycle:        careLifecycleService,
+		StudentAudit:         studentAuditService,
+		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
+		CareRequests:         careRequestService,
+		OfferingChanges:      offeringChangeRequestService,
+		PickupAdjustments:    pickupAdjustmentService,
+		ExcusedRequests:      excusedRequestService,
+		StudentStatusDays:    studentStatusDayService,
+		AbsenceOverview:      studentStatusDayOverviewService,
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		Statistics: statistics.NewService(statistics.Config{
+			Statistics:  repos.Statistics,
+			Holidays:    holidayService,
+			ClosingDays: closingDayService,
+			Periods:     repos.CalendarPeriod,
+			Students:    repos.Student,
+			Rooms:       repos.Room,
+			AccessLog:   repos.DataAccessLog,
+			Settings:    settingsService,
+			Logger:      logger.With("service", "statistics"),
+		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,

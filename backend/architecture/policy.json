@@ -255,6 +255,10 @@
       "kind": "inbound"
     },
     {
+      "id": "inbound-statistics",
+      "kind": "inbound"
+    },
+    {
       "id": "inbound-students",
       "kind": "inbound"
     },
@@ -712,6 +716,13 @@
     {
       "path": "api/staff-shifts",
       "owner": "inbound-staff-shifts",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/statistics",
+      "owner": "inbound-statistics",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -1601,6 +1612,13 @@
     {
       "path": "services/slotlists",
       "owner": "class-day-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/statistics",
+      "owner": "student-presence",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"

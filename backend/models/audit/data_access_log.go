@@ -57,6 +57,11 @@ const (
 	// gets its own resource type — and, unlike the class day view, no
 	// deduplication: the sheet opens only on a deliberate tap.
 	ResourceTypeSupervisionStudentSheet = "supervision_student_sheet"
+
+	// ResourceTypeAttendanceStatistics is the Statistik report (#2606):
+	// attendance quotas per child over a window. Views are deduplicated per
+	// actor and window; every export writes its own row.
+	ResourceTypeAttendanceStatistics = "attendance_statistics"
 )
 
 // DataAccessLog is an append-only record of a staff member viewing sensitive

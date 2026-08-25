@@ -136,13 +136,15 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup           activeModels.GroupRepository
-	ActiveVisit           activeModels.VisitRepository
-	GroupSupervisor       activeModels.GroupSupervisorRepository
-	CombinedGroup         activeModels.CombinedGroupRepository
-	GroupMapping          activeModels.GroupMappingRepository
-	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	ActiveGroup      activeModels.GroupRepository
+	ActiveVisit      activeModels.VisitRepository
+	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CombinedGroup    activeModels.CombinedGroupRepository
+	GroupMapping     activeModels.GroupMappingRepository
+	Attendance       activeModels.AttendanceRepository
+	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
+	// Statistics serves the aggregate reads of the Statistik page (#2606).
+	Statistics            activeModels.StatisticsRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
@@ -363,6 +365,7 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupMapping:          active.NewGroupMappingRepository(db),
 		Attendance:            active.NewAttendanceRepository(db),
 		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		Statistics:            active.NewStatisticsRepository(db),
 		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:           active.NewWorkSessionRepository(db),
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
