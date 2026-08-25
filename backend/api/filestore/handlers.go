@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/render"
@@ -18,22 +19,25 @@ import (
 
 // --- wire types ------------------------------------------------------------
 
-// FolderRequest is the body of a folder create or update.
+// FolderRequest is the body of a folder create or update. The share lists
+// arrive as decimal strings; a JSON number still decodes (common.JSONID), so
+// nothing that already talks to this endpoint breaks.
 type FolderRequest struct {
-	Name       string  `json:"name"`
-	Visibility string  `json:"visibility"`
-	RoleIDs    []int64 `json:"role_ids"`
-	AccountIDs []int64 `json:"account_ids"`
+	Name       string          `json:"name"`
+	Visibility string          `json:"visibility"`
+	RoleIDs    []common.JSONID `json:"role_ids"`
+	AccountIDs []common.JSONID `json:"account_ids"`
 }
 
-// FolderResponse is one folder on the wire.
+// FolderResponse is one folder on the wire. Ids are decimal strings — see
+// idString.
 type FolderResponse struct {
-	ID         int64     `json:"id"`
+	ID         string    `json:"id"`
 	Name       string    `json:"name"`
 	Visibility string    `json:"visibility"`
 	FileCount  int64     `json:"file_count"`
-	RoleIDs    []int64   `json:"role_ids"`
-	AccountIDs []int64   `json:"account_ids"`
+	RoleIDs    []string  `json:"role_ids"`
+	AccountIDs []string  `json:"account_ids"`
 	CreatedAt  time.Time `json:"created_at"`
 }
 
@@ -50,13 +54,13 @@ type FolderListResponse struct {
 
 // FileResponse is one file on the wire.
 type FileResponse struct {
-	ID          int64     `json:"id"`
-	FolderID    int64     `json:"folder_id"`
+	ID          string    `json:"id"`
+	FolderID    string    `json:"folder_id"`
 	Filename    string    `json:"filename"`
 	SizeBytes   int64     `json:"size_bytes"`
 	ContentType string    `json:"content_type"`
 	UploadedAt  time.Time `json:"uploaded_at"`
-	UploadedBy  int64     `json:"uploaded_by"`
+	UploadedBy  string    `json:"uploaded_by"`
 	CanDelete   bool      `json:"can_delete"`
 }
 
@@ -74,45 +78,69 @@ type AudienceResponse struct {
 
 // AudienceRoleResponse is one shareable role.
 type AudienceRoleResponse struct {
-	ID   int64  `json:"id"`
+	ID   string `json:"id"`
 	Name string `json:"name"`
 }
 
 // AudienceAccountResponse is one shareable person.
 type AudienceAccountResponse struct {
-	AccountID int64  `json:"account_id"`
+	AccountID string `json:"account_id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 }
 
-func emptyIfNil(ids []int64) []int64 {
-	if ids == nil {
-		return []int64{}
+// idString renders a database id the way this API carries every id: a decimal
+// string. Ids are bigints and JavaScript has no integer type that holds one —
+// JSON.parse rounds anything past 2^53 silently, and a rounded id is a valid
+// id for a different row.
+func idString(id int64) string {
+	return strconv.FormatInt(id, 10)
+}
+
+// idStrings renders a share list, empty rather than null so the UI can iterate
+// without a guard.
+func idStrings(ids []int64) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, idString(id))
 	}
-	return ids
+	return out
+}
+
+// int64IDs unwraps a decoded share list. nil stays nil: "no list sent" and
+// "empty list sent" are different requests to the service.
+func int64IDs(ids []common.JSONID) []int64 {
+	if ids == nil {
+		return nil
+	}
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, id.Int64())
+	}
+	return out
 }
 
 func newFolderResponse(view *filestoreSvc.FolderView) FolderResponse {
 	return FolderResponse{
-		ID:         view.ID,
+		ID:         idString(view.ID),
 		Name:       view.Name,
 		Visibility: view.Visibility,
 		FileCount:  view.FileCount,
-		RoleIDs:    emptyIfNil(view.Audience.RoleIDs),
-		AccountIDs: emptyIfNil(view.Audience.AccountIDs),
+		RoleIDs:    idStrings(view.Audience.RoleIDs),
+		AccountIDs: idStrings(view.Audience.AccountIDs),
 		CreatedAt:  view.CreatedAt,
 	}
 }
 
 func newFileResponse(file *filestore.File, canDelete bool) FileResponse {
 	return FileResponse{
-		ID:          file.ID,
-		FolderID:    file.FolderID,
+		ID:          idString(file.ID),
+		FolderID:    idString(file.FolderID),
 		Filename:    file.FilenameDisplay,
 		SizeBytes:   file.SizeBytes,
 		ContentType: file.ContentType,
 		UploadedAt:  file.CreatedAt,
-		UploadedBy:  file.UploadedBy,
+		UploadedBy:  idString(file.UploadedBy),
 		CanDelete:   canDelete,
 	}
 }
@@ -121,8 +149,8 @@ func folderInput(req FolderRequest) filestoreSvc.FolderInput {
 	return filestoreSvc.FolderInput{
 		Name:       req.Name,
 		Visibility: req.Visibility,
-		RoleIDs:    req.RoleIDs,
-		AccountIDs: req.AccountIDs,
+		RoleIDs:    int64IDs(req.RoleIDs),
+		AccountIDs: int64IDs(req.AccountIDs),
 	}
 }
 
@@ -217,7 +245,7 @@ func (rs *Resource) deleteFolder(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, map[string]int64{"folder_id": folderID}, "Folder deleted successfully")
+	common.Respond(w, r, http.StatusOK, map[string]string{"folder_id": idString(folderID)}, "Folder deleted successfully")
 }
 
 // listAudience serves GET /audience: the roles and persons a folder can be
@@ -238,11 +266,11 @@ func (rs *Resource) listAudience(w http.ResponseWriter, r *http.Request) {
 		Accounts: make([]AudienceAccountResponse, 0, len(options.Accounts)),
 	}
 	for _, role := range options.Roles {
-		resp.Roles = append(resp.Roles, AudienceRoleResponse{ID: role.ID, Name: role.Name})
+		resp.Roles = append(resp.Roles, AudienceRoleResponse{ID: idString(role.ID), Name: role.Name})
 	}
 	for _, account := range options.Accounts {
 		resp.Accounts = append(resp.Accounts, AudienceAccountResponse{
-			AccountID: account.AccountID,
+			AccountID: idString(account.AccountID),
 			FirstName: account.FirstName,
 			LastName:  account.LastName,
 		})
@@ -500,5 +528,5 @@ func (rs *Resource) deleteFile(w http.ResponseWriter, r *http.Request) {
 			coordinator.CleanupDocument(tenantID, folderID, id, storedName, "delete")
 		})
 	}
-	common.Respond(w, r, http.StatusOK, map[string]int64{"folder_id": folderID}, "File deleted successfully")
+	common.Respond(w, r, http.StatusOK, map[string]string{"folder_id": idString(folderID)}, "File deleted successfully")
 }

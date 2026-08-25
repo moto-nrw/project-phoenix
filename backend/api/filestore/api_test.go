@@ -16,6 +16,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -119,33 +120,40 @@ func (c *apiContext) upload(folderID int64, filename string, content []byte, acc
 	return c.do(http.MethodPost, fmt.Sprintf("/files/folders/%d/files", folderID), &buf, writer.FormDataContentType(), accountID, perms...)
 }
 
+// folderPayload mirrors what the frontend sends: ids as decimal strings.
 type folderPayload struct {
-	Name       string  `json:"name"`
-	Visibility string  `json:"visibility"`
-	RoleIDs    []int64 `json:"role_ids,omitempty"`
-	AccountIDs []int64 `json:"account_ids,omitempty"`
+	Name       string   `json:"name"`
+	Visibility string   `json:"visibility"`
+	RoleIDs    []string `json:"role_ids,omitempty"`
+	AccountIDs []string `json:"account_ids,omitempty"`
 }
+
+// idStr renders an id the way the client carries it.
+func idStr(id int64) string { return strconv.FormatInt(id, 10) }
 
 func (c *apiContext) createFolder(payload folderPayload) int64 {
 	rec := c.json(http.MethodPost, "/files/folders", payload, c.admin, permissions.AdminWildcard)
 	require.Equal(c.t, http.StatusCreated, rec.Code, rec.Body.String())
+	// Ids leave this API quoted: a bigint id does not survive JSON.parse as a
+	// number. Pinned on the raw body, because the decode below accepts both.
+	assert.Contains(c.t, rec.Body.String(), `"id":"`, "folder id must be a string")
 	var resp struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID common.JSONID `json:"id"`
 		} `json:"data"`
 	}
 	require.NoError(c.t, json.Unmarshal(rec.Body.Bytes(), &resp))
-	return resp.Data.ID
+	return resp.Data.ID.Int64()
 }
 
 type folderListData struct {
 	Folders []struct {
-		ID         int64   `json:"id"`
-		Name       string  `json:"name"`
-		Visibility string  `json:"visibility"`
-		FileCount  int64   `json:"file_count"`
-		RoleIDs    []int64 `json:"role_ids"`
-		AccountIDs []int64 `json:"account_ids"`
+		ID         common.JSONID `json:"id"`
+		Name       string        `json:"name"`
+		Visibility string        `json:"visibility"`
+		FileCount  int64         `json:"file_count"`
+		RoleIDs    []string      `json:"role_ids"`
+		AccountIDs []string      `json:"account_ids"`
 	} `json:"folders"`
 	CanManage          bool `json:"can_manage"`
 	CanUpload          bool `json:"can_upload"`
@@ -165,7 +173,7 @@ func (c *apiContext) listFolders(accountID int64, perms ...string) folderListDat
 func folderIDs(list folderListData) []int64 {
 	ids := make([]int64, 0, len(list.Folders))
 	for _, folder := range list.Folders {
-		ids = append(ids, folder.ID)
+		ids = append(ids, folder.ID.Int64())
 	}
 	return ids
 }
@@ -197,8 +205,8 @@ func TestFolderVisibilityPerViewer(t *testing.T) {
 
 	all := c.createFolder(folderPayload{Name: "Konzeption", Visibility: "all_staff"})
 	admins := c.createFolder(folderPayload{Name: "Leitung intern", Visibility: "admins"})
-	selectedRole := c.createFolder(folderPayload{Name: "Hausaufgaben", Visibility: "selected", RoleIDs: []int64{role.ID}})
-	selectedPerson := c.createFolder(folderPayload{Name: "Nur Team-Mitglied", Visibility: "selected", AccountIDs: []int64{c.member}})
+	selectedRole := c.createFolder(folderPayload{Name: "Hausaufgaben", Visibility: "selected", RoleIDs: []string{idStr(role.ID)}})
+	selectedPerson := c.createFolder(folderPayload{Name: "Nur Team-Mitglied", Visibility: "selected", AccountIDs: []string{idStr(c.member)}})
 
 	adminList := c.listFolders(c.admin, permissions.AdminWildcard)
 	assert.True(t, adminList.CanManage)
@@ -261,7 +269,7 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Leer", Visibility: "selected"}, c.admin, permissions.AdminWildcard)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "selected folder needs an audience")
 
-	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Fremd", Visibility: "selected", RoleIDs: []int64{999_999_999}}, c.admin, permissions.AdminWildcard)
+	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Fremd", Visibility: "selected", RoleIDs: []string{idStr(999_999_999)}}, c.admin, permissions.AdminWildcard)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "unknown role is refused")
 
 	rec = c.json(http.MethodPut, fmt.Sprintf("/files/folders/%d", folder), folderPayload{Name: "Umbenannt", Visibility: "admins"}, c.admin, permissions.AdminWildcard)
@@ -273,17 +281,17 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 	var audience struct {
 		Data struct {
 			Roles []struct {
-				ID int64 `json:"id"`
+				ID common.JSONID `json:"id"`
 			} `json:"roles"`
 			Accounts []struct {
-				AccountID int64 `json:"account_id"`
+				AccountID common.JSONID `json:"account_id"`
 			} `json:"accounts"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &audience))
 	accountIDs := make([]int64, 0, len(audience.Data.Accounts))
 	for _, account := range audience.Data.Accounts {
-		accountIDs = append(accountIDs, account.AccountID)
+		accountIDs = append(accountIDs, account.AccountID.Int64())
 	}
 	assert.Contains(t, accountIDs, c.member)
 	assert.Contains(t, accountIDs, c.admin)
@@ -301,12 +309,13 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 
 	rec = c.upload(folder, "Elternbrief.pdf", fakePDF, c.admin, permissions.AdminWildcard)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"id":"`, "file id must be a string")
 	var uploaded struct {
 		Data struct {
-			ID        int64  `json:"id"`
-			Filename  string `json:"filename"`
-			SizeBytes int64  `json:"size_bytes"`
-			CanDelete bool   `json:"can_delete"`
+			ID        common.JSONID `json:"id"`
+			Filename  string        `json:"filename"`
+			SizeBytes int64         `json:"size_bytes"`
+			CanDelete bool          `json:"can_delete"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &uploaded))
@@ -322,8 +331,8 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	var listed struct {
 		Data struct {
 			Files []struct {
-				ID        int64 `json:"id"`
-				CanDelete bool  `json:"can_delete"`
+				ID        common.JSONID `json:"id"`
+				CanDelete bool          `json:"can_delete"`
 			} `json:"files"`
 		} `json:"data"`
 	}
@@ -332,7 +341,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	assert.False(t, listed.Data.Files[0].CanDelete)
 
 	// Download serves the original name as an attachment.
-	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "filename=Elternbrief.pdf")
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
@@ -340,7 +349,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 
 	// ?inline=1 shows a PDF in the browser, sandboxed; an office file stays a
 	// download regardless of the flag.
-	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, uploaded.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, "inline; filename=Elternbrief.pdf", rec.Header().Get("Content-Disposition"))
 	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "sandbox")
@@ -350,23 +359,23 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	var sheet struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID common.JSONID `json:"id"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &sheet))
-	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, sheet.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, sheet.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment;")
 	assert.Empty(t, rec.Header().Get("Content-Security-Policy"))
 
 	// Members cannot delete somebody else's file.
-	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, uploaded.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, uploaded.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
-	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, uploaded.Data.ID), nil, "", c.admin, permissions.AdminWildcard)
+	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, uploaded.Data.ID.Int64()), nil, "", c.admin, permissions.AdminWildcard)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID), nil, "", c.admin, permissions.AdminWildcard)
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download", folder, uploaded.Data.ID.Int64()), nil, "", c.admin, permissions.AdminWildcard)
 	assert.Equal(t, http.StatusNotFound, rec.Code, "deleted file is gone")
 
 	var events int
@@ -393,7 +402,7 @@ func TestStaffUploadSetting(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	var own struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID common.JSONID `json:"id"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &own))
@@ -406,15 +415,15 @@ func TestStaffUploadSetting(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	var foreign struct {
 		Data struct {
-			ID int64 `json:"id"`
+			ID common.JSONID `json:"id"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &foreign))
 
 	// Own upload: deletable. Somebody else's: not.
-	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, foreign.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, foreign.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, own.Data.ID), nil, "", c.member, permissions.UsersRead)
+	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, own.Data.ID.Int64()), nil, "", c.member, permissions.UsersRead)
 	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 

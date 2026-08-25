@@ -72,13 +72,16 @@ interface FolderInput {
   accountIds: string[];
 }
 
+// Ids arrive as decimal strings: they are PostgreSQL bigints, and JSON.parse
+// rounds anything past Number.MAX_SAFE_INTEGER silently — a rounded id
+// addresses a different folder or file.
 interface BackendFolder {
-  id: number;
+  id: string;
   name: string;
   visibility: FolderVisibility;
   file_count: number;
-  role_ids: number[];
-  account_ids: number[];
+  role_ids: string[];
+  account_ids: string[];
   created_at: string;
 }
 
@@ -92,13 +95,13 @@ interface BackendFolderList {
 }
 
 interface BackendFile {
-  id: number;
-  folder_id: number;
+  id: string;
+  folder_id: string;
   filename: string;
   size_bytes: number;
   content_type: string;
   uploaded_at: string;
-  uploaded_by: number;
+  uploaded_by: string;
   can_delete: boolean;
 }
 
@@ -108,31 +111,31 @@ interface BackendFolderFiles {
 }
 
 interface BackendAudience {
-  roles: { id: number; name: string }[];
-  accounts: { account_id: number; first_name: string; last_name: string }[];
+  roles: { id: string; name: string }[];
+  accounts: { account_id: string; first_name: string; last_name: string }[];
 }
 
 function mapFolder(data: BackendFolder): FileFolder {
   return {
-    id: data.id.toString(),
+    id: data.id,
     name: data.name,
     visibility: data.visibility,
     fileCount: data.file_count,
-    roleIds: (data.role_ids ?? []).map((id) => id.toString()),
-    accountIds: (data.account_ids ?? []).map((id) => id.toString()),
+    roleIds: data.role_ids ?? [],
+    accountIds: data.account_ids ?? [],
     createdAt: data.created_at,
   };
 }
 
 function mapFile(data: BackendFile): StoredFile {
   return {
-    id: data.id.toString(),
-    folderId: data.folder_id.toString(),
+    id: data.id,
+    folderId: data.folder_id,
     filename: data.filename,
     sizeBytes: data.size_bytes,
     contentType: data.content_type,
     uploadedAt: data.uploaded_at,
-    uploadedBy: data.uploaded_by.toString(),
+    uploadedBy: data.uploaded_by,
     canDelete: data.can_delete,
   };
 }
@@ -197,8 +200,8 @@ function toBackendFolderInput(input: FolderInput) {
   return {
     name: input.name,
     visibility: input.visibility,
-    role_ids: input.roleIds.map(Number),
-    account_ids: input.accountIds.map(Number),
+    role_ids: input.roleIds,
+    account_ids: input.accountIds,
   };
 }
 
@@ -269,11 +272,11 @@ class FilesService {
     const json = (await response.json()) as { data: BackendAudience };
     return {
       roles: json.data.roles.map((role) => ({
-        id: role.id.toString(),
+        id: role.id,
         name: role.name,
       })),
       accounts: json.data.accounts.map((account) => ({
-        accountId: account.account_id.toString(),
+        accountId: account.account_id,
         firstName: account.first_name,
         lastName: account.last_name,
       })),

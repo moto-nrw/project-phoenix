@@ -29,6 +29,7 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatCard } from "~/components/ui/stat-card";
 import { formatDate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
@@ -273,11 +274,13 @@ export function FilesPage() {
             <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
             {canManage && overview && overview.maxBytes > 0 && (
               <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                <QuotaStat
+                <StatCard
+                  variant="tile"
                   label="Belegter Speicherplatz"
                   value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
                 />
-                <QuotaStat
+                <StatCard
+                  variant="tile"
                   label="Team darf hochladen"
                   value={
                     overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
@@ -332,15 +335,6 @@ export function FilesPage() {
         loading={deletingFolder}
         error={deleteFolderError}
       />
-    </div>
-  );
-}
-
-function QuotaStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <p className="text-sm font-semibold text-gray-900">{value}</p>
-      <p className="text-[11px] text-gray-500">{label}</p>
     </div>
   );
 }
