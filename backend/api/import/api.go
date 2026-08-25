@@ -272,8 +272,7 @@ func studentTemplateColumns() []struct {
 	}
 	for n := 1; n <= studentTemplateGuardianCount; n++ {
 		for _, c := range studentGuardianColumns {
-			required := n == 1 && (c == "Vorname" || c == "Nachname" || c == "Email")
-			cols = append(cols, col{fmt.Sprintf("Erz%d.%s", n, c), required})
+			cols = append(cols, col{fmt.Sprintf("Erz%d.%s", n, c), false})
 		}
 	}
 	cols = append(cols,

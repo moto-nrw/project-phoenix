@@ -357,7 +357,16 @@ export default function StudentImportPage() {
         const errorDisplayData: DisplayStudent[] = importData.Errors.map(
           (row) => ({
             row: row.RowNumber,
-            status: "error" as const,
+            status: row.Errors.some(
+              (error) =>
+                error.code === "already_exists" || error.code === "will_update",
+            )
+              ? "existing"
+              : row.Errors.some((error) => error.severity === "error")
+                ? "error"
+                : row.Errors.some((error) => error.severity === "warning")
+                  ? "warning"
+                  : "new",
             ...splitMessages(row.Errors),
             first_name: row.Data.first_name,
             last_name: row.Data.last_name,

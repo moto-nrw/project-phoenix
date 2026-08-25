@@ -837,6 +837,25 @@ func (c *StaffImportConfig) indexStaff(staff *userModels.Staff) {
 	}
 }
 
+func (c *StaffImportConfig) unindexStaff(staff *userModels.Staff) {
+	if staff.PersonnelNumber != nil {
+		delete(c.staffByPersonnelNumber, strings.ToLower(strings.TrimSpace(*staff.PersonnelNumber)))
+	}
+	if staff.Person != nil {
+		key := staffNameKey(staff.Person.FirstName, staff.Person.LastName)
+		candidates := c.staffByName[key]
+		for i, candidate := range candidates {
+			if candidate.ID == staff.ID {
+				c.staffByName[key] = append(candidates[:i], candidates[i+1:]...)
+				break
+			}
+		}
+		if len(c.staffByName[key]) == 0 {
+			delete(c.staffByName, key)
+		}
+	}
+}
+
 // invite issues the portal invitation for a freshly imported person.
 func (c *StaffImportConfig) invite(ctx context.Context, personID int64, row importModels.StaffImportRow) error {
 	email, err := normalizeStaffEmail(row.Email)
@@ -983,6 +1002,8 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staffID int64, ro
 	if person == nil {
 		return errors.New("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
 	}
+	staff.Person = person
+	c.unindexStaff(staff)
 
 	if row.PersonnelNumber != "" {
 		pn := strings.ToLower(row.PersonnelNumber)
@@ -1056,7 +1077,6 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staffID int64, ro
 		return err
 	}
 
-	staff.Person = person
 	c.indexStaff(staff)
 	return nil
 }
