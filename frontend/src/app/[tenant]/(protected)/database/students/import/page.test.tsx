@@ -1099,8 +1099,7 @@ describe("StudentImportPage", () => {
       (call) => call[0] === "/api/import/students/preview",
     );
     expect(previewCall).toBeDefined();
-    expect((previewCall?.[1] as { body: FormData }).body.get("mode")).toBe(
-      "update",
-    );
+    const previewInit = previewCall![1] as { body: FormData };
+    expect(previewInit.body.get("mode")).toBe("update");
   });
 });

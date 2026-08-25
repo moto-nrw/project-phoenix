@@ -742,7 +742,7 @@ describe("StaffImportPage", () => {
       (call) => call[0] === "/api/import/teachers/preview",
     );
     expect(previewCall).toBeDefined();
-    const body = (previewCall?.[1] as { body: FormData }).body;
+    const body = (previewCall![1] as { body: FormData }).body;
     expect(body.get("mode")).toBe("upsert");
 
     // Switching the mode re-runs the preview with the new value.
@@ -754,9 +754,8 @@ describe("StaffImportPage", () => {
         (call) => call[0] === "/api/import/teachers/preview",
       );
       expect(calls).toHaveLength(2);
-      expect((calls[1]?.[1] as { body: FormData }).body.get("mode")).toBe(
-        "update",
-      );
+      const secondInit = calls[1]![1] as { body: FormData };
+      expect(secondInit.body.get("mode")).toBe("update");
     });
     expect(screen.getByText("2 Mitarbeiter aktualisieren")).toBeInTheDocument();
   });

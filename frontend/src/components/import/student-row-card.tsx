@@ -4,6 +4,8 @@ interface DisplayRow {
   row: number;
   status: RowStatus;
   errors: string[];
+  /** Non-blocking hints (info severity), shown in gray instead of red. */
+  notes?: string[];
   first_name: string;
   last_name: string;
   /**
@@ -83,6 +85,11 @@ export function StudentRowCard({ student, index }: StudentRowCardProps) {
           {student.errors.length > 0 && (
             <p className="text-moto-red-strong mt-1 text-xs">
               {student.errors.join(", ")}
+            </p>
+          )}
+          {student.notes && student.notes.length > 0 && (
+            <p className="mt-1 text-xs text-gray-500">
+              {student.notes.join(", ")}
             </p>
           )}
         </div>

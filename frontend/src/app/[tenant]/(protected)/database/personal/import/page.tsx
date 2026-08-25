@@ -64,6 +64,7 @@ interface DisplayStaff {
   row: number;
   status: RowStatus;
   errors: string[];
+  notes: string[];
   first_name: string;
   last_name: string;
   email: string;
@@ -85,7 +86,12 @@ function toDisplayStaff(row: ImportRowResult): DisplayStaff {
   return {
     row: row.RowNumber,
     status: rowStatusFor(row.Errors),
-    errors: row.Errors.map((e) => e.message),
+    errors: row.Errors.filter((e) => e.severity !== "info").map(
+      (e) => e.message,
+    ),
+    notes: row.Errors.filter((e) => e.severity === "info").map(
+      (e) => e.message,
+    ),
     first_name: row.Data.first_name,
     last_name: row.Data.last_name,
     email: row.Data.email ?? "",
@@ -237,6 +243,7 @@ export default function StaffImportPage() {
             row: 0,
             status: "new",
             errors: [],
+            notes: [],
             first_name: `${importData.TotalRows} Mitarbeiter`,
             last_name: "bereit zum Import",
             email: "",
@@ -563,6 +570,7 @@ export default function StaffImportPage() {
                     row: staff.row,
                     status: staff.status,
                     errors: staff.errors,
+                    notes: staff.notes,
                     first_name: staff.first_name,
                     last_name: staff.last_name,
                     meta: [staff.email, staff.role_name, staff.position],

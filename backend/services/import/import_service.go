@@ -196,14 +196,29 @@ func categorizeValidationErrors(validationErrors []importModels.ValidationError)
 	return blockingErrors, warnings
 }
 
-// recordWarnings records warnings in the result
-func recordWarnings[T any](result *importModels.ImportResult[T], rowNum int, row *T, warnings []importModels.ValidationError) {
+// appendRowErrors adds messages to the result entry of a row, creating the
+// entry on first use. One entry per row: the preview renders entries as
+// cards keyed by row number, and a row that collects a warning during
+// validation and a duplicate note afterwards must not appear twice.
+func appendRowErrors[T any](result *importModels.ImportResult[T], rowNum int, row *T, errs []importModels.ValidationError) {
+	for i := range result.Errors {
+		if result.Errors[i].RowNumber == rowNum {
+			result.Errors[i].Errors = append(result.Errors[i].Errors, errs...)
+			result.Errors[i].Timestamp = time.Now()
+			return
+		}
+	}
 	result.Errors = append(result.Errors, importModels.ImportError[T]{
 		RowNumber: rowNum,
 		Data:      *row,
-		Errors:    warnings,
+		Errors:    errs,
 		Timestamp: time.Now(),
 	})
+}
+
+// recordWarnings records warnings in the result
+func recordWarnings[T any](result *importModels.ImportResult[T], rowNum int, row *T, warnings []importModels.ValidationError) {
+	appendRowErrors(result, rowNum, row, warnings)
 }
 
 // recordBlockingErrors records blocking errors in the result
@@ -245,17 +260,12 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 // in update/upsert mode, so the UI can show which rows will be changed rather
 // than created.
 func recordWillUpdateInfo[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "update",
-			Message:  "Schon vorhanden: Die Zeile aktualisiert diesen Datensatz. Leere Zellen ändern nichts.",
-			Code:     "will_update",
-			Severity: importModels.ErrorSeverityInfo,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "update",
+		Message:  "Schon vorhanden: Die Zeile aktualisiert diesen Datensatz. Leere Zellen ändern nichts.",
+		Code:     "will_update",
+		Severity: importModels.ErrorSeverityInfo,
+	}})
 }
 
 // processActualImportRow processes a row for actual import
@@ -330,81 +340,56 @@ func (s *ImportService[T]) performUpdateAction(ctx context.Context, request impo
 
 // recordDuplicateCheckError records a duplicate check error
 func recordDuplicateCheckError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "duplicate_check",
-			Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
-			Code:     "duplicate_check_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "duplicate_check",
+		Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
+		Code:     "duplicate_check_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordAlreadyExistsError records an error when entity already exists
 func recordAlreadyExistsError[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "duplicate",
-			Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
-			Code:     "already_exists",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "duplicate",
+		Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
+		Code:     "already_exists",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordNotFoundError records an error when entity is not found
 func recordNotFoundError[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "not_found",
-			Message:  fmt.Sprintf("%s nicht gefunden", s.config.EntityName()),
-			Code:     "not_found",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "not_found",
+		Message:  fmt.Sprintf("%s nicht gefunden", s.config.EntityName()),
+		Code:     "not_found",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordCreationError records a creation error
 func recordCreationError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "creation",
-			Message:  fmt.Sprintf("Fehler beim Erstellen: %s", err.Error()),
-			Code:     "creation_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "creation",
+		Message:  fmt.Sprintf("Fehler beim Erstellen: %s", err.Error()),
+		Code:     "creation_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordUpdateError records an update error
 func recordUpdateError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "update",
-			Message:  fmt.Sprintf("Fehler beim Aktualisieren: %s", err.Error()),
-			Code:     "update_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "update",
+		Message:  fmt.Sprintf("Fehler beim Aktualisieren: %s", err.Error()),
+		Code:     "update_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 

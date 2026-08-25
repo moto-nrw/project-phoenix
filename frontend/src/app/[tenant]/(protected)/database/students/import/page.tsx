@@ -76,6 +76,7 @@ interface DisplayStudent {
   row: number;
   status: RowStatus;
   errors: string[];
+  notes: string[];
   first_name: string;
   last_name: string;
   school_class: string;
@@ -86,6 +87,31 @@ interface DisplayStudent {
 
 function childCountLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
+}
+
+/** Blocking and warning messages in red; plain hints stay gray. */
+function splitMessages(errors: ImportError[]): {
+  errors: string[];
+  notes: string[];
+} {
+  return {
+    errors: errors.filter((e) => e.severity !== "info").map((e) => e.message),
+    notes: errors.filter((e) => e.severity === "info").map((e) => e.message),
+  };
+}
+
+/** "Maria Muster (Mutter)" from whatever parts the row carries; empty when none. */
+function guardianLabel(
+  guardians: ImportRowResult["Data"]["guardians"] | undefined,
+): string {
+  const first = guardians?.[0];
+  if (!first) return "";
+  const name = [first.first_name, first.last_name]
+    .filter((part) => part && part.trim() !== "")
+    .join(" ");
+  const relation = first.relationship_type?.trim() ?? "";
+  if (name && relation) return `${name} (${relation})`;
+  return name || relation || first.email || "";
 }
 
 export default function StudentImportPage() {
@@ -227,15 +253,12 @@ export default function StudentImportPage() {
             displayData.push({
               row: row.RowNumber,
               status: getRowStatus(),
-              errors: row.Errors.map((e) => e.message),
+              ...splitMessages(row.Errors),
               first_name: row.Data.first_name,
               last_name: row.Data.last_name,
               school_class: row.Data.school_class,
               group_name: row.Data.group_name ?? "",
-              guardian_info:
-                row.Data.guardians && row.Data.guardians.length > 0
-                  ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                  : "",
+              guardian_info: guardianLabel(row.Data.guardians),
               health_info: row.Data.health_info ?? "",
             });
           }
@@ -252,6 +275,7 @@ export default function StudentImportPage() {
             row: 0,
             status: "new",
             errors: [],
+            notes: [],
             first_name: `${importData.TotalRows} Kinder`,
             last_name: "bereit zum Import",
             school_class: "",
@@ -330,15 +354,12 @@ export default function StudentImportPage() {
           (row) => ({
             row: row.RowNumber,
             status: "error" as const,
-            errors: row.Errors.map((e) => e.message),
+            ...splitMessages(row.Errors),
             first_name: row.Data.first_name,
             last_name: row.Data.last_name,
             school_class: row.Data.school_class,
             group_name: row.Data.group_name ?? "",
-            guardian_info:
-              row.Data.guardians && row.Data.guardians.length > 0
-                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                : "",
+            guardian_info: guardianLabel(row.Data.guardians),
             health_info: row.Data.health_info ?? "",
           }),
         );
@@ -589,6 +610,7 @@ export default function StudentImportPage() {
                     row: student.row,
                     status: student.status,
                     errors: student.errors,
+                    notes: student.notes,
                     first_name: student.first_name,
                     last_name: student.last_name,
                     meta: [
