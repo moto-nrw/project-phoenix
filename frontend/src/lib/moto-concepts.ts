@@ -21,6 +21,7 @@ import {
   ClockIcon,
   ClockCounterClockwiseIcon,
   ContactlessPaymentIcon,
+  ReceiptIcon,
   DatabaseIcon,
   DevicesIcon,
   DoorIcon,
@@ -266,6 +267,15 @@ export const MOTO_CONCEPTS = {
     "neutral",
     "function",
     "planning",
+  ),
+  // Vertrag (#1459): der gebuchte moto-Tarif und die Rechnungen der Schule.
+  // Getrennt von "payroll" ("Abrechnung" = Lohnabrechnung der Mitarbeitenden).
+  contract: concept(
+    "Vertrag",
+    ReceiptIcon,
+    "blue",
+    "function",
+    "administration",
   ),
 
   messages: concept(

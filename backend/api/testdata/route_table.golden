@@ -92,6 +92,7 @@ DELETE /operator/persons/{id}
 DELETE /operator/schools/{id}
 DELETE /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 DELETE /operator/schools/{id}/accounts/{accountId}/mfa/
+DELETE /operator/schools/{id}/invoices/{invoiceId}
 DELETE /operator/schools/{id}/settings/values/{key}
 DELETE /parent/me/children/{studentId}/care-exception
 DELETE /parent/me/children/{studentId}/excused-requests/{requestId}
@@ -156,6 +157,7 @@ GET /api/calendar/appointments/{appointmentId}/overview
 GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-list-entries/
+GET /api/contract/
 GET /api/database/stats
 GET /api/display/
 GET /api/display/dashboard
@@ -470,6 +472,7 @@ GET /operator/schools/{id}/accounts
 GET /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
+GET /operator/schools/{id}/invoices/
 GET /operator/schools/{id}/persons
 GET /operator/schools/{id}/pwa-usage
 GET /operator/schools/{id}/settings/schema
@@ -809,6 +812,7 @@ POST /operator/schools/
 POST /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 POST /operator/schools/{id}/create-account
 POST /operator/schools/{id}/invite-admin
+POST /operator/schools/{id}/invoices/
 POST /operator/schools/{id}/restore
 POST /operator/unregistered-tag-scans/{id}/resolve
 POST /parent/auth/login
@@ -934,6 +938,7 @@ PUT /operator/organizations/{id}
 PUT /operator/profile/
 PUT /operator/schools/{id}
 PUT /operator/schools/{id}/accounts/{accountId}/mfa/override
+PUT /operator/schools/{id}/invoices/{invoiceId}
 PUT /operator/schools/{id}/settings/values/{key}
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup

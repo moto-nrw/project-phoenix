@@ -11,6 +11,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	billingSvc "github.com/moto-nrw/project-phoenix/services/billing"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -24,6 +25,7 @@ type Resource struct {
 	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
 	settingsResource        *SettingsResource
+	invoicesResource        *InvoicesResource
 	announcementsResource   *AnnouncementsResource
 	profileResource         *ProfileResource
 	invitationsResource     *InvitationsResource
@@ -46,6 +48,9 @@ type ResourceConfig struct {
 	AnnouncementsService       platformSvc.AnnouncementService
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
+	// BillingService backs the per-school invoice tab (#1459 demo). Optional:
+	// nil leaves the /schools/{id}/invoices subtree unmounted.
+	BillingService billingSvc.Service
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits
 	// a tenant_settings_changed SSE event after every successful Set/Reset so
 	// open tenant tabs invalidate their settings caches across origins.
@@ -120,6 +125,9 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService)
+	}
+	if cfg.BillingService != nil {
+		resource.invoicesResource = NewInvoicesResource(cfg.BillingService)
 	}
 	resource.provisioningResource.CaregiverCapabilityService = cfg.CaregiverCapabilityService
 	resource.provisioningResource.db = cfg.DB
@@ -311,6 +319,16 @@ func (rs *Resource) mountSchoolRoutes(r chi.Router) {
 		r.Get("/{id}/devices", rs.provisioningResource.ListSchoolDevices)
 		r.Get("/{id}/persons", rs.provisioningResource.ListSchoolPersons)
 		r.Get("/{id}/pwa-usage", rs.provisioningResource.GetSchoolPWAUsage)
+		if rs.invoicesResource != nil {
+			// Payment schedule per school (#1459 demo). The tenant reads the
+			// same rows through GET /api/contract and can never write them.
+			r.Route("/{id}/invoices", func(r chi.Router) {
+				r.Get("/", rs.invoicesResource.ListSchoolInvoices)
+				r.Post("/", rs.invoicesResource.CreateSchoolInvoice)
+				r.Put("/{invoiceId}", rs.invoicesResource.UpdateSchoolInvoice)
+				r.Delete("/{invoiceId}", rs.invoicesResource.DeleteSchoolInvoice)
+			})
+		}
 		if rs.settingsResource != nil {
 			r.Route("/{id}/settings", func(r chi.Router) {
 				r.Get("/schema", rs.settingsResource.GetSchoolSettingsSchema)

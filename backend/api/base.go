@@ -25,6 +25,7 @@ import (
 	activitiesAPI "github.com/moto-nrw/project-phoenix/api/activities"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
+	billingAPI "github.com/moto-nrw/project-phoenix/api/billing"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/api/birthdays"
 	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
@@ -140,6 +141,8 @@ type API struct {
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
 	PWA              *pwaAPI.Resource
+	// Contract is the school-facing, read-only contract overview (#1459).
+	Contract *billingAPI.Resource
 
 	// Operator Dashboard (platform domain)
 	Operator *operatorAPI.Resource
@@ -663,6 +666,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
 	api.PWA = pwaAPI.NewResource(api.Services.PWAUsage, db)
+	api.Contract = billingAPI.NewResource(api.Services.Billing, api.Services.Settings, db)
 
 	// Initialize operator dashboard resources
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
@@ -675,6 +679,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		AnnouncementsService:       api.Services.Announcement,
 		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
 		SettingsService:            api.Services.Settings,
+		BillingService:             api.Services.Billing,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolService:              api.Services.Schools,
 		ActiveService:              api.Services.Active,
@@ -946,6 +951,10 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount PWA standalone-usage reporting (issue #2189)
 		r.Mount("/pwa", a.PWA.Router())
+
+		// Mount the read-only contract overview (#1459). Named /contract, not
+		// /abrechnung: "Abrechnung" is already the staff-payroll surface.
+		r.Mount("/contract", a.Contract.Router())
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

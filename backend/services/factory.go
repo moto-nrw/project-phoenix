@@ -34,6 +34,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/announcement"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services/billing"
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
@@ -161,14 +162,17 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
-	WorkTimeModels       *config.WorkTimeModelService
-	Students             users.StudentService
-	ClassListEntries     users.ClassListEntryService
-	StudentDeletion      users.StudentDeletionService
-	CareLifecycle        users.CareLifecycleService
-	StudentAudit         users.StudentAuditService
-	MasterDataReview     users.MasterDataReviewService
-	CareRequests         schedule.CareScheduleRequestService
+	// Billing is the contract overview (#1459 demo): the school reads it
+	// read-only on /vertrag, the operator maintains the payment schedule.
+	Billing          billing.Service
+	WorkTimeModels   *config.WorkTimeModelService
+	Students         users.StudentService
+	ClassListEntries users.ClassListEntryService
+	StudentDeletion  users.StudentDeletionService
+	CareLifecycle    users.CareLifecycleService
+	StudentAudit     users.StudentAuditService
+	MasterDataReview users.MasterDataReviewService
+	CareRequests     schedule.CareScheduleRequestService
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges         enrollment.OfferingChangeRequestService
@@ -387,6 +391,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger,
 	)
+	// Billing / contract overview (#1459 demo). Reads the operator-only
+	// vertrag.* settings, the tenant's active-child count, and the
+	// operator-maintained payment schedule.
+	billingService := billing.NewService(billing.Config{
+		Invoices: repos.SchoolInvoice,
+		Students: repos.Student,
+		Settings: settingsService,
+		DB:       db,
+		Logger:   logger.With("service", "billing"),
+	})
+
 	// Wire the enrollment class-restriction probe so the settings service can
 	// refuse disabling concrete-class collection while an active phase
 	// restricts eligibility to specific classes (#1663). Runs inside the
@@ -2450,6 +2465,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OperatorProvisioning:    operatorProvisioningService,
 		Announcement:            announcementService,
 		Schools:                 platform.NewSchoolService(repos.School),
+		Billing:                 billingService,
 		WorkTimeModels:          workTimeModelService,
 		Students:                studentService,
 		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),

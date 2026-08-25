@@ -29,6 +29,7 @@ import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
 import { DeletePersonModal } from "~/components/operator/delete-person-modal";
 import { PersonsTable } from "~/components/operator/persons-table";
+import { SchoolInvoicesPanel } from "~/components/operator/school-invoices-panel";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
@@ -53,6 +54,10 @@ const TAB_ITEMS = [
   { id: "konten", label: "Konten" },
   { id: "geraete", label: "Geräte" },
   { id: "personen", label: "Personen" },
+  // Zahlungsplan (#1459). Heißt "Rechnungen" und nicht "Vertrag", damit der
+  // Reiter nicht mit dem gleichnamigen Einstellungs-Reiter verwechselt wird,
+  // in dem Tarif und Kinderzahl stehen.
+  { id: "rechnungen", label: "Rechnungen" },
 ] as const;
 
 type TabId = (typeof TAB_ITEMS)[number]["id"];
@@ -564,6 +569,10 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
                 onDelete={setDeleteDevice}
               />
             )}
+          </TabsPrimitive.Content>
+
+          <TabsPrimitive.Content value="rechnungen" className="mt-4">
+            <SchoolInvoicesPanel schoolId={school.id} />
           </TabsPrimitive.Content>
 
           <TabsPrimitive.Content value="personen" className="mt-4">

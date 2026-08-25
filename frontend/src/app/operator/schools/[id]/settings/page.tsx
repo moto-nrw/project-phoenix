@@ -41,6 +41,9 @@ const TAB_LABELS: Record<string, string> = {
   devices: "Geräte",
   system: "System",
   general: "Allgemein",
+  // Vertrag (#1459): operator-only Vertragsdaten. Der Reiter erscheint nur
+  // hier — im Tenant-Schema sind die Keys ausgeblendet (AccessOperatorOnly).
+  vertrag: "Vertrag",
 };
 
 // Konzept je Einstellungs-Tab, fuer die Kachel im Sektions-Header. Faellt auf
@@ -53,6 +56,7 @@ const TAB_CONCEPTS: Record<string, MotoConceptKey> = {
   devices: "devices",
   system: "settings",
   general: "settings",
+  vertrag: "contract",
 };
 
 interface PageProps {

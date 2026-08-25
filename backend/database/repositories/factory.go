@@ -203,6 +203,7 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
+	SchoolInvoice            platformModels.SchoolInvoiceRepository
 	EmailOutbox              platformModels.EmailOutboxCleanupRepository
 
 	// Operator MFA (issue #1308 phase 7b)
@@ -423,6 +424,7 @@ func NewFactory(db *bun.DB) *Factory {
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   platformRepo.NewSchoolRepository(db),
+		SchoolInvoice:            platformRepo.NewSchoolInvoiceRepository(db),
 		EmailOutbox:              platformRepo.NewEmailOutboxRepository(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),

@@ -146,6 +146,10 @@ export const STAFF_FLAT_PAGES = {
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },
+  // Vertrag (#1459): gebuchter Tarif und Zahlungsplan. Bewusst NICHT
+  // "Abrechnung" — so heißt bereits die Lohnabrechnung unter /payroll, und
+  // zwei Einträge mit demselben Wortstamm liest man als Dopplung.
+  contract: { href: "/vertrag", label: "Vertrag" },
 } as const satisfies Record<string, SectionSubPage>;
 
 /** Unterseiten des Anmeldungen-Akkordeons, in Anzeigereihenfolge. */

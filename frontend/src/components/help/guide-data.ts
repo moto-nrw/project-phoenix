@@ -1567,6 +1567,28 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/exporte.webp",
       },
       {
+        id: "vertrag",
+        title: "Vertrag: Tarif und Rechnungen",
+        icon: Download,
+        summary:
+          "Was Ihre Schule bei moto gebucht hat und wann welche Rechnung fällig ist. Die Seite ist reine Anzeige: alle Angaben pflegt das moto-Team, Sie können hier nichts ändern.",
+        steps: [
+          "`Vertrag` in der Seitenleiste öffnen. Der Eintrag erscheint nur für Konten, die Einstellungen verwalten dürfen.",
+          "`Ihr Tarif` zeigt den gebuchten Tarif, den Preis pro Kind und Monat, den Zahlungsrhythmus und die Laufzeit.",
+          "`Kinder im Vertrag` stellt die gebuchte Kinderzahl der Zahl der heute aktiven Kinder gegenüber.",
+          "`Rechnung und Kontakt` nennt die Adresse, an die moto die Rechnung schickt, Ihre Kundennummer und die Adresse für Rückfragen.",
+          "Im `Zahlungsplan` steht jede Rechnung mit Zeitraum, Fälligkeitsdatum, Betrag und Status. `Überfällig` bedeutet: die Rechnung ist noch offen und der Fälligkeitstag ist vorbei.",
+        ],
+        callout: {
+          title: "Mehr Kinder als gebucht sperrt nichts",
+          body: "Wenn Sie mehr Kinder betreuen als gebucht, bleibt moto vollständig nutzbar. Das moto-Team meldet sich wegen der Anpassung bei Ihnen. Falls eine Angabe nicht stimmt, schreiben Sie an die Adresse unter `Fragen zur Rechnung`.",
+          tone: "blue",
+        },
+        screenshot:
+          "Seite Vertrag mit den Karten Ihr Tarif, Kinder im Vertrag und Rechnung und Kontakt sowie dem Zahlungsplan.",
+        printCompact: true,
+      },
+      {
         id: "anmeldungen-einrichten",
         title: "Anmeldungen einrichten",
         icon: LayoutDashboard,

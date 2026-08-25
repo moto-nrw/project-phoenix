@@ -397,3 +397,46 @@ const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
 )
+
+// Contract settings (#1459 demo surface). The commercial facts of a school's
+// moto contract: tier, booked child contingent, price, term, payment rhythm,
+// and who receives the invoice. Every value is maintained by the moto team in
+// the operator portal — hence AccessOperatorOnly — and read back read-only by
+// the school on /vertrag.
+//
+// Deliberately NOT here: the next due date and the payment status. Those live
+// in platform.school_invoices, one row per invoice. Duplicating them as
+// settings would give the same fact two homes and guarantee they drift apart.
+//
+// All defaults are the empty value on purpose: an unconfigured school shows
+// "noch nicht hinterlegt" rather than an invented tier or price.
+// Definitions live in defaults/contract.go.
+const (
+	KeyContractTier               = "vertrag.tarif"
+	KeyContractBookedChildren     = "vertrag.gebuchte_kinder"
+	KeyContractPricePerChildCents = "vertrag.preis_pro_kind_cent"
+	KeyContractBillingCycle       = "vertrag.zahlungsrhythmus"
+	KeyContractTermStart          = "vertrag.laufzeit_von"
+	KeyContractTermEnd            = "vertrag.laufzeit_bis"
+	KeyContractInvoiceRecipient   = "vertrag.rechnungsempfaenger"
+	KeyContractCustomerNumber     = "vertrag.kundennummer"
+	KeyContractSupportEmail       = "vertrag.kontakt_email"
+	KeyContractNote               = "vertrag.hinweis"
+)
+
+// Contract tier values (KeyContractTier).
+const (
+	ContractTierUnset   = ""
+	ContractTierTest    = "test"
+	ContractTierBasis   = "basis"
+	ContractTierPlus    = "plus"
+	ContractTierPremium = "premium"
+)
+
+// Contract billing-cycle values (KeyContractBillingCycle).
+const (
+	ContractCycleUnset     = ""
+	ContractCycleMonthly   = "monatlich"
+	ContractCycleQuarterly = "quartalsweise"
+	ContractCycleYearly    = "jaehrlich"
+)
