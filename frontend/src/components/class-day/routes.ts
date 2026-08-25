@@ -47,3 +47,19 @@ export function isWeekendISO(dateISO: string): boolean {
   const day = parseISODate(dateISO).getDay();
   return day === 0 || day === 6;
 }
+
+/**
+ * Klassenname aus dem Adress-Segment. Gegenstück zu `classDayPath`.
+ *
+ * Next.js 16 reicht `params` hier roh durch, kodiert wie in der Adresse —
+ * gemessen am laufenden Portal (25.08.2026), sowohl über die Proxy-Umschreibung
+ * `schule.localhost/klasse/…` -> `/school/klasse/…` als auch beim direkten
+ * Aufruf von `/school/klasse/…`. Ohne diese Zeile sucht die Seite eine Klasse
+ * namens "Klasse%202a" und meldet jede Klasse als nicht verfügbar.
+ *
+ * Kein try/catch: eine kaputte Prozentfolge ("ok%", "%zz", "%C0%80") beantwortet
+ * Next selbst mit 400, sie erreicht die Route nicht.
+ */
+export function classDayNameFromParam(raw: string): string {
+  return decodeURIComponent(raw);
+}
