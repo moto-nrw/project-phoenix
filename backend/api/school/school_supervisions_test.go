@@ -330,8 +330,8 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	foreign := &scheduleModel.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     "Fremde Schule",
-		StartTime: time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		StartTime: timezone.WallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.WallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}
