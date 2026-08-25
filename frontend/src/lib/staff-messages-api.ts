@@ -58,10 +58,10 @@ interface ApiResponse<T> {
  * polishing the wording cannot turn the read-only state back into a red
  * "loading failed" error with a dead-end compose button.
  */
-export const STAFF_MESSAGING_DISABLED = "staff_messaging_disabled";
+const STAFF_MESSAGING_DISABLED = "staff_messaging_disabled";
 
 /** An error carrying the backend's stable code, when there was one. */
-export class StaffMessagesError extends Error {
+class StaffMessagesError extends Error {
   readonly code?: string;
   constructor(message: string, code?: string) {
     super(message);
