@@ -5,7 +5,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "OperatorSettingsApi" });
 const BOOKINGS_AUTHORITATIVE_KEY = "enrollment.bookings_authoritative";
 
-export interface BookingAuthorityImpactChild {
+interface BookingAuthorityImpactChild {
   studentId: string;
   firstName: string;
   lastName: string;

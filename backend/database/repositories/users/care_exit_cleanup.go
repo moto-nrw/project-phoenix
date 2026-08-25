@@ -800,7 +800,7 @@ func (r *CareExitCleanupRepository) listCareBookingStudents(
 		Where(`"student".status <> 'alumnus'`).
 		OrderExpr(`"student".id`)
 	if len(studentIDs) > 0 {
-		query = query.Where(`"student".id IN (?)`, bun.In(studentIDs))
+		query = query.Where(`"student".id IN (?)`, bun.List(studentIDs))
 	} else {
 		query = query.
 			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, on).

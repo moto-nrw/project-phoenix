@@ -245,7 +245,7 @@ func (r *CareWithdrawalCompletionRepository) ListPendingStudentIDs(
 		Column("student_id").
 		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`"care_withdrawal_completion".state = ?`, userModels.CareWithdrawalStatePending).
-		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.In(studentIDs)).
+		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.List(studentIDs)).
 		Scan(ctx, &ids)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal student ids", Err: err}

@@ -122,7 +122,7 @@ func (s seedCareWithdrawalsStep) seedDemoBookings(
 			return nil, fmt.Errorf("configure withdrawal demo: %w", err)
 		}
 	}
-	parentStep := parentEnrollmentSeedStep{seeder: s.seeder}
+	parentStep := parentEnrollmentSeedStep(s)
 	phaseID, err := parentStep.createEnrollmentPhase(rt, auth)
 	if err != nil {
 		return nil, err
@@ -137,7 +137,7 @@ func (s seedCareWithdrawalsStep) seedDemoBookings(
 func (s seedCareWithdrawalsStep) submitWithdrawalDemoChildren(
 	rt *Runtime, auth phoenixapi.AuthRef, tenantSlug string, phaseID int64, offerings map[string]int64,
 ) ([]SeedEnrollmentRequest, error) {
-	parentStep := parentEnrollmentSeedStep{seeder: s.seeder}
+	parentStep := parentEnrollmentSeedStep(s)
 	requests := make([]SeedEnrollmentRequest, 0, 3)
 	for index, firstName := range []string{"Plan", "Fällig", "Erledigt"} {
 		body := withdrawalDemoSubmission(parentStep, phaseID, offerings, firstName, index)
