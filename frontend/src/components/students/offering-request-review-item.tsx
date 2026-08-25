@@ -161,8 +161,9 @@ export function OfferingRequestReviewItem({
   // sagt das erst — so verstellt niemand im Vorbeigehen, wann die Umstellung
   // greift (#2484).
   const [editingDate, setEditingDate] = useState(false);
+  const [confirmationRequired, setConfirmationRequired] = useState(false);
 
-  const decide = async (approve: boolean) => {
+  const decide = async (approve: boolean, confirmWithdrawal = false) => {
     const trimmed = reason.trim();
     if (!approve && trimmed === "") {
       setReasonError(true);
@@ -171,13 +172,18 @@ export function OfferingRequestReviewItem({
     setBusy(true);
     const excludedIds = approve ? excluded : [];
     try {
-      await decideOfferingChangeRequest(
+      const args = [
         row.id,
         approve,
         trimmed || undefined,
         excludedIds,
         approve ? effectiveFrom : undefined,
-      );
+      ] as const;
+      if (confirmWithdrawal) {
+        await decideOfferingChangeRequest(...args, true);
+      } else {
+        await decideOfferingChangeRequest(...args);
+      }
       onDecided(
         approve
           ? approvalPreview &&
@@ -195,6 +201,9 @@ export function OfferingRequestReviewItem({
         request_id: row.id,
         ...(code ? { code } : {}),
       });
+      if (code === "enrollment.complete_withdrawal_confirmation_required") {
+        setConfirmationRequired(true);
+      }
       setBusy(false);
       toast.error(decideErrorMessage(code), { duration: 8000 });
     }
@@ -323,6 +332,7 @@ export function OfferingRequestReviewItem({
   );
 
   const fullWithdrawal = row.full_withdrawal === true;
+  const withdrawalConfirmation = fullWithdrawal || confirmationRequired;
 
   // Der Kalender sperrt Tage ausserhalb der Betreuungszeit stumm. Diese Zeile
   // sagt, warum — sonst sucht die OGS nach einem Weg, ein früheres Datum doch
@@ -540,15 +550,28 @@ export function OfferingRequestReviewItem({
       <ConfirmationModal
         isOpen={approvalPreview !== null}
         onClose={() => setApprovalPreview(null)}
-        onConfirm={() => void decide(true)}
-        title="Folgen der Freigabe"
-        confirmText="Änderung freigeben"
+        onConfirm={() => void decide(true, withdrawalConfirmation)}
+        title={
+          withdrawalConfirmation
+            ? "Alle Betreuungstage entfernen?"
+            : "Folgen der Freigabe"
+        }
+        confirmText={
+          withdrawalConfirmation ? "Änderung speichern" : "Änderung freigeben"
+        }
+        cancelText={withdrawalConfirmation ? "Zurück" : undefined}
         isConfirmLoading={busy}
         loadingText="Wird freigegeben..."
         mobileSheet
       >
         {approvalPreview && (
           <div className="space-y-4">
+            {withdrawalConfirmation && (
+              <Alert
+                type="warning"
+                message={`Danach ist für ${row.student_name} kein Betreuungstag mehr gebucht. Die Abmeldung muss anschließend abgeschlossen werden.`}
+              />
+            )}
             <div>
               <p className="text-sm font-medium text-gray-900">
                 Das ändert moto automatisch:

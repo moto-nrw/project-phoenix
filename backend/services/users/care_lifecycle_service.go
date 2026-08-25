@@ -173,9 +173,12 @@ type CareLifecycleService interface {
 	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
 	ReconcileAuthoritativeBookingChange(ctx context.Context, change userModels.CareWithdrawalBookingChange) error
 	ListPendingWithdrawals(ctx context.Context, filter userModels.CareWithdrawalCompletionFilter) ([]*userModels.CareWithdrawalCompletion, int, error)
+	ListResolvedWithdrawals(ctx context.Context, filter userModels.CareWithdrawalCompletionFilter) ([]*userModels.CareWithdrawalCompletion, int, error)
 	GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error)
 	PreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input CareExitInput) (*CareExitPreview, error)
 	ConfirmWithdrawalCareEnd(ctx context.Context, completionID int64, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
+	PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error)
+	DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error)
 }
 
 type careLifecycleService struct {
@@ -188,6 +191,7 @@ type careLifecycleService struct {
 	tagReleaser           CareExitTagReleaser
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
+	studentDeletion       StudentDeletionService
 	txHandler             *modelBase.TxHandler
 	logger                *slog.Logger
 }
@@ -195,13 +199,14 @@ type careLifecycleService struct {
 // CareLifecycleDependencies wires the service. Every field is required except
 // the logger; a nil collaborator would silently skip a documented effect.
 type CareLifecycleDependencies struct {
-	StudentRepo    userModels.StudentRepository
-	PersonRepo     userModels.PersonRepository
-	CareExitRepo   userModels.CareExitRepository
-	CleanupRepo    userModels.CareExitCleanupRepository
-	WithdrawalRepo userModels.CareWithdrawalCompletionRepository
-	TagReleaser    CareExitTagReleaser
-	AuditService   StudentAuditService
+	StudentRepo     userModels.StudentRepository
+	PersonRepo      userModels.PersonRepository
+	CareExitRepo    userModels.CareExitRepository
+	CleanupRepo     userModels.CareExitCleanupRepository
+	WithdrawalRepo  userModels.CareWithdrawalCompletionRepository
+	TagReleaser     CareExitTagReleaser
+	AuditService    StudentAuditService
+	StudentDeletion StudentDeletionService
 	// LockCareBookingWrites is the same transaction-scoped gate used by
 	// authoritative offering adjustments. Taking it before any plan lock makes
 	// rebooking and care-end confirmation a total order instead of allowing a
@@ -223,10 +228,68 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		bookingsAuthoritative: deps.BookingsAuthoritative,
 		tagReleaser:           deps.TagReleaser,
 		auditService:          deps.AuditService,
+		studentDeletion:       deps.StudentDeletion,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
 		txHandler:             modelBase.NewTxHandler(deps.DB),
 		logger:                deps.Logger,
 	}
+}
+
+// WireCareWithdrawalDeletion attaches the deletion service after both
+// services have been constructed by the factory.
+func WireCareWithdrawalDeletion(lifecycle CareLifecycleService, deletion StudentDeletionService) {
+	setter, ok := lifecycle.(interface{ SetStudentDeletionService(StudentDeletionService) })
+	if !ok {
+		panic("care lifecycle service does not support student-deletion wiring")
+	}
+	setter.SetStudentDeletionService(deletion)
+}
+
+func (s *careLifecycleService) SetStudentDeletionService(deletion StudentDeletionService) {
+	s.studentDeletion = deletion
+}
+
+func (s *careLifecycleService) PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error) {
+	completion, err := s.GetPendingWithdrawal(ctx, completionID)
+	if err != nil {
+		return nil, err
+	}
+	if s.studentDeletion == nil {
+		return nil, errors.New("care lifecycle: student deletion service is not configured")
+	}
+	return s.studentDeletion.Preview(ctx, *completion.StudentID)
+}
+
+func (s *careLifecycleService) DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error) {
+	if s.studentDeletion == nil {
+		return nil, errors.New("care lifecycle: student deletion service is not configured")
+	}
+	var result *StudentDeletionResult
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for deletion: %w", err)
+			}
+		}
+		completion, err := s.withdrawalRepo.FindByIDForUpdate(txCtx, completionID)
+		if err != nil {
+			return err
+		}
+		if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+			return userModels.ErrCareWithdrawalAlreadyResolved
+		}
+		input.StudentID = *completion.StudentID
+		resolved, err := s.withdrawalRepo.MarkDeleted(txCtx, completionID, input.ActorAccountID, time.Now())
+		if err != nil {
+			return err
+		}
+		if !resolved {
+			return userModels.ErrCareWithdrawalAlreadyResolved
+		}
+		result, err = s.studentDeletion.Delete(txCtx, input)
+		return err
+	})
+	return result, err
 }
 
 func (s *careLifecycleService) getLogger() *slog.Logger {
@@ -754,6 +817,16 @@ func (s *careLifecycleService) ListPendingWithdrawals(
 		return nil, 0, ErrCareWithdrawalNotFound
 	}
 	return s.withdrawalRepo.ListPending(ctx, filter.Normalized())
+}
+
+func (s *careLifecycleService) ListResolvedWithdrawals(
+	ctx context.Context,
+	filter userModels.CareWithdrawalCompletionFilter,
+) ([]*userModels.CareWithdrawalCompletion, int, error) {
+	if s.withdrawalRepo == nil {
+		return nil, 0, errors.New("care lifecycle: withdrawal repository is not configured")
+	}
+	return s.withdrawalRepo.ListResolved(ctx, filter.Normalized())
 }
 
 func (s *careLifecycleService) GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {

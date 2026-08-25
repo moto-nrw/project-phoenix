@@ -1240,6 +1240,9 @@
       "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an.",
       "requestsTitle": "Beantragte Änderung",
       "decisionApproved": "Änderung übernommen",
+      "withdrawalApproved": "Abmeldung bestätigt",
+      "withdrawalApprovedHint": "Die Schule schließt die Abmeldung ab. Sie müssen nichts tun.",
+      "withdrawalCareEnded": "Betreuung beendet am {date}",
       "decisionApprovedFrom": "Gültig ab {date}",
       "decisionRejected": "Anfrage abgelehnt",
       "decisionReason": "Begründung der Betreuung: {reason}",
@@ -1273,7 +1276,11 @@
       "noDaysSelected": "Wählen Sie für jedes gewählte Angebot mindestens einen Tag.",
       "submitError": "Die Anfrage konnte nicht gesendet werden.",
       "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei.",
-      "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab."
+      "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab.",
+      "withdrawalConfirmTitle": "Betreuung vollständig abmelden?",
+      "withdrawalConfirmBody": "Danach ist für {name} kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
+      "withdrawalConfirmBack": "Zurück",
+      "withdrawalConfirmSubmit": "Anfrage senden"
     },
     "weekdayShort": {
       "1": "Mo",

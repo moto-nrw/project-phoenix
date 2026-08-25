@@ -152,6 +152,7 @@ export async function decideOfferingChangeRequest(
   reason?: string,
   excludedOfferingIds?: readonly string[],
   effectiveFrom?: string,
+  completeWithdrawalConfirmed?: boolean,
 ): Promise<void> {
   const response = await fetch(
     `/api/students/offering-change-requests/${encodeURIComponent(requestId)}/decide`,
@@ -163,6 +164,9 @@ export async function decideOfferingChangeRequest(
         reason: reason ?? "",
         excluded_offering_ids: excludedOfferingIds,
         effective_from: effectiveFrom,
+        ...(completeWithdrawalConfirmed
+          ? { complete_withdrawal_confirmed: true }
+          : {}),
       }),
     },
   );

@@ -1858,6 +1858,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
+	users.WireStudentDeletionCareWithdrawals(studentDeletionService, repos.CareWithdrawal)
+	users.WireCareWithdrawalDeletion(careLifecycleService, studentDeletionService)
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
@@ -1956,6 +1958,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		StudentRepo:              repos.Student,
 		PersonRepo:               repos.Person,
+		CareWithdrawalRepo:       repos.CareWithdrawal,
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,

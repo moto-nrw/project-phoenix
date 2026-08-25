@@ -177,6 +177,29 @@ func (r *OfferingChangeRequestRepository) UpdateEffectiveFrom(
 	return nil
 }
 
+func (r *OfferingChangeRequestRepository) UpdateApprovedCompleteWithdrawal(
+	ctx context.Context,
+	id int64,
+	complete bool,
+) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		Model((*enrollment.OfferingChangeRequest)(nil)).
+		ModelTableExpr(tableExprOfferingChangeRequestsAsReq).
+		Set("approved_complete_withdrawal = ?", complete).
+		Set("updated_at = NOW()").
+		Where(`"offering_change_request".id = ?`, id).
+		Where(`"offering_change_request".status = ?`, enrollment.OfferingChangeStatusPending)
+	q = base.WithTenantFilter(ctx, q, "offering_change_request")
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "update approved complete-withdrawal result", Err: err}
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return enrollment.ErrOfferingChangeNotPending
+	}
+	return nil
+}
+
 // Decide transitions a pending row to its final state. The pending predicate
 // lives in the WHERE clause so two concurrent reviewers cannot both win.
 func (r *OfferingChangeRequestRepository) Decide(

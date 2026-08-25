@@ -613,7 +613,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
 	selections := []enrollmentSvc.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
-	view, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, selections, today.AddDays(20), "Bitte")
+	view, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, selections, today.AddDays(20), "Bitte", false)
 	require.NoError(t, err)
 	assert.NotNil(t, view)
 	assert.Equal(t, int64(22), changes.createdInput.StudentID)
@@ -668,7 +668,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "create no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "")
+				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "", false)
 				return err
 			},
 			want: enrollmentSvc.ErrOfferingChangeDisabled,
@@ -707,7 +707,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			child:  permittedCareOfferingsChild(t),
 			change: &offeringChangesStub{createErr: delegateErr},
 			call: func(svc *service) error {
-				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "")
+				_, err := svc.CreateOfferingChangeRequest(context.Background(), 11, 22, nil, timezone.TodayDate(), "", false)
 				return err
 			},
 			want: delegateErr,

@@ -1240,6 +1240,9 @@
       "disabledPeriodOver": "Период пребывания закончился. Зарегистрируйте ребёнка заново на новый период.",
       "requestsTitle": "Запрошенное изменение",
       "decisionApproved": "Изменение принято",
+      "withdrawalApproved": "Отказ подтверждён",
+      "withdrawalApprovedHint": "Школа завершит отказ. Вам ничего делать не нужно.",
+      "withdrawalCareEnded": "Посещение группы продлённого дня завершено {date}",
       "decisionApprovedFrom": "Действует с {date}",
       "decisionRejected": "Запрос отклонён",
       "decisionReason": "Причина от команды продлёнки: {reason}",
@@ -1273,7 +1276,11 @@
       "noDaysSelected": "Выберите хотя бы один день для каждого выбранного варианта.",
       "submitError": "Не удалось отправить запрос.",
       "capacityFull": "В одном из выбранных вариантов больше нет мест.",
-      "alreadyPending": "Для вашего ребёнка уже есть запрос. Дождитесь его рассмотрения."
+      "alreadyPending": "Для вашего ребёнка уже есть запрос. Дождитесь его рассмотрения.",
+      "withdrawalConfirmTitle": "Полностью отменить уход?",
+      "withdrawalConfirmBody": "После этого у {name} не останется ни одного забронированного дня ухода. Действительно отправить этот запрос?",
+      "withdrawalConfirmBack": "Назад",
+      "withdrawalConfirmSubmit": "Отправить запрос"
     },
     "weekdayShort": {
       "1": "Пн",

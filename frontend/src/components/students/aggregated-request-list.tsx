@@ -19,6 +19,7 @@ import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { CareRequestReviewItem } from "~/components/students/care-request-review-item";
@@ -119,6 +120,8 @@ export function AggregatedRequestList({
   const [careExitWithdrawal, setCareExitWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   const [deletionWithdrawal, setDeletionWithdrawal] =
+    useState<CareWithdrawalCompletion | null>(null);
+  const [deletionWarningWithdrawal, setDeletionWarningWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   // Set while THIS list dispatches change-requests-refresh so its own listener
   // (below) doesn't refetch — it already removed the decided row optimistically.
@@ -229,7 +232,7 @@ export function AggregatedRequestList({
     const selected = filters.types;
     const typeMatches =
       selected.length === 0 || selected.includes("care_withdrawal");
-    if (view !== "open" || !filters.includeCareWithdrawals || !typeMatches) {
+    if (!filters.includeCareWithdrawals || !typeMatches) {
       setWithdrawals([]);
       return;
     }
@@ -240,8 +243,10 @@ export function AggregatedRequestList({
       do {
         const page = await fetchCareWithdrawals({
           search: filters.search,
+          studentId: filters.studentId,
           page: pageNumber,
           pageSize: WITHDRAWAL_PAGE_SIZE,
+          ...(view === "history" ? { state: "resolved" as const } : {}),
         });
         items.push(...page.items);
         total = page.total;
@@ -258,13 +263,17 @@ export function AggregatedRequestList({
       });
       setError("Abmeldungen konnten nicht geladen werden.");
     }
-  }, [filters.includeCareWithdrawals, filters.search, filters.types, view]);
+  }, [
+    filters.includeCareWithdrawals,
+    filters.search,
+    filters.studentId,
+    filters.types,
+    view,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
-    setWithdrawalsLoading(
-      view === "open" && filters.includeCareWithdrawals === true,
-    );
+    setWithdrawalsLoading(filters.includeCareWithdrawals === true);
     void loadWithdrawals().finally(() => {
       if (!cancelled) setWithdrawalsLoading(false);
     });
@@ -361,9 +370,11 @@ export function AggregatedRequestList({
   }, []);
 
   const handleWithdrawalFinished = useCallback(
-    (row: CareWithdrawalCompletion) => {
+    (row: CareWithdrawalCompletion, deleted = false) => {
       setWithdrawals((current) => current.filter((item) => item.id !== row.id));
-      setNotice("Die Betreuung wurde beendet.");
+      setNotice(
+        deleted ? "Das Kind wurde gelöscht." : "Die Betreuung wurde beendet.",
+      );
       window.dispatchEvent(new Event("change-requests-refresh"));
     },
     [],
@@ -386,12 +397,23 @@ export function AggregatedRequestList({
     filters.statuses.length > 0 ||
     Boolean(filters.from) ||
     Boolean(filters.to);
+  const visibleWithdrawals =
+    view === "history"
+      ? withdrawals.filter((row) => {
+          const resolvedDate = row.resolvedAt?.slice(0, 10);
+          return (
+            resolvedDate !== undefined &&
+            (!filters.from || resolvedDate >= filters.from) &&
+            (!filters.to || resolvedDate <= filters.to)
+          );
+        })
+      : withdrawals;
 
   return (
     <div className="space-y-3">
       {error && <Alert type="error" message={error} />}
       {notice && <Alert type="success" message={notice} />}
-      {items.length === 0 && withdrawals.length === 0 && !error ? (
+      {items.length === 0 && visibleWithdrawals.length === 0 && !error ? (
         <EmptyState
           icon={<TrayIcon size={32} aria-hidden="true" />}
           // Die Quellen durchsuchen je Abruf nur ein Stück der Historie. Sind
@@ -419,7 +441,7 @@ export function AggregatedRequestList({
         <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
           <RequestRowHeader view={view} />
           {view === "open"
-            ? withdrawals.map((row) => {
+            ? visibleWithdrawals.map((row) => {
                 const name = `${row.firstName} ${row.lastName}`.trim();
                 const overdue = row.urgency === "overdue";
                 return (
@@ -454,9 +476,9 @@ export function AggregatedRequestList({
                           type="button"
                           variant="ghost"
                           size="compact"
-                          onClick={() => setDeletionWithdrawal(row)}
+                          onClick={() => setDeletionWarningWithdrawal(row)}
                         >
-                          Kind löschen
+                          Kind sofort löschen
                         </Button>
                       </div>
                     }
@@ -465,6 +487,43 @@ export function AggregatedRequestList({
                       Für dieses Kind ist kein Betreuungstag mehr gebucht.
                       Beenden Sie jetzt die Betreuung.
                     </p>
+                  </RequestReviewCard>
+                );
+              })
+            : null}
+          {view === "history"
+            ? visibleWithdrawals.map((row) => {
+                const deleted = row.outcome === "deleted";
+                return (
+                  <RequestReviewCard
+                    key={`care_withdrawal:${row.id}`}
+                    type="care_withdrawal"
+                    typeLabel="Abmeldung"
+                    childName={
+                      deleted || row.studentId === ""
+                        ? "Gelöschtes Kind"
+                        : `${row.firstName} ${row.lastName}`.trim()
+                    }
+                    summary={
+                      deleted ? "Kind sofort gelöscht" : "Betreuung beendet"
+                    }
+                    badge={
+                      <StatusBadge
+                        tone="gray"
+                        label={deleted ? "Gelöscht" : "Abgeschlossen"}
+                      />
+                    }
+                    history={{
+                      kind: "readonly",
+                      label: deleted ? "Gelöscht" : "Abgeschlossen",
+                      tone: "gray",
+                    }}
+                  >
+                    {row.resolvedAt ? (
+                      <p className="text-sm text-gray-600">
+                        Erledigt am {formatDate(row.resolvedAt)}
+                      </p>
+                    ) : null}
                   </RequestReviewCard>
                 );
               })
@@ -556,13 +615,33 @@ export function AggregatedRequestList({
         <StudentDeletionModal
           isOpen
           studentId={deletionWithdrawal.studentId}
+          completionId={deletionWithdrawal.id}
           displayName={`${deletionWithdrawal.firstName} ${deletionWithdrawal.lastName}`.trim()}
           onClose={() => setDeletionWithdrawal(null)}
           onDeleted={() => {
             setDeletionWithdrawal(null);
-            handleWithdrawalFinished(deletionWithdrawal);
+            handleWithdrawalFinished(deletionWithdrawal, true);
           }}
         />
+      )}
+      {deletionWarningWithdrawal && (
+        <ConfirmationModal
+          isOpen
+          onClose={() => setDeletionWarningWithdrawal(null)}
+          onConfirm={() => {
+            setDeletionWithdrawal(deletionWarningWithdrawal);
+            setDeletionWarningWithdrawal(null);
+          }}
+          title="Kind sofort löschen"
+          confirmText="Löschen prüfen"
+          cancelText="Zurück"
+          mobileSheet
+        >
+          <p className="text-sm text-gray-600">
+            Das Kind wird sofort gelöscht. Auch ein späterer letzter
+            Betreuungstag wird nicht abgewartet.
+          </p>
+        </ConfirmationModal>
       )}
     </div>
   );

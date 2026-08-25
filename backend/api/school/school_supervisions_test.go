@@ -70,17 +70,13 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	}
 }
 
-// todayInstance creates a planned block for today in its own room. The window
-// brackets "now" so the start lifecycle is available whenever the suite runs.
+// todayInstance creates a planned block for today in its own room.
 func (f *supervisionFixture) todayInstance(t *testing.T, title string) *scheduleModel.ActivityInstance {
 	t.Helper()
 
 	room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
-	now := timezone.Now()
 	return testpkg.CreateTestActivityInstance(t, f.db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
-		Title:     title,
-		StartHHMM: now.Add(-30 * time.Minute).Format("15:04"),
-		EndHHMM:   now.Add(90 * time.Minute).Format("15:04"),
+		Title: title,
 	})
 }
 
@@ -331,12 +327,11 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Fremdraum-%d", time.Now().UnixNano()))
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
-	now := timezone.Now()
 	foreign := &scheduleModel.ActivityInstance{
 		Date:      timezone.TodayDate(),
 		Title:     "Fremde Schule",
-		StartTime: now.Add(-30 * time.Minute),
-		EndTime:   now.Add(90 * time.Minute),
+		StartTime: timezone.WallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
+		EndTime:   timezone.WallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
 		Status:    scheduleModel.InstanceStatusPlanned,
 	}

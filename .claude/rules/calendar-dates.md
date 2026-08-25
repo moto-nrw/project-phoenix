@@ -91,13 +91,20 @@ zero-Date sentinel.
    code; sub-day alignment needs `//nolint:forbidigo // <why>`.
 4. **oxlint** `date-safety/no-utc-date-extraction` bans
    `.toISOString().{split,slice,substring,substr}` in the frontend.
+5. **`TestActivityInstanceWallClockRatchet`**
+   (`backend/test/wall_clock_verification_test.go`) rejects
+   `ActivityInstance.StartTime`/`EndTime` assignments derived from
+   `time.Now()` or `timezone.Now()` unless they pass through
+   `timezone.WallClock()`. These fields map to PostgreSQL `TIME`; binding a
+   Berlin instant converts it to UTC and can reverse the clock interval around
+   UTC midnight.
 
 ## Detection
 
 ```bash
 rg --type go 'time\.Time' backend/models/ | rg -i '`bun:"[^"]*"' | rg -i 'date|day|birthday|valid_'  # suspect fields
 rg --type go 'Truncate\(24 \* time\.Hour\)' backend/
-cd backend && go test ./test/ -run TestDateColumnTypes                        # the registry check
+cd backend && go test ./test/ -run 'Test(DateColumnTypes|ActivityInstanceWallClockRatchet)' # backend date/time gates
 rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # frontend UTC extraction
 ```
 
@@ -113,6 +120,8 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 
 ## Scope boundary
 
-TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate,
-already-solved concern: normalize via `timezone.WallClock()` (see rule 11 in
-CLAUDE.md). Instants (TIMESTAMPTZ) stay `time.Time` everywhere.
+TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate
+concern: normalize via `timezone.WallClock()` (see rule 11 in CLAUDE.md).
+`ActivityInstance` writes have a source ratchet; other TIME-backed models still
+rely on their repository/service normalization and code review. Instants
+(TIMESTAMPTZ) stay `time.Time` everywhere.

@@ -242,6 +242,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/care-withdrawals", rs.listCareWithdrawals)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end/preview", rs.previewWithdrawalCareEnd)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end", rs.confirmWithdrawalCareEnd)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/care-withdrawals/{completionId}/deletion-impact", rs.previewWithdrawalDeletion)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Delete("/care-withdrawals/{completionId}", rs.deleteWithdrawalStudent)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/care-end/resume", rs.resumeCare)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/ended-care", rs.listEndedCare)
 

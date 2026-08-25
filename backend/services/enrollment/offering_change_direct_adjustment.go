@@ -15,10 +15,11 @@ import (
 const pickupOfferingAdjustmentReason = "Angebotswechsel wegen dauerhafter Gehzeiten"
 
 type directOfferingAdjustmentScope struct {
-	period        *enrollmentModels.StudentCarePeriod
-	phase         *enrollmentModels.Phase
-	effectiveFrom timezone.Date
-	catalog       *OfferingChangeCatalog
+	period                *enrollmentModels.StudentCarePeriod
+	phase                 *enrollmentModels.Phase
+	effectiveFrom         timezone.Date
+	catalog               *OfferingChangeCatalog
+	bookingsAuthoritative bool
 }
 
 func (s *offeringChangeRequestService) PrepareDirectOfferingAdjustment(
@@ -69,7 +70,9 @@ func (s *offeringChangeRequestService) previewDirectOfferingAdjustment(
 	if err != nil {
 		return nil, err
 	}
-	result.Consequences, err = s.directOfferingConsequences(ctx, input.StudentID, diff, ids, selected)
+	result.Consequences, err = s.directOfferingConsequences(
+		ctx, input.StudentID, diff, ids, selected, scope.bookingsAuthoritative,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -94,6 +97,10 @@ func (s *offeringChangeRequestService) directAdjustmentScope(
 	if err := s.ensureDirectCareOfferingsEnabled(ctx); err != nil {
 		return nil, err
 	}
+	bookingsAuthoritative, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: resolve booking authority for direct adjustment: %w", err)
+	}
 	period, phase, err := s.carePeriodAt(ctx, input.StudentID, effectiveFrom)
 	if err != nil {
 		return nil, err
@@ -107,7 +114,7 @@ func (s *offeringChangeRequestService) directAdjustmentScope(
 		earliest = phase.ServiceStartDate
 	}
 	catalog, err := s.catalogAt(ctx, input.StudentID, period, phase, earliest, latest, effectiveFrom)
-	return &directOfferingAdjustmentScope{period, phase, effectiveFrom, catalog}, err
+	return &directOfferingAdjustmentScope{period, phase, effectiveFrom, catalog, bookingsAuthoritative}, err
 }
 
 func (s *offeringChangeRequestService) ensureDirectCareOfferingsEnabled(ctx context.Context) error {
@@ -132,25 +139,25 @@ func (s *offeringChangeRequestService) directMaterializedSelections(
 ) ([]materializedOfferingSelection, []materializedOfferingSelection, error) {
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	if _, err := s.validateSelections(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, scope.bookingsAuthoritative,
 	); err != nil {
 		return nil, nil, err
 	}
 	if checkCapacity {
 		if err := s.assertCapacityAvailable(
-			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded,
+			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
 		); err != nil {
 			return nil, nil, err
 		}
 	}
 	base, err := s.materializedSelections(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, scope.bookingsAuthoritative,
 	)
 	if err != nil || len(excluded) == 0 {
 		return base, base, err
 	}
 	selected, err := s.materializedSelectionsExcluding(
-		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded,
+		ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
 	)
 	return base, selected, err
 }
@@ -186,18 +193,15 @@ func (s *offeringChangeRequestService) directOfferingConsequences(
 	diff *offeringDecisionDiff,
 	ids []int64,
 	selected []materializedOfferingSelection,
+	bookingsAuthoritative bool,
 ) (*OfferingChangePreview, error) {
 	conflicts, err := s.manualPlanningConflicts(ctx, studentID, diff)
 	if err != nil {
 		return nil, err
 	}
-	arrivalFollowsBookings, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
-	if err != nil {
-		return nil, fmt.Errorf("offering change: resolve booking authority for preview: %w", err)
-	}
 	return &OfferingChangePreview{
 		Selections: offeringPreviewSelections(ids, selected), ManualPlanningConflicts: conflicts,
-		ArrivalExpectationsFollowBookings: arrivalFollowsBookings,
+		ArrivalExpectationsFollowBookings: bookingsAuthoritative,
 	}, nil
 }
 
