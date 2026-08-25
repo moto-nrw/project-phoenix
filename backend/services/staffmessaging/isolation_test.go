@@ -310,3 +310,37 @@ func TestRetentionSkipsWhenWindowUnresolvable(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, detail.Messages, 1)
 }
+
+// TestDeactivatedStaffCannotSend pins the write-door lock: a JWT stays valid for
+// its whole lifetime, so someone deactivated mid-session keeps a usable token.
+// Membership in the thread is not enough - they must still be staff at the
+// school to add to it. Reading deliberately stays open.
+func TestDeactivatedStaffCannotSend(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Noch im Dienst")
+	require.NoError(t, err)
+
+	// Anna verlaesst die Schule - ihr Token gilt aber weiter.
+	_, err = db.NewUpdate().
+		Table("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Where("account_id = ? AND tenant_id = ?", anna, testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Und trotzdem noch was")
+	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
+		"a deactivated account must not be able to keep writing")
+
+	// Lesen bleibt offen: den eigenen Verlauf zu sehen ist harmlos.
+	detail, err := svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	require.NoError(t, err)
+	assert.Len(t, detail.Messages, 1, "history stays readable")
+}

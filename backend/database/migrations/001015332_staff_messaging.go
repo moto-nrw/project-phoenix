@@ -37,7 +37,10 @@ var staffMessagingTables = []string{
 }
 
 func staffMessagingUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.332: Creating staff messaging tables...")
+	slog.Info("migration starting",
+		slog.String("migration", staffMessagingVersion),
+		slog.String("detail", "creating staff messaging tables"),
+	)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -185,33 +188,13 @@ func staffMessagingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers: %w", err)
 	}
 
-	// RLS — tenant isolation, same shape as the parent messaging tables
-	// (001015149). CREATE POLICY has no IF NOT EXISTS, so guard it with a
-	// pg_policies existence check to keep the migration re-runnable.
+	// Least-privilege role needs DML on all four tables; the sequences back the
+	// two BIGSERIAL primary keys.
 	for _, table := range staffMessagingTables {
-		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
-			ALTER TABLE users.%[1]s ENABLE ROW LEVEL SECURITY;
-			ALTER TABLE users.%[1]s FORCE ROW LEVEL SECURITY;
-
-			DO $$
-			BEGIN
-				IF NOT EXISTS (
-					SELECT 1 FROM pg_policies
-					WHERE schemaname = 'users'
-						AND tablename = '%[1]s'
-						AND policyname = 'tenant_isolation_users_%[1]s'
-				) THEN
-					CREATE POLICY tenant_isolation_users_%[1]s ON users.%[1]s
-						FOR ALL
-						USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-						WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-				END IF;
-			END $$;
-
-			GRANT SELECT, INSERT, UPDATE, DELETE ON users.%[1]s TO phoenix_tenant;
-		`, table))
-		if err != nil {
-			return fmt.Errorf("error enabling RLS on users.%s: %w", table, err)
+		if _, err = tx.ExecContext(ctx, fmt.Sprintf(
+			`GRANT SELECT, INSERT, UPDATE, DELETE ON users.%s TO phoenix_tenant;`, table,
+		)); err != nil {
+			return fmt.Errorf("error granting on users.%s: %w", table, err)
 		}
 	}
 
@@ -227,12 +210,32 @@ func staffMessagingUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.332: Staff messaging tables created")
+	// Tenant isolation over the shared provisioning path (rls_provisioning.go)
+	// instead of hand-copied ALTER/CREATE POLICY statements: it applies exactly
+	// the contract migration 1.15.1 established and keeps policy shape and
+	// naming identical across every tenant table. It takes the plain db handle,
+	// hence after the commit above.
+	if err := provisionTenantRLS(ctx, db,
+		"users.staff_message_threads",
+		"users.staff_message_participants",
+		"users.staff_messages",
+		"users.staff_message_reads",
+	); err != nil {
+		return err
+	}
+
+	slog.Info("migration completed",
+		slog.String("migration", staffMessagingVersion),
+		slog.String("detail", "staff messaging tables created"),
+	)
 	return nil
 }
 
 func staffMessagingDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.332: Dropping staff messaging tables...")
+	slog.Info("migration rolling back",
+		slog.String("migration", staffMessagingVersion),
+		slog.String("detail", "dropping staff messaging tables"),
+	)
 
 	_, err := db.NewRaw(`
 		DROP TABLE IF EXISTS users.staff_message_reads;

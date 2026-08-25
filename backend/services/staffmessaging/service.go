@@ -276,6 +276,18 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err != nil {
 		return nil, err
 	}
+	// Still a colleague? A JWT stays valid for its lifetime, so someone
+	// deactivated (or offboarded) mid-session keeps a usable token for up to
+	// AUTH_JWT_EXPIRY and could go on writing into existing conversations.
+	// OpenThread already checks this; the send path is the other write door and
+	// needs the same lock.
+	//
+	// Reads deliberately stay open: seeing the history one already had is
+	// harmless, adding to it after leaving the school is not.
+	if err := s.requireActiveMember(ctx, accountID); err != nil {
+		return nil, err
+	}
+
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
 		return nil, err
