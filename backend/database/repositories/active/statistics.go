@@ -52,7 +52,7 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 		ColumnExpr(`"status_day".date`).
 		ColumnExpr(`"status_day".status`).
 		Where(`"status_day".date >= ? AND "status_day".date <= ?`, from, to).
-		Where(`"status_day".cleared_at IS NULL`)
+		Where(`("status_day".cleared_at IS NULL OR "status_day".source = ?)`, active.StudentStatusSourceEndOfDay)
 	query = base.WithTenantFilter(ctx, query, "status_day")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "statistics status days", Err: err}

@@ -152,6 +152,24 @@ func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date t
 	require.NoError(t, err)
 }
 
+func insertEndOfDayStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date, status string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	clearedAt := date.BerlinMidnight().Add(18 * time.Hour)
+	row := &activeModels.StudentStatusDay{
+		StudentID:  studentID,
+		Date:       date,
+		Status:     status,
+		ReportedAt: date.BerlinMidnight().Add(7 * time.Hour),
+		ClearedAt:  &clearedAt,
+		Source:     activeModels.StudentStatusSourceEndOfDay,
+	}
+	row.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(ctx)
+	require.NoError(t, err)
+}
+
 func insertAcceptedPrivacyConsent(t *testing.T, db *bun.DB, tenantID, studentID int64, retentionDays int) {
 	t.Helper()
 	acceptedAt := time.Now()
@@ -268,10 +286,10 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, timezone.NewDate(2026, 6, 9))
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, timezone.NewDate(2026, 6, 10))
 	// Bert: sick Mon (sick beats an excused row on the same day), class trip
-	// Wed (counts as excused), present Thu.
+	// Wed (counts as excused even though archived by end-of-day), present Thu.
 	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), activeModels.StudentStatusDaySick)
 	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 8), activeModels.StudentStatusDayExcused)
-	insertStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 10), activeModels.StudentStatusDayClassTrip)
+	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, timezone.NewDate(2026, 6, 10), activeModels.StudentStatusDayClassTrip)
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, timezone.NewDate(2026, 6, 11))
 
 	// Room: two overlapping visits on Monday (peak 2), one visit that

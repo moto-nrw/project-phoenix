@@ -93,6 +93,50 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
+// seedStatisticsDemoStep records a small, deterministic attendance and room
+// scenario so a fresh demo tenant can show the Statistik page immediately.
+type seedStatisticsDemoStep struct{}
+
+func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
+
+func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
+		return fmt.Errorf("fixed seeder data not available")
+	}
+	deviceKey := rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID]
+	activityID := rt.FixedSeeder.activityIDs[DemoActivities[0].Name]
+	roomID := rt.FixedSeeder.activityRoomIDs[activityID]
+	staffID := rt.FixedSeeder.staffIDs[rt.FixedSeeder.staffCredentials[0].Name]
+	if deviceKey == "" || activityID == 0 || roomID == 0 || staffID == 0 {
+		return fmt.Errorf("statistics demo prerequisites not available")
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/session/start", map[string]any{
+		"activity_id": activityID, "room_id": roomID, "supervisor_ids": []int64{staffID},
+	}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("start statistics demo session: %w", err)
+	}
+	seeded := 0
+	for i := 0; i < 3 && i < len(DemoStudents); i++ {
+		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
+		if !ok {
+			continue
+		}
+		rfid := fmt.Sprintf("STATS%06d", studentID)
+		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("assign statistics demo RFID: %w", err)
+		}
+		if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("record statistics demo attendance: %w", err)
+		}
+		if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("record statistics demo room visit: %w", err)
+		}
+		seeded++
+	}
+	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
+	return nil
+}
+
 // seedCareExitsStep records two planned ends of care (#2487) so the child
 // management shows the "Betreuung endet am …" state and the reason table is
 // not empty on a fresh machine.
