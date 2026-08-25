@@ -279,7 +279,21 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 		phoneKey := fmt.Sprintf("erz%d.telefon", guardianNum)
 		mobileKey := fmt.Sprintf("erz%d.mobil", guardianNum)
 
-		if !mapper.HasColumn(emailKey) && !mapper.HasColumn(phoneKey) && !mapper.HasColumn(mobileKey) {
+		contactKeys := []string{
+			emailKey, phoneKey, mobileKey,
+			fmt.Sprintf("erz%d.telefon2", guardianNum),
+			fmt.Sprintf("erz%d.mobil2", guardianNum),
+			fmt.Sprintf("erz%d.dienstlich", guardianNum),
+			fmt.Sprintf("erz%d.dienstlich2", guardianNum),
+		}
+		hasContactColumn := false
+		for _, key := range contactKeys {
+			if mapper.HasColumn(key) {
+				hasContactColumn = true
+				break
+			}
+		}
+		if !hasContactColumn {
 			continue // No contact columns for this number
 		}
 
