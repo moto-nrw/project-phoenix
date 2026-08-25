@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, X } from "lucide-react";
@@ -101,6 +101,7 @@ function toDisplayStaff(row: ImportRowResult): DisplayStaff {
 }
 
 export default function StaffImportPage() {
+  const previewGeneration = useRef(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayStaff[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -199,6 +200,7 @@ export default function StaffImportPage() {
 
   const handleFileUpload = useCallback(
     async (file: File, importMode: ImportMode = mode) => {
+      const generation = ++previewGeneration.current;
       setUploadedFile(file);
       setError(null);
       setIsLoading(true);
@@ -252,16 +254,18 @@ export default function StaffImportPage() {
           });
         }
 
+        if (generation !== previewGeneration.current) return;
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
         logger.error("staff_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (generation !== previewGeneration.current) return;
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
         setPreviewData([]);
       } finally {
-        setIsLoading(false);
+        if (generation === previewGeneration.current) setIsLoading(false);
       }
     },
     [session, mode],

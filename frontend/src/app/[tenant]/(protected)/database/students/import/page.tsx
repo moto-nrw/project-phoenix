@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { Download, Info, ListChecks, X } from "lucide-react";
@@ -115,6 +115,7 @@ function guardianLabel(
 }
 
 export default function StudentImportPage() {
+  const previewGeneration = useRef(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayStudent[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -193,6 +194,7 @@ export default function StudentImportPage() {
   // Handle file upload and preview via backend API
   const handleFileUpload = useCallback(
     async (file: File, importMode: ImportMode = mode) => {
+      const generation = ++previewGeneration.current;
       setUploadedFile(file);
       setError(null);
       setIsLoading(true);
@@ -285,16 +287,18 @@ export default function StudentImportPage() {
           });
         }
 
+        if (generation !== previewGeneration.current) return;
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
         logger.error("student_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (generation !== previewGeneration.current) return;
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
         setPreviewData([]);
       } finally {
-        setIsLoading(false);
+        if (generation === previewGeneration.current) setIsLoading(false);
       }
     },
     [session, mode],

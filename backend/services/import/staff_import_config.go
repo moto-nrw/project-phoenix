@@ -676,7 +676,7 @@ func (c *StaffImportConfig) findStaffByLoginEmail(ctx context.Context, rawEmail 
 		return nil, err
 	}
 	if !exists {
-		return nil, nil
+		return c.findStaffByPendingInvitation(ctx, email)
 	}
 
 	if c.PersonRepo == nil || c.StaffRepo == nil {
