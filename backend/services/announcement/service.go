@@ -56,9 +56,10 @@ const (
 
 // Sentinel errors mapped to HTTP status by the handler.
 var (
-	ErrNotFound     = errors.New("announcement: not found")
-	ErrValidation   = errors.New("announcement: invalid input")
-	ErrNewsDisabled = errors.New("announcement: parent news is disabled for this school")
+	ErrNotFound                    = errors.New("announcement: not found")
+	ErrValidation                  = errors.New("announcement: invalid input")
+	ErrNewsDisabled                = errors.New("announcement: parent news is disabled for this school")
+	ErrSystemAnnouncementImmutable = errors.New("announcement: system announcements cannot be changed")
 	// ErrPublishedImmutable: a published announcement is frozen — parents may
 	// already have read (or been e-mailed) the exact wording, so silent edits
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
@@ -348,6 +349,9 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	}
 	if a == nil {
 		return ErrNotFound
+	}
+	if a.IsSystem() {
+		return ErrSystemAnnouncementImmutable
 	}
 	// Cancel any not-yet-sent e-mails before removing the announcement: outbox
 	// rows reference it only by related_entity_id (no FK), so a delete would
@@ -735,6 +739,9 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if a.IsSystem() {
+		return nil, ErrSystemAnnouncementImmutable
 	}
 	if a.IsPublished() {
 		if err := s.repo.SetPublished(ctx, id, nil); err != nil {

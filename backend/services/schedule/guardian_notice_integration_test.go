@@ -2,6 +2,7 @@ package schedule_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -113,6 +114,24 @@ func TestCancelWithNotice_RefusesBeforeCancellingWhenInvalid(t *testing.T) {
 		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status, "a refused notice must not cancel the block")
+	})
+
+	t.Run("whitespace-only text", func(t *testing.T) {
+		instance, _, _ := seedNoticeInstance(t, s, timezone.TodayDate().AddDays(1))
+		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &scheduleSvc.GuardianNoticeInput{Title: "  ", Message: "\t"}))
+		require.ErrorIs(t, err, scheduleSvc.ErrGuardianNoticeInvalid)
+		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
+	})
+
+	t.Run("overlong text", func(t *testing.T) {
+		instance, _, _ := seedNoticeInstance(t, s, timezone.TodayDate().AddDays(1))
+		_, err := svc.CancelWithNotice(s.ctx, noticeInput(instance.ID, actor.ID, &scheduleSvc.GuardianNoticeInput{Title: strings.Repeat("x", 201), Message: "Text"}))
+		require.ErrorIs(t, err, scheduleSvc.ErrGuardianNoticeInvalid)
+		reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+		require.NoError(t, err)
+		assert.Equal(t, scheduleModels.InstanceStatusPlanned, reloaded.Status)
 	})
 
 	t.Run("past block", func(t *testing.T) {

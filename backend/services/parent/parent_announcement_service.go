@@ -460,7 +460,6 @@ func (s *service) announcementFeedScope(ctx context.Context, accountID int64) (u
 	for _, tenantID := range allTenantIDs {
 		if s.tenantFlag(ctx, tenantID, configModel.KeyParentNewsEnabled) {
 			scope.TenantIDs = append(scope.TenantIDs, tenantID)
-			continue
 		}
 		if s.tenantFlag(ctx, tenantID, configModel.KeyNotificationsCareCancelledEnabled) {
 			scope.SystemOnlyTenantIDs = append(scope.SystemOnlyTenantIDs, tenantID)

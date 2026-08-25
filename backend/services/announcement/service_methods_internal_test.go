@@ -10,6 +10,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/stretchr/testify/assert"
 )
 
 // --- test doubles -----------------------------------------------------------
@@ -467,6 +468,19 @@ func TestService_Delete_NotFound(t *testing.T) {
 	if err := svc.Delete(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
+}
+
+func TestService_SystemAnnouncementCannotBeDeletedOrUnpublished(t *testing.T) {
+	t.Parallel()
+	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
+	system := published()
+	system.SystemKind = &kind
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return system, nil }}
+	svc := NewService(ServiceConfig{Repo: repo})
+
+	assert.ErrorIs(t, svc.Delete(context.Background(), testAnnID), ErrSystemAnnouncementImmutable)
+	_, err := svc.Unpublish(context.Background(), testAnnID)
+	assert.ErrorIs(t, err, ErrSystemAnnouncementImmutable)
 }
 
 func TestService_Delete_CancelError(t *testing.T) {

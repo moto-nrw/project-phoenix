@@ -81,6 +81,10 @@ describe("guardianNoticePayload", () => {
     ).toBe(false);
     expect(guardianNoticeIncomplete(draft, reachOn)).toBe(false);
   });
+
+  it("blocks cancellation while the notice preview is still loading", () => {
+    expect(guardianNoticeIncomplete(null, null)).toBe(true);
+  });
 });
 
 describe("cancelledToast", () => {

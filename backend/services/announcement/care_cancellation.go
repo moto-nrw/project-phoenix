@@ -121,13 +121,9 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 	if !enabled {
 		return nil, ErrCareCancellationDisabled
 	}
-	title := strings.TrimSpace(in.Title)
-	body := strings.TrimSpace(in.Body)
-	if title == "" || len([]rune(title)) > maxTitleLen {
-		return nil, fmt.Errorf("%w: title is required and at most %d characters", ErrValidation, maxTitleLen)
-	}
-	if body == "" || len([]rune(body)) > maxBodyLen {
-		return nil, fmt.Errorf("%w: body is required and at most %d characters", ErrValidation, maxBodyLen)
+	title, body, err := ValidateCareCancellationText(in.Title, in.Body)
+	if err != nil {
+		return nil, err
 	}
 	if in.CreatedBy <= 0 {
 		return nil, fmt.Errorf("%w: created_by is required", ErrValidation)
@@ -199,6 +195,21 @@ func (s *service) PublishCareCancellation(ctx context.Context, in CareCancellati
 		}
 	}
 	return &CareCancellationResult{Announcement: a, RecipientCount: len(recipients)}, nil
+}
+
+// ValidateCareCancellationText applies the text contract shared by the
+// cancellation preflight and the publisher. Returning the normalized values
+// ensures the check before cancelling cannot disagree with the stored text.
+func ValidateCareCancellationText(title, body string) (string, string, error) {
+	title = strings.TrimSpace(title)
+	body = strings.TrimSpace(body)
+	if title == "" || len([]rune(title)) > maxTitleLen {
+		return "", "", fmt.Errorf("%w: title is required and at most %d characters", ErrValidation, maxTitleLen)
+	}
+	if body == "" || len([]rune(body)) > maxBodyLen {
+		return "", "", fmt.Errorf("%w: body is required and at most %d characters", ErrValidation, maxBodyLen)
+	}
+	return title, body, nil
 }
 
 // pushShapeFor picks the notification type, the locale-copy kind and the deep

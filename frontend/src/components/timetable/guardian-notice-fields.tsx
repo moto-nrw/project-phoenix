@@ -66,6 +66,9 @@ export function guardianNoticeIncomplete(
   draft: GuardianNoticeDraft | null,
   reach: GuardianNoticeReach | null,
 ): boolean {
+  // Before the preview resolves, its school default is unknown. Do not let a
+  // cancellation silently turn that default into "off".
+  if (draft === null && reach === null) return true;
   if (!draft?.send || !reach?.enabled) return false;
   return draft.title.trim() === "" || draft.message.trim() === "";
 }
@@ -139,6 +142,9 @@ export function GuardianNoticeFields({
         setFailed(true);
         setReach(null);
         onReachChange(null);
+        // A failed preview must not permanently block a cancellation. Seed an
+        // explicit opt-out, distinct from the initial loading state above.
+        onDraftChange({ send: false, ...suggestGuardianNotice(block) });
         logger.error("guardian_notice_reach_failed", {
           instance_id: block.id,
           error: err instanceof Error ? err.message : String(err),

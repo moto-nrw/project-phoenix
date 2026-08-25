@@ -659,10 +659,11 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 	return rows, nil
 }
 
-// feedScopePredicate selects the rows a guardian's feed draws from: everything
-// from a school with news on, only system-authored rows (cancellation notices,
-// #2601) from a school that keeps news off. Both placeholders are tenant lists.
-const feedScopePredicate = `(a.tenant_id IN (?) OR (a.tenant_id IN (?) AND a.system_kind IS NOT NULL))`
+// feedScopePredicate selects hand-written rows from schools with news on and
+// system-authored rows from schools with the cancellation-notice gate on. Both
+// placeholders are tenant lists, evaluated independently so disabling the
+// notice gate also hides existing cancellation notices.
+const feedScopePredicate = `((a.tenant_id IN (?) AND a.system_kind IS NULL) OR (a.tenant_id IN (?) AND a.system_kind IS NOT NULL))`
 
 // feedScopeList renders a tenant list for feedScopePredicate. An empty list
 // binds a sentinel no tenant has, because `IN ()` is not valid SQL.

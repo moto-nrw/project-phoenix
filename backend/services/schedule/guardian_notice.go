@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/announcement"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Guardian notice on cancellation (#2601).
@@ -127,6 +128,10 @@ func (s *instanceService) CancelWithNotice(ctx context.Context, in CancelInstanc
 	}
 	notice, err := s.publishGuardianNotice(ctx, instance, *in.ActorAccountID, *in.GuardianNotice)
 	if err != nil {
+		// TenantTxMiddleware normally commits 4xx responses. A publication
+		// refusal after Cancel must nevertheless undo the cancellation so the
+		// caller never sees a rejected notice with a cancelled block.
+		tenant.MarkRollback(ctx)
 		return nil, err
 	}
 	result.GuardianNotice = notice
@@ -140,8 +145,8 @@ func (s *instanceService) validateGuardianNotice(ctx context.Context, in CancelI
 	if in.ActorAccountID == nil || *in.ActorAccountID <= 0 {
 		return fmt.Errorf("%w: acting account is required", ErrGuardianNoticeInvalid)
 	}
-	if in.GuardianNotice.Title == "" || in.GuardianNotice.Message == "" {
-		return fmt.Errorf("%w: title and message are required", ErrGuardianNoticeInvalid)
+	if _, _, err := announcement.ValidateCareCancellationText(in.GuardianNotice.Title, in.GuardianNotice.Message); err != nil {
+		return fmt.Errorf("%w: %w", ErrGuardianNoticeInvalid, err)
 	}
 	instance, err := s.loadForTransition(ctx, in.InstanceID)
 	if err != nil {
