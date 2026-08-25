@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -69,15 +70,15 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 // a back-to-back room change never counts a child twice.
 func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
 	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("statistics room utilization requires a tenant context")
+	}
 	// Placeholder order in the SQL below: GREATEST(start), LEAST(end),
 	// entry_time < end, exit_time > start, then the three tenant filters.
-	tenantClause := ""
 	groupClause := ""
 	args := []any{start, end, end, start}
-	if tenantID > 0 {
-		tenantClause = " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
-		args = append(args, tenantID, tenantID, tenantID)
-	}
+	tenantClause := " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
+	args = append(args, tenantID, tenantID, tenantID)
 	if len(groupIDs) > 0 {
 		groupClause = " AND s.group_id IN (?)"
 		args = append(args, bun.In(groupIDs))
