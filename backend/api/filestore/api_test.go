@@ -5,6 +5,7 @@
 package filestore_test
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -32,6 +33,24 @@ import (
 )
 
 var fakePDF = []byte("%PDF-1.4\n1 0 obj\n<<>>\nendobj\ntrailer\n<<>>\n%%EOF\n")
+
+// fakeXLSX carries the two OOXML parts the upload validator keys off.
+func fakeXLSX(t *testing.T) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := zip.NewWriter(&buf)
+	for name, content := range map[string]string{
+		"[Content_Types].xml": "<Types/>",
+		"xl/workbook.xml":     "<workbook/>",
+	} {
+		entry, err := writer.Create(name)
+		require.NoError(t, err)
+		_, err = entry.Write([]byte(content))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+	return buf.Bytes()
+}
 
 type apiContext struct {
 	t      *testing.T
@@ -306,6 +325,27 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 	assert.Equal(t, "application/pdf", rec.Header().Get("Content-Type"))
 	assert.Equal(t, fakePDF, rec.Body.Bytes())
 
+	// ?inline=1 shows a PDF in the browser, sandboxed; an office file stays a
+	// download regardless of the flag.
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, uploaded.Data.ID), nil, "", c.member, permissions.UsersRead)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, "inline; filename=Elternbrief.pdf", rec.Header().Get("Content-Disposition"))
+	assert.Contains(t, rec.Header().Get("Content-Security-Policy"), "sandbox")
+	assert.Equal(t, "nosniff", rec.Header().Get("X-Content-Type-Options"))
+
+	rec = c.upload(folder, "Plan.xlsx", fakeXLSX(t), c.admin, permissions.AdminWildcard)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var sheet struct {
+		Data struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &sheet))
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files/%d/download?inline=1", folder, sheet.Data.ID), nil, "", c.member, permissions.UsersRead)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "attachment;")
+	assert.Empty(t, rec.Header().Get("Content-Security-Policy"))
+
 	// Members cannot delete somebody else's file.
 	rec = c.do(http.MethodDelete, fmt.Sprintf("/files/folders/%d/files/%d", folder, uploaded.Data.ID), nil, "", c.member, permissions.UsersRead)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
@@ -322,7 +362,7 @@ func TestUploadDownloadDeleteLifecycle(t *testing.T) {
 		ColumnExpr("COUNT(*)").
 		Where("folder_id = ?", folder).
 		Scan(testpkg.Ctx(t), &events))
-	assert.Equal(t, 3, events, "folder_created + file_uploaded + file_deleted")
+	assert.Equal(t, 4, events, "folder_created + 2x file_uploaded + file_deleted")
 }
 
 func TestStaffUploadSetting(t *testing.T) {

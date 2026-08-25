@@ -13,7 +13,7 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "FileDownloadRoute" });
 
 async function GETHandler(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ folderId: string; fileId: string }> },
 ) {
   const { folderId, fileId } = await params;
@@ -24,7 +24,10 @@ async function GETHandler(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const backendUrl = `${getServerApiUrl()}/api/files/folders/${encodeURIComponent(folderId)}/files/${encodeURIComponent(fileId)}/download`;
+  // ?inline=1 asks for in-browser viewing (PDF, images); the backend decides
+  // per content type and answers with a sandboxing CSP.
+  const inline = request.nextUrl.searchParams.get("inline") === "1";
+  const backendUrl = `${getServerApiUrl()}/api/files/folders/${encodeURIComponent(folderId)}/files/${encodeURIComponent(fileId)}/download${inline ? "?inline=1" : ""}`;
 
   const makeRequest = (bearer: string) =>
     fetch(backendUrl, {
@@ -59,6 +62,7 @@ async function GETHandler(
     "cache-control",
     "content-length",
     "x-content-type-options",
+    "content-security-policy",
   ]) {
     const value = upstream.headers.get(name);
     if (value) headers.set(name, value);

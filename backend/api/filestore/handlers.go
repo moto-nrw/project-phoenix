@@ -417,7 +417,8 @@ func (rs *Resource) writeObject(w http.ResponseWriter, r *http.Request, uploadCt
 	return 0, false
 }
 
-// downloadFile serves GET /folders/{folderId}/files/{fileId}/download.
+// downloadFile serves GET /folders/{folderId}/files/{fileId}/download
+// (?inline=1 for in-browser viewing of PDFs and images).
 func (rs *Resource) downloadFile(w http.ResponseWriter, r *http.Request) {
 	folderID, ok := common.ParseInt64IDWithError(w, r, "folderId", "invalid folder ID")
 	if !ok {
@@ -442,7 +443,15 @@ func (rs *Resource) downloadFile(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, err)
 		return
 	}
-	if !coordinator.Serve(w, r, tenant.FromContext(r.Context()), file.FilenameStored, file.FilenameDisplay, file.ContentType) {
+	// ?inline=1 opens PDFs and images in the browser instead of downloading;
+	// office files ignore it and download either way.
+	served := false
+	if r.URL.Query().Get("inline") == "1" {
+		served = coordinator.ServeInline(w, r, tenant.FromContext(r.Context()), file.FilenameStored, file.FilenameDisplay, file.ContentType)
+	} else {
+		served = coordinator.Serve(w, r, tenant.FromContext(r.Context()), file.FilenameStored, file.FilenameDisplay, file.ContentType)
+	}
+	if !served {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("file not found")))
 	}
 }

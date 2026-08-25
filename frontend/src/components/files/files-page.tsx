@@ -34,6 +34,7 @@ import {
   filesService,
   FOLDER_VISIBILITY_LABELS,
   formatBytes,
+  isViewableInBrowser,
   type FileFolder,
   type FolderFiles,
   type FolderOverview,
@@ -436,12 +437,25 @@ function FolderFilesPanel({
       render: (file) => (
         <span className="flex min-w-0 items-center gap-2">
           {fileIcon(file.contentType)}
-          <a
-            href={filesService.downloadUrl(folder.id, file.id)}
-            className="truncate text-sm font-medium text-gray-900 hover:underline"
-          >
-            {file.filename}
-          </a>
+          {isViewableInBrowser(file.contentType) ? (
+            <a
+              href={filesService.viewUrl(folder.id, file.id)}
+              target="_blank"
+              rel="noopener"
+              title="Im Browser öffnen"
+              className="truncate text-sm font-medium text-gray-900 hover:underline"
+            >
+              {file.filename}
+            </a>
+          ) : (
+            <a
+              href={filesService.downloadUrl(folder.id, file.id)}
+              title="Herunterladen"
+              className="truncate text-sm font-medium text-gray-900 hover:underline"
+            >
+              {file.filename}
+            </a>
+          )}
         </span>
       ),
       sortValue: (file) => file.filename.toLowerCase(),
@@ -471,14 +485,21 @@ function FolderFilesPanel({
       header: "",
       align: "right",
       render: (file) => {
-        const items: OverflowMenuEntry[] = [
-          {
-            label: "Herunterladen",
-            href: filesService.downloadUrl(folder.id, file.id),
+        const items: OverflowMenuEntry[] = [];
+        if (isViewableInBrowser(file.contentType)) {
+          items.push({
+            label: "Öffnen",
+            href: filesService.viewUrl(folder.id, file.id),
             external: true,
             onClick: () => undefined,
-          },
-        ];
+          });
+        }
+        items.push({
+          label: "Herunterladen",
+          href: filesService.downloadUrl(folder.id, file.id),
+          external: true,
+          onClick: () => undefined,
+        });
         if (file.canDelete) {
           items.push(
             { kind: "separator" },

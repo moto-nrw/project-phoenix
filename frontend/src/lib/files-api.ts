@@ -309,6 +309,21 @@ class FilesService {
   downloadUrl(folderId: string, fileId: string): string {
     return `/api/files/folders/${folderId}/files/${fileId}/download`;
   }
+
+  /** Same URL, but the browser shows the file (PDF, image) instead of saving it. */
+  viewUrl(folderId: string, fileId: string): string {
+    return `${this.downloadUrl(folderId, fileId)}?inline=1`;
+  }
+}
+
+/** Browsers render these themselves; office files always download. */
+export function isViewableInBrowser(contentType: string): boolean {
+  return (
+    contentType === "application/pdf" ||
+    contentType === "image/png" ||
+    contentType === "image/jpeg" ||
+    contentType === "image/jpg"
+  );
 }
 
 export const filesService = new FilesService();
