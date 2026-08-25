@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	invitationTokensPersonIDVersion     = "1.15.332"
+	invitationTokensPersonIDVersion     = "1.15.334"
 	invitationTokensPersonIDDescription = "Link staff invitations to an already imported person so accepting reuses the record (#2600)"
 )
 
@@ -23,7 +23,7 @@ func init() {
 }
 
 func invitationTokensPersonIDUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.332: Adding person_id to auth.invitation_tokens...")
+	fmt.Println("Migration 1.15.334: Adding person_id to auth.invitation_tokens...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE auth.invitation_tokens
@@ -42,7 +42,7 @@ func invitationTokensPersonIDUp(ctx context.Context, db *bun.DB) error {
 }
 
 func invitationTokensPersonIDDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.332: Removing person_id from auth.invitation_tokens...")
+	fmt.Println("Rolling back migration 1.15.334: Removing person_id from auth.invitation_tokens...")
 
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_invitation_tokens_person_id;
