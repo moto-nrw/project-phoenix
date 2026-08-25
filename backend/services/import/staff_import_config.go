@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
@@ -112,6 +113,7 @@ func ImporterPermissionsFromContext(ctx context.Context) []string {
 // never reads a password or PIN from the file.
 type StaffImportConfig struct {
 	StaffImportDeps
+	importMu *sync.Mutex
 
 	// roleDisplayNames is the pool of role display names used for fuzzy
 	// suggestions when a row's role cannot be resolved. Loaded in
@@ -132,12 +134,14 @@ type StaffImportConfig struct {
 
 // NewStaffImportConfig creates a new staff import configuration.
 func NewStaffImportConfig(deps StaffImportDeps) *StaffImportConfig {
-	return &StaffImportConfig{StaffImportDeps: deps}
+	return &StaffImportConfig{StaffImportDeps: deps, importMu: &sync.Mutex{}}
 }
 
 func (c *StaffImportConfig) NewRequestScoped() importModels.ImportConfig[importModels.StaffImportRow] {
-	return &StaffImportConfig{StaffImportDeps: c.StaffImportDeps}
+	return &StaffImportConfig{StaffImportDeps: c.StaffImportDeps, importMu: c.importMu}
 }
+
+func (c *StaffImportConfig) ImportLock() *sync.Mutex { return c.importMu }
 
 // PreloadReferenceData loads the tenant's role names (for fuzzy suggestions on
 // unresolved roles), the school display name (for the invitation email) and the

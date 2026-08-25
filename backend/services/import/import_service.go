@@ -46,6 +46,8 @@ type requestScopedConfig[T any] interface {
 	NewRequestScoped() importModels.ImportConfig[T]
 }
 
+type importConfigLocker interface{ ImportLock() *sync.Mutex }
+
 // NewImportService creates a new import service
 func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
 	return &ImportService[T]{
@@ -99,6 +101,10 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
 		clone := *s
 		clone.config = scoped.NewRequestScoped()
+		if locker, ok := clone.config.(importConfigLocker); ok {
+			locker.ImportLock().Lock()
+			defer locker.ImportLock().Unlock()
+		}
 		return clone.importWithConfig(ctx, request)
 	}
 	s.importMu.Lock()
