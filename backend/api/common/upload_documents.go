@@ -14,9 +14,17 @@ import (
 // application/zip and the package contents disambiguate it.
 const DocxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
+// XlsxContentType and PptxContentType are the other two OOXML containers the
+// school file storage accepts (#2596). Same detection: ZIP magic bytes plus
+// the package part that only that format carries.
+const (
+	XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+	PptxContentType = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+)
+
 // AllowedDocumentTypes maps MIME types detected by http.DetectContentType to
-// allowed document uploads (staff documents, #1424). DOCX is handled
-// separately — see DocxContentType.
+// allowed document uploads (staff documents, #1424). OOXML containers are
+// handled separately — see ooxmlKind.
 var AllowedDocumentTypes = map[string]bool{
 	"application/pdf": true,
 	"image/png":       true,
@@ -24,7 +32,30 @@ var AllowedDocumentTypes = map[string]bool{
 	"image/jpg":       true,
 }
 
+// ooxmlKind describes one OOXML container: the extension the upload must
+// carry, the package part that proves the format, and the MIME type recorded
+// for it.
+type ooxmlKind struct {
+	extension   string
+	part        string
+	contentType string
+}
+
+var (
+	docxKind = ooxmlKind{extension: ".docx", part: "word/document.xml", contentType: DocxContentType}
+	xlsxKind = ooxmlKind{extension: ".xlsx", part: "xl/workbook.xml", contentType: XlsxContentType}
+	pptxKind = ooxmlKind{extension: ".pptx", part: "ppt/presentation.xml", contentType: PptxContentType}
+)
+
+// documentUploadKinds is what child and staff documents accept.
+var documentUploadKinds = []ooxmlKind{docxKind}
+
+// officeUploadKinds is what the school file storage accepts.
+var officeUploadKinds = []ooxmlKind{docxKind, xlsxKind, pptxKind}
+
 const invalidDocumentTypeMessage = "invalid file type. Only PDF, DOCX, PNG and JPEG files are allowed"
+
+const invalidOfficeFileTypeMessage = "invalid file type. Only PDF, DOCX, XLSX, PPTX, PNG and JPEG files are allowed"
 
 // ParseDocumentWithLimits parses a multipart document upload and validates
 // the content via magic bytes: PDF, PNG and JPEG directly, DOCX as a ZIP
@@ -32,6 +63,17 @@ const invalidDocumentTypeMessage = "invalid file type. Only PDF, DOCX, PNG and J
 // Enforces the advertised file-size cap separately from the multipart body
 // cap. The caller must close UploadedFile.File.
 func ParseDocumentWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
+	return parseValidatedUpload(w, r, fieldName, maxFileSize, maxBodySize, documentUploadKinds, invalidDocumentTypeMessage)
+}
+
+// ParseOfficeFileWithLimits is ParseDocumentWithLimits with the wider set of
+// office containers the school file storage accepts (#2596): DOCX, XLSX and
+// PPTX. Nothing executable or scriptable (HTML, SVG, bare ZIP) passes.
+func ParseOfficeFileWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
+	return parseValidatedUpload(w, r, fieldName, maxFileSize, maxBodySize, officeUploadKinds, invalidOfficeFileTypeMessage)
+}
+
+func parseValidatedUpload(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64, kinds []ooxmlKind, invalidMessage string) (*UploadedFile, error) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodySize)
 
 	if err := r.ParseMultipartForm(maxBodySize); err != nil {
@@ -47,7 +89,7 @@ func ParseDocumentWithLimits(w http.ResponseWriter, r *http.Request, fieldName s
 		return nil, errors.New("file too large")
 	}
 
-	contentType, err := detectDocumentContentType(file, header.Filename)
+	contentType, err := detectDocumentContentType(file, header.Filename, kinds, invalidMessage)
 	if err != nil {
 		_ = file.Close()
 		return nil, err
@@ -62,7 +104,7 @@ func ParseDocumentWithLimits(w http.ResponseWriter, r *http.Request, fieldName s
 
 // detectDocumentContentType reads the first 512 bytes to detect the MIME
 // type via magic bytes and validates it against the allowed document types.
-func detectDocumentContentType(file io.ReadSeeker, filename string) (string, error) {
+func detectDocumentContentType(file io.ReadSeeker, filename string, kinds []ooxmlKind, invalidMessage string) (string, error) {
 	buf := make([]byte, 512)
 	n, err := file.Read(buf)
 	if n == 0 {
@@ -76,13 +118,14 @@ func detectDocumentContentType(file io.ReadSeeker, filename string) (string, err
 	switch {
 	case AllowedDocumentTypes[contentType]:
 		// PDF or image, magic bytes are conclusive.
-	case contentType == "application/zip" && strings.HasSuffix(strings.ToLower(filename), ".docx"):
-		if !isDOCX(file) {
-			return "", errors.New(invalidDocumentTypeMessage)
+	case contentType == "application/zip":
+		kind, ok := matchOOXMLKind(filename, kinds)
+		if !ok || !isOOXML(file, kind) {
+			return "", errors.New(invalidMessage)
 		}
-		contentType = DocxContentType
+		contentType = kind.contentType
 	default:
-		return "", errors.New(invalidDocumentTypeMessage)
+		return "", errors.New(invalidMessage)
 	}
 
 	if _, err := file.Seek(0, 0); err != nil {
@@ -91,10 +134,20 @@ func detectDocumentContentType(file io.ReadSeeker, filename string) (string, err
 	return contentType, nil
 }
 
-// isDOCX verifies the minimum OOXML structure that distinguishes a Word
-// document from an arbitrary ZIP archive. Uploads are capped at 10 MB, so
-// reading the container here is bounded by the documented upload limit.
-func isDOCX(file io.ReadSeeker) bool {
+func matchOOXMLKind(filename string, kinds []ooxmlKind) (ooxmlKind, bool) {
+	lower := strings.ToLower(filename)
+	for _, kind := range kinds {
+		if strings.HasSuffix(lower, kind.extension) {
+			return kind, true
+		}
+	}
+	return ooxmlKind{}, false
+}
+
+// isOOXML verifies the minimum OOXML structure that distinguishes an Office
+// document from an arbitrary ZIP archive. Uploads are capped at the
+// documented upload limit, so reading the container here is bounded.
+func isOOXML(file io.ReadSeeker, kind ooxmlKind) bool {
 	if _, err := file.Seek(0, 0); err != nil {
 		return false
 	}
@@ -112,8 +165,8 @@ func isDOCX(file io.ReadSeeker) bool {
 		parts[entry.Name] = struct{}{}
 	}
 	_, hasContentTypes := parts["[Content_Types].xml"]
-	_, hasDocument := parts["word/document.xml"]
-	return hasContentTypes && hasDocument
+	_, hasPart := parts[kind.part]
+	return hasContentTypes && hasPart
 }
 
 // DocumentFileExtension returns the canonical stored-file extension for a
@@ -128,6 +181,10 @@ func DocumentFileExtension(contentType string) string {
 		return ".jpg"
 	case DocxContentType:
 		return ".docx"
+	case XlsxContentType:
+		return ".xlsx"
+	case PptxContentType:
+		return ".pptx"
 	default:
 		return ""
 	}
