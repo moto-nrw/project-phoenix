@@ -123,10 +123,13 @@ func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, erro
 func (m *mockRepo) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
 	return m.audienceFn(ctx, tenantID, announcementID)
 }
-func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.AnnouncementFeedItem, error) {
+func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
 	return nil, nil
 }
-func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
+func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) (int, error) {
+	return 0, nil
+}
+func (m *mockRepo) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
 	return 0, nil
 }
 func (m *mockRepo) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {

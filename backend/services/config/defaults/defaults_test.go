@@ -158,6 +158,10 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"display.enabled",
 		// Absence-approval email notifications (issue #1419 4d).
 		"notifications.absence_approval_email",
+		// Cancellation notice to families (#2601).
+		"notifications.care_cancelled_enabled",
+		"notifications.care_cancelled_default_on",
+		"notifications.care_cancelled_email",
 	}
 
 	for _, key := range expectedKeys {

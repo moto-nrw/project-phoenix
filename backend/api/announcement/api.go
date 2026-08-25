@@ -123,6 +123,8 @@ type announcementResponse struct {
 	ResponseType            string           `json:"response_type"`
 	ResponseDeadline        *time.Time       `json:"response_deadline,omitempty"`
 	Options                 []optionResponse `json:"options"`
+	// SystemKind marks rows the system wrote (cancellation notice, #2601).
+	SystemKind *string `json:"system_kind,omitempty"`
 }
 
 type statsResponse struct {
@@ -184,6 +186,7 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		ResponseType:            a.ResponseType,
 		ResponseDeadline:        a.ResponseDeadline,
 		Options:                 toOptionResponses(a.Options),
+		SystemKind:              a.SystemKind,
 	}
 }
 

@@ -64,16 +64,16 @@ func (s *service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	tenantIDs, err := s.newsEnabledTenants(ctx, accountID)
+	scope, err := s.announcementFeedScope(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	if len(tenantIDs) == 0 {
+	if scope.IsEmpty() {
 		return []*usersModels.AnnouncementFeedItem{}, nil
 	}
 	var out []*usersModels.AnnouncementFeedItem
 	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, tenantIDs)
+		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
 		}
@@ -131,16 +131,16 @@ func (s *service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 	if accountID <= 0 {
 		return 0, fmt.Errorf("parent: account_id must be positive")
 	}
-	tenantIDs, err := s.newsEnabledTenants(ctx, accountID)
+	scope, err := s.announcementFeedScope(ctx, accountID)
 	if err != nil {
 		return 0, err
 	}
-	if len(tenantIDs) == 0 {
+	if scope.IsEmpty() {
 		return 0, nil
 	}
 	var count int
 	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
-		n, err := s.AnnouncementRepo.CountUnreadForAccount(adminCtx, accountID, tenantIDs)
+		n, err := s.AnnouncementRepo.CountUnreadForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
 		}
@@ -186,6 +186,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	var announcementTenantID int64
 	var requiresAck bool
 	var announcementPublishedAt time.Time
+	var announcementSystemKind *string
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
@@ -207,6 +208,7 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 		}
 		announcementTenantID = a.GetTenantID()
 		requiresAck = a.RequiresAcknowledgement
+		announcementSystemKind = a.SystemKind
 		// Capture published_at for the stale-version check, which is deferred
 		// until AFTER the parent-news flag check below so a disabled school
 		// collapses to 404 before a mismatch could surface a 409.
@@ -218,25 +220,13 @@ func (s *service) stampAnnouncement(ctx context.Context, accountID, announcement
 	}
 	// Re-check the school's parent-news flag before stamping any read/ack row.
 	// The list + unread-badge paths already hide a school that turned the feature
-	// off (newsEnabledTenants); a direct read/acknowledge on a stale page or a
+	// off (announcementFeedScope); a direct read/acknowledge on a stale page or a
 	// known ID must not keep collecting interaction stats for that disabled
 	// school, so a disabled school collapses to the same 404 the feed shows. Runs
 	// OUTSIDE the admin tx because ResolveBoolForTenant opens its own tenant tx.
 	// Fails CLOSED: an unwired settings service or a resolve error excludes the
 	// school just like the feed does.
-	if s.Settings == nil {
-		return ErrAnnouncementNotFound
-	}
-	on, err := s.Settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
-	if err != nil {
-		s.Logger.Warn("parent: resolve parent_news_enabled failed, refusing stamp",
-			slog.Int64("tenant_id", announcementTenantID),
-			slog.Int64("announcement_id", announcementID),
-			slog.String("error", err.Error()),
-		)
-		return ErrAnnouncementNotFound
-	}
-	if !on {
+	if !s.announcementVisibleForTenant(ctx, announcementTenantID, announcementID, announcementSystemKind) {
 		return ErrAnnouncementNotFound
 	}
 	// Version check AFTER audience authorization AND the parent-news flag (both
@@ -343,19 +333,8 @@ func (s *service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	}
 	// Same fail-closed feature check as the read/ack path: a school that turned
 	// parent news off must stop collecting answers, not just stop showing them.
-	if s.Settings == nil {
-		return ErrAnnouncementNotFound
-	}
-	on, err := s.Settings.ResolveBoolForTenant(ctx, announcementTenantID, configModel.KeyParentNewsEnabled)
-	if err != nil {
-		s.Logger.Warn("parent: resolve parent_news_enabled failed, refusing poll answer",
-			slog.Int64("tenant_id", announcementTenantID),
-			slog.Int64("announcement_id", announcementID),
-			slog.String("error", err.Error()),
-		)
-		return ErrAnnouncementNotFound
-	}
-	if !on {
+	// A poll is never system-authored, so only the news flag can admit it.
+	if !s.announcementVisibleForTenant(ctx, announcementTenantID, announcementID, nil) {
 		return ErrAnnouncementNotFound
 	}
 	if !announcementPublishedAt.Equal(expectedPublishedAt) {
@@ -438,9 +417,76 @@ func validPollSelection(responseType string, options []*usersModels.ParentAnnoun
 	return responseType != usersModels.ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
 }
 
-// newsEnabledTenants returns the distinct tenants a guardian can receive news
-// from, filtered to those with the parent-news feature enabled. The tenant set
-// is the union of two sources:
+// announcementVisibleForTenant is the per-announcement feature gate shared by
+// read, acknowledge and poll answer. Hand-written announcements need the news
+// flag; a system-authored row (cancellation notice, #2601) needs its own gate
+// instead, so a school that keeps news off still lets families confirm the
+// notice. Runs OUTSIDE the admin tx because ResolveBoolForTenant opens its own
+// tenant tx. Fails CLOSED on an unwired settings service or a resolve error.
+func (s *service) announcementVisibleForTenant(ctx context.Context, tenantID, announcementID int64, systemKind *string) bool {
+	if s.Settings == nil {
+		return false
+	}
+	key := configModel.KeyParentNewsEnabled
+	if systemKind != nil && *systemKind != "" {
+		key = configModel.KeyNotificationsCareCancelledEnabled
+	}
+	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
+	if err != nil {
+		s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("announcement_id", announcementID),
+			slog.String("setting_key", key),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return on
+}
+
+// announcementFeedScope splits the guardian's schools into those whose whole
+// feed is visible (news on) and those that only contribute system-authored
+// rows (news off, cancellation notice on). See newsEnabledTenants for how the
+// candidate set is derived.
+func (s *service) announcementFeedScope(ctx context.Context, accountID int64) (usersModels.AnnouncementFeedScope, error) {
+	var scope usersModels.AnnouncementFeedScope
+	allTenantIDs, err := s.announcementTenants(ctx, accountID)
+	if err != nil {
+		return scope, err
+	}
+	if len(allTenantIDs) == 0 || s.Settings == nil {
+		return scope, nil
+	}
+	for _, tenantID := range allTenantIDs {
+		if s.tenantFlag(ctx, tenantID, configModel.KeyParentNewsEnabled) {
+			scope.TenantIDs = append(scope.TenantIDs, tenantID)
+			continue
+		}
+		if s.tenantFlag(ctx, tenantID, configModel.KeyNotificationsCareCancelledEnabled) {
+			scope.SystemOnlyTenantIDs = append(scope.SystemOnlyTenantIDs, tenantID)
+		}
+	}
+	return scope, nil
+}
+
+// tenantFlag resolves one boolean school setting, failing CLOSED: a transient
+// settings hiccup must not surface a school's announcements.
+func (s *service) tenantFlag(ctx context.Context, tenantID int64, key string) bool {
+	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
+	if err != nil {
+		s.Logger.Warn("parent: resolve announcement feature flag failed, excluding tenant",
+			slog.Int64("tenant_id", tenantID),
+			slog.String("setting_key", key),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return on
+}
+
+// announcementTenants returns the distinct tenants a guardian can receive
+// announcements from, before any feature flag is applied. The tenant set is
+// the union of two sources:
 //
 //   - schools where the account has a linked child (childRepo), and
 //   - schools where the account has an open (non-withdrawn) enrollment request.
@@ -454,12 +500,7 @@ func validPollSelection(responseType string, options []*usersModels.ParentAnnoun
 // audience predicate (reachedPredicate in the repository) still decides actual
 // membership, so tenants reached only through a decided/withdrawn request simply
 // yield no matching announcements.
-//
-// ResolveBoolForTenant opens its own tenant tx, so it runs OUTSIDE the admin tx
-// (mirrors the messaging UnreadMessageCount pattern). Fails CLOSED: a school is
-// included only when its flag resolves to true, so a disabled school never leaks
-// announcements.
-func (s *service) newsEnabledTenants(ctx context.Context, accountID int64) ([]int64, error) {
+func (s *service) announcementTenants(ctx context.Context, accountID int64) ([]int64, error) {
 	var allTenantIDs []int64
 	seen := make(map[int64]bool)
 	add := func(id int64) {
@@ -490,26 +531,7 @@ func (s *service) newsEnabledTenants(ctx context.Context, accountID int64) ([]in
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: resolve news tenants: %w", txErr)
 	}
-	if len(allTenantIDs) == 0 || s.Settings == nil {
-		return nil, nil
-	}
-	enabled := make([]int64, 0, len(allTenantIDs))
-	for _, tenantID := range allTenantIDs {
-		on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyParentNewsEnabled)
-		if err != nil {
-			// Fail CLOSED on a resolve error: news is opt-in (default off), so a
-			// transient settings hiccup must not surface a school's announcements.
-			s.Logger.Warn("parent: resolve parent_news_enabled failed, excluding tenant",
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-		if on {
-			enabled = append(enabled, tenantID)
-		}
-	}
-	return enabled, nil
+	return allTenantIDs, nil
 }
 
 // announcementIsLive reports whether an announcement is currently visible to

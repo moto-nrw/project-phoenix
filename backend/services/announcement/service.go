@@ -116,6 +116,9 @@ type Service interface {
 	// RemindUnanswered notifies the guardians of children that have not answered
 	// yet and reports how many were reached.
 	RemindUnanswered(ctx context.Context, id int64) (int, error)
+
+	// --- cancellation notice (#2601) ---
+	CareCancellationPublisher
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -478,8 +481,9 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	// factory always does — the pre-consent behaviour is kept for that case so
 	// a partially constructed service does not silently stop notifying. When a
 	// service IS present, its answer is final: no consent, no push.
+	notificationType, copyKind, deepLink := pushShapeFor(a)
 	if s.preferences != nil {
-		accountIDs, err = s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		accountIDs, err = s.preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 		if err != nil {
 			return fmt.Errorf("filter opted-in guardians: %w", err)
 		}
@@ -495,21 +499,17 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		}
 	}
 
-	kind := notifications.ParentAnnouncementPublished
-	if a.IsPoll() {
-		kind = notifications.ParentPollPublished
-	}
 	groups := make(map[string][]int64)
 	for _, accountID := range accountIDs {
 		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, kind)
+		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
-			Type:     parentAnnouncementNotificationType,
+			Type:     notificationType,
 			Title:    title,
 			Body:     body,
-			DeepLink: "/",
+			DeepLink: deepLink,
 			Priority: priority,
 			Audience: notifications.Audience{
 				TenantID:           a.GetTenantID(),
@@ -576,7 +576,8 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		// received announcement e-mails before the consent switches existed, and
 		// most families have no row at all. Requiring an opt-in here would stop
 		// the e-mails for practically everybody.
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		notificationType, _, _ := pushShapeFor(a)
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, notificationType, accountIDs)
 		if err != nil {
 			return fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
 		}

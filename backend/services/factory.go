@@ -2151,6 +2151,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "announcement"),
 	})
 
+	// The cancellation notice (#2601) rides on the announcement service, which
+	// is built after the instance service; inject it now that both exist.
+	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
+		setter.SetGuardianNoticePublisher(parentAnnouncementService)
+	}
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
 		SchoolRepo:            repos.School,
