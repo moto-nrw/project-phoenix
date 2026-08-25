@@ -252,6 +252,10 @@
       "parent_request_decided": {
         "label": "Decision on your request",
         "description": "When the OGS has decided on one of your requests."
+      },
+      "parent_care_cancelled": {
+        "label": "Care cancelled",
+        "description": "When the OGS cancels one of your child's care sessions."
       }
     }
   },
