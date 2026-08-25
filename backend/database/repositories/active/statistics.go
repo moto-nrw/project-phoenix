@@ -80,8 +80,25 @@ func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end t
 	tenantClause := " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
 	args = append(args, tenantID, tenantID, tenantID)
 	if len(groupIDs) > 0 {
-		groupClause = " AND s.group_id IN (?)"
-		args = append(args, bun.In(groupIDs))
+		positiveGroupIDs := make([]int64, 0, len(groupIDs))
+		includeNoGroup := false
+		for _, groupID := range groupIDs {
+			if groupID == 0 {
+				includeNoGroup = true
+				continue
+			}
+			positiveGroupIDs = append(positiveGroupIDs, groupID)
+		}
+		switch {
+		case includeNoGroup && len(positiveGroupIDs) > 0:
+			groupClause = " AND (s.group_id IN (?) OR s.group_id IS NULL)"
+			args = append(args, bun.In(positiveGroupIDs))
+		case includeNoGroup:
+			groupClause = " AND s.group_id IS NULL"
+		default:
+			groupClause = " AND s.group_id IN (?)"
+			args = append(args, bun.In(positiveGroupIDs))
+		}
 	}
 
 	sql := `

@@ -118,14 +118,14 @@ func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 	assert.Equal(t, 4, adam.UnexplainedDays)
 	assert.Nil(t, adam.GroupID)
 
-	groups := buildGroupRows(rows, len(care))
+	groups := buildGroupRows(rows)
 	require.Len(t, groups, 2)
 	assert.Equal(t, "Sonne", groups[0].Name)
 	assert.Equal(t, NoGroupName, groups[1].Name, "children without a group form the last pseudo group")
 	require.NotNil(t, groups[1].AttendanceRate)
 	assert.InDelta(t, 0.0, *groups[1].AttendanceRate, 0.001)
 
-	totals := buildTotals(rows, len(care))
+	totals := buildTotals(rows)
 	assert.Equal(t, 2, totals.StudentCount)
 	require.NotNil(t, totals.AttendanceRate)
 	assert.InDelta(t, 12.5, *totals.AttendanceRate, 0.001)
@@ -161,7 +161,32 @@ func TestFilterStudentsByGroup(t *testing.T) {
 	}
 	assert.Len(t, filterStudentsByGroup(students, nil), 3)
 	assert.Len(t, filterStudentsByGroup(students, []int64{a}), 1)
+	assert.Len(t, filterStudentsByGroup(students, []int64{0}), 1)
 	assert.Empty(t, filterStudentsByGroup(students, []int64{99}))
+}
+
+func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
+	t.Parallel()
+	first := timezone.NewDate(2026, 6, 8)
+	care := map[timezone.Date]bool{
+		first:            true,
+		first.AddDays(1): true,
+		first.AddDays(2): true,
+		first.AddDays(3): true,
+	}
+	enrolledFrom := first.AddDays(2)
+	student := &userModels.Student{EnrolledFrom: &enrolledFrom}
+	student.ID = 100
+
+	rows := buildStudentRows([]*userModels.StudentWithGroupInfo{{Student: student}}, care,
+		[]activeModels.AttendanceDayRow{{StudentID: student.ID, Date: enrolledFrom}}, nil)
+
+	require.Len(t, rows, 1)
+	assert.Equal(t, 2, rows[0].CareDays)
+	assert.Equal(t, 1, rows[0].PresentDays)
+	assert.Equal(t, 1, rows[0].UnexplainedDays)
+	require.NotNil(t, rows[0].AttendanceRate)
+	assert.InDelta(t, 50.0, *rows[0].AttendanceRate, 0.001)
 }
 
 func TestRoomRetentionDays_UsesLongestIndividualRetention(t *testing.T) {

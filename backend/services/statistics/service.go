@@ -72,6 +72,7 @@ type StudentRow struct {
 	SickDays        int
 	ExcusedDays     int
 	UnexplainedDays int
+	CareDays        int
 	// AttendanceRate is present/care in percent; nil when there are no
 	// care days in the window.
 	AttendanceRate *float64
@@ -153,7 +154,7 @@ type calendarPeriods interface {
 }
 
 type studentReader interface {
-	FindAllWithGroups(ctx context.Context) ([]*userModels.StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
 }
 
 type roomReader interface {
@@ -261,7 +262,7 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		return nil, err
 	}
 
-	students, err := s.cfg.Students.FindAllWithGroups(ctx)
+	students, err := s.cfg.Students.FindOverlappingWithGroups(ctx, filters.From, filters.To)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
@@ -283,8 +284,8 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		ExcludedDays: excluded,
 	}
 	report.Students = buildStudentRows(students, careDays, attendance, statusDays)
-	report.Groups = buildGroupRows(report.Students, len(careDays))
-	report.Totals = buildTotals(report.Students, len(careDays))
+	report.Groups = buildGroupRows(report.Students)
+	report.Totals = buildTotals(report.Students)
 
 	rooms, err := s.roomRows(ctx, filters)
 	if err != nil {
@@ -370,7 +371,10 @@ func filterStudentsByGroup(students []*userModels.StudentWithGroupInfo, groupIDs
 	}
 	out := make([]*userModels.StudentWithGroupInfo, 0, len(students))
 	for _, st := range students {
-		if st.Student != nil && st.GroupID != nil && wanted[*st.GroupID] {
+		if st.Student == nil {
+			continue
+		}
+		if (st.GroupID == nil && wanted[0]) || (st.GroupID != nil && wanted[*st.GroupID]) {
 			out = append(out, st)
 		}
 	}
@@ -417,6 +421,10 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 			row.LastName = st.Person.LastName
 		}
 		for day := range careDays {
+			if !studentEnrolledOn(st.Student, day) {
+				continue
+			}
+			row.CareDays++
 			key := dayKey{st.ID, day}
 			switch {
 			case present[key]:
@@ -429,7 +437,7 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 				row.UnexplainedDays++
 			}
 		}
-		row.AttendanceRate = rate(row.PresentDays, len(careDays))
+		row.AttendanceRate = rate(row.PresentDays, row.CareDays)
 		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -444,10 +452,15 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 	return rows
 }
 
+func studentEnrolledOn(student *userModels.Student, day timezone.Date) bool {
+	return (student.EnrolledFrom == nil || !day.Before(*student.EnrolledFrom)) &&
+		(student.EnrolledUntil == nil || !day.After(*student.EnrolledUntil))
+}
+
 // NoGroupName labels the pseudo group of children without a group.
 const NoGroupName = "Ohne Gruppe"
 
-func buildGroupRows(students []StudentRow, careDays int) []GroupRow {
+func buildGroupRows(students []StudentRow) []GroupRow {
 	byGroup := map[int64]*GroupRow{}
 	for _, st := range students {
 		id := int64(0)
@@ -469,7 +482,13 @@ func buildGroupRows(students []StudentRow, careDays int) []GroupRow {
 	}
 	rows := make([]GroupRow, 0, len(byGroup))
 	for _, row := range byGroup {
-		row.AttendanceRate = rate(row.PresentDays, careDays*row.StudentCount)
+		careDays := 0
+		for _, student := range students {
+			if (student.GroupID == nil && row.GroupID == 0) || (student.GroupID != nil && *student.GroupID == row.GroupID) {
+				careDays += student.CareDays
+			}
+		}
+		row.AttendanceRate = rate(row.PresentDays, careDays)
 		rows = append(rows, *row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -490,16 +509,18 @@ func sortKey(s string) string {
 
 var umlautFolder = strings.NewReplacer("ä", "a", "ö", "o", "ü", "u", "ß", "ss")
 
-func buildTotals(students []StudentRow, careDays int) GroupRow {
+func buildTotals(students []StudentRow) GroupRow {
 	total := GroupRow{Name: "Gesamt"}
+	careDays := 0
 	for _, st := range students {
 		total.StudentCount++
 		total.PresentDays += st.PresentDays
 		total.SickDays += st.SickDays
 		total.ExcusedDays += st.ExcusedDays
 		total.UnexplainedDays += st.UnexplainedDays
+		careDays += st.CareDays
 	}
-	total.AttendanceRate = rate(total.PresentDays, careDays*total.StudentCount)
+	total.AttendanceRate = rate(total.PresentDays, careDays)
 	return total
 }
 

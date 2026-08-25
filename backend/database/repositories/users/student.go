@@ -1259,7 +1259,8 @@ type studentWithPersonAndGroup struct {
 
 // newStudentWithGroupQuery returns a select query pre-configured with student+person column
 // expressions and the person JOIN. Callers add group JOIN, WHERE, and ORDER as needed.
-func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, results *[]*studentWithPersonAndGroup) *bun.SelectQuery {
+// Historical readers include alumni because their enrollment may overlap the report range.
+func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, results *[]*studentWithPersonAndGroup, includeAlumni bool) *bun.SelectQuery {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(results).
 		ModelTableExpr(`users.students AS "student"`).
@@ -1269,6 +1270,7 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
+		ColumnExpr(`"student".enrolled_from AS "student__enrolled_from", "student".enrolled_until AS "student__enrolled_until"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
 		// departure_companion_note is scanonly and hydrated via
@@ -1286,20 +1288,26 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 	// student roster (GET /api/iot/students) and the calendar student picker;
 	// without this filter graduates stayed visible on the tablet teacher list
 	// and bracelet-assignment despite the documented promise (#405).
-	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+	if !includeAlumni {
+		query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
+	}
 
+	return query
+}
+
+// activeRosterEnrollmentFilter keeps a child whose care has ended from the
+// current rosters. Historical readers use their own interval-overlap filter.
+func activeRosterEnrollmentFilter(query *bun.SelectQuery) *bun.SelectQuery {
 	// A child whose care has ended disappears from the same rosters for the
 	// same reason (#2487): the tablet list, the bracelet assignment and the
 	// calendar student picker all answer "which children does this school care
 	// for", and from the day after their last care day they do not. Filtered
 	// on the enrollment interval rather than the lifecycle status, because the
 	// status only follows once the scheduler ticks.
-	query = query.Where(
+	return query.Where(
 		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`,
 		timezone.TodayDate(),
 	)
-
-	return query
 }
 
 // mapStudentGroupResults converts raw scan results into StudentWithGroupInfo slices.
@@ -1421,7 +1429,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(ctx, &results).
+	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results, false)).
 		ColumnExpr(`"group".name AS "group_name"`).
 		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
@@ -1447,7 +1455,7 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 // Uses LEFT JOIN on groups so students without a group assignment are included.
 func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(ctx, &results).
+	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results, false)).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Distinct().
@@ -1466,6 +1474,25 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 		return nil, err
 	}
 	return infos, nil
+}
+
+// FindOverlappingWithGroups retrieves non-alumni children whose inclusive
+// enrollment interval overlaps [from, to]. Unlike the live roster this keeps
+// children whose care has since ended and omits later enrollments.
+func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*users.StudentWithGroupInfo, error) {
+	var results []*studentWithPersonAndGroup
+	err := r.newStudentWithGroupQuery(ctx, &results, true).
+		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
+		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
+		Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, to).
+		Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, from).
+		Distinct().
+		OrderExpr(`"person".last_name, "person".first_name`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find students overlapping range with groups", Err: err}
+	}
+	return mapStudentGroupResults(results), nil
 }
 
 // LockPhotoFeature acquires the per-tenant pg_advisory_xact_lock that

@@ -155,7 +155,7 @@ func parseFilters(r *http.Request) (statisticsService.Filters, error) {
 				continue
 			}
 			id, err := strconv.ParseInt(part, 10, 64)
-			if err != nil || id <= 0 {
+			if err != nil || id < 0 {
 				return statisticsService.Filters{}, fmt.Errorf("invalid group_id %q", part)
 			}
 			filters.GroupIDs = append(filters.GroupIDs, id)

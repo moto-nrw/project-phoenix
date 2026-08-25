@@ -147,6 +147,9 @@ type StudentRepository interface {
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
+	// FindOverlappingWithGroups retrieves non-alumni students whose enrollment
+	// interval overlaps the inclusive report range, with their current group.
+	FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*StudentWithGroupInfo, error)
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
 	// Alumni are excluded: a graduate is soft-deleted and must not block the

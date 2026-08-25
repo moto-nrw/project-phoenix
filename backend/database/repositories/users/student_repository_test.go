@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -693,6 +694,50 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		}
 		assert.Greater(t, posBeta, posAlpha, "Alpha should come before Beta alphabetically")
 	})
+}
+
+func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.Ctx(t)
+	from := timezone.NewDate(2026, 6, 1)
+	to := timezone.NewDate(2026, 6, 10)
+
+	overlapping := testpkg.CreateTestStudent(t, db, "Historisch", "Dabei", "3a")
+	past := testpkg.CreateTestStudent(t, db, "Historisch", "Vorbei", "3a")
+	future := testpkg.CreateTestStudent(t, db, "Historisch", "Später", "3a")
+
+	overlappingUntil := timezone.NewDate(2026, 6, 5)
+	pastUntil := timezone.NewDate(2026, 5, 31)
+	futureFrom := timezone.NewDate(2026, 6, 11)
+	for _, update := range []struct {
+		id     int64
+		column string
+		value  timezone.Date
+	}{
+		{overlapping.ID, "enrolled_until", overlappingUntil},
+		{past.ID, "enrolled_until", pastUntil},
+		{future.ID, "enrolled_from", futureFrom},
+	} {
+		_, err := db.NewUpdate().TableExpr(`users.students`).Set(update.column+` = ?`, update.value).Where(`id = ?`, update.id).Exec(ctx)
+		require.NoError(t, err)
+	}
+	_, err := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`id = ?`, overlapping.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	results, err := repo.FindOverlappingWithGroups(ctx, from, to)
+	require.NoError(t, err)
+	ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
+	for _, result := range results {
+		ids[result.ID] = result
+	}
+	assert.Contains(t, ids, overlapping.ID)
+	assert.NotContains(t, ids, past.ID)
+	assert.NotContains(t, ids, future.ID)
+	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
+	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
 }
 
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {

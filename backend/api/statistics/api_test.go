@@ -221,6 +221,19 @@ func TestStatisticsReport_RejectsInvalidRanges(t *testing.T) {
 	}
 }
 
+func TestStatisticsReport_AcceptsNoGroupFilter(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	tenantID := testpkg.Tenant(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "NoGroup", "Tester")
+	claims := claimsFor(t, account.ID)
+
+	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String()+"&group_id=0", nil)
+	rec := authExec(t, tc, req, claims, reportPermissions)
+
+	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+}
+
 func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	t.Parallel()
 	tc := setupTestContext(t)
