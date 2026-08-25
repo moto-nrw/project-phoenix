@@ -245,6 +245,28 @@ func ErrorConflictMessage(message string) render.Renderer {
 	}
 }
 
+// ErrorInvalidRequestMessage returns a 400 Bad Request with a user-facing
+// message string. Same reason as ErrorConflictMessage: a localized sentence
+// (capitalized, ending in a period) is UI copy, not a Go error string, and
+// wrapping it in errors.New would violate ST1005.
+func ErrorInvalidRequestMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusBadRequest,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
+// ErrorForbiddenMessage returns a 403 Forbidden with a user-facing message
+// string. See ErrorInvalidRequestMessage for why.
+func ErrorForbiddenMessage(message string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusForbidden,
+		Status:         "error",
+		ErrorText:      message,
+	}
+}
+
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)

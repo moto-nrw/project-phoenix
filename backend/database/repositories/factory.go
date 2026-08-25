@@ -247,6 +247,11 @@ type Factory struct {
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
 
+	// OGS-internal colleague chat (#2598)
+	StaffMessageThread userModels.StaffMessageThreadRepository
+	StaffMessage       userModels.StaffMessageRepository
+	StaffMessageRead   userModels.StaffMessageReadRepository
+
 	// Calendar domain
 	CalendarAppointment               calendarModels.AppointmentRepository
 	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
@@ -463,6 +468,10 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+
+		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
+		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageRead:   users.NewStaffMessageReadRepository(db),
 
 		// Calendar repositories
 		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),

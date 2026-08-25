@@ -58,7 +58,10 @@ const (
 	TypeMyActivityStarting     = "my_activity_starting"
 	TypeStudentAbsenceReported = "student_absence_reported"
 	TypeStaffParentMessage     = "staff_parent_message"
-	TypeParentAnnouncement     = "parent_announcement"
+	// TypeStaffMessage is a message from a colleague in the OGS-internal chat
+	// (#2598) — staff to staff, no parent involved.
+	TypeStaffMessage       = "staff_message"
+	TypeParentAnnouncement = "parent_announcement"
 
 	// Parent-facing types added with issue #1671. Each one mirrors a channel the
 	// parents app already has, and none of them carries a child's name: the copy
@@ -210,6 +213,19 @@ func init() {
 		Portal:      PortalStaff,
 		TenantGate:  configModel.KeyParentNotesEnabled,
 		SortOrder:   1,
+	})
+
+	// OGS-internal colleague chat (#2598). Gated on the school's own feature
+	// switch: a school that has the internal messenger off has no conversation
+	// to announce, so the type disappears from the preference catalogue too.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffMessage,
+		Label:       "Nachrichten von Kolleginnen und Kollegen",
+		Description: "Wenn Ihnen jemand aus dem Team eine Nachricht im Team-Chat schreibt.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		TenantGate:  configModel.KeyStaffMessagingEnabled,
+		SortOrder:   2,
 	})
 
 	RegisterType(TypeDefinition{

@@ -101,6 +101,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		StudentPhotosEnabled:     resolved.studentPhotosEnabled,
 		NFCEnabled:               resolved.nfcEnabled,
 		ParentMessagingEnabled:   resolved.parentMessagingEnabled,
+		StaffMessagingEnabled:    resolved.staffMessagingEnabled,
 		DisplayEnabled:           resolved.displayEnabled,
 		GradeLevelMax:            gradeLevelMax,
 		CareOfferingsEnabled:     resolved.careOfferingsEnabled,
@@ -142,6 +143,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyGroupMode,
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyParentNotesEnabled,
+		configModel.KeyStaffMessagingEnabled,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
 		// opening a second tenant transaction (issue #2065).
@@ -181,6 +183,9 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
 	resolved.parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(ctx, rs.SettingsService, tenantID, nil)
+	// The internal Team-Chat (#2598) is the opposite: fail CLOSED, so a school
+	// that did not switch it on never sees it — even on a settings hiccup.
+	resolved.staffMessagingEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyStaffMessagingEnabled, false, slog.LevelWarn)
 	return resolved
 }
 
@@ -216,6 +221,9 @@ func resolveTenantShellSnapshot(
 	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
+	// Fails CLOSED (default false): an internal staff channel must never appear
+	// at a school that did not switch it on.
+	resolved.staffMessagingEnabled = resolveBool(configModel.KeyStaffMessagingEnabled, false, slog.LevelWarn)
 
 	mode := resolveString(configModel.KeyPresenceMode, configModel.PresenceModeDetailed, slog.LevelWarn)
 	if mode != "" {
