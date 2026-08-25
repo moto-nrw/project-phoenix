@@ -347,7 +347,7 @@ export const MOTO_CONCEPTS = {
     "administration",
   ),
   reports: concept(
-    "Berichte",
+    "Statistik",
     PresentationChartIcon,
     "indigo",
     "function",

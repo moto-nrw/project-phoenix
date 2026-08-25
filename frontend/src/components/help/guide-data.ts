@@ -835,6 +835,29 @@ export const appChapters: readonly GuideChapter[] = [
           "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
       },
       {
+        id: "statistik",
+        title: "Statistik",
+        searchTerms: ["Anwesenheitsquote", "Fehlzeiten", "Raumauslastung"],
+        icon: ClipboardCheck,
+        summary:
+          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, und wie stark die Räume genutzt wurden. Mit Export als PDF, Excel und Word.",
+        steps: [
+          "`Statistik` in der Seitenleiste öffnen.",
+          "Oben den Zeitraum wählen, zum Beispiel `Letzte 30 Tage` oder einen eigenen Bereich. Der Zeitraum darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
+          "Daneben bei Bedarf eine oder mehrere Gruppen wählen. Ohne Auswahl zählt die Statistik alle Kinder.",
+          "Die Kacheln zeigen die Betreuungstage des Zeitraums, die abgezogenen Tage, die Gesamtquote und die Fehltage nach Art. Darunter stehen die Zahlen je Gruppe, je Kind und je Raum.",
+          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben.",
+        ],
+        callout: {
+          title: "So rechnet die Quote",
+          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten liegen nur für die letzten Tage vor, die unter `Einstellungen` -> `Datenschutz` als Aufbewahrung eingestellt sind; ältere Raumdaten sind gelöscht.",
+          tone: "blue",
+        },
+        screenshot:
+          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind und Raum.",
+        image: "/help/screens/statistik.webp",
+      },
+      {
         id: "abwesenheiten",
         title: "Abwesenheiten",
         icon: CalendarRange,

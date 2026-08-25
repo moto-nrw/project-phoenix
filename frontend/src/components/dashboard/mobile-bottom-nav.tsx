@@ -42,6 +42,7 @@ import {
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
+  STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
   Drawer,
@@ -429,12 +430,10 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
   {
-    href: "#",
-    label: "Berichte",
+    ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
     concept: "reports",
     requiresAdmin: true,
-    comingSoon: true,
   },
 ];
 
