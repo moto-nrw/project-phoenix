@@ -90,7 +90,12 @@ function TeamChatInboxContent() {
   // Only a REAL failure belongs in a red alert. "Switched off" is not one.
   const loadFailed = Boolean(error) && !disabledByBackend;
 
-  const showSkeleton = isLoading && !threads;
+  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` haelt jede
+  // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
+  // isValidating) und die Seite zeigt ewig Platzhalter, statt zu sagen, was
+  // los ist - der Fehlerzustand darunter waere unerreichbar. Gleiche Regel wie
+  // auf der Thread-Seite.
+  const showSkeleton = isLoading && !threads && !loadFailed;
 
   return (
     <div className="-mt-1.5 w-full">
@@ -144,7 +149,10 @@ function TeamChatInboxContent() {
         <TeamChatSkeleton />
       ) : (
         <>
-          {loadFailed && (
+          {loadFailed && threads && (
+            // Fehler NEBEN vorhandenen (moeglicherweise veralteten) Daten: die
+            // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
+            // sein muss.
             <div className="mb-4">
               <Alert
                 type="error"
@@ -153,7 +161,27 @@ function TeamChatInboxContent() {
             </div>
           )}
 
-          {filteredThreads.length === 0 ? (
+          {loadFailed && !threads ? (
+            // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
+            // danebenzustellen behauptet "Sie haben keine Nachrichten",
+            // obwohl in Wahrheit niemand nachsehen konnte - und das ist die
+            // auffaelligere der beiden Aussagen.
+            <EmptyState
+              icon={<MessagesSquare size={48} className="text-gray-400" />}
+              title="Das hat leider nicht geklappt"
+              description="Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
+              action={
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={() => void mutate()}
+                >
+                  Erneut versuchen
+                </Button>
+              }
+            />
+          ) : filteredThreads.length === 0 ? (
             <EmptyState
               icon={<MessagesSquare size={48} className="text-gray-400" />}
               title="Noch keine Nachrichten"
