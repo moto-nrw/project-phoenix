@@ -26,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -151,6 +152,21 @@ func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date t
 	require.NoError(t, err)
 }
 
+func insertAcceptedPrivacyConsent(t *testing.T, db *bun.DB, tenantID, studentID int64, retentionDays int) {
+	t.Helper()
+	acceptedAt := time.Now()
+	consent := &userModels.PrivacyConsent{
+		StudentID:         studentID,
+		PolicyVersion:     "statistics-test",
+		Accepted:          true,
+		AcceptedAt:        &acceptedAt,
+		DataRetentionDays: retentionDays,
+	}
+	consent.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(consent).ModelTableExpr(`users.privacy_consents`).Exec(t.Context())
+	require.NoError(t, err)
+}
+
 func insertHolidayPeriod(t *testing.T, db *bun.DB, tenantID int64, name string, from, to timezone.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -216,6 +232,8 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Sonnen")
 	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Anwesend", "1a")
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bettruhe", "1a")
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, anna.ID, 30)
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, bert.ID, 30)
 	for _, st := range []int64{anna.ID, bert.ID} {
 		_, err := tc.db.NewUpdate().TableExpr("users.students").Set("group_id = ?", group.ID).Where("id = ?", st).Exec(ctx)
 		require.NoError(t, err)
@@ -253,6 +271,11 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(14*time.Hour), end(monday.Add(15*time.Hour)))
 	testpkg.CreateTestVisit(t, tc.db, bert.ID, session.ID, monday.Add(14*time.Hour+30*time.Minute), end(monday.Add(15*time.Hour+30*time.Minute)))
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(-2*time.Hour), end(monday.Add(30*time.Minute)))
+	thursday := monday.AddDate(0, 0, 3)
+	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, thursday.Add(23*time.Hour), end(thursday.Add(25*time.Hour)))
+	expiredVisit := testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(15*time.Hour), end(monday.Add(16*time.Hour)))
+	_, err := tc.db.NewUpdate().TableExpr(`active.visits`).Set(`created_at = ?`, time.Now().AddDate(0, 0, -31)).Where(`id = ?`, expiredVisit.ID).Exec(ctx)
+	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
 	rec := authExec(t, tc, req, claims, reportPermissions)
@@ -304,11 +327,12 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 			continue
 		}
 		found = true
-		assert.Equal(t, 1, r.DaysUsed)
+		assert.Equal(t, 3, r.DaysUsed)
 		assert.Equal(t, 2, r.DistinctStudents)
 		assert.Equal(t, 2, r.PeakOccupancy)
-		// 60 + 60 + 30 clamped minutes
-		assert.Equal(t, 150, r.StudentMinutes)
+		// 60 + 60 + 30 clamped minutes, plus 120 across midnight. The
+		// older 60-minute visit is excluded by the student's retention.
+		assert.Equal(t, 270, r.StudentMinutes)
 		require.NotNil(t, r.PeakUtilizationPercent, "fixture room has capacity 30")
 		assert.InDelta(t, 6.7, *r.PeakUtilizationPercent, 0.01)
 	}

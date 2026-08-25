@@ -63,7 +63,8 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 //
 // Window semantics follow AggregateRoomSessions: a visit counts when it
 // started before `end` and either is still open or ended after `start`.
-// Minutes are clamped to the window. The peak is a sweep over entry (+1)
+// Visits are restricted to each student's effective retention window. Minutes
+// are clamped to the window. The peak is a sweep over entry (+1)
 // and exit (-1) events per room; at equal instants the exit sorts first so
 // a back-to-back room change never counts a child twice.
 func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
@@ -83,7 +84,14 @@ func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end t
 	}
 
 	sql := `
-WITH scoped AS (
+WITH retention AS (
+	SELECT "privacy_consent".student_id,
+	       MIN("privacy_consent".data_retention_days) AS retention_days
+	FROM users.privacy_consents AS "privacy_consent"
+	WHERE "privacy_consent".accepted = TRUE
+	GROUP BY "privacy_consent".student_id
+),
+scoped AS (
 	SELECT ag.room_id,
 	       v.student_id,
 	       GREATEST(v.entry_time, ?) AS entry_at,
@@ -91,8 +99,10 @@ WITH scoped AS (
 	FROM active.visits v
 	JOIN active.groups ag ON ag.id = v.active_group_id
 	JOIN users.students s ON s.id = v.student_id
+	JOIN retention r ON r.student_id = v.student_id
 	WHERE v.entry_time < ?
-	  AND (v.exit_time IS NULL OR v.exit_time > ?)` + tenantClause + groupClause + `
+	  AND (v.exit_time IS NULL OR v.exit_time > ?)
+	  AND v.created_at >= NOW() - make_interval(days => r.retention_days)` + tenantClause + groupClause + `
 ),
 events AS (
 	SELECT room_id, entry_at AS at, 1 AS delta FROM scoped
@@ -105,15 +115,28 @@ running AS (
 ),
 peak AS (
 	SELECT room_id, MAX(occupancy) AS peak_occupancy FROM running GROUP BY room_id
+),
+room_days AS (
+	SELECT s.room_id,
+	       COUNT(DISTINCT d.used_date) AS days_used
+	FROM scoped s
+	CROSS JOIN LATERAL generate_series(
+		(s.entry_at AT TIME ZONE 'Europe/Berlin')::date,
+		((s.exit_at - INTERVAL '1 microsecond') AT TIME ZONE 'Europe/Berlin')::date,
+		INTERVAL '1 day'
+	) AS d(used_date)
+	WHERE s.exit_at > s.entry_at
+	GROUP BY s.room_id
 )
 SELECT s.room_id,
-       COUNT(DISTINCT (s.entry_at AT TIME ZONE 'Europe/Berlin')::date) AS days_used,
+	   COALESCE(d.days_used, 0)::int AS days_used,
        COUNT(DISTINCT s.student_id) AS distinct_students,
        COALESCE(SUM(GREATEST(EXTRACT(EPOCH FROM (s.exit_at - s.entry_at)), 0)) / 60, 0)::int AS student_minutes,
        COALESCE(p.peak_occupancy, 0) AS peak_occupancy
 FROM scoped s
 LEFT JOIN peak p ON p.room_id = s.room_id
-GROUP BY s.room_id, p.peak_occupancy
+LEFT JOIN room_days d ON d.room_id = s.room_id
+GROUP BY s.room_id, d.days_used, p.peak_occupancy
 ORDER BY s.room_id`
 	var rows []active.RoomUtilizationRow
 	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {

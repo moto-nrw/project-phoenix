@@ -130,31 +130,3 @@ export function formatHours(minutes: number): string {
     maximumFractionDigits: 1,
   });
 }
-
-export interface StatisticsGroupOption {
-  id: string;
-  name: string;
-}
-
-/** Education groups for the filter, via the groups proxy. */
-export async function fetchStatisticsGroups(): Promise<
-  StatisticsGroupOption[]
-> {
-  const response = await fetch("/api/groups?page_size=1000", {
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new StatisticsError(
-      "unknown",
-      `groups request failed (${response.status})`,
-    );
-  }
-  const body = (await response.json()) as {
-    id: number | string;
-    name: string;
-  }[];
-  return body.map((group) => ({
-    id: String(group.id),
-    name: group.name,
-  }));
-}

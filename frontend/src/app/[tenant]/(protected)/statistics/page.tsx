@@ -33,7 +33,6 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
-  fetchStatisticsGroups,
   fetchStatisticsReport,
   formatHours,
   formatRate,
@@ -47,7 +46,6 @@ import {
   type StatisticsRoomRow,
   type StatisticsStudentRow,
 } from "~/lib/statistics-api";
-import { useSWRAuth } from "~/lib/swr/hooks";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "StatisticsPage" });
@@ -120,6 +118,9 @@ export default function StatisticsPage() {
     to: parseISODate(berlinTodayISO()),
   }));
   const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [availableGroups, setAvailableGroups] = useState<
+    readonly StatisticsGroupRow[]
+  >([]);
   const [view, setView] = useState<StatisticsView>("groups");
   const [data, setData] = useState<StatisticsReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,16 +128,12 @@ export default function StatisticsPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const { data: groups } = useSWRAuth(
-    "statistics-groups",
-    fetchStatisticsGroups,
-  );
   const groupOptions = useMemo(
     () =>
-      (groups ?? [])
-        .map((group) => ({ value: group.id, label: group.name }))
+      availableGroups
+        .map((group) => ({ value: group.group_id, label: group.name }))
         .sort((a, b) => a.label.localeCompare(b.label, "de")),
-    [groups],
+    [availableGroups],
   );
 
   const fromISO = range?.from ? toISODate(range.from) : null;
@@ -149,7 +146,9 @@ export default function StatisticsPage() {
     setErrorCode(null);
     fetchStatisticsReport(fromISO, toISO, groupIds)
       .then((report) => {
-        if (!cancelled) setData(report);
+        if (cancelled) return;
+        setData(report);
+        if (groupIds.length === 0) setAvailableGroups(report.groups);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
