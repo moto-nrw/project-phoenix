@@ -269,8 +269,15 @@ func TestFolderManagementRequiresPermission(t *testing.T) {
 	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Leer", Visibility: "selected"}, c.admin, permissions.AdminWildcard)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "selected folder needs an audience")
 
-	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Fremd", Visibility: "selected", RoleIDs: []string{idStr(999_999_999)}}, c.admin, permissions.AdminWildcard)
-	assert.Equal(t, http.StatusBadRequest, rec.Code, "unknown role is refused")
+	// A role of another school: RLS on auth.roles keeps it out of the audience
+	// list, so sharing with it is refused. Derived from a fixture rather than
+	// written down as a literal id.
+	foreignTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, c.db, foreignTenant)
+	foreignRole := testpkg.CreateTestRoleForTenant(t, c.db, "fremde-schule", foreignTenant)
+
+	rec = c.json(http.MethodPost, "/files/folders", folderPayload{Name: "Fremd", Visibility: "selected", RoleIDs: []string{idStr(foreignRole.ID)}}, c.admin, permissions.AdminWildcard)
+	assert.Equal(t, http.StatusBadRequest, rec.Code, "a role of another school is refused")
 
 	rec = c.json(http.MethodPut, fmt.Sprintf("/files/folders/%d", folder), folderPayload{Name: "Umbenannt", Visibility: "admins"}, c.admin, permissions.AdminWildcard)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
