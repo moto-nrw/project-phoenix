@@ -158,6 +158,15 @@ describe("Button", () => {
     expect(button.className).toContain("text-[17px]");
   });
 
+  it("applies card size styles", () => {
+    render(<Button size="card">Klasse 1a</Button>);
+
+    const button = screen.getByRole("button");
+    expect(button.className).toContain("w-full");
+    expect(button.className).toContain("rounded-2xl");
+    expect(button.className).toContain("p-4");
+  });
+
   it("passes custom className", () => {
     render(<Button className="custom-class">Custom</Button>);
 

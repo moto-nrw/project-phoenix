@@ -24,6 +24,15 @@ export interface ClassDayRow {
   pickup?: string;
   departure?: string;
   status?: "sick" | "excused" | "class_trip" | "cancelled" | "";
+  // Abweichung vom üblichen Wochenplan (#2294): pickup_changed markiert eine
+  // Abholzeit, die heute von der Regelzeit abweicht, pickup_regular nennt
+  // die Regelzeit (leer, wenn der Plan an dem Wochentag keine hat).
+  pickup_changed?: boolean;
+  pickup_regular?: string;
+  // Zeitpunkt, seit dem die Abweichung bekannt ist (ISO-Zeitstempel). Nur bei
+  // Zeilen mit Abweichung gesetzt: Status-Meldezeit, sonst der Eintrag der
+  // Tages-Ausnahme.
+  reported_at?: string;
 }
 
 interface ClassDayTotals {

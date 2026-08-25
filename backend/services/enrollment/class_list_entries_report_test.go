@@ -124,7 +124,7 @@ func TestBuildClassDayReportListEntryProjection(t *testing.T) {
 		},
 	}
 
-	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, nil, nil, nil, nil, nil)
+	report := buildClassDayReport("1a", timezone.NewDate(2026, 8, 5), "Schuljahr", rows, newClassDayFacts())
 
 	require.Len(t, report.Rows, 2)
 	entryRow := report.Rows[1]
