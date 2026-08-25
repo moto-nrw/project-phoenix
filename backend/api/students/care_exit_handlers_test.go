@@ -4,6 +4,7 @@
 package students_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -25,6 +26,10 @@ import (
 )
 
 func wireCareLifecycle(t *testing.T, tc *testContext) {
+	wireCareLifecycleWithBookingMode(t, tc, false)
+}
+
+func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
 	repos := repositories.NewFactory(tc.db)
 	deletion := userService.NewStudentDeletionService(
@@ -48,9 +53,79 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 			TagReleaser:     repos.GradeTransition,
 			AuditService:    userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 			StudentDeletion: deletion,
-			DB:              tc.db,
-			Logger:          slog.Default(),
+			BookingsAuthoritative: func(context.Context) (bool, error) {
+				return authoritative, nil
+			},
+			DB:     tc.db,
+			Logger: slog.Default(),
 		})
+}
+
+func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresence(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	wireCareLifecycleWithBookingMode(t, tc, true)
+	repos := repositories.NewFactory(tc.db)
+	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
+	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
+	studentID := student.ID
+	today := timezone.TodayDate()
+	setEnrolledUntil(t, tc, endedWithoutTask.ID, today.AddDays(-1))
+	firstGap := today.AddDays(1)
+	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, firstGap)
+	actor := testpkg.CreateTestAccount(t, tc.db, "participation-reader@example.test")
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	listedIDs := func(query string) map[int64]bool { return listedCareStudentIDs(t, tc, claims, query) }
+
+	assert.True(t, listedIDs("")[student.ID], "the child remains visible before the gap")
+	assert.False(t, listedIDs("&date=" + firstGap.String())[student.ID], "the operational list hides the child from the first bookingless day")
+	assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
+	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
+
+	// Move the same pending task onto today to exercise the live-presence
+	// exception without treating today's attendance as future planning data.
+	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, today)
+	assert.False(t, listedIDs("")[student.ID])
+	assert.True(t, listedIDs("&include_pending_withdrawals=true")[student.ID])
+
+	staff := testpkg.CreateTestStaff(t, tc.db, "Live", "Aufsicht")
+	device := testpkg.CreateTestDevice(t, tc.db, "participation-live-reader")
+	setEnrolledUntil(t, tc, student.ID, today.AddDays(-1))
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, time.Now().Add(-time.Hour), nil)
+	_, err := tc.db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", userModels.StudentStatusAlumnus).Where("id = ?", student.ID).Exec(t.Context())
+	require.NoError(t, err)
+	assert.True(t, listedIDs("")[student.ID], "actual attendance overrides derived dates and technical status")
+}
+
+func upsertNaturalCompletion(
+	t *testing.T, repo userModels.CareWithdrawalCompletionRepository, studentID int64, gap timezone.Date,
+) {
+	t.Helper()
+	require.NoError(t, repo.UpsertPending(testpkg.Ctx(t), &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: gap,
+		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
+		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}))
+}
+
+func listedCareStudentIDs(t *testing.T, tc *testContext, claims jwt.AppClaims, query string) map[int64]bool {
+	t.Helper()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?page_size=500"+query, nil)
+	response := authExec(t, tc, request, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+	var body struct {
+		Data []struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	ids := make(map[int64]bool, len(body.Data))
+	for _, row := range body.Data {
+		ids[row.ID] = true
+	}
+	return ids
 }
 
 func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
@@ -323,6 +398,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	t.Parallel()
 
 	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
 
 	running := testpkg.CreateTestStudent(t, tc.db, "Listed", "Running", "3a")
 	planned := testpkg.CreateTestStudent(t, tc.db, "Listed", "Planned", "3a")
@@ -408,6 +484,18 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		assert.Contains(t, runningRows, running.ID)
 		assert.Contains(t, runningRows, planned.ID)
 		assert.NotContains(t, runningRows, ended.ID)
+	})
+
+	t.Run("default participation keeps SQL pagination and count aligned", func(t *testing.T) {
+		query := fmt.Sprintf("group_id=%d&page_size=1&page=%%d", group.ID)
+		first, firstTotal := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(query, 1))
+		second, secondTotal := listMultiFilterStudentIDs(t, tc, fmt.Sprintf(query, 2))
+		require.Len(t, first, 1)
+		require.Len(t, second, 1)
+		assert.Equal(t, 2, firstTotal)
+		assert.Equal(t, firstTotal, secondTotal)
+		assert.NotEqual(t, first[0], second[0])
+		assert.ElementsMatch(t, []int64{running.ID, planned.ID}, []int64{first[0], second[0]})
 	})
 
 	t.Run("an unknown care_status is rejected, not silently ignored", func(t *testing.T) {

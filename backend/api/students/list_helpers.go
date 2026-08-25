@@ -45,7 +45,11 @@ type studentListParams struct {
 	includePickupTimes  bool
 	includeCompanions   bool
 	includeArrivalTimes bool
-	dayStatus           string
+	// includePendingWithdrawals keeps children with an open complete-withdrawal
+	// task in the master-data administration. Operational readers omit it and
+	// apply the shared bookingless-day boundary below.
+	includePendingWithdrawals bool
+	dayStatus                 string
 	// date is the optional planning day (YYYY-MM-DD) the day-planning fields,
 	// status days, and planned arrival/pickup times are evaluated for (#1939).
 	// Empty means the school-local today. Parsed and validated in the handler
@@ -69,6 +73,10 @@ type studentListParams struct {
 	// set, buildBaseFilter adds `student.id IN (...)` so the standard
 	// school_class / guardian_name / pagination pipeline still applies.
 	studentIDs []int64
+	// actuallyPresentIDs bypass only the legacy alumnus visibility guard. The
+	// shared participation rule has already decided these children must remain
+	// operationally visible for safety while their attendance is still open.
+	actuallyPresentIDs []int64
 	// fetchAll disables SQL pagination so the query returns every row matching
 	// the SQL-level filters. Exports set this: the birthday-month and search
 	// filters run in memory after the fetch, so a paginated page would hide
@@ -82,8 +90,9 @@ type studentListParams struct {
 	// shows (#2487). Empty or "running" — the default every operational
 	// screen uses — hides children whose care has ended; "ended" shows only
 	// those; "all" turns the boundary off for callers that manage both.
-	careStatus   string
-	careStatusOn timezone.Date
+	careStatus      string
+	careStatusOn    timezone.Date
+	careStatusToday timezone.Date
 }
 
 // Values accepted by the care_status query parameter (#2487).
@@ -231,15 +240,17 @@ func parseGradeLevelList(raw []string) []int {
 
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
+	today := timezone.TodayDate()
 	params := &studentListParams{
-		schoolClasses: parseMultiValueParam(r.URL.Query()["school_class"]),
-		guardianName:  r.URL.Query().Get("guardian_name"),
-		firstName:     r.URL.Query().Get("first_name"),
-		lastName:      r.URL.Query().Get("last_name"),
-		location:      r.URL.Query().Get("location"),
-		locationState: r.URL.Query().Get("location_state"),
-		search:        r.URL.Query().Get("search"),
-		careStatusOn:  timezone.TodayDate(),
+		schoolClasses:   parseMultiValueParam(r.URL.Query()["school_class"]),
+		guardianName:    r.URL.Query().Get("guardian_name"),
+		firstName:       r.URL.Query().Get("first_name"),
+		lastName:        r.URL.Query().Get("last_name"),
+		location:        r.URL.Query().Get("location"),
+		locationState:   r.URL.Query().Get("location_state"),
+		search:          r.URL.Query().Get("search"),
+		careStatusOn:    today,
+		careStatusToday: today,
 	}
 
 	// Parse group IDs if provided. Unparseable entries are skipped rather than
@@ -263,6 +274,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
 	params.includeCompanions = r.URL.Query().Get("include_companions") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
+	params.includePendingWithdrawals = r.URL.Query().Get("include_pending_withdrawals") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
 	params.date = r.URL.Query().Get("date")
 
@@ -375,15 +387,7 @@ func parseDayStatusParam(value string) string {
 // search still belongs in the broader `search` parameter.
 func (p *studentListParams) buildBaseFilter() *base.Filter {
 	filter := base.NewFilter()
-	// Alumni (graduated via grade transition, soft-deleted) are invisible to
-	// every staff list and export.
-	filter.NotIn("status", string(users.StudentStatusAlumnus))
-	// Children whose care has ended are invisible to every operational list
-	// and export from the day after their last care day (#2487). The
-	// enrollment interval is the boundary — the lifecycle status only follows
-	// it once the scheduler ticks, and a list must not show a departed child
-	// for up to an hour because of that.
-	applyCareStatusFilter(filter, p.careStatus, p.careStatusOn)
+	p.applyCareVisibility(filter)
 	// Several classes may be selected at once (#2218); TrimIn collapses to the
 	// single-value TrimEqual when exactly one is requested.
 	if len(p.schoolClasses) > 0 {
@@ -410,6 +414,29 @@ func (p *studentListParams) buildBaseFilter() *base.Filter {
 		filter.In("id", ids...)
 	}
 	return filter
+}
+
+func (p *studentListParams) applyCareVisibility(filter *base.Filter) {
+	applyAlumnusVisibility(filter, p.actuallyPresentIDs)
+	// The shared evaluator handles the running side after actual attendance is
+	// known. Explicit administrative views retain their SQL date boundary.
+	if p.careStatus != CareStatusRunning {
+		applyCareStatusFilter(filter, p.careStatus, p.careStatusOn)
+	}
+}
+
+func applyAlumnusVisibility(filter *base.Filter, actuallyPresentIDs []int64) {
+	status := base.NewFilter().NotIn("status", string(users.StudentStatusAlumnus))
+	if len(actuallyPresentIDs) == 0 {
+		filter.And(*status)
+		return
+	}
+	ids := make([]interface{}, len(actuallyPresentIDs))
+	for i, id := range actuallyPresentIDs {
+		ids[i] = id
+	}
+	status.Or(*base.NewFilter().In("id", ids...))
+	filter.And(*status)
 }
 
 // buildQueryOptions creates query options from parameters

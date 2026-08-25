@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -43,14 +44,14 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		Model(completion).
 		ModelTableExpr(tableExprCareWithdrawalCompletions).
 		On("CONFLICT (tenant_id, student_id) WHERE state = 'pending' AND student_id IS NOT NULL DO UPDATE").
-		Set(`first_bookingless_day = LEAST("care_withdrawal_completion".first_bookingless_day, EXCLUDED.first_bookingless_day)`).
-		Set("trigger = EXCLUDED.trigger").
-		Set("source_adjustment_id = EXCLUDED.source_adjustment_id").
-		Set("source_request_child_id = EXCLUDED.source_request_child_id").
-		Set("withdrawal_confirmed_by = EXCLUDED.withdrawal_confirmed_by").
-		Set("withdrawal_confirmed_role = EXCLUDED.withdrawal_confirmed_role").
-		Set("withdrawal_confirmed_at = EXCLUDED.withdrawal_confirmed_at").
-		Set("source_offerings = EXCLUDED.source_offerings").
+		Set("first_bookingless_day = EXCLUDED.first_bookingless_day").
+		Set(preserveConfirmedWithdrawal("trigger")).
+		Set(preserveConfirmedWithdrawal("source_adjustment_id")).
+		Set(preserveConfirmedWithdrawal("source_request_child_id")).
+		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_by")).
+		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_role")).
+		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_at")).
+		Set(preserveConfirmedWithdrawal("source_offerings")).
 		Set("updated_at = NOW()").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
@@ -58,6 +59,14 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		return &modelBase.DatabaseError{Op: "upsert pending care withdrawal completion", Err: err}
 	}
 	return nil
+}
+
+func preserveConfirmedWithdrawal(column string) string {
+	return fmt.Sprintf(`%s = CASE
+		WHEN "care_withdrawal_completion".trigger = '%s' AND EXCLUDED.trigger = '%s'
+		THEN "care_withdrawal_completion".%s ELSE EXCLUDED.%s END`,
+		column, userModels.CareWithdrawalTriggerDirectSchool,
+		userModels.CareWithdrawalTriggerBookingExpired, column, column)
 }
 
 // FindByID delegates the generic tenant-scoped read while preserving this
@@ -121,6 +130,30 @@ func (r *CareWithdrawalCompletionRepository) ListPending(
 	return rows, total, nil
 }
 
+func (r *CareWithdrawalCompletionRepository) ListPendingByStudentIDs(
+	ctx context.Context, studentIDs []int64,
+) (map[int64]*userModels.CareWithdrawalCompletion, error) {
+	result := make(map[int64]*userModels.CareWithdrawalCompletion)
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+	rows := make([]*userModels.CareWithdrawalCompletion, 0)
+	query := base.GetDB(ctx, r.DB).NewSelect().Model(&rows).
+		ModelTableExpr(tableExprCareWithdrawalCompletions).
+		Where(`"care_withdrawal_completion".state = ?`, userModels.CareWithdrawalStatePending).
+		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.List(studentIDs))
+	query = base.WithTenantFilter(ctx, query, "care_withdrawal_completion")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal completions by students", Err: err}
+	}
+	for _, row := range rows {
+		if row.StudentID != nil {
+			result[*row.StudentID] = row
+		}
+	}
+	return result, nil
+}
+
 // ListResolved keeps deleted completions visible without retaining child PII.
 // The left joins hydrate names only while the student still exists.
 func (r *CareWithdrawalCompletionRepository) ListResolved(
@@ -160,6 +193,67 @@ func (r *CareWithdrawalCompletionRepository) ListResolved(
 		return nil, 0, &modelBase.DatabaseError{Op: "list resolved care withdrawal completions", Err: err}
 	}
 	return rows, total, nil
+}
+
+// ListParticipationBoundaries returns the earliest day on which each child is
+// no longer operationally participating: either the day after enrolled_until
+// or a pending booking-led completion boundary.
+func (r *CareWithdrawalCompletionRepository) ListParticipationBoundaries(
+	ctx context.Context, studentIDs []int64, includeBookingBoundaries bool,
+) (map[int64]timezone.Date, error) {
+	boundaries := make(map[int64]timezone.Date, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return boundaries, nil
+	}
+	type row struct {
+		StudentID           int64         `bun:"student_id"`
+		FirstBookinglessDay timezone.Date `bun:"first_bookingless_day"`
+	}
+	rows := make([]row, 0)
+	err := base.GetDB(ctx, r.DB).NewRaw(`
+		SELECT student.id AS student_id,
+		       LEAST(student.enrolled_until + 1, completion.first_bookingless_day) AS first_bookingless_day
+		FROM users.students AS student
+		LEFT JOIN users.care_withdrawal_completions AS completion
+		  ON completion.student_id = student.id AND completion.tenant_id = student.tenant_id
+		 AND completion.state = ?
+		 AND (completion.trigger <> ? OR ?)
+		WHERE student.tenant_id = ? AND student.id IN (?)
+		  AND (student.enrolled_until IS NOT NULL OR completion.id IS NOT NULL)
+	`, userModels.CareWithdrawalStatePending, userModels.CareWithdrawalTriggerBookingExpired,
+		includeBookingBoundaries, tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list care participation boundaries", Err: err}
+	}
+	for _, item := range rows {
+		boundaries[item.StudentID] = item.FirstBookinglessDay
+	}
+	return boundaries, nil
+}
+
+func (r *CareWithdrawalCompletionRepository) ListPendingStudentIDs(
+	ctx context.Context, studentIDs []int64,
+) (map[int64]bool, error) {
+	result := make(map[int64]bool)
+	if len(studentIDs) == 0 {
+		return result, nil
+	}
+	var ids []int64
+	err := base.GetDB(ctx, r.DB).NewSelect().
+		Model((*userModels.CareWithdrawalCompletion)(nil)).
+		ModelTableExpr(tableExprCareWithdrawalCompletions).
+		Column("student_id").
+		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"care_withdrawal_completion".state = ?`, userModels.CareWithdrawalStatePending).
+		Where(`"care_withdrawal_completion".student_id IN (?)`, bun.In(studentIDs)).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list pending care withdrawal student ids", Err: err}
+	}
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
 }
 
 // MarkResolved is a guarded pending-to-resolved transition; generic Update
@@ -266,7 +360,7 @@ func (r *CareWithdrawalCompletionRepository) MarkObsoleteForRebooking(
 }
 
 // MarkPendingObsoleteForWeeklyPlans closes booking-derived tasks when the
-// school switches back to weekly-plan-driven care.
+// school switches back to weekly-plan-driven care. Confirmed withdrawals stay.
 func (r *CareWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(ctx context.Context, at time.Time) (int, error) {
 	result, err := base.GetDB(ctx, r.DB).NewUpdate().
 		Model((*userModels.CareWithdrawalCompletion)(nil)).
@@ -277,6 +371,7 @@ func (r *CareWithdrawalCompletionRepository) MarkPendingObsoleteForWeeklyPlans(c
 		Set("updated_at = ?", at).
 		Where(`"care_withdrawal_completion".tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`"care_withdrawal_completion".state = ?`, userModels.CareWithdrawalStatePending).
+		Where(`"care_withdrawal_completion".trigger = ?`, userModels.CareWithdrawalTriggerBookingExpired).
 		Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "obsolete pending care withdrawal completions for weekly plans", Err: err}

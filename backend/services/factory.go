@@ -1648,6 +1648,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:     db,
 		Logger: logger.With("service", "care_lifecycle"),
 	})
+	users.WirePersonCareParticipation(usersService, careLifecycleService)
+	schedule.WireCareParticipation(careDayService, careLifecycleService)
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
 	pillEmitter := parentmessaging.NewEmitter(
@@ -1836,6 +1838,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
 		Settings:                 settingsService,
+		CareParticipation:        careLifecycleService,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -2285,18 +2288,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
-		People:          usersService,
-		Education:       educationService,
-		UserContext:     userContextService,
-		Active:          activeService,
-		Settings:        settingsService,
-		Pickups:         pickupScheduleService,
-		Arrivals:        arrivalScheduleService,
-		Instances:       instanceService,
-		CareDays:        careDayService,
-		ExcusedRequests: excusedRequestService,
-		StatusDays:      studentStatusDayService,
-		Logger:          logger.With("service", "ogs-group-live"),
+		People:            usersService,
+		Education:         educationService,
+		UserContext:       userContextService,
+		Active:            activeService,
+		Settings:          settingsService,
+		Pickups:           pickupScheduleService,
+		Arrivals:          arrivalScheduleService,
+		Instances:         instanceService,
+		CareDays:          careDayService,
+		CareParticipation: careLifecycleService,
+		ExcusedRequests:   excusedRequestService,
+		StatusDays:        studentStatusDayService,
+		Logger:            logger.With("service", "ogs-group-live"),
 	})
 
 	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
@@ -2498,7 +2502,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, repos.CareWithdrawal)
+	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

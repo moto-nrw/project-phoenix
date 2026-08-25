@@ -203,6 +203,9 @@ type CareExitCleanupRepository interface {
 	// FindCareWithdrawalBookingExpiries finds active children whose last
 	// authoritative care booking ended on asOf.
 	FindCareWithdrawalBookingExpiries(ctx context.Context, asOf timezone.Date) ([]CareWithdrawalBookingChange, error)
+	// ListCareBookingFacts returns the current care population and its
+	// care-counting booking windows for the shared booking-state evaluator.
+	ListCareBookingFacts(ctx context.Context, on timezone.Date, studentIDs []int64) ([]CareBookingFacts, error)
 
 	// RestoreRemovals puts back what the children's current exit removed from
 	// the plan and clears the ledger. It is what makes a planned exit

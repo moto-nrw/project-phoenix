@@ -2,6 +2,7 @@ package enrollment_test
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
+	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -48,6 +50,14 @@ func bookingModeSettings(authoritative bool) configService.SettingsService {
 
 func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) scheduleService.CareDayService {
 	t.Helper()
+	participation := usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
+		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
+		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.GradeTransition,
+		AuditService:          usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
+		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
+		DB:                    env.db, Logger: slog.Default(),
+	})
 	return scheduleService.NewCareDayService(scheduleService.CareDayDependencies{
 		ArrivalBaselines:  bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalSchedules:  env.repos.StudentArrivalSchedule,
@@ -57,7 +67,8 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 			env.repos.RequestChildOffering,
 			env.repos.CareOffering,
 		),
-		PickupExceptions: env.repos.StudentPickupException,
+		PickupExceptions:  env.repos.StudentPickupException,
+		CareParticipation: participation,
 	})
 }
 

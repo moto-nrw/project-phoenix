@@ -77,11 +77,20 @@ type PersonServiceDependencies struct {
 // personService implements the PersonService interface
 type personService struct {
 	PersonServiceDependencies
+	careParticipation CareLifecycleService
 }
 
 // NewPersonService creates a new person service
 func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{PersonServiceDependencies: deps}
+}
+
+func WirePersonCareParticipation(service PersonService, lifecycle CareLifecycleService) {
+	concrete, ok := service.(*personService)
+	if !ok {
+		panic("person service does not support care-participation wiring")
+	}
+	concrete.careParticipation = lifecycle
 }
 
 // Get retrieves a person by their ID
@@ -516,6 +525,22 @@ func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []in
 	return s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
 }
 
+// GetParticipationCandidatesByGroupIDs includes alumni so the shared dated
+// participation rule, including its actual-presence exception, gets the full
+// candidate set. Administrative group readers keep the legacy method above.
+func (s *personService) GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	if len(groupIDs) == 0 {
+		return []*userModels.Student{}, nil
+	}
+	values := make([]interface{}, len(groupIDs))
+	for i, groupID := range groupIDs {
+		values[i] = groupID
+	}
+	options := base.NewQueryOptions()
+	options.Filter.In("group_id", values...)
+	return s.StudentRepo.ListWithOptions(ctx, options)
+}
+
 // GetEligibleStudentsByGroupIDsOnDate retrieves group students whose
 // enrollment covers the requested date. Current lifecycle status is only used
 // for legacy rows without enrollment dates.
@@ -526,16 +551,37 @@ func (s *personService) GetStudentsByGroupIDs(ctx context.Context, groupIDs []in
 // and then build the roster for another, dropping a child who was activated
 // immediately and is deliberately part of the current day.
 func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {
-	students, err := s.StudentRepo.FindByGroupIDs(ctx, groupIDs)
+	students, err := s.GetParticipationCandidatesByGroupIDs(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	return filterStudentsEligibleOnDate(students, date, today), nil
+	if s.careParticipation == nil {
+		return nil, errors.New("person service: care participation resolver is not configured")
+	}
+	if len(students) == 0 {
+		return students, nil
+	}
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		ids = append(ids, student.ID)
+	}
+	resolution, err := s.careParticipation.ResolveListParticipation(ctx, ids, date, today, false)
+	if err != nil {
+		return nil, err
+	}
+	started := filterStudentsStartedOnDate(students, date, today)
+	kept := make([]*userModels.Student, 0, len(started))
+	for _, student := range started {
+		if resolution.ParticipatingIDs[student.ID] {
+			kept = append(kept, student)
+		}
+	}
+	return kept, nil
 }
 
-// filterStudentsEligibleOnDate mirrors the enrollment rule the slot lists
-// already use (slotlists.eligibleOn, #1565): the enrollment interval is the
-// source of truth, with immediate activation
+// filterStudentsStartedOnDate applies the enrollment lower bound after the
+// shared participation resolver handled the upper boundary and actual-presence
+// exception. Immediate activation
 // (enrollment.default_activation_mode = "immediate") as the single deliberate
 // exception — the decision service creates an already 'active' student while
 // enrolled_from still points at the phase's future start date, and that child
@@ -544,7 +590,7 @@ func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context,
 // retroactively enrolled. Whether a child whose enrollment has not started yet
 // is REPORTED for the day is a separate question the day log answers on its
 // own — being on the roster only means their records count.
-func filterStudentsEligibleOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
+func filterStudentsStartedOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
 	eligible := make([]*userModels.Student, 0, len(students))
 	for _, student := range students {
 		if student == nil {
@@ -552,12 +598,6 @@ func filterStudentsEligibleOnDate(students []*userModels.Student, date, today ti
 		}
 		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
 			(student.Status != userModels.StudentStatusActive || date.Before(today)) {
-			continue
-		}
-		if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
-			continue
-		}
-		if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModels.StudentStatusInactive {
 			continue
 		}
 		eligible = append(eligible, student)

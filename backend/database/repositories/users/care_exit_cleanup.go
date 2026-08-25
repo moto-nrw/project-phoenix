@@ -760,6 +760,114 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 	return rows, nil
 }
 
+type careBookingPeriodRow struct {
+	StudentID            int64          `bun:"student_id"`
+	ValidFrom            *timezone.Date `bun:"valid_from"`
+	ValidUntil           *timezone.Date `bun:"valid_until"`
+	SourceRequestChildID int64          `bun:"source_request_child_id"`
+	OfferingName         string         `bun:"offering_name"`
+	Days                 []string       `bun:"days,type:jsonb"`
+}
+
+// ListCareBookingFacts reads facts without interpreting them. Date-window
+// merging and the completion decision stay in the users service so mutation,
+// setting, scheduler, and reader paths cannot acquire separate SQL rules.
+func (r *CareExitCleanupRepository) ListCareBookingFacts(
+	ctx context.Context, on timezone.Date, studentIDs []int64,
+) ([]userModels.CareBookingFacts, error) {
+	facts, err := r.listCareBookingStudents(ctx, on, studentIDs)
+	if err != nil || len(facts) == 0 {
+		return facts, err
+	}
+	if err := r.attachCareBookingPeriods(ctx, facts); err != nil {
+		return nil, err
+	}
+	return facts, nil
+}
+
+func (r *CareExitCleanupRepository) listCareBookingStudents(
+	ctx context.Context, on timezone.Date, studentIDs []int64,
+) ([]userModels.CareBookingFacts, error) {
+	facts := make([]userModels.CareBookingFacts, 0)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&facts).
+		ModelTableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id AS student_id`).
+		ColumnExpr(`"person".first_name, "person".last_name`).
+		ColumnExpr(`"student".school_class, "student".enrolled_until`).
+		Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id AND "person".tenant_id = "student".tenant_id`).
+		Where(`"student".tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`"student".status <> 'alumnus'`).
+		OrderExpr(`"student".id`)
+	if len(studentIDs) > 0 {
+		query = query.Where(`"student".id IN (?)`, bun.In(studentIDs))
+	} else {
+		query = query.
+			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, on).
+			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, on)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list current care students for booking evaluation", Err: err}
+	}
+	return facts, nil
+}
+
+func (r *CareExitCleanupRepository) attachCareBookingPeriods(
+	ctx context.Context, facts []userModels.CareBookingFacts,
+) error {
+	loadedIDs := make([]int64, len(facts))
+	byStudent := make(map[int64]*userModels.CareBookingFacts, len(facts))
+	for index := range facts {
+		loadedIDs[index] = facts[index].StudentID
+		byStudent[facts[index].StudentID] = &facts[index]
+	}
+	rows, err := r.listCareBookingPeriods(ctx, loadedIDs)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		child := byStudent[row.StudentID]
+		if child == nil {
+			continue
+		}
+		child.Periods = append(child.Periods, userModels.CareBookingPeriod{
+			ValidFrom:            row.ValidFrom,
+			ValidUntil:           row.ValidUntil,
+			Days:                 row.Days,
+			SourceRequestChildID: row.SourceRequestChildID,
+			SourceOfferings: []userModels.CareExitSourceOffering{{
+				Name: row.OfferingName,
+				Days: row.Days,
+			}},
+		})
+	}
+	return nil
+}
+
+func (r *CareExitCleanupRepository) listCareBookingPeriods(
+	ctx context.Context, studentIDs []int64,
+) ([]careBookingPeriodRow, error) {
+	rows := make([]careBookingPeriodRow, 0)
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT rc.created_student_id AS student_id, rco.valid_from, rco.valid_until,
+		       rco.request_child_id AS source_request_child_id, co.name AS offering_name,
+		       CASE WHEN co.days_of_week_mode = 'fixed' THEN co.available_days ELSE rco.selected_days END AS days
+		FROM enrollment.request_child_offerings AS rco
+		JOIN enrollment.request_children AS rc
+		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
+		JOIN enrollment.care_offerings AS co
+		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
+		WHERE rco.tenant_id = ? AND rc.created_student_id IN (?) AND co.counts_as_care
+		  AND ((co.days_of_week_mode = 'fixed' AND jsonb_array_length(co.available_days) > 0)
+		    OR (co.days_of_week_mode <> 'fixed' AND jsonb_array_length(rco.selected_days) > 0))
+		ORDER BY rc.created_student_id, rco.valid_from NULLS FIRST, rco.valid_until NULLS LAST, rco.id
+	`, tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list care booking periods for evaluation", Err: err}
+	}
+	return rows, nil
+}
+
 func (r *CareExitCleanupRepository) snapshotSourceBookings(ctx context.Context, studentIDs []int64, validUntil timezone.Date, tenantID int64, sourceRequestChildID *int64) error {
 	if _, err := base.GetDB(ctx, r.db).ExecContext(ctx, `
 		INSERT INTO users.student_care_exit_source_removals

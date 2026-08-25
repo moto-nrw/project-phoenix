@@ -24,6 +24,8 @@ import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
 import { Skeleton } from "~/components/ui/skeleton";
+import { BookingAuthorityImpactModal } from "./booking-authority-impact-modal";
+import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
 import {
   ConceptPageHeader,
   ConceptSectionHeader,
@@ -160,6 +162,8 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     [schoolId],
   );
 
+  const bookingAuthority = useBookingAuthorityImpact(schoolId, handleSave);
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -230,6 +234,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
                   category={category}
                   onSave={handleSave}
                   onReset={handleReset}
+                  onBookingAuthorityEnable={bookingAuthority.request}
                   audience="operator"
                   revealFn={handleReveal}
                 />
@@ -237,6 +242,16 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
             </div>
           </section>
         ))}
+
+      <BookingAuthorityImpactModal
+        impact={bookingAuthority.state.impact}
+        isOpen={bookingAuthority.state.isOpen}
+        onClose={bookingAuthority.close}
+        onConfirm={() => void bookingAuthority.confirm()}
+        isLoading={bookingAuthority.state.isLoading}
+        isSaving={bookingAuthority.state.isSaving}
+        error={bookingAuthority.state.error}
+      />
     </div>
   );
 }

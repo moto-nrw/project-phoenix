@@ -2041,7 +2041,7 @@ func (s *decisionService) reconcileExistingStudentCareRenewal(
 		return nil
 	}
 	if err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
-		StudentID: studentID, FirstBookinglessDay: phase.ServiceStartDate, HasCareDays: true,
+		StudentID: studentID, FirstBookinglessDay: phase.ServiceStartDate,
 	}); err != nil {
 		return fmt.Errorf("decision: reconcile renewed care withdrawal: %w", err)
 	}
