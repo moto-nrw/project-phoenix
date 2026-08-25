@@ -44,6 +44,7 @@ export function ImportModeSelector({
         items={IMPORT_MODE_ITEMS}
         value={value}
         onChange={onChange}
+        fullWidth
         ariaLabel="Import-Modus"
       />
       <p className="mt-3 text-sm text-gray-600">{MODE_HINTS[value]}</p>
