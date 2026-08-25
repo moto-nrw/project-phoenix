@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -52,7 +53,7 @@ func init() {
 // explicitly without another migration. Reading is not a permission at all,
 // it is the folder visibility.
 func fileStorageUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.332: Creating documents schema + file storage tables...")
+	slog.Info("migration 1.15.332: creating documents schema and file storage tables")
 
 	if _, err := db.NewRaw(`CREATE SCHEMA IF NOT EXISTS documents;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating documents schema: %w", err)
@@ -222,7 +223,7 @@ func fileStorageUp(ctx context.Context, db *bun.DB) error {
 }
 
 func fileStorageDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.332: Dropping documents schema...")
+	slog.Info("migration 1.15.332: rolling back, dropping documents schema")
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name = 'files:manage';
 		DROP TABLE IF EXISTS audit.file_events CASCADE;
