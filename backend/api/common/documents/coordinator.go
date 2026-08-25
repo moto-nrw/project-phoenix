@@ -94,6 +94,35 @@ func (c *Coordinator) Save(ctx context.Context, tenantID int64, storedName strin
 // Serve streams the object as a download named displayName. It returns false
 // when nothing was written, so the caller can still render an error.
 func (c *Coordinator) Serve(w http.ResponseWriter, r *http.Request, tenantID int64, storedName, displayName, contentType string) bool {
+	return c.serve(w, r, tenantID, storedName, displayName, contentType, false)
+}
+
+// InlineViewable reports whether a browser can render the content type
+// itself. Office containers are deliberately absent: the browser would offer
+// a download anyway, and an inline disposition for them only invites a
+// plugin to run.
+func InlineViewable(contentType string) bool {
+	switch contentType {
+	case "application/pdf", "image/png", "image/jpeg", "image/jpg":
+		return true
+	default:
+		return false
+	}
+}
+
+// ServeInline streams the object for display in the browser (PDF viewer,
+// image) instead of as a download. Only InlineViewable content types are
+// served inline; everything else falls back to Serve.
+//
+// The response carries a sandboxing CSP: an inline document is user-uploaded
+// content rendered on the application's own origin, and `sandbox` denies it
+// scripts, forms and same-origin access, so a PDF with embedded JavaScript
+// cannot act as the signed-in user.
+func (c *Coordinator) ServeInline(w http.ResponseWriter, r *http.Request, tenantID int64, storedName, displayName, contentType string) bool {
+	return c.serve(w, r, tenantID, storedName, displayName, contentType, InlineViewable(contentType))
+}
+
+func (c *Coordinator) serve(w http.ResponseWriter, r *http.Request, tenantID int64, storedName, displayName, contentType string, inline bool) bool {
 	key, err := c.key(tenantID, storedName)
 	if err != nil {
 		return false
@@ -108,7 +137,12 @@ func (c *Coordinator) Serve(w http.ResponseWriter, r *http.Request, tenantID int
 		}
 	}()
 
-	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
+	disposition := "attachment"
+	if inline {
+		disposition = "inline"
+		w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'")
+	}
+	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{
 		"filename": displayName,
 	}))
 	w.Header().Set("Content-Type", contentType)

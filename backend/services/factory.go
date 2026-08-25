@@ -45,6 +45,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
+	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -127,6 +128,7 @@ type Factory struct {
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
 	StudentDocuments         users.StudentDocumentService
+	FileStore                filestore.Service
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -1882,6 +1884,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "student_documents"),
 	)
 
+	// School file storage (#2596): folders, visibility, quota, audit trail.
+	fileStoreService := filestore.NewService(
+		db,
+		repos.FileFolder,
+		repos.File,
+		repos.FileEvent,
+		settingsService,
+		logger.With("service", "filestore"),
+	)
+
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
 		MessageRepo:              repos.ChangeRequestMessage,
@@ -2159,6 +2171,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "announcement"),
 	})
 
+	// The cancellation notice (#2601) rides on the announcement service, which
+	// is built after the instance service; inject it now that both exist.
+	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
+		setter.SetGuardianNoticePublisher(parentAnnouncementService)
+	}
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
 		SchoolRepo:            repos.School,
@@ -2418,6 +2436,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
 		StudentDocuments:         studentDocumentService,
+		FileStore:                fileStoreService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

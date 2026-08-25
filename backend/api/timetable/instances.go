@@ -18,6 +18,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -45,6 +46,78 @@ type InstanceStatusResponse struct {
 	Status      string `json:"status"`
 	CompletedAt string `json:"completed_at,omitempty"`
 	ReopenUntil string `json:"reopen_until,omitempty"`
+	// GuardianNotice is set when a cancellation informed the families (#2601).
+	GuardianNotice *GuardianNoticeResponse `json:"guardian_notice,omitempty"`
+}
+
+// GuardianNoticeRequest is the optional "Eltern informieren" part of a cancel
+// body: the text written for the families. Both fields are required when the
+// object is present; the internal reason travels separately.
+type GuardianNoticeRequest struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+// GuardianNoticeResponse reports what a sent notice reached.
+type GuardianNoticeResponse struct {
+	AnnouncementID int64 `json:"announcement_id"`
+	ChildCount     int   `json:"child_count"`
+	FamilyCount    int   `json:"family_count"`
+}
+
+// GuardianNoticeReachResponse is the preview for the cancel dialog.
+type GuardianNoticeReachResponse struct {
+	Enabled     bool `json:"enabled"`
+	DefaultOn   bool `json:"default_on"`
+	ChildCount  int  `json:"child_count"`
+	FamilyCount int  `json:"family_count"`
+}
+
+func (req *GuardianNoticeRequest) toServiceInput() *scheduleSvc.GuardianNoticeInput {
+	if req == nil {
+		return nil
+	}
+	return &scheduleSvc.GuardianNoticeInput{
+		Title:   strings.TrimSpace(req.Title),
+		Message: strings.TrimSpace(req.Message),
+	}
+}
+
+func guardianNoticeResponseOf(result *scheduleSvc.GuardianNoticeResult) *GuardianNoticeResponse {
+	if result == nil {
+		return nil
+	}
+	return &GuardianNoticeResponse{
+		AnnouncementID: result.AnnouncementID,
+		ChildCount:     result.ChildCount,
+		FamilyCount:    result.FamilyCount,
+	}
+}
+
+// guardianNoticeReach handles GET /instances/{id}/guardian-notice: the cancel
+// dialog asks before sending whether the school allows the notice, whether
+// the checkbox starts ticked, and how many families it would reach.
+func (rs *Resource) guardianNoticeReach(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
+		return
+	}
+	if rs.InstanceService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
+		return
+	}
+	reach, err := rs.InstanceService.GuardianNoticeReachFor(r.Context(), id)
+	if err != nil {
+		renderInstanceLifecycleError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, GuardianNoticeReachResponse{
+		Enabled:     reach.Enabled,
+		DefaultOn:   reach.DefaultOn,
+		ChildCount:  reach.ChildCount,
+		FamilyCount: reach.FamilyCount,
+	}, "Guardian notice reach retrieved")
 }
 
 // startInstance handles POST /instances/{id}/start.
@@ -149,27 +222,37 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Optional {reason} body (#1840). No body / empty body → nil reason, so the
-	// shared cancel keeps working for callers that send nothing.
+	// Optional {reason, guardian_notice} body (#1840, #2601). No body / empty
+	// body → nil reason and no notice, so the shared cancel keeps working for
+	// callers that send nothing.
 	var reason *string
+	var notice *GuardianNoticeRequest
 	if r.Body != nil {
 		var body struct {
-			Reason *string `json:"reason,omitempty"`
+			Reason         *string                `json:"reason,omitempty"`
+			GuardianNotice *GuardianNoticeRequest `json:"guardian_notice,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
 			return
 		}
 		reason = trimReason(body.Reason)
+		notice = body.GuardianNotice
 	}
 
-	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason, jwt.ActorAccountIDFromCtx(r.Context()))
+	result, err := rs.InstanceService.CancelWithNotice(r.Context(), scheduleSvc.CancelInstanceInput{
+		InstanceID:     id,
+		Reason:         reason,
+		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
+		GuardianNotice: notice.toServiceInput(),
+	})
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
+	instance := result.Instance
 
-	resp := InstanceStatusResponse{InstanceID: instance.ID, Status: instance.Status}
+	resp := InstanceStatusResponse{InstanceID: instance.ID, Status: instance.Status, GuardianNotice: guardianNoticeResponseOf(result.GuardianNotice)}
 	if instance.CompletedAt != nil {
 		resp.CompletedAt = instance.CompletedAt.UTC().Format("2006-01-02T15:04:05Z")
 	}
@@ -209,6 +292,10 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrGuardianNoticeInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrGuardianNoticeDisabled):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "guardian_notice_disabled"))
 	case errors.Is(err, scheduleSvc.ErrInstanceMoved):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("block was changed concurrently; reopen it and try again"),

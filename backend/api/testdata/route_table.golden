@@ -19,6 +19,8 @@ DELETE /api/enrollment/legal-documents/{filename}
 DELETE /api/enrollment/phases/{id}/
 DELETE /api/enrollment/schema/{id}
 DELETE /api/feedback/{id}
+DELETE /api/files/folders/{folderId}
+DELETE /api/files/folders/{folderId}/files/{fileId}
 DELETE /api/groups/{id}
 DELETE /api/groups/{id}/transfer/{substitutionId}
 DELETE /api/guardians/students/{studentId}/guardians/{guardianId}
@@ -201,6 +203,10 @@ GET /api/feedback/date/{date}
 GET /api/feedback/mensa
 GET /api/feedback/student/{id}
 GET /api/feedback/{id}
+GET /api/files/audience
+GET /api/files/folders
+GET /api/files/folders/{folderId}/files
+GET /api/files/folders/{folderId}/files/{fileId}/download
 GET /api/groups/
 GET /api/groups/{id}
 GET /api/groups/{id}/students
@@ -394,6 +400,7 @@ GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
+GET /api/timetable/instances/{id}/guardian-notice
 GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
@@ -592,6 +599,8 @@ POST /api/enrollment/schema/
 POST /api/enrollment/{tenantSlug}/submit
 POST /api/feedback/
 POST /api/feedback/batch
+POST /api/files/folders
+POST /api/files/folders/{folderId}/files
 POST /api/groups/
 POST /api/groups/{id}/transfer/
 POST /api/guardians/
@@ -864,6 +873,7 @@ PUT /api/enrollment/care-offerings/{id}/
 PUT /api/enrollment/phases/{id}/
 PUT /api/enrollment/requests/{statusToken}
 PUT /api/enrollment/schema/{id}
+PUT /api/files/folders/{folderId}
 PUT /api/groups/{id}
 PUT /api/guardians/relationships/{relationshipId}
 PUT /api/guardians/{id}
