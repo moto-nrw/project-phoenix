@@ -64,8 +64,8 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 //
 // Window semantics follow AggregateRoomSessions: a visit counts when it
 // started before `end` and either is still open or ended after `start`.
-// Visits are restricted to each student's effective retention window. Minutes
-// are clamped to the window. The peak is a sweep over entry (+1)
+// Visits are restricted to each student's effective retention and enrollment
+// windows. Minutes are clamped to those windows. The peak is a sweep over entry (+1)
 // and exit (-1) events per room; at equal instants the exit sorts first so
 // a back-to-back room change never counts a child twice.
 func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
@@ -112,14 +112,24 @@ WITH retention AS (
 scoped AS (
 	SELECT ag.room_id,
 	       v.student_id,
-	       GREATEST(v.entry_time, ?) AS entry_at,
-	       LEAST(COALESCE(v.exit_time, NOW()), ?) AS exit_at
+	       GREATEST(
+		       v.entry_time,
+		       ?,
+		       COALESCE(s.enrolled_from::timestamp AT TIME ZONE 'Europe/Berlin', '-infinity'::timestamptz)
+	       ) AS entry_at,
+	       LEAST(
+		       COALESCE(v.exit_time, NOW()),
+		       ?,
+		       COALESCE((s.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin', 'infinity'::timestamptz)
+	       ) AS exit_at
 	FROM active.visits v
 	JOIN active.groups ag ON ag.id = v.active_group_id
 	JOIN users.students s ON s.id = v.student_id
 	JOIN retention r ON r.student_id = v.student_id
 	WHERE v.entry_time < ?
 	  AND (v.exit_time IS NULL OR v.exit_time > ?)
+	  AND (s.enrolled_from IS NULL OR COALESCE(v.exit_time, NOW()) > s.enrolled_from::timestamp AT TIME ZONE 'Europe/Berlin')
+	  AND (s.enrolled_until IS NULL OR v.entry_time < (s.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin')
 	  AND v.created_at >= NOW() - make_interval(days => r.retention_days)` + tenantClause + groupClause + `
 ),
 events AS (

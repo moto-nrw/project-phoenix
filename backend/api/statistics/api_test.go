@@ -263,6 +263,11 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Sonnen")
 	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Anwesend", "1a")
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bettruhe", "1a")
+	_, err := tc.db.NewUpdate().TableExpr("users.students").
+		Set("enrolled_until = ?", timezone.NewDate(2026, 6, 11)).
+		Where("id = ?", anna.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, anna.ID, 30)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, bert.ID, 30)
 	for _, st := range []int64{anna.ID, bert.ID} {
@@ -293,7 +298,8 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, timezone.NewDate(2026, 6, 11))
 
 	// Room: two overlapping visits on Monday (peak 2), one visit that
-	// started the evening before the window and ran into it (clamped).
+	// started the evening before the window and ran into it (clamped). Anna's
+	// visit across Thu/Fri is additionally clamped to her last care day.
 	room := testpkg.CreateTestRoom(t, tc.db, "Bauraum")
 	activity := testpkg.CreateTestActivityGroup(t, tc.db, "Bauen")
 	session := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
@@ -305,7 +311,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	thursday := monday.AddDate(0, 0, 3)
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, thursday.Add(23*time.Hour), end(thursday.Add(25*time.Hour)))
 	expiredVisit := testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(15*time.Hour), end(monday.Add(16*time.Hour)))
-	_, err := tc.db.NewUpdate().TableExpr(`active.visits`).Set(`created_at = ?`, time.Now().AddDate(0, 0, -31)).Where(`id = ?`, expiredVisit.ID).Exec(ctx)
+	_, err = tc.db.NewUpdate().TableExpr(`active.visits`).Set(`created_at = ?`, time.Now().AddDate(0, 0, -31)).Where(`id = ?`, expiredVisit.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
@@ -358,12 +364,12 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 			continue
 		}
 		found = true
-		assert.Equal(t, 3, r.DaysUsed)
+		assert.Equal(t, 2, r.DaysUsed)
 		assert.Equal(t, 2, r.DistinctStudents)
 		assert.Equal(t, 2, r.PeakOccupancy)
-		// 60 + 60 + 30 clamped minutes, plus 120 across midnight. The
+		// 60 + 60 + 30 clamped minutes, plus 60 until Anna's care ends. The
 		// older 60-minute visit is excluded by the student's retention.
-		assert.Equal(t, 270, r.StudentMinutes)
+		assert.Equal(t, 210, r.StudentMinutes)
 		require.NotNil(t, r.PeakUtilizationPercent, "fixture room has capacity 30")
 		assert.InDelta(t, 6.7, *r.PeakUtilizationPercent, 0.01)
 	}
