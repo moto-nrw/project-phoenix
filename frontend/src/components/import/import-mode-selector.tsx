@@ -4,7 +4,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 /** Import modes of the student and staff importers (backend `ImportMode`). */
 export type ImportMode = "create" | "update" | "upsert";
 
-export const IMPORT_MODE_ITEMS = [
+const IMPORT_MODE_ITEMS = [
   { value: "create", label: "Nur neue anlegen" },
   { value: "update", label: "Nur bestehende aktualisieren" },
   { value: "upsert", label: "Beides" },
