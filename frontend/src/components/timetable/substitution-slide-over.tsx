@@ -463,7 +463,15 @@ export function SubstitutionSlideOver({
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!instance || !hasChanges || (!cancel && !peopleValid) || saving) return;
-    if (cancel && guardianNoticeIncomplete(noticeDraft, noticeReach)) return;
+    if (
+      cancel &&
+      guardianNoticeIncomplete(
+        noticeDraft,
+        noticeReach,
+        Boolean(instance && instance.date >= berlinTodayISO()),
+      )
+    )
+      return;
     setSaving(true);
     try {
       // Cancel is exclusive — it maps to the backend's cancel branch and ignores
@@ -957,7 +965,13 @@ export function SubstitutionSlideOver({
                         !hasChanges ||
                         (!cancel && !peopleValid) ||
                         (cancel &&
-                          guardianNoticeIncomplete(noticeDraft, noticeReach))
+                          guardianNoticeIncomplete(
+                            noticeDraft,
+                            noticeReach,
+                            Boolean(
+                              instance && instance.date >= berlinTodayISO(),
+                            ),
+                          ))
                       }
                     >
                       Speichern

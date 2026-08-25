@@ -65,10 +65,11 @@ export function guardianNoticePayload(
 export function guardianNoticeIncomplete(
   draft: GuardianNoticeDraft | null,
   reach: GuardianNoticeReach | null,
+  previewApplies = false,
 ): boolean {
   // Before the preview resolves, its school default is unknown. Do not let a
   // cancellation silently turn that default into "off".
-  if (draft === null && reach === null) return true;
+  if (previewApplies && draft === null && reach === null) return true;
   if (!draft?.send || !reach?.enabled) return false;
   return draft.title.trim() === "" || draft.message.trim() === "";
 }

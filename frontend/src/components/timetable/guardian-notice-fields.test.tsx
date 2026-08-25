@@ -83,7 +83,8 @@ describe("guardianNoticePayload", () => {
   });
 
   it("blocks cancellation while the notice preview is still loading", () => {
-    expect(guardianNoticeIncomplete(null, null)).toBe(true);
+    expect(guardianNoticeIncomplete(null, null, true)).toBe(true);
+    expect(guardianNoticeIncomplete(null, null)).toBe(false);
   });
 });
 

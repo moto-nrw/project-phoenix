@@ -1094,7 +1094,11 @@ export function InstanceDetailModal({
           }
           isConfirmDisabled={
             pendingConfirm === "cancel" &&
-            guardianNoticeIncomplete(noticeDraft, noticeReach)
+            guardianNoticeIncomplete(
+              noticeDraft,
+              noticeReach,
+              Boolean(instance && instance.date >= today),
+            )
           }
         >
           <div className="space-y-3">

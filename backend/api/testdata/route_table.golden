@@ -394,6 +394,7 @@ GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
 GET /api/timetable/instances/edited-in-window
+GET /api/timetable/instances/{id}/guardian-notice
 GET /api/timetable/instances/{id}/participants
 GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/offering-sources
