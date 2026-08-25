@@ -405,9 +405,12 @@ func TestStudentImportConfig_Validate_RejectsUnknownOrTakenTag(t *testing.T) {
 	config, repos := newStammdatenStudentConfig(t, db)
 	ctx := testpkg.Ctx(t)
 
-	card := testpkg.CreateTestRFIDCard(t, db, "TAKEN")
-	wearer := testpkg.CreateTestPerson(t, db, "Andere", "Person")
-	require.NoError(t, repos.Person.LinkToRFIDCard(ctx, wearer.ID, card.ID))
+	takenCard := testpkg.CreateTestRFIDCard(t, db, "TAKEN")
+	nonStudentWearer := testpkg.CreateTestPerson(t, db, "Andere", "Person")
+	require.NoError(t, repos.Person.LinkToRFIDCard(ctx, nonStudentWearer.ID, takenCard.ID))
+	ownCard := testpkg.CreateTestRFIDCard(t, db, "OWN")
+	studentWearer := testpkg.CreateTestStudent(t, db, "Eigene", "Person", "1A")
+	require.NoError(t, repos.Person.LinkToRFIDCard(ctx, studentWearer.PersonID, ownCard.ID))
 
 	inTenantTx(t, db, func(ctx context.Context) error {
 		require.NoError(t, config.PreloadReferenceData(ctx))
@@ -415,10 +418,10 @@ func TestStudentImportConfig_Validate_RejectsUnknownOrTakenTag(t *testing.T) {
 		unknown := importModels.StudentImportRow{FirstName: "A", LastName: "B", SchoolClass: "1A", TagID: "GIBTESNICHT"}
 		assert.Contains(t, validationCodes(config.Validate(ctx, &unknown)), "rfid_unknown")
 
-		taken := importModels.StudentImportRow{FirstName: "A", LastName: "B", SchoolClass: "1A", TagID: card.ID}
+		taken := importModels.StudentImportRow{FirstName: "A", LastName: "B", SchoolClass: "1A", TagID: takenCard.ID}
 		assert.Contains(t, validationCodes(config.Validate(ctx, &taken)), "rfid_taken")
 
-		own := importModels.StudentImportRow{FirstName: "Andere", LastName: "Person", SchoolClass: "1A", TagID: card.ID}
+		own := importModels.StudentImportRow{FirstName: "Eigene", LastName: "Person", SchoolClass: "1A", TagID: ownCard.ID}
 		assert.NotContains(t, validationCodes(config.Validate(ctx, &own)), "rfid_taken", "the wearer re-importing its own card passes")
 		return nil
 	})
