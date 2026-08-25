@@ -249,6 +249,7 @@ func (s *invitationService) buildInvitationToken(email string, req InvitationReq
 		RoleID:           req.RoleID,
 		ExpiresAt:        time.Now().Add(s.invitationExpiry),
 		CaregiverEnabled: req.CaregiverEnabled,
+		PersonID:         req.PersonID,
 	}
 	if req.CreatedBy > 0 {
 		invitation.CreatedBy = nullableCreatedBy(req.CreatedBy)
@@ -697,6 +698,9 @@ func (s *invitationService) provisionSchoolIdentity(
 		FirstName: firstName,
 		LastName:  lastName,
 		Position:  position,
+		// The staff import created the person before the invitation went
+		// out; accepting must reuse it, not file a second one (#2600).
+		PersonID: invitation.PersonID,
 		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or not —
 		// same invariant as assignCaregiverRoleIfRequested (#1772).
 		CaregiverUpgrade: invitation.CaregiverEnabled && !IsLehrkraftSystemRole(role),

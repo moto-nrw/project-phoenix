@@ -23,9 +23,14 @@ type InvitationToken struct {
 	LastName         *string    `bun:"last_name,nullzero" json:"last_name,omitempty"`
 	Position         *string    `bun:"position,nullzero" json:"position,omitempty"`
 	CaregiverEnabled bool       `bun:"caregiver_enabled,notnull,default:false" json:"caregiver_enabled"`
-	EmailSentAt      *time.Time `bun:"email_sent_at,nullzero" json:"email_sent_at,omitempty"`
-	EmailError       *string    `bun:"email_error,nullzero" json:"email_error,omitempty"`
-	EmailRetryCount  int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
+	// PersonID points at the person the invitee already is at this school —
+	// set by the staff import, which creates the Stammdatensatz upfront
+	// (#2600). Accepting links the new account to that person instead of
+	// creating a second one. NULL keeps the historical behaviour.
+	PersonID        *int64     `bun:"person_id,nullzero" json:"person_id,omitempty"`
+	EmailSentAt     *time.Time `bun:"email_sent_at,nullzero" json:"email_sent_at,omitempty"`
+	EmailError      *string    `bun:"email_error,nullzero" json:"email_error,omitempty"`
+	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
 
 	// Relations
 	Role    *Role    `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`

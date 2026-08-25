@@ -230,6 +230,7 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 			recordAlreadyExistsError(s, result, rowNum, row)
 			return false
 		}
+		recordWillUpdateInfo(s, result, rowNum, row)
 		result.UpdatedCount++
 	} else if request.Mode == importModels.ImportModeUpdate {
 		recordNotFoundError(s, result, rowNum, row)
@@ -238,6 +239,23 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 	}
 
 	return false
+}
+
+// recordWillUpdateInfo marks a preview row that resolves to an existing record
+// in update/upsert mode, so the UI can show which rows will be changed rather
+// than created.
+func recordWillUpdateInfo[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
+	result.Errors = append(result.Errors, importModels.ImportError[T]{
+		RowNumber: rowNum,
+		Data:      *row,
+		Errors: []importModels.ValidationError{{
+			Field:    "update",
+			Message:  "Schon vorhanden: Die Zeile aktualisiert diesen Datensatz. Leere Zellen ändern nichts.",
+			Code:     "will_update",
+			Severity: importModels.ErrorSeverityInfo,
+		}},
+		Timestamp: time.Now(),
+	})
 }
 
 // processActualImportRow processes a row for actual import

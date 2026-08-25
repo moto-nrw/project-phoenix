@@ -11,6 +11,10 @@ import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
+import {
+  ImportModeSelector,
+  type ImportMode,
+} from "~/components/import/import-mode-selector";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -21,7 +25,7 @@ interface ImportError {
   field: string;
   message: string;
   code: string;
-  severity: "error" | "warning";
+  severity: "error" | "warning" | "info";
 }
 
 interface ImportRowResult {
@@ -94,6 +98,7 @@ export default function StudentImportPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
+  const [mode, setMode] = useState<ImportMode>("create");
 
   const { data: session, status } = useSession({
     required: true,
@@ -161,7 +166,7 @@ export default function StudentImportPage() {
 
   // Handle file upload and preview via backend API
   const handleFileUpload = useCallback(
-    async (file: File) => {
+    async (file: File, importMode: ImportMode = mode) => {
       setUploadedFile(file);
       setError(null);
       setIsLoading(true);
@@ -176,6 +181,7 @@ export default function StudentImportPage() {
 
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("mode", importMode);
 
         const response = await fetch("/api/import/students/preview", {
           method: "POST",
@@ -205,7 +211,7 @@ export default function StudentImportPage() {
               (e) => e.severity === "warning",
             );
             const isExisting = row.Errors.some(
-              (e) => e.code === "already_exists",
+              (e) => e.code === "already_exists" || e.code === "will_update",
             );
 
             // Determine row status based on error conditions
@@ -267,8 +273,17 @@ export default function StudentImportPage() {
         setIsLoading(false);
       }
     },
-    [session],
+    [session, mode],
   );
+
+  // A new mode changes what the preview means, so the uploaded file is
+  // checked again right away.
+  const handleModeChange = (next: ImportMode) => {
+    setMode(next);
+    if (uploadedFile) {
+      handleFileUpload(uploadedFile, next).catch(() => undefined);
+    }
+  };
 
   // Handle actual import
   const handleImport = async () => {
@@ -285,6 +300,7 @@ export default function StudentImportPage() {
 
       const formData = new FormData();
       formData.append("file", uploadedFile);
+      formData.append("mode", mode);
 
       const response = await fetch("/api/import/students/import", {
         method: "POST",
@@ -396,6 +412,12 @@ export default function StudentImportPage() {
     existing: importResult?.UpdatedCount ?? 0,
     errors: importResult?.ErrorCount ?? 0,
   };
+  const importLabel =
+    mode === "create"
+      ? `${childCountLabel(stats.new)} importieren`
+      : mode === "update"
+        ? `${childCountLabel(stats.existing)} aktualisieren`
+        : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
 
   if (status === "loading") {
     return (
@@ -426,6 +448,10 @@ export default function StudentImportPage() {
               <li>
                 Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
                 TT.MM.JJJJ oder TT.MM.JJ
+              </li>
+              <li>
+                Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+                Erziehungsberechtigte. Das Blatt „Hinweise" erklärt jede Spalte
               </li>
               <li>Speichern Sie die ausgefüllte Datei</li>
               <li>
@@ -510,8 +536,15 @@ export default function StudentImportPage() {
         </div>
       </div>
 
+      <ImportModeSelector
+        value={mode}
+        onChange={handleModeChange}
+        matchHint="Vorname, Nachname und Klasse. Bei Klassenwechsel über die RFID-Karte oder den Geburtstag"
+      />
+
       {/* Upload Section */}
       <UploadSection
+        title="Schritt 3: Datei hochladen"
         isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
@@ -530,6 +563,9 @@ export default function StudentImportPage() {
             total={stats.total}
             newCount={stats.new}
             existing={stats.existing}
+            existingTitle={
+              mode === "create" ? "Vorhanden" : "Wird aktualisiert"
+            }
             errors={stats.errors}
           />
 
@@ -541,7 +577,7 @@ export default function StudentImportPage() {
                   className="h-5 w-5 text-gray-600"
                   aria-hidden="true"
                 />
-                Schritt 3: Datenvorschau
+                Schritt 4: Datenvorschau
               </h3>
             </div>
 
@@ -585,9 +621,7 @@ export default function StudentImportPage() {
               disabled={stats.errors > 0 || isImporting}
               className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
-              {isImporting
-                ? "Importiere..."
-                : `${childCountLabel(stats.new)} importieren`}
+              {isImporting ? "Importiere..." : importLabel}
             </button>
           </div>
         </>

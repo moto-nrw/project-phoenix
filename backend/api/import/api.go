@@ -242,53 +242,122 @@ func setupExcelSheet(f *excelize.File, sheetName string) error {
 	return nil
 }
 
+// studentGuardianColumns are the per-guardian columns of the template, in
+// order. Erz1's name and e-mail are labelled without "(optional)" so the
+// template signals that at least one contact is expected.
+var studentGuardianColumns = []string{
+	"Vorname", "Nachname", "Email", "Telefon", "Telefon2", "Mobil", "Mobil2", "Dienstlich", "Dienstlich2",
+	"Verhältnis", "Rolle", "Hauptansprechpartner", "Notfall", "Abholberechtigt", "Abholhinweis", "Notfallpriorität",
+	"Straße", "Stadt", "PLZ", "Notizen", "Sprache",
+}
+
+// studentTemplateGuardianCount is how many Erz blocks the template ships with.
+// The parser accepts any number (Erz5, Erz6, ...) as long as the columns follow
+// the same naming.
+const studentTemplateGuardianCount = 4
+
+// studentTemplateColumns is the template header row without the "(optional)"
+// annotation, paired with whether the column is required.
+func studentTemplateColumns() []struct {
+	name     string
+	required bool
+} {
+	type col = struct {
+		name     string
+		required bool
+	}
+	cols := []col{
+		{"Vorname", true}, {"Nachname", true}, {"Klasse", true}, {"Gruppe", false}, {"Geburtstag", false},
+		{"RFID", false}, {"Straße", false}, {"PLZ", false}, {"Ort", false},
+	}
+	for n := 1; n <= studentTemplateGuardianCount; n++ {
+		for _, c := range studentGuardianColumns {
+			required := n == 1 && (c == "Vorname" || c == "Nachname" || c == "Email")
+			cols = append(cols, col{fmt.Sprintf("Erz%d.%s", n, c), required})
+		}
+	}
+	cols = append(cols,
+		col{"Gesundheitsinfo", false}, col{"Betreuernotizen", false}, col{"Zusatzinfo", false},
+		col{"Datenschutz", true}, col{"Aufbewahrung(Tage)", false},
+		col{"Gehweise.Mo", true}, col{"Gehweise.Di", true}, col{"Gehweise.Mi", true}, col{"Gehweise.Do", true}, col{"Gehweise.Fr", true},
+		col{"Begleitung", false}, col{"Einschreibung von", false}, col{"Einschreibung bis", false},
+		col{"AGB akzeptiert am", false}, col{"Datenverarbeitung akzeptiert am", false},
+		col{"E-Mail-Kontakt akzeptiert am", false}, col{"Foto-Einwilligung am", false},
+	)
+	for _, prefix := range []string{"Ankunft", "Abholung"} {
+		for _, day := range []string{"Mo", "Di", "Mi", "Do", "Fr"} {
+			cols = append(cols, col{fmt.Sprintf("%s.%s", prefix, day), false}, col{fmt.Sprintf("%s.%s.Notizen", prefix, day), false})
+		}
+	}
+	return cols
+}
+
 // getStudentImportHeaders returns the header row for student import template
 func getStudentImportHeaders() []string {
-	return []string{
-		"Vorname", "Nachname", "Klasse", "Gruppe (optional)", "Geburtstag (optional)",
-		"Erz1.Vorname", "Erz1.Nachname", "Erz1.Email", "Erz1.Telefon (optional)", "Erz1.Telefon2 (optional)", "Erz1.Mobil (optional)", "Erz1.Mobil2 (optional)", "Erz1.Dienstlich (optional)", "Erz1.Dienstlich2 (optional)", "Erz1.Verhältnis (optional)", "Erz1.Hauptansprechpartner (optional)", "Erz1.Notfall (optional)", "Erz1.Abholberechtigt (optional)",
-		"Erz1.Straße (optional)", "Erz1.Stadt (optional)", "Erz1.PLZ (optional)", "Erz1.Notizen (optional)", "Erz1.Sprache (optional)",
-		"Erz2.Vorname (optional)", "Erz2.Nachname (optional)", "Erz2.Email (optional)", "Erz2.Telefon (optional)", "Erz2.Telefon2 (optional)", "Erz2.Mobil (optional)", "Erz2.Mobil2 (optional)", "Erz2.Dienstlich (optional)", "Erz2.Dienstlich2 (optional)", "Erz2.Verhältnis (optional)", "Erz2.Hauptansprechpartner (optional)", "Erz2.Notfall (optional)", "Erz2.Abholberechtigt (optional)",
-		"Erz2.Straße (optional)", "Erz2.Stadt (optional)", "Erz2.PLZ (optional)", "Erz2.Notizen (optional)", "Erz2.Sprache (optional)",
-		"Gesundheitsinfo (optional)", "Betreuernotizen (optional)", "Zusatzinfo (optional)", "Datenschutz", "Aufbewahrung(Tage) (optional)", "Gehweise.Mo", "Gehweise.Di", "Gehweise.Mi", "Gehweise.Do", "Gehweise.Fr", "Begleitung (optional)", "Einschreibung von (optional)", "Einschreibung bis (optional)", "AGB akzeptiert am (optional)", "Datenverarbeitung akzeptiert am (optional)", "E-Mail-Kontakt akzeptiert am (optional)", "Foto-Einwilligung am (optional)",
-		"Ankunft.Mo (optional)", "Ankunft.Mo.Notizen (optional)", "Ankunft.Di (optional)", "Ankunft.Di.Notizen (optional)", "Ankunft.Mi (optional)", "Ankunft.Mi.Notizen (optional)", "Ankunft.Do (optional)", "Ankunft.Do.Notizen (optional)", "Ankunft.Fr (optional)", "Ankunft.Fr.Notizen (optional)",
-		"Abholung.Mo (optional)", "Abholung.Mo.Notizen (optional)", "Abholung.Di (optional)", "Abholung.Di.Notizen (optional)", "Abholung.Mi (optional)", "Abholung.Mi.Notizen (optional)", "Abholung.Do (optional)", "Abholung.Do.Notizen (optional)", "Abholung.Fr (optional)", "Abholung.Fr.Notizen (optional)",
+	cols := studentTemplateColumns()
+	headers := make([]string, 0, len(cols))
+	for _, c := range cols {
+		if c.required {
+			headers = append(headers, c.name)
+		} else {
+			headers = append(headers, c.name+" (optional)")
+		}
 	}
+	return headers
+}
+
+// studentExampleRow projects a sparse header→value map onto the template
+// column order, so example rows never drift out of alignment when a column
+// is added.
+func studentExampleRow(values map[string]any) []any {
+	cols := studentTemplateColumns()
+	row := make([]any, len(cols))
+	for i, c := range cols {
+		if v, ok := values[c.name]; ok {
+			row[i] = v
+		} else {
+			row[i] = ""
+		}
+	}
+	return row
 }
 
 // getStudentImportExamples returns example data rows for the template
 func getStudentImportExamples() [][]any {
 	return [][]any{
-		{"Max", "Mustermann", "1A", "Gruppe 1A", "15.08.2015",
-			// Guardian 1: phones, relationship
-			"Maria", testLastNameMueller, "maria.mueller@example.com", "0123-456789", "", "", "", "0221-9876543", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1: address, notes, language
-			testAddressMusterstr, "Köln", "50667", "", "de",
-			// Guardian 2: phones, relationship
-			"Hans", testLastNameMueller, "hans.mueller@example.com", "", "", "0176-12345678", "", "", "", "Vater", "Nein", "Ja", "Ja",
-			// Guardian 2: address, notes, language
-			testAddressMusterstr, "Köln", "50667", "", "de",
-			// Additional info (per-day Gehweise: Bus Mo/Mi/Fr, abholung Di, alleine Do; keine Begleitung)
-			"", "Sehr ruhiges Kind", "", "Ja", 30, "bus", "abholung", "bus", "alleine", "bus", "", "01.08.2024", "31.07.2025", "01.08.2024", "01.08.2024", "01.08.2024", "01.08.2024",
-			// Arrival schedule (Mon-Fri)
-			"08:00", "", "08:00", "", "08:00", "", "08:00", "", "08:30", "Frühbetreuung",
-			// Pickup schedule (Mon-Fri)
-			"16:00", "", "15:30", "", "16:00", "", "15:30", "", "14:00", "Frühschluss"},
-		{"Anna", "Schmidt", "2B", "Gruppe 2B", "22.03.14",
-			// Guardian 1: phones, relationship
-			"Petra", "Schmidt", "petra.schmidt@example.com", "0234-567890", "", "", "", "0211-5551234", "", "Mutter", "Ja", "Ja", "Ja",
-			// Guardian 1: address, notes, language
-			"Hauptstr. 5", "Düsseldorf", "40210", "Allergien beachten", "de",
-			// Guardian 2 (empty)
-			"", "", "", "", "", "", "", "", "", "", "", "", "",
-			// Guardian 2: empty profile fields
-			"", "", "", "", "",
-			// Additional info (per-day Gehweise: Mo "mit anderem Kind" + Begleitung, Di–Fr Bus)
-			"Allergie: Nüsse", "", "Kann gut malen", "Ja", 15, "mit anderem Kind", "bus", "bus", "bus", "bus", "Geschwisterkind Lena", "01.08.2024", "", "01.08.2024", "01.08.2024", "", "",
-			// Arrival schedule (partial)
-			"07:45", "", "07:45", "", "07:45", "", "", "", "", "",
-			// Pickup schedule (partial)
-			"15:00", "", "15:00", "", "15:00", "", "15:00", "", "", ""},
+		studentExampleRow(map[string]any{
+			"Vorname": "Max", "Nachname": "Mustermann", "Klasse": "1A", "Gruppe": "Gruppe 1A", "Geburtstag": "15.08.2015",
+			"Straße": testAddressMusterstr, "PLZ": "50667", "Ort": "Köln",
+			"Erz1.Vorname": "Maria", "Erz1.Nachname": testLastNameMueller, "Erz1.Email": "maria.mueller@example.com",
+			"Erz1.Telefon": "0123-456789", "Erz1.Dienstlich": "0221-9876543", "Erz1.Verhältnis": "Mutter", "Erz1.Rolle": "Hauptsorgeberechtigt",
+			"Erz1.Hauptansprechpartner": "Ja", "Erz1.Notfall": "Ja", "Erz1.Abholberechtigt": "Ja", "Erz1.Notfallpriorität": 1,
+			"Erz1.Straße": testAddressMusterstr, "Erz1.Stadt": "Köln", "Erz1.PLZ": "50667", "Erz1.Sprache": "de",
+			"Erz2.Vorname": "Hans", "Erz2.Nachname": testLastNameMueller, "Erz2.Email": "hans.mueller@example.com",
+			"Erz2.Mobil": "0176-12345678", "Erz2.Verhältnis": "Vater", "Erz2.Rolle": "Sorgeberechtigt",
+			"Erz2.Hauptansprechpartner": "Nein", "Erz2.Notfall": "Ja", "Erz2.Abholberechtigt": "Ja", "Erz2.Notfallpriorität": 2,
+			"Erz2.Straße": testAddressMusterstr, "Erz2.Stadt": "Köln", "Erz2.PLZ": "50667", "Erz2.Sprache": "de",
+			"Erz3.Vorname": "Gisela", "Erz3.Nachname": testLastNameMueller, "Erz3.Mobil": "0171-2223344",
+			"Erz3.Verhältnis": "Oma", "Erz3.Rolle": "Nur Abholung", "Erz3.Abholberechtigt": "Ja", "Erz3.Abholhinweis": "Nur dienstags",
+			"Betreuernotizen": "Sehr ruhiges Kind", "Datenschutz": "Ja", "Aufbewahrung(Tage)": 30,
+			"Gehweise.Mo": "bus", "Gehweise.Di": "abholung", "Gehweise.Mi": "bus", "Gehweise.Do": "alleine", "Gehweise.Fr": "bus",
+			"Einschreibung von": "01.08.2024", "Einschreibung bis": "31.07.2025",
+			"AGB akzeptiert am": "01.08.2024", "Datenverarbeitung akzeptiert am": "01.08.2024", "E-Mail-Kontakt akzeptiert am": "01.08.2024", "Foto-Einwilligung am": "01.08.2024",
+			"Ankunft.Mo": "08:00", "Ankunft.Di": "08:00", "Ankunft.Mi": "08:00", "Ankunft.Do": "08:00", "Ankunft.Fr": "08:30", "Ankunft.Fr.Notizen": "Frühbetreuung",
+			"Abholung.Mo": "16:00", "Abholung.Di": "15:30", "Abholung.Mi": "16:00", "Abholung.Do": "15:30", "Abholung.Fr": "14:00", "Abholung.Fr.Notizen": "Frühschluss",
+		}),
+		studentExampleRow(map[string]any{
+			"Vorname": "Anna", "Nachname": "Schmidt", "Klasse": "2B", "Gruppe": "Gruppe 2B", "Geburtstag": "22.03.14",
+			"Erz1.Vorname": "Petra", "Erz1.Nachname": "Schmidt", "Erz1.Email": "petra.schmidt@example.com",
+			"Erz1.Telefon": "0234-567890", "Erz1.Dienstlich": "0211-5551234", "Erz1.Verhältnis": "Mutter",
+			"Erz1.Hauptansprechpartner": "Ja", "Erz1.Notfall": "Ja", "Erz1.Abholberechtigt": "Ja",
+			"Erz1.Straße": "Hauptstr. 5", "Erz1.Stadt": "Düsseldorf", "Erz1.PLZ": "40210", "Erz1.Notizen": "Allergien beachten", "Erz1.Sprache": "de",
+			"Gesundheitsinfo": "Allergie: Nüsse", "Zusatzinfo": "Kann gut malen", "Datenschutz": "Ja", "Aufbewahrung(Tage)": 15,
+			"Gehweise.Mo": "mit anderem Kind", "Gehweise.Di": "bus", "Gehweise.Mi": "bus", "Gehweise.Do": "bus", "Gehweise.Fr": "bus",
+			"Begleitung": "Geschwisterkind Lena", "Einschreibung von": "01.08.2024",
+			"AGB akzeptiert am": "01.08.2024", "Datenverarbeitung akzeptiert am": "01.08.2024",
+			"Ankunft.Mo": "07:45", "Ankunft.Di": "07:45", "Ankunft.Mi": "07:45",
+			"Abholung.Mo": "15:00", "Abholung.Di": "15:00", "Abholung.Mi": "15:00", "Abholung.Do": "15:00",
+		}),
 	}
 }
 
@@ -336,10 +405,10 @@ func writeHinweiseSheet(f *excelize.File) {
 	// Indices below "Kinder-Zusatzinfos" account for the extra "Begleitung" doc
 	// row added after Gehweise.Mo (#1694), which shifts every later row down by one.
 	sectionRows := map[int]string{
-		7:  "Erziehungsberechtigte (Erz1, Erz2, ...)",
-		23: "Kinder-Zusatzinfos",
-		38: "Abholzeiten (Montag bis Freitag)",
-		42: "Allgemeine Hinweise",
+		11: "Erziehungsberechtigte (Erz1, Erz2, ...)",
+		30: "Kinder-Zusatzinfos",
+		45: "Abholzeiten (Montag bis Freitag)",
+		49: "Allgemeine Hinweise",
 	}
 
 	dataRows := [][]string{
@@ -351,7 +420,11 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Klasse", "Ja", "Text (z.B. 1A, 2B)", "Schulklasse"},
 		{"Gruppe", "Nein", "Text (exakter Gruppenname)", "OGS-Gruppe — muss in der Datenbank existieren"},
 		{"Geburtstag", "Nein", "JJJJ-MM-TT, TT.MM.JJJJ oder TT.MM.JJ", "Geburtsdatum, z.B. 2015-08-15, 15.08.2015 oder 15.08.15"},
-		// row 7: section header (injected)
+		{"RFID", "Nein", "Chip-ID der Karte", "Karte des Kindes. Die Karte muss an dieser Schule angelegt und noch niemandem zugeordnet sein, sonst wird die Zeile abgelehnt."},
+		{"Straße", "Nein", "Text", "Anschrift des Kindes: Straße und Hausnummer"},
+		{"PLZ", "Nein", "5-stellig", "Anschrift des Kindes: Postleitzahl"},
+		{"Ort", "Nein", "Text", "Anschrift des Kindes: Ort"},
+		// row 11: section header (injected)
 		// rows 8-20: guardian fields
 		{"Erz1.Vorname", "Nein", "Text", "Vorname des Erziehungsberechtigten"},
 		{"Erz1.Nachname", "Nein", "Text", "Nachname des Erziehungsberechtigten"},
@@ -360,9 +433,12 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.Mobil", "Nein", "z.B. 0176-12345678", "Mobilnummer"},
 		{"Erz1.Dienstlich", "Nein", "z.B. 0221-9876543", "Dienstliche Telefonnummer"},
 		{"Erz1.Verhältnis", "Nein", "Mutter, Vater, Oma, Opa, Tante, Onkel, Vormund, Sonstige", "Beziehung zum Kind"},
+		{"Erz1.Rolle", "Nein", "Hauptsorgeberechtigt, Sorgeberechtigt, Mitsorgeberechtigt, Notfallkontakt, Nur Abholung, Sozialarbeit", "Rolle im Elternportal. Leer = wird aus Verhältnis und Ja/Nein-Feldern abgeleitet."},
 		{"Erz1.Hauptansprechpartner", "Nein", hintYesNo, "Erster Ansprechpartner für die OGS"},
 		{"Erz1.Notfall", "Nein", hintYesNo, "Als Notfallkontakt hinterlegt"},
 		{"Erz1.Abholberechtigt", "Nein", hintYesNo, "Darf das Kind abholen"},
+		{"Erz1.Abholhinweis", "Nein", "Text", "Hinweis zur Abholung durch diese Person (z.B. nur dienstags)"},
+		{"Erz1.Notfallpriorität", "Nein", "1, 2, 3, ...", "Reihenfolge im Notfall (1 = zuerst anrufen)"},
 		{"Erz1.Straße", "Nein", "Text", "Straße und Hausnummer"},
 		{"Erz1.Stadt", "Nein", "Text", "Ort / Stadt"},
 		{"Erz1.PLZ", "Nein", "5-stellig (z.B. 50667)", "Postleitzahl"},
@@ -389,8 +465,9 @@ func writeHinweiseSheet(f *excelize.File) {
 		// row 33: section header (injected)
 		// row 34: general hints
 		{"Ja/Nein-Felder", "", "Ja, Nein, Yes, No, true, false, 1, 0", "Groß-/Kleinschreibung egal"},
-		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich"},
+		{"Erz2, Erz3, ...", "", "Gleiche Spalten wie Erz1", "Beliebig viele Erziehungsberechtigte möglich; die Vorlage enthält Erz1 bis Erz4"},
 		{"Geburtstag", "", "Beispiele: 2015-08-15, 15.08.2015, 15.08.15", "Alle drei Formate werden beim Import akzeptiert"},
+		{"Aktualisieren", "", "Modus 'Bestehende aktualisieren' oder 'Beides'", "Bestehende Kinder werden über Vorname + Nachname + Klasse erkannt, bei Klassenwechsel über RFID oder Vorname + Nachname + Geburtstag. Leere Zellen ändern nichts."},
 	}
 
 	// Create styles
@@ -470,6 +547,10 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return // Error already handled by validateAndParseCSVFile
 	}
+	mode, ok := importModeFromRequest(w, r)
+	if !ok {
+		return
+	}
 
 	// Get account ID for audit logging (GDPR: audit tracks auth identity)
 	accountID, err := getAccountIDFromContext(r.Context())
@@ -495,9 +576,9 @@ func (rs *Resource) previewStudentImport(w http.ResponseWriter, r *http.Request)
 
 		request := importModels.ImportRequest[importModels.StudentImportRow]{
 			Rows:            uploadResult.Rows,
-			Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-			DryRun:          true,                          // PREVIEW ONLY
-			StopOnError:     false,                         // Collect all errors
+			Mode:            mode,
+			DryRun:          true,  // PREVIEW ONLY
+			StopOnError:     false, // Collect all errors
 			UserID:          staffID,
 			SkipInvalidRows: false,
 		}
@@ -528,6 +609,10 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return // Error already handled by validateAndParseCSVFile
 	}
+	mode, ok := importModeFromRequest(w, r)
+	if !ok {
+		return
+	}
 
 	// Get account ID for audit logging (GDPR: audit tracks auth identity)
 	accountID, err := getAccountIDFromContext(r.Context())
@@ -549,9 +634,9 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 
 		request := importModels.ImportRequest[importModels.StudentImportRow]{
 			Rows:            uploadResult.Rows,
-			Mode:            importModels.ImportModeCreate, // Create-only: duplicates will error
-			DryRun:          false,                         // ACTUAL IMPORT
-			StopOnError:     false,                         // Continue on errors
+			Mode:            mode,
+			DryRun:          false, // ACTUAL IMPORT
+			StopOnError:     false, // Continue on errors
 			UserID:          staffID,
 			SkipInvalidRows: true, // Skip invalid rows, import valid ones
 		}

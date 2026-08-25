@@ -11,6 +11,10 @@ import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
+import {
+  ImportModeSelector,
+  type ImportMode,
+} from "~/components/import/import-mode-selector";
 import { useToast } from "~/contexts/ToastContext";
 import { createCrudService } from "~/lib/database/service-factory";
 import { rolesConfig } from "~/components/database/configs/roles.config";
@@ -24,7 +28,7 @@ interface ImportError {
   field: string;
   message: string;
   code: string;
-  severity: "error" | "warning";
+  severity: "error" | "warning" | "info";
 }
 
 interface ImportRowResult {
@@ -32,7 +36,7 @@ interface ImportRowResult {
   Data: {
     first_name: string;
     last_name: string;
-    email: string;
+    email?: string;
     role_name: string;
     position?: string;
   };
@@ -68,7 +72,9 @@ interface DisplayStaff {
 }
 
 function rowStatusFor(errors: ImportError[]): RowStatus {
-  const isExisting = errors.some((e) => e.code === "already_exists");
+  const isExisting = errors.some(
+    (e) => e.code === "already_exists" || e.code === "will_update",
+  );
   if (isExisting) return "existing";
   if (errors.some((e) => e.severity === "error")) return "error";
   if (errors.some((e) => e.severity === "warning")) return "warning";
@@ -82,7 +88,7 @@ function toDisplayStaff(row: ImportRowResult): DisplayStaff {
     errors: row.Errors.map((e) => e.message),
     first_name: row.Data.first_name,
     last_name: row.Data.last_name,
-    email: row.Data.email,
+    email: row.Data.email ?? "",
     role_name: row.Data.role_name,
     position: row.Data.position ?? "",
   };
@@ -98,6 +104,7 @@ export default function StaffImportPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
+  const [mode, setMode] = useState<ImportMode>("create");
 
   const { data: session, status } = useSession({
     required: true,
@@ -185,7 +192,7 @@ export default function StaffImportPage() {
   };
 
   const handleFileUpload = useCallback(
-    async (file: File) => {
+    async (file: File, importMode: ImportMode = mode) => {
       setUploadedFile(file);
       setError(null);
       setIsLoading(true);
@@ -200,6 +207,7 @@ export default function StaffImportPage() {
 
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("mode", importMode);
 
         const response = await fetch("/api/import/teachers/preview", {
           method: "POST",
@@ -249,8 +257,17 @@ export default function StaffImportPage() {
         setIsLoading(false);
       }
     },
-    [session],
+    [session, mode],
   );
+
+  // A new mode changes what the preview means, so the uploaded file is
+  // checked again right away.
+  const handleModeChange = (next: ImportMode) => {
+    setMode(next);
+    if (uploadedFile) {
+      handleFileUpload(uploadedFile, next).catch(() => undefined);
+    }
+  };
 
   const handleImport = async () => {
     if (!uploadedFile) return;
@@ -266,6 +283,7 @@ export default function StaffImportPage() {
 
       const formData = new FormData();
       formData.append("file", uploadedFile);
+      formData.append("mode", mode);
 
       const response = await fetch("/api/import/teachers/import", {
         method: "POST",
@@ -290,11 +308,13 @@ export default function StaffImportPage() {
         // Partial success: keep preview visible so the user sees which rows failed.
         setPreviewData(importData.Errors.map(toDisplayStaff));
         toast.warning(
-          `${importData.CreatedCount} eingeladen, ${importData.ErrorCount} übersprungen`,
+          `${importData.CreatedCount} angelegt, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
         );
       } else {
         setImportComplete(true);
-        toast.success(`${importData.CreatedCount} Mitarbeiter eingeladen`);
+        toast.success(
+          `${importData.CreatedCount} angelegt, ${importData.UpdatedCount} aktualisiert`,
+        );
         resetForm();
       }
     } catch (err) {
@@ -353,6 +373,12 @@ export default function StaffImportPage() {
     existing: importResult?.UpdatedCount ?? 0,
     errors: importResult?.ErrorCount ?? 0,
   };
+  const importLabel =
+    mode === "create"
+      ? `${stats.new} Mitarbeiter anlegen`
+      : mode === "update"
+        ? `${stats.existing} Mitarbeiter aktualisieren`
+        : `${stats.new + stats.existing} Mitarbeiter übernehmen`;
 
   if (status === "loading") {
     return (
@@ -398,8 +424,13 @@ export default function StaffImportPage() {
                 )}
               </li>
               <li>
-                Der Import verschickt Einladungen — Mitarbeitende setzen ihr
-                Passwort selbst über den Link in der E-Mail
+                Jede Zeile wird sofort in der Personalliste angelegt, mit
+                Stammdaten wie Personalnummer, Adresse und Vertragsdaten
+              </li>
+              <li>
+                Steht eine E-Mail in der Zeile, bekommt die Person zusätzlich
+                eine Einladung und setzt ihr Passwort selbst. Ohne E-Mail gibt
+                es keinen Zugang
               </li>
               <li>
                 Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
@@ -451,11 +482,11 @@ export default function StaffImportPage() {
               onChange={(next) => setTemplateFormat(next as "csv" | "xlsx")}
             />
             <p className="mt-2 text-sm text-gray-500">
-              Spalten: <span className="font-medium">Vorname</span>,{" "}
+              Pflicht: <span className="font-medium">Vorname</span>,{" "}
               <span className="font-medium">Nachname</span>,{" "}
-              <span className="font-medium">Email</span>,{" "}
-              <span className="font-medium">Rolle</span>,{" "}
-              <span className="font-medium">Position</span> (optional)
+              <span className="font-medium">Rolle</span>. Alle weiteren Spalten
+              (E-Mail, Personalnummer, Adresse, Vertrag, Qualifikationen) sind
+              optional und im Blatt „Hinweise" erklärt
             </p>
           </div>
           <div className="flex-1">
@@ -481,8 +512,15 @@ export default function StaffImportPage() {
         </div>
       </div>
 
+      <ImportModeSelector
+        value={mode}
+        onChange={handleModeChange}
+        matchHint="Personalnummer, sonst E-Mail, sonst Vor- und Nachname"
+      />
+
       {/* Upload Section */}
       <UploadSection
+        title="Schritt 3: Datei hochladen"
         isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
@@ -500,6 +538,9 @@ export default function StaffImportPage() {
             total={stats.total}
             newCount={stats.new}
             existing={stats.existing}
+            existingTitle={
+              mode === "create" ? "Vorhanden" : "Wird aktualisiert"
+            }
             errors={stats.errors}
           />
 
@@ -510,7 +551,7 @@ export default function StaffImportPage() {
                   className="h-5 w-5 text-gray-600"
                   aria-hidden="true"
                 />
-                Schritt 3: Datenvorschau
+                Schritt 4: Datenvorschau
               </h3>
             </div>
 
@@ -550,9 +591,7 @@ export default function StaffImportPage() {
               disabled={stats.errors > 0 || isImporting}
               className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
-              {isImporting
-                ? "Importiere..."
-                : `${stats.new} Mitarbeiter einladen`}
+              {isImporting ? "Importiere..." : importLabel}
             </button>
           </div>
         </>

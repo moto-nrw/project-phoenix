@@ -333,7 +333,7 @@ describe("StaffImportPage", () => {
     });
   });
 
-  it("shows the invite button label with the new count", async () => {
+  it("shows the import button label with the new count", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: () =>
@@ -352,7 +352,7 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      expect(screen.getByText("4 Mitarbeiter einladen")).toBeInTheDocument();
+      expect(screen.getByText("4 Mitarbeiter anlegen")).toBeInTheDocument();
     });
   });
 
@@ -399,7 +399,7 @@ describe("StaffImportPage", () => {
     });
   });
 
-  it("disables the invite button when there are errors", async () => {
+  it("disables the import button when there are errors", async () => {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: () =>
@@ -435,7 +435,7 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      const inviteButton = screen.getByText("0 Mitarbeiter einladen");
+      const inviteButton = screen.getByText("0 Mitarbeiter anlegen");
       expect(inviteButton).toBeDisabled();
     });
   });
@@ -469,7 +469,7 @@ describe("StaffImportPage", () => {
     });
   });
 
-  it("invites staff and shows a success toast", async () => {
+  it("imports staff and shows a success toast", async () => {
     (global.fetch as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce({
         ok: true,
@@ -502,10 +502,10 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      expect(screen.getByText("3 Mitarbeiter einladen")).toBeInTheDocument();
+      expect(screen.getByText("3 Mitarbeiter anlegen")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("3 Mitarbeiter einladen"));
+    fireEvent.click(screen.getByText("3 Mitarbeiter anlegen"));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -513,7 +513,7 @@ describe("StaffImportPage", () => {
         expect.objectContaining({ method: "POST" }),
       );
       expect(mockToast.success).toHaveBeenCalledWith(
-        "3 Mitarbeiter eingeladen",
+        "3 angelegt, 0 aktualisiert",
       );
     });
   });
@@ -568,14 +568,14 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      expect(screen.getByText("3 Mitarbeiter einladen")).toBeInTheDocument();
+      expect(screen.getByText("3 Mitarbeiter anlegen")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("3 Mitarbeiter einladen"));
+    fireEvent.click(screen.getByText("3 Mitarbeiter anlegen"));
 
     await waitFor(() => {
       expect(mockToast.warning).toHaveBeenCalledWith(
-        "2 eingeladen, 1 übersprungen",
+        "2 angelegt, 0 aktualisiert, 1 übersprungen",
       );
       expect(mockToast.success).not.toHaveBeenCalled();
     });
@@ -605,10 +605,10 @@ describe("StaffImportPage", () => {
     fireEvent.click(screen.getByTestId("file-select-trigger"));
 
     await waitFor(() => {
-      expect(screen.getByText("2 Mitarbeiter einladen")).toBeInTheDocument();
+      expect(screen.getByText("2 Mitarbeiter anlegen")).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByText("2 Mitarbeiter einladen"));
+    fireEvent.click(screen.getByText("2 Mitarbeiter anlegen"));
 
     await waitFor(() => {
       expect(screen.getByText("Import fehlgeschlagen")).toBeInTheDocument();
@@ -713,5 +713,51 @@ describe("StaffImportPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Keine Authentifizierung")).toBeInTheDocument();
     });
+  });
+
+  it("sends the chosen import mode with the preview and relabels the button", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            TotalRows: 3,
+            CreatedCount: 1,
+            UpdatedCount: 2,
+            ErrorCount: 0,
+            Errors: [],
+          },
+        }),
+    });
+
+    render(<StaffImportPage />);
+    fireEvent.click(screen.getByRole("button", { name: "Beides" }));
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("3 Mitarbeiter übernehmen")).toBeInTheDocument();
+    });
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const previewCall = fetchMock.mock.calls.find(
+      (call) => call[0] === "/api/import/teachers/preview",
+    );
+    expect(previewCall).toBeDefined();
+    const body = (previewCall?.[1] as { body: FormData }).body;
+    expect(body.get("mode")).toBe("upsert");
+
+    // Switching the mode re-runs the preview with the new value.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nur bestehende aktualisieren" }),
+    );
+    await waitFor(() => {
+      const calls = fetchMock.mock.calls.filter(
+        (call) => call[0] === "/api/import/teachers/preview",
+      );
+      expect(calls).toHaveLength(2);
+      expect((calls[1]?.[1] as { body: FormData }).body.get("mode")).toBe(
+        "update",
+      );
+    });
+    expect(screen.getByText("2 Mitarbeiter aktualisieren")).toBeInTheDocument();
   });
 });

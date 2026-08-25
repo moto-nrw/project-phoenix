@@ -6,6 +6,8 @@ interface StatsCardsProps {
   readonly total: number;
   readonly newCount: number;
   readonly existing: number;
+  /** Title of the "existing" card; update mode calls it "Wird aktualisiert". */
+  readonly existingTitle?: string;
   readonly errors: number;
 }
 
@@ -35,6 +37,7 @@ export function StatsCards({
   total,
   newCount,
   existing,
+  existingTitle = "Vorhanden",
   errors,
 }: StatsCardsProps) {
   return (
@@ -50,7 +53,7 @@ export function StatsCards({
         icon={<Plus className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />
       <StatCard
-        title="Vorhanden"
+        title={existingTitle}
         value={existing}
         icon={<Check className="h-5 w-5 text-gray-700" aria-hidden="true" />}
       />

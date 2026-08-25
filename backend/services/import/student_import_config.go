@@ -2,6 +2,7 @@ package importpkg
 
 import (
 	"context"
+	"database/sql"
 	stdErrors "errors"
 	"fmt"
 	"regexp"
@@ -81,6 +82,37 @@ func MapRelationshipType(germanType string) string {
 	return "other"
 }
 
+// guardianRoleAliases maps the German labels of the "ErzN.Rolle" column (and
+// the raw preset names) to the stored guardian_role presets.
+var guardianRoleAliases = map[string]string{
+	"hauptsorgeberechtigt": authorize.GuardianRolePrimaryGuardian, "hauptsorgeberechtigte": authorize.GuardianRolePrimaryGuardian, "hauptsorgeberechtigter": authorize.GuardianRolePrimaryGuardian,
+	"sorgeberechtigt": authorize.GuardianRoleLegalGuardian, "sorgeberechtigte": authorize.GuardianRoleLegalGuardian, "sorgeberechtigter": authorize.GuardianRoleLegalGuardian,
+	"mitsorgeberechtigt": authorize.GuardianRoleCoGuardian, "mitsorgeberechtigte": authorize.GuardianRoleCoGuardian, "mitsorgeberechtigter": authorize.GuardianRoleCoGuardian,
+	"notfallkontakt": authorize.GuardianRoleEmergency,
+	"nur abholung":   authorize.GuardianRolePickupOnly, "abholperson": authorize.GuardianRolePickupOnly, "abholung": authorize.GuardianRolePickupOnly,
+	"sozialarbeit": authorize.GuardianRoleSocialWorker, "sozialarbeiter": authorize.GuardianRoleSocialWorker, "sozialarbeiterin": authorize.GuardianRoleSocialWorker,
+	"benutzerdefiniert": authorize.GuardianRoleCustom,
+}
+
+// MapGuardianRole resolves a "ErzN.Rolle" cell to a stored preset. Returns
+// ("", false) for an unknown label so the caller can report it; an empty cell
+// maps to ("", true) meaning "derive the default".
+func MapGuardianRole(raw string) (string, bool) {
+	normalized := strings.ToLower(strings.TrimSpace(raw))
+	if normalized == "" {
+		return "", true
+	}
+	if mapped, ok := guardianRoleAliases[normalized]; ok {
+		return mapped, true
+	}
+	switch normalized {
+	case authorize.GuardianRolePrimaryGuardian, authorize.GuardianRoleLegalGuardian, authorize.GuardianRoleCoGuardian,
+		authorize.GuardianRoleEmergency, authorize.GuardianRolePickupOnly, authorize.GuardianRoleSocialWorker, authorize.GuardianRoleCustom:
+		return normalized, true
+	}
+	return "", false
+}
+
 // StudentImportConfig implements ImportConfig for student imports
 type StudentImportConfig struct {
 	StudentImportDeps
@@ -97,11 +129,13 @@ type StudentImportDeps struct {
 	PrivacyRepo         users.PrivacyConsentRepository
 	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
-	Resolver            *RelationshipResolver
+	// RFIDCardRepo resolves the optional RFID column to a card of this school
+	// (#2600). nil disables RFID import (the column is then rejected).
+	RFIDCardRepo users.RFIDCardRepository
+	Resolver     *RelationshipResolver
 }
 
 // NewStudentImportConfig creates a new student import configuration
-// Note: RFID cards are not supported in CSV import and must be assigned separately
 func NewStudentImportConfig(deps StudentImportDeps, db *bun.DB) *StudentImportConfig {
 	return &StudentImportConfig{
 		StudentImportDeps: deps,
@@ -138,17 +172,10 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 		})
 	}
 
-	// 2. RFID cards are not supported in CSV import - always clear
-	// RFID cards must be assigned separately after import via the device management interface
-	if row.TagID != "" {
-		errors = append(errors, importModels.ValidationError{
-			Field:    "tag_id",
-			Message:  "RFID-Karten werden beim CSV-Import nicht unterstützt. Bitte weisen Sie RFID-Karten nach dem Import über die Geräteverwaltung zu.",
-			Code:     "rfid_not_supported",
-			Severity: importModels.ErrorSeverityInfo,
-		})
-		row.TagID = "" // Always clear - RFID cards not supported in CSV import
-	}
+	// 2. RFID: the card must exist at this school and must not be worn by
+	// somebody else (#2600). A typo here would check the wrong child in at
+	// the door without anyone noticing, so the row is blocked, not warned.
+	errors = append(errors, c.validateTag(ctx, row)...)
 
 	// 3. REQUIRED: Student validation
 	if strings.TrimSpace(row.SchoolClass) == "" {
@@ -253,6 +280,71 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 	}
 
 	return errors
+}
+
+// validateTag resolves the RFID column to a card of this tenant and rewrites
+// the cell to the stored spelling. Blocks the row when the card is unknown or
+// already assigned to a different person; the same child (matched by name)
+// re-importing its own card passes, which is what the update mode needs.
+func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels.StudentImportRow) []importModels.ValidationError {
+	raw := strings.TrimSpace(row.TagID)
+	if raw == "" {
+		row.TagID = ""
+		return nil
+	}
+	if c.RFIDCardRepo == nil {
+		row.TagID = ""
+		return []importModels.ValidationError{{
+			Field:    "tag_id",
+			Message:  "RFID-Karten können in dieser Installation nicht importiert werden. Bitte die Karte nach dem Import über die Geräteverwaltung zuweisen.",
+			Code:     "rfid_not_supported",
+			Severity: importModels.ErrorSeverityWarning,
+		}}
+	}
+
+	card, err := c.RFIDCardRepo.FindByID(ctx, raw)
+	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
+		return []importModels.ValidationError{{
+			Field:    "tag_id",
+			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
+			Code:     "rfid_lookup_failed",
+			Severity: importModels.ErrorSeverityError,
+		}}
+	}
+	if card == nil {
+		return []importModels.ValidationError{{
+			Field:       "tag_id",
+			Message:     fmt.Sprintf("RFID-Karte '%s' ist an dieser Schule nicht angelegt. Bitte die Karte zuerst in der Geräteverwaltung erfassen.", raw),
+			Code:        "rfid_unknown",
+			Severity:    importModels.ErrorSeverityError,
+			ActualValue: raw,
+		}}
+	}
+	row.TagID = card.ID
+
+	wearer, err := c.PersonRepo.FindByTagID(ctx, card.ID)
+	if err != nil {
+		return []importModels.ValidationError{{
+			Field:    "tag_id",
+			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
+			Code:     "rfid_lookup_failed",
+			Severity: importModels.ErrorSeverityError,
+		}}
+	}
+	if wearer == nil {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(wearer.FirstName), strings.TrimSpace(row.FirstName)) &&
+		strings.EqualFold(strings.TrimSpace(wearer.LastName), strings.TrimSpace(row.LastName)) {
+		return nil // the child's own card (update mode)
+	}
+	return []importModels.ValidationError{{
+		Field:       "tag_id",
+		Message:     fmt.Sprintf("RFID-Karte '%s' ist bereits einer anderen Person zugeordnet.", raw),
+		Code:        "rfid_taken",
+		Severity:    importModels.ErrorSeverityError,
+		ActualValue: raw,
+	}}
 }
 
 // validateEnrollmentDates validates the optional enrollment date range and
@@ -414,6 +506,24 @@ func (c *StudentImportConfig) validateGuardian(num int, guardian importModels.Gu
 	// Validate language preference (warning for unrecognized codes)
 	errors = append(errors, validateGuardianLanguage(num, guardian.LanguagePreference, fieldPrefix)...)
 
+	if _, ok := MapGuardianRole(guardian.GuardianRole); !ok {
+		errors = append(errors, importModels.ValidationError{
+			Field:       fmt.Sprintf("%s_role", fieldPrefix),
+			Message:     fmt.Sprintf("Unbekannte Rolle '%s' für Erziehungsberechtigten %d. Erlaubt: Hauptsorgeberechtigt, Sorgeberechtigt, Mitsorgeberechtigt, Notfallkontakt, Nur Abholung, Sozialarbeit.", guardian.GuardianRole, num),
+			Code:        "invalid_guardian_role",
+			Severity:    importModels.ErrorSeverityError,
+			ActualValue: guardian.GuardianRole,
+		})
+	}
+	if guardian.EmergencyPriority < 0 {
+		errors = append(errors, importModels.ValidationError{
+			Field:    fmt.Sprintf("%s_emergency_priority", fieldPrefix),
+			Message:  fmt.Sprintf("Notfallpriorität für Erziehungsberechtigten %d muss 1 oder größer sein.", num),
+			Code:     "invalid_emergency_priority",
+			Severity: importModels.ErrorSeverityError,
+		})
+	}
+
 	return errors
 }
 
@@ -503,25 +613,90 @@ func validateGuardianPhoneNumbers(num int, phones []importModels.PhoneImportData
 	return errors
 }
 
-// FindExisting checks if a student already exists (for duplicate detection)
+// FindExisting resolves the row to an existing student (duplicate detection
+// in create mode, match key in update mode). Keys, in order: the RFID card
+// (survives a class change), first + last name + class, and first + last name
+// + birthday (the class-change case without a card).
 func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
-	// Strategy: Find by exact first_name + last_name + school_class match
+	if row.TagID != "" {
+		id, err := c.findStudentByTag(ctx, row.TagID)
+		if err != nil || id != nil {
+			return id, err
+		}
+	}
+
 	students, err := c.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
 	if err != nil {
 		return nil, err
 	}
-
-	if len(students) == 0 {
-		return nil, nil // No existing student
-	}
-
 	if len(students) == 1 {
 		return &students[0].ID, nil
 	}
+	if len(students) > 1 {
+		return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' in Klasse '%s'",
+			row.FirstName, row.LastName, row.SchoolClass)
+	}
 
-	// Multiple matches - ambiguous
-	return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' in Klasse '%s'",
-		row.FirstName, row.LastName, row.SchoolClass)
+	return c.findStudentByNameAndBirthday(ctx, row)
+}
+
+// findStudentByTag returns the student wearing the card, if any.
+func (c *StudentImportConfig) findStudentByTag(ctx context.Context, tagID string) (*int64, error) {
+	wearer, err := c.PersonRepo.FindByTagID(ctx, tagID)
+	if err != nil || wearer == nil {
+		return nil, err
+	}
+	student, err := c.StudentRepo.FindByPersonID(ctx, wearer.ID)
+	if err != nil {
+		if stdErrors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if student == nil {
+		return nil, nil
+	}
+	return &student.ID, nil
+}
+
+// findStudentByNameAndBirthday matches a child that changed class: same
+// name, same birthday, exactly one hit.
+func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
+	birthday, err := parseOptionalDate(row.Birthday)
+	if err != nil || birthday == nil {
+		return nil, nil
+	}
+	persons, err := c.PersonRepo.List(ctx, map[string]any{
+		"first_name": strings.TrimSpace(row.FirstName),
+		"last_name":  strings.TrimSpace(row.LastName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	var matches []int64
+	for _, person := range persons {
+		if person.Birthday == nil || *person.Birthday != *birthday {
+			continue
+		}
+		student, err := c.StudentRepo.FindByPersonID(ctx, person.ID)
+		if err != nil {
+			if stdErrors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		if student != nil {
+			matches = append(matches, student.ID)
+		}
+	}
+	switch len(matches) {
+	case 0:
+		return nil, nil
+	case 1:
+		return &matches[0], nil
+	default:
+		return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' und Geburtstag %s", row.FirstName, row.LastName, row.Birthday)
+	}
 }
 
 // Create creates a new student with all related entities.
@@ -587,7 +762,7 @@ func (c *StudentImportConfig) createPersonFromRow(ctx context.Context, row impor
 		FirstName: strings.TrimSpace(row.FirstName),
 		LastName:  strings.TrimSpace(row.LastName),
 		Birthday:  birthday,
-		TagID:     nil, // RFID cards not supported in CSV import
+		TagID:     strutil.TrimToNil(row.TagID),
 	}
 	person.SetTenantID(tenant.FromContext(ctx))
 
@@ -646,12 +821,15 @@ func (c *StudentImportConfig) createStudentFromRow(ctx context.Context, personID
 	enrolledUntil := parseOptionalImportCalendarDate(row.EnrolledUntil)
 
 	student := &users.Student{
-		PersonID:        personID,
-		SchoolClass:     strings.TrimSpace(row.SchoolClass),
-		GroupID:         row.GroupID,
-		ExtraInfo:       strutil.TrimToNil(row.ExtraInfo),
-		SupervisorNotes: strutil.TrimToNil(row.SupervisorNotes),
-		HealthInfo:      strutil.TrimToNil(row.HealthInfo),
+		PersonID:          personID,
+		SchoolClass:       strings.TrimSpace(row.SchoolClass),
+		GroupID:           row.GroupID,
+		ExtraInfo:         strutil.TrimToNil(row.ExtraInfo),
+		SupervisorNotes:   strutil.TrimToNil(row.SupervisorNotes),
+		HealthInfo:        strutil.TrimToNil(row.HealthInfo),
+		AddressStreet:     strutil.TrimToNil(row.AddressStreet),
+		AddressCity:       strutil.TrimToNil(row.AddressCity),
+		AddressPostalCode: strutil.TrimToNil(row.AddressPostalCode),
 		// DepartureDays is the unified source of truth; the repository derives
 		// bus_days, pickup_days and pickup_status from it on persist (#1610).
 		DepartureDays: departurePlanFromImportRow(row),
@@ -712,8 +890,17 @@ func (c *StudentImportConfig) createSingleGuardianRelationship(ctx context.Conte
 		IsPrimary:          guardianData.IsPrimary,
 		IsEmergencyContact: guardianData.IsEmergencyContact,
 		CanPickup:          guardianData.CanPickup,
+		PickupNotes:        strutil.TrimToNil(guardianData.PickupNotes),
+		EmergencyPriority:  guardianData.EmergencyPriority,
 	}
-	authorize.ApplyDefaultStudentGuardianRole(relationship)
+	if relationship.EmergencyPriority < 1 {
+		relationship.EmergencyPriority = 1
+	}
+	if role, ok := MapGuardianRole(guardianData.GuardianRole); ok && role != "" {
+		authorize.ApplyStudentGuardianRole(relationship, role)
+	} else {
+		authorize.ApplyDefaultStudentGuardianRole(relationship)
+	}
 	relationship.SetTenantID(tenant.FromContext(ctx))
 
 	if err := c.RelationRepo.Create(ctx, relationship); err != nil {
@@ -913,9 +1100,254 @@ func mapPhoneType(importType string) users.PhoneType {
 	}
 }
 
-// Update updates an existing student (not implemented for MVP - see #556 for Phase 2)
-func (c *StudentImportConfig) Update(_ context.Context, _ int64, _ importModels.StudentImportRow) error {
-	return fmt.Errorf("update mode not supported in MVP - use create-only mode or manually update students")
+// Update patches an existing student (#2600). Empty cells never clear a
+// stored value; only what the row carries is written. Guardians are merged
+// (matched by e-mail, new ones linked), schedules are replaced per weekday
+// given, privacy consent is only created when none exists yet.
+func (c *StudentImportConfig) Update(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
+	return tenant.WithSavepoint(ctx, func(ctx context.Context) error {
+		return c.updateAllEntities(ctx, studentID, row)
+	})
+}
+
+func (c *StudentImportConfig) updateAllEntities(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
+	student, err := c.StudentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("Kind laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	if student == nil {
+		return fmt.Errorf("Kind nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+	}
+	person, err := c.PersonRepo.FindByID(ctx, student.PersonID)
+	if err != nil {
+		return fmt.Errorf("Person laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	if person == nil {
+		return fmt.Errorf("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
+	}
+
+	if err := c.updatePersonFromRow(ctx, person, row); err != nil {
+		return err
+	}
+	if err := c.updateStudentFromRow(ctx, student, row); err != nil {
+		return err
+	}
+	if err := c.mergeGuardianRelationships(ctx, student.ID, row.Guardians); err != nil {
+		return err
+	}
+	if err := c.upsertArrivalSchedules(ctx, student.ID, row.ArrivalSchedules); err != nil {
+		return err
+	}
+	if err := c.upsertPickupSchedules(ctx, student.ID, row.PickupSchedules); err != nil {
+		return err
+	}
+	return c.createPrivacyConsentIfMissing(ctx, student.ID, row)
+}
+
+func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person *users.Person, row importModels.StudentImportRow) error {
+	changed := false
+	if birthday, _ := parseOptionalDate(row.Birthday); birthday != nil && (person.Birthday == nil || *person.Birthday != *birthday) {
+		person.Birthday = birthday
+		changed = true
+	}
+	if row.TagID != "" && !ptrEquals(person.TagID, row.TagID) {
+		person.TagID = strutil.TrimToNil(row.TagID)
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	if err := c.PersonRepo.Update(ctx, person); err != nil {
+		return fmt.Errorf("Person aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	return nil
+}
+
+func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student *users.Student, row importModels.StudentImportRow) error {
+	if class := strings.TrimSpace(row.SchoolClass); class != "" {
+		student.SchoolClass = class
+	}
+	if row.GroupID != nil {
+		student.GroupID = row.GroupID
+	}
+	setStr := func(dst **string, v string) {
+		if strings.TrimSpace(v) != "" {
+			*dst = strutil.TrimToNil(v)
+		}
+	}
+	setStr(&student.ExtraInfo, row.ExtraInfo)
+	setStr(&student.SupervisorNotes, row.SupervisorNotes)
+	setStr(&student.HealthInfo, row.HealthInfo)
+	setStr(&student.AddressStreet, row.AddressStreet)
+	setStr(&student.AddressCity, row.AddressCity)
+	setStr(&student.AddressPostalCode, row.AddressPostalCode)
+
+	// Gehweise only when the file carries the per-day columns; the legacy
+	// Bus/Abholstatus columns are not consulted in update mode because their
+	// empty state is indistinguishable from "no".
+	if row.DepartureDays != nil {
+		student.DepartureDays = departurePlanFromImportRow(row)
+	}
+	if note := boundedNotePtr(row.DepartureCompanionNote); note != nil {
+		student.DepartureCompanionNote = note
+	}
+	if d := parseOptionalImportCalendarDate(row.EnrolledFrom); d != nil {
+		student.EnrolledFrom = d
+	}
+	if d := parseOptionalImportCalendarDate(row.EnrolledUntil); d != nil {
+		student.EnrolledUntil = d
+	}
+	if t := parseOptionalImportDate(row.AGBAcceptedAt); t != nil {
+		student.AGBAcceptedAt = t
+	}
+	if t := parseOptionalImportDate(row.DataProcessingAcceptedAt); t != nil {
+		student.DataProcessingAcceptedAt = t
+	}
+	if t := parseOptionalImportDate(row.EmailContactAcceptedAt); t != nil {
+		student.EmailContactAcceptedAt = t
+	}
+	if t := parseOptionalImportDate(row.PhotoConsentGivenAt); t != nil {
+		student.PhotoConsentGivenAt = t
+	}
+
+	if err := c.StudentRepo.Update(ctx, student); err != nil {
+		return fmt.Errorf("Kind aktualisieren: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	return nil
+}
+
+// mergeGuardianRelationships links guardians the child does not have yet and
+// patches the relationship of the ones it has (role, pickup note, priority,
+// relationship type when given). The Ja/Nein flags of an existing relation are
+// left alone: an empty cell reads as "Nein", which must not revoke anything.
+func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
+	if len(guardians) == 0 {
+		return nil
+	}
+	existing, err := c.RelationRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("Erziehungsberechtigte laden: %w", err) //nolint:staticcheck // ST1005: user-facing German message
+	}
+	byGuardianID := make(map[int64]*users.StudentGuardian, len(existing))
+	for _, rel := range existing {
+		byGuardianID[rel.GuardianProfileID] = rel
+	}
+
+	for i, data := range guardians {
+		guardianID, err := c.createOrFindGuardian(ctx, data)
+		if err != nil {
+			return fmt.Errorf("guardian %d: %w", i+1, err)
+		}
+		rel, linked := byGuardianID[guardianID]
+		if !linked {
+			if err := c.createSingleGuardianRelationship(ctx, studentID, data, i+1); err != nil {
+				return err
+			}
+			continue
+		}
+
+		changed := false
+		if strings.TrimSpace(data.RelationshipType) != "" {
+			if mapped := MapRelationshipType(data.RelationshipType); mapped != rel.RelationshipType {
+				rel.RelationshipType = mapped
+				changed = true
+			}
+		}
+		if role, ok := MapGuardianRole(data.GuardianRole); ok && role != "" && role != rel.GuardianRole {
+			authorize.ApplyStudentGuardianRole(rel, role)
+			changed = true
+		}
+		if strings.TrimSpace(data.PickupNotes) != "" && !ptrEquals(rel.PickupNotes, strings.TrimSpace(data.PickupNotes)) {
+			rel.PickupNotes = strutil.TrimToNil(data.PickupNotes)
+			changed = true
+		}
+		if data.EmergencyPriority > 0 && data.EmergencyPriority != rel.EmergencyPriority {
+			rel.EmergencyPriority = data.EmergencyPriority
+			changed = true
+		}
+		if changed {
+			if err := c.RelationRepo.Update(ctx, rel); err != nil {
+				return fmt.Errorf("guardian %d: Zuordnung aktualisieren: %w", i+1, err)
+			}
+		}
+	}
+	return nil
+}
+
+func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studentID int64, schedules []importModels.ArrivalScheduleImportData) error {
+	if len(schedules) == 0 || c.ArrivalScheduleRepo == nil {
+		return nil
+	}
+	for _, sched := range schedules {
+		existing, err := c.ArrivalScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
+		if err != nil {
+			return fmt.Errorf("arrival schedule (weekday %d): %w", sched.Weekday, err)
+		}
+		if existing == nil {
+			if err := c.createArrivalSchedules(ctx, studentID, []importModels.ArrivalScheduleImportData{sched}); err != nil {
+				return err
+			}
+			continue
+		}
+		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
+		if err != nil {
+			return fmt.Errorf("arrival schedule: invalid time '%s': %w", sched.ExpectedArrival, err)
+		}
+		existing.ExpectedArrival = time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+		if strings.TrimSpace(sched.Notes) != "" {
+			existing.Notes = strutil.TrimToNil(sched.Notes)
+		}
+		if err := c.ArrivalScheduleRepo.Update(ctx, existing); err != nil {
+			return fmt.Errorf("update arrival schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+	return nil
+}
+
+func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, studentID int64, schedules []importModels.PickupScheduleImportData) error {
+	if len(schedules) == 0 || c.PickupScheduleRepo == nil {
+		return nil
+	}
+	for _, sched := range schedules {
+		existing, err := c.PickupScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
+		if err != nil {
+			return fmt.Errorf("pickup schedule (weekday %d): %w", sched.Weekday, err)
+		}
+		if existing == nil {
+			if err := c.createPickupSchedules(ctx, studentID, []importModels.PickupScheduleImportData{sched}); err != nil {
+				return err
+			}
+			continue
+		}
+		parsed, err := time.Parse("15:04", sched.PickupTime)
+		if err != nil {
+			return fmt.Errorf("pickup schedule: invalid time '%s': %w", sched.PickupTime, err)
+		}
+		existing.PickupTime = time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
+		if strings.TrimSpace(sched.Notes) != "" {
+			existing.Notes = strutil.TrimToNil(sched.Notes)
+		}
+		if err := c.PickupScheduleRepo.Update(ctx, existing); err != nil {
+			return fmt.Errorf("update pickup schedule (weekday %d): %w", sched.Weekday, err)
+		}
+	}
+	return nil
+}
+
+// createPrivacyConsentIfMissing adds the consent row in update mode only when
+// the child has none yet; an existing consent is never rewritten by a file.
+func (c *StudentImportConfig) createPrivacyConsentIfMissing(ctx context.Context, studentID int64, row importModels.StudentImportRow) error {
+	if !row.PrivacyAccepted || c.PrivacyRepo == nil {
+		return nil
+	}
+	consents, err := c.PrivacyRepo.FindByStudentID(ctx, studentID)
+	if err != nil {
+		return fmt.Errorf("Datenschutz-Einwilligung laden: %w", err)
+	}
+	if len(consents) > 0 {
+		return nil
+	}
+	return c.createPrivacyConsentIfNeeded(ctx, studentID, row)
 }
 
 // EntityName returns the entity type name
