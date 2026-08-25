@@ -282,14 +282,14 @@ export function ClassDayOverview({
               und wer nach Hause geht.
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex w-full items-center gap-1 lg:w-auto">
             <Button
               type="button"
               variant="outline"
               size="icon"
               aria-label="Vorheriger Tag"
               onClick={() => shiftDay(-1)}
-              className="h-9 w-9 rounded-lg bg-white"
+              className="h-9 w-9 shrink-0 rounded-lg bg-white"
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
             </Button>
@@ -300,7 +300,7 @@ export function ClassDayOverview({
               }}
               calendarLayout="popover"
               hideClearButton
-              className="w-full sm:w-44"
+              className="min-w-0 flex-1 sm:w-44 sm:flex-none"
             />
             <Button
               type="button"
@@ -308,7 +308,7 @@ export function ClassDayOverview({
               size="icon"
               aria-label="Nächster Tag"
               onClick={() => shiftDay(1)}
-              className="h-9 w-9 rounded-lg bg-white"
+              className="h-9 w-9 shrink-0 rounded-lg bg-white"
             >
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
