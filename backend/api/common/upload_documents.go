@@ -53,9 +53,9 @@ var documentUploadKinds = []ooxmlKind{docxKind}
 // officeUploadKinds is what the school file storage accepts.
 var officeUploadKinds = []ooxmlKind{docxKind, xlsxKind, pptxKind}
 
-const invalidDocumentTypeMessage = "invalid file type. Only PDF, DOCX, PNG and JPEG files are allowed"
+const invalidDocumentTypeMessage = "Diese Datei ist nicht erlaubt. Erlaubt sind PDF, DOCX, PNG und JPEG."
 
-const invalidOfficeFileTypeMessage = "invalid file type. Only PDF, DOCX, XLSX, PPTX, PNG and JPEG files are allowed"
+const invalidOfficeFileTypeMessage = "Diese Datei ist nicht erlaubt. Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG."
 
 // ParseDocumentWithLimits parses a multipart document upload and validates
 // the content via magic bytes: PDF, PNG and JPEG directly, DOCX as a ZIP

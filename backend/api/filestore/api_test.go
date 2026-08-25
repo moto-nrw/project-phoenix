@@ -225,6 +225,19 @@ func TestFolderVisibilityPerViewer(t *testing.T) {
 	managerList := c.listFolders(c.member, permissions.FilesManage)
 	assert.True(t, managerList.CanManage)
 	assert.ElementsMatch(t, []int64{all, admins, selectedRole, selectedPerson}, folderIDs(managerList))
+
+	// A token can outlive a membership revocation. It must not keep the
+	// account able to browse or probe the school file storage.
+	_, err := c.db.NewUpdate().
+		TableExpr("auth.account_tenants").
+		Set("status = ?", "inactive").
+		Where("account_id = ?", c.member).
+		Where("tenant_id = ?", testpkg.Tenant(c.t)).
+		Exec(testpkg.Ctx(c.t))
+	require.NoError(t, err)
+	assert.Empty(t, folderIDs(c.listFolders(c.member, permissions.UsersRead)))
+	rec = c.do(http.MethodGet, fmt.Sprintf("/files/folders/%d/files", all), nil, "", c.member, permissions.UsersRead)
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }
 
 func TestFolderManagementRequiresPermission(t *testing.T) {

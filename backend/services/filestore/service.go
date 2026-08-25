@@ -23,6 +23,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	repositoryBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -561,6 +562,12 @@ func (s *service) CreateFile(ctx context.Context, input CreateFileInput, actor A
 	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if err := s.requireUpload(ctx, input.FolderID, actor); err != nil {
 			return err
+		}
+		// The quota is a tenant-wide aggregate rather than a row we can lock.
+		// Serialize its check and the metadata insert so concurrent uploads
+		// cannot each admit themselves against the same previous total.
+		if err := repositoryBase.AcquireXactLock(ctx, s.db, fmt.Sprintf("filestore-quota:%d", tenantID)); err != nil {
+			return fmt.Errorf("lock file storage quota: %w", err)
 		}
 		if err := s.requireQuota(ctx, input.SizeBytes); err != nil {
 			return err

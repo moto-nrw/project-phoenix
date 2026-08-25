@@ -25,6 +25,16 @@ const (
 	// A "selected" folder is visible through a direct account share or through
 	// any role the account holds AT THIS SCHOOL (auth.account_roles carries
 	// tenant_id), so a role held at another school never opens a folder here.
+	// Every viewer must also retain an active account-to-school mapping. A JWT
+	// can outlive a membership change, so its tenant claim alone is not enough
+	// to keep a former staff member able to read shared files.
+	activeViewerMembershipCondition = `EXISTS (
+		SELECT 1 FROM auth.account_tenants AS account_tenant
+		WHERE account_tenant.tenant_id = "folder".tenant_id
+			AND account_tenant.account_id = ?
+			AND account_tenant.status = 'active'
+	)`
+
 	visibleFolderCondition = `(
 		"folder".visibility = 'all_staff'
 		OR (
@@ -143,6 +153,7 @@ func (r *FolderRepository) ListVisible(ctx context.Context, viewer filestore.Vie
 				AND fi.deleted_at IS NULL
 		) AS file_count`).
 		OrderExpr(`lower("folder".name) ASC, "folder".id ASC`)
+	query = query.Where(activeViewerMembershipCondition, viewer.AccountID)
 	if !viewer.Manager {
 		query = query.Where(visibleFolderCondition, viewer.AccountID, viewer.AccountID)
 	}
@@ -158,6 +169,7 @@ func (r *FolderRepository) IsVisible(ctx context.Context, folderID int64, viewer
 		Model((*filestore.Folder)(nil)).
 		ModelTableExpr(folderTableExpr).
 		Where(`"folder".id = ?`, folderID)
+	query = query.Where(activeViewerMembershipCondition, viewer.AccountID)
 	if !viewer.Manager {
 		query = query.Where(visibleFolderCondition, viewer.AccountID, viewer.AccountID)
 	}
