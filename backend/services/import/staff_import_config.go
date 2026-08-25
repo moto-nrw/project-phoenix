@@ -1003,7 +1003,9 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staffID int64, ro
 		return errors.New("Person nicht gefunden") //nolint:staticcheck // ST1005: user-facing German message
 	}
 	staff.Person = person
-	c.unindexStaff(staff)
+	previousStaff := *staff
+	previousPerson := *person
+	previousStaff.Person = &previousPerson
 
 	if row.PersonnelNumber != "" {
 		pn := strings.ToLower(row.PersonnelNumber)
@@ -1077,6 +1079,7 @@ func (c *StaffImportConfig) updateRecords(ctx context.Context, staffID int64, ro
 		return err
 	}
 
+	c.unindexStaff(&previousStaff)
 	c.indexStaff(staff)
 	return nil
 }

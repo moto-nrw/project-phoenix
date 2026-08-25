@@ -863,6 +863,8 @@ func departurePlanFromImportRow(row importModels.StudentImportRow) users.Departu
 		out := users.DepartureDays{}
 		for _, key := range users.PickupDayOrder {
 			switch row.DepartureDays[key] {
+			case string(users.DepartureAlone):
+				out[key] = users.DepartureAlone
 			case string(users.DepartureBus):
 				out[key] = users.DepartureBus
 			case string(users.DeparturePickup):
