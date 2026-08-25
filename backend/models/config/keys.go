@@ -408,3 +408,14 @@ const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
 )
+
+// School file storage (#2596).
+const (
+	// KeyFilesStaffUploadEnabled lets non-admins upload into every folder they
+	// can see (and delete their own uploads). Folders and visibility stay with
+	// files:manage regardless.
+	KeyFilesStaffUploadEnabled = "files.staff_upload_enabled"
+	// KeyFilesMaxStorageMB caps the total size of all stored files of a
+	// school. Uploads that would exceed it are refused.
+	KeyFilesMaxStorageMB = "files.max_storage_mb"
+)
