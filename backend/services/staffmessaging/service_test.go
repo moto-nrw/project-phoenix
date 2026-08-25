@@ -2,6 +2,7 @@ package staffmessaging_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -58,6 +59,25 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		MessageRepo: repoUsers.NewStaffMessageRepository(db),
 		ReadRepo:    repoUsers.NewStaffMessageReadRepository(db),
 		Persons:     persons,
+		Settings:    settings,
+		DB:          db,
+	})
+}
+
+// newServiceWithBrokenRetention wires a service whose retention setting cannot
+// be resolved, for the "never delete on a guessed window" test.
+func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Service {
+	t.Helper()
+	settings := &configtest.Mock{
+		ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return true, nil },
+		ResolveIntFn: func(_ context.Context, _ string) (int, error) {
+			return 0, errors.New("settings unavailable")
+		},
+	}
+	return staffmessaging.NewService(staffmessaging.Config{
+		ThreadRepo:  repoUsers.NewStaffMessageThreadRepository(db),
+		MessageRepo: repoUsers.NewStaffMessageRepository(db),
+		ReadRepo:    repoUsers.NewStaffMessageReadRepository(db),
 		Settings:    settings,
 		DB:          db,
 	})

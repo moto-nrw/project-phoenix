@@ -27,8 +27,12 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 		return nil
 	}
 	staff, _ := buildStaffOrder(rt.FixedSeeder)
-	if len(staff) < 2 {
-		fmt.Println("  WARNING: fewer than two staff accounts, skipping staff messages")
+	// Drei Konten, weil die zweite Unterhaltung ein ANDERES Paar braucht:
+	// GetOrCreateDirect normalisiert das Paar (sortierter participant_key), ein
+	// bloss umgedrehtes from/to landet also im selben Thread - dann saet dieser
+	// Schritt nur eine Unterhaltung statt zweier.
+	if len(staff) < 3 {
+		fmt.Println("  WARNING: fewer than three staff accounts, skipping staff messages")
 		return nil
 	}
 
@@ -59,9 +63,11 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 			},
 		},
 		{
-			from:     staff[1],
-			to:       staff[0],
-			messages: []string{"Alles klar, ich mache das."},
+			from: staff[1],
+			to:   staff[2],
+			messages: []string{
+				"Die Materialliste für die Bastel-AG liegt im OGS-Büro.",
+			},
 		},
 	}
 

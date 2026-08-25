@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -45,7 +45,13 @@ func staffMessagingUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			// slog, not log.Printf: the repository is slog-only (backend/CLAUDE.md).
+			// Much of this package still predates that rule; new files do not add to
+			// the backlog.
+			slog.Error("rollback failed",
+				slog.String("migration", staffMessagingVersion),
+				slog.String("error", err.Error()),
+			)
 		}
 	}()
 

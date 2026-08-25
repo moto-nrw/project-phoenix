@@ -28,6 +28,25 @@ func NewStaffMessageReadRepository(db *bun.DB) users.StaffMessageReadRepository 
 	return &StaffMessageReadRepository{db: db}
 }
 
+// staffJoin is the "this account belongs to a colleague at this school"
+// relation, shared verbatim by ListMessageableStaff and IsMessageableStaff.
+//
+// It lives in ONE place because the two MUST agree: the picker decides what a
+// user is offered, the predicate decides what the API accepts, and any drift
+// between them is an authorization hole reachable by hand-crafting a request.
+//
+// users.persons alone is NOT enough — that table also holds children and
+// guests, who can carry an account and an active tenant mapping. Only a
+// users.staff row makes someone a colleague.
+const staffJoin = `JOIN users.persons AS "person"
+		ON person.account_id = at.account_id
+		AND person.tenant_id = at.tenant_id
+		AND person.deleted_at IS NULL
+	JOIN users.staff AS "staff_member"
+		ON staff_member.person_id = person.id
+		AND staff_member.tenant_id = at.tenant_id
+		AND staff_member.deleted_at IS NULL`
+
 // unreadPredicate is the correctness core of every unread number in this
 // feature: "message <alias> is strictly after the reader's cursor AND the
 // reader did not write it".
@@ -171,10 +190,7 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 		ModelTableExpr(`auth.account_tenants AS "at"`).
 		ColumnExpr(`at.account_id AS account_id`).
 		ColumnExpr(`COALESCE(NULLIF(btrim(COALESCE(person.first_name, '') || ' ' || COALESCE(person.last_name, '')), ''), 'Unbekannt') AS name`).
-		Join(`JOIN users.persons AS "person"
-			ON person.account_id = at.account_id
-			AND person.tenant_id = at.tenant_id
-			AND person.deleted_at IS NULL`).
+		Join(staffJoin).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
 		Where(`at.account_id <> ?`, viewerAccountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
@@ -190,12 +206,14 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 // conversation at the current school. Authorization predicate for opening one.
 //
 // It MUST stay the exact predicate ListMessageableStaff filters the picker by,
-// which is why both carry the users.persons join. An active auth.account_tenants
-// row alone is NOT enough: a guardian who accepts an invitation gets exactly
-// that row (services/auth/guardian_invitation_service.go) and no persons row, so
-// checking membership only would let a caller pass a parent's account id to
-// POST /threads/open and open a "colleague" chat with them — bypassing a picker
-// that never offered them.
+// which is why both use staffJoin. Two things an active auth.account_tenants row
+// does NOT prove:
+//   - a guardian who accepts an invitation gets exactly that row
+//     (services/auth/guardian_invitation_service.go) and no persons row;
+//   - a child or guest CAN carry a person row and an account, so the persons
+//     join alone still admits them.
+//
+// Only the users.staff relation makes someone a colleague.
 //
 // The method is deliberately not called IsActiveTenantMember any more: that name
 // described the query, not the question, and invited exactly this gap.
@@ -203,10 +221,7 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 	exists, err := base.GetDB(ctx, r.db).NewSelect().
 		TableExpr(`auth.account_tenants AS "at"`).
 		ColumnExpr(`1`).
-		Join(`JOIN users.persons AS "person"
-			ON person.account_id = at.account_id
-			AND person.tenant_id = at.tenant_id
-			AND person.deleted_at IS NULL`).
+		Join(staffJoin).
 		Where(`at.account_id = ?`, accountID).
 		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
 		Where(`at.status = ?`, authModels.AccountTenantStatusActive).

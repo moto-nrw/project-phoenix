@@ -250,3 +250,63 @@ func TestFreshEmptyThreadSurvivesSweep(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, result.ThreadsDeleted, "an aged-out empty conversation must go")
 }
+
+// TestNonStaffPersonIsNotAddressable is the second half of the guardian guard:
+// users.persons also holds children and guests, who can carry an account and an
+// active tenant mapping. Checking persons alone would let such an account be
+// opened as a "colleague" chat. Only the users.staff relation makes someone one.
+func TestNonStaffPersonIsNotAddressable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, _ := twoColleagues(t, db)
+
+	// A person WITH an account and an active tenant mapping, but no staff row -
+	// the shape a child or guest account has.
+	_, account := testpkg.CreateTestPersonWithAccount(t, db, "Mila", "Kindkonto")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+
+	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	require.NoError(t, err)
+	for _, r := range recipients {
+		assert.NotEqual(t, account.ID, r.AccountID,
+			"a person without a staff row must not be offered as a recipient")
+	}
+
+	_, err = svc.OpenThread(asAccount(t, anna), account.ID)
+	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
+		"the direct API path must apply the same staff-only rule as the picker")
+}
+
+// TestRetentionSkipsWhenWindowUnresolvable pins that the sweep never deletes on
+// a guessed window: a fallback that is too short destroys messages the school
+// was entitled to keep, one that is too long keeps employee data past its window
+// and hides the misconfiguration behind a green job.
+func TestRetentionSkipsWhenWindowUnresolvable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	anna, ben := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	enabled := newServiceWithEnabled(t, db, true, 30)
+	thread, err := enabled.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	msg, err := enabled.PostMessage(asAccount(t, anna), thread.ThreadID, "Uralt")
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		Table("users.staff_messages").
+		Set("created_at = ?", time.Now().AddDate(0, 0, -400)).
+		Where("id = ?", msg.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	broken := newServiceWithBrokenRetention(t, db)
+	result, err := broken.CleanupExpiredMessages(ctx)
+	require.ErrorIs(t, err, staffmessaging.ErrRetentionUnresolved)
+	assert.Zero(t, result.MessagesDeleted, "nothing may be deleted on an unknown window")
+
+	// Und die Nachricht ist wirklich noch da.
+	detail, err := enabled.GetThread(asAccount(t, anna), thread.ThreadID)
+	require.NoError(t, err)
+	assert.Len(t, detail.Messages, 1)
+}
