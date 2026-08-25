@@ -14,6 +14,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,7 +51,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		scheduleService.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)
@@ -61,7 +62,7 @@ func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarnes
 		repos.Student,
 		repos.Person,
 		syncer,
-		scheduleService.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 		db,
 		nil,
 	)

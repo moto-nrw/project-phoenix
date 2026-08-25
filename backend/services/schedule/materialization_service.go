@@ -734,31 +734,6 @@ func (s *materializationService) copyExpectedStudents(
 	return nil
 }
 
-// copyEnrollments keeps the narrow helper used by pure branch tests. The real
-// materialization path calls copyExpectedStudents with manual and dynamic
-// memberships together.
-func (s *materializationService) copyEnrollments(
-	ctx context.Context,
-	instanceID int64,
-	enrollments []*activities.StudentEnrollment,
-	careBounds map[int64]timezone.Date,
-	date timezone.Date,
-	periodID int64,
-	result *MaterializationResult,
-) error {
-	return s.copyExpectedStudents(
-		ctx,
-		instanceID,
-		enrollments,
-		nil,
-		careBounds,
-		date,
-		periodID,
-		result,
-		"materialize template: copy enrollment",
-	)
-}
-
 func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,

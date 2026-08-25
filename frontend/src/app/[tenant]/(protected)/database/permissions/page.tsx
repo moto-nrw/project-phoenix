@@ -3,9 +3,9 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
-import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -13,21 +13,15 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { createCrudService } from "@/lib/database/service-factory";
 import { permissionsConfig } from "@/components/database/configs/permissions.config";
 import type { Permission } from "@/lib/auth-helpers";
-import { PermissionEditModal } from "@/components/permissions/permission-edit-modal";
 import { PermissionsMasterDetail } from "@/components/permissions/permissions-master-detail";
-import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { ConfirmationModal } from "~/components/ui/modal";
 import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
-import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 
@@ -54,18 +48,6 @@ function PermissionsPageContent() {
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [savingPermission, setSavingPermission] = useState(false);
-
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
-
-  const { success: toastSuccess, error: toastError } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -165,125 +147,6 @@ function PermissionsPageContent() {
     [updateUrlParams],
   );
 
-  const handleEditClick = useCallback(() => {
-    setShowEditModal(true);
-  }, []);
-  const handleCloseEditModal = useCallback(() => {
-    setShowEditModal(false);
-  }, []);
-  const handleCloseCreateModal = useCallback(() => {
-    setShowCreateModal(false);
-  }, []);
-
-  const handleCreatePermission = useCallback(
-    async (data: Partial<Permission>) => {
-      try {
-        const payload = permissionsConfig.form.transformBeforeSubmit
-          ? permissionsConfig.form.transformBeforeSubmit(data)
-          : data;
-        const created = await service.create(payload);
-        const display = `${created.resource}: ${created.action}`;
-        toastSuccess(
-          getDbOperationMessage(
-            "create",
-            permissionsConfig.name.singular,
-            display,
-          ),
-        );
-        setShowCreateModal(false);
-        await fetchPermissions();
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error("permission_create_failed", { error: errorMessage });
-        if (
-          errorMessage.includes("duplicate key") ||
-          errorMessage.includes("23505")
-        ) {
-          throw new Error(
-            `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
-              `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
-              `Bitte wählen Sie eine andere Kombination.`,
-            { cause: err },
-          );
-        }
-        throw new Error(
-          "Fehler beim Erstellen der Berechtigung. Bitte versuchen Sie es erneut.",
-          { cause: err },
-        );
-      }
-    },
-    [service, fetchPermissions, toastSuccess],
-  );
-
-  const handleUpdatePermission = useCallback(
-    async (data: Partial<Permission>) => {
-      if (!selectedPermission) return;
-      try {
-        setSavingPermission(true);
-        const payload = permissionsConfig.form.transformBeforeSubmit
-          ? permissionsConfig.form.transformBeforeSubmit(data)
-          : data;
-        await service.update(selectedPermission.id, payload);
-        setShowEditModal(false);
-        const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            permissionsConfig.name.singular,
-            display,
-          ),
-        );
-        await fetchPermissions();
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        logger.error("permission_update_failed", {
-          permission_id: selectedPermission.id,
-          error: errorMessage,
-        });
-        if (
-          errorMessage.includes("duplicate key") ||
-          errorMessage.includes("23505")
-        ) {
-          throw new Error(
-            `Die Berechtigung "${data.resource}:${data.action}" existiert bereits. ` +
-              `Jede Kombination aus Ressource und Aktion darf nur einmal vorhanden sein. ` +
-              `Bitte wählen Sie eine andere Kombination.`,
-            { cause: err },
-          );
-        }
-        throw new Error(
-          "Fehler beim Aktualisieren der Berechtigung. Bitte versuchen Sie es erneut.",
-          { cause: err },
-        );
-      } finally {
-        setSavingPermission(false);
-      }
-    },
-    [selectedPermission, service, fetchPermissions, toastSuccess],
-  );
-
-  const handleDeletePermission = useCallback(async () => {
-    if (!selectedPermission) return;
-    const deleteError = await service.delete(selectedPermission.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    const display = `${selectedPermission.resource}: ${selectedPermission.action}`;
-    toastSuccess(
-      getDbOperationMessage("delete", permissionsConfig.name.singular, display),
-    );
-    handleSelectPermission(null);
-    await fetchPermissions();
-  }, [
-    selectedPermission,
-    service,
-    toastError,
-    toastSuccess,
-    handleSelectPermission,
-    fetchPermissions,
-  ]);
-
   const canShowDetail =
     !loading && (filteredPermissions.length > 0 || selectedPermission !== null);
 
@@ -316,13 +179,14 @@ function PermissionsPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Berechtigung"
-              ariaLabel="Berechtigung erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
+        />
+      </div>
+
+      <div className="mb-4">
+        <Alert
+          type="info"
+          message="Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern."
+          announce="off"
         />
       </div>
 
@@ -339,8 +203,6 @@ function PermissionsPageContent() {
             selectedId={selectedId}
             selectedPermission={selectedPermission}
             onSelect={handleSelectPermission}
-            onEditClick={handleEditClick}
-            onDeleteClick={handleDeleteClick}
           />
         </div>
       ) : !loading ? (
@@ -365,44 +227,6 @@ function PermissionsPageContent() {
           }
         />
       ) : null}
-
-      <DatabaseFormModal<Permission>
-        isOpen={showCreateModal}
-        onClose={handleCloseCreateModal}
-        mode="create"
-        config={permissionsConfig}
-        onSubmit={handleCreatePermission}
-      />
-
-      {selectedPermission && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeletePermission())}
-          title="Berechtigung löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie die Berechtigung{" "}
-            <span className="font-medium">
-              {selectedPermission.resource}: {selectedPermission.action}
-            </span>{" "}
-            wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedPermission && (
-        <PermissionEditModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          permission={selectedPermission}
-          onSave={handleUpdatePermission}
-          loading={savingPermission}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

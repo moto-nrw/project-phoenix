@@ -170,23 +170,6 @@ type excusedAbsenceRequestService struct {
 	db            *bun.DB
 }
 
-// NewExcusedAbsenceRequestService wires the excused-request service.
-func NewExcusedAbsenceRequestService(
-	requestRepo activeModels.ExcusedAbsenceRequestRepository,
-	statusDayRepo activeModels.StudentStatusDayRepository,
-	studentRepo usersModels.StudentRepository,
-	personRepo usersModels.PersonRepository,
-	userContext userContextService.UserContextService,
-	emitter *parentmessaging.Emitter,
-	broadcaster realtime.Broadcaster,
-	logger *slog.Logger,
-) ExcusedAbsenceRequestService {
-	return newExcusedAbsenceRequestService(
-		requestRepo, statusDayRepo, nil, studentRepo, personRepo,
-		userContext, emitter, broadcaster, logger, nil,
-	)
-}
-
 // NewExcusedAbsenceRequestServiceWithPartialAbsences wires the production
 // variant that also serializes approvals with time-specific excusals.
 func NewExcusedAbsenceRequestServiceWithPartialAbsences(
@@ -662,6 +645,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		if requestExtendsBeyondCare(req, student) {
+			return nil, activeModels.ErrExcusedRequestNotFound
+		}
 		if err := s.ensureNoPartialAbsence(ctx, req); err != nil {
 			return nil, err
 		}
@@ -778,6 +764,18 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+func requestExtendsBeyondCare(req *activeModels.ExcusedAbsenceRequest, student *usersModels.Student) bool {
+	if req == nil || student == nil || student.EnrolledUntil == nil {
+		return false
+	}
+	for _, date := range req.Dates {
+		if date.After(*student.EnrolledUntil) {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *excusedAbsenceRequestService) ensureNoPartialAbsence(

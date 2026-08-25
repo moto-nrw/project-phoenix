@@ -24,6 +24,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -52,9 +53,10 @@ type decisionTestEnv struct {
 // approval paths can be exercised without writing config.setting_values
 // rows. Any other key resolves to "" (registry-default behaviour).
 type stubActivationSettings struct {
-	mode                 string
-	notificationMode     string
-	careOfferingsEnabled *bool
+	mode                  string
+	notificationMode      string
+	careOfferingsEnabled  *bool
+	bookingsAuthoritative *bool
 }
 
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
@@ -73,6 +75,9 @@ func (s stubActivationSettings) ResolveString(_ context.Context, key string) (st
 func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
 		return *s.careOfferingsEnabled, nil
+	}
+	if key == configModel.KeyEnrollmentBookingsAuthoritative {
+		return s.bookingsAuthoritative != nil && *s.bookingsAuthoritative, nil
 	}
 	return true, nil
 }
@@ -97,7 +102,25 @@ func newDecisionServiceForTest(
 	settings enrollmentService.DecisionSettingsResolver,
 	lockTemplateRecurrence func(context.Context) error,
 ) enrollmentService.DecisionService {
+	return newDecisionServiceForTestWithCareWithdrawal(env, settings, lockTemplateRecurrence, nil)
+}
+
+func newDecisionServiceForTestWithCareWithdrawal(
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal enrollmentService.CareWithdrawalReconciler,
+) enrollmentService.DecisionService {
 	repoFactory := repositories.NewFactory(env.db)
+	if careWithdrawal == nil {
+		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
+			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
+			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.GradeTransition,
+			AuditService: usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+			DB:           env.db, Logger: slog.Default(),
+		})
+	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
@@ -116,7 +139,7 @@ func newDecisionServiceForTest(
 		GuardianProfileRepo:      repoFactory.GuardianProfile,
 		GuardianPhoneRepo:        repoFactory.GuardianPhoneNumber,
 		PickupScheduleRepo:       repoFactory.StudentPickupSchedule,
-		PickupBaselines: scheduleService.NewPickupBaselineService(
+		PickupBaselines: scheduletest.NewPickupBaselineService(
 			repoFactory.StudentPickupSchedule,
 			repoFactory.RequestChildOffering,
 			repoFactory.CareOffering,
@@ -134,6 +157,7 @@ func newDecisionServiceForTest(
 		RoleRepo:               repoFactory.Role,
 		OutboxEnqueuer:         env.outbox,
 		StudentAudit:           usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		CareWithdrawal:         careWithdrawal,
 		FrontendURL:            "http://localhost:3000",
 		ParentsURL:             "http://parents.localhost:3000",
 		Settings:               settings,
@@ -2705,6 +2729,51 @@ func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, st
 	require.NoError(t, err)
 }
 
+func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWithoutGap(t *testing.T) {
+	t.Parallel()
+
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Lina", "Verlaengert", "2a")
+	requestID, childID := submitReEnrollment(
+		t, env,
+		"Eltern", "Verlaengert", "renewal-with-care@example.com", nil,
+		"Lina", "Verlaengert", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+	)
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+	care := createAdjustmentCareOfferingWith(t, env, "Betreuung Verlaengerung", func(offering *enrollmentModels.CareOffering) {
+		offering.CountsAsCare = true
+		offering.CountsAsCareSet = true
+	})
+	createChildOfferingLink(t, env, childID, care.ID, nil, nil)
+
+	studentID := existing.ID
+	actorID := env.creatorID
+	repo := env.repos.CareWithdrawal
+	require.NoError(t, repo.UpsertPending(ctx, &usersModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: env.sourcePhase.ServiceStartDate,
+		Trigger:               usersModels.CareWithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",
+		WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	err := tenant.WithTenantTx(ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := env.decision.Decide(txCtx, enrollmentService.DecideInput{
+			RequestID: requestID, ChildID: childID,
+			Status: enrollmentService.DecisionApproved, ReviewedBy: actorID,
+		})
+		return decideErr
+	})
+	require.NoError(t, err)
+	pending, err := pendingWithdrawalForStudent(ctx, repo, existing.ID)
+	require.NoError(t, err)
+	assert.Nil(t, pending, "a renewal starting on the first bookingless day leaves no care gap")
+}
+
 // submitReEnrollment submits a full renewal form for an already-enrolled child.
 // Consent flags are caller-supplied because withdrawal is the point of one of
 // the tests below.
@@ -4288,6 +4357,15 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	env.sourcePhase.ServiceStartDate = timezone.NewDate(2026, 10, 1)
 	env.sourcePhase.ServiceEndDate = timezone.NewDate(2027, 8, 15)
 	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	// This test isolates a phase-window correction, not a planned individual
+	// care end. Keep the student's master interval aligned with the corrected
+	// phase; otherwise enrolled_until must win and cap every rematerialization.
+	_, err = env.db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", env.sourcePhase.ServiceEndDate).
+		Where("id = ?", *outcome.Child.CreatedStudentID).
+		Exec(ctx)
+	require.NoError(t, err)
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 		RequestID:      submitted.Request.ID,

@@ -217,6 +217,21 @@ describe("AnfragenPage", () => {
     expect(screen.queryByText("Anmeldung")).toBeNull();
   });
 
+  it("bietet offene Abmeldungen als eigene Aufgabenart an", () => {
+    mockUseSession.mockReturnValue(
+      sessionWith(["users:update", "users:delete"]),
+    );
+    render(<AnfragenPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    fireEvent.click(screen.getByText("Abmeldungen"));
+    expect(listProbe().filters.types).toEqual(["care_withdrawal"]);
+
+    umschalten("Historie");
+    expect(listProbe().filters.types).toEqual([]);
+    expect(screen.queryByText("Abmeldungen")).toBeNull();
+  });
+
   it("zeigt einer Person mit nur config:manage ausschließlich die Anmeldungen", () => {
     mockUseSession.mockReturnValue(sessionWith(["config:manage"]));
 

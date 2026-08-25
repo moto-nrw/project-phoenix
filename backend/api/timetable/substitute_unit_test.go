@@ -1,4 +1,4 @@
-// Pure unit tests for the substitute helpers — no DB. Complements the
+// Pure unit tests for the substitute reason helper — no DB. Complements the
 // DB-backed integration coverage in substitute_test.go.
 package timetable
 
@@ -7,7 +7,6 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -51,22 +50,4 @@ func TestTrimReason(t *testing.T) {
 		assert.True(t, utf8.ValidString(*got))
 		assert.Equal(t, understaffedAckNoteMaxLength, utf8.RuneCountInString(*got))
 	})
-}
-
-func TestIsPlannableInstance(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		status string
-		want   bool
-	}{
-		{scheduleModel.InstanceStatusPlanned, true},
-		{scheduleModel.InstanceStatusActive, true},
-		{scheduleModel.InstanceStatusCompleted, false},
-		{scheduleModel.InstanceStatusCancelled, false},
-	}
-	for _, tc := range cases {
-		inst := &scheduleModel.ActivityInstance{Status: tc.status}
-		assert.Equalf(t, tc.want, isPlannableInstance(inst), "status=%s", tc.status)
-	}
 }

@@ -15,6 +15,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -242,6 +243,76 @@ func TestArrivalScheduleService_UpsertBulkStudentArrivalSchedules(t *testing.T) 
 		require.NoError(t, err)
 		assert.Empty(t, results)
 	})
+}
+
+func TestArrivalScheduleService_UpsertBulkWaitsForStudentLock(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db)
+	service := setupArrivalScheduleService(t, db)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "ArrivalLock", "Student", "1a")
+	staffID := createArrivalServiceTestStaffID(t, db)
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	lockDone := make(chan error, 1)
+	go func() {
+		lockDone <- tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			if _, err := repos.Student.FindByIDForUpdate(txCtx, student.ID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+
+	select {
+	case <-locked:
+	case err := <-lockDone:
+		require.NoError(t, err)
+		t.Fatal("student transaction ended before holding the lock")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out while acquiring the student lock")
+	}
+
+	released := false
+	releaseLock := func() {
+		if !released {
+			close(release)
+			released = true
+		}
+	}
+	defer releaseLock()
+
+	writeDone := make(chan error, 1)
+	go func() {
+		writeDone <- service.UpsertBulkStudentArrivalSchedules(ctx, student.ID, []*scheduleModels.StudentArrivalSchedule{
+			{
+				Weekday:         scheduleModels.WeekdayMonday,
+				ExpectedArrival: time.Date(2024, 1, 1, 8, 15, 0, 0, time.UTC),
+				CreatedBy:       staffID,
+			},
+		})
+	}()
+
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+		t.Fatal("arrival write bypassed the held student lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	releaseLock()
+	require.NoError(t, <-lockDone)
+	select {
+	case err := <-writeDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("arrival write did not resume after the student lock was released")
+	}
 }
 
 func TestArrivalScheduleService_DeleteStudentArrivalSchedule(t *testing.T) {
@@ -1502,7 +1573,7 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 		staffID := createArrivalServiceTestStaffID(t, db)
 		staying := testpkg.CreateTestStudent(t, db, "BulkCare", "Bleibt", className)
 		departed := testpkg.CreateTestStudent(t, db, "BulkCare", "Weg", className)
-		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, 1, staffID, "")
+		testpkg.CreateTestArrivalSchedule(t, db, staying.ID, scheduleModels.WeekdayMonday, staffID, "")
 		_, err := db.NewUpdate().
 			Table("users.students").
 			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
@@ -1523,7 +1594,12 @@ func TestArrivalScheduleService_BulkUpsertArrivalSchedules(t *testing.T) {
 
 		kept, err := service.GetStudentArrivalSchedules(ctx, staying.ID)
 		require.NoError(t, err)
-		assert.Len(t, kept, 1)
+		assert.Len(t, kept, 1, "the existing care day remains a class-time marker")
+
+		classTimes, err := service.GetClassArrivalTimes(ctx, className)
+		require.NoError(t, err)
+		require.NotNil(t, classTimes)
+		assert.Equal(t, "07:45", classTimes.Times["mon"])
 
 		none, err := service.GetStudentArrivalSchedules(ctx, departed.ID)
 		require.NoError(t, err)

@@ -6,8 +6,10 @@
  * and cache is isolated per tenant.
  *
  * All hooks automatically prefix cache keys with the tenant slug when
- * used inside a TenantProvider (e.g., `school-a:students-list`).
- * Outside a TenantProvider (e.g., operator dashboard), keys are unchanged.
+ * used inside a TenantProvider (e.g., `school-a:students-list`). School
+ * portal sessions use their tenant and account identity instead, because
+ * they deliberately do not have a TenantProvider. Other portals' keys are
+ * unchanged.
  */
 
 "use client";
@@ -27,12 +29,16 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
  * Prefix a cache key with the tenant slug for cross-tenant cache isolation.
  * Returns the key unchanged when no tenant context is available (e.g., operator dashboard).
  */
-function tenantKey(
+function scopedKey(
   key: string | null,
   tenantSlug: string | null,
+  schoolSession: { tenantId: number; accountId: string } | null,
 ): string | null {
   if (key === null) return null;
   if (tenantSlug) return `${tenantSlug}:${key}`;
+  if (schoolSession) {
+    return `school:${schoolSession.tenantId}:${schoolSession.accountId}:${key}`;
+  }
   return key;
 }
 
@@ -40,8 +46,9 @@ function tenantKey(
  * SWR hook with authentication and tenant cache isolation.
  *
  * Only fetches data when the user is authenticated (has a valid token).
- * Cache keys are automatically prefixed with the tenant slug to prevent
- * cross-tenant data leaks when switching tenants.
+ * Cache keys are automatically prefixed with the tenant slug, or with the
+ * school tenant and account identity in the school portal, to prevent data
+ * from one session appearing in another.
  *
  * @example
  * ```tsx
@@ -62,18 +69,30 @@ export function useSWRAuth<T, E = Error>(
 ): SWRResponse<T, E> {
   const { data: session, status } = useSession();
   const slug = useTenantSlugSafe();
+  const isSchoolSession = session?.user.scope === "school";
+  const schoolSession =
+    isSchoolSession && session.user.tenantId != null && session.user.id
+      ? { tenantId: session.user.tenantId, accountId: session.user.id }
+      : null;
 
   // Determine if we should fetch:
   // - key must be non-null
   // - session must be loaded (not "loading")
   // - user must have a token
   const shouldFetch =
-    key !== null && status !== "loading" && !!session?.user?.token;
+    key !== null &&
+    status !== "loading" &&
+    !!session?.user?.token &&
+    (!isSchoolSession || schoolSession !== null);
 
-  return useSWR<T, E>(shouldFetch ? tenantKey(key, slug) : null, fetcher, {
-    ...swrConfig,
-    ...options,
-  });
+  return useSWR<T, E>(
+    shouldFetch ? scopedKey(key, slug, schoolSession) : null,
+    fetcher,
+    {
+      ...swrConfig,
+      ...options,
+    },
+  );
 }
 
 /**
@@ -122,11 +141,11 @@ export function useTenantMutate() {
       data?: unknown,
       options?: { revalidate?: boolean },
     ): Promise<unknown> => {
-      const scopedKey = tenantKey(key, slug);
+      const cacheKey = scopedKey(key, slug, null);
       if (data === undefined) {
-        return swrMutate(scopedKey);
+        return swrMutate(cacheKey);
       }
-      return swrMutate(scopedKey, data, options);
+      return swrMutate(cacheKey, data, options);
     },
     [slug],
   );
@@ -236,12 +255,20 @@ export function useSWRWithId<T, E = Error>(
 ): SWRResponse<T, E> {
   const { data: session, status } = useSession();
   const slug = useTenantSlugSafe();
+  const isSchoolSession = session?.user.scope === "school";
+  const schoolSession =
+    isSchoolSession && session.user.tenantId != null && session.user.id
+      ? { tenantId: session.user.tenantId, accountId: session.user.id }
+      : null;
 
   const shouldFetch =
-    id != null && status !== "loading" && !!session?.user?.token;
+    id != null &&
+    status !== "loading" &&
+    !!session?.user?.token &&
+    (!isSchoolSession || schoolSession !== null);
 
   return useSWR<T, E>(
-    shouldFetch ? tenantKey(`${baseKey}-${id}`, slug) : null,
+    shouldFetch ? scopedKey(`${baseKey}-${id}`, slug, schoolSession) : null,
     () => fetcher(id!),
     {
       ...swrConfig,

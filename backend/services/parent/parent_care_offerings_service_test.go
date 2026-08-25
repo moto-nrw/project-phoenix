@@ -582,9 +582,10 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &service{ServiceConfig: ServiceConfig{Settings: tt.settings, Logger: slog.Default()}}
-			got, reason := svc.resolveOfferingChangeAvailability(
+			got, reason := svc.resolveOfferingChangeAvailabilityForStudent(
 				context.Background(),
 				tt.child,
+				0,
 				tt.period,
 				today,
 			)

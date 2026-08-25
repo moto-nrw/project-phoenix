@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
@@ -2010,7 +2009,7 @@ func CreateTestInvitationToken(tb testing.TB, db *bun.DB, email string, roleID, 
 		ExpiresAt: expiresAt,
 	}
 	if createdBy > 0 {
-		invitation.CreatedBy = base.Int64Ptr(createdBy)
+		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
 	invitation.SetTenantID(fixtureTenantID(tb))
 
@@ -2041,7 +2040,7 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 		ExpiresAt: expiresAt,
 	}
 	if createdBy > 0 {
-		invitation.CreatedBy = base.Int64Ptr(createdBy)
+		invitation.CreatedBy = Int64Ptr(createdBy)
 	}
 
 	if opts != nil {

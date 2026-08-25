@@ -17,8 +17,6 @@ import {
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
 
-import { rolesIndicateLehrkraftOnly } from "~/lib/auth-utils";
-
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
@@ -43,6 +41,19 @@ import {
   getPageTypeInfo,
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
+
+
+// Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
+// selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
+// "/aufsichten", intern laufen die Seiten unter /school und
+// /school/aufsichten.
+function schoolTitleForPath(pathname: string): string | null {
+  if (pathname === "/" || pathname === "/school") return "Klassenansicht";
+  if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
+    return "Meine Aufsichten";
+  }
+  return null;
+}
 
 export function Header() {
   const { breadcrumb } = useBreadcrumb();
@@ -111,7 +122,12 @@ export function Header() {
       return tParentNav("enroll");
     return null;
   })();
-  const displayedPageTitle = parentPageTitle ?? pageTitle;
+  // Schul-Portal (#2207): die Seiten des Schul-Hosts laufen ohne
+  // /school-Präfix — getPageTitle kennt nur die Tenant-Pfade und würde den
+  // Dashboard-Fallback anzeigen.
+  const schoolPageTitle =
+    mode === "school" ? schoolTitleForPath(pathname) : null;
+  const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -122,10 +138,10 @@ export function Header() {
       ? "Operator"
       : mode === "parent"
         ? tParentNav("role")
-        : userRoles.includes("admin")
-          ? "Admin"
-          : rolesIndicateLehrkraftOnly(userRoles)
-            ? "Lehrkraft"
+        : mode === "school"
+          ? "Lehrkraft"
+          : userRoles.includes("admin")
+            ? "Admin"
             : "Betreuer";
 
   // Scroll effect for header shrinking (hysteresis to prevent flicker)

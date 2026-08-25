@@ -11,6 +11,7 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -291,6 +292,10 @@ func (m *mockAuthService) LoginParentWithAudit(context.Context, string, string, 
 func (m *mockAuthService) LoginSchoolWithMFAGate(context.Context, string, string, string, string, string) (*authSvc.LoginResult, error) {
 	return nil, nil
 }
+
+func (m *mockAuthService) LoginSchoolAtTenantWithMFAGate(context.Context, string, string, string, string, string, string) (*authSvc.LoginResult, error) {
+	return nil, nil
+}
 func (m *mockAuthService) IssueSchoolTokensForAuthenticatedAccount(context.Context, int64, int64, string, string) (string, string, error) {
 	return "", "", nil
 }
@@ -406,6 +411,9 @@ func (m *mockAuthService) InitiatePasswordReset(context.Context, string) (*authM
 	return nil, nil
 }
 func (m *mockAuthService) InitiateParentPasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
+	return nil, nil
+}
+func (m *mockAuthService) InitiateSchoolPasswordReset(context.Context, string) (*authModels.PasswordResetToken, error) {
 	return nil, nil
 }
 func (m *mockAuthService) ResetPassword(context.Context, string, string) error { return nil }
@@ -749,7 +757,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_DoesNotRequireAuthCreator
 		},
 		RoleRepo: &mockRoleRepo{roles: []*authModels.Role{
 			{Model: base.Model{ID: 4}, Name: "admin", IsSystem: true},
-			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: base.Int64Ptr(9)},
+			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: ptrtest.Ptr(int64(9))},
 		}},
 		InvitationService: invitations,
 		AuditLogRepo:      &mockAuditLogRepoShared{},
@@ -1349,7 +1357,7 @@ func TestOperatorProvisioningService_InviteSchoolAdmin_AdminRoleMissing(t *testi
 			},
 		},
 		RoleRepo: &mockRoleRepo{roles: []*authModels.Role{
-			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: base.Int64Ptr(9)},
+			{Model: base.Model{ID: 5}, Name: "admin", IsSystem: false, TenantID: ptrtest.Ptr(int64(9))},
 		}},
 	})
 

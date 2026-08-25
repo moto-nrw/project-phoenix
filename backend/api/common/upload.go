@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/moto-nrw/project-phoenix/internal/storage"
@@ -416,13 +415,4 @@ func publicDirCandidates(base string) []string {
 		}
 	}
 	return candidates
-}
-
-// modTime returns the file's modification time, or zero time on error.
-func modTime(f *os.File) time.Time {
-	info, err := f.Stat()
-	if err != nil {
-		return time.Time{}
-	}
-	return info.ModTime()
 }

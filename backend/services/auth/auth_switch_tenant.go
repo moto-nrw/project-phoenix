@@ -34,6 +34,12 @@ func (s *Service) SwitchTenant(ctx context.Context, accountID int64, tenantSlug 
 	if err != nil {
 		return "", "", err
 	}
+	// The target tenant may be a school where this account is Lehrkraft-only.
+	// Such an account has no reachable tenant-portal surface after the #2207
+	// cutover, even if it arrived here through a still-valid tenant session.
+	if IsSchoolPortalOnlyForTenant(account.Roles) {
+		return "", "", &AuthError{Op: "switch tenant", Err: ErrMustUseSchoolPortal}
+	}
 
 	// 3. Create refresh token with resolved tenant ID
 	token, err := s.createRefreshTokenWithRetry(ctx, account, metadata.tenantID, metadata.scope)

@@ -302,17 +302,12 @@ describe("useGlobalSSE", () => {
     it("load budget: one remote check-in revalidates the supervision aggregate once", () => {
       renderHook(() => useGlobalSSE());
 
-      // Current backends emit the scoped movement, one group-scoped legacy
-      // roster refresh, and one combined tenant refresh (#2115).
+      // Current backends emit the scoped movement and one combined tenant
+      // refresh (#2115).
       fire({
         type: "student_checkin",
         active_group_id: "123",
         data: { student_id: "42", group_ids: ["7"] },
-      });
-      fire({
-        type: "active_supervision_changed",
-        active_group_id: "123",
-        data: { reason: "student_moved", group_ids: ["7"] },
       });
       fire({
         type: "dashboard_counts_changed",
@@ -344,11 +339,6 @@ describe("useGlobalSSE", () => {
         type: "student_checkin",
         active_group_id: "123",
         data: { student_id: "42", group_ids: ["7"] },
-      });
-      fire({
-        type: "active_supervision_changed",
-        active_group_id: "123",
-        data: { reason: "student_moved", group_ids: ["7"] },
       });
       fire({
         type: "dashboard_counts_changed",
@@ -791,7 +781,7 @@ describe("useGlobalSSE", () => {
       expect(matcher("tenant:staff-dashboard-summary-month")).toBe(false);
     });
 
-    it("treats a reasoned dashboard event as the combined rolling-deploy refresh", () => {
+    it("treats a reasoned dashboard event as the combined supervision refresh", () => {
       renderHook(() => useGlobalSSE());
 
       fire({

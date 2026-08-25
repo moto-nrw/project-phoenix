@@ -29,18 +29,51 @@ import (
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
-// deviationAbsence marks one staff member absent day-wide with no substitute
-// (a planned person left open, or a removed substitute).
+// deviationAbsence marks one staff member absent. An omitted instance_ids keeps
+// the established day-wide contract; a present list targets exact appointments.
 type deviationAbsence struct {
-	StaffID int64   `json:"staff_id"`
-	Reason  *string `json:"reason,omitempty"`
+	StaffID     int64    `json:"staff_id"`
+	Reason      *string  `json:"reason,omitempty"`
+	InstanceIDs *[]int64 `json:"instance_ids,omitempty"`
 }
 
-// deviationSubstitution assigns substituteStaffID to cover absentStaffID day-wide.
+// deviationSubstitution assigns substituteStaffID to cover absentStaffID. An
+// omitted instance_ids keeps the established day-wide contract; a present list
+// targets exactly those same-day appointments.
 type deviationSubstitution struct {
-	AbsentStaffID     int64   `json:"absent_staff_id"`
-	SubstituteStaffID int64   `json:"substitute_staff_id"`
-	Reason            *string `json:"reason,omitempty"`
+	AbsentStaffID     int64    `json:"absent_staff_id"`
+	SubstituteStaffID int64    `json:"substitute_staff_id"`
+	Reason            *string  `json:"reason,omitempty"`
+	InstanceIDs       *[]int64 `json:"instance_ids,omitempty"`
+}
+
+// deviationPresence clears an absence in an optional appointment scope. Its
+// decoder accepts the former numeric staff id so an already-open frontend from
+// before this change keeps its established day-wide correction behavior.
+type deviationPresence struct {
+	StaffID     int64    `json:"staff_id"`
+	InstanceIDs *[]int64 `json:"instance_ids,omitempty"`
+}
+
+type deviationSubstitutionRemoval struct {
+	StaffID     int64    `json:"staff_id"`
+	InstanceIDs *[]int64 `json:"instance_ids,omitempty"`
+}
+
+func (p *deviationPresence) UnmarshalJSON(data []byte) error {
+	var legacyStaffID int64
+	if err := json.Unmarshal(data, &legacyStaffID); err == nil {
+		p.StaffID = legacyStaffID
+		p.InstanceIDs = nil
+		return nil
+	}
+	type presenceObject deviationPresence
+	var object presenceObject
+	if err := json.Unmarshal(data, &object); err != nil {
+		return err
+	}
+	*p = deviationPresence(object)
+	return nil
 }
 
 // applyDeviationsRequest is the POST body. All mutation fields are optional; a
@@ -48,15 +81,16 @@ type deviationSubstitution struct {
 // "Block absagen" disables everything else). understaffed_ack is a pointer so an
 // omitted field ("no change") is distinguishable from an explicit false ("clear").
 type applyDeviationsRequest struct {
-	Cancel           bool                    `json:"cancel"`
-	CancelReason     *string                 `json:"cancel_reason,omitempty"`
-	UnderstaffedAck  *bool                   `json:"understaffed_ack,omitempty"`
-	UnderstaffedNote *string                 `json:"understaffed_note,omitempty"`
-	Absences         []deviationAbsence      `json:"absences,omitempty"`
-	Substitutions    []deviationSubstitution `json:"substitutions,omitempty"`
-	// Presences lists staff to mark present again — clearing a persisted day-wide
-	// absence so an admin who marked the wrong person can correct the plan (#1840).
-	Presences []int64 `json:"presences,omitempty"`
+	Cancel               bool                           `json:"cancel"`
+	CancelReason         *string                        `json:"cancel_reason,omitempty"`
+	UnderstaffedAck      *bool                          `json:"understaffed_ack,omitempty"`
+	UnderstaffedNote     *string                        `json:"understaffed_note,omitempty"`
+	Absences             []deviationAbsence             `json:"absences,omitempty"`
+	Substitutions        []deviationSubstitution        `json:"substitutions,omitempty"`
+	SubstitutionRemovals []deviationSubstitutionRemoval `json:"substitution_removals,omitempty"`
+	// Presences marks staff present again. Numeric legacy items are day-wide;
+	// object items may target selected appointments.
+	Presences []deviationPresence `json:"presences,omitempty"`
 }
 
 // ApplyDeviationsResponse is the 200 body.
@@ -73,7 +107,9 @@ type ApplyDeviationsResponse struct {
 func (req applyDeviationsRequest) toServiceInput(actor *int64) scheduleSvc.ApplyDeviationsInput {
 	absences := make([]scheduleSvc.DeviationAbsenceInput, 0, len(req.Absences))
 	for _, a := range req.Absences {
-		absences = append(absences, scheduleSvc.DeviationAbsenceInput{StaffID: a.StaffID, Reason: a.Reason})
+		absences = append(absences, scheduleSvc.DeviationAbsenceInput{
+			StaffID: a.StaffID, Reason: a.Reason, InstanceIDs: a.InstanceIDs,
+		})
 	}
 	subs := make([]scheduleSvc.DeviationSubstitutionInput, 0, len(req.Substitutions))
 	for _, s := range req.Substitutions {
@@ -81,17 +117,31 @@ func (req applyDeviationsRequest) toServiceInput(actor *int64) scheduleSvc.Apply
 			AbsentStaffID:     s.AbsentStaffID,
 			SubstituteStaffID: s.SubstituteStaffID,
 			Reason:            s.Reason,
+			InstanceIDs:       s.InstanceIDs,
+		})
+	}
+	presences := make([]scheduleSvc.DeviationPresenceInput, 0, len(req.Presences))
+	for _, p := range req.Presences {
+		presences = append(presences, scheduleSvc.DeviationPresenceInput{
+			StaffID: p.StaffID, InstanceIDs: p.InstanceIDs,
+		})
+	}
+	removals := make([]scheduleSvc.DeviationSubstitutionRemovalInput, 0, len(req.SubstitutionRemovals))
+	for _, removal := range req.SubstitutionRemovals {
+		removals = append(removals, scheduleSvc.DeviationSubstitutionRemovalInput{
+			StaffID: removal.StaffID, InstanceIDs: removal.InstanceIDs,
 		})
 	}
 	return scheduleSvc.ApplyDeviationsInput{
-		Cancel:           req.Cancel,
-		CancelReason:     req.CancelReason,
-		UnderstaffedAck:  req.UnderstaffedAck,
-		UnderstaffedNote: req.UnderstaffedNote,
-		Absences:         absences,
-		Substitutions:    subs,
-		Presences:        req.Presences,
-		ActorAccountID:   actor,
+		Cancel:               req.Cancel,
+		CancelReason:         req.CancelReason,
+		UnderstaffedAck:      req.UnderstaffedAck,
+		UnderstaffedNote:     req.UnderstaffedNote,
+		Absences:             absences,
+		Substitutions:        subs,
+		SubstitutionRemovals: removals,
+		Presences:            presences,
+		ActorAccountID:       actor,
 	}
 }
 
@@ -130,6 +180,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 			slog.Int("absences", result.AbsenceCount),
 			slog.Int("presences", result.PresenceCount),
 			slog.Int("substitutions", result.SubstitutionCount),
+			slog.Int("substitution_removals", result.SubstitutionRemovalCount),
 			slog.Bool("understaffed_ack", result.UnderstaffedAck),
 		)
 	}

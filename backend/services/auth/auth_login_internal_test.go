@@ -41,11 +41,6 @@ type stubAuthLoginAccountTenantRepo struct {
 	existsFn     func(context.Context, int64, int64) (bool, error)
 }
 
-type stubRefreshAccountRepo struct {
-	noopAccountRepository
-	findByIDFn func(context.Context, interface{}) (*authModels.Account, error)
-}
-
 type signalingAccountLockRepo struct {
 	authModels.AccountRepository
 	beforeLock chan<- struct{}
@@ -54,10 +49,6 @@ type signalingAccountLockRepo struct {
 func (r signalingAccountLockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Account, error) {
 	r.beforeLock <- struct{}{}
 	return r.AccountRepository.FindByIDForUpdate(ctx, id)
-}
-
-func (s stubRefreshAccountRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Account, error) {
-	return s.findByIDFn(ctx, id)
 }
 
 func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
@@ -171,48 +162,6 @@ func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("refresh did not complete after the account lock was released")
 	}
-}
-
-func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing.T) {
-	t.Parallel()
-
-	dbErr := errors.New("connection reset")
-	service := &Service{
-		repos: &repositories.Factory{
-			Account: stubRefreshAccountRepo{
-				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
-					return nil, dbErr
-				},
-			},
-		},
-		logger: slog.Default(),
-	}
-
-	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
-	require.Nil(t, account)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, dbErr)
-	assert.NotErrorIs(t, err, ErrAccountNotFound)
-}
-
-func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
-	t.Parallel()
-
-	service := &Service{
-		repos: &repositories.Factory{
-			Account: stubRefreshAccountRepo{
-				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
-					return nil, sql.ErrNoRows
-				},
-			},
-		},
-		logger: slog.Default(),
-	}
-
-	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
-	require.Nil(t, account)
-	require.Error(t, err)
-	assert.ErrorIs(t, err, ErrAccountNotFound)
 }
 
 func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturnsNil(t *testing.T) {

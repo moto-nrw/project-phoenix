@@ -80,6 +80,13 @@ export interface TenantInfo {
    */
   attendanceLogEnabled?: boolean;
   groupMode?: "fixed_groups" | "open_care";
+  /**
+   * Who at this school may see and operate every running module
+   * (operations.operational_overview_scope, #2380). A hint the client uses to
+   * decide which supervision endpoint to ask for — the server decides every
+   * request on its own. Unknown values collapse to "own".
+   */
+  operationalOverviewScope?: OperationalOverviewScope;
   showTimetableCounts?: boolean;
   waitlistEnabled?: boolean;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
@@ -117,9 +124,22 @@ interface TenantResolveResponse {
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
   group_mode?: string;
+  operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
   grade_level_max: number;
+}
+
+/** Scope values of operations.operational_overview_scope (#2380). */
+export type OperationalOverviewScope = "own" | "admins" | "all_staff";
+
+/**
+ * Normalize the backend's operational_overview_scope string. Anything the
+ * client does not recognise collapses to the restrictive "own" — an older
+ * backend that omits the field must never widen the UI.
+ */
+export function normalizeOverviewScope(raw: unknown): OperationalOverviewScope {
+  return raw === "admins" || raw === "all_staff" ? raw : "own";
 }
 
 /**
@@ -168,6 +188,9 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       attendanceWebEnabled: data.attendance_web_enabled === true,
       attendanceLogEnabled: data.attendance_log_enabled === true,
       groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+      operationalOverviewScope: normalizeOverviewScope(
+        data.operational_overview_scope,
+      ),
       showTimetableCounts: data.show_timetable_counts !== false,
       waitlistEnabled: data.waitlist_enabled !== false,
       gradeLevelMax: data.grade_level_max,
@@ -290,16 +313,19 @@ interface SwitchTenantResponse {
 interface ErrorResponseBody {
   error?: string;
   message?: string;
+  code?: string;
 }
+
+type TenantSwitchErrorCode = "access_denied" | "use_school_portal" | "unknown";
 
 export class TenantSwitchError extends Error {
   status: number;
-  code: "access_denied" | "unknown";
+  code: TenantSwitchErrorCode;
 
   constructor(
     message: string,
     status: number,
-    code: "access_denied" | "unknown" = "unknown",
+    code: TenantSwitchErrorCode = "unknown",
   ) {
     super(message);
     this.name = "TenantSwitchError";
@@ -308,18 +334,23 @@ export class TenantSwitchError extends Error {
   }
 }
 
-async function parseErrorMessage(response: Response): Promise<string> {
+async function parseErrorResponse(
+  response: Response,
+): Promise<{ message: string; code?: string }> {
   const text = await response.text();
 
   if (!text) {
-    return "Failed to switch tenant";
+    return { message: "Failed to switch tenant" };
   }
 
   try {
     const payload = JSON.parse(text) as ErrorResponseBody;
-    return payload.error ?? payload.message ?? text;
+    return {
+      message: payload.error ?? payload.message ?? text,
+      code: payload.code,
+    };
   } catch {
-    return text;
+    return { message: text };
   }
 }
 
@@ -376,11 +407,13 @@ export async function switchTenant(
     body: JSON.stringify({ tenant_slug: subdomain }),
   });
   if (!response.ok) {
-    const message = await parseErrorMessage(response);
+    const { message, code: responseCode } = await parseErrorResponse(response);
     const code =
       response.status === 401 && message === TENANT_ACCESS_DENIED_MESSAGE
         ? "access_denied"
-        : "unknown";
+        : response.status === 403 && responseCode === "use_school_portal"
+          ? "use_school_portal"
+          : "unknown";
     throw new TenantSwitchError(message, response.status, code);
   }
   return (await response.json()) as SwitchTenantResponse;

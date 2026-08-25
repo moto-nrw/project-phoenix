@@ -2,7 +2,7 @@ import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "MFAApi" });
 
-export type LoginScope = "tenant" | "operator";
+export type LoginScope = "tenant" | "operator" | "school";
 
 interface AuthenticatedLoginResponse {
   status: "authenticated";
@@ -67,13 +67,27 @@ function isOperator(scope: LoginScope): boolean {
 }
 
 function loginUrl(scope: LoginScope): string {
-  return isOperator(scope) ? "/api/operator/auth/login" : "/api/auth/login";
+  switch (scope) {
+    case "operator":
+      return "/api/operator/auth/login";
+    case "school":
+      return "/api/school/auth/login";
+    default:
+      return "/api/auth/login";
+  }
 }
 
 function mfaUrl(scope: LoginScope, suffix: string): string {
-  return isOperator(scope)
-    ? `/api/operator/auth/mfa/${suffix}`
-    : `/api/auth/mfa/${suffix}`;
+  switch (scope) {
+    case "operator":
+      return `/api/operator/auth/mfa/${suffix}`;
+    case "school":
+      // School MFA endpoints answer top-level JSON like the tenant ones
+      // (no operator envelope), so only the URL differs.
+      return `/api/school/auth/mfa/${suffix}`;
+    default:
+      return `/api/auth/mfa/${suffix}`;
+  }
 }
 
 interface PostJsonOptions {
@@ -179,13 +193,17 @@ export async function login(
   params: LoginParams,
 ): Promise<LoginResponse> {
   const url = loginUrl(scope);
-  const payload = isOperator(scope)
-    ? { email: params.email, password: params.password }
-    : {
-        email: params.email,
-        password: params.password,
-        tenant_slug: params.tenantSlug ?? "",
-      };
+  // Tenant login requires a tenant slug. School login accepts one only for
+  // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
+  // the school they selected.
+  const payload =
+    scope === "tenant" || (scope === "school" && params.tenantSlug)
+      ? {
+          email: params.email,
+          password: params.password,
+          tenant_slug: params.tenantSlug ?? "",
+        }
+      : { email: params.email, password: params.password };
 
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<LoginResponse>>(
@@ -258,15 +276,29 @@ export async function resendChallenge(
 
 // ----- Enrollment + self-service (authenticated, requires Bearer token) -----
 
+/**
+ * enrollStart triggers the enrollment email code.
+ *
+ * Tenant/operator answer 204 — the confirm step verifies "the account's
+ * newest active code". The SCHOOL endpoint instead returns the challenge
+ * token the code is bound to, and its confirm step requires exactly that
+ * challenge back (#2207). Returns the challenge token when the backend
+ * provided one, else null.
+ */
 export async function enrollStart(
   scope: LoginScope,
   bearerToken: string,
-): Promise<void> {
+): Promise<string | null> {
   const url = mfaUrl(scope, "enroll/start");
-  await postJson<unknown>(url, undefined, {
-    bearerToken,
-    allowEmptyBody: true,
-  });
+  const response = await postJson<{ challenge_token?: string } | undefined>(
+    url,
+    undefined,
+    {
+      bearerToken,
+      allowEmptyBody: true,
+    },
+  );
+  return response?.challenge_token ?? null;
 }
 
 /**
@@ -284,9 +316,16 @@ export async function enrollConfirm(
   bearerToken: string,
   code: string,
   rememberDevice = false,
+  challengeToken?: string,
 ): Promise<MFATokenResponse> {
   const url = mfaUrl(scope, "enroll/confirm");
-  const payload = { code, remember_device: rememberDevice };
+  // The school confirm is bound to the exact challenge enroll/start minted
+  // (see enrollStart); tenant/operator ignore the extra field.
+  const payload = {
+    code,
+    remember_device: rememberDevice,
+    ...(challengeToken ? { challenge_token: challengeToken } : {}),
+  };
   if (isOperator(scope)) {
     const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
       url,

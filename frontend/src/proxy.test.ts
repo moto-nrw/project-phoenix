@@ -4,11 +4,13 @@ import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
 
 const OPERATOR_HOSTNAME = "operator.localhost:3000";
 const PARENTS_HOSTNAME = "parents.localhost:3000";
+const SCHOOL_HOSTNAME = "schule.localhost:3000";
 const POSTHOG_KEY = "phc_test_key_123";
 const POSTHOG_HOST = "https://eu.i.posthog.com";
 
 vi.stubEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME", OPERATOR_HOSTNAME);
 vi.stubEnv("NEXT_PUBLIC_PARENTS_HOSTNAME", PARENTS_HOSTNAME);
+vi.stubEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME", SCHOOL_HOSTNAME);
 vi.stubEnv("TENANT_DOMAIN", "localhost");
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_KEY", POSTHOG_KEY);
 vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", POSTHOG_HOST);
@@ -385,6 +387,165 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/parents/meal-plan",
       );
+    });
+  });
+
+  describe("school subdomain (moto schule, #2207)", () => {
+    it("rewrites / to /school (the Klassenansicht)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain("/school");
+    });
+
+    it("rewrites /login to /school/login", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/login`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/login",
+      );
+    });
+
+    it("rewrites /invite with token to /school/invite (accept flow)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/invite?token=abc`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toContain("/school/invite");
+      expect(rewrite).toContain("token=abc");
+    });
+
+    it("rewrites /reset-password to the school reset flow", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/reset-password?token=abc`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/reset-password",
+      );
+    });
+
+    it("rewrites /aufsichten to /school/aufsichten (#2527)", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/aufsichten`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/aufsichten",
+      );
+    });
+
+    it("returns 404 for tenant, operator, and parent auth endpoints", () => {
+      for (const path of [
+        "/api/auth/session",
+        "/api/operator/auth/session",
+        "/api/parent/auth/session",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+        expect(res.status).toBe(404);
+      }
+    });
+
+    it("passes through /api/school/auth/* without rewriting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/api/school/auth/session`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(200);
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("passes through the public invitation API routes", () => {
+      for (const path of [
+        "/api/invitations/validate",
+        "/api/invitations/accept",
+      ]) {
+        const res = proxy(
+          makeRequest(`http://${SCHOOL_HOSTNAME}${path}`, SCHOOL_HOSTNAME),
+        );
+
+        expect(res.status).toBe(200);
+        expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      }
+    });
+
+    it("returns 404 for non-school API routes", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/api/students`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.status).toBe(404);
+    });
+
+    it("redirects unknown paths like /dashboard to /", () => {
+      const res = proxy(
+        makeRequest(`http://${SCHOOL_HOSTNAME}/dashboard`, SCHOOL_HOSTNAME),
+      );
+
+      expect(res.headers.get("location")).toContain(`${SCHOOL_HOSTNAME}/`);
+    });
+
+    it("redirects /school/* on other hosts to the school host", () => {
+      const res = proxy(
+        makeRequest("http://localhost:3000/school/login", "localhost:3000"),
+      );
+
+      const redirect = res.headers.get("location");
+      expect(redirect).toContain(SCHOOL_HOSTNAME);
+      expect(redirect).toContain("/login");
+      expect(redirect).not.toContain("/school/login");
+    });
+
+    it.each([
+      ["/klassen", "school-a.localhost:3000"],
+      ["/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "school-a.localhost:3000"],
+      ["/school-a/klassen/", "school-a.localhost:3000"],
+      ["/school-a/klassen", "localhost:3000"],
+      ["/school-a/klassen/", "localhost:3000"],
+    ])(
+      "sends the old %s bookmark to the selected school (#2207)",
+      (path, host) => {
+        const res = proxy(makeRequest(`http://${host}${path}`, host));
+
+        const redirect = res.headers.get("location");
+        expect(redirect).toContain(SCHOOL_HOSTNAME);
+        expect(redirect).toContain("tenant=school-a");
+        expect(redirect).not.toContain("/klassen");
+      },
+    );
+
+    it("does NOT hijack tenant slugs that start with 'school'", () => {
+      const res = proxy(
+        makeRequest(
+          "http://school-a.localhost:3000/school-a/dashboard",
+          "school-a.localhost:3000",
+        ),
+      );
+
+      // Already-prefixed tenant path passes through untouched.
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.status).toBe(200);
     });
   });
 

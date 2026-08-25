@@ -60,6 +60,7 @@ func TestAuthService_DeleteRole_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
 		require.NoError(t, err)
@@ -201,6 +202,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		err = service.AssignRoleToAccount(ctx, int(account.ID), 99999999)
@@ -217,6 +219,7 @@ func TestAuthService_AssignRoleToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("idempotent-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
@@ -261,6 +264,7 @@ func TestAuthService_RemoveRoleFromAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
 		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
@@ -300,6 +304,7 @@ func TestAuthService_GetAccountRoles_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Remove any default roles
 		roles, _ := service.GetAccountRoles(ctx, int(account.ID))
@@ -370,6 +375,7 @@ func TestAuthService_DeletePermission_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -402,6 +408,7 @@ func TestAuthService_GrantPermissionToAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), 99999999)
@@ -433,6 +440,7 @@ func TestAuthService_RemovePermissionFromAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
 		require.NoError(t, err)
@@ -594,6 +602,7 @@ func TestAuthService_ActivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Account is already active by default
 
@@ -656,6 +665,7 @@ func TestAuthService_DeactivateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate first
 		err = service.DeactivateAccount(ctx, int(account.ID))
@@ -685,6 +695,7 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Get the original password hash
 		original, err := service.GetAccountByID(ctx, int(account.ID))
@@ -737,6 +748,7 @@ func TestAuthService_ListAccounts_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// ACT
 		filters := map[string]interface{}{
@@ -778,6 +790,7 @@ func TestAuthService_GetAccountsByRole_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
 		require.NoError(t, err)
@@ -1180,6 +1193,7 @@ func TestAuthService_Login_Extended(t *testing.T) {
 			defer testpkg.CleanupAuthFixtures(t, db, account.ID)
 		}
 		require.NoError(t, err)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		// Deactivate account
 		err = service.DeactivateAccount(ctx, int(account.ID))

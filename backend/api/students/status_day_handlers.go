@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -315,12 +314,4 @@ func statusDayConflictResponse(conflictErr *activeService.StudentStatusDayConfli
 		"conflicts":      newStudentStatusDayConflictResponses(conflictErr.SampleConflicts()),
 		"conflict_count": conflictErr.ConflictTotal(),
 	}
-}
-
-func applyLiveStatusForToday(student *users.Student, status string, now time.Time) {
-	activeService.ApplyLiveStatusForToday(student, status, now)
-}
-
-func clearLiveStatusForToday(student *users.Student, status string) {
-	activeService.ClearLiveStatusForToday(student, status)
 }

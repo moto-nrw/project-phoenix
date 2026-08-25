@@ -33,7 +33,8 @@ export type AggregatedRequestType =
   | "offering"
   | "excused"
   | "direct_correction"
-  | "enrollment";
+  | "enrollment"
+  | "care_withdrawal";
 
 /**
  * Eine Direkt-Korrektur der Verwaltung an den Angebots-Buchungen eines Kindes

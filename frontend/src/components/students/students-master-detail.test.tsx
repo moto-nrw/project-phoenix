@@ -143,9 +143,9 @@ vi.mock("./class-bulk-arrival-modal", () => ({
     ) : null,
 }));
 
-vi.mock("./arrival-schedule-manager", () => ({
-  ArrivalScheduleManager: (props: { studentId: string }) => (
-    <div data-testid="arrival-manager">{props.studentId}</div>
+vi.mock("./care-schedule-manager", () => ({
+  CareScheduleManager: (props: { studentId: string }) => (
+    <div data-testid="care-schedule-manager">{props.studentId}</div>
   ),
 }));
 
@@ -178,12 +178,6 @@ vi.mock("./class-trip-bulk-status-modal", () => ({
         close class trip
       </button>
     </div>
-  ),
-}));
-
-vi.mock("./student-abholung-tab", () => ({
-  StudentAbholungTab: (props: { studentId: string }) => (
-    <div data-testid="abholung-tab">{props.studentId}</div>
   ),
 }));
 
@@ -547,8 +541,7 @@ describe("StudentsMasterDetail", () => {
     );
 
     fireEvent.click(screen.getByTestId("tab-trigger-betreuungszeiten"));
-    expect(screen.getByTestId("arrival-manager")).toBeInTheDocument();
-    expect(screen.getByTestId("abholung-tab")).toBeInTheDocument();
+    expect(screen.getByTestId("care-schedule-manager")).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId("tab-trigger-history"));
     expect(screen.getByTestId("historie-tab")).toBeInTheDocument();

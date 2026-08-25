@@ -178,7 +178,7 @@ type setValueRequest struct {
 // keys whose registry default carries semantic meaning (e.g. student photo
 // purge on disable). Other settings keep their pre-feature reset behavior.
 func shouldReplayResetHook(key string) bool {
-	return key == configModel.KeyStudentPhotosEnabled
+	return key == configModel.KeyStudentPhotosEnabled || key == configModel.KeyEnrollmentBookingsAuthoritative
 }
 
 // --- Handlers ---

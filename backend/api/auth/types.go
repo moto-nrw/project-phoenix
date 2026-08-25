@@ -72,8 +72,15 @@ type TenantResolveResponse struct {
 	// history areas exist at this school. Defaults to false (opt-in feature).
 	AttendanceLogEnabled bool   `json:"attendance_log_enabled"`
 	GroupMode            string `json:"group_mode"`
-	ShowTimetableCounts  bool   `json:"show_timetable_counts"`
-	WaitlistEnabled      bool   `json:"waitlist_enabled"`
+	// OperationalOverviewScope is the tenant's resolved
+	// operations.operational_overview_scope setting (#2380). Shell metadata:
+	// the client needs it to know whether to ask for the school-wide
+	// supervision list at all, instead of provoking a 403 on every refresh.
+	// It is a hint, never the gate — the server decides each request.
+	// Falls back to "own", the restrictive default, on any resolution error.
+	OperationalOverviewScope string `json:"operational_overview_scope"`
+	ShowTimetableCounts      bool   `json:"show_timetable_counts"`
+	WaitlistEnabled          bool   `json:"waitlist_enabled"`
 }
 
 type tenantShellSettings struct {
@@ -86,6 +93,7 @@ type tenantShellSettings struct {
 	attendanceWebEnabled   bool
 	attendanceLogEnabled   bool
 	groupMode              string
+	overviewScope          string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
 }

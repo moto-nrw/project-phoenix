@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/render"
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
@@ -35,6 +36,7 @@ type Resource struct {
 	AuthService     authService.AuthService
 	MFAService      authService.MFAService
 	ClassDay        *classdayAPI.Resource
+	Timetable       *timetableAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
 
@@ -43,11 +45,13 @@ func NewResource(
 	auth authService.AuthService,
 	mfa authService.MFAService,
 	classDay *classdayAPI.Resource,
+	timetable *timetableAPI.Resource,
 ) *Resource {
 	return &Resource{
 		AuthService: auth,
 		MFAService:  mfa,
 		ClassDay:    classDay,
+		Timetable:   timetable,
 	}
 }
 
@@ -75,6 +79,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Use(rs.authRateLimiter)
 			}
 			r.Post("/login", rs.login)
+			r.Post("/password-reset", rs.initiatePasswordReset)
+			r.Post("/password-reset/confirm", rs.resetPassword)
 			// School MFA exchange: redeems ONLY challenges started with
 			// the school challenge scope and mints school-scope tokens.
 			r.Post("/mfa/verify", rs.mfaVerify)
@@ -111,6 +117,14 @@ func (rs *Resource) Router() chi.Router {
 	// The class-day surface, reachable with school tokens. Same handlers
 	// and permission gate as the (transitional) tenant-portal mount.
 	r.Mount("/class-day", rs.ClassDay.SchoolRouter())
+
+	// The assignment-bound supervision surface (#2527): the Betreuungsplan
+	// blocks this Lehrkraft is personally planned into today, and nothing
+	// else. Same operations handlers as the OGS portal, a narrower mantle —
+	// see timetable.SchoolSupervisionRouter.
+	if rs.Timetable != nil {
+		r.Mount("/supervisions", rs.Timetable.SchoolSupervisionRouter())
+	}
 
 	return r
 }

@@ -48,6 +48,7 @@ export interface InstanceStaffSummary {
   isPrimary: boolean;
   isAbsent: boolean;
   isSubstitute: boolean;
+  isSickAbsence?: boolean;
   absenceReason?: string;
 }
 
@@ -219,6 +220,7 @@ interface BackendInstanceStaffSummary {
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
+  is_sick_absence?: boolean;
   absence_reason?: string | null;
 }
 
@@ -811,14 +813,19 @@ export interface ApplyDeviationsInput {
   cancelReason?: string;
   understaffedAck?: boolean;
   understaffedNote?: string;
-  absences?: Array<{ staffId: string; reason?: string }>;
+  absences?: Array<{
+    staffId: string;
+    reason?: string;
+    instanceIds?: string[];
+  }>;
   substitutions?: Array<{
     absentStaffId: string;
     substituteStaffId: string;
     reason?: string;
+    instanceIds?: string[];
   }>;
-  /** Staff to mark present again — clears a persisted day-wide absence (#1840). */
-  presences?: string[];
+  substitutionRemovals?: Array<{ staffId: string; instanceIds?: string[] }>;
+  presences?: Array<{ staffId: string; instanceIds?: string[] }>;
 }
 
 export interface ApplyDeviationsResponse {

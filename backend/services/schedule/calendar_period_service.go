@@ -55,8 +55,7 @@ type calendarPeriodService struct {
 	logger                       *slog.Logger
 }
 
-// CalendarPeriodServiceConfig wires mutation-time dependencies that are not
-// needed by read-only or legacy unit-test callers. Production supplies DB and
+// CalendarPeriodServiceConfig wires mutation-time dependencies. Production supplies DB and
 // ValidateCareOfferingChange so updates/deletes share the tenant recurrence
 // gate with template and care-offering mutations.
 type CalendarPeriodServiceConfig struct {
@@ -66,21 +65,9 @@ type CalendarPeriodServiceConfig struct {
 	Logger                     *slog.Logger
 }
 
-// NewCalendarPeriodService creates a new calendar period service
-func NewCalendarPeriodService(
-	repo schedule.CalendarPeriodRepository,
-	logger *slog.Logger,
-) CalendarPeriodService {
-	return NewCalendarPeriodServiceWithConfig(CalendarPeriodServiceConfig{
-		Repo:   repo,
-		Logger: logger,
-	})
-}
-
 // NewCalendarPeriodServiceWithConfig creates the production calendar-period
 // service with transaction-scoped recurrence locking and care-link preflight
-// validation. Keeping the two-argument constructor above preserves focused
-// tests whose mutations cannot affect care offerings.
+// validation.
 func NewCalendarPeriodServiceWithConfig(cfg CalendarPeriodServiceConfig) CalendarPeriodService {
 	var lockMutation func(context.Context) error
 	if cfg.DB != nil {

@@ -30,8 +30,8 @@ func TestMasterDataReview_GraduatedChildLeavesQueueAndRefusesDecisions(t *testin
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
-	svc := userService.NewMasterDataReviewService(
-		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default())
+	svc := userService.NewMasterDataReviewServiceWithAudit(
+		repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	row := insertPendingChange(t, db, repos, chain,

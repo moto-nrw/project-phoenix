@@ -91,6 +91,53 @@ describe("SWR Hooks", () => {
       );
     });
 
+    it("scopes school portal cache entries to the school and account", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            id: "teacher-1",
+            token: "test-token",
+            tenantId: 42,
+            scope: "school",
+          },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      } as ReturnType<typeof useSession>);
+
+      renderHook(() =>
+        useSWRAuth("school-supervisions-2026-08-24", mockFetcher),
+      );
+
+      expect(useSWR).toHaveBeenCalledWith(
+        "school:42:teacher-1:school-supervisions-2026-08-24",
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
+    it("does not fetch a school portal cache entry without a tenant binding", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "teacher-1", token: "test-token", scope: "school" },
+          expires: "2099-01-01",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      } as ReturnType<typeof useSession>);
+
+      renderHook(() =>
+        useSWRAuth("school-supervisions-2026-08-24", mockFetcher),
+      );
+
+      expect(useSWR).toHaveBeenCalledWith(
+        null,
+        mockFetcher,
+        expect.any(Object),
+      );
+    });
+
     it("does not fetch when session is loading", () => {
       vi.mocked(useSession).mockReturnValue(
         createLoadingSession() as ReturnType<typeof useSession>,

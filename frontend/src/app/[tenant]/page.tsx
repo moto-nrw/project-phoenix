@@ -24,6 +24,8 @@ import { useTenant } from "~/lib/tenant-context";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { parentsPortalLoginUrl } from "~/lib/parent-url";
+import { schoolPortalLoginUrl } from "~/lib/school-url";
+import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import {
   login as loginApi,
@@ -43,24 +45,44 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "TenantLoginPage" });
 
 /**
- * Grace period before a guardian-only account is sent to the parents
- * portal. Long enough to read why the page is about to change, short
- * enough that nobody starts wondering whether the login worked.
+ * Grace period before an account is handed over to the portal it belongs
+ * to. Long enough to read why the page is about to change, short enough
+ * that nobody starts wondering whether the login worked.
  */
-const PARENT_PORTAL_REDIRECT_MS = 2000;
+const WRONG_PORTAL_REDIRECT_MS = 2000;
 
 /**
- * Set when the backend answered a login with code "use_parent_portal",
- * i.e. the credentials were correct but this account only exists as a
- * guardian and belongs on the parents portal.
+ * Set when the backend refused a login on PORTAL grounds: the credentials
+ * were correct, but this account belongs to the parents portal
+ * ("use_parent_portal") or to moto schule ("use_school_portal", #2207).
  *
- * redirectUrl is null only if NEXT_PUBLIC_PARENTS_HOSTNAME is missing at
+ * redirectUrl is null only if the portal's hostname env var is missing at
  * runtime (env.js rejects that at build time). We then still explain the
  * situation, just without a link or an automatic jump.
  */
-interface ParentAccountHint {
+interface WrongPortalHint {
+  portal: "parents" | "school";
   redirectUrl: string | null;
 }
+
+/** What the hint says, per portal. */
+const WRONG_PORTAL_COPY = {
+  parents: {
+    // Kurz halten: das Ziel steht schon auf dem Link daneben, sonst
+    // quetscht sich die Meldung im Kartenlayout.
+    redirecting: "Dieses Konto ist ein Elternkonto. Sie werden weitergeleitet.",
+    manual:
+      "Dieses Konto ist ein Elternkonto. Bitte melden Sie sich im Elternportal an.",
+    action: "Jetzt zum Elternportal",
+  },
+  school: {
+    redirecting:
+      "Dieses Konto ist ein Lehrkraft-Konto. Sie werden weitergeleitet.",
+    manual:
+      "Dieses Konto ist ein Lehrkraft-Konto. Bitte melden Sie sich bei moto schule an.",
+    action: "Jetzt zu moto schule",
+  },
+} as const;
 
 function clearSessionErrorFromUrl() {
   const url = new URL(window.location.href);
@@ -105,8 +127,8 @@ function LoginForm() {
   const [mfaStep, setMfaStep] = useState<MFAStep | null>(null);
   const [enrollmentStep, setEnrollmentStep] =
     useState<MFAEnrollmentStep | null>(null);
-  const [parentAccountHint, setParentAccountHint] =
-    useState<ParentAccountHint | null>(null);
+  const [wrongPortalHint, setWrongPortalHint] =
+    useState<WrongPortalHint | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
@@ -265,19 +287,44 @@ function LoginForm() {
     router.refresh();
   };
 
-  // Hand a guardian-only account over to the parents portal. Done in an
-  // effect rather than a setTimeout inside the submit handler so React
-  // cancels the pending jump if the user navigates away first.
+  // Hand the account over to the portal it belongs to. Done in an effect
+  // rather than a setTimeout inside the submit handler so React cancels the
+  // pending jump if the user navigates away first.
   useEffect(() => {
-    const target = parentAccountHint?.redirectUrl;
+    const target = wrongPortalHint?.redirectUrl;
     if (!target) return;
 
     const timer = setTimeout(() => {
       window.location.href = target;
-    }, PARENT_PORTAL_REDIRECT_MS);
+    }, WRONG_PORTAL_REDIRECT_MS);
 
     return () => clearTimeout(timer);
-  }, [parentAccountHint]);
+  }, [wrongPortalHint]);
+
+  const showWrongPortalHint = (code: string | undefined): boolean => {
+    if (code !== "use_parent_portal" && code !== "use_school_portal") {
+      return false;
+    }
+
+    const portal = code === "use_parent_portal" ? "parents" : "school";
+    let redirectUrl: string | null = null;
+    try {
+      redirectUrl =
+        portal === "parents"
+          ? parentsPortalLoginUrl("?from=staff")
+          : schoolPortalLoginUrl(
+              `?from=staff&tenant=${encodeURIComponent(tenantSlug)}`,
+            );
+    } catch (urlErr) {
+      logger.error("portal_url_unavailable", {
+        portal,
+        error: urlErr instanceof Error ? urlErr.message : String(urlErr),
+      });
+    }
+    setWrongPortalHint({ portal, redirectUrl });
+    trackLoginEvent("login_failed", { reason: code });
+    return true;
+  };
 
   const handleMFASuccess = async (tokens: MFATokenResponse) => {
     await seedSessionWithTokens(tokens);
@@ -288,7 +335,7 @@ function LoginForm() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-    setParentAccountHint(null);
+    setWrongPortalHint(null);
 
     try {
       const response = await loginApi("tenant", {
@@ -323,21 +370,11 @@ function LoginForm() {
         refresh_token: response.refresh_token,
       });
     } catch (err) {
-      // Guardian-only account at the staff login. The backend accepted the
-      // password and refused on role, so being specific leaks nothing —
-      // and the generic "Anmeldung fehlgeschlagen" reads like a password
-      // problem, which is what sent parents into repeated reset loops.
-      if (err instanceof MFAApiError && err.code === "use_parent_portal") {
-        let redirectUrl: string | null = null;
-        try {
-          redirectUrl = parentsPortalLoginUrl("?from=staff");
-        } catch (urlErr) {
-          logger.error("parents_portal_url_unavailable", {
-            error: urlErr instanceof Error ? urlErr.message : String(urlErr),
-          });
-        }
-        setParentAccountHint({ redirectUrl });
-        trackLoginEvent("login_failed", { reason: "use_parent_portal" });
+      // Wrong portal at the staff login. The backend accepted the password
+      // and refused on role, so being specific leaks nothing — and the
+      // generic "Anmeldung fehlgeschlagen" reads like a password problem,
+      // which is what sent parents into repeated reset loops.
+      if (err instanceof MFAApiError && showWrongPortalHint(err.code)) {
         return;
       }
 
@@ -359,6 +396,7 @@ function LoginForm() {
   const handlePasskeyLogin = async () => {
     setIsLoading(true);
     setError("");
+    setWrongPortalHint(null);
     try {
       const response = await loginWithPasskey("tenant", { tenantSlug });
       await seedSessionWithTokens({
@@ -370,6 +408,9 @@ function LoginForm() {
         logger.info("passkey login not completed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        return;
+      }
+      if (err instanceof PasskeyApiError && showWrongPortalHint(err.code)) {
         return;
       }
       if (err instanceof PasskeyApiError && err.status === 401) {
@@ -448,6 +489,16 @@ function LoginForm() {
               trustedDeviceEnabled={mfaStep.trustedDeviceEnabled}
               trustedDeviceDays={mfaStep.trustedDeviceDays}
               onSuccess={handleMFASuccess}
+              onError={(mfaError) => {
+                if (
+                  mfaError instanceof MFAApiError &&
+                  showWrongPortalHint(mfaError.code)
+                ) {
+                  setMfaStep(null);
+                  return true;
+                }
+                return false;
+              }}
               onCancel={() => {
                 setMfaStep(null);
                 setError("");
@@ -474,23 +525,21 @@ function LoginForm() {
             />
           ) : (
             <form onSubmit={handleSubmit} noValidate className="space-y-6">
-              {parentAccountHint ? (
+              {wrongPortalHint ? (
                 <Alert
                   type="info"
                   message={
-                    // Kurz halten: das Ziel steht schon auf dem Link daneben,
-                    // sonst quetscht sich die Meldung im Kartenlayout.
-                    parentAccountHint.redirectUrl
-                      ? "Dieses Konto ist ein Elternkonto. Sie werden weitergeleitet."
-                      : "Dieses Konto ist ein Elternkonto. Bitte melden Sie sich im Elternportal an."
+                    wrongPortalHint.redirectUrl
+                      ? WRONG_PORTAL_COPY[wrongPortalHint.portal].redirecting
+                      : WRONG_PORTAL_COPY[wrongPortalHint.portal].manual
                   }
                   action={
-                    parentAccountHint.redirectUrl ? (
+                    wrongPortalHint.redirectUrl ? (
                       <a
-                        href={parentAccountHint.redirectUrl}
+                        href={wrongPortalHint.redirectUrl}
                         className="font-medium whitespace-nowrap underline underline-offset-2"
                       >
-                        Jetzt zum Elternportal
+                        {WRONG_PORTAL_COPY[wrongPortalHint.portal].action}
                       </a>
                     ) : undefined
                   }
@@ -594,6 +643,12 @@ function LoginForm() {
             <SmartRedirect
               onRedirect={(path) => {
                 logger.info("redirecting based on user permissions", { path });
+                if (isSchoolPortalHandoffPath(path)) {
+                  window.location.href = schoolPortalLoginUrl(
+                    `?from=staff&tenant=${encodeURIComponent(tenantSlug)}`,
+                  );
+                  return;
+                }
                 router.push(path);
               }}
             />

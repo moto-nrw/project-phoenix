@@ -106,15 +106,13 @@ export interface DatedPickupSchedule {
 // Backend Combined Pickup Data Response
 export interface BackendPickupData {
   schedules: BackendPickupSchedule[];
-  effective_schedules?: BackendDatedPickupSchedule[];
+  effective_schedules?: Array<{
+    date: string;
+    schedule: BackendPickupSchedule | null;
+    offering_schedule?: BackendPickupSchedule | null;
+  }>;
   exceptions: BackendPickupException[];
   notes: BackendPickupNote[];
-}
-
-export interface BackendDatedPickupSchedule {
-  date: string;
-  schedule: BackendPickupSchedule | null;
-  offering_schedule?: BackendPickupSchedule | null;
 }
 
 // Request types for creating/updating schedules

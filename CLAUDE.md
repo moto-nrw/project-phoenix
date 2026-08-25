@@ -71,15 +71,16 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 | Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` scoped to `.{TENANT_DOMAIN}` (localhost: `authjs.session-token`, host-only) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
 | Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only) | `/api/operator/auth` | `"platform"` | `POST /operator/auth/login` |
 | Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` (host-only) | `/api/parent/auth` | `"parent"` | `POST /parent/auth/login` |
+| School ("moto schule") | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token` (host-only, SameSite=Strict) | `/api/school/auth` | `"school"` | `POST /school/auth/login` |
 
 **Login policy** (enforced in `services/auth/auth_login*.go`):
-- Tenant login refuses guardian-only accounts (returns `ErrParentMustUseParentPortal` → 403). Dual-role accounts (e.g. teacher AND guardian at the same school) pass through unchanged.
+- Tenant login refuses guardian-only accounts (returns `ErrParentMustUseParentPortal` → 403) and school-portal-only accounts (`ErrMustUseSchoolPortal` → 403, #2207). Dual-role accounts (e.g. teacher AND guardian, or Lehrkraft AND Betreuungskraft at the same school) pass through unchanged.
 - Parents login requires guardian role on at least one tenant mapping (`ErrAccountNoGuardianRole` → 403).
 - `auth/jwt/TenantMiddleware` rejects `scope=parent` tokens with 401 (defense-in-depth on top of cookie isolation).
 - `auth/jwt/ParentMiddleware` rejects everything except `scope=parent`; mounted on `/parent/*` protected routes.
 - **MFA exists and alters login flows**: tenant and operator logins can require a challenge step between credentials and session (`services/auth/mfa_service.go`, `api/auth/mfa_handlers.go`, `api/operator/mfa.go`, dedicated challenge/enrollment JWT claims in `backend/auth/jwt/`, trusted devices via `security.mfa_*` settings). Touch login flows only with MFA in mind.
 
-**Fourth portal in progress — school ("moto schule", #2207)**: the backend scope exists; the frontend mantle (host, cookie, PWA) follows. JWT scope `"school"` is tenant-bound (unlike `parent`): `POST /school/auth/login` requires a school-portal role (today: the `lehrkraft` system role) on an active mapping and pins that school as `tenant_id`. `auth/jwt/SchoolMiddleware` rejects everything except `scope=school`, `TenantMiddleware` rejects `scope=school` symmetrically, and `/school/*` runs through `common.ProtectedSchoolGroup` (incl. `TenantTxMiddleware`). The class-day surface is double-mounted (`/api/class-day` + `/school/class-day`) until the cutover removes tenant-portal Lehrkraft access. `TestSchoolScopeRejectedOnAllAPIRoutes` pins that a school token unlocks nothing under `/api`.
+**Fourth portal — school ("moto schule", #2207)**: JWT scope `"school"` is tenant-bound (unlike `parent`): `POST /school/auth/login` requires a school-portal role (today: the `lehrkraft` system role) on an active mapping and pins that school as `tenant_id`. `auth/jwt/SchoolMiddleware` rejects everything except `scope=school`, `TenantMiddleware` rejects `scope=school` symmetrically, and `/school/*` runs through `common.ProtectedSchoolGroup` (incl. `TenantTxMiddleware`). The class-day surface is mounted ONLY at `/school/class-day` since the cutover (PR 3); the tenant-portal twin `/api/class-day` and the `/klassen` page are gone, and the tenant login refuses school-portal-only accounts with `ErrMustUseSchoolPortal` → 403 code `use_school_portal` (guarded at all four tenant-session mint/renew sites, refresh included). `TestSchoolScopeRejectedOnAllAPIRoutes` pins that a school token unlocks nothing under `/api`. Frontend mantle: `app/school/*` (login incl. MFA-Kette, Klassenansicht via shared `components/class-day`, invite accept), NextAuth instance in `server/auth/school*.ts`, host routing in `proxy.ts`, PWA identity "moto schule" (favicon variants `schule`/`schule-staging`). Lehrkraft invitation emails link to `SCHOOL_URL/invite` instead of `FRONTEND_URL/invite`.
 
 **Embedded enrollment**: the parents portal serves the public enrollment form at `/parents/enroll/{slug}/{phaseId}` using the same `EnrollmentForm` component as `{slug}.TENANT_DOMAIN/enroll/{phaseId}`, via injected `profileFetcher`/`submitter`/`skipCaptcha` props. Parent-authenticated submits stamp `enrollment.requests.guardian_account_id`; the decision service prefers attaching by ID over email matching.
 
@@ -91,8 +92,10 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 | `NEXT_PUBLIC_TENANT_DOMAIN` | Client-side tenant domain |
 | `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
 | `NEXT_PUBLIC_PARENTS_HOSTNAME` | Parents subdomain (e.g., `parents.localhost:3000`) |
+| `NEXT_PUBLIC_SCHOOL_HOSTNAME` | School subdomain (e.g., `schule.localhost:3000`) |
 | `FRONTEND_URL` | Backend-side staff/admin URL (used in admin notification emails) |
 | `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Required — the server refuses to start without it; must be `https://` in production. |
+| `SCHOOL_URL` | Backend-side school-portal URL (Lehrkraft invitation email links). Required — the server refuses to start without it; must be `https://` in production. |
 
 ### Reserved Slugs
 

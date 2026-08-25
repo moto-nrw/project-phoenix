@@ -121,6 +121,10 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonMovedAway,
 	})
+	// A parent request can be approved after the exit confirmation while the
+	// child still attends on their last care day. The effect pass must remove
+	// that late plan instead of leaving it active after departure.
+	testpkg.CreateTestPickupSchedule(t, db, student.ID, scheduleModels.WeekdayMonday, staff.ID, "14:30")
 
 	// STILL the last care day: everything keeps working.
 	assert.False(t, loadStudent(t, db, ctx, student.ID).CareEndedOn(today))
@@ -130,6 +134,9 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	applied, err := svc.ApplyDueEffects(ctx, today)
 	require.NoError(t, err)
 	assert.Equal(t, 1, applied)
+	latePlans, err := repos.StudentPickupSchedule.FindByStudentID(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Empty(t, latePlans, "effect-day cleanup removes plans written after exit confirmation")
 
 	t.Run("the open attendance is closed, not deleted", func(t *testing.T) {
 		rows, err := repos.Attendance.GetTodayByStudentIDs(ctx, []int64{student.ID})

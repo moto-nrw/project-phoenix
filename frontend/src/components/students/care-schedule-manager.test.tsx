@@ -16,6 +16,8 @@ const mockFetchArrivalSettings = vi.fn();
 const mockFetchStudentPickupData = vi.fn();
 const mockUpdateArrivalSchedules = vi.fn();
 const mockUpdateStudentPickupSchedules = vi.fn();
+const mockPreviewStudentPickupAdjustment = vi.fn();
+const mockApplyStudentPickupAdjustment = vi.fn();
 const mockCreateArrivalException = vi.fn();
 const mockUpdateArrivalException = vi.fn();
 const mockDeleteArrivalException = vi.fn();
@@ -52,6 +54,10 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockFetchStudentPickupData(...args),
   updateStudentPickupSchedules: (...args: unknown[]) =>
     mockUpdateStudentPickupSchedules(...args),
+  previewStudentPickupAdjustment: (...args: unknown[]) =>
+    mockPreviewStudentPickupAdjustment(...args),
+  applyStudentPickupAdjustment: (...args: unknown[]) =>
+    mockApplyStudentPickupAdjustment(...args),
   createStudentPickupException: (...args: unknown[]) =>
     mockCreateStudentPickupException(...args),
   updateStudentPickupException: (...args: unknown[]) =>
@@ -66,9 +72,6 @@ vi.mock("~/lib/pickup-schedule-api", () => ({
     mockDeleteStudentPickupNote(...args),
 }));
 
-// The editor is exercised in its own test file; here it is reduced to the two
-// callbacks the manager wires up, so these tests stay about the manager's
-// persistence and refresh behaviour.
 // The editor is exercised in its own test file; here it is reduced to the two
 // callbacks the manager wires up, so these tests stay about the manager's
 // persistence and refresh behaviour.
@@ -130,6 +133,21 @@ vi.mock("./care-plan-editor-modal", () => ({
           }
         >
           Wochenplan im Test speichern
+        </button>
+        <button
+          type="button"
+          onClick={() =>
+            void onSubmitWeekly({
+              arrivalSchedules: [
+                { weekday: 1, expected_arrival: "08:45", notes: "Tor" },
+              ],
+              pickupSchedules: [
+                { weekday: 1, pickupTime: "15:00", notes: "Bus" },
+              ],
+            }).catch(() => undefined)
+          }
+        >
+          Nur Ankunft im Test speichern
         </button>
         <button
           type="button"
@@ -342,6 +360,25 @@ describe("CareScheduleManager", () => {
     mockFetchStudentPickupData.mockResolvedValue(pickupData);
     mockUpdateArrivalSchedules.mockResolvedValue([]);
     mockUpdateStudentPickupSchedules.mockResolvedValue([]);
+    mockPreviewStudentPickupAdjustment.mockResolvedValue({
+      preview_token: "preview-token",
+      effective_from: "2026-05-25",
+      current_plan: "Mo 15:00 Uhr",
+      proposed_plan: "Mo 15:30 Uhr",
+      deviates_from_offering: true,
+      resolution_required: false,
+      matching_offerings: [
+        {
+          offering_id: "8",
+          name: "Bis 15:30",
+          selected_days: [],
+          selections: [{ offering_id: "8", selected_days: [] }],
+        },
+      ],
+    });
+    mockApplyStudentPickupAdjustment.mockResolvedValue({
+      resolution: "exception",
+    });
     mockCreateArrivalException.mockResolvedValue({});
     mockUpdateArrivalException.mockResolvedValue({});
     mockDeleteArrivalException.mockResolvedValue(undefined);
@@ -395,6 +432,17 @@ describe("CareScheduleManager", () => {
     ).toBeGreaterThan(0);
     expect(screen.getAllByText("Ankunft:").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
+  });
+
+  it("uses its own width to choose the readable week layout", async () => {
+    render(<CareScheduleManager studentId="42" />);
+
+    const heading = await screen.findByText("Betreuungszeiten");
+    const surface = heading.closest("section");
+
+    expect(surface).toHaveClass("@container");
+    expect(surface?.querySelector('[class~="@4xl:hidden"]')).not.toBeNull();
+    expect(surface?.querySelector('[class~="@4xl:block"]')).not.toBeNull();
   });
 
   it("re-fetches arrival and pickup on a remote care-schedule-stale event", async () => {
@@ -629,7 +677,24 @@ describe("CareScheduleManager", () => {
     );
   });
 
-  it("updates the weekly plan from the edit action", async () => {
+  it("uses the visible week's start date for weekly changes", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ effective_from: "2026-06-01" }),
+      );
+    });
+    expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("keeps direct saving when review is off even if an offering matches", async () => {
     const onUpdate = vi.fn();
 
     render(
@@ -645,15 +710,80 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalSchedules).toHaveBeenCalledWith("42", [
-        { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-      ]);
-      expect(mockUpdateStudentPickupSchedules).toHaveBeenCalledWith("42", {
-        schedules: [{ weekday: 1, pickupTime: "15:30", notes: "Bus" }],
-        effectiveDate: "2026-05-25",
+      expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+        care_days: [1],
+        arrival_schedules: [
+          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+        ],
+        effective_from: "2026-05-27",
       });
+      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+        care_days: [1],
+        arrival_schedules: [
+          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+        ],
+        effective_from: "2026-05-27",
+        preview_token: "preview-token",
+        resolution: "exception",
+      });
+      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
       expect(onUpdate).toHaveBeenCalled();
     });
+  });
+
+  it("saves an arrival-only edit without reopening pickup review", async () => {
+    render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
+    await screen.findByText("Betreuungszeiten");
+
+    fireEvent.click(screen.getByTitle("Wochenplan bearbeiten"));
+    fireEvent.click(screen.getByText("Nur Ankunft im Test speichern"));
+
+    await waitFor(() => {
+      expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
+    });
+    expect(mockPreviewStudentPickupAdjustment).not.toHaveBeenCalled();
+    expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
+  });
+
+  it("marks only a real mismatch to the booked offering", async () => {
+    const manual = { ...pickupData.schedules[0]!, source: "staff" };
+    const offering = {
+      ...manual,
+      id: "9",
+      source: "care_offering",
+      careOfferingName: "Ganztag",
+    };
+    mockFetchStudentPickupData.mockResolvedValueOnce({
+      ...pickupData,
+      exceptions: [],
+      effectiveSchedules: [
+        {
+          date: "2026-05-25",
+          schedule: { ...manual, pickupTime: "14:30" },
+          offeringSchedule: { ...offering, pickupTime: "16:00" },
+        },
+        {
+          date: "2026-05-26",
+          schedule: { ...manual, weekday: 2, pickupTime: "16:00" },
+          offeringSchedule: { ...offering, weekday: 2, pickupTime: "16:00" },
+        },
+      ],
+    });
+
+    render(<CareScheduleManager studentId="42" />);
+    await screen.findByText("Betreuungszeiten");
+
+    const mismatchMarker = screen.getAllByText(
+      "Andere Zeit als im Angebot „Ganztag“",
+    )[0];
+    expect(mismatchMarker).toHaveClass("max-w-full", "truncate");
+    expect(mismatchMarker).toHaveAttribute(
+      "title",
+      "Andere Zeit als im Angebot „Ganztag“",
+    );
+    expect(screen.getAllByText("von Hand").length).toBeGreaterThan(0);
   });
 
   it("passes booking care days to the weekly editor", async () => {
@@ -772,11 +902,7 @@ describe("CareScheduleManager", () => {
     });
   });
 
-  it("refreshes after a partially saved weekly plan", async () => {
-    mockUpdateStudentPickupSchedules.mockRejectedValueOnce(
-      new Error("Abholplan konnte nicht gespeichert werden"),
-    );
-
+  it("saves arrival and pickup schedules in one adjustment request", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);
     await screen.findByText("Betreuungszeiten");
 
@@ -784,8 +910,15 @@ describe("CareScheduleManager", () => {
     fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
 
     await waitFor(() => {
-      expect(mockUpdateArrivalSchedules).toHaveBeenCalled();
-      expect(mockUpdateStudentPickupSchedules).toHaveBeenCalled();
+      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+        }),
+      );
+      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
       expect(mockFetchArrivalData).toHaveBeenCalledTimes(2);
       expect(mockFetchStudentPickupData).toHaveBeenCalledTimes(2);
     });

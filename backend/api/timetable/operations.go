@@ -54,6 +54,21 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
+// operationActor resolves the caller of an operations call.
+//
+// The isAdmin half is forced to false for assignment-bound portals (#2527):
+// an account can be an OGS admin AND a Lehrkraft, and the school portal must
+// answer the same for both. This is belt-and-braces — the operational-overview
+// gate already collapses to "own" for a school token — but it keeps the second
+// path (the explicit isAdmin argument) from ever becoming the way in.
+func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
+	claims := jwt.ClaimsFromCtx(ctx)
+	if authorize.IsAssignmentBoundPortal(ctx) {
+		return int64(claims.ID), false
+	}
+	return int64(claims.ID), claims.IsAdmin
+}
+
 // operationsActiveSessions lists today's running instances with their plan
 // windows so the supervision UI can label session tabs (#2265).
 func (rs *Resource) operationsActiveSessions(w http.ResponseWriter, r *http.Request) {
@@ -92,8 +107,8 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 		}
 		date = parsed
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.PlannedNow(r.Context(), int64(claims.ID), claims.IsAdmin, date, timezone.Now(), opts)
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.PlannedNow(r.Context(), accountID, isAdmin, date, timezone.Now(), opts)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -140,8 +155,8 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 
 func (rs *Resource) operationsRoster(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
-		claims := jwt.ClaimsFromCtx(r.Context())
-		return rs.OperationsService.Roster(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		accountID, isAdmin := operationActor(r.Context())
+		return rs.OperationsService.Roster(r.Context(), accountID, isAdmin, instanceID)
 	}, "Timetable roster retrieved")
 }
 
@@ -154,8 +169,8 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 	if !ok {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.RosterByActiveGroup(r.Context(), int64(claims.ID), claims.IsAdmin, activeGroupID)
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.RosterByActiveGroup(r.Context(), accountID, isAdmin, activeGroupID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -165,8 +180,8 @@ func (rs *Resource) operationsRosterByActiveGroup(w http.ResponseWriter, r *http
 
 func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
-		claims := jwt.ClaimsFromCtx(r.Context())
-		result, err := rs.OperationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		accountID, isAdmin := operationActor(r.Context())
+		result, err := rs.OperationsService.Start(r.Context(), accountID, isAdmin, instanceID)
 		if err != nil {
 			return nil, err
 		}
@@ -454,8 +469,8 @@ func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	r = r.WithContext(scheduleSvc.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
-		claims := jwt.ClaimsFromCtx(r.Context())
-		return rs.OperationsService.Complete(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID)
+		accountID, isAdmin := operationActor(r.Context())
+		return rs.OperationsService.Complete(r.Context(), accountID, isAdmin, instanceID)
 	}, "Timetable instance completed")
 }
 
@@ -468,8 +483,8 @@ func (rs *Resource) operationsCheckInStudent(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.CheckInStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.CheckInStudent(r.Context(), accountID, isAdmin, instanceID, studentID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -486,8 +501,8 @@ func (rs *Resource) operationsCheckOutStudent(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.CheckOutStudent(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID)
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.CheckOutStudent(r.Context(), accountID, isAdmin, instanceID, studentID)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return
@@ -517,8 +532,8 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 		renderValidationErrors(w, r, []fieldError{{Field: "body", Reason: "at least one of status, substatus, note must be set"}})
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.PatchAttendance(r.Context(), int64(claims.ID), claims.IsAdmin, instanceID, studentID, patch)
+	accountID, isAdmin := operationActor(r.Context())
+	result, err := rs.OperationsService.PatchAttendance(r.Context(), accountID, isAdmin, instanceID, studentID, patch)
 	if err != nil {
 		rs.renderOperationsError(w, r, err)
 		return

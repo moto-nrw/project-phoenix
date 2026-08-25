@@ -10,6 +10,9 @@ import (
 // AccountRepository defines operations for managing accounts
 type AccountRepository interface {
 	base.CRUDRepository[*Account]
+	FindManageableByID(ctx context.Context, id int64) (*Account, error)
+	ListManageable(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
+	UpdateManageable(ctx context.Context, account *Account) error
 	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
 	FindByUsername(ctx context.Context, username string) (*Account, error)

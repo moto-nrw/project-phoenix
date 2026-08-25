@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { useToast } from "~/contexts/ToastContext";
@@ -30,6 +32,10 @@ export function SelectionBulkPickupModal({
   const { success, error } = useToast();
   const [times, setTimes] = useState<Record<number, string>>({});
   const [saving, setSaving] = useState(false);
+  const [needsExceptionConfirmation, setNeedsExceptionConfirmation] =
+    useState(false);
+  const [exceptionConfirmed, setExceptionConfirmed] = useState(false);
+  const exceptionHeadingRef = useRef<HTMLHeadingElement>(null);
   const schedules = useMemo<BulkPickupScheduleInput[]>(
     () =>
       WEEKDAYS.flatMap(({ value }) => {
@@ -39,6 +45,18 @@ export function SelectionBulkPickupModal({
     [times],
   );
 
+  const handleClose = () => {
+    setNeedsExceptionConfirmation(false);
+    setExceptionConfirmed(false);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (needsExceptionConfirmation) {
+      exceptionHeadingRef.current?.focus();
+    }
+  }, [needsExceptionConfirmation]);
+
   const handleSubmit = async () => {
     if (schedules.length === 0) {
       error("Mindestens eine Gehzeit angeben");
@@ -46,13 +64,26 @@ export function SelectionBulkPickupModal({
     }
     setSaving(true);
     try {
-      await bulkUpsertPickupSchedules(studentIds, schedules);
+      await bulkUpsertPickupSchedules(
+        studentIds,
+        schedules,
+        needsExceptionConfirmation && exceptionConfirmed,
+      );
       success(
         `Gehzeiten für ${studentIds.length === 1 ? "1 Kind" : `${studentIds.length} Kinder`} gesetzt`,
       );
       onSuccess?.();
-      onClose();
+      handleClose();
     } catch (err) {
+      if (
+        err instanceof Error &&
+        "code" in err &&
+        err.code === "pickup.bulk_exception_confirmation_required"
+      ) {
+        setNeedsExceptionConfirmation(true);
+        setExceptionConfirmed(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : String(err);
       logger.error("failed to bulk upsert pickup schedules", {
         error: message,
@@ -66,7 +97,7 @@ export function SelectionBulkPickupModal({
   return (
     <FormModal
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Gehzeiten für Auswahl"
       size="md"
       mobilePosition="bottom"
@@ -75,7 +106,7 @@ export function SelectionBulkPickupModal({
           <Button
             variant="outline"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
             disabled={saving}
           >
             Abbrechen
@@ -84,9 +115,17 @@ export function SelectionBulkPickupModal({
             variant="success"
             size="md"
             onClick={handleSubmit}
-            disabled={saving || schedules.length === 0}
+            disabled={
+              saving ||
+              schedules.length === 0 ||
+              (needsExceptionConfirmation && !exceptionConfirmed)
+            }
           >
-            {saving ? "Speichern..." : `Für ${studentIds.length} setzen`}
+            {saving
+              ? "Speichern..."
+              : needsExceptionConfirmation
+                ? "Ausnahmen speichern"
+                : `Für ${studentIds.length} setzen`}
           </Button>
         </div>
       }
@@ -96,6 +135,30 @@ export function SelectionBulkPickupModal({
           Nur ausgefüllte Wochentage werden geändert. Andere Gehzeiten und
           vorhandene Notizen bleiben unverändert.
         </p>
+        {needsExceptionConfirmation ? (
+          <div className="space-y-3">
+            <h3 ref={exceptionHeadingRef} tabIndex={-1} className="sr-only">
+              Dauerhafte Ausnahmen bestätigen
+            </h3>
+            <Alert
+              type="warning"
+              message="Die Zeiten werden für alle ausgewählten Kinder als dauerhafte Ausnahmen gespeichert. Die gebuchten Angebote ändern sich nicht."
+            />
+            <label
+              htmlFor="bulk-pickup-exception-confirmation"
+              className="flex cursor-pointer items-start gap-3 text-sm text-gray-800"
+            >
+              <Checkbox
+                id="bulk-pickup-exception-confirmation"
+                checked={exceptionConfirmed}
+                onChange={(event) =>
+                  setExceptionConfirmed(event.target.checked)
+                }
+              />
+              <span>Ich bestätige die dauerhaften Ausnahmen.</span>
+            </label>
+          </div>
+        ) : null}
         <div className="space-y-2">
           {WEEKDAYS.map((day) => (
             <div
@@ -113,12 +176,14 @@ export function SelectionBulkPickupModal({
                 type="time"
                 controlSize="compact"
                 value={times[day.value] ?? ""}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setNeedsExceptionConfirmation(false);
+                  setExceptionConfirmed(false);
                   setTimes((previous) => ({
                     ...previous,
                     [day.value]: event.target.value.slice(0, 5),
-                  }))
-                }
+                  }));
+                }}
                 className="w-32"
               />
               {!times[day.value] ? (

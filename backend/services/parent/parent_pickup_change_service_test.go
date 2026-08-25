@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -69,7 +70,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		repos.Attendance,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduleSvc.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),

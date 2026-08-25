@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/school"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -51,10 +52,22 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 // MFA service (pass nil for the real one from the factory).
 func newSchoolRouter(db *bun.DB, factory *services.Factory, mfa authService.MFAService) http.Handler {
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	timetableResource := newSchoolTimetableResource(db, factory)
 	if mfa == nil {
-		return school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
+		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource).Router()
 	}
-	return school.NewResource(factory.Auth, mfa, classDayResource).Router()
+	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource).Router()
+}
+
+// newSchoolTimetableResource builds the timetable resource behind
+// /school/supervisions (#2527) with the deps that surface actually consumes.
+func newSchoolTimetableResource(db *bun.DB, factory *services.Factory) *timetable.Resource {
+	return timetable.NewResource(timetable.Dependencies{
+		OperationsService: factory.TimetableOperations,
+		ReportService:     factory.EnrollmentReport,
+		SettingsService:   factory.Settings,
+		DB:                db,
+	})
 }
 
 // registerLehrkraft creates an account at the tenant carrying the lehrkraft
@@ -84,8 +97,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource).Router()
-	tenantClassDayRouter := classDayResource.Router()
+	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory)).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
@@ -99,11 +111,10 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), className)
 
-	// School token on the TENANT class-day mount → 401. Same handlers, but
-	// the tenant mantle refuses the school scope.
-	req = httptest.NewRequest(http.MethodGet, "/classes", nil)
-	rec = testutil.ExecuteWithAuthPermissions(t, tenantClassDayRouter, req, schoolClaims, []string{"class_day:read"})
-	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
+	// The tenant-portal twin under /api/class-day no longer exists since the
+	// cutover (#2207 PR 3) — its absence is pinned by the route-table golden,
+	// and TestSchoolScopeRejectedOnAllAPIRoutes keeps the whole /api surface
+	// closed to school tokens.
 
 	// Every non-school scope on the school surface → 401, permission or not.
 	foreignScopes := []struct {

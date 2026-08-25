@@ -341,36 +341,6 @@ func (s *materializationService) studentRosterByInstance(ctx context.Context, id
 	return byInstance, nil
 }
 
-// diffOccurrence keeps the enrollment-only pure seam used by the established
-// truth-table tests. Production detection passes the shared manual + dynamic
-// roster projection to diffOccurrenceWithExpectedStudents below.
-func diffOccurrence(
-	inst *schedule.ActivityInstance,
-	templateTitle string,
-	enrollments []*activities.StudentEnrollment,
-	supervisors []*activities.SupervisorPlanned,
-	staffRows []*schedule.InstanceStaff,
-	studentRows []*schedule.InstanceStudent,
-	expected []materialParams,
-) []string {
-	expectedStudentIDs := expectedStudentIDsOn(
-		enrollments,
-		nil,
-		nil,
-		inst.Date,
-		calendarPeriodID(inst),
-	)
-	return diffOccurrenceWithExpectedStudents(
-		inst,
-		templateTitle,
-		expectedStudentIDs,
-		supervisors,
-		staffRows,
-		studentRows,
-		expected,
-	)
-}
-
 // diffOccurrenceWithExpectedStudents returns the field categories on which
 // one planned occurrence diverges from its template projection. Both slot and
 // student inputs already contain the exact values materialization would write.

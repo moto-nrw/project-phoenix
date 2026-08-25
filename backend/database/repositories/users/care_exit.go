@@ -61,6 +61,7 @@ func (r *CareExitRepository) Upsert(ctx context.Context, exit *userModels.CareEx
 		Set("reason = EXCLUDED.reason").
 		Set("reason_note = EXCLUDED.reason_note").
 		Set("recorded_by = EXCLUDED.recorded_by").
+		Set("withdrawal_completion_id = EXCLUDED.withdrawal_completion_id").
 		Set("updated_at = NOW()").
 		Exec(ctx)
 	if err != nil {

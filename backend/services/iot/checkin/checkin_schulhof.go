@@ -44,16 +44,6 @@ var schulhofSpace = systemSpace{
 	},
 }
 
-// ensureSchulhofRoom finds or creates the Schulhof room.
-func (s *CheckinService) ensureSchulhofRoom(ctx context.Context) (*facilityModels.Room, error) {
-	return s.ensureSystemRoom(ctx, schulhofSpace)
-}
-
-// ensureSchulhofCategory finds or creates the Schulhof activity category.
-func (s *CheckinService) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
-	return s.ensureSystemCategory(ctx, schulhofSpace)
-}
-
 // schulhofActivityGroup finds or creates the permanent Schulhof activity group,
 // lazily auto-creating the Schulhof infrastructure (room, category, activity)
 // on first use.

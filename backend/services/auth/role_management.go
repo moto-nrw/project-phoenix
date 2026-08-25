@@ -119,8 +119,8 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
-		if _, err := s.repos.Account.FindByIDForUpdate(txCtx, int64(accountID)); err != nil {
-			return &AuthError{Op: "assign role", Err: ErrAccountNotFound}
+		if err := s.lockManageableAccount(txCtx, accountID, "assign role"); err != nil {
+			return err
 		}
 
 		// System roles have tenant_id NULL and must remain resolvable while the
@@ -263,6 +263,9 @@ func (s *Service) accountHoldsLehrkraftRole(ctx context.Context, accountID int64
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
 	var revoked []*auth.Token
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockManageableAccount(txCtx, accountID, "remove role"); err != nil {
+			return err
+		}
 		existingRole, err := s.repos.AccountRole.FindByAccountAndRole(txCtx, int64(accountID), int64(roleID))
 		if err != nil && !strings.Contains(err.Error(), "no rows") {
 			return &AuthError{Op: "check role assignment", Err: err}
@@ -292,6 +295,12 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 
 // GetAccountRoles retrieves all roles for an account
 func (s *Service) GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error) {
+	if _, err := s.repos.Account.FindManageableByID(ctx, int64(accountID)); err != nil {
+		return nil, &AuthError{Op: "get account roles", Err: ErrAccountNotFound}
+	}
+	if err := s.ensureOrganizationRBACMembership(ctx, accountID, "get account roles", false); err != nil {
+		return nil, err
+	}
 	roles, err := s.repos.Role.FindByAccountID(ctx, int64(accountID))
 	if err != nil {
 		return nil, &AuthError{Op: "get account roles", Err: err}

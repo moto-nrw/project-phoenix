@@ -2,11 +2,13 @@ package auth_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	authrepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,6 +56,29 @@ func TestAccountRepository_UpdateAvatar_ReturnsDatabaseError(t *testing.T) {
 	require.ErrorAs(t, err, &dbErr)
 	assert.Equal(t, "update columns", dbErr.Op)
 	assert.EqualError(t, dbErr.Err, "update failed")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestAccountRepository_UpdateManageable_NoMatchingMembershipIsNotFound(t *testing.T) {
+	t.Parallel()
+
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer func() { _ = sqlDB.Close() }()
+
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	repo := authrepo.NewAccountRepository(db)
+	account := &authModel.Account{
+		Model:  modelBase.Model{ID: 42},
+		Email:  "revoked@example.test",
+		Active: true,
+	}
+
+	mock.ExpectExec(`UPDATE auth\.accounts AS "account" SET`).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.UpdateManageable(context.Background(), account)
+	require.ErrorIs(t, err, sql.ErrNoRows)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 

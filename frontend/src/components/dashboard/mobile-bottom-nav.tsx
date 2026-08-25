@@ -14,12 +14,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useShellAuth } from "~/lib/shell-auth-context";
-import {
-  hasPermission,
-  hasRole,
-  isCaregiver,
-  isLehrkraftOnly,
-} from "~/lib/auth-utils";
+import { hasPermission, hasRole, isCaregiver } from "~/lib/auth-utils";
 import { canOpenRequestsPage } from "~/lib/change-request-access";
 import { navigationIcons } from "~/lib/navigation-icons";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -194,17 +189,6 @@ const STAFF_MAIN_ITEMS: NavItem[] = [
   },
 ];
 
-// Reines Lehrkraft-Konto (#1772): nur die Klassenansicht ist erreichbar,
-// alles andere würde 403 antworten. Hilfe kommt über das Overflow-Menü.
-const LEHRKRAFT_MAIN_ITEMS: NavItem[] = [
-  {
-    href: "/klassen",
-    label: "Klassen",
-    iconKey: "academicCap",
-    alwaysShow: true,
-  },
-];
-
 // Order mirrors the desktop sidebar sections: VERWALTUNG → KOMMUNIKATION → TEAM.
 const OPERATOR_MAIN_ITEMS: NavItem[] = [
   {
@@ -335,17 +319,6 @@ const PLANNING_ADDITIONAL_ITEMS: AdditionalNavItem[] =
   }));
 
 const additionalNavItems: AdditionalNavItem[] = [
-  {
-    // Klassenansicht (#1772) für Dual-Role-Konten (lehrkraft + user/admin):
-    // deren Haupt-Nav ist die Staff-/Admin-Leiste, der Einstieg in die
-    // Klassenansicht kommt über das Overflow-Menü. Rollen-Gating unten in
-    // filteredAdditionalItems (permission-basiert ginge nicht: admin:*
-    // matcht class_day:read, Admins ohne lehrkraft-Rolle haben aber keine
-    // Klassen und landen auf einer leeren Seite).
-    href: "/klassen",
-    label: "Klassenansicht",
-    iconKey: "academicCap",
-  },
   {
     href: "/activities",
     label: "Aktivitäten",
@@ -510,7 +483,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     isSupervising,
     isLoadingGroups,
     isLoadingSupervision,
-    adminOverviewEnabled,
+    overviewEnabled,
   } = useOptionalSupervision();
 
   // Get shell auth mode
@@ -586,23 +559,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       })),
     [],
   );
-  // Reines Lehrkraft-Konto (#1772): geteiltes Prädikat aus auth-utils.
-  const lehrkraftOnly = isLehrkraftOnly(session);
   const baseMain =
     mode === "operator"
       ? resolvedOperatorMainItems
-      : lehrkraftOnly
-        ? LEHRKRAFT_MAIN_ITEMS
-        : isCaregiver(session)
-          ? STAFF_MAIN_ITEMS
-          : hasRole(session, "admin")
-            ? ADMIN_MAIN_ITEMS
-            : STAFF_MAIN_ITEMS;
-  // Admins with supervision overview: inject "Aufsicht" tab dynamically.
-  // Gate on adminOverviewEnabled (confirmed via /supervisors/all 200) rather
-  // than just isSupervising so a synthetic Schulhof entry does not surface
-  // the admin tab when the setting is off. Dual-role teacher-admins see the
-  // tab too, the tenant setting is the explicit opt-in signal.
+      : isCaregiver(session)
+        ? STAFF_MAIN_ITEMS
+        : hasRole(session, "admin")
+          ? ADMIN_MAIN_ITEMS
+          : STAFF_MAIN_ITEMS;
+  // Callers covered by the school-wide overview (#2380): inject the
+  // "Aufsicht" tab dynamically. This includes effective admins and verified
+  // staff under all_staff. Gate on overviewEnabled (confirmed via
+  // /supervisors/all 200) rather than just isSupervising so a synthetic
+  // Schulhof entry does not surface the tab when the school keeps everyone
+  // on their own supervisions.
   // STAFF_MAIN_ITEMS already contains /active-supervisions, so only inject
   // when it is missing (i.e. for admin-only users whose baseline is
   // ADMIN_MAIN_ITEMS) to avoid duplicate React keys.
@@ -610,10 +580,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     (item) => item.href === "/active-supervisions",
   );
   const filteredMainItems =
-    hasRole(session, "admin") &&
-    !isLoadingSupervision &&
-    adminOverviewEnabled &&
-    !alreadyHasSupervisionTab
+    !isLoadingSupervision && overviewEnabled && !alreadyHasSupervisionTab
       ? [
           ...baseMain.slice(0, 1),
           {
@@ -664,13 +631,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   );
 
   const filteredAdditionalItems = additionalNavItems.filter((item) => {
-    // Reines Lehrkraft-Konto (#1772): im Overflow bleibt nur die Hilfe —
-    // jede andere Seite würde 403 antworten. (/klassen sitzt dort schon
-    // als Haupt-Tab.)
-    if (lehrkraftOnly) return item.href === "/help";
-    // Dual-Role-Lehrkraft (#1772): Klassenansicht über das Overflow-Menü,
-    // die Haupt-Nav bleibt die Staff-/Admin-Leiste.
-    if (item.href === "/klassen") return hasRole(session, "lehrkraft");
     // Anfragen (#2429): geteilte Regel für beide Reiter, siehe
     // change-request-access.
     if (item.href === "/anfragen") return canOpenRequestsPage(session);

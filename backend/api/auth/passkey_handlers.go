@@ -270,6 +270,9 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 		// Same code as the password path in session_handlers.go — a client
 		// must not have to care which login route produced the 403.
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "use_parent_portal"))
+	case errors.Is(err, authService.ErrMustUseSchoolPortal):
+		// School-portal split (#2207), same reasoning as the parent split.
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "use_school_portal"))
 	case errors.Is(err, authService.ErrPasskeyNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:

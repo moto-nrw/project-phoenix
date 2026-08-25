@@ -28,6 +28,7 @@ var settingsOverridesCmd = &cobra.Command{
 var activationSettingKeys = []string{
 	configModel.KeyAttendanceWebEnabled,
 	configModel.KeyGroupMode,
+	configModel.KeyOperationalOverviewScope,
 	configModel.KeyTimetableShowExpectedChildrenCount,
 	configModel.KeyEnrollmentCollectGradeLevel,
 	configModel.KeyEnrollmentCareOfferingsEnabled,

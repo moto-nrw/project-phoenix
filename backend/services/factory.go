@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -171,6 +172,7 @@ type Factory struct {
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges         enrollment.OfferingChangeRequestService
+	PickupAdjustments       enrollment.PickupAdjustmentService
 	ExcusedRequests         absence.ExcusedAbsenceRequestService
 	StudentStatusDays       *active.StudentStatusDayService
 	AbsenceOverview         *active.StudentStatusDayOverviewService
@@ -200,6 +202,7 @@ type Factory struct {
 	EnrollmentCaptcha         *enrollment.CaptchaService
 	EnrollmentRequest         enrollment.RequestService
 	EnrollmentPhase           enrollment.PhaseService
+	EnrollmentPhaseExpiry     enrollment.PhaseExpiryService
 	EnrollmentDecision        enrollment.DecisionService
 	EnrollmentReport          enrollment.ReportService
 	EnrollmentRollover        enrollment.RolloverService
@@ -284,6 +287,17 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	}
 	if appEnv == "production" && !strings.HasPrefix(parentsURL, "https://") {
 		return nil, fmt.Errorf("PARENTS_URL must use https:// in production (received %q)", rawParentsURL)
+	}
+
+	// School-portal URL (#2207) - used for Lehrkraft invitation links, which
+	// must land on the school portal where the accept flow lives.
+	rawSchoolURL := viper.GetString("school_url")
+	schoolURL := strings.TrimRight(rawSchoolURL, "/")
+	if schoolURL == "" {
+		return nil, fmt.Errorf("SCHOOL_URL is required")
+	}
+	if appEnv == "production" && !strings.HasPrefix(schoolURL, "https://") {
+		return nil, fmt.Errorf("SCHOOL_URL must use https:// in production (received %q)", rawSchoolURL)
 	}
 
 	invitationExpiryHours := viper.GetInt("invitation_token_expiry_hours")
@@ -1157,6 +1171,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, fmt.Errorf("invalid auth service config: %w", err)
 	}
 	authConfig.ParentsURL = parentsURL
+	authConfig.SchoolURL = schoolURL
 	authConfig.Settings = settingsService
 	authService, err := auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
@@ -1219,6 +1234,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       frontendURL,
+		SchoolURL:         schoolURL,
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
 		DB:                db,
@@ -1609,11 +1625,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                              db,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
+	enrollmentPhaseExpiryService := enrollment.NewPhaseExpiryService(repos.PhaseExpiry)
 
 	studentAuditService := users.NewStudentAuditService(
 		repos.StudentFieldEdit,
 		logger.With("service", "student_audit"),
 	)
+	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+		StudentRepo:    repos.Student,
+		PersonRepo:     repos.Person,
+		CareExitRepo:   repos.CareExit,
+		CleanupRepo:    repos.CareExitCleanup,
+		WithdrawalRepo: repos.CareWithdrawal,
+		TagReleaser:    repos.GradeTransition,
+		AuditService:   studentAuditService,
+		LockCareBookingWrites: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
+		},
+		DB:     db,
+		Logger: logger.With("service", "care_lifecycle"),
+	})
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
 	pillEmitter := parentmessaging.NewEmitter(
@@ -1666,6 +1700,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RoleRepo:                 repos.Role,
 		OutboxEnqueuer:           emailOutboxService,
 		StudentAudit:             studentAuditService,
+		CareWithdrawal:           careLifecycleService,
 		Broadcaster:              realtimeHub,
 		PickupGuardianNotifier:   pillEmitter,
 		FrontendURL:              frontendURL,
@@ -1824,21 +1859,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
 
-	// "Betreuung beenden" (#2487): the ONE care-lifecycle contract. Manual
-	// single and batch exits, the archive view, cancellation, resumption and
-	// the effect-day housekeeping all go through it — there must not be a
-	// second way for a child to leave the OGS.
-	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
-		StudentRepo:  repos.Student,
-		PersonRepo:   repos.Person,
-		CareExitRepo: repos.CareExit,
-		CleanupRepo:  repos.CareExitCleanup,
-		TagReleaser:  repos.GradeTransition,
-		AuditService: studentAuditService,
-		DB:           db,
-		Logger:       logger.With("service", "care_lifecycle"),
-	})
-
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "does this caller supervise this child", so it is wired after it.
@@ -1922,6 +1942,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Post-enrollment offering changes (#1665): the parents portal submits them,
 	// staff decide them on the same review page, and an approval applies the
 	// switch through the decision service's dated adjustment path.
+	directOfferingApplier, ok := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
+	if !ok {
+		return nil, fmt.Errorf("enrollment decision service does not implement direct offering adjustment")
+	}
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestService(enrollment.OfferingChangeRequestServiceConfig{
 		ChangeRepo:               repos.OfferingChangeRequest,
 		RequestChildRepo:         repos.RequestChild,
@@ -1935,9 +1959,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		OfferingAdjustmentRepo:   repos.EnrollmentOfferingAdjustment,
 		UserContext:              userContextService,
 		Applier:                  enrollmentDecisionApplier,
+		DirectApplier:            directOfferingApplier,
 		Settings:                 settingsService,
 		Emitter:                  pillEmitter,
 		Logger:                   logger.With("service", "offering-change-requests"),
+	})
+	pickupOfferingCoordinator, ok := offeringChangeRequestService.(enrollment.DirectOfferingAdjustmentCoordinator)
+	if !ok {
+		return nil, fmt.Errorf("offering change service does not implement direct pickup adjustment coordination")
+	}
+	pickupAdjustmentService := enrollment.NewPickupAdjustmentService(enrollment.PickupAdjustmentServiceConfig{
+		PickupSchedules:     pickupScheduleService,
+		ArrivalSchedules:    arrivalScheduleService,
+		PickupScheduleRepo:  repos.StudentPickupSchedule,
+		ArrivalScheduleRepo: repos.StudentArrivalSchedule,
+		PickupBaselines:     pickupBaselines,
+		Offerings:           pickupOfferingCoordinator,
+		Settings:            settingsService,
+		Audit:               studentAuditService,
+		Students:            repos.Student,
+		DB:                  db,
 	})
 
 	// Excused-absence approval requests (#1845): the optional office-approval
@@ -2416,6 +2457,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:            careRequestService,
 		OfferingChanges:         offeringChangeRequestService,
+		PickupAdjustments:       pickupAdjustmentService,
 		ExcusedRequests:         excusedRequestService,
 		StudentStatusDays:       studentStatusDayService,
 		AbsenceOverview:         studentStatusDayOverviewService,
@@ -2437,6 +2479,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentCaptcha:         enrollmentCaptchaService,
 		EnrollmentRequest:         enrollmentRequestService,
 		EnrollmentPhase:           enrollmentPhaseService,
+		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
 		EnrollmentReport:          enrollmentReportService,
 		EnrollmentRollover:        enrollmentRolloverService,
@@ -2453,6 +2496,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, repos.CareWithdrawal)
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

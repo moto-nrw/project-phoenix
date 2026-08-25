@@ -130,6 +130,7 @@ export interface AdminChildDataCorrectionResult extends AdminEnrollmentChangeReq
 export interface UpdateAdminChildOfferingsInput {
   offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   reason: string;
+  completeWithdrawalConfirmed?: boolean;
 }
 
 export interface CorrectAdminChildDataInput {
@@ -606,6 +607,7 @@ export async function updateAdminChildOfferings(
       child_id: childId,
       offerings: input.offerings,
       reason: input.reason,
+      complete_withdrawal_confirmed: input.completeWithdrawalConfirmed === true,
     }),
   });
   if (!response.ok) {

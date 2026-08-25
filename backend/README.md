@@ -34,6 +34,24 @@ Handler -> Service -> Repository -> Database
 Factory pattern for dependency injection:
 `repositories.NewFactory(db)` -> `services.NewFactory(repoFactory, db, logger)`
 
+### Architecture checks
+
+Run these commands from the repository root:
+
+```bash
+scripts/backend-architecture.sh check
+scripts/backend-architecture.sh diagram
+scripts/backend-architecture.sh dependencies
+scripts/backend-architecture.sh dependencies /tmp/schedule.svg './services/schedule/...:module'
+```
+
+`check` validates every production Go package against `.go-arch-lint.yml`.
+It excludes `_test.go` files and fails when a package has no component. The
+diagram command writes the focused layer architecture to SVG. The dependencies
+command writes the actual Linux/amd64 import graph to SVG; its optional third
+argument accepts a Goda expression. Both diagrams default to `/tmp` and are not
+versioned.
+
 ## CLI Commands
 
 ```bash

@@ -15,6 +15,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import {
   type CareExceptionSubmit,
+  type CarePlanWeeklyAdjustment,
   type CarePlanWeeklySubmit,
   CarePlanEditorModal,
 } from "./care-plan-editor-modal";
@@ -48,14 +49,19 @@ import {
   deleteStudentPickupException,
   deleteStudentPickupNote,
   fetchStudentPickupData,
+  applyStudentPickupAdjustment,
+  previewStudentPickupAdjustment,
+  type PickupAdjustmentPayload,
+  type PickupAdjustmentPreview,
   resetStudentPickupToOffering,
   updateStudentPickupException,
   updateStudentPickupNote,
-  updateStudentPickupSchedules,
 } from "~/lib/pickup-schedule-api";
 import {
   type DayData as PickupDayData,
   type PickupData,
+  type PickupSchedule,
+  type PickupScheduleFormData,
   formatPickupTime,
   formatWeekRange,
   getDayData as getPickupDayData,
@@ -80,6 +86,58 @@ const weekMonthFormatter = new Intl.DateTimeFormat("de-DE", {
   year: "numeric",
 });
 const EMPTY_STATUS_DAYS: StudentStatusDay[] = [];
+
+function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
+  return data.arrivalSchedules.map((schedule) => ({
+    weekday: schedule.weekday,
+    expected_arrival: schedule.expected_arrival,
+    notes: schedule.notes ?? null,
+  }));
+}
+
+function weeklyPickupAdjustmentPayload(
+  data: CarePlanWeeklySubmit,
+  adjustment?: CarePlanWeeklyAdjustment,
+  effectiveFrom = formatDateISO(new Date()),
+): PickupAdjustmentPayload {
+  return {
+    schedules: data.pickupSchedules.map((schedule) => ({
+      weekday: schedule.weekday,
+      pickup_time: schedule.pickupTime,
+      ...(schedule.notes ? { notes: schedule.notes } : {}),
+    })),
+    care_days: data.arrivalSchedules.map((schedule) => schedule.weekday),
+    arrival_schedules: weeklyArrivalPayload(data),
+    effective_from: adjustment?.effectiveFrom ?? effectiveFrom,
+    ...(adjustment?.selections ? { selections: adjustment.selections } : {}),
+  };
+}
+
+async function applyWeeklyPickupAdjustment(
+  studentId: string,
+  payload: PickupAdjustmentPayload,
+  adjustment?: CarePlanWeeklyAdjustment,
+): Promise<PickupAdjustmentPreview | undefined> {
+  let preview = adjustment?.preview;
+  if (!preview) {
+    preview = await previewStudentPickupAdjustment(studentId, payload);
+    if (
+      preview.resolution_required ||
+      payload.effective_from > formatDateISO(new Date())
+    ) {
+      return preview;
+    }
+  }
+  await applyStudentPickupAdjustment(studentId, {
+    ...payload,
+    preview_token: preview.preview_token,
+    resolution: adjustment?.resolution ?? "exception",
+    ...(adjustment?.reason ? { reason: adjustment.reason } : {}),
+    ...(adjustment?.completeWithdrawalConfirmed
+      ? { complete_withdrawal_confirmed: true }
+      : {}),
+  });
+}
 
 interface CareScheduleManagerProps {
   readonly studentId: string;
@@ -478,50 +536,56 @@ export function CareScheduleManager({
   }, [isEditorOpen, refreshFromRemote]);
 
   const handleUpdateWeeklyPlan = useCallback(
-    async (data: CarePlanWeeklySubmit) => {
-      // Arrival and pickup are separate endpoints, so one leg can persist while
-      // the other fails. Wait for both, refresh whenever anything landed, and
-      // only then report the failure. Retrying on stale rows would otherwise
-      // resubmit values the server already replaced.
-      const results = await Promise.allSettled([
-        updateArrivalSchedules(
-          studentId,
-          data.arrivalSchedules.map((schedule) => ({
-            weekday: schedule.weekday,
-            expected_arrival: schedule.expected_arrival,
-            notes: schedule.notes ?? null,
-          })),
-        ),
-        updateStudentPickupSchedules(studentId, {
-          schedules: data.pickupSchedules,
-          effectiveDate: formatDateISO(weekDays[0]!),
-        }),
-      ]);
-
-      const failure = results.find(
-        (result): result is PromiseRejectedResult =>
-          result.status === "rejected",
+    async (
+      data: CarePlanWeeklySubmit,
+      adjustment?: CarePlanWeeklyAdjustment,
+    ) => {
+      const pickupChanged = !sameWeeklyPickupSchedules(
+        data.pickupSchedules,
+        pickupData.schedules,
+      );
+      const careDaysChanged = !sameWeekdays(
+        data.arrivalSchedules.map((schedule) => schedule.weekday),
+        arrivalData.schedules.map((schedule) => schedule.weekday),
+      );
+      if (!pickupChanged && !careDaysChanged && !adjustment) {
+        try {
+          await updateArrivalSchedules(studentId, weeklyArrivalPayload(data));
+        } finally {
+          await refreshCareData();
+        }
+        return;
+      }
+      const today = formatDateISO(new Date());
+      const weekStart = formatDateISO(weekDays[0] ?? new Date());
+      const basePayload = weeklyPickupAdjustmentPayload(
+        data,
+        adjustment,
+        weekStart > today ? weekStart : today,
       );
 
-      if (results.some((result) => result.status === "fulfilled")) {
-        try {
-          await refreshCareData();
-          invalidatePickupCaches();
-        } catch (refreshErr) {
-          if (!failure) throw refreshErr;
-          logger.error("care_schedule_partial_weekly_refresh_failed", {
-            error:
-              refreshErr instanceof Error
-                ? refreshErr.message
-                : String(refreshErr),
-            student_id: studentId,
-          });
-        }
+      if (adjustment?.resolution === "offering" && !adjustment.confirm) {
+        return previewStudentPickupAdjustment(studentId, basePayload);
       }
 
-      if (failure) throw failure.reason;
+      try {
+        return await applyWeeklyPickupAdjustment(
+          studentId,
+          basePayload,
+          adjustment,
+        );
+      } finally {
+        await refreshCareData();
+        invalidatePickupCaches();
+      }
     },
-    [studentId, refreshCareData, weekDays],
+    [
+      studentId,
+      refreshCareData,
+      pickupData.schedules,
+      arrivalData.schedules,
+      weekDays,
+    ],
   );
 
   const editingDayDate = editorTarget?.date ?? null;
@@ -758,7 +822,7 @@ export function CareScheduleManager({
   }
 
   return (
-    <section className="moto-content-surface overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
+    <section className="moto-content-surface @container overflow-hidden rounded-xl border border-gray-200 shadow-sm backdrop-blur-md sm:rounded-2xl">
       <div className="border-b border-gray-100 p-4 sm:p-5">
         <ConceptSectionHeader
           title="Betreuungszeiten"
@@ -794,7 +858,7 @@ export function CareScheduleManager({
             </div>
           }
         />
-        <div className="relative mt-4 hidden items-center justify-between gap-2 xl:flex">
+        <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
           <div>
             <WeekNavButton
               ariaLabel="Vorherige Woche"
@@ -830,7 +894,7 @@ export function CareScheduleManager({
       </div>
 
       <div className="p-3 sm:p-4">
-        <div className="xl:hidden">
+        <div className="@4xl:hidden">
           <MobileCareWeek
             days={days}
             weekMonth={weekMonth}
@@ -844,8 +908,8 @@ export function CareScheduleManager({
             onRequestDeleteStatusDay={setStatusDayToDelete}
           />
         </div>
-        <div className="hidden xl:block">
-          <div className="grid gap-3 xl:grid-cols-5">
+        <div className="hidden @4xl:block">
+          <div className="grid grid-cols-5 gap-3">
             {days.map((day) => (
               <CareDayCard
                 key={formatDateISO(day.date)}
@@ -1307,7 +1371,10 @@ function CareBoundaryRow({
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-5 font-semibold text-gray-900">
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker ? (
-              <span className="shrink-0 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm">
+              <span
+                className="max-w-full shrink-0 truncate rounded-full bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-500 shadow-sm"
+                title={boundary.marker}
+              >
                 {boundary.marker}
               </span>
             ) : null}
@@ -1404,7 +1471,47 @@ function getArrivalMarker(day: ArrivalDayData): string | null {
 
 function getPickupMarker(day: PickupDayData): string | null {
   if (day.isException) return "Ausnahme";
+  if (
+    day.baseSchedule?.source !== "care_offering" &&
+    day.offeringSchedule &&
+    day.baseSchedule?.pickupTime !== day.offeringSchedule.pickupTime
+  ) {
+    return day.offeringSchedule.careOfferingName
+      ? `Andere Zeit als im Angebot „${day.offeringSchedule.careOfferingName}“`
+      : "Andere Zeit als im Angebot";
+  }
   return pickupScheduleSourceLabel(day.baseSchedule);
+}
+
+function sameWeekdays(
+  left: readonly number[],
+  right: readonly number[],
+): boolean {
+  const normalize = (values: readonly number[]) =>
+    [...new Set(values)].sort((a, b) => a - b).join(",");
+  return normalize(left) === normalize(right);
+}
+
+function sameWeeklyPickupSchedules(
+  next: readonly PickupScheduleFormData[],
+  current: readonly PickupSchedule[],
+): boolean {
+  const normalize = (
+    rows: ReadonlyArray<{
+      weekday: number;
+      pickupTime: string;
+      notes?: string;
+    }>,
+  ) =>
+    rows
+      .filter((row) => row.pickupTime.trim() !== "")
+      .map((row) => ({
+        weekday: row.weekday,
+        pickupTime: formatPickupTime(row.pickupTime),
+        notes: row.notes?.trim() ?? "",
+      }))
+      .sort((a, b) => a.weekday - b.weekday);
+  return JSON.stringify(normalize(next)) === JSON.stringify(normalize(current));
 }
 
 function getArrivalDescription(day: ArrivalDayData): string | undefined {

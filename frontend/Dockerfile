@@ -3,19 +3,14 @@ FROM node:24-alpine AS base
 
 # Install timezone data and enable corepack for pnpm
 RUN apk add --no-cache tzdata && \
-    corepack enable && corepack prepare pnpm@10 --activate
-
-# Install dependencies needed for all stages
-FROM base AS deps
-WORKDIR /app
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile --prod
+    corepack enable && corepack prepare pnpm@10.34.4 --activate
 
 # Development dependencies
 FROM base AS dev-deps
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile
 
 # Development stage
 FROM base AS development
@@ -49,7 +44,8 @@ COPY . .
 # build-time validation would require baking runtime secrets into the image.
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN SKIP_ENV_VALIDATION=true pnpm run build
+RUN --mount=type=cache,target=/app/.next/cache \
+    SKIP_ENV_VALIDATION=true pnpm run build
 
 # Production stage - minimal image
 FROM base AS production

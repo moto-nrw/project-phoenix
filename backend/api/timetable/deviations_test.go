@@ -453,6 +453,102 @@ func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
 	assert.True(t, rowXAfter.IsSubstitute, "row stays a substitute row")
 }
 
+// A person can hold different roles on the same day: an obsolete, absent
+// substitute row on a fully staffed block and an absent planned row elsewhere.
+// One atomic save must remove only the substitute assignment and restore the
+// planned assignment. Otherwise the presence write overstaffs the first block,
+// while the old removal planner rejects the absent substitute row (#2577).
+func TestApplyDeviations_RemoveAbsentSubstituteAndRestorePlannedAssignment(t *testing.T) {
+	t.Parallel()
+
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	fullyStaffed := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "Fully staffed", StartHHMM: "08:00", EndHHMM: "09:00",
+	})
+	plannedElsewhere := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "Planned elsewhere", StartHHMM: "10:00", EndHHMM: "11:00",
+	})
+	untouchedElsewhere := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "Untouched elsewhere", StartHHMM: "12:00", EndHHMM: "13:00",
+	})
+
+	testpkg.CreateTestInstanceStaff(t, s.db, fullyStaffed.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	testpkg.CreateTestInstanceStaff(t, s.db, fullyStaffed.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	obsoleteSub := testpkg.CreateTestInstanceStaff(t, s.db, fullyStaffed.ID, s.staffX, testpkg.InstanceStaffOpts{
+		IsSubstitute: true, IsAbsent: true,
+	})
+	plannedRow := testpkg.CreateTestInstanceStaff(t, s.db, plannedElsewhere.ID, s.staffX, testpkg.InstanceStaffOpts{
+		IsAbsent: true,
+	})
+	untouchedRow := testpkg.CreateTestInstanceStaff(t, s.db, untouchedElsewhere.ID, s.staffX, testpkg.InstanceStaffOpts{
+		IsSubstitute: true, IsAbsent: true,
+	})
+
+	w := doDev(t, router, fullyStaffed.ID, map[string]any{
+		"presences": []map[string]any{{
+			"staff_id": s.staffX, "instance_ids": []int64{fullyStaffed.ID, plannedElsewhere.ID},
+		}},
+		"substitution_removals": []map[string]any{{
+			"staff_id": s.staffX, "instance_ids": []int64{fullyStaffed.ID},
+		}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	fullyStaffedRows := devInstanceStaff(t, s.db, s.ctx, fullyStaffed.ID)
+	require.Len(t, fullyStaffedRows, 2, "the obsolete substitute row must be deleted")
+	assert.NotContains(t, []int64{fullyStaffedRows[0].ID, fullyStaffedRows[1].ID}, obsoleteSub.ID)
+
+	plannedAfter := readInstanceStaff(t, s.db, s.ctx, plannedRow.ID)
+	assert.False(t, plannedAfter.IsAbsent, "the planned assignment elsewhere must be restored")
+	untouchedAfter := readInstanceStaff(t, s.db, s.ctx, untouchedRow.ID)
+	assert.True(t, untouchedAfter.IsSubstitute, "an unrelated substitute role must remain unchanged")
+	assert.True(t, untouchedAfter.IsAbsent, "an unrelated absence must remain unchanged")
+
+	removedEvents := loadEventsForInstance(t, s.db, s.ctx, fullyStaffed.ID)
+	require.Len(t, removedEvents, 1)
+	assert.Equal(t, "substitute_removed", removedEvents[0].EventType)
+	assert.JSONEq(t, `{"is_absent":true,"is_substitute":true}`, string(removedEvents[0].OldValue))
+
+	restoredEvents := loadEventsForInstance(t, s.db, s.ctx, plannedElsewhere.ID)
+	require.Len(t, restoredEvents, 1)
+	assert.Equal(t, "return_to_presence", restoredEvents[0].EventType)
+}
+
+// Restoring planned staff while an active substitute already fills the gap is
+// genuine overstaffing. The request must fail before writing any co-payload
+// deviation, including one aimed at another appointment (#2577).
+func TestApplyDeviations_RestorePlannedStaffOverActiveSubstitute_NoPartialWrites(t *testing.T) {
+	t.Parallel()
+
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	covered := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "Covered", StartHHMM: "08:00", EndHHMM: "09:00",
+	})
+	other := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "Other", StartHHMM: "10:00", EndHHMM: "11:00",
+	})
+	plannedRow := testpkg.CreateTestInstanceStaff(t, s.db, covered.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	substituteRow := testpkg.CreateTestInstanceStaff(t, s.db, covered.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	otherRow := testpkg.CreateTestInstanceStaff(t, s.db, other.ID, s.staffB, testpkg.InstanceStaffOpts{})
+
+	w := doDev(t, router, covered.ID, map[string]any{
+		"presences": []map[string]any{{"staff_id": s.staffA, "instance_ids": []int64{covered.ID}}},
+		"absences":  []map[string]any{{"staff_id": s.staffB, "instance_ids": []int64{other.ID}}},
+	})
+	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "presence_would_overstaff")
+
+	assert.True(t, readInstanceStaff(t, s.db, s.ctx, plannedRow.ID).IsAbsent, "planned staff must remain absent")
+	assert.False(t, readInstanceStaff(t, s.db, s.ctx, substituteRow.ID).IsAbsent, "active substitute must remain present")
+	assert.False(t, readInstanceStaff(t, s.db, s.ctx, otherRow.ID).IsAbsent, "co-payload absence must not be written")
+}
+
 // Two absent planned staff on one block, two DISTINCT replacements, one atomic
 // save. The only DB constraint is UNIQUE(instance_id, staff_id) and the
 // sequential /substitute path already produces exactly this, so the atomic path
@@ -622,7 +718,7 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 
 	w := doAck(t, router, inst.ID, map[string]any{"ack": true})
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
-	assert.Contains(t, w.Body.String(), "past")
+	assert.Contains(t, w.Body.String(), "Vergangenheit")
 	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
 		"a past block's acknowledgement must not be written")
 }

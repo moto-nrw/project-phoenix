@@ -160,19 +160,29 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	// --- Admin Supervision Overview ---
+	// --- Schulweite Sicht auf alle laufenden Räume (#2380) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyAdminSupervisionOverview,
-		Label:           "Administrator-Aufsichtsübersicht",
-		Description:     "Administratoren können alle aktiven Aufsichten und anwesende Kinder einsehen",
-		Type:            config.FieldBoolean,
-		Default:         false,
+		Key:   config.KeyOperationalOverviewScope,
+		Label: "Sicht auf alle Räume",
+		Description: "Legt fest, wer in der Aktuellen Aufsicht alle Räume der Schule sieht. " +
+			"Ohne Freigabe sieht jede Person nur ihre eigenen Räume. " +
+			"Die Freigabe gibt keine neuen Rechte. " +
+			"Wer etwas sonst nicht darf, darf es auch hier nicht.",
+		Type:            config.FieldSelect,
+		Default:         config.OverviewScopeOwn,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",
 		Category:        "aufsicht",
 		SortOrder:       1,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nur eigene Räume", Value: config.OverviewScopeOwn},
+				{Label: "Alle Räume für Administratoren", Value: config.OverviewScopeAdmins},
+				{Label: "Alle Räume für alle Mitarbeitenden", Value: config.OverviewScopeAllStaff},
+			},
+		},
 	})
 
 	// --- Zeiterfassung ---
@@ -379,9 +389,10 @@ func init() {
 	// --- Organisationsmodell (setup-level decisions) ---
 
 	config.Register(config.Definition{
-		Key:             config.KeyGroupMode,
-		Label:           "Arbeit mit festen Gruppen",
-		Description:     "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten.",
+		Key:   config.KeyGroupMode,
+		Label: "Arbeit mit festen Gruppen",
+		Description: "Legt fest, ob Kinder im Alltag festen OGS-Gruppen zugeordnet sind oder ob alle berechtigten Mitarbeitenden mit allen Kindern arbeiten. " +
+			"Diese Einstellung beschreibt nur die Organisation. Wer welche Räume in der Aktuellen Aufsicht sieht, steht unter \"Sicht auf alle Räume\".",
 		Type:            config.FieldSelect,
 		Default:         config.GroupModeFixedGroups,
 		ReadPermission:  "config:read",
@@ -469,6 +480,20 @@ func init() {
 		// matches the visible "Kinder" copy throughout the photo feature.
 		Category:  "kinder",
 		SortOrder: 50,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyRequirePickupOfferingReview,
+		Label:           "Angebotsabgleich für dauerhafte Gehzeiten",
+		Description:     "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "betreuungszeiten",
+		SortOrder:       1,
+		AccessPolicy:    config.AccessShared,
 	})
 
 	// --- Geburtstage (#1542) ---

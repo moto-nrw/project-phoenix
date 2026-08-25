@@ -245,15 +245,14 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// One batch query for every setting this handler and its downstream
 	// helpers (DetermineStudentAccess included) resolve (issue #2065).
 	r = r.WithContext(common.PrefetchSettings(r.Context(), rs.SettingsService,
-		configModel.KeyAdminSupervisionOverview,
-		configModel.KeyGroupMode,
+		configModel.KeyOperationalOverviewScope,
 		configModel.KeyStudentPhotosEnabled,
 	))
 
-	// Admin overview and open-care both broaden the operational room scope.
+	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
-	// never broadened by group mode.
-	if !rs.isAdminWithSupervisionOverview(r) && !rs.openCareMode(r.Context()) {
+	// never broadened by it.
+	if !rs.operationalOverview(r.Context()) {
 		staff, err := rs.extractStaffFromRequest(w, r)
 		if err != nil {
 			return
@@ -335,23 +334,6 @@ func (rs *Resource) verifyStaffSupervisionAccess(w http.ResponseWriter, r *http.
 	}
 
 	return nil
-}
-
-// isAdminWithSupervisionOverview checks if the current user is an admin with the
-// admin_supervision_overview setting enabled for this tenant.
-func (rs *Resource) isAdminWithSupervisionOverview(r *http.Request) bool {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if !claims.IsAdmin {
-		return false
-	}
-	if rs.SettingsService == nil {
-		return false
-	}
-	enabled, err := rs.SettingsService.ResolveBool(r.Context(), configModel.KeyAdminSupervisionOverview)
-	if err != nil {
-		return false
-	}
-	return enabled
 }
 
 // visitWithStudent aliases the repository read model (issue #584: the JOIN

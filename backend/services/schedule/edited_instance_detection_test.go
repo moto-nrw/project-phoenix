@@ -11,7 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
-// diffOccurrence is pure (no DB), so its truth table is exhaustively
+// diffOccurrenceWithExpectedStudents is pure (no DB), so its truth table is exhaustively
 // unit-testable. `expected` models what the template would materialize on the
 // occurrence's date (computed date-/exception-aware by expectedSlotsOn). IDs are
 // multi-digit throwaway values (never DB rows) to stay clear of the hermetic-ID
@@ -100,10 +100,13 @@ func edDiff(
 	students []*scheduleModel.InstanceStudent,
 	expected []materialParams,
 ) []string {
-	return diffOccurrence(
+	expectedStudentIDs := expectedStudentIDsOn(
+		edEnrollments(), nil, nil, inst.Date, calendarPeriodID(inst),
+	)
+	return diffOccurrenceWithExpectedStudents(
 		inst,
 		edTitle,
-		edEnrollments(),
+		expectedStudentIDs,
 		edSupervisors(),
 		staff,
 		students,

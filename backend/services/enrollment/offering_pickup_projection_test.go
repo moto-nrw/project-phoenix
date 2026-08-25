@@ -15,6 +15,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -55,7 +56,7 @@ func projectedPickupReader(env *decisionTestEnv) scheduleService.PickupScheduleS
 		env.repos.Student,
 		env.repos.Person,
 		nil,
-		scheduleService.NewPickupBaselineService(
+		scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			env.repos.RequestChildOffering,
 			env.repos.CareOffering,

@@ -80,32 +80,23 @@ export function isAdmin(session: Session | null): boolean {
 }
 
 /**
+ * Check whether the session has the effective admin scope used by backend
+ * authorization: the literal admin role or a system-wide admin wildcard.
+ */
+export function hasEffectiveAdminScope(session: Session | null): boolean {
+  return (
+    isAdmin(session) ||
+    session?.user?.permissions?.some(
+      (permission) => permission === "admin:*" || permission === "*:*",
+    ) === true
+  );
+}
+
+/**
  * Check if the user can access caregiver workflows.
  */
 export function isCaregiver(session: Session | null): boolean {
   return hasAnyRole(session, ["user", "teacher"]);
-}
-
-/**
- * A pure Lehrkraft account (#1772): holds the lehrkraft role and NOTHING that
- * unlocks other areas — no caregiver flows (user/teacher), no admin, and no
- * guest role (guests keep their own visible pages, e.g. Kindersuche). The one
- * shared definition for sidebar, mobile nav, header badge, and the login
- * redirect; do not re-derive it inline.
- */
-export function rolesIndicateLehrkraftOnly(roles: readonly string[]): boolean {
-  const held = new Set(roles.map((role) => role.toLowerCase()));
-  return (
-    held.has("lehrkraft") &&
-    !held.has("user") &&
-    !held.has("teacher") &&
-    !held.has("admin") &&
-    !held.has("guest")
-  );
-}
-
-export function isLehrkraftOnly(session: Session | null): boolean {
-  return rolesIndicateLehrkraftOnly(session?.user?.roles ?? []);
 }
 
 /**

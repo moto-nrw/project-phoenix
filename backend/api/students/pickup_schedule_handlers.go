@@ -97,8 +97,9 @@ type BulkPickupScheduleRequest struct {
 }
 
 type BulkPickupSchedulePatchRequest struct {
-	StudentIDs []int64                               `json:"student_ids"`
-	Schedules  []scheduleService.PickupScheduleInput `json:"schedules"`
+	StudentIDs         []int64                               `json:"student_ids"`
+	Schedules          []scheduleService.PickupScheduleInput `json:"schedules"`
+	ConfirmedException bool                                  `json:"confirmed_exception"`
 }
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
@@ -504,7 +505,6 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
@@ -562,19 +562,29 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
+	if rs.PickupAdjustmentService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("pickup adjustment service not configured")))
+		return
+	}
 	permissions := jwt.PermissionsFromCtx(r.Context())
-	result, err := rs.PickupScheduleService.BulkUpsertPickupSchedules(
-		r.Context(),
-		scheduleService.ArrivalScheduleBulkFilter{
-			StudentIDs: req.StudentIDs,
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.PickupAdjustmentService.ApplyBulkExceptions(
+		r.Context(), enrollmentService.PickupAdjustmentBulkInput{
+			StudentIDs: req.StudentIDs, Schedules: req.Schedules,
+			ConfirmedException: req.ConfirmedException, CreatedByStaffID: staffID,
+			ActorAccountID: int64(claims.ID),
 			Authorize: func(ctx context.Context, student *users.Student) (bool, error) {
 				return canUpdateStudent(ctx, permissions, student, rs.UserContextService)
 			},
 		},
-		req.Schedules,
-		staffID,
 	)
 	if err != nil {
+		if errors.Is(err, enrollmentService.ErrPickupAdjustmentBulkConfirmation) {
+			renderError(w, r, common.ErrorInvalidRequestWithCode(
+				err, "pickup.bulk_exception_confirmation_required",
+			))
+			return
+		}
 		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return

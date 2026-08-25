@@ -7,6 +7,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { PickupAdjustmentDecision } from "./pickup-adjustment-decision";
 import { useToast } from "~/contexts/ToastContext";
 import {
   type ArrivalDayData,
@@ -20,10 +21,16 @@ import type {
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
 import {
+  formatDateISO,
   formatPickupTime,
   pickupScheduleSourceLabel,
 } from "~/lib/pickup-schedule-helpers";
 import type { CareDaysSource } from "~/lib/student-arrival-api";
+import type {
+  PickupAdjustmentPreview,
+  PickupAdjustmentResolution,
+  PickupAdjustmentSelection,
+} from "~/lib/pickup-schedule-api";
 
 /**
  * The care plan is edited through exactly two doors, and each one owns one kind
@@ -58,6 +65,17 @@ export interface CarePlanWeeklySubmit {
   readonly pickupSchedules: PickupScheduleFormData[];
 }
 
+export interface CarePlanWeeklyAdjustment {
+  readonly resolution: PickupAdjustmentResolution;
+  readonly preview: PickupAdjustmentPreview;
+  readonly selections?: PickupAdjustmentSelection[];
+  readonly effectiveFrom?: string;
+  readonly reason?: string;
+  /** false refreshes the offering consequences; true performs the write. */
+  readonly confirm: boolean;
+  readonly completeWithdrawalConfirmed?: boolean;
+}
+
 interface CarePlanEditorModalProps {
   readonly isOpen: boolean;
   readonly careDaysSource: CareDaysSource;
@@ -69,7 +87,10 @@ interface CarePlanEditorModalProps {
   readonly weeklyArrival: ArrivalScheduleFormEntry[];
   readonly weeklyPickup: PickupScheduleFormData[];
   readonly onSubmitException: (payload: CareExceptionSubmit) => Promise<void>;
-  readonly onSubmitWeekly: (payload: CarePlanWeeklySubmit) => Promise<void>;
+  readonly onSubmitWeekly: (
+    payload: CarePlanWeeklySubmit,
+    adjustment?: CarePlanWeeklyAdjustment,
+  ) => Promise<PickupAdjustmentPreview | void>;
   /** Setzt die reguläre Gehzeit des Wochentags auf die Angebots-Gehzeit
    * zurück (#2290); nur angeboten, wenn der Tag von Hand gepflegt ist. */
   readonly onResetPickupToOffering?: (
@@ -152,8 +173,23 @@ export function CarePlanEditorModal({
   const [error, setError] = useState<string | null>(null);
   const [showRemovalConfirm, setShowRemovalConfirm] = useState(false);
   const [showParentConfirm, setShowParentConfirm] = useState(false);
+  const [weeklyAdjustment, setWeeklyAdjustment] =
+    useState<PickupAdjustmentPreview | null>(null);
+  const [offeringSelections, setOfferingSelections] = useState<
+    PickupAdjustmentSelection[]
+  >([]);
+  const [offeringEffectiveFrom, setOfferingEffectiveFrom] = useState("");
+  const [offeringReason, setOfferingReason] = useState("");
+  const [offeringConfirmed, setOfferingConfirmed] = useState(false);
+  const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(
+    null,
+  );
   const initializedExceptionKey = useRef<string | null>(null);
   const initializedWeeklyEditor = useRef(false);
+  const offeringPreviewRequestId = useRef(0);
+  const weeklyExceptionPreview = useRef<PickupAdjustmentPreview | null>(null);
+  const decisionHeadingRef = useRef<HTMLHeadingElement>(null);
+  const decisionWasVisible = useRef(false);
   // The form steps aside while the confirmation is up so the two dialogs never
   // stack. Kept out of `isOpen` on purpose: the reset effect keys on `isOpen`,
   // so toggling this preserves what the user typed.
@@ -172,6 +208,14 @@ export function CarePlanEditorModal({
     setError(null);
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
+    setWeeklyAdjustment(null);
+    weeklyExceptionPreview.current = null;
+    setSelectedOfferingId(null);
+    offeringPreviewRequestId.current++;
+    setOfferingSelections([]);
+    setOfferingEffectiveFrom("");
+    setOfferingReason("");
+    setOfferingConfirmed(false);
     setFormVisible(true);
 
     const arrivalInit = arrivalInitialState(arrivalDay);
@@ -196,6 +240,14 @@ export function CarePlanEditorModal({
     setError(null);
     setShowRemovalConfirm(false);
     setShowParentConfirm(false);
+    setWeeklyAdjustment(null);
+    weeklyExceptionPreview.current = null;
+    setSelectedOfferingId(null);
+    offeringPreviewRequestId.current++;
+    setOfferingSelections([]);
+    setOfferingEffectiveFrom("");
+    setOfferingReason("");
+    setOfferingConfirmed(false);
     setFormVisible(true);
 
     const rows = buildWeeklyRows(weeklyArrival, weeklyPickup);
@@ -208,6 +260,13 @@ export function CarePlanEditorModal({
       ),
     );
   }, [isOpen, isException, weeklyArrival, weeklyPickup]);
+
+  useEffect(() => {
+    if (weeklyAdjustment && !decisionWasVisible.current) {
+      decisionHeadingRef.current?.focus();
+    }
+    decisionWasVisible.current = weeklyAdjustment !== null;
+  }, [weeklyAdjustment]);
 
   if (!isOpen) return null;
 
@@ -247,6 +306,7 @@ export function CarePlanEditorModal({
     setError(null);
 
     if (!isException) {
+      if (weeklyAdjustment) return;
       const invalidWeekly = validateWeeklyRows(weeklyRows);
       if (invalidWeekly) {
         setError(invalidWeekly);
@@ -319,7 +379,14 @@ export function CarePlanEditorModal({
     setIsSubmitting(true);
     try {
       if (!isException) {
-        await onSubmitWeekly(toWeeklySubmit(weeklyRows));
+        const adjustment = await onSubmitWeekly(toWeeklySubmit(weeklyRows));
+        if (adjustment) {
+          weeklyExceptionPreview.current = adjustment;
+          setWeeklyAdjustment(adjustment);
+          setOfferingEffectiveFrom(adjustment.effective_from);
+          setOfferingConfirmed(false);
+          return;
+        }
         toast.success("Wochenplan wurde gespeichert");
       } else {
         await onSubmitException({
@@ -347,13 +414,177 @@ export function CarePlanEditorModal({
         : raw;
       setError(message);
       toast.error(message);
+      offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
+      setWeeklyAdjustment(null);
+      setOfferingSelections([]);
+      setSelectedOfferingId(null);
+      setOfferingConfirmed(false);
       cancelConfirm();
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const footer = (
+  const saveWeeklyException = async () => {
+    const preview = weeklyExceptionPreview.current;
+    if (!preview) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
+        resolution: "exception",
+        preview,
+        reason: offeringReason,
+        confirm: true,
+      });
+      toast.success("Dauerhafte Ausnahme wurde gespeichert");
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Dauerhafte Ausnahme konnte nicht gespeichert werden";
+      setError(message);
+      toast.error(message);
+      offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
+      setWeeklyAdjustment(null);
+      setOfferingSelections([]);
+      setSelectedOfferingId(null);
+      setOfferingConfirmed(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const previewMatchingOffering = async (
+    offeringId: string,
+    effectiveFrom = offeringEffectiveFrom,
+  ) => {
+    if (!weeklyAdjustment?.offering_catalog) return;
+    const match = weeklyAdjustment.matching_offerings.find(
+      (item) => item.offering_id === offeringId,
+    );
+    const target = weeklyAdjustment.offering_catalog.items.find(
+      (item) => item.offering_id === offeringId,
+    );
+    if (!match || !target) return;
+    const selections = match.selections;
+    const requestId = ++offeringPreviewRequestId.current;
+    setSelectedOfferingId(null);
+    setOfferingSelections([]);
+    setOfferingConfirmed(false);
+
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const preview = await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
+        resolution: "offering",
+        preview: weeklyAdjustment,
+        selections,
+        effectiveFrom,
+        reason: offeringReason,
+        confirm: false,
+      });
+      if (!preview) {
+        throw new Error("Die Angebotsänderung konnte nicht geprüft werden.");
+      }
+      if (requestId !== offeringPreviewRequestId.current) return;
+      if (
+        !preview.matching_offerings.some(
+          (item) => item.offering_id === offeringId,
+        )
+      ) {
+        setWeeklyAdjustment(preview);
+        return;
+      }
+      const refreshedTarget = preview.offering_catalog?.items.find(
+        (item) => item.offering_id === offeringId,
+      );
+      if (
+        refreshedTarget &&
+        !refreshedTarget.selected &&
+        refreshedTarget.capacity !== undefined &&
+        refreshedTarget.free_slots === 0
+      ) {
+        throw new Error("Dieses Angebot hat keinen freien Platz mehr.");
+      }
+      setOfferingSelections(selections);
+      setWeeklyAdjustment(preview);
+      setSelectedOfferingId(offeringId);
+      setOfferingConfirmed(false);
+    } catch (err) {
+      if (requestId !== offeringPreviewRequestId.current) return;
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Angebot konnte nicht geprüft werden";
+      setError(message);
+      toast.error(message);
+      setOfferingSelections([]);
+      setSelectedOfferingId(null);
+      setOfferingConfirmed(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const saveMatchingOffering = async () => {
+    if (!weeklyAdjustment || !offeringConfirmed) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await onSubmitWeekly(toWeeklySubmit(weeklyRows), {
+        resolution: "offering",
+        preview: weeklyAdjustment,
+        selections: offeringSelections,
+        effectiveFrom: offeringEffectiveFrom,
+        reason: offeringReason,
+        confirm: true,
+        completeWithdrawalConfirmed: offeringRemovesAllCareDays(
+          weeklyAdjustment,
+          offeringSelections,
+        ),
+      });
+      toast.success("Angebot und Wochenplan wurden geändert");
+      onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Angebot konnte nicht geändert werden";
+      setError(message);
+      toast.error(message);
+      offeringPreviewRequestId.current++;
+      weeklyExceptionPreview.current = null;
+      setWeeklyAdjustment(null);
+      setOfferingSelections([]);
+      setSelectedOfferingId(null);
+      setOfferingConfirmed(false);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const footer = weeklyAdjustment ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={() => {
+        offeringPreviewRequestId.current++;
+        weeklyExceptionPreview.current = null;
+        setWeeklyAdjustment(null);
+        setOfferingSelections([]);
+        setOfferingConfirmed(false);
+        setSelectedOfferingId(null);
+      }}
+      disabled={isSubmitting}
+    >
+      Zurück zum Wochenplan
+    </Button>
+  ) : (
     <>
       <Button
         type="button"
@@ -517,6 +748,33 @@ export function CarePlanEditorModal({
                 onError={handleNoteError}
               />
             </>
+          ) : weeklyAdjustment ? (
+            <PickupAdjustmentDecision
+              preview={weeklyAdjustment}
+              headingRef={decisionHeadingRef}
+              reason={offeringReason}
+              selectedOfferingId={selectedOfferingId}
+              effectiveFrom={offeringEffectiveFrom}
+              canSaveException={
+                offeringEffectiveFrom <= formatDateISO(new Date())
+              }
+              confirmed={offeringConfirmed}
+              busy={isSubmitting}
+              onReasonChange={setOfferingReason}
+              onSelectOffering={(offeringId) =>
+                void previewMatchingOffering(offeringId)
+              }
+              onEffectiveFromChange={(value) => {
+                setOfferingEffectiveFrom(value);
+                setOfferingConfirmed(false);
+                if (selectedOfferingId) {
+                  void previewMatchingOffering(selectedOfferingId, value);
+                }
+              }}
+              onConfirmedChange={setOfferingConfirmed}
+              onSaveOffering={() => void saveMatchingOffering()}
+              onSaveException={() => void saveWeeklyException()}
+            />
           ) : (
             <WeeklySection
               rows={weeklyRows}
@@ -600,6 +858,23 @@ export function CarePlanEditorModal({
         </div>
       </ConfirmationModal>
     </>
+  );
+}
+
+function offeringRemovesAllCareDays(
+  preview: PickupAdjustmentPreview,
+  selections: PickupAdjustmentSelection[],
+) {
+  if (!preview.offering_catalog) return false;
+  const selected = new Map(
+    selections.map((selection) => [selection.offering_id, selection]),
+  );
+  return !preview.offering_catalog.items.some(
+    (item) =>
+      item.counts_as_care &&
+      (item.days_of_week_mode === "fixed"
+        ? selected.has(item.offering_id) && item.available_days.length > 0
+        : (selected.get(item.offering_id)?.selected_days.length ?? 0) > 0),
   );
 }
 

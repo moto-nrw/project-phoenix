@@ -481,6 +481,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isPrimary: s.is_primary,
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
+    isSickAbsence: s.is_sick_absence === true,
     absenceReason: s.absence_reason ?? undefined,
   }));
   const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({

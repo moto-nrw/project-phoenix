@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,14 +29,15 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 	repos := repositories.NewFactory(tc.db)
 	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
 		userService.CareLifecycleDependencies{
-			StudentRepo:  repos.Student,
-			PersonRepo:   repos.Person,
-			CareExitRepo: repos.CareExit,
-			CleanupRepo:  repos.CareExitCleanup,
-			TagReleaser:  repos.GradeTransition,
-			AuditService: userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
-			DB:           tc.db,
-			Logger:       slog.Default(),
+			StudentRepo:    repos.Student,
+			PersonRepo:     repos.Person,
+			CareExitRepo:   repos.CareExit,
+			CleanupRepo:    repos.CareExitCleanup,
+			WithdrawalRepo: repos.CareWithdrawal,
+			TagReleaser:    repos.GradeTransition,
+			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+			DB:             tc.db,
+			Logger:         slog.Default(),
 		})
 }
 
@@ -56,7 +58,7 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 
 	// users:update is the permission the ordinary child edit needs. It is
 	// deliberately NOT enough to end a care relationship.
-	for _, path := range []string{"/care-end/preview", "/care-end", "/care-end/cancel"} {
+	for _, path := range []string{"/care-end/preview", "/care-end", "/care-end/cancel", "/care-withdrawals/1/care-end/preview", "/care-withdrawals/1/care-end"} {
 		request := testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body)
 		response := authExec(t, tc, request, claims, []string{"users:update"})
 		assert.Equal(t, http.StatusForbidden, response.Code,
@@ -67,6 +69,81 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 	archiveResponse := authExec(t, tc, archiveRequest, claims, []string{"users:update"})
 	assert.Equal(t, http.StatusForbidden, archiveResponse.Code,
 		"the archive carries the exit reason and is gated with it")
+}
+
+func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
+	repos := repositories.NewFactory(tc.db)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-list@example.com")
+	studentID := student.ID
+	require.NoError(t, repos.CareWithdrawal.UpsertPending(testpkg.Ctx(t), &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: actor.CreatedAt,
+	}))
+	claims := testutil.AdminTestClaims(int(actor.ID))
+
+	for _, path := range []string{"/care-withdrawals", fmt.Sprintf("/care-withdrawals?student_id=%d", student.ID)} {
+		forbidden := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), claims, []string{"users:update"})
+		assert.Equal(t, http.StatusForbidden, forbidden.Code)
+		allowed := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, path, nil), claims, []string{"users:delete"})
+		require.Equal(t, http.StatusOK, allowed.Code, "Body: %s", allowed.Body.String())
+		assert.Contains(t, allowed.Body.String(), "overdue")
+	}
+	invalid := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodGet, "/care-withdrawals?student_id=invalid", nil), claims, []string{"users:delete"})
+	assert.Equal(t, http.StatusBadRequest, invalid.Code)
+}
+
+func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	wireCareLifecycle(t, tc)
+	repos := repositories.NewFactory(tc.db)
+	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
+	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
+	studentID := student.ID
+	completion := &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate().AddDays(1),
+		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
+		WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}
+	require.NoError(t, repos.CareWithdrawal.UpsertPending(testpkg.Ctx(t), completion))
+	claims := testutil.AdminTestClaims(int(actor.ID))
+	body := map[string]any{
+		"last_care_day": timezone.TodayDate().String(),
+		"reason":        userModels.CareExitReasonNoCareNeed,
+	}
+	previewRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/care-withdrawals/%d/care-end/preview", completion.ID), body,
+	)
+	previewResponse := authExec(t, tc, previewRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusOK, previewResponse.Code, "Body: %s", previewResponse.Body.String())
+	var preview struct {
+		Data struct {
+			Token  string `json:"token"`
+			Reason string `json:"reason"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(previewResponse.Body.Bytes(), &preview))
+	require.NotEmpty(t, preview.Data.Token)
+	assert.Equal(t, userModels.CareExitReasonNoCareNeed, preview.Data.Reason)
+	body["token"] = preview.Data.Token
+
+	confirmRequest := testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/care-withdrawals/%d/care-end", completion.ID), body,
+	)
+	confirmResponse := authExec(t, tc, confirmRequest, claims, []string{"users:delete"})
+	require.Equal(t, http.StatusOK, confirmResponse.Code, "Body: %s", confirmResponse.Body.String())
+	pending, _, err := repos.CareWithdrawal.ListPending(testpkg.Ctx(t), userModels.CareWithdrawalCompletionFilter{StudentID: student.ID, Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	assert.Empty(t, pending)
+	resolved, err := repos.CareWithdrawal.FindByID(testpkg.Ctx(t), completion.ID)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	assert.Equal(t, userModels.CareWithdrawalStateResolved, resolved.State)
 }
 
 func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {

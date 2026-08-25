@@ -79,6 +79,7 @@ type ResourceConfig struct {
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
 	OfferingChangeService   enrollmentService.OfferingChangeRequestService
+	PickupAdjustmentService enrollmentService.PickupAdjustmentService
 	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
@@ -238,6 +239,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/preview", rs.previewCareExit)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end", rs.confirmCareExit)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-end/cancel", rs.cancelCareExit)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/care-withdrawals", rs.listCareWithdrawals)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end/preview", rs.previewWithdrawalCareEnd)
+		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/care-withdrawals/{completionId}/care-end", rs.confirmWithdrawalCareEnd)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Post("/{id}/care-end/resume", rs.resumeCare)
 		r.With(authorize.RequiresPermission(permissions.UsersDelete), withTx).Get("/ended-care", rs.listEndedCare)
 
@@ -264,6 +268,8 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/partial-absences", rs.getStudentPartialAbsences)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-schedules", rs.updateStudentPickupSchedules)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/preview", rs.previewStudentPickupAdjustment)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/apply", rs.applyStudentPickupAdjustment)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-schedules/reset-offering", rs.resetStudentPickupToOffering)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/pickup-schedules/bulk", rs.bulkUpsertPickupSchedules)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/{id}/pickup-exceptions", rs.createStudentPickupException)

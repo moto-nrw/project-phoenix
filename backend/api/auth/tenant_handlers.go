@@ -89,26 +89,27 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &TenantResolveResponse{
-		TenantID:               school.ID,
-		Slug:                   school.Slug,
-		Name:                   school.Name,
-		Subdomain:              school.Subdomain,
-		OrganizationID:         school.OrganizationID,
-		OrganizationName:       orgName,
-		Hidden:                 school.Hidden,
-		Settings:               settings,
-		PresenceMode:           resolved.presenceMode,
-		StudentPhotosEnabled:   resolved.studentPhotosEnabled,
-		NFCEnabled:             resolved.nfcEnabled,
-		ParentMessagingEnabled: resolved.parentMessagingEnabled,
-		DisplayEnabled:         resolved.displayEnabled,
-		GradeLevelMax:          gradeLevelMax,
-		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
-		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
-		AttendanceLogEnabled:   resolved.attendanceLogEnabled,
-		GroupMode:              resolved.groupMode,
-		ShowTimetableCounts:    resolved.showTimetableCounts,
-		WaitlistEnabled:        resolved.waitlistEnabled,
+		TenantID:                 school.ID,
+		Slug:                     school.Slug,
+		Name:                     school.Name,
+		Subdomain:                school.Subdomain,
+		OrganizationID:           school.OrganizationID,
+		OrganizationName:         orgName,
+		Hidden:                   school.Hidden,
+		Settings:                 settings,
+		PresenceMode:             resolved.presenceMode,
+		StudentPhotosEnabled:     resolved.studentPhotosEnabled,
+		NFCEnabled:               resolved.nfcEnabled,
+		ParentMessagingEnabled:   resolved.parentMessagingEnabled,
+		DisplayEnabled:           resolved.displayEnabled,
+		GradeLevelMax:            gradeLevelMax,
+		CareOfferingsEnabled:     resolved.careOfferingsEnabled,
+		AttendanceWebEnabled:     resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:     resolved.attendanceLogEnabled,
+		GroupMode:                resolved.groupMode,
+		OperationalOverviewScope: resolved.overviewScope,
+		ShowTimetableCounts:      resolved.showTimetableCounts,
+		WaitlistEnabled:          resolved.waitlistEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
@@ -120,6 +121,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		parentMessagingEnabled: true,
 		careOfferingsEnabled:   true,
 		groupMode:              configModel.GroupModeFixedGroups,
+		overviewScope:          configModel.OverviewScopeOwn,
 		showTimetableCounts:    true,
 		waitlistEnabled:        true,
 	}
@@ -138,6 +140,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyTimetableShowExpectedChildrenCount,
 		configModel.KeyEnrollmentWaitlistEnabled,
 		configModel.KeyGroupMode,
+		configModel.KeyOperationalOverviewScope,
 		configModel.KeyParentNotesEnabled,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
@@ -173,6 +176,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
+	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 
 	// Messaging compose visibility intentionally fails open so it stays in
 	// lockstep with the unread badge, inbox row pills, and reply path.
@@ -221,7 +225,21 @@ func resolveTenantShellSnapshot(
 	if groupMode == configModel.GroupModeOpenCare {
 		resolved.groupMode = groupMode
 	}
+	resolved.overviewScope = normalizeOverviewScope(
+		resolveString(configModel.KeyOperationalOverviewScope, configModel.OverviewScopeOwn, slog.LevelError),
+	)
 	return resolved
+}
+
+// normalizeOverviewScope keeps an unknown wire value from reaching the client
+// as a scope it would have to guess about: anything unrecognised is "own".
+func normalizeOverviewScope(value string) string {
+	switch value {
+	case configModel.OverviewScopeAdmins, configModel.OverviewScopeAllStaff:
+		return value
+	default:
+		return configModel.OverviewScopeOwn
+	}
 }
 
 func (rs *Resource) resolveTenantShellBool(ctx context.Context, tenantID int64, key string, fallback bool, level slog.Level) bool {
@@ -243,6 +261,15 @@ func (rs *Resource) resolveTenantGroupMode(ctx context.Context, tenantID int64) 
 		return value
 	}
 	return configModel.GroupModeFixedGroups
+}
+
+func (rs *Resource) resolveTenantOverviewScope(ctx context.Context, tenantID int64) string {
+	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyOperationalOverviewScope)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, configModel.KeyOperationalOverviewScope, err, slog.LevelError)
+		return configModel.OverviewScopeOwn
+	}
+	return normalizeOverviewScope(value)
 }
 
 func logTenantResolveSettingFailure(ctx context.Context, tenantID int64, key string, err error, level slog.Level) {
@@ -276,6 +303,9 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
 				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+				common.RenderError(w, r, common.ErrorForbiddenWithCode(
+					authService.ErrMustUseSchoolPortal, "use_school_portal"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

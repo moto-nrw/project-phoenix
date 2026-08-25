@@ -1,7 +1,7 @@
 "use client";
 
 // Klassen-Zuweisung (#1772): welche Schulklassen eine Lehrkraft betreut.
-// Die Zuweisung scopt die Lehrkraft-Klassenansicht (/klassen) — deshalb ist
+// Die Zuweisung scopt die Klassenansicht in moto schule, deshalb ist
 // das Ersetzen des Sets im Backend users:manage (Admin-Write mit Audit).
 // Klassen bleiben Freitext (users.students.school_class); die Vorschläge
 // kommen aus den vorhandenen Klassen der Kinder.

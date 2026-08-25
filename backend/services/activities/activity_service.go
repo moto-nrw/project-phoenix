@@ -529,7 +529,10 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	}
 
 	// Get the group with supervisors
-	group, err := s.groupRepo.FindByID(ctx, groupID)
+	// Hold the group lock through the caller's tenant transaction so a
+	// supervisor or creator cannot lose modification authority between this
+	// check and the subsequent write.
+	group, err := s.groupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, &ActivityError{Op: opCheckPermissions, Err: ErrGroupNotFound}

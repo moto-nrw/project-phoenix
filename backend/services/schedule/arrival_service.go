@@ -144,25 +144,10 @@ type arrivalScheduleService struct {
 	logger       *slog.Logger
 }
 
-func NewArrivalScheduleService(
-	scheduleRepo schedule.StudentArrivalScheduleRepository,
-	exceptionRepo schedule.StudentArrivalExceptionRepository,
-	noteRepo schedule.StudentArrivalNoteRepository,
-	studentRepo users.StudentRepository,
-	personRepo users.PersonRepository,
-	db *bun.DB,
-	logger *slog.Logger,
-) ArrivalScheduleService {
-	return NewArrivalScheduleServiceWithBaselines(
-		scheduleRepo, exceptionRepo, noteRepo, studentRepo, personRepo, nil, nil, db, logger,
-	)
-}
-
 // NewArrivalScheduleServiceWithBaselines is the wiring the HTTP server uses:
 // baselines resolves the regular arrival time from the class timetable and,
 // in booking mode, the care days from the approved bookings (#2414). Passing
-// nil keeps the pre-#2414 behaviour of reading stored rows only, which is what
-// the CLI and older tests want.
+// nil baseline readers keep the stored-row behavior for focused tests.
 func NewArrivalScheduleServiceWithBaselines(
 	scheduleRepo schedule.StudentArrivalScheduleRepository,
 	exceptionRepo schedule.StudentArrivalExceptionRepository,
@@ -354,7 +339,12 @@ func (s *arrivalScheduleService) UpsertStudentArrivalSchedule(
 	ctx context.Context,
 	row *schedule.StudentArrivalSchedule,
 ) error {
-	return s.core.UpsertSchedule(ctx, row)
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockArrivalStudent(txCtx, row.StudentID); err != nil {
+			return err
+		}
+		return s.core.UpsertSchedule(txCtx, row)
+	})
 }
 
 func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
@@ -362,14 +352,33 @@ func (s *arrivalScheduleService) UpsertBulkStudentArrivalSchedules(
 	studentID int64,
 	rows []*schedule.StudentArrivalSchedule,
 ) error {
-	if err := s.collapseIntoClassTime(ctx, studentID, rows); err != nil {
-		return err
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockArrivalStudent(txCtx, studentID); err != nil {
+			return err
+		}
+		if err := s.collapseIntoClassTime(txCtx, studentID, rows); err != nil {
+			return err
+		}
+		preserved, err := s.preserveInactiveBookingRows(txCtx, studentID, rows)
+		if err != nil {
+			return err
+		}
+		return s.core.UpsertBulkSchedules(txCtx, studentID, preserved)
+	})
+}
+
+func (s *arrivalScheduleService) lockArrivalStudent(ctx context.Context, studentID int64) error {
+	if s.studentRepo == nil {
+		return &ScheduleError{Op: "lock arrival schedule student", Err: errors.New("student repository is not configured")}
 	}
-	rows, err := s.preserveInactiveBookingRows(ctx, studentID, rows)
+	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		return err
+		return &ScheduleError{Op: "lock arrival schedule student", Err: err}
 	}
-	return s.core.UpsertBulkSchedules(ctx, studentID, rows)
+	if student == nil {
+		return &ScheduleError{Op: "lock arrival schedule student", Err: sql.ErrNoRows}
+	}
+	return nil
 }
 
 // preserveInactiveBookingRows keeps omitted manual rows while bookings define
@@ -462,14 +471,31 @@ func (s *arrivalScheduleService) DeleteStudentArrivalSchedule(
 	ctx context.Context,
 	scheduleID int64,
 ) error {
-	return s.core.DeleteSchedule(ctx, scheduleID)
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		row, err := s.scheduleRepo.FindByID(txCtx, scheduleID)
+		if errors.Is(err, sql.ErrNoRows) || row == nil {
+			return s.core.DeleteSchedule(txCtx, scheduleID)
+		}
+		if err != nil {
+			return &ScheduleError{Op: "find arrival schedule student", Err: err}
+		}
+		if err := s.lockArrivalStudent(txCtx, row.StudentID); err != nil {
+			return err
+		}
+		return s.core.DeleteSchedule(txCtx, scheduleID)
+	})
 }
 
 func (s *arrivalScheduleService) DeleteAllStudentArrivalSchedules(
 	ctx context.Context,
 	studentID int64,
 ) error {
-	return s.core.DeleteAllSchedules(ctx, studentID)
+	return tenant.WithTenantTx(ctx, s.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.lockArrivalStudent(txCtx, studentID); err != nil {
+			return err
+		}
+		return s.core.DeleteAllSchedules(txCtx, studentID)
+	})
 }
 
 func (s *arrivalScheduleService) GetStudentArrivalExceptionByID(

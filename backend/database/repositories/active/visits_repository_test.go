@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func createVisitTestData(t *testing.T, db *bun.DB) *visitTestData {
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        base.Int64Ptr(activityGroup.ID),
+		GroupID:        ptrtest.Ptr(activityGroup.ID),
 		RoomID:         room.ID,
 	}
 	err := groupRepo.Create(testpkg.Ctx(t), activeGroup)
@@ -752,7 +752,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now.Add(-2 * time.Hour),
 			LastActivity:   now.Add(-1 * time.Hour),
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -777,7 +777,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -825,7 +825,7 @@ func TestVisitRepository_TransferVisitsFromRecentSessions(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			DeviceID:       &device.ID,
 			RoomID:         data.Room,
 		}
@@ -854,7 +854,7 @@ func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 		StartTime:      now.Add(-30 * time.Minute),
 		LastActivity:   now.Add(-10 * time.Minute),
 		TimeoutMinutes: 30,
-		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		GroupID:        ptrtest.Ptr(data.ActivityGroup),
 		RoomID:         data.Room,
 	}
 	require.NoError(t, groupRepo.Create(ctx, oldGroup))
@@ -863,7 +863,7 @@ func TestVisitRepository_TransferActiveVisitsBetweenGroups(t *testing.T) {
 		StartTime:      now,
 		LastActivity:   now,
 		TimeoutMinutes: 30,
-		GroupID:        base.Int64Ptr(data.ActivityGroup),
+		GroupID:        ptrtest.Ptr(data.ActivityGroup),
 		RoomID:         data.Room,
 	}
 	require.NoError(t, groupRepo.Create(ctx, newGroup))
@@ -1239,7 +1239,7 @@ func TestVisitRepository_EndVisitsByActiveGroupIDs(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			RoomID:         data.Room,
 		}
 		err := groupRepo.Create(ctx, secondGroup)
@@ -1417,7 +1417,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 			StartTime:      now.Add(-1 * time.Hour),
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			RoomID:         room.ID,
 			EndTime:        &endTime,
 		}
@@ -1472,7 +1472,7 @@ func TestVisitRepository_ListActiveStudentIDsByRoomID(t *testing.T) {
 			StartTime:      now,
 			LastActivity:   now,
 			TimeoutMinutes: 30,
-			GroupID:        base.Int64Ptr(data.ActivityGroup),
+			GroupID:        ptrtest.Ptr(data.ActivityGroup),
 			RoomID:         data.Room,
 		}
 		require.NoError(t, groupRepo.Create(ctx, secondGroup))

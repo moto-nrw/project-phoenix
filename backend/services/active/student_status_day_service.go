@@ -22,12 +22,6 @@ type StudentStatusDayService struct {
 	db               *bun.DB
 }
 
-// NewStudentStatusDayService creates a StudentStatusDayService backed by the
-// status-day repository.
-func NewStudentStatusDayService(repo activeModels.StudentStatusDayRepository) *StudentStatusDayService {
-	return &StudentStatusDayService{repo: repo}
-}
-
 // NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
 // status from silently overwriting a time-specific excusal on the same date.
 func NewStudentStatusDayServiceWithPartialAbsences(

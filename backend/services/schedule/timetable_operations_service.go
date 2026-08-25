@@ -8,6 +8,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -85,6 +87,15 @@ type TimetableOperationsService interface {
 // whose end time has passed without ever being started (no job moves them out
 // of "planned", so a status filter alone would miss them).
 const PlannedNowScopePast = "past"
+
+// PlannedNowScopeDay returns the caller's OWN assigned blocks for the whole
+// day in every lifecycle state — planned, running, completed, cancelled
+// (#2527). It is the school portal's "Meine Aufsichten heute": no time window,
+// because a Lehrkraft plans her afternoon around the whole day, and no
+// operational-overview widening, because "meine" is the entire promise of the
+// list. The assignment filter therefore applies to this scope unconditionally,
+// even for a caller who would otherwise see every running block of the school.
+const PlannedNowScopeDay = "day"
 
 type PlannedNowOptions struct {
 	HorizonMinutes int
@@ -260,8 +271,8 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if err != nil {
 		return nil, err
 	}
-	allOperational := s.adminOverviewEnabled(ctx, isAdmin) || (hasStaff && s.openCareMode(ctx))
-	if !hasStaff && !allOperational {
+	allOperational := s.operationalOverview(ctx, isAdmin, hasStaff)
+	if !hasStaff && (!allOperational || opts.Scope == PlannedNowScopeDay) {
 		return nil, ErrTimetableOperationForbidden
 	}
 
@@ -284,21 +295,28 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		horizon = startLead
 	}
 	past := opts.Scope == PlannedNowScopePast
+	wholeDay := opts.Scope == PlannedNowScopeDay
 	candidates := make([]plannedNowCandidate, 0, len(instances))
 	for _, inst := range instances {
-		if past {
+		switch {
+		case wholeDay:
+			// Every state stays in: a cancelled block ("fällt aus") and a
+			// finished one are both answers the person came for.
+		case past:
 			if !plannedPastToday(inst, now) {
 				continue
 			}
-		} else if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
-			continue
+		default:
+			if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, horizon) {
+				continue
+			}
 		}
 		roomName := roomNames[inst.RoomID]
 		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return nil, err
 		}
-		if !allOperational && !staffAssigned(staffRows, staffID) {
+		if (wholeDay || !allOperational) && !staffAssigned(staffRows, staffID) {
 			continue
 		}
 		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
@@ -325,8 +343,10 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	for _, candidate := range candidates {
 		mapped := mapPlannedInstance(candidate.instance, candidate.staffRows, candidate.studentRows, now, staffID, candidate.roomName, careDay)
 		// Past blocks are read-only: no start lifecycle, the zero-value
-		// CanStart/StartAvailableAt/StartExpiresAt say so.
-		if !past {
+		// CanStart/StartAvailableAt/StartExpiresAt say so. The whole-day scope
+		// carries every state, so there the instance's own status decides —
+		// a running, finished or cancelled block is not startable either.
+		if !past && (!wholeDay || candidate.instance.Status == scheduleModel.InstanceStatusPlanned) {
 			availability := EvaluateLifecycleAvailability(candidate.instance, now, startLead, true)
 			mapped.CanStart = availability.CanStart
 			mapped.StartAvailableAt = availability.StartAvailableAt.Format(time.RFC3339)
@@ -463,6 +483,9 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 	}
 	if inst.Status != scheduleModel.InstanceStatusActive || inst.ActiveGroupID == nil {
 		return nil, fmt.Errorf("%w: instance is not active", ErrTimetableOperationConflict)
+	}
+	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
+		return nil, err
 	}
 	current, err := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
 	if err != nil && !modelBase.IsNoRows(err) {
@@ -611,6 +634,9 @@ func (s *timetableOperationsService) CheckOutStudent(ctx context.Context, accoun
 	if inst.ActiveGroupID == nil {
 		return nil, fmt.Errorf("%w: instance has no active group", ErrTimetableOperationConflict)
 	}
+	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
+		return nil, err
+	}
 	visit, err := s.findActiveVisitForInstanceStudent(ctx, *inst.ActiveGroupID, studentID)
 	if err != nil {
 		return nil, err
@@ -640,6 +666,9 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	}
 	if inst.Status == scheduleModel.InstanceStatusCompleted || inst.Status == scheduleModel.InstanceStatusCancelled {
 		return nil, fmt.Errorf("%w: attendance is frozen after completion", ErrTimetableOperationConflict)
+	}
+	if err := s.requireRosterStudent(ctx, inst, instanceID, studentID); err != nil {
+		return nil, err
 	}
 	if s.deps.RecoveryRepo != nil {
 		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instanceID); err != nil {
@@ -679,15 +708,75 @@ func (s *timetableOperationsService) PatchAttendance(ctx context.Context, accoun
 	return nil, ErrTimetableOperationNotFound
 }
 
+// requireRosterStudent bounds a per-child write to the children this block
+// actually holds (#2527). It runs only for assignment-bound portals: an OGS
+// supervisor legitimately pulls a child that walked in off the tenant-wide
+// directory, but a Lehrkraft has no directory — her whole reach is the block
+// she was planned into, so a student id she did not get from this roster is
+// not hers to write.
+//
+// "Belongs to the block" is the same union the roster renders: a planned
+// instance_students row, or a child currently recorded present in the running
+// session. That deliberately includes the not-scheduled and cancelled rows —
+// they are on her sheet, and a child who turns up anyway must stay one tap
+// away.
+func (s *timetableOperationsService) requireRosterStudent(ctx context.Context, inst *scheduleModel.ActivityInstance, instanceID, studentID int64) error {
+	if !authorize.IsAssignmentBoundPortal(ctx) {
+		return nil
+	}
+	planned, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+	if _, ok := findPlanned(planned, studentID); ok {
+		excluded, err := s.rosterStudentExcluded(ctx, inst, studentID)
+		if err != nil {
+			return err
+		}
+		if excluded {
+			return ErrTimetableOperationForbidden
+		}
+		return nil
+	}
+	if inst != nil && inst.ActiveGroupID != nil {
+		visits, err := s.deps.VisitRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID)
+		if err != nil {
+			return err
+		}
+		for _, visit := range visits {
+			if visit.StudentID == studentID {
+				excluded, err := s.rosterStudentExcluded(ctx, inst, studentID)
+				if err != nil {
+					return err
+				}
+				if excluded {
+					return ErrTimetableOperationForbidden
+				}
+				return nil
+			}
+		}
+	}
+	return ErrTimetableOperationForbidden
+}
+
+// rosterStudentExcluded applies the same current-roster exclusion used by the
+// read model before an assignment-bound portal mutates a child. A planned row
+// is retained as history after graduation or care end, but it must not still
+// authorize attendance changes for a current or future supervision.
+func (s *timetableOperationsService) rosterStudentExcluded(ctx context.Context, inst *scheduleModel.ActivityInstance, studentID int64) (bool, error) {
+	students, err := s.deps.StudentRepo.FindByIDs(ctx, []int64{studentID})
+	if err != nil {
+		return false, err
+	}
+	return rosterExcludedAlumni(inst, students)[studentID], nil
+}
+
 func (s *timetableOperationsService) requireCanOperate(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (int64, error) {
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
 	if err != nil {
 		return 0, err
 	}
-	if hasStaff && s.openCareMode(ctx) {
-		return staffID, nil
-	}
-	if s.adminOverviewEnabled(ctx, isAdmin) {
+	if s.operationalOverview(ctx, isAdmin, hasStaff) {
 		return staffID, nil
 	}
 	if !hasStaff {
@@ -701,12 +790,29 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	if err != nil {
 		return 0, err
 	}
+	// An assignment-bound portal reaches TODAY and nothing else (#2527). Its
+	// list already answers only for today, but a detail route takes an id, and
+	// ids are guessable: without this clamp a Lehrkraft could pull the roster
+	// — and with it a child's pickup and emergency contacts — for any block
+	// she is planned into next week or was planned into in March. Her access
+	// follows the day she stands in front of the children, so the day is part
+	// of the boundary, not just the assignment.
+	if authorize.IsAssignmentBoundPortal(ctx) && inst.Date != timezone.TodayDate() {
+		return 0, ErrTimetableOperationForbidden
+	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return 0, err
 	}
 	if staffAssigned(staffRows, staffID) {
 		return staffID, nil
+	}
+	// The school portal's boundary is the concrete timetable assignment, not
+	// the active group's supervisor list. Starting a block adds its operator
+	// as a supervisor, so using that list here would preserve access after the
+	// assignment has been withdrawn.
+	if authorize.IsAssignmentBoundPortal(ctx) {
+		return 0, ErrTimetableOperationForbidden
 	}
 	if inst.ActiveGroupID != nil {
 		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID, true)
@@ -720,18 +826,6 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
-}
-
-func (s *timetableOperationsService) openCareMode(ctx context.Context) bool {
-	if s.deps.Settings == nil {
-		return false
-	}
-	mode, err := s.deps.Settings.ResolveString(ctx, configModel.KeyGroupMode)
-	if err != nil {
-		s.logger().ErrorContext(ctx, "failed to resolve operational group mode", slog.String("error", err.Error()))
-		return false
-	}
-	return mode == configModel.GroupModeOpenCare
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
@@ -1259,17 +1353,27 @@ func (s *timetableOperationsService) broadcastAttendanceChanged(ctx context.Cont
 	})
 }
 
-func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, isAdmin bool) bool {
-	if !isAdmin || s.deps.Settings == nil {
-		return false
-	}
-	enabled, err := s.deps.Settings.ResolveBool(ctx, configModel.KeyAdminSupervisionOverview)
+// operationalOverview reports whether this caller may see and operate every
+// running module of the school (#2380). It reuses the staff record this
+// service already resolved instead of looking it up a second time, but asks
+// the same setting as every other surface, so a module listed by PlannedNow
+// can never 403 on the detail call. Fails closed on a settings fault.
+func (s *timetableOperationsService) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
+	scope, err := authorize.OperationalOverviewScope(ctx, s.deps.Settings)
 	if err != nil {
-		s.logger().WarnContext(ctx, "admin supervision overview setting check failed for timetable operations",
+		s.logger().WarnContext(ctx, "operational overview scope check failed for timetable operations",
 			slog.String("error", err.Error()))
 		return false
 	}
-	return enabled
+	admin := isAdmin || authorize.HasEffectiveAdminScope(ctx)
+	switch scope {
+	case configModel.OverviewScopeAllStaff:
+		return admin || hasStaff
+	case configModel.OverviewScopeAdmins:
+		return admin
+	default:
+		return false
+	}
 }
 
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {

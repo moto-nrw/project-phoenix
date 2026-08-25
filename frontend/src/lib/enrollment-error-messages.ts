@@ -19,6 +19,8 @@ export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
   "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.";
 
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
+  "enrollment.complete_withdrawal_confirmation_required":
+    "Bitte bestätigen Sie, dass alle Betreuungstage entfernt werden sollen.",
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
   "enrollment.approval_care_offering_missing":

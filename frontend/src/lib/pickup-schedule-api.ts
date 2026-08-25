@@ -20,6 +20,7 @@ import {
   mapPickupExceptionFormToBackend,
   mapPickupNoteFormToBackend,
 } from "./pickup-schedule-helpers";
+import type { ArrivalScheduleInput } from "./student-arrival-api";
 
 // API Response Types
 interface ApiResponse<T> {
@@ -38,9 +39,108 @@ export interface BulkPickupResult {
   students_affected: number;
 }
 
+export class PickupScheduleApiError extends Error {
+  constructor(
+    message: string,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "PickupScheduleApiError";
+  }
+}
+
+export interface PickupAdjustmentSelection {
+  offering_id: string;
+  selected_days: string[];
+}
+
+export interface PickupAdjustmentMatch {
+  offering_id: string;
+  name: string;
+  selected_days: string[];
+  selections: PickupAdjustmentSelection[];
+}
+
+export interface PickupAdjustmentCatalogItem {
+  offering_id: string;
+  name: string;
+  description?: string;
+  days_of_week_mode: "fixed" | "parent_choice";
+  available_days: string[];
+  selection_group?: string;
+  selection_rule: string;
+  is_required: boolean;
+  price_cents?: number;
+  includes_lunch: boolean;
+  includes_holiday_care: boolean;
+  selected: boolean;
+  selected_days: string[];
+  automatic: boolean;
+  is_active: boolean;
+  capacity?: number;
+  free_slots?: number;
+  pickup_times: Record<string, string>;
+  counts_as_care: boolean;
+}
+
+interface PickupAdjustmentCatalog {
+  phase_id: string;
+  phase_name: string;
+  selection_mode: string;
+  earliest_effective_from: string;
+  latest_effective_from: string;
+  items: PickupAdjustmentCatalogItem[];
+}
+
+interface PickupAdjustmentConsequences {
+  selections: Array<{
+    offering_id: string;
+    state: "booked" | "removed";
+    days: string[];
+  }>;
+  manual_planning_conflicts: Array<{
+    activity_group_id: string;
+    activity_group_name: string;
+    days: string[];
+    first_date: string;
+    occurrence_count: number;
+  }>;
+  arrival_expectations_follow_bookings: boolean;
+}
+
+export interface PickupAdjustmentPreview {
+  preview_token: string;
+  effective_from: string;
+  current_plan: string;
+  proposed_plan: string;
+  deviates_from_offering: boolean;
+  resolution_required: boolean;
+  matching_offerings: PickupAdjustmentMatch[];
+  offering_catalog?: PickupAdjustmentCatalog;
+  offering_consequences?: PickupAdjustmentConsequences;
+  removed_manual_notes?: Array<{ weekday: number; note: string }>;
+}
+
+export interface PickupAdjustmentPayload {
+  schedules: Array<{
+    weekday: number;
+    pickup_time: string;
+    notes?: string;
+  }>;
+  care_days: number[];
+  arrival_schedules?: ArrivalScheduleInput[];
+  effective_from: string;
+  selections?: PickupAdjustmentSelection[];
+  excluded_auto_offering_ids?: string[];
+  complete_withdrawal_confirmed?: boolean;
+}
+
+export type PickupAdjustmentResolution = "exception" | "offering";
+
 export async function bulkUpsertPickupSchedules(
   studentIds: string[],
   schedules: BulkPickupScheduleInput[],
+  confirmedException = false,
 ): Promise<BulkPickupResult> {
   const numericIds = [...new Set(studentIds)].map((id) =>
     Number.parseInt(id, 10),
@@ -56,7 +156,11 @@ export async function bulkUpsertPickupSchedules(
   const response = await fetch("/api/students/pickup-schedules/bulk", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ student_ids: numericIds, schedules }),
+    body: JSON.stringify({
+      student_ids: numericIds,
+      schedules,
+      ...(confirmedException ? { confirmed_exception: true } : {}),
+    }),
   });
   if (!response.ok) {
     await throwResponseError(response, "Failed to update pickup schedules");
@@ -85,6 +189,18 @@ function isErrorResponse(value: unknown): value is ErrorResponse {
 
 // Error message translations (English backend -> German frontend)
 const errorTranslations: Record<string, string> = {
+  "pickup.resolution_required":
+    "Bitte wählen Sie ein Angebot. Oder übernehmen Sie die Zeiten als dauerhafte Ausnahme.",
+  "pickup.preview_stale":
+    "Die Daten haben sich geändert. Bitte prüfen Sie die Auswahl noch einmal.",
+  "pickup.future_manual_reset":
+    "Die dauerhafte Ausnahme gilt bereits. Wechseln Sie deshalb ab heute zum Angebot.",
+  "pickup.offering_capacity_full":
+    "Das gewählte Angebot hat keinen freien Platz mehr.",
+  "pickup.offerings_disabled":
+    "Die Angebote sind gerade nicht verfügbar. Bitte versuchen Sie es später noch einmal.",
+  "pickup.bulk_exception_confirmation_required":
+    "Bitte bestätigen Sie, dass die Gehzeiten als dauerhafte Ausnahmen gespeichert werden.",
   "invalid weekday": "Ungültiger Wochentag",
   "pickup_time is required": "Gehzeit ist erforderlich",
   "invalid pickup_time format": "Ungültiges Zeitformat (erwartet HH:MM)",
@@ -105,6 +221,59 @@ const errorTranslations: Record<string, string> = {
   forbidden: "Zugriff verweigert",
   "full access required": "Vollzugriff erforderlich",
 };
+
+export async function previewStudentPickupAdjustment(
+  studentId: string,
+  payload: PickupAdjustmentPayload,
+): Promise<PickupAdjustmentPreview> {
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules/preview`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    await throwResponseError(
+      response,
+      "Gehzeiten konnten nicht geprüft werden",
+    );
+  }
+  return parseApiResult<PickupAdjustmentPreview>(
+    response,
+    "Gehzeiten konnten nicht geprüft werden",
+  );
+}
+
+export async function applyStudentPickupAdjustment(
+  studentId: string,
+  payload: PickupAdjustmentPayload & {
+    preview_token: string;
+    resolution: PickupAdjustmentResolution;
+    reason?: string;
+    complete_withdrawal_confirmed?: boolean;
+  },
+): Promise<{ resolution: PickupAdjustmentResolution }> {
+  const response = await fetch(
+    `/api/students/${studentId}/pickup-schedules/apply`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!response.ok) {
+    await throwResponseError(
+      response,
+      "Gehzeiten konnten nicht gespeichert werden",
+    );
+  }
+  return parseApiResult<{ resolution: PickupAdjustmentResolution }>(
+    response,
+    "Gehzeiten konnten nicht gespeichert werden",
+  );
+}
 
 /**
  * Translate backend error messages to user-friendly German messages
@@ -140,7 +309,10 @@ async function throwResponseError(
   const errorMessage = isErrorResponse(error)
     ? translateApiError(error.code ?? error.error ?? fallback)
     : translateApiError(`${fallback}: ${response.statusText}`);
-  throw new Error(errorMessage);
+  throw new PickupScheduleApiError(
+    errorMessage,
+    isErrorResponse(error) ? error.code : undefined,
+  );
 }
 
 /**

@@ -58,6 +58,10 @@ type CategoryRepository interface {
 type GroupRepository interface {
 	base.Repository[*Group]
 
+	// FindByIDForUpdate locks the group until the surrounding transaction ends.
+	// It is used when modification authority must remain valid through a write.
+	FindByIDForUpdate(ctx context.Context, id any) (*Group, error)
+
 	// FindByName finds a non-archived activity group by its name.
 	FindByName(ctx context.Context, name string) (*Group, error)
 

@@ -473,6 +473,14 @@ export const setupChapters: readonly GuideChapter[] = [
           "Für die Abholung an jedem Betreuungstag eine Uhrzeit eintragen.",
           "Optional eine Ankunfts- oder Abholnotiz ergänzen.",
           "Auf `Speichern` klicken. Vor dem Entfernen fragt die App nach.",
+          "Ist der Angebotsabgleich in den Einstellungen eingeschaltet und weicht der Wochenplan ab? Dann zeigt moto alle passenden Angebote.",
+          "Wählen Sie `Auf … umbuchen` oder `Als dauerhafte Ausnahme speichern`.",
+          "Bei einer Umbuchung prüfen Sie `Gilt ab`. moto zeigt vorher und nachher.",
+          "Mögliche Konflikte stehen direkt darunter. Bestätigen Sie danach die Änderung.",
+          "Passt kein Angebot? Speichern Sie die Zeiten als dauerhafte Ausnahme. Der Grund ist optional.",
+          "Das gebuchte Angebot bleibt bei einer Ausnahme unverändert.",
+          "Weicht die Ausnahme vom Angebot ab, steht am Wochentag `Andere Zeit als im Angebot`. Entspricht die von Hand gepflegte Zeit dem Angebot oder gibt es kein Angebot, steht dort `von Hand`.",
+          "Die Änderung steht zusätzlich unter `Änderungsverlauf`.",
           "`aus Klasse 3b` kennzeichnet eine Klassenzeit.",
           "`eigene Zeit` kennzeichnet eine Abweichung dieses Kindes.",
           "Mit `Klassenzeit nutzen` entfernen Sie die eigene Zeit.",
@@ -781,7 +789,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Steuert die laufende Betreuung in Echtzeit: einchecken, entschuldigen, korrigieren und spontane Aktivitäten starten.",
         steps: [
-          "`Aktuelle Aufsicht` öffnen und Raum oder Aktivität wählen.",
+          "`Aktuelle Aufsicht` öffnen und Raum oder Aktivität wählen. Welche Räume hier stehen, entscheidet Ihre Schule: entweder nur die Räume, die Sie selbst übernommen haben, oder alle Räume der Schule.",
           "Bereich `Erwartet` prüfen.",
           "Bei anwesendem Kind auf `Einchecken` klicken.",
           "Bei bekannter Abwesenheit `Entschuldigt` wählen.",
@@ -1046,20 +1054,44 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Lehrkraft-Zugang mit Klassenansicht",
         icon: GraduationCap,
         summary:
-          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht – wer bleibt heute in der Betreuung, wer geht nach Hause.",
+          "Gibt Lehrkräften der Schule eine reine Lese-Ansicht ihrer Klasse für die Übergabe nach Unterricht: wer bleibt heute in der Betreuung, wer geht nach Hause.",
         steps: [
           "In der Datenverwaltung unter `Personal` die Lehrkraft mit der System-Rolle `Lehrkraft` anlegen bzw. einladen.",
           "Unter `Mitarbeiter` das Profil der Lehrkraft öffnen und im Reiter `Klassen` die betreuten Schulklassen zuweisen (z. B. `1a`). Die Schreibweise muss zur Klasse der Kinder passen; Groß-/Kleinschreibung spielt keine Rolle.",
-          "Die Lehrkraft meldet sich mit ihrem eigenen Konto an und landet direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
-          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt.",
+          "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen automatisch mitgeführt. Danach im Reiter `Klassen` prüfen, ob die Zuordnung stimmt.",
+          "Die Lehrkraft öffnet den Link aus der Einladungs-Mail. Dort legt sie ihr Passwort fest und meldet sich bei moto schule an. Danach landet sie direkt in der `Klassenansicht`: pro Tag der volle Klassenverband mit Kennzeichnung, wer in Randstunde oder Ganztag bleibt, wer nach Hause geht (und wie) und wer krank oder entschuldigt gemeldet ist. Kinder ohne OGS-Datensatz erscheinen als Klassenlisteneinträge mit dem Vermerk `Keine Betreuung` (siehe `Datenverwaltung`).",
+          "moto schule hat eine eigene Adresse. Der Link in der Einladungs-Mail führt schon dorthin. Über die Adresse Ihrer OGS kommen Lehrkräfte nicht mehr hinein. Die Anmeldung dort weist auf moto schule hin und leitet weiter.",
+          "Mehr sieht die Lehrkraft nicht: keinen Bereich Alle Kinder, keine Stammdaten, keine Kontaktdaten der Sorgeberechtigten. Zugriffe auf die Ansicht werden im Zugriffsprotokoll vermerkt. Nur wenn Sie die Lehrkraft im Betreuungsplan für eine Aufsicht einteilen, sieht sie zu den Kindern dieser Aufsicht auch Abhol- und Notfallkontakte (siehe `Lehrkraft führt eine Aufsicht`).",
         ],
         callout: {
-          title: "Klassen wandern beim Jahrgangswechsel mit",
-          body: "Beim Jahrgangswechsel in der Datenverwaltung werden die Klassen-Zuweisungen der Lehrkräfte automatisch mitgeführt (aus 1a wird 2a). Nach dem Wechsel lohnt ein kurzer Blick in den Reiter Klassen, ob die Zuordnung noch stimmt.",
+          title: "Passwort vergessen",
+          body: "Auf der Anmeldeseite von moto schule `Passwort vergessen?` wählen. Die Lehrkraft bekommt einen Link zum Setzen eines neuen Passworts.",
           tone: "blue",
         },
         screenshot:
           "Klassenansicht einer Lehrkraft mit Tagesliste der Klasse und Kennzeichnung Betreuung oder nach Hause.",
+        printCompact: true,
+      },
+      {
+        id: "lehrkraft-aufsichten",
+        title: "Lehrkraft führt eine Aufsicht",
+        icon: ClipboardCheck,
+        summary:
+          "Teilt eine Lehrkraft im Betreuungsplan für eine Lernzeit oder eine andere Aufsicht ein. Sie kann diese Aufsicht dann selbst starten, die Anwesenheit führen und beenden.",
+        steps: [
+          "Voraussetzung: die Lehrkraft hat schon einen Zugang zu moto schule (siehe `Lehrkraft-Zugang mit Klassenansicht`).",
+          "Im `Betreuungsplan` den Termin öffnen und die Lehrkraft als Person eintragen, wie jede andere Betreuungskraft auch. Eine eigene Rolle braucht sie dafür nicht.",
+          "Die Lehrkraft findet den Termin am selben Tag in moto schule unter `Meine Aufsichten`. Sie startet die Aufsicht, hakt die Kinder ab und beendet sie am Ende.",
+          "Tippt sie in der Liste auf den Namen eines Kindes, sieht sie für dieses Kind die Abholzeit, den Heimweg, wer abholen darf und die Notfallkontakte. Jeder dieser Aufrufe wird im Zugriffsprotokoll vermerkt.",
+          "Nehmen Sie die Einteilung wieder heraus, ist die Aufsicht für die Lehrkraft sofort weg. Sie sieht dann auch die Kinder dieser Aufsicht nicht mehr.",
+        ],
+        callout: {
+          title: "Nur die eigene Einteilung",
+          body: "Eine Lehrkraft sieht ausschließlich Aufsichten, für die sie selbst eingeteilt ist, und darin nur die Kinder dieser Aufsicht. Andere Aufsichten der Schule bleiben ihr verborgen, auch wenn Sie für Ihre Betreuungskräfte den Zugriff auf alle Räume eingeschaltet haben.",
+          tone: "blue",
+        },
+        screenshot:
+          "Ansicht Meine Aufsichten in moto schule mit einer eingeteilten Aufsicht und der Kinderliste darunter.",
         printCompact: true,
       },
       {
@@ -1198,27 +1230,32 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Vertretung",
         icon: Users,
         summary:
-          "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
+          "Zeigt Störungen im Betreuungsplan und erlaubt Abwesenheit und Vertretung für bestimmte Termine oder für alle noch offenen Termine eines Tages (nur für Admins).",
         steps: [
           "In der Seitenleiste den Bereich `Planung` aufklappen und `Vertretung` öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
           "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Darunter steht je abwesender Person `Name abwesend` und blockweit die Zeile `Ersatzkräfte:` mit den Namen oder `keine`. Eine bewusst unbesetzte Position ist mit `bewusst unbesetzt` gekennzeichnet, ein abgesagter Termin mit `abgesagt` und Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
           "Im Kopfbereich steht links die Zeitnavigation (`Zurück`, `Heute`, `Weiter`) und daneben die angezeigte Kalenderwoche. `Heute` ist ausgegraut, solange bereits der heutige Tag gezeigt wird. Darunter steht die Wochenleiste Montag bis Freitag: ein Klick wechselt den Tag, ein orangefarbener Punkt mit Zahl markiert Tage mit offenen Lücken. Rechts daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
           "Mit dem Umschalter `Nur Störungen | Ganzer Tag` über der Liste zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
           "Für den Blick auf die ganze Woche oben rechts `Woche` wählen. Die Wochenleiste entfällt dann, links stehen die Störungen nach Wochentagen gruppiert und rechts zeigt der Kalender alle fünf Schultage; der Umschalter über der Liste heißt dort `Nur Störungen | Ganze Woche`. Ein Klick auf eine Tageskopfzeile führt zurück in die Tagesansicht dieses Tages, ein Klick auf einen Termin öffnet denselben Editor wie in der Tagesansicht. Mit `Tag` geht es zurück; beim Öffnen der Seite ist immer die Tagesansicht aktiv.",
-          "Bei einer Position `Bearbeiten` anklicken, um den Editor zu öffnen. Unter `Aktion` zwischen zwei Zweigen wählen: `Besetzung bearbeiten` markiert eine Person als abwesend, öffnet dafür eine Ersatzauswahl und erlaubt, den Block als `Bewusst unbesetzt` zu markieren, wenn keine Ersatzperson verfügbar ist; `Block absagen` sagt den Termin ab, optional mit einem Grund. Beide Zweige schließen sich gegenseitig aus.",
-          "Ein einziges `Speichern` überträgt Abwesenheit, Ersatz, `Bewusst unbesetzt` oder Absage gemeinsam als eine Änderung. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
+          "Bei einer Position `Bearbeiten` anklicken. Der Editor öffnet sich für diesen Termin.",
+          "Unter `Aktion` zwischen `Besetzung bearbeiten` und `Block absagen` wählen. `Block absagen` sagt nur den geöffneten Termin ab. Ein Grund ist freiwillig.",
+          "Nach `Abwesend` den Umfang wählen. `Alle noch offenen Termine` gilt für den gewählten Tag. Alle offenen Termine dieser Person werden geändert.",
+          "`Bestimmte Termine` zeigt die Termine der Person. Der geöffnete Termin ist ausgewählt. Weitere Termine können ausgewählt werden. Abgeschlossene und abgesagte Termine können nicht ausgewählt werden.",
+          "Die Ersatzperson übernimmt nur die ausgewählten Termine. `Auch in allen anderen Terminen als abwesend markieren` erweitert die Abwesenheit. Die Vertretung bleibt auf die Auswahl begrenzt.",
+          "Eine Abwesenheit aus einer Krankmeldung kann hier nicht geändert werden. Der Umfang der Vertretung kann weiterhin gewählt werden.",
+          "`Speichern` überträgt alle Änderungen gemeinsam. Die Meldung nennt die Anzahl der geänderten Termine.",
+          "`Entfernen` löscht die Vertretung nur aus dem geöffneten Termin. Das geht auch, wenn die Ersatzperson dort als abwesend steht. Bei einer Krankmeldung gibt es diese Aktion nicht. Andere Termine und der Regeltermin im Betreuungsplan bleiben unverändert. `Anwesend melden` erscheint nur, wenn im Termin noch eine geplante Position frei ist.",
           "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
           "Ist eine Person für einen Betreuungsblock eingeteilt, hat dafür aber keine passende Schicht im Dienstplan, erscheint über der Liste ein Hinweis mit der Anzahl der betroffenen Einsätze und dem Link `Dienstplan öffnen`; dort steht bei jedem Einsatz, welche Person in welchem Zeitraum nicht abgedeckt ist. Das ist keine Störung und zählt nicht in `Offen` oder `Quittiert`: entweder die Schicht im Dienstplan nachtragen oder die Einteilung im Betreuungsplan anpassen. Einrichtungen ohne gepflegten Dienstplan sehen den Hinweis nicht.",
-          "Fällt eine Person über mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen (sichtbar für Personen mit der Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`): abwesende Person und Zeitraum von–bis angeben, die App listet alle betroffenen Termine nach Tagen gruppiert. Einzelne Tage lassen sich abwählen; optional eine Ersatzperson und einen Grund ergänzen. Ohne Ersatzperson werden die Termine nur als abwesend markiert. Ein `Speichern` trägt alles zusammen ein — schlägt ein Tag fehl (etwa weil die Ersatzperson dort selbst abwesend ist), wird nichts gespeichert und die Meldung nennt den betroffenen Tag.",
+          "Fällt eine Person mehrere Tage aus, oben rechts `Sammel-Vertretung` wählen. Sie brauchen dafür die Berechtigung `Betreuungsplanverwaltung (Vollzugriff)`. Die abwesende Person und den Zeitraum angeben. Jeder ausgewählte Tag verwendet `Alle noch offenen Termine`. Einzelne Tage können abgewählt werden. Eine Ersatzperson und ein Grund sind freiwillig. Ohne Ersatzperson wird die Person nur als abwesend markiert. `Speichern` trägt alle Tage gemeinsam ein. Bei einem Fehler wird nichts gespeichert. Die Meldung nennt den betroffenen Tag.",
         ],
         callout: {
-          title: "Abweichung statt neue Vorlage",
-          body: "Änderungen in der Vertretung gelten nur für den bearbeiteten Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
+          title: "Umfang vor dem Speichern prüfen",
+          body: "`Alle noch offenen Termine` ändert den ganzen gewählten Tag. `Bestimmte Termine` ändert nur die ausgewählten Termine. Dauerhafte Änderungen gehören weiterhin in den Regeltermin im Betreuungsplan.",
           tone: "blue",
         },
         screenshot:
-          "Vertretung-Tagesansicht mit Störungsliste, Wochenleiste und Tageskalender.",
-        image: "/help/screens/vertretungsplan.webp",
+          "Vertretungs-Editor mit Umfangsauswahl, Krankmeldungs-Hinweis und Entfernen einer Ersatzperson.",
       },
       {
         id: "mein-kalender",
@@ -1408,7 +1445,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Datenverwaltung` öffnen.",
           "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen`, `Berechtigungen` oder `Jahrgangswechsel`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
-          "Einträge anlegen, bearbeiten oder prüfen.",
+          "Einträge anlegen, bearbeiten oder prüfen. `Berechtigungen` können Sie nur ansehen.",
           "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
@@ -1444,9 +1481,10 @@ export const appChapters: readonly GuideChapter[] = [
         steps: [
           "`Datenverwaltung` -> `Kinder` öffnen. Für ein einzelnes Kind: das Kind auswählen und oben `Betreuung beenden` klicken.",
           "Für mehrere Kinder: oben `Auswählen` klicken, die Kinder antippen (oder `Alle N auswählen` für alle gerade angezeigten) und in der Leiste `Betreuung beenden` wählen. Suche und Filter bestimmen, wer angezeigt wird. Höchstens 500 Kinder auf einmal.",
-          "Letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil, ab dem Folgetag ist seine Betreuung beendet. Ein Tag in der Vergangenheit ist nicht möglich.",
+          "Beim normalen Ende den letzten Betreuungstag wählen. Das Kind nimmt an diesem Tag noch teil. Ein Tag in der Vergangenheit ist hier nicht möglich.",
           "Grund wählen: `Umzug`, `Kein Betreuungsbedarf mehr` oder `Anderer Grund`. Nur bei `Anderer Grund` kommt eine kurze Erklärung dazu.",
           "`Weiter` zeigt die Vorschau: jedes Kind mit Namen und dem, was sich für es ändert: wegfallende Termine, endende Angebote, offene Eltern-Anfragen, das Armband. Erst `Betreuung beenden` schreibt etwas.",
+          "Wenn alle gebuchten Betreuungstage wegfallen, erscheint ein offener Abschluss in der Aufgabenliste und beim Kind. Dort `Betreuung beenden` wählen. Für diesen Abschluss darf der letzte Betreuungstag auch in der Vergangenheit liegen. Er muss vor dem ersten Tag ohne Buchung liegen und darf nicht vor einer erfassten Anwesenheit liegen.",
           "Solange der letzte Betreuungstag noch nicht vorbei ist, steht das Kind in der Liste mit `Betreuung endet am ...`. Über `Ende ändern` verschieben Sie den Tag, über `Ende stornieren` nehmen Sie das Ende ganz zurück. In beiden Fällen kommen Termine und Angebote zurück, die durch das Ende weggefallen waren.",
           "Nach dem letzten Betreuungstag finden Sie das Kind unter `Kinder` -> Menü oben rechts -> `Beendete Betreuungen`. Dort suchen Sie nach Name oder Klasse und blättern durch die Liste. Sie können die Betreuung wieder aufnehmen oder das Kind endgültig löschen.",
           "`Wieder aufnehmen` verlangt einen neuen Beginn. Gruppe, Angebote, Wochenplan sowie Ankunfts- und Gehzeiten schaltet moto nicht von selbst wieder ein. Sie bestätigen, dass Sie diese Angaben geprüft haben, und stellen sie danach neu ein.",
@@ -1643,6 +1681,8 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
           "Unter `Zielgruppe` festlegen, wer sich anmelden darf: `Offen für alle`, `Nur neue Kinder` (bereits angemeldete Kinder werden abgewiesen), `Nur bereits angemeldete Kinder` (für Wiederanmeldungen; neue Kinder werden abgewiesen) oder `Nur Eltern mit Konto an der Schule`. Phasen mit dieser letzten Option erscheinen nicht in der öffentlichen Anmeldeliste; Eltern erreichen sie im Elternportal über `Neue Anmeldung`. Optional die Phase mit `Nur für Klassenstufen` auf einzelne Jahrgänge beschränken, zum Beispiel nur den 3. Jahrgang; dafür genügt die Klassenstufen-Abfrage. Mit `Nur für Klassen` lässt sich die Phase zusätzlich auf einzelne Klassen ab der 2. Klasse beschränken; Kinder müssen dann eine dieser Klassen angeben.",
           "Für das nächste Halbjahr im Aktionsmenü `Anschlussphase erstellen` wählen. Die Vorschau zeigt: wird übernommen, muss geprüft werden oder wird nicht übernommen. Bei `Klassenstufe erhöhen` wird die Vorschau neu berechnet. Eltern können danach bestätigen, nur Angebote und Wochentage anpassen oder abmelden. Bei einer Anpassung bleiben alle anderen Angaben erhalten.",
+          "30 Tage vor dem ersten Betreuungstag nach einem Phasenende warnt moto, wenn Buchungen auslaufen. Der Hinweis nennt das Datum und die Zahl der betroffenen Kinder. Bei `Anschlussphase fehlt` auf `Anschlussphase erstellen` klicken.",
+          "Nach dem Erstellen prüft moto die Übernahme weiter. Bei `Übernahme noch offen` auf `Anschlussphase öffnen` klicken. Der Hinweis verschwindet, wenn die OGS jedes übernommene Kind genehmigt hat. Für jedes genehmigte Kind muss mindestens ein aktives Angebot gebucht sein. Das kann zum Beispiel Betreuung oder Mittagessen sein. Abgelehnte oder abgemeldete Kinder gelten ebenfalls als erledigt.",
         ],
         callout: {
           title: "Das Anmeldefenster steuert die öffentliche Anmeldung",
@@ -1650,7 +1690,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "gray",
         },
         screenshot:
-          "Anmeldephase mit Betreuungszeitraum, Anmeldefenster und Formularwahl.",
+          "Anmeldephasen mit Warnung vor auslaufenden Buchungen und der Aktion Anschlussphase erstellen.",
         image: "/help/screens/anmeldephasen.webp",
       },
       {
@@ -2103,6 +2143,26 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/einstellungen.webp",
       },
       {
+        id: "einstellungen-angebotsabgleich-gehzeiten",
+        title: "Angebotsabgleich für dauerhafte Gehzeiten einschalten",
+        icon: Clock3,
+        summary:
+          "Diese Einstellung macht Abweichungen vom gebuchten Angebot sichtbar. Sie ist zuerst ausgeschaltet.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen und zur Sektion `Betreuungszeiten` scrollen.",
+          "`Angebotsabgleich für dauerhafte Gehzeiten` einschalten.",
+          "Weicht der Wochenplan ab? Wählen Sie ein Angebot oder eine dauerhafte Ausnahme.",
+          "Änderungen auf einer Tageskarte bleiben davon unberührt. Sie gelten nur am gewählten Datum.",
+        ],
+        callout: {
+          title: "Keine automatische Umbuchung",
+          body: "moto ändert ein Angebot nie automatisch. Sie sehen zuerst die Folgen. Danach bestätigen Sie die Änderung. Sonderzeiten bleiben als dauerhafte Ausnahme möglich.",
+          tone: "blue",
+        },
+        screenshot:
+          "Einstellungen, Tab Betrieb mit dem Schalter Angebotsabgleich für dauerhafte Gehzeiten.",
+      },
+      {
         id: "einstellungen-benachrichtigungen",
         title: "Benachrichtigungen der Schule steuern",
         icon: Bell,
@@ -2124,13 +2184,33 @@ export const appChapters: readonly GuideChapter[] = [
           "Sektion Benachrichtigungen im Reiter Betrieb mit dem Hauptschalter, dem Zeitfenster von und bis, Nur im Dienst benachrichtigen und Krankmeldungen melden.",
       },
       {
+        id: "einstellungen-sicht-auf-alle-raeume",
+        title: "Sicht auf alle Räume freigeben",
+        icon: Eye,
+        summary:
+          "Im Auslieferungszustand sieht jede Person in der `Aktuellen Aufsicht` nur die Räume, die sie selbst übernommen hat. Arbeitet Ihr Team flexibel, geben Sie hier alle Räume frei.",
+        steps: [
+          "`Einstellungen` -> `Betrieb` öffnen. Die Sektion `Aufsicht` steht ganz oben.",
+          "Bei `Sicht auf alle Räume` auswählen, wer alle Räume sehen soll: `Nur eigene Räume`, `Alle Räume für Administratoren` oder `Alle Räume für alle Mitarbeitenden`.",
+          "Die Auswahl wird sofort gespeichert. Wer die Seite schon offen hat, lädt sie einmal neu.",
+          "Mit `Zurücksetzen` gilt wieder `Nur eigene Räume`. Fremde Räume verschwinden dann sofort wieder.",
+        ],
+        callout: {
+          title: "Die Freigabe gibt keine neuen Rechte",
+          body: "Sie entscheidet nur, welche Räume jemand sieht. Wer ein Kind sonst nicht ummelden darf, darf es auch in einem fremden Raum nicht. Admin-, Planungs- und Löschrechte hängen weiterhin allein an der Rolle.",
+          tone: "blue",
+        },
+        screenshot:
+          "Sektion Aufsicht im Reiter Betrieb mit der Auswahl Sicht auf alle Räume.",
+      },
+      {
         id: "einstellungen-zustaendigkeit",
         title: "Wer ändert welche Einstellungen?",
         icon: KeyRound,
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Offene Betreuung` erweitert nur den operativen Zugriff für Mitarbeitende mit dem passenden Recht.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen oder in offener Betreuung gearbeitet wird, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. `Arbeit mit festen Gruppen` beschreibt nur, wie Ihre OGS organisiert ist. Wer welche Räume in der `Aktuellen Aufsicht` sieht, steht getrennt davon unter `Sicht auf alle Räume`.",
           "Was das moto-Team betreut: technische und grundlegende Einstellungen, darunter die Freischaltung der Web-Anwesenheit. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. Diese Einstellungen sind für Schul-Admins ausgeblendet.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",

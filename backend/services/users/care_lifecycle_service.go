@@ -50,7 +50,17 @@ var (
 	ErrCareResumeStartInPast = errors.New("Der neue Beginn darf nicht in der Vergangenheit liegen.")
 	//nolint:staticcheck // ST1005: user-facing German message
 	ErrCareResumeNotChecked = errors.New("Bitte bestätigen Sie zuerst die Prüfung. Gruppe, Angebote, Wochenplan und Zeiten bleiben sonst ungeprüft.")
+	//nolint:staticcheck // ST1005: user-facing German message
+	ErrCareWithdrawalNotFound = errors.New("Diese Abmeldung gibt es nicht oder nicht mehr.")
+	//nolint:staticcheck // ST1005: user-facing German message
+	ErrCareWithdrawalAfterGap = errors.New("Der letzte Betreuungstag muss vor dem ersten Tag ohne Buchung liegen.")
 )
+
+// CareWithdrawalDateError is a client-correctable retroactive-date conflict
+// whose message explains the concrete boundary.
+type CareWithdrawalDateError struct{ Message string }
+
+func (e *CareWithdrawalDateError) Error() string { return e.Message }
 
 // Per-child blocker sentences. They name the child's own situation, never a
 // technical condition, because they are listed one per child under the
@@ -84,6 +94,8 @@ type CareExitImpact struct {
 	OpenParentRequests int
 	HasRFIDTag         bool
 	CurrentlyPresent   bool
+	SourceOfferings    []userModels.CareExitSourceOffering
+	WeeklyPlans        []string
 	// PlannedEndsOn is the exit already recorded for this child, if any. A
 	// second run over the same child is a CHANGE, not a blocker.
 	PlannedEndsOn *timezone.Date
@@ -159,43 +171,61 @@ type CareLifecycleService interface {
 	// whose care ended before asOf: closing what is still open, freeing the
 	// bracelet, closing the open parent requests. Idempotent.
 	ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error)
+	ReconcileAuthoritativeBookingChange(ctx context.Context, change userModels.CareWithdrawalBookingChange) error
+	ListPendingWithdrawals(ctx context.Context, filter userModels.CareWithdrawalCompletionFilter) ([]*userModels.CareWithdrawalCompletion, int, error)
+	GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error)
+	PreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input CareExitInput) (*CareExitPreview, error)
+	ConfirmWithdrawalCareEnd(ctx context.Context, completionID int64, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
 }
 
 type careLifecycleService struct {
-	studentRepo  userModels.StudentRepository
-	personRepo   userModels.PersonRepository
-	careExitRepo userModels.CareExitRepository
-	cleanupRepo  userModels.CareExitCleanupRepository
-	tagReleaser  CareExitTagReleaser
-	auditService StudentAuditService
-	txHandler    *modelBase.TxHandler
-	logger       *slog.Logger
+	studentRepo           userModels.StudentRepository
+	personRepo            userModels.PersonRepository
+	careExitRepo          userModels.CareExitRepository
+	cleanupRepo           userModels.CareExitCleanupRepository
+	withdrawalRepo        userModels.CareWithdrawalCompletionRepository
+	bookingsAuthoritative func(context.Context) (bool, error)
+	tagReleaser           CareExitTagReleaser
+	auditService          StudentAuditService
+	lockCareBookingWrites func(context.Context) error
+	txHandler             *modelBase.TxHandler
+	logger                *slog.Logger
 }
 
 // CareLifecycleDependencies wires the service. Every field is required except
 // the logger; a nil collaborator would silently skip a documented effect.
 type CareLifecycleDependencies struct {
-	StudentRepo  userModels.StudentRepository
-	PersonRepo   userModels.PersonRepository
-	CareExitRepo userModels.CareExitRepository
-	CleanupRepo  userModels.CareExitCleanupRepository
-	TagReleaser  CareExitTagReleaser
-	AuditService StudentAuditService
-	DB           *bun.DB
-	Logger       *slog.Logger
+	StudentRepo    userModels.StudentRepository
+	PersonRepo     userModels.PersonRepository
+	CareExitRepo   userModels.CareExitRepository
+	CleanupRepo    userModels.CareExitCleanupRepository
+	WithdrawalRepo userModels.CareWithdrawalCompletionRepository
+	TagReleaser    CareExitTagReleaser
+	AuditService   StudentAuditService
+	// LockCareBookingWrites is the same transaction-scoped gate used by
+	// authoritative offering adjustments. Taking it before any plan lock makes
+	// rebooking and care-end confirmation a total order instead of allowing a
+	// stale exit to commit beside newly booked care.
+	LockCareBookingWrites func(context.Context) error
+	BookingsAuthoritative func(context.Context) (bool, error)
+	DB                    *bun.DB
+	Logger                *slog.Logger
 }
 
 // NewCareLifecycleService builds the service.
 func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleService {
 	return &careLifecycleService{
-		studentRepo:  deps.StudentRepo,
-		personRepo:   deps.PersonRepo,
-		careExitRepo: deps.CareExitRepo,
-		cleanupRepo:  deps.CleanupRepo,
-		tagReleaser:  deps.TagReleaser,
-		auditService: deps.AuditService,
-		txHandler:    modelBase.NewTxHandler(deps.DB),
-		logger:       deps.Logger,
+		studentRepo:           deps.StudentRepo,
+		personRepo:            deps.PersonRepo,
+		careExitRepo:          deps.CareExitRepo,
+		cleanupRepo:           deps.CleanupRepo,
+		withdrawalRepo:        deps.WithdrawalRepo,
+		bookingsAuthoritative: deps.BookingsAuthoritative,
+		tagReleaser:           deps.TagReleaser,
+		auditService:          deps.AuditService,
+		lockCareBookingWrites: deps.LockCareBookingWrites,
+		txHandler:             modelBase.NewTxHandler(deps.DB),
+		logger:                deps.Logger,
 	}
 }
 
@@ -213,7 +243,7 @@ func (s *careLifecycleService) Preview(ctx context.Context, input CareExitInput)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildPreview(ctx, normalized, false)
+	return s.buildPreview(ctx, normalized, false, nil)
 }
 
 func (s *careLifecycleService) Confirm(
@@ -222,113 +252,264 @@ func (s *careLifecycleService) Confirm(
 	input CareExitInput,
 	actorAccountID int64,
 ) (*CareExitResult, error) {
-	normalized, err := normalizeCareExitInput(input)
+	return s.confirm(ctx, nil, token, input, actorAccountID, false)
+}
+
+func (s *careLifecycleService) ConfirmWithdrawalCareEnd(
+	ctx context.Context,
+	completionID int64,
+	token string,
+	input CareExitInput,
+	actorAccountID int64,
+) (*CareExitResult, error) {
+	completion, err := s.GetPendingWithdrawal(ctx, completionID)
+	if err != nil {
+		return nil, err
+	}
+	input.StudentIDs = []int64{*completion.StudentID}
+	return s.confirm(ctx, completion, token, input, actorAccountID, true)
+}
+
+func (s *careLifecycleService) confirm(
+	ctx context.Context,
+	completionSnapshot *userModels.CareWithdrawalCompletion,
+	token string,
+	input CareExitInput,
+	actorAccountID int64,
+	allowPast bool,
+) (*CareExitResult, error) {
+	state, err := newCareExitConfirmation(completionSnapshot, token, input, actorAccountID, allowPast)
+	if err != nil {
+		return nil, err
+	}
+	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		return s.applyCareExitConfirmation(txCtx, state)
+	})
+	if err != nil {
+		return nil, err
+	}
+	s.logCareExitConfirmation(state)
+	return &state.result, nil
+}
+
+type careExitConfirmation struct {
+	completion     *userModels.CareWithdrawalCompletion
+	token          string
+	input          CareExitInput
+	actorAccountID int64
+	studentIDs     []int64
+	before         map[int64]*userModels.Student
+	exits          map[int64]*userModels.CareExit
+	result         CareExitResult
+}
+
+func newCareExitConfirmation(
+	completion *userModels.CareWithdrawalCompletion,
+	token string,
+	input CareExitInput,
+	actorAccountID int64,
+	allowPast bool,
+) (*careExitConfirmation, error) {
+	normalized, err := normalizeCareExitInputMode(input, allowPast)
 	if err != nil {
 		return nil, err
 	}
 	if strings.TrimSpace(token) == "" {
 		return nil, ErrCareExitPreviewChanged
 	}
+	return &careExitConfirmation{
+		completion: completion, token: token, input: normalized,
+		actorAccountID: actorAccountID,
+	}, nil
+}
 
-	result := new(CareExitResult)
-	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
-		// Locked re-read: the preview is only authoritative while nobody else
-		// can move these rows. Everything below reads the locked state.
-		preview, err := s.buildPreview(txCtx, normalized, true)
+func (s *careLifecycleService) logCareExitConfirmation(state *careExitConfirmation) {
+	s.getLogger().Info("care ended",
+		slog.Int("students", state.result.StudentsEnded),
+		slog.String("last_care_day", state.input.LastCareDay.String()),
+		slog.String("reason", state.input.Reason),
+		slog.Int64("actor_account_id", state.actorAccountID),
+	)
+}
+
+func (s *careLifecycleService) applyCareExitConfirmation(ctx context.Context, state *careExitConfirmation) error {
+	if err := s.prepareLockedCareExitPreview(ctx, state); err != nil {
+		return err
+	}
+	if err := s.loadCareExitBaseline(ctx, state); err != nil {
+		return err
+	}
+	if _, err := s.cleanupRepo.RestoreRemovals(ctx, state.studentIDs); err != nil {
+		return err
+	}
+	if _, err := s.studentRepo.SetEnrolledUntilByIDs(ctx, state.studentIDs, &state.input.LastCareDay); err != nil {
+		return err
+	}
+	if err := s.upsertCareExitRecords(ctx, state); err != nil {
+		return err
+	}
+	if err := s.cleanupConfirmedCareExit(ctx, state); err != nil {
+		return err
+	}
+	if err := s.finishCareExitConfirmation(ctx, state); err != nil {
+		return err
+	}
+	state.result.StudentsEnded = len(state.studentIDs)
+	return nil
+}
+
+func (s *careLifecycleService) prepareLockedCareExitPreview(ctx context.Context, state *careExitConfirmation) error {
+	if s.lockCareBookingWrites != nil {
+		if err := s.lockCareBookingWrites(ctx); err != nil {
+			return fmt.Errorf("care lifecycle: lock care booking writes: %w", err)
+		}
+	}
+	preview, err := s.buildPreview(ctx, state.input, true, careWithdrawalOfferings(state.completion))
+	if err != nil {
+		return err
+	}
+	if state.completion != nil {
+		preview, err = s.refreshLockedWithdrawalPreview(ctx, state)
 		if err != nil {
 			return err
 		}
-		if !equalCareToken(preview.Token, token) {
-			return ErrCareExitPreviewChanged
-		}
-		if preview.Blocked {
-			return ErrCareExitBlocked
-		}
+	}
+	if !equalCareToken(preview.Token, state.token) {
+		return ErrCareExitPreviewChanged
+	}
+	if preview.Blocked {
+		return ErrCareExitBlocked
+	}
+	state.studentIDs = careExitPreviewStudentIDs(preview)
+	return nil
+}
 
-		ids := make([]int64, 0, len(preview.Students))
-		for _, impact := range preview.Students {
-			ids = append(ids, impact.StudentID)
-		}
-
-		before, err := s.studentRepo.FindByIDs(txCtx, ids)
-		if err != nil {
-			return err
-		}
-		for id, student := range before {
-			before[id] = cloneCareFields(student)
-		}
-		exits, err := s.careExitRepo.FindByStudentIDs(txCtx, ids)
-		if err != nil {
-			return err
-		}
-
-		// A second run over the same child is a CHANGE, and a change applies to
-		// the untouched plan, not to the remains of the previous attempt: an
-		// exit moved from June to July must leave July's rosters and bookings
-		// in place. So the previous exit is undone first and the new last care
-		// day is applied to the baseline the preview counted (#2487).
-		if _, err := s.cleanupRepo.RestoreRemovals(txCtx, ids); err != nil {
-			return err
-		}
-
-		if _, err := s.studentRepo.SetEnrolledUntilByIDs(txCtx, ids, &normalized.LastCareDay); err != nil {
-			return err
-		}
-
-		for _, id := range ids {
-			exit := &userModels.CareExit{
-				StudentID:  id,
-				Reason:     normalized.Reason,
-				RecordedBy: &actorAccountID,
-			}
-			if existing := exits[id]; existing == nil {
-				exit.PreviousEnrolledUntil = before[id].EnrolledUntil
-			}
-			if normalized.ReasonNote != "" {
-				note := normalized.ReasonNote
-				exit.ReasonNote = &note
-			}
-			if err := s.careExitRepo.Upsert(txCtx, exit); err != nil {
-				return err
-			}
-		}
-
-		// Rosters and bookings are reconciled NOW, not on the effect day: the
-		// planning screens have to stop showing the child on days they will
-		// not attend as soon as the school has decided it, otherwise staff
-		// keep planning around a child who is leaving.
-		removed, err := s.cleanupRepo.DeletePlannedByStudentIDsAfter(txCtx, ids, normalized.LastCareDay)
-		if err != nil {
-			return err
-		}
-		result.RosterRowsRemoved = removed
-
-		// valid_until is an EXCLUSIVE upper bound, so a booking that must
-		// still count on the last care day ends the day after it.
-		capped, err := s.cleanupRepo.CapByStudentIDs(txCtx, ids, normalized.LastCareDay.AddDays(1))
-		if err != nil {
-			return err
-		}
-		result.BookingsEnded = int(capped)
-
-		if err := s.recordCareEndAudit(txCtx, before, ids, &normalized.LastCareDay, actorAccountID); err != nil {
-			return err
-		}
-
-		result.StudentsEnded = len(ids)
+func careWithdrawalOfferings(
+	completion *userModels.CareWithdrawalCompletion,
+) map[int64][]userModels.CareExitSourceOffering {
+	if completion == nil || completion.StudentID == nil {
 		return nil
-	})
+	}
+	return map[int64][]userModels.CareExitSourceOffering{
+		*completion.StudentID: completion.SourceOfferings,
+	}
+}
+
+func (s *careLifecycleService) refreshLockedWithdrawalPreview(
+	ctx context.Context, state *careExitConfirmation,
+) (*CareExitPreview, error) {
+	completion, err := s.withdrawalRepo.FindByIDForUpdate(ctx, state.completion.ID)
 	if err != nil {
 		return nil, err
 	}
+	if completion == nil {
+		return nil, userModels.ErrCareWithdrawalAlreadyResolved
+	}
+	if !withdrawalMatchesCareExit(completion, state.input.StudentIDs) {
+		return nil, userModels.ErrCareWithdrawalAlreadyResolved
+	}
+	if err := s.validateWithdrawalCareEnd(ctx, completion, state.input); err != nil {
+		return nil, err
+	}
+	return s.buildPreview(ctx, state.input, false, careWithdrawalOfferings(completion))
+}
 
-	s.getLogger().Info("care ended",
-		slog.Int("students", result.StudentsEnded),
-		slog.String("last_care_day", normalized.LastCareDay.String()),
-		slog.String("reason", normalized.Reason),
-		slog.Int64("actor_account_id", actorAccountID),
-	)
-	return result, nil
+func withdrawalMatchesCareExit(completion *userModels.CareWithdrawalCompletion, studentIDs []int64) bool {
+	return completion != nil && completion.State == userModels.CareWithdrawalStatePending &&
+		completion.StudentID != nil && len(studentIDs) == 1 && studentIDs[0] == *completion.StudentID
+}
+
+func careExitPreviewStudentIDs(preview *CareExitPreview) []int64 {
+	ids := make([]int64, 0, len(preview.Students))
+	for _, impact := range preview.Students {
+		ids = append(ids, impact.StudentID)
+	}
+	return ids
+}
+
+func (s *careLifecycleService) loadCareExitBaseline(ctx context.Context, state *careExitConfirmation) error {
+	before, err := s.studentRepo.FindByIDs(ctx, state.studentIDs)
+	if err != nil {
+		return err
+	}
+	for id, student := range before {
+		before[id] = cloneCareFields(student)
+	}
+	exits, err := s.careExitRepo.FindByStudentIDs(ctx, state.studentIDs)
+	if err != nil {
+		return err
+	}
+	state.before, state.exits = before, exits
+	return nil
+}
+
+func (s *careLifecycleService) upsertCareExitRecords(ctx context.Context, state *careExitConfirmation) error {
+	for _, id := range state.studentIDs {
+		exit := &userModels.CareExit{
+			StudentID: id, Reason: state.input.Reason, RecordedBy: &state.actorAccountID,
+		}
+		if state.completion != nil {
+			completionID := state.completion.ID
+			exit.WithdrawalCompletionID = &completionID
+		}
+		if state.exits[id] == nil {
+			exit.PreviousEnrolledUntil = state.before[id].EnrolledUntil
+		}
+		if state.input.ReasonNote != "" {
+			note := state.input.ReasonNote
+			exit.ReasonNote = &note
+		}
+		if err := s.careExitRepo.Upsert(ctx, exit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *careLifecycleService) cleanupConfirmedCareExit(ctx context.Context, state *careExitConfirmation) error {
+	removed, err := s.cleanupRepo.DeletePlannedByStudentIDsAfter(ctx, state.studentIDs, state.input.LastCareDay)
+	if err != nil {
+		return err
+	}
+	state.result.RosterRowsRemoved = removed
+	validUntil := state.input.LastCareDay.AddDays(1)
+	capped, err := s.cleanupRepo.CapByStudentIDs(ctx, state.studentIDs, validUntil)
+	if err != nil {
+		return err
+	}
+	// Recurring arrival and pickup plans have no date range. Keep them through
+	// a future last care day, but end them immediately once that day has passed.
+	endSourceBookings := s.cleanupRepo.EndSourceBookings
+	if state.input.LastCareDay.Before(timezone.TodayDate()) {
+		endSourceBookings = s.cleanupRepo.EndSourceBookingsAndSchedules
+	}
+	var sourceRequestChildID *int64
+	if state.completion != nil {
+		sourceRequestChildID = state.completion.SourceRequestChildID
+	}
+	sourceEnded, err := endSourceBookings(ctx, state.studentIDs, validUntil, sourceRequestChildID)
+	if err != nil {
+		return err
+	}
+	state.result.BookingsEnded = int(capped + sourceEnded)
+	return nil
+}
+
+func (s *careLifecycleService) finishCareExitConfirmation(ctx context.Context, state *careExitConfirmation) error {
+	if err := s.recordCareEndAudit(ctx, state.before, state.studentIDs, &state.input.LastCareDay, state.actorAccountID); err != nil {
+		return err
+	}
+	if state.completion == nil {
+		return nil
+	}
+	resolved, err := s.withdrawalRepo.MarkResolved(ctx, state.completion.ID, state.actorAccountID, time.Now())
+	if err != nil {
+		return err
+	}
+	if !resolved {
+		return userModels.ErrCareWithdrawalAlreadyResolved
+	}
+	return nil
 }
 
 // Cancel withdraws a planned exit. Only exits that have NOT taken effect can
@@ -345,6 +526,11 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 
 	cancelled := 0
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for cancellation: %w", err)
+			}
+		}
 		today := timezone.TodayDate()
 		locked, err := s.studentRepo.FindByIDsForUpdate(txCtx, ids)
 		if err != nil {
@@ -387,6 +573,11 @@ func (s *careLifecycleService) Cancel(ctx context.Context, studentIDs []int64, a
 			return err
 		}
 		for _, id := range ids {
+			if completionID := exits[id].WithdrawalCompletionID; s.withdrawalRepo != nil && completionID != nil {
+				if _, err := s.withdrawalRepo.ReopenAfterCancelledExit(txCtx, *completionID, id, time.Now()); err != nil {
+					return err
+				}
+			}
 			if err := s.recordCareEndAudit(txCtx, before, []int64{id}, exits[id].PreviousEnrolledUntil, actorAccountID); err != nil {
 				return err
 			}
@@ -511,10 +702,135 @@ func (s *careLifecycleService) ListEnded(
 	return s.careExitRepo.ListEnded(ctx, timezone.TodayDate(), filter)
 }
 
+func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
+	ctx context.Context,
+	change userModels.CareWithdrawalBookingChange,
+) error {
+	if s.withdrawalRepo == nil {
+		return errors.New("care lifecycle: withdrawal repository is not configured")
+	}
+	now := time.Now()
+	if change.HasCareDays {
+		_, err := s.withdrawalRepo.MarkObsoleteForRebooking(ctx, change.StudentID, change.FirstBookinglessDay, now)
+		return err
+	}
+	if !change.WasCompleteWithdrawal {
+		return nil
+	}
+	studentID := change.StudentID
+	var actorID *int64
+	if change.ConfirmedBy > 0 {
+		actorID = &change.ConfirmedBy
+	}
+	trigger := userModels.CareWithdrawalTriggerDirectSchool
+	if change.SourceAdjustmentID == 0 {
+		trigger = userModels.CareWithdrawalTriggerBookingExpired
+	}
+	role := strings.TrimSpace(change.ConfirmedRole)
+	if role == "" {
+		role = "system"
+	}
+	return s.withdrawalRepo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID:               &studentID,
+		FirstBookinglessDay:     change.FirstBookinglessDay,
+		Trigger:                 trigger,
+		SourceAdjustmentID:      optionalPositiveID(change.SourceAdjustmentID),
+		SourceRequestChildID:    optionalPositiveID(change.SourceRequestChildID),
+		WithdrawalConfirmedBy:   actorID,
+		WithdrawalConfirmedRole: role,
+		WithdrawalConfirmedAt:   now,
+		SourceOfferings:         change.SourceOfferings,
+	})
+}
+
+func (s *careLifecycleService) ListPendingWithdrawals(
+	ctx context.Context,
+	filter userModels.CareWithdrawalCompletionFilter,
+) ([]*userModels.CareWithdrawalCompletion, int, error) {
+	if s.withdrawalRepo == nil {
+		return nil, 0, errors.New("care lifecycle: withdrawal repository is not configured")
+	}
+	if filter.StudentID < 0 {
+		return nil, 0, ErrCareWithdrawalNotFound
+	}
+	return s.withdrawalRepo.ListPending(ctx, filter.Normalized())
+}
+
+func (s *careLifecycleService) GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error) {
+	if s.withdrawalRepo == nil || id <= 0 {
+		return nil, ErrCareWithdrawalNotFound
+	}
+	completion, err := s.withdrawalRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
+		return nil, ErrCareWithdrawalNotFound
+	}
+	return completion, nil
+}
+
+func (s *careLifecycleService) PreviewWithdrawalCareEnd(
+	ctx context.Context,
+	completionID int64,
+	input CareExitInput,
+) (*CareExitPreview, error) {
+	completion, err := s.GetPendingWithdrawal(ctx, completionID)
+	if err != nil {
+		return nil, err
+	}
+	input.StudentIDs = []int64{*completion.StudentID}
+	normalized, err := normalizeCareExitInputMode(input, true)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validateWithdrawalCareEnd(ctx, completion, normalized); err != nil {
+		return nil, err
+	}
+	return s.buildPreview(ctx, normalized, false, map[int64][]userModels.CareExitSourceOffering{
+		*completion.StudentID: completion.SourceOfferings,
+	})
+}
+
+func (s *careLifecycleService) validateWithdrawalCareEnd(
+	ctx context.Context,
+	completion *userModels.CareWithdrawalCompletion,
+	input CareExitInput,
+) error {
+	if completion == nil || completion.StudentID == nil {
+		return ErrCareWithdrawalNotFound
+	}
+	if input.LastCareDay.After(completion.FirstBookinglessDay.AddDays(-1)) {
+		return ErrCareWithdrawalAfterGap
+	}
+	students, err := s.studentRepo.FindByIDs(ctx, []int64{*completion.StudentID})
+	if err != nil {
+		return err
+	}
+	student := students[*completion.StudentID]
+	if student == nil {
+		return ErrCareWithdrawalNotFound
+	}
+	if student.EnrolledFrom != nil && input.LastCareDay.Before(*student.EnrolledFrom) {
+		return &CareWithdrawalDateError{Message: fmt.Sprintf(careBlockerBeforeStart, student.EnrolledFrom.Format("02.01.2006"))}
+	}
+	latest, err := s.cleanupRepo.LatestAttendanceDate(ctx, *completion.StudentID)
+	if err != nil {
+		return err
+	}
+	if latest != nil && input.LastCareDay.Before(*latest) {
+		return &CareWithdrawalDateError{Message: fmt.Sprintf("Eine Anwesenheit ist bis zum %s erfasst. Der letzte Betreuungstag darf nicht davor liegen.", latest.Format("02.01.2006"))}
+	}
+	return nil
+}
+
 // ApplyDueEffects is the effect-day half of the contract. It runs from the
 // scheduler for every tenant and is idempotent: a second pass finds nothing
 // open, no tag to release and no request to close.
 func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezone.Date) (int, error) {
+	if err := s.reconcileExpiredCareBookings(ctx, asOf); err != nil {
+		return 0, err
+	}
 	// The candidate set is exactly the one the activate-students tick is about
 	// to move to 'inactive': still 'active', interval already run out. That
 	// makes the pass self-limiting — once the status has flipped, the same
@@ -542,6 +858,11 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	closedRequests := 0
 	var releasedTags map[int64]string
 	err = s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for due effects: %w", err)
+			}
+		}
 		// The first query above is deliberately only a candidate lookup. An
 		// operator can change or resume an exit before this transaction starts,
 		// so lock and revalidate every row before any irreversible effect runs.
@@ -573,6 +894,9 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 		if err != nil {
 			return err
 		}
+		if err := s.removePlansWrittenAfterExitConfirmation(txCtx, current, locked); err != nil {
+			return err
+		}
 		// The exit is final now. What it removed from the plan stays removed, so
 		// the ledger that would have put it back is dropped (#2487).
 		if err := s.cleanupRepo.DiscardRemovals(txCtx, current); err != nil {
@@ -596,6 +920,65 @@ func (s *careLifecycleService) ApplyDueEffects(ctx context.Context, asOf timezon
 	return applied, nil
 }
 
+func (s *careLifecycleService) reconcileExpiredCareBookings(ctx context.Context, asOf timezone.Date) error {
+	if s.bookingsAuthoritative == nil {
+		return errors.New("care lifecycle: bookings-authoritative resolver is not configured")
+	}
+	return s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockCareBookingWrites != nil {
+			if err := s.lockCareBookingWrites(txCtx); err != nil {
+				return fmt.Errorf("care lifecycle: lock care booking writes for booking expiry: %w", err)
+			}
+		}
+		authoritative, err := s.bookingsAuthoritative(txCtx)
+		if err != nil || !authoritative {
+			return err
+		}
+		expiries, err := s.cleanupRepo.FindCareWithdrawalBookingExpiries(txCtx, asOf)
+		if err != nil {
+			return err
+		}
+		for _, expiry := range expiries {
+			if err := s.ReconcileAuthoritativeBookingChange(txCtx, expiry); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func optionalPositiveID(value int64) *int64 {
+	if value <= 0 {
+		return nil
+	}
+	return &value
+}
+
+func (s *careLifecycleService) removePlansWrittenAfterExitConfirmation(
+	ctx context.Context,
+	studentIDs []int64,
+	students map[int64]*userModels.Student,
+) error {
+	for _, studentID := range studentIDs {
+		student := students[studentID]
+		if student == nil || student.EnrolledUntil == nil {
+			continue
+		}
+		ids := []int64{studentID}
+		if _, err := s.cleanupRepo.DeletePlannedByStudentIDsAfter(ctx, ids, *student.EnrolledUntil); err != nil {
+			return err
+		}
+		validUntil := student.EnrolledUntil.AddDays(1)
+		if _, err := s.cleanupRepo.CapByStudentIDs(ctx, ids, validUntil); err != nil {
+			return err
+		}
+		if _, err := s.cleanupRepo.EndSourceBookingsAndSchedules(ctx, ids, validUntil, nil); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ---------------------------------------------------------------------------
 
 // buildPreview resolves every child, collects the impacts and derives the
@@ -605,6 +988,7 @@ func (s *careLifecycleService) buildPreview(
 	ctx context.Context,
 	input CareExitInput,
 	lock bool,
+	withdrawalOfferings map[int64][]userModels.CareExitSourceOffering,
 ) (*CareExitPreview, error) {
 	ids := input.StudentIDs
 	var (
@@ -629,6 +1013,9 @@ func (s *careLifecycleService) buildPreview(
 		if err := s.cleanupRepo.LockPlanningForCareExit(ctx, ids, input.LastCareDay); err != nil {
 			return nil, err
 		}
+		if err := s.cleanupRepo.LockImpactRowsForCareExit(ctx, ids); err != nil {
+			return nil, err
+		}
 	}
 
 	personIDs := make([]int64, 0, len(students))
@@ -645,6 +1032,14 @@ func (s *careLifecycleService) buildPreview(
 		return nil, err
 	}
 	bookingCounts, err := s.cleanupRepo.CountRunningByStudentIDsAfter(ctx, ids, input.LastCareDay.AddDays(1))
+	if err != nil {
+		return nil, err
+	}
+	sourceOfferings, err := s.cleanupRepo.ListSourceOfferingsAfter(ctx, ids, input.LastCareDay.AddDays(1))
+	if err != nil {
+		return nil, err
+	}
+	weeklyPlans, err := s.cleanupRepo.ListWeeklyPlanPatterns(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -688,6 +1083,8 @@ func (s *careLifecycleService) buildPreview(
 			}
 			impact.PlannedRosterRows = rosterCounts[id]
 			impact.ActivityBookings = bookingCounts[id]
+			impact.SourceOfferings = mergeCareExitSourceOfferings(sourceOfferings[id], withdrawalOfferings[id])
+			impact.WeeklyPlans = weeklyPlans[id]
 			impact.OpenParentRequests = requestCounts[id]
 			impact.CurrentlyPresent = presence[id]
 		}
@@ -699,6 +1096,27 @@ func (s *careLifecycleService) buildPreview(
 
 	preview.Token = careExitToken(input, students, preview.Students)
 	return preview, nil
+}
+
+func mergeCareExitSourceOfferings(
+	live []userModels.CareExitSourceOffering,
+	withdrawn []userModels.CareExitSourceOffering,
+) []userModels.CareExitSourceOffering {
+	merged := make([]userModels.CareExitSourceOffering, 0, len(live)+len(withdrawn))
+	seen := make(map[string]bool, len(live)+len(withdrawn))
+	appendUnique := func(rows []userModels.CareExitSourceOffering) {
+		for _, row := range rows {
+			key := row.Name + "\x00" + strings.Join(row.Days, "\x00")
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			merged = append(merged, row)
+		}
+	}
+	appendUnique(withdrawn)
+	appendUnique(live)
+	return merged
 }
 
 // recordCareEndAudit writes one change-history row per child whose last care
@@ -739,6 +1157,10 @@ func cloneCareFields(student *userModels.Student) *userModels.Student {
 // normalizeCareExitInput validates the whole-action fields and returns the
 // canonical form every later step works from.
 func normalizeCareExitInput(input CareExitInput) (CareExitInput, error) {
+	return normalizeCareExitInputMode(input, false)
+}
+
+func normalizeCareExitInputMode(input CareExitInput, allowPast bool) (CareExitInput, error) {
 	ids := dedupeSortedIDs(input.StudentIDs)
 	if len(ids) == 0 {
 		return input, ErrCareExitNoStudents
@@ -746,7 +1168,7 @@ func normalizeCareExitInput(input CareExitInput) (CareExitInput, error) {
 	if len(ids) > MaxCareExitBatchSize {
 		return input, ErrCareExitTooManyStudents
 	}
-	if input.LastCareDay.Before(timezone.TodayDate()) {
+	if !allowPast && input.LastCareDay.Before(timezone.TodayDate()) {
 		return input, ErrCareExitDayInPast
 	}
 
@@ -780,14 +1202,15 @@ func careExitToken(
 	impacts []CareExitImpact,
 ) string {
 	type childState struct {
-		ID        int64  `json:"id"`
-		UpdatedAt int64  `json:"updated_at"`
-		Roster    int    `json:"roster"`
-		Bookings  int    `json:"bookings"`
-		Requests  int    `json:"requests"`
-		Present   bool   `json:"present"`
-		Tag       bool   `json:"tag"`
-		Blocker   string `json:"blocker"`
+		ID        int64                               `json:"id"`
+		UpdatedAt int64                               `json:"updated_at"`
+		Roster    int                                 `json:"roster"`
+		Bookings  int                                 `json:"bookings"`
+		Offerings []userModels.CareExitSourceOffering `json:"offerings"`
+		Requests  int                                 `json:"requests"`
+		Present   bool                                `json:"present"`
+		Tag       bool                                `json:"tag"`
+		Blocker   string                              `json:"blocker"`
 	}
 	payload := struct {
 		LastCareDay string       `json:"last_care_day"`
@@ -802,13 +1225,14 @@ func careExitToken(
 	}
 	for _, impact := range impacts {
 		state := childState{
-			ID:       impact.StudentID,
-			Roster:   impact.PlannedRosterRows,
-			Bookings: impact.ActivityBookings,
-			Requests: impact.OpenParentRequests,
-			Present:  impact.CurrentlyPresent,
-			Tag:      impact.HasRFIDTag,
-			Blocker:  impact.Blocker,
+			ID:        impact.StudentID,
+			Roster:    impact.PlannedRosterRows,
+			Bookings:  impact.ActivityBookings,
+			Offerings: impact.SourceOfferings,
+			Requests:  impact.OpenParentRequests,
+			Present:   impact.CurrentlyPresent,
+			Tag:       impact.HasRFIDTag,
+			Blocker:   impact.Blocker,
 		}
 		if student := students[impact.StudentID]; student != nil {
 			state.UpdatedAt = student.UpdatedAt.UnixNano()

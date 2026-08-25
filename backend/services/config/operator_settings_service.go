@@ -158,7 +158,7 @@ func (s *operatorSettingsService) scheduleBroadcast(ctx context.Context, tenantI
 // Limited to keys whose registry default carries semantic meaning (e.g. the
 // student-photo purge on disable).
 func resetReplaysHook(key string) bool {
-	return key == config.KeyStudentPhotosEnabled
+	return key == config.KeyStudentPhotosEnabled || key == config.KeyEnrollmentBookingsAuthoritative
 }
 
 // CheckPresenceModeSwitch rejects a write to operations.presence_mode when any

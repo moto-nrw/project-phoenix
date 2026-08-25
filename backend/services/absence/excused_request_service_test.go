@@ -341,6 +341,40 @@ func TestDecide_ValidationErrors(t *testing.T) {
 	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestRejectReasonTooLong)
 }
 
+func TestDecide_ApproveRejectsDatesAfterPlannedCareEnd(t *testing.T) {
+	t.Parallel()
+
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	requestedDay := timezone.TodayDate().AddDays(4)
+	pending := createPending(t, svc, db, chain, []timezone.Date{requestedDay}, "Termin nach Betreuungsende")
+	lastCareDay := requestedDay.AddDays(-1)
+	_, err := db.NewUpdate().
+		TableExpr("users.students").
+		Set("enrolled_until = ?", lastCareDay).
+		Where("id = ?", chain.StudentID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID,
+		})
+		return decideErr
+	})
+	require.ErrorIs(t, err, activeModels.ErrExcusedRequestNotFound)
+
+	var statusDayCount int
+	require.NoError(t, db.NewSelect().
+		TableExpr("active.student_status_days").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", chain.TenantID).
+		Where("student_id = ?", chain.StudentID).
+		Where("date = ?", requestedDay).
+		Scan(context.Background(), &statusDayCount))
+	assert.Zero(t, statusDayCount, "approval must not create an absence after care ends")
+}
+
 // TestDecide_NotFoundAndNotPending covers the locked-row error mapping.
 func TestDecide_NotFoundAndNotPending(t *testing.T) {
 	t.Parallel()

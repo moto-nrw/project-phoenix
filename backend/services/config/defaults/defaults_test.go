@@ -30,7 +30,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.session_abandoned_threshold_minutes",
 		// Default active-session inactivity timeout (issue #586, Rule 12).
 		"operations.session_inactivity_timeout_minutes",
-		"operations.admin_supervision_overview",
+		"operations.operational_overview_scope",
 		"operations.status_flag_clear_time",
 		"operations.sick_clear_mode",
 		"operations.excused_clear_mode",
@@ -83,6 +83,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"attendance.web_spontaneous_activities_enabled",
 		"operations.group_mode",
 		"operations.care_concept",
+		"operations.require_pickup_offering_review",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
 		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
@@ -214,13 +215,12 @@ func TestFederalStateSetting(t *testing.T) {
 	// regions, or a school could pick a state without a holiday calendar.
 	require.NotNil(t, def.Options)
 	require.Len(t, def.Options.Static, 16)
-	optionValues := make([]string, 0, len(def.Options.Static))
 	for _, opt := range def.Options.Static {
 		value, ok := opt.Value.(string)
 		require.True(t, ok, "federal_state option values must be strings")
-		optionValues = append(optionValues, value)
+		assert.True(t, holidays.ValidRegion(value), "federal_state option must have a holiday calendar")
 	}
-	assert.ElementsMatch(t, holidays.Regions(), optionValues)
+	assert.True(t, holidays.ValidRegion(holidays.DefaultRegion))
 }
 
 func TestDisplayEnabledSetting(t *testing.T) {
@@ -337,6 +337,35 @@ func TestAttendanceSetupSettings(t *testing.T) {
 	assert.Equal(t, "operations", nfcDef.Tab)
 	assert.Equal(t, "anwesenheit", nfcDef.Category)
 	assert.Equal(t, "config:manage", nfcDef.WritePermission)
+}
+
+// TestOperationalOverviewScopeSetting pins the one setting that decides who
+// may see and operate every running module (#2380). The three option values
+// are a wire contract with the backend gate, so a rename must fail here.
+func TestOperationalOverviewScopeSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyOperationalOverviewScope)
+	require.NotNil(t, def, "operations.operational_overview_scope should be registered")
+	assert.Equal(t, config.FieldSelect, def.Type)
+	assert.Equal(t, config.OverviewScopeOwn, def.Default, "the restrictive scope is the default")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "aufsicht", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Options)
+	require.Len(t, def.Options.Static, 3)
+	values := make([]any, 0, 3)
+	for _, opt := range def.Options.Static {
+		values = append(values, opt.Value)
+	}
+	assert.Contains(t, values, config.OverviewScopeOwn)
+	assert.Contains(t, values, config.OverviewScopeAdmins)
+	assert.Contains(t, values, config.OverviewScopeAllStaff)
+
+	// The retired flag must not come back: two settings answering the same
+	// question is exactly what #2380 removed.
+	assert.Nil(t, config.GetDefinition("operations.admin_supervision_overview"))
 }
 
 func TestOrganizationSetupSettings(t *testing.T) {
@@ -639,7 +668,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.session_cleanup_enabled", config.FieldBoolean},
 		{"operations.session_cleanup_interval_minutes", config.FieldNumber},
 		{"operations.session_abandoned_threshold_minutes", config.FieldNumber},
-		{"operations.admin_supervision_overview", config.FieldBoolean},
+		{"operations.operational_overview_scope", config.FieldSelect},
 		{"operations.status_flag_clear_time", config.FieldTime},
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
@@ -713,6 +742,22 @@ func TestParentPickupChangeSetting_DefaultOn(t *testing.T) {
 	assert.Equal(t, config.FieldBoolean, def.Type, "pickup-change toggle should be boolean")
 	assert.Equal(t, true, def.Default, "pickup-change toggle should default to true")
 	assert.Equal(t, "operations", def.Tab, "pickup-change toggle should be on the operations tab")
+}
+
+func TestPickupOfferingReviewSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyRequirePickupOfferingReview)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "betreuungszeiten", def.Category)
+	assert.Equal(t, "config:read", def.ReadPermission)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "Angebotsabgleich für dauerhafte Gehzeiten", def.Label)
+	assert.Equal(t, "Bei einer Abweichung wählen Sie ein anderes Angebot oder eine Ausnahme.", def.Description)
 }
 
 func TestParentPermanentCareRequestSettings_DefaultOnAndIndependent(t *testing.T) {
@@ -1440,7 +1485,7 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"operations.session_cleanup_enabled", false},
 		{"operations.session_cleanup_interval_minutes", 15},
 		{"operations.session_abandoned_threshold_minutes", 60},
-		{"operations.admin_supervision_overview", false},
+		{"operations.operational_overview_scope", config.OverviewScopeOwn},
 		{"operations.status_flag_clear_time", "18:00"},
 		{"gdpr.data_cleanup_enabled", true},
 		{"gdpr.data_cleanup_time", "02:00"},

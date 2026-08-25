@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -196,12 +197,12 @@ func TestAccount_HasPIN(t *testing.T) {
 		},
 		{
 			name:     "empty PIN hash",
-			pinHash:  base.StringPtr(""),
+			pinHash:  ptrtest.Ptr(""),
 			expected: false,
 		},
 		{
 			name:     "valid PIN hash",
-			pinHash:  base.StringPtr("$argon2id$v=19$somehash"),
+			pinHash:  ptrtest.Ptr("$argon2id$v=19$somehash"),
 			expected: true,
 		},
 	}

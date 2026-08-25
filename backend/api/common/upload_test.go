@@ -550,35 +550,3 @@ func TestPublicDirCandidates(t *testing.T) {
 	assert.Contains(t, candidates, filepath.Join(parent, "public"))
 	assert.Contains(t, candidates, filepath.Join(parent, "backend", "public"))
 }
-
-func TestModTime_ValidFile(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "modtime_test.txt")
-	require.NoError(t, os.WriteFile(filePath, []byte("content"), 0644))
-
-	f, err := os.Open(filePath)
-	require.NoError(t, err)
-	defer func() { _ = f.Close() }()
-
-	mt := modTime(f)
-	assert.False(t, mt.IsZero(), "modification time should be non-zero for a real file")
-}
-
-func TestModTime_NilHandling(t *testing.T) {
-	t.Parallel()
-
-	// Open a file, close it, then call modTime on the closed file descriptor.
-	// This should return zero time (the error path) rather than panic.
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "closed.txt")
-	require.NoError(t, os.WriteFile(filePath, []byte("x"), 0644))
-
-	f, err := os.Open(filePath)
-	require.NoError(t, err)
-	_ = f.Close() // intentionally close before calling modTime
-
-	mt := modTime(f)
-	assert.True(t, mt.IsZero(), "should return zero time for closed file descriptor")
-}

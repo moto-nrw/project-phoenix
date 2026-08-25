@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 )
@@ -27,7 +28,7 @@ func TestGroup_Validate(t *testing.T) {
 			name: "valid group with room",
 			group: &Group{
 				Name:   "Class 2B",
-				RoomID: base.Int64Ptr(1),
+				RoomID: ptrtest.Ptr(int64(1)),
 			},
 			wantErr: false,
 		},
@@ -115,7 +116,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "has room",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(1),
+				RoomID: ptrtest.Ptr(int64(1)),
 			},
 			expected: true,
 		},
@@ -131,7 +132,7 @@ func TestGroup_HasRoom(t *testing.T) {
 			name: "zero room ID",
 			group: &Group{
 				Name:   "Test",
-				RoomID: base.Int64Ptr(0),
+				RoomID: ptrtest.Ptr(int64(0)),
 			},
 			expected: false,
 		},

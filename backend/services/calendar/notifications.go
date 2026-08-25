@@ -377,15 +377,6 @@ func guardianStudentIDs(recipients guardianRecipients, accountIDs []int64) []int
 	return studentIDs
 }
 
-// appointmentNotificationCopy returns the display-safe default title and body for
-// a lifecycle push. Deliberately free of the appointment title: a push payload
-// leaves the backend and an appointment name can carry a child's name ("Gespräch
-// Familie Müller"). The deep link takes the parent to the authenticated
-// calendar, where the real subject is shown.
-func appointmentNotificationCopy(kind string) (title, body string) {
-	return localizedAppointmentNotificationCopy(kind, "")
-}
-
 func localizedAppointmentNotificationCopy(kind, locale string) (title, body string) {
 	notificationKind := notifications.ParentAppointmentPublished
 	switch kind {
@@ -462,18 +453,6 @@ func (s *service) dispatchGuardianDevicesAfterCommit(ctx context.Context, appoin
 	}
 }
 
-// dispatchGuardianAccountDevices dispatches a guardian push and reports whether
-// it was accepted for delivery. Callers that need durable delivery tracking use
-// the result to record a delivery only after this returns true.
-//
-// studentIDs are the appointment's children the addressed accounts were let
-// through by. They travel with the event so the device lookup — the last
-// transaction before the payload leaves the backend — can drop an account whose
-// access to all of them was revoked since this one resolved the audience.
-func (s *service) dispatchGuardianAccountDevices(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs, studentIDs []int64) (bool, error) {
-	return s.dispatchGuardianAccountDevicesLocalized(ctx, appointment, kind, accountIDs, studentIDs, "")
-}
-
 func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, appointment *calModels.Appointment, kind string, accountIDs, studentIDs []int64, locale string) (bool, error) {
 	if s.cfg.Notifier == nil || len(accountIDs) == 0 {
 		return false, nil
@@ -521,12 +500,6 @@ func (s *service) dispatchGuardianAccountDevicesLocalized(ctx context.Context, a
 		return false, err
 	}
 	return true, nil
-}
-
-// dispatchGuardianAccountReminderDevices is the reminder's synchronous
-// counterpart; studentIDs carry the same delivery-time access recheck.
-func (s *service) dispatchGuardianAccountReminderDevices(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64) (bool, error) {
-	return s.dispatchGuardianAccountReminderDevicesLocalized(ctx, appointment, accountIDs, studentIDs, "")
 }
 
 func (s *service) dispatchGuardianAccountReminderDevicesLocalized(ctx context.Context, appointment *calModels.Appointment, accountIDs, studentIDs []int64, locale string) (bool, error) {

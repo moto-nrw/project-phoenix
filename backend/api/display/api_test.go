@@ -28,6 +28,7 @@ import (
 	displayService "github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -64,9 +65,11 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 	repos := repositories.NewFactory(db)
 	settingsService := configSvc.NewSettingsService(repos.SettingValue, repos.SettingAudit, repos.School, db, slog.Default())
 	svc := displayService.NewService(displayService.Dependencies{
-		DisplayRepo:       repos.Display,
-		SchoolRepo:        repos.School,
-		Facilities:        facilities.NewService(repos.Room, repos.ActiveGroup),
+		DisplayRepo: repos.Display,
+		SchoolRepo:  repos.School,
+		Facilities: facilities.NewServiceWithConfig(facilities.ServiceConfig{
+			RoomRepo: repos.Room, ActiveGroupRepo: repos.ActiveGroup,
+		}),
 		ActiveGroupRepo:   repos.ActiveGroup,
 		VisitRepo:         repos.ActiveVisit,
 		ActivityGroupRepo: repos.ActivityGroup,
@@ -79,7 +82,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 			repos.Student,
 			repos.Person,
 			nil,
-			schedule.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
 			db,
 			slog.Default(),
 		),
