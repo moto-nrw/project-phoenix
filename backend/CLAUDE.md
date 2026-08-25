@@ -93,6 +93,11 @@ Transactions propagate via context (`base.ContextWithTx` / `base.TxFromContext`)
 
 Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
+Clock values mapped to PostgreSQL `TIME` must pass through
+`timezone.WallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
+current-time values in `ActivityInstance.StartTime`/`EndTime`; do not extend an
+allowlist around it.
+
 ## Tenant-Scoped Settings
 
 Per-school config resolves tenant DB override → registry default; the service does **not** check env vars. Consumers needing env var backward compatibility must check `HasTenantOverride()` first, then fall back to `os.Getenv()` manually. Use `Resolve*(ctx, key)` inside tenant middleware, `Resolve*ForTenant(ctx, tenantID, key)` outside it (device auth, scheduler loops). Everything else — registry, field types, permissions, add/edit/delete workflows: `.claude/rules/settings-system.md`.
