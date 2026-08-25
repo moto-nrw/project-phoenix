@@ -40,17 +40,20 @@ Run these commands from the repository root:
 
 ```bash
 scripts/backend-architecture.sh check
+scripts/backend-architecture.sh legacy-check
 scripts/backend-architecture.sh diagram
 scripts/backend-architecture.sh dependencies
 scripts/backend-architecture.sh dependencies /tmp/schedule.svg './services/schedule/...:module'
 ```
 
-`check` validates every production Go package against `.go-arch-lint.yml`.
-It excludes `_test.go` files and fails when a package has no component. The
-diagram command writes the focused layer architecture to SVG. The dependencies
-command writes the actual Linux/amd64 import graph to SVG; its optional third
-argument accepts a Goda expression. Both diagrams default to `/tmp` and are not
-versioned.
+`check` evaluates the strict target policy in `architecture/policy.json`,
+including production, internal-test, and external-test import scopes. It
+currently reports the existing target-policy violations. `legacy-check`
+validates every production Go package against `.go-arch-lint.yml`; it excludes
+`_test.go` files and fails when a package has no component. The diagram command
+writes the focused layer architecture to SVG. The dependencies command writes
+the actual Linux/amd64 import graph to SVG; its optional third argument accepts
+a Goda expression. Both diagrams default to `/tmp` and are not versioned.
 
 ## CLI Commands
 
