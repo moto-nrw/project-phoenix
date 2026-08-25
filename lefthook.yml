@@ -74,7 +74,7 @@ pre-push:
 
     backend-architecture:
       glob: "{backend/**/*.go,backend/.go-arch-lint.yml,backend/tools/go.{mod,sum},scripts/backend-architecture.sh}"
-      run: scripts/backend-architecture.sh check
+      run: scripts/backend-architecture.sh legacy-check
 
     # Dead code detection (matches CI)
     go-deadcode:

@@ -52,7 +52,7 @@ jobs:
           fi
 
       - name: Check backend package architecture
-        run: scripts/backend-architecture.sh check
+        run: scripts/backend-architecture.sh legacy-check
 
       - name: Run backend source ratchets
         working-directory: backend
