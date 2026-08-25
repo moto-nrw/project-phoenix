@@ -1,7 +1,7 @@
 "use client";
 
 // Startseite des Schul-Portals ("moto schule", #2207): die Tagesübersicht
-// der Klassenansicht. Die Kinderlisten liegen unter /school/klasse/[klasse]
+// der Klassenansicht. Die Kinderlisten liegen unter /school/klasse?klasse=…
 // (#2294), eine Klasse pro Seite.
 
 import { Suspense } from "react";

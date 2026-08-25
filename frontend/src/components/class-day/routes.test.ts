@@ -1,16 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CLASS_DAY_CLASS_PARAM,
+  classDayClassParam,
   classDayDateParam,
-  classDayNameFromParam,
   classDayOverviewPath,
   classDayPath,
   isWeekendISO,
 } from "./routes";
 
-/** Adress-Segment aus einem Pfad, wie `params` es der Seite liefert. */
-function segmentOf(path: string): string {
-  return path.slice("/school/klasse/".length).split("?")[0]!;
+/**
+ * Klassenname aus einer Adresse, wie `useSearchParams()` ihn der Seite
+ * liefert: dieselbe Zerlegung, dieselbe Dekodierung.
+ */
+function classParamOf(path: string): string | null {
+  return new URL(path, "http://schule.example").searchParams.get(
+    CLASS_DAY_CLASS_PARAM,
+  );
 }
 
 describe("classDayDateParam", () => {
@@ -34,13 +40,13 @@ describe("classDayPath", () => {
   it("kodiert Klassennamen mit Leerzeichen", () => {
     // Klassennamen sind Freitext: "Klasse 2a" ist genauso gültig wie "2a".
     expect(classDayPath("Klasse 2a", "2026-10-26")).toBe(
-      "/school/klasse/Klasse%202a?tag=2026-10-26",
+      "/school/klasse?klasse=Klasse%202a&tag=2026-10-26",
     );
   });
 
   it("trägt den Tag mit in die Klasse", () => {
     expect(classDayPath("2a", "2026-10-26")).toBe(
-      "/school/klasse/2a?tag=2026-10-26",
+      "/school/klasse?klasse=2a&tag=2026-10-26",
     );
   });
 
@@ -62,25 +68,33 @@ describe("isWeekendISO", () => {
   });
 });
 
-describe("classDayNameFromParam", () => {
-  it("gewinnt den Klassennamen aus dem Segment zurück", () => {
-    // Next.js reicht `params` roh durch: das Segment kommt kodiert an.
-    expect(classDayNameFromParam("Klasse%202a")).toBe("Klasse 2a");
+describe("classDayClassParam", () => {
+  it("nimmt den Klassennamen aus der Adresse", () => {
+    expect(classDayClassParam("Klasse 2a")).toBe("Klasse 2a");
+  });
+
+  it("meldet eine Adresse ohne Klasse als leer", () => {
+    // Ein abgeschnittener Link darf keine Klasse ohne Namen laden.
+    expect(classDayClassParam(null)).toBe("");
+    expect(classDayClassParam("   ")).toBe("");
   });
 
   it("schließt den Kreis mit classDayPath", () => {
-    // Kodieren und Dekodieren gehören zusammen, auch für Namen, die selbst
-    // wie eine Kodierung aussehen oder ein Prozentzeichen tragen.
+    // Der Weg in die Klasse und zurück muss denselben Namen tragen, auch für
+    // Namen, die selbst wie eine Kodierung aussehen oder Sonderzeichen
+    // enthalten. Dekodiert wird dabei nur, was `useSearchParams()` ohnehin
+    // dekodiert — die Seite rechnet nichts nach.
     for (const name of [
       "2a",
       "Klasse 2a",
       "1%20a",
       "100%",
       "5 b/c",
+      "5+b",
       "Ü-Klasse",
     ]) {
       expect(
-        classDayNameFromParam(segmentOf(classDayPath(name, "2026-10-26"))),
+        classDayClassParam(classParamOf(classDayPath(name, "2026-10-26"))),
       ).toBe(name);
     }
   });

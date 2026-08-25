@@ -51,10 +51,7 @@ function schoolTitleForPath(pathname: string): string | null {
   // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
   // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
   // die Seite selbst.
-  if (
-    pathname.startsWith("/klasse/") ||
-    pathname.startsWith("/school/klasse/")
-  ) {
+  if (pathname === "/klasse" || pathname === "/school/klasse") {
     return "Klassenansicht";
   }
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {

@@ -138,9 +138,11 @@ export function ClassDayClass({
         </Link>
 
         <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h2 className="text-base font-semibold text-gray-900">
-            {schoolClassLabel(schoolClass)}
-          </h2>
+          {schoolClass && (
+            <h2 className="text-base font-semibold text-gray-900">
+              {schoolClassLabel(schoolClass)}
+            </h2>
+          )}
           <p className="text-sm text-gray-500">{formatDate(dateISO)}</p>
         </div>
         {report && !weekend && (
@@ -152,11 +154,21 @@ export function ClassDayClass({
           </p>
         )}
 
-        {weekend && (
+        {schoolClass && weekend && (
           <EmptyState
             className="mt-4"
             title="Kein Schultag"
             description="Für Samstag und Sonntag gibt es keine Übergabe. Bitte einen Wochentag wählen."
+          />
+        )}
+
+        {/* Adresse ohne Klasse (abgeschnittener Link, alter Bookmark): sagen,
+            was fehlt, statt eine Klasse ohne Namen zu laden. */}
+        {!schoolClass && (
+          <EmptyState
+            className="mt-4"
+            title="Keine Klasse ausgewählt"
+            description="Diese Adresse nennt keine Klasse. Bitte gehen Sie zurück zu allen Klassen und wählen Sie eine aus."
           />
         )}
 
