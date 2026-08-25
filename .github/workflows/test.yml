@@ -131,6 +131,12 @@ jobs:
           docker exec -i "$PG_CONTAINER" pg_dump -U postgres phoenix_test \
             > backend/.db-snapshot/dump.sql
 
+      - name: Bootstrap test database template
+        working-directory: backend
+        env:
+          TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+        run: echo "PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)" >> "$GITHUB_ENV"
+
       - name: Run Go tests
         working-directory: backend
         env:
