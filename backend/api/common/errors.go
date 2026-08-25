@@ -257,16 +257,6 @@ func ErrorInvalidRequestMessage(message string) render.Renderer {
 	}
 }
 
-// ErrorForbiddenMessage returns a 403 Forbidden with a user-facing message
-// string. See ErrorInvalidRequestMessage for why.
-func ErrorForbiddenMessage(message string) render.Renderer {
-	return &ErrResponse{
-		HTTPStatusCode: http.StatusForbidden,
-		Status:         "error",
-		ErrorText:      message,
-	}
-}
-
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)
