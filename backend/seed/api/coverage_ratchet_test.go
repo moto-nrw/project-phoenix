@@ -157,14 +157,6 @@ var seedCoverageAllowlist = map[string]string{
 	"users.student_data_change_requests":      "GAP: prod has 97 rows",
 	"users.student_document_file_cleanup":     "empty in prod too",
 	"users.student_documents":                 "empty in prod too",
-	// School file storage (#2596): shipped after the last production
-	// measurement, nothing to compare against yet.
-	"documents.folders":         "new in #2596, no production rows yet",
-	"documents.folder_roles":    "new in #2596, no production rows yet",
-	"documents.folder_accounts": "new in #2596, no production rows yet",
-	"documents.files":           "new in #2596, no production rows yet",
-	"documents.file_cleanup":    "new in #2596, no production rows yet",
-	"audit.file_events":         "new in #2596, no production rows yet",
 }
 
 // tableCoverageQuery lists every application table. Views, system schemas, and

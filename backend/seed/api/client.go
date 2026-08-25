@@ -3,8 +3,10 @@ package api
 import (
 	"fmt"
 
+	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -126,6 +128,33 @@ func (c *Client) DevicePut(path string, body any, apiKey, pin string) ([]byte, e
 	return c.PutWithAuth(phoenixapi.DeviceAuth(apiKey, pin, apiKey), path, body)
 }
 
+// PostFile makes an authenticated multipart POST with a single file part,
+// which is the shape every document upload in the API expects.
+func (c *Client) PostFile(path, fieldName, filename string, contents []byte) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	part, err := writer.CreateFormFile(fieldName, filename)
+	if err != nil {
+		return nil, fmt.Errorf("build multipart body: %w", err)
+	}
+	if _, err := part.Write(contents); err != nil {
+		return nil, fmt.Errorf("write multipart body: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, fmt.Errorf("close multipart body: %w", err)
+	}
+
+	respBody, statusCode, err := c.adapter.RawUpload(context.Background(), c.authRef(), "POST", path, writer.FormDataContentType(), buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	if c.verbose {
+		c.logRequest("POST", path, nil)
+		c.logResponse(statusCode, respBody)
+	}
+	return respBody, nil
+}
+
 // Get makes an authenticated GET request
 func (c *Client) Get(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("GET", path, nil, true, nil)
@@ -139,16 +168,22 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 func (c *Client) doRequestWithHeaders(method, path string, body any, auth bool, headers map[string]string) ([]byte, error) {
 	authRef := phoenixapi.AuthRef{}
 	if auth {
-		authRef = c.auth
-		if authRef.Token == "" && c.token != "" {
-			authRef = phoenixapi.AuthRef{
-				Kind:  phoenixapi.AuthBearer,
-				Label: "seed",
-				Token: c.token,
-			}
-		}
+		authRef = c.authRef()
 	}
 	return c.doRequestWithExplicitAuth(method, path, body, authRef, headers)
+}
+
+// authRef is the bound authentication, falling back to a bare token when only
+// that was set.
+func (c *Client) authRef() phoenixapi.AuthRef {
+	if c.auth.Token == "" && c.token != "" {
+		return phoenixapi.AuthRef{
+			Kind:  phoenixapi.AuthBearer,
+			Label: "seed",
+			Token: c.token,
+		}
+	}
+	return c.auth
 }
 
 func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef phoenixapi.AuthRef, headers map[string]string) ([]byte, error) {
