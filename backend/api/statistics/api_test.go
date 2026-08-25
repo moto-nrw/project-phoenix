@@ -263,6 +263,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	group := testpkg.CreateTestEducationGroup(t, tc.db, "Sonnen")
 	anna := testpkg.CreateTestStudent(t, tc.db, "Anna", "Anwesend", "1a")
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bettruhe", "1a")
+	alumnus := testpkg.CreateTestStudent(t, tc.db, "Alma", "Archiv", "1a")
 	_, err := tc.db.NewUpdate().TableExpr("users.students").
 		Set("enrolled_until = ?", timezone.NewDate(2026, 6, 11)).
 		Where("id = ?", anna.ID).
@@ -270,10 +271,16 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	require.NoError(t, err)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, anna.ID, 30)
 	insertAcceptedPrivacyConsent(t, tc.db, tenantID, bert.ID, 30)
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, alumnus.ID, 30)
 	for _, st := range []int64{anna.ID, bert.ID} {
 		_, err := tc.db.NewUpdate().TableExpr("users.students").Set("group_id = ?", group.ID).Where("id = ?", st).Exec(ctx)
 		require.NoError(t, err)
 	}
+	_, err = tc.db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", userModels.StudentStatusAlumnus).
+		Where("id = ?", alumnus.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 	device := testpkg.CreateTestDevice(t, tc.db, "stat-device")
 
 	// Tue 09.06. is a closing day, Fri 12.06. lies in a holiday period.
@@ -307,6 +314,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	end := func(t time.Time) *time.Time { return &t }
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(14*time.Hour), end(monday.Add(15*time.Hour)))
 	testpkg.CreateTestVisit(t, tc.db, bert.ID, session.ID, monday.Add(14*time.Hour+30*time.Minute), end(monday.Add(15*time.Hour+30*time.Minute)))
+	testpkg.CreateTestVisit(t, tc.db, alumnus.ID, session.ID, monday.Add(14*time.Hour), end(monday.Add(15*time.Hour)))
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, monday.Add(-2*time.Hour), end(monday.Add(30*time.Minute)))
 	thursday := monday.AddDate(0, 0, 3)
 	testpkg.CreateTestVisit(t, tc.db, anna.ID, session.ID, thursday.Add(23*time.Hour), end(thursday.Add(25*time.Hour)))
@@ -328,7 +336,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	assert.Equal(t, 1, data.ExcludedDays.HolidayPeriods)
 	assert.Equal(t, 0, data.ExcludedDays.PublicHolidays)
 
-	require.Len(t, data.Students, 2)
+	require.Len(t, data.Students, 3)
 	byName := map[string]int{}
 	for i, st := range data.Students {
 		byName[st.LastName] = i
@@ -350,12 +358,12 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	require.NotNil(t, bertRow.AttendanceRate)
 	assert.InDelta(t, 33.3, *bertRow.AttendanceRate, 0.01)
 
-	require.Len(t, data.Groups, 1)
+	require.Len(t, data.Groups, 2)
 	assert.Equal(t, group.Name, data.Groups[0].Name)
 	assert.Equal(t, 2, data.Groups[0].StudentCount)
 	require.NotNil(t, data.Groups[0].AttendanceRate)
 	assert.InDelta(t, 50.0, *data.Groups[0].AttendanceRate, 0.01)
-	assert.Equal(t, 2, data.Totals.StudentCount)
+	assert.Equal(t, 3, data.Totals.StudentCount)
 
 	require.NotEmpty(t, data.Rooms)
 	var found bool

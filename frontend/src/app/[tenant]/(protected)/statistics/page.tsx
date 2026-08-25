@@ -558,7 +558,7 @@ export default function StatisticsPage() {
               <div className="mt-3">
                 <SectionHeading
                   title="Gruppen"
-                  hint="Kinder zählen in ihrer heutigen Gruppe. Zahlen sind Tage, die Quote ist der Durchschnitt der Gruppe."
+                  hint="Kinder zählen in ihrer heutigen Gruppe. Die Quote teilt alle Anwesenheitstage durch alle Betreuungstage."
                 />
                 <DataTable
                   columns={groupColumns}

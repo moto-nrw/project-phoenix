@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -74,9 +75,10 @@ func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end t
 		return nil, fmt.Errorf("statistics room utilization requires a tenant context")
 	}
 	// Placeholder order in the SQL below: GREATEST(start), LEAST(end),
-	// entry_time < end, exit_time > start, then the three tenant filters.
+	// entry_time < end, exit_time > start, alumni status, then the three
+	// tenant filters.
 	groupClause := ""
-	args := []any{start, end, end, start}
+	args := []any{start, end, end, start, userModels.StudentStatusAlumnus}
 	tenantClause := " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
 	args = append(args, tenantID, tenantID, tenantID)
 	if len(groupIDs) > 0 {
@@ -128,6 +130,7 @@ scoped AS (
 	JOIN retention r ON r.student_id = v.student_id
 	WHERE v.entry_time < ?
 	  AND (v.exit_time IS NULL OR v.exit_time > ?)
+	  AND s.status <> ?
 	  AND (s.enrolled_from IS NULL OR COALESCE(v.exit_time, NOW()) > s.enrolled_from::timestamp AT TIME ZONE 'Europe/Berlin')
 	  AND (s.enrolled_until IS NULL OR v.entry_time < (s.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin')
 	  AND v.created_at >= NOW() - make_interval(days => r.retention_days)` + tenantClause + groupClause + `
