@@ -543,14 +543,14 @@ function ParentAnnouncementsContent() {
         onClick: () => setDetailFor(row),
       },
     ];
-    if (row.status === "draft") {
+    if (!row.system_kind && row.status === "draft") {
       menuItems.push({
         label: "Bearbeiten",
         icon: <Pencil className="size-4" aria-hidden />,
         onClick: () => openEdit(row),
       });
     }
-    if (row.status === "published") {
+    if (!row.system_kind && row.status === "published") {
       menuItems.push({
         label: "Zurückziehen",
         icon: <Undo2 className="size-4" aria-hidden />,
@@ -561,15 +561,17 @@ function ParentAnnouncementsContent() {
         disabled: pendingActionId === row.id,
       });
     }
-    menuItems.push({
-      label: "Löschen",
-      icon: <Trash2 className="size-4" aria-hidden />,
-      destructive: true,
-      onClick: () => {
-        setDeleteError("");
-        setDeleteTarget(row);
-      },
-    });
+    if (!row.system_kind) {
+      menuItems.push({
+        label: "Löschen",
+        icon: <Trash2 className="size-4" aria-hidden />,
+        destructive: true,
+        onClick: () => {
+          setDeleteError("");
+          setDeleteTarget(row);
+        },
+      });
+    }
     return menuItems;
   }
 

@@ -499,6 +499,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
 	case errors.Is(err, announcementService.ErrPublishedImmutable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
+	case errors.Is(err, announcementService.ErrSystemAnnouncementImmutable):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "system_announcement_immutable"))
 	case errors.Is(err, announcementService.ErrNotAPoll):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrPollNotOpen):
