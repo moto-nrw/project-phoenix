@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // importerUserIDKey is a context key for the importing user's ID
@@ -38,9 +39,8 @@ type ImportService[T any] struct {
 	batchSize int
 	auditRepo audit.DataImportRepository
 	// config keeps request-specific reference data after PreloadReferenceData.
-	// Serialize imports using this service so one request cannot replace another
-	// tenant's lookup indexes while it is still validating or processing rows.
-	importMu sync.Mutex
+	// Imports of one tenant must not replace each other's lookup indexes.
+	tenantImportMu sync.Map // map[int64]*sync.Mutex
 }
 
 // NewImportService creates a new import service
@@ -93,8 +93,11 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
-	s.importMu.Lock()
-	defer s.importMu.Unlock()
+	tenantID := tenant.FromContext(ctx)
+	value, _ := s.tenantImportMu.LoadOrStore(tenantID, &sync.Mutex{})
+	mu := value.(*sync.Mutex)
+	mu.Lock()
+	defer mu.Unlock()
 
 	result := &importModels.ImportResult[T]{
 		StartedAt: time.Now(),

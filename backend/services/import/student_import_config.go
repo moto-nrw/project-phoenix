@@ -353,6 +353,15 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 		}}
 	}
 	if student != nil {
+		if strings.TrimSpace(row.FirstName) != "" && strings.TrimSpace(row.LastName) != "" && strings.TrimSpace(row.SchoolClass) != "" {
+			matched, err := c.findStudentWithoutTag(ctx, *row)
+			if err != nil {
+				return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()), Code: "rfid_lookup_failed", Severity: importModels.ErrorSeverityError}}
+			}
+			if matched != nil && *matched != student.ID {
+				return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte '%s' ist bereits einer anderen Person zugeordnet.", raw), Code: "rfid_taken", Severity: importModels.ErrorSeverityError, ActualValue: raw}}
+			}
+		}
 		return nil
 	}
 	return []importModels.ValidationError{{
@@ -1263,7 +1272,12 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student 
 	// Bus/Abholstatus columns are not consulted in update mode because their
 	// empty state is indistinguishable from "no".
 	if row.DepartureDays != nil {
-		student.DepartureDays = departurePlanFromImportRow(row)
+		if student.DepartureDays == nil {
+			student.DepartureDays = users.DepartureDays{}
+		}
+		for weekday, mode := range departurePlanFromImportRow(row) {
+			student.DepartureDays[weekday] = mode
+		}
 	}
 	if note := boundedNotePtr(row.DepartureCompanionNote); note != nil {
 		student.DepartureCompanionNote = note
