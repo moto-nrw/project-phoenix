@@ -65,6 +65,16 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 		},
 	}
 
+	// Wer welche Unterhaltung danach oeffnet. Ohne dieses zweite Durchgehen
+	// entstehen KEINE Zeilen in users.staff_message_reads: Lesecursor schreibt
+	// allein GetThread, und der Sendepfad tut es bewusst nicht mehr (er wuerde
+	// sonst die Nachrichten der Gegenseite mit als gelesen markieren, #2598).
+	type openedThread struct {
+		id     string
+		reader StaffCredentials
+	}
+	var opened []openedThread
+
 	sent := 0
 	for _, c := range conversations {
 		recipientID := staffAccountID(rt, c.to)
@@ -101,11 +111,29 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 			}
 			sent++
 		}
+
+		// Die Gegenseite liest spaeter - das ist der realistische Ablauf und
+		// zugleich der einzige Weg, wie ein Lesecursor entsteht.
+		opened = append(opened, openedThread{id: threadID, reader: c.to})
+	}
+
+	// Zweiter Durchgang: jede Empfaengerin oeffnet ihre Unterhaltung einmal.
+	read := 0
+	for _, o := range opened {
+		if err := rt.Client.Login(o.reader.Email, o.reader.Password); err != nil {
+			fmt.Printf("  WARNING: login as %s failed: %v\n", o.reader.Email, err)
+			continue
+		}
+		if _, err := rt.Client.Get("/api/staff-messages/threads/" + o.id); err != nil {
+			fmt.Printf("  WARNING: could not open staff conversation %s: %v\n", o.id, err)
+			continue
+		}
+		read++
 	}
 
 	// Restore the tenant auth the surrounding workflow expects.
 	rt.Client.BindAuth(rt.TenantAuth)
-	fmt.Printf("  %d staff messages created\n", sent)
+	fmt.Printf("  %d staff messages created, %d conversations read\n", sent, read)
 	return nil
 }
 
