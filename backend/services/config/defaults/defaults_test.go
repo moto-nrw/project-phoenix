@@ -61,6 +61,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"tracking.indicator_1",
 		"tracking.indicator_2",
 		"tracking.indicator_3",
+		// File storage (#2596).
+		"files.staff_upload_enabled",
+		"files.max_storage_mb",
 		// Timetable settings: top-level enable toggle + operations/GDPR details.
 		"timetable.enabled",
 		"timetable.materialization_enabled",

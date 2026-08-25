@@ -14,6 +14,7 @@ import {
   Download,
   Eye,
   FileText,
+  FolderOpen,
   GraduationCap,
   KeyRound,
   LayoutDashboard,
@@ -1452,6 +1453,29 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
         image: "/help/screens/datenverwaltung.webp",
+      },
+      {
+        id: "dateiablage",
+        title: "Dateien: gemeinsame Ablage der OGS",
+        icon: FolderOpen,
+        summary:
+          "Unter `Dateien` liegen gemeinsame Unterlagen der OGS wie Konzeption, Formulare oder Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest. Unterlagen zu einem Kind oder zu einer Person gehören nicht hierher, sondern in den `Dokumente`-Reiter beim Kind bzw. bei der Person.",
+        steps: [
+          "`Dateien` in der Seitenleiste öffnen. Links stehen die Ordner, rechts die Dateien des gewählten Ordners.",
+          "Als Leitung mit `Neuer Ordner` einen Ordner anlegen und die Sichtbarkeit wählen: `Alle Mitarbeitenden`, `Nur Leitung` oder `Ausgewählt` (bestimmte Rollen und Personen). Alle Dateien im Ordner übernehmen diese Einstellung.",
+          "Dateien per Ziehen oder über `Dateien auswählen` hochladen. Erlaubt sind PDF, Word, Excel, PowerPoint, PNG und JPG bis 25 MB pro Datei.",
+          "PDF und Bilder öffnen sich per Klick auf den Dateinamen direkt im Browser. Word, Excel und PowerPoint werden heruntergeladen.",
+          "Über das Menü mit den drei Punkten an einer Datei `Öffnen`, `Herunterladen` oder `Löschen` wählen; am Ordner `Ordner bearbeiten` oder `Ordner löschen`.",
+          "Standardmäßig lädt nur die Leitung hoch. Unter `Einstellungen` -> `Team darf Dateien hochladen` dürfen alle Mitarbeitenden in die Ordner hochladen, die sie sehen, und ihre eigenen Dateien wieder löschen.",
+        ],
+        callout: {
+          title: "Sichtbarkeit gilt pro Ordner",
+          body: "Rechte werden nie an einer einzelnen Datei vergeben. Braucht eine Datei einen anderen Kreis, gehört sie in einen eigenen Ordner.",
+          tone: "blue",
+        },
+        screenshot:
+          "Dateiablage mit Ordnerliste links, Dateitabelle rechts und dem Fenster zum Anlegen eines Ordners.",
+        image: "/help/screens/dateien.webp",
       },
       {
         id: "klassenlisteneintraege",
