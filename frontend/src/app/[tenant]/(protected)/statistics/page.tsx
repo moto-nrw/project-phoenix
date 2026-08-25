@@ -22,6 +22,8 @@ import {
 } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MultiSelect } from "~/components/ui/multi-select";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   berlinTodayISO,
@@ -31,6 +33,7 @@ import {
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  fetchStatisticsGroups,
   fetchStatisticsReport,
   formatHours,
   formatRate,
@@ -44,11 +47,18 @@ import {
   type StatisticsRoomRow,
   type StatisticsStudentRow,
 } from "~/lib/statistics-api";
-import { fetchGroups } from "~/lib/student-api";
 import { useSWRAuth } from "~/lib/swr/hooks";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "StatisticsPage" });
+
+type StatisticsView = "groups" | "students" | "rooms";
+
+const VIEW_ITEMS: readonly { value: StatisticsView; label: string }[] = [
+  { value: "groups", label: "Gruppen" },
+  { value: "students", label: "Kinder" },
+  { value: "rooms", label: "Räume" },
+];
 
 const ERROR_MESSAGES: Record<StatisticsErrorCode, string> = {
   forbidden:
@@ -102,6 +112,7 @@ function addDays(d: Date, days: number): Date {
 
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
+  const isMobile = useIsMobile();
   const todayISO = berlinTodayISO();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [range, setRange] = useState<DateRange | undefined>(() => ({
@@ -109,13 +120,17 @@ export default function StatisticsPage() {
     to: parseISODate(berlinTodayISO()),
   }));
   const [groupIds, setGroupIds] = useState<string[]>([]);
+  const [view, setView] = useState<StatisticsView>("groups");
   const [data, setData] = useState<StatisticsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<StatisticsErrorCode | null>(null);
   const [exporting, setExporting] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const { data: groups } = useSWRAuth("statistics-groups", fetchGroups);
+  const { data: groups } = useSWRAuth(
+    "statistics-groups",
+    fetchStatisticsGroups,
+  );
   const groupOptions = useMemo(
     () =>
       (groups ?? [])
@@ -195,8 +210,10 @@ export default function StatisticsPage() {
     [fromISO, toISO, groupIds],
   );
 
+  // Anchor 365 days back: the backend allows at most 366 days inclusive,
+  // so the "Gesamt" preset must not overshoot the window by one day.
   const presets = useMemo(
-    () => buildDefaultPresets(addDays(today, -366), today),
+    () => buildDefaultPresets(addDays(today, -365), today),
     [today],
   );
 
@@ -444,12 +461,11 @@ export default function StatisticsPage() {
               Anwesenheit und Räume im Zeitraum
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Quote = Tage mit Anmeldung geteilt durch Betreuungstage.
-              Feiertage, Schließtage und Ferien zählen nicht mit. Nur zur
-              Information, hier lässt sich nichts ändern.
+              Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne
+              Feiertage, Schließtage und Ferien).
             </p>
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
             <DateRangePicker
               value={range}
               onChange={(next) => {
@@ -458,6 +474,7 @@ export default function StatisticsPage() {
               presets={presets}
               toMax={today}
               className="w-full sm:w-auto"
+              triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
             />
             <MultiSelect
               value={groupIds}
@@ -468,7 +485,7 @@ export default function StatisticsPage() {
               summaryLabel={(n) => `${n} Gruppen`}
               className="w-full sm:w-44"
             />
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
               {exportButtons("attendance")}
             </div>
           </div>
@@ -515,96 +532,111 @@ export default function StatisticsPage() {
               />
             </div>
             <p className="mt-2 text-xs leading-5 text-gray-500">
-              Zeitraum {formatDate(data.from)} bis {formatDate(data.to)}.
-              Abgezogen: {data.excluded_days.public_holidays} Feiertage,{" "}
+              {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+              {data.excluded_days.public_holidays} Feiertage,{" "}
               {data.excluded_days.closing_days} Schließtage,{" "}
-              {data.excluded_days.holiday_periods} Ferientage. Zahlen in den
-              Spalten sind Tage.
+              {data.excluded_days.holiday_periods} Ferientage
             </p>
 
-            <div className="mt-6">
-              <SectionHeading
-                title="Gruppen"
-                hint="Kinder werden in ihrer heutigen Gruppe gezählt. Die Quote der Gruppe ist der Durchschnitt über alle Kinder der Gruppe."
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              {/* Mobile fills the line, desktop keeps the compact joined chip. */}
+              <SegmentedControl
+                items={VIEW_ITEMS}
+                value={view}
+                onChange={setView}
+                variant="joined"
+                fullWidth={isMobile}
+                ariaLabel="Bereich wählen"
               />
-              <DataTable
-                columns={groupColumns}
-                rows={data.groups}
-                getRowKey={(row) => row.group_id}
-                defaultSortKey="name"
-                emptyState={
-                  <EmptyState
-                    title="Keine Kinder im Zeitraum"
-                    description="Für die gewählten Gruppen gibt es keine Kinder."
-                  />
-                }
-              />
-            </div>
-
-            <div className="mt-6">
-              <SectionHeading
-                title="Kinder"
-                hint="Ein Klick auf den Namen öffnet die Detailseite des Kindes."
-              />
-              <DataTable
-                columns={studentColumns}
-                rows={data.students}
-                getRowKey={(row) => row.student_id}
-                defaultSortKey="name"
-                pageSize={50}
-                paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                emptyState={
-                  <EmptyState
-                    title="Keine Kinder im Zeitraum"
-                    description="Für die gewählten Gruppen gibt es keine Kinder."
-                  />
-                }
-              />
-            </div>
-
-            <div className="mt-6">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <SectionHeading
-                  title="Räume"
-                  hint={`Raumdaten liegen nur für die letzten ${data.room_data_days} Tage vor (ab ${formatDate(data.room_data_from)}). Spitze = die meisten Kinder gleichzeitig im Raum. Auslastung = Spitze im Verhältnis zu den Plätzen.`}
-                />
-                {!roomDataAllBeforeWindow && (
-                  <div className="mb-3 flex shrink-0 flex-wrap gap-2">
-                    {exportButtons("rooms")}
-                  </div>
-                )}
-              </div>
-              {roomDataAllBeforeWindow ? (
-                <EmptyState
-                  title="Keine Raumdaten für diesen Zeitraum"
-                  description={`Raumdaten liegen nur für die letzten ${data.room_data_days} Tage vor. Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
-                />
-              ) : (
-                <>
-                  {roomDataStartsInsideWindow && (
-                    <div className="mb-3">
-                      <Alert
-                        type="info"
-                        message={`Die Raumzahlen beginnen erst am ${formatDate(data.room_data_from)}, ältere Raumdaten sind bereits gelöscht.`}
-                      />
-                    </div>
-                  )}
-                  <DataTable
-                    columns={roomColumns}
-                    rows={data.rooms}
-                    getRowKey={(row) => row.room_id}
-                    defaultSortKey="days"
-                    defaultSortDirection="desc"
-                    emptyState={
-                      <EmptyState
-                        title="Keine Räume"
-                        description="Es sind keine Räume angelegt."
-                      />
-                    }
-                  />
-                </>
+              {view === "rooms" && !roomDataAllBeforeWindow && (
+                <div className="flex flex-wrap gap-2">
+                  {exportButtons("rooms")}
+                </div>
               )}
             </div>
+
+            {view === "groups" && (
+              <div className="mt-3">
+                <SectionHeading
+                  title="Gruppen"
+                  hint="Kinder zählen in ihrer heutigen Gruppe. Zahlen sind Tage, die Quote ist der Durchschnitt der Gruppe."
+                />
+                <DataTable
+                  columns={groupColumns}
+                  rows={data.groups}
+                  getRowKey={(row) => row.group_id}
+                  defaultSortKey="name"
+                  emptyState={
+                    <EmptyState
+                      title="Keine Kinder im Zeitraum"
+                      description="Für die gewählten Gruppen gibt es keine Kinder."
+                    />
+                  }
+                />
+              </div>
+            )}
+
+            {view === "students" && (
+              <div className="mt-3">
+                <SectionHeading
+                  title="Kinder"
+                  hint="Zahlen sind Tage. Ein Klick auf den Namen öffnet die Detailseite des Kindes."
+                />
+                <DataTable
+                  columns={studentColumns}
+                  rows={data.students}
+                  getRowKey={(row) => row.student_id}
+                  defaultSortKey="name"
+                  pageSize={25}
+                  paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                  emptyState={
+                    <EmptyState
+                      title="Keine Kinder im Zeitraum"
+                      description="Für die gewählten Gruppen gibt es keine Kinder."
+                    />
+                  }
+                />
+              </div>
+            )}
+
+            {view === "rooms" && (
+              <div className="mt-3">
+                <SectionHeading
+                  title="Räume"
+                  hint={`Raumdaten gibt es nur für die letzten ${data.room_data_days} Tage (ab ${formatDate(data.room_data_from)}). Spitze = meiste Kinder gleichzeitig im Raum, Auslastung = Spitze zu Plätzen.`}
+                />
+                {roomDataAllBeforeWindow ? (
+                  <EmptyState
+                    title="Keine Raumdaten für diesen Zeitraum"
+                    description={`Raumdaten gibt es nur für die letzten ${data.room_data_days} Tage. Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
+                  />
+                ) : (
+                  <>
+                    {roomDataStartsInsideWindow && (
+                      <div className="mb-3">
+                        <Alert
+                          type="info"
+                          message={`Die Raumzahlen beginnen erst am ${formatDate(data.room_data_from)}, ältere Raumdaten sind bereits gelöscht.`}
+                        />
+                      </div>
+                    )}
+                    <DataTable
+                      columns={roomColumns}
+                      rows={data.rooms}
+                      getRowKey={(row) => row.room_id}
+                      defaultSortKey="days"
+                      defaultSortDirection="desc"
+                      emptyState={
+                        <EmptyState
+                          title="Keine Räume"
+                          description="Es sind keine Räume angelegt."
+                        />
+                      }
+                    />
+                  </>
+                )}
+              </div>
+            )}
           </>
         )}
       </section>
