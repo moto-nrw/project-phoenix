@@ -46,6 +46,10 @@ var (
 	// written to: it left the school, or it is not a staff account at all (a
 	// guardian account carries an active tenant mapping too).
 	ErrRecipientNotAvailable = errors.New("staffmessaging: recipient is not an active member of this school")
+	// ErrCounterpartUnavailable is returned when the OTHER side of an existing
+	// conversation is no longer a messageable colleague. The thread stays
+	// readable; only appending to it stops.
+	ErrCounterpartUnavailable = errors.New("staffmessaging: the other participant is no longer available")
 	// ErrSelfConversation is returned when someone addresses themselves.
 	ErrSelfConversation = errors.New("staffmessaging: cannot start a conversation with yourself")
 	// ErrEmptyMessage is returned for a blank body.
@@ -219,6 +223,28 @@ func (s *Service) OpenThread(ctx context.Context, counterpartAccountID int64) (*
 	return s.buildDetail(ctx, thread, accountID)
 }
 
+// requireReachableCounterparts verifies every participant except the caller is
+// still a messageable colleague.
+func (s *Service) requireReachableCounterparts(ctx context.Context, threadID, callerAccountID int64) error {
+	participants, err := s.ThreadRepo.ParticipantAccountIDs(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	for _, id := range participants {
+		if id == callerAccountID {
+			continue
+		}
+		ok, err := s.ReadRepo.IsMessageableStaff(ctx, id)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return ErrCounterpartUnavailable
+		}
+	}
+	return nil
+}
+
 func (s *Service) requireActiveMember(ctx context.Context, accountID int64) error {
 	active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
 	if err != nil {
@@ -290,6 +316,16 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
+		return nil, err
+	}
+
+	// Is the OTHER side still reachable? Membership in the thread is a
+	// historical fact and says nothing about today. Without this check a
+	// conversation whose counterpart left the school keeps accepting messages
+	// that nobody will ever answer - and worse: because reads stay open, that
+	// person's still-valid token would keep DELIVERING them. Leaving history
+	// readable was meant for the past, not for ongoing traffic.
+	if err := s.requireReachableCounterparts(ctx, threadID, accountID); err != nil {
 		return nil, err
 	}
 

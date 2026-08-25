@@ -17,6 +17,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type StaffMessage,
   fetchStaffThread,
+  isCounterpartUnavailable,
   isStaffMessagingDisabled,
   postStaffMessage,
 } from "~/lib/staff-messages-api";
@@ -72,6 +73,9 @@ function TeamThreadContent() {
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
   // denselben Fehler.
   const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
+  // Das Gegenueber hat die Schule verlassen, waehrend diese Seite offen stand.
+  // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
+  const [counterpartGone, setCounterpartGone] = useState(false);
 
   const messages: StaffMessage[] = thread?.messages ?? [];
 
@@ -89,6 +93,8 @@ function TeamThreadContent() {
   // covers a stale flag and a deep-linked thread).
   const chatDisabled =
     !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
+  // Getrennt vom Aus-Zustand: der Chat laeuft, nur DIESE Unterhaltung ist zu.
+  const readOnlyThread = !chatDisabled && counterpartGone;
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -153,7 +159,12 @@ function TeamThreadContent() {
         error: err instanceof Error ? err.message : String(err),
         thread_id: threadID,
       });
-      if (isStaffMessagingDisabled(err)) {
+      if (isCounterpartUnavailable(err)) {
+        // Auch das ist ein Zustand, kein Fehlschlag: ohne diesen Zweig bliebe
+        // der Composer bedienbar und liefe bei jedem Versuch in denselben 409.
+        setCounterpartGone(true);
+        setSendError(null);
+      } else if (isStaffMessagingDisabled(err)) {
         // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
         setDisabledWhileOpen(true);
         setSendError(null);
@@ -264,7 +275,12 @@ function TeamThreadContent() {
         )}
 
         <div className="mt-4">
-          {chatEnabled ? (
+          {readOnlyThread ? (
+            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
+              Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den
+              Verlauf lesen, aber nicht mehr schreiben.
+            </p>
+          ) : chatEnabled ? (
             <MessageComposer
               value={draft}
               onChange={setDraft}

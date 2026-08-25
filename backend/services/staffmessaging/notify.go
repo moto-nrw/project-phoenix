@@ -82,9 +82,24 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		return
 	}
 
+	// Zusaetzlich zur Einwilligung: nur an erreichbares Personal. Der Sendepfad
+	// prueft das bereits, aber eine Zustellung an ein inzwischen deaktiviertes
+	// Konto waere der teuerste Weg, das zu bemerken - ein Push landet auf einem
+	// Sperrbildschirm.
 	candidates := make([]int64, 0, len(participants))
 	for _, id := range participants {
-		if id != senderAccountID {
+		if id == senderAccountID {
+			continue
+		}
+		reachable, err := s.ReadRepo.IsMessageableStaff(ctx, id)
+		if err != nil {
+			s.Logger.Warn("staffmessaging: recipient reachability check failed",
+				slog.Int64("thread_id", thread.ID),
+				slog.String("error", err.Error()),
+			)
+			continue
+		}
+		if reachable {
 			candidates = append(candidates, id)
 		}
 	}

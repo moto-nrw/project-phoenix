@@ -397,3 +397,38 @@ func TestGloballyDeactivatedAccountIsNotAddressable(t *testing.T) {
 	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
 		"a globally deactivated account must not be able to keep writing")
 }
+
+// TestCannotWriteToDepartedCounterpart pins the other half of the write door.
+// Thread membership is a historical fact and says nothing about today: once the
+// counterpart has left, a message would reach nobody who is still supposed to
+// receive it - and because reads stay open, their still-valid token would keep
+// DELIVERING it. History stays readable, appending stops.
+func TestCannotWriteToDepartedCounterpart(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Noch zu zweit")
+	require.NoError(t, err)
+
+	// Ben verlaesst die Schule.
+	_, err = db.NewUpdate().
+		Table("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Where("account_id = ? AND tenant_id = ?", ben, testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Hallo?")
+	require.ErrorIs(t, err, staffmessaging.ErrCounterpartUnavailable,
+		"writing into a conversation whose counterpart has left must stop")
+
+	// Der Verlauf bleibt lesbar - das war die bewusste Entscheidung.
+	detail, err := svc.GetThread(asAccount(t, anna), thread.ThreadID)
+	require.NoError(t, err)
+	assert.Len(t, detail.Messages, 1, "history stays readable")
+}

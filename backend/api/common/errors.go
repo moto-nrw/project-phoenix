@@ -290,6 +290,18 @@ func ErrorNotFoundMessage(message string) render.Renderer {
 	}
 }
 
+// ErrorConflictMessageWithCode returns a 409 with a user-facing message AND a
+// stable code, for conflicts the frontend has to branch on rather than merely
+// display.
+func ErrorConflictMessageWithCode(message, code string) render.Renderer {
+	return &ErrResponse{
+		HTTPStatusCode: http.StatusConflict,
+		Status:         "error",
+		ErrorText:      message,
+		Code:           code,
+	}
+}
+
 // ErrorTooManyRequests returns a 429 Too Many Requests error response
 func ErrorTooManyRequests(err error) render.Renderer {
 	return newErrResponse(http.StatusTooManyRequests, err)

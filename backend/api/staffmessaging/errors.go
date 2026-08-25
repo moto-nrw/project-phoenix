@@ -14,6 +14,11 @@ import (
 // Team-Chat switched off". The frontend keys its read-only state on it.
 const ErrCodeStaffMessagingDisabled = "staff_messaging_disabled"
 
+// ErrCodeCounterpartUnavailable is the wire contract for "the other side of
+// this conversation is no longer reachable". The frontend keys its read-only
+// state on it, so a composer does not keep retrying into the same 409.
+const ErrCodeCounterpartUnavailable = "staff_counterpart_unavailable"
+
 // staffMessagingErrorRules maps service sentinels to HTTP responses
 // declaratively (backend-conventions Rule 4: classification belongs in a rule
 // table, not a hand-written switch).
@@ -41,6 +46,12 @@ var staffMessagingErrorRules = []common.ErrorRule{
 		return common.ErrorForbiddenMessageWithCode(
 			"Der Team-Chat ist für diese Schule nicht eingeschaltet.",
 			ErrCodeStaffMessagingDisabled,
+		)
+	}},
+	{Target: service.ErrCounterpartUnavailable, Render: func(_ error) render.Renderer {
+		return common.ErrorConflictMessageWithCode(
+			"Diese Person gehört nicht mehr zu Ihrer Schule. Sie können hier nicht mehr schreiben.",
+			ErrCodeCounterpartUnavailable,
 		)
 	}},
 	{Target: service.ErrRecipientNotAvailable, Render: func(_ error) render.Renderer {

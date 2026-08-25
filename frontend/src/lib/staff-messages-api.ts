@@ -70,6 +70,20 @@ class StaffMessagesError extends Error {
   }
 }
 
+/**
+ * Wire contract with api/staffmessaging: the other side of this conversation is
+ * no longer a reachable colleague. Same reasoning as STAFF_MESSAGING_DISABLED -
+ * a code, not a sentence, so the read-only branch survives a rewording.
+ */
+const COUNTERPART_UNAVAILABLE = "staff_counterpart_unavailable";
+
+/** Whether an unknown thrown value is the "counterpart has left" case. */
+export function isCounterpartUnavailable(err: unknown): boolean {
+  return (
+    err instanceof StaffMessagesError && err.code === COUNTERPART_UNAVAILABLE
+  );
+}
+
 /** Whether an unknown thrown value is the "school switched it off" case. */
 export function isStaffMessagingDisabled(err: unknown): boolean {
   return (
