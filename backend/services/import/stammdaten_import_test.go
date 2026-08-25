@@ -458,11 +458,8 @@ func TestMatchLinkedGuardian(t *testing.T) {
 	t.Parallel()
 	email := "anna@example.test"
 	anna := &userModels.GuardianProfile{FirstName: "Anna", LastName: "Muster", Email: &email}
-	anna.ID = 1
 	ben := &userModels.GuardianProfile{FirstName: "Ben", LastName: "Muster"}
-	ben.ID = 2
 	ben2 := &userModels.GuardianProfile{FirstName: "Ben", LastName: "Muster"}
-	ben2.ID = 3
 	linked := []linkedGuardianProfile{
 		{profile: anna, phones: []string{"+4915112345"}},
 		{profile: ben, phones: []string{"022112345"}},
@@ -470,18 +467,18 @@ func TestMatchLinkedGuardian(t *testing.T) {
 
 	got := matchLinkedGuardian(linked, importModels.GuardianImportData{Email: "ANNA@example.test "})
 	require.NotNil(t, got)
-	assert.Equal(t, int64(1), got.ID, "e-mail wins")
+	assert.Same(t, anna, got, "e-mail wins")
 
 	got = matchLinkedGuardian(linked, importModels.GuardianImportData{
 		FirstName: "Ben", LastName: "Muster",
 		PhoneNumbers: []importModels.PhoneImportData{{PhoneNumber: "0221 123-45"}},
 	})
 	require.NotNil(t, got)
-	assert.Equal(t, int64(2), got.ID, "stored phone matches in normalized form")
+	assert.Same(t, ben, got, "stored phone matches in normalized form")
 
 	got = matchLinkedGuardian(linked, importModels.GuardianImportData{FirstName: "ben", LastName: "MUSTER"})
 	require.NotNil(t, got)
-	assert.Equal(t, int64(2), got.ID, "unique name matches without contact data")
+	assert.Same(t, ben, got, "unique name matches without contact data")
 
 	assert.Nil(t, matchLinkedGuardian(linked, importModels.GuardianImportData{
 		FirstName: "Ben", LastName: "Muster", Email: "other@example.test",
