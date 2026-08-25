@@ -67,6 +67,10 @@ const (
 	TypeParentAppointment         = "parent_appointment"
 	TypeParentAppointmentReminder = "parent_appointment_reminder"
 	TypeParentRequestDecided      = "parent_request_decided"
+	// TypeParentCareCancelled announces that a care block one of the guardian's
+	// children was booked into has been cancelled (#2601). The feed entry is
+	// a system-authored parent announcement; this type only governs the push.
+	TypeParentCareCancelled = "parent_care_cancelled"
 )
 
 // TypeDefinition describes one notification a person can agree to.
@@ -256,6 +260,19 @@ func init() {
 		Portal:      PortalParent,
 		TenantGate:  configModel.KeyCalendarAppointmentReminderEnabled,
 		SortOrder:   2,
+	})
+
+	// Gated by the school-wide cancellation-notice switch, never by the news
+	// flag: the feed entry exists whenever the notice was sent, this only
+	// decides whether the phone rings for it.
+	RegisterType(TypeDefinition{
+		Key:         TypeParentCareCancelled,
+		Label:       "Betreuung fällt aus",
+		Description: "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt.",
+		Group:       GroupAppointments,
+		Portal:      PortalParent,
+		TenantGate:  configModel.KeyNotificationsCareCancelledEnabled,
+		SortOrder:   3,
 	})
 
 	RegisterType(TypeDefinition{

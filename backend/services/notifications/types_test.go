@@ -51,7 +51,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("parent catalogue is separate", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalParent)
-		require.Len(t, defs, 5)
+		require.Len(t, defs, 6)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -63,6 +63,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeParentMessage,
 			notifications.TypeParentAppointment,
 			notifications.TypeParentAppointmentReminder,
+			notifications.TypeParentCareCancelled,
 		}, keys, "order is fixed by group then SortOrder, not by registration order")
 
 		// A staff type must never surface in the parent portal and vice versa:

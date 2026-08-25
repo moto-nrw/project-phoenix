@@ -178,6 +178,17 @@ const (
 	// are currently checked in. An empty presence map fails closed; schools
 	// without time tracking must disable this setting.
 	KeyNotificationsOnDutyOnly = "notifications.on_duty_only"
+	// KeyNotificationsCareCancelledEnabled is the school-wide gate for the
+	// automatic parent notice when a care block is cancelled (#2601). It is
+	// independent of the parent-news feature flag on purpose: a school can keep
+	// its news feed off and still owe families the cancellation notice.
+	KeyNotificationsCareCancelledEnabled = "notifications.care_cancelled_enabled"
+	// KeyNotificationsCareCancelledDefaultOn pre-selects "Eltern informieren"
+	// in the cancel dialog. The person cancelling can always flip it.
+	KeyNotificationsCareCancelledDefaultOn = "notifications.care_cancelled_default_on"
+	// KeyNotificationsCareCancelledEmail additionally e-mails the notice through
+	// the shared outbox, next to the in-app feed entry and the push.
+	KeyNotificationsCareCancelledEmail = "notifications.care_cancelled_email"
 )
 
 // PresenceMode option values for KeyPresenceMode.

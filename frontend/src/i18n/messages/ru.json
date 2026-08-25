@@ -126,6 +126,7 @@
     "newsNew": "Новое письмо родителям",
     "newsOutstanding": "Требует внимания",
     "newsLetter": "Письмо родителям",
+    "newsCareCancellation": "Занятие отменено",
     "newsImportant": "Важно",
     "newsAcknowledge": "Подтвердить прочтение",
     "newsAcknowledgeSaving": "Подтверждение …",
@@ -251,6 +252,10 @@
       "parent_request_decided": {
         "label": "Решение по вашему запросу",
         "description": "Когда продлёнка приняла решение по одному из ваших запросов."
+      },
+      "parent_care_cancelled": {
+        "label": "Занятие отменено",
+        "description": "Когда продлёнка отменяет одно из занятий вашего ребёнка."
       }
     }
   },

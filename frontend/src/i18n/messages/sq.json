@@ -126,6 +126,7 @@
     "newsNew": "Letër e re për prindërit",
     "newsOutstanding": "E hapur",
     "newsLetter": "Letër për prindërit",
+    "newsCareCancellation": "Kujdesi anulohet",
     "newsImportant": "E rëndësishme",
     "newsAcknowledge": "Konfirmoni si të lexuar",
     "newsAcknowledgeSaving": "Po konfirmohet …",
@@ -251,6 +252,10 @@
       "parent_request_decided": {
         "label": "Vendim për kërkesën tuaj",
         "description": "Kur OGS-ja ka vendosur për një nga kërkesat tuaja."
+      },
+      "parent_care_cancelled": {
+        "label": "Kujdesi anulohet",
+        "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
       }
     }
   },

@@ -44,6 +44,7 @@ const PARENT_TYPES = new Set([
   "parent_appointment",
   "parent_appointment_reminder",
   "parent_request_decided",
+  "parent_care_cancelled",
 ]);
 
 interface NotificationPreferencesSectionProps {

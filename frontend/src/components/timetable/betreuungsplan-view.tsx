@@ -54,7 +54,9 @@ import { GapJumpList } from "~/components/timetable/gap-jump-list";
 import {
   InstanceDetailModal,
   type LifecycleAction,
+  type LifecycleActionOptions,
 } from "~/components/timetable/instance-detail-modal";
+import { cancelledToast } from "~/components/timetable/guardian-notice-toast";
 import { StaffPoolSlideOver } from "~/components/timetable/staff-pool-slide-over";
 import { timetableSeriesErrorMessage } from "~/components/timetable/event-form/scope-error-message";
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
@@ -822,7 +824,7 @@ function TimetablesContent() {
   );
 
   const handleLifecycle = useCallback(
-    async (action: LifecycleAction) => {
+    async (action: LifecycleAction, options?: LifecycleActionOptions) => {
       if (!selectedInstance) return;
       try {
         if (action === "start") {
@@ -841,8 +843,18 @@ function TimetablesContent() {
           await timetableService.reopen(selectedInstance.id);
           toast.success("Aktivität wieder geöffnet");
         } else {
-          await timetableService.cancel(selectedInstance.id);
-          toast.success("Aktivität abgesagt");
+          // Plain cancels keep the single-argument call; the notice rides
+          // along only when the dialog produced one (#2601).
+          const res = options?.guardianNotice
+            ? await timetableService.cancel(
+                selectedInstance.id,
+                undefined,
+                options.guardianNotice,
+              )
+            : await timetableService.cancel(selectedInstance.id);
+          toast.success(
+            cancelledToast("Aktivität abgesagt", res.guardianNotice),
+          );
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
