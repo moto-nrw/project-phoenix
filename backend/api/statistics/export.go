@@ -3,6 +3,7 @@ package statistics
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -19,11 +20,60 @@ const (
 	columnRate        listexport.ColumnID = "attendance_rate"
 )
 
+const (
+	columnCapacity    listexport.ColumnID = "capacity"
+	columnDaysUsed    listexport.ColumnID = "days_used"
+	columnStudents    listexport.ColumnID = "distinct_students"
+	columnHours       listexport.ColumnID = "student_hours"
+	columnPeak        listexport.ColumnID = "peak_occupancy"
+	columnUtilization listexport.ColumnID = "peak_utilization"
+)
+
 const exportConfidentialityNote = "Vertrauliche Anwesenheitsdaten"
 
+// buildRoomExportDocument renders the room utilization table.
+func buildRoomExportDocument(report *statisticsService.Report) listexport.Document {
+	doc := listexport.Document{
+		Title:       "Raumauslastung",
+		Subtitle:    fmt.Sprintf("Raumnutzung vom %s bis %s", report.From.Format("02.01.2006"), report.To.Format("02.01.2006")),
+		GeneratedAt: time.Now(),
+		Columns: []listexport.Column{
+			{ID: listexport.ColumnRoomName, Label: "Raum"},
+			{ID: columnCapacity, Label: "Plätze"},
+			{ID: columnDaysUsed, Label: "Tage genutzt"},
+			{ID: columnStudents, Label: "Kinder"},
+			{ID: columnHours, Label: "Stunden"},
+			{ID: columnPeak, Label: "Spitze"},
+			{ID: columnUtilization, Label: "Auslastung"},
+		},
+		Filters: []string{
+			fmt.Sprintf("Raumdaten liegen nur für die letzten %d Tage vor (ab %s)", report.RoomDataDays, report.RoomDataFrom.Format("02.01.2006")),
+			"Spitze = die meisten Kinder gleichzeitig im Raum",
+			"Auslastung = Spitze im Verhältnis zu den Plätzen",
+		},
+		Footer: exportConfidentialityNote,
+	}
+	for _, room := range report.Rooms {
+		capacity := ""
+		if room.Capacity != nil {
+			capacity = strconv.Itoa(*room.Capacity)
+		}
+		doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
+			listexport.ColumnRoomName: room.Name,
+			columnCapacity:            capacity,
+			columnDaysUsed:            strconv.Itoa(room.DaysUsed),
+			columnStudents:            strconv.Itoa(room.DistinctStudents),
+			columnHours:               formatHours(room.StudentMinutes),
+			columnPeak:                strconv.Itoa(room.PeakOccupancy),
+			columnUtilization:         formatRate(room.PeakUtilizationPercent),
+		}})
+	}
+	return doc
+}
+
 // buildExportDocument renders the child table grouped by education group
-// (GroupTitle marker rows), followed by one "Räume" section carrying the
-// room utilization in the same column grid.
+// (GroupTitle marker rows). Rooms have their own column grid and therefore
+// their own document (buildRoomExportDocument, section=rooms).
 func buildExportDocument(report *statisticsService.Report) listexport.Document {
 	doc := listexport.Document{
 		Title:       "Statistik",
@@ -76,28 +126,6 @@ func buildExportDocument(report *statisticsService.Report) listexport.Document {
 		}
 	}
 
-	// Room section reuses the grid: name / capacity / days used / children /
-	// hours / peak / utilization. The column labels stay those of the child
-	// table, so the section title spells out the mapping.
-	doc.Rows = append(doc.Rows, listexport.Row{GroupTitle: fmt.Sprintf(
-		"Räume (Daten der letzten %d Tage): Name · Plätze · Tage genutzt · Kinder · Stunden · Spitze · Auslastung",
-		report.RoomDataDays,
-	)})
-	for _, room := range report.Rooms {
-		capacity := ""
-		if room.Capacity != nil {
-			capacity = strconv.Itoa(*room.Capacity)
-		}
-		doc.Rows = append(doc.Rows, listexport.Row{Values: map[listexport.ColumnID]string{
-			listexport.ColumnName:        room.Name,
-			listexport.ColumnSchoolClass: capacity,
-			columnPresent:                strconv.Itoa(room.DaysUsed),
-			columnSick:                   strconv.Itoa(room.DistinctStudents),
-			columnExcused:                formatHours(room.StudentMinutes),
-			columnUnexplained:            strconv.Itoa(room.PeakOccupancy),
-			columnRate:                   formatRate(room.PeakUtilizationPercent),
-		}})
-	}
 	return doc
 }
 
@@ -105,9 +133,10 @@ func formatRate(v *float64) string {
 	if v == nil {
 		return ""
 	}
-	return strconv.FormatFloat(*v, 'f', 1, 64) + " %"
+	// German decimal comma, as on the screen.
+	return strings.ReplaceAll(strconv.FormatFloat(*v, 'f', 1, 64), ".", ",") + " %"
 }
 
 func formatHours(minutes int) string {
-	return strconv.FormatFloat(float64(minutes)/60, 'f', 1, 64)
+	return strings.ReplaceAll(strconv.FormatFloat(float64(minutes)/60, 'f', 1, 64), ".", ",")
 }

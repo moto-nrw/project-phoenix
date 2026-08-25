@@ -69,6 +69,8 @@ export class StatisticsError extends Error {
 }
 
 export type StatisticsExportFormat = "pdf" | "xlsx" | "docx";
+/** attendance = children and groups (default), rooms = room utilization. */
+export type StatisticsExportSection = "attendance" | "rooms";
 
 function buildParams(
   fromISO: string,
@@ -107,9 +109,11 @@ export function statisticsExportUrl(
   toISO: string,
   format: StatisticsExportFormat,
   groupIds: readonly string[] = [],
+  section: StatisticsExportSection = "attendance",
 ): string {
   const params = buildParams(fromISO, toISO, groupIds);
   params.set("format", format);
+  params.set("section", section);
   return `/api/statistics/export?${params.toString()}`;
 }
 

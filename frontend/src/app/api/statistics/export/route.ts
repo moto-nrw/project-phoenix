@@ -9,7 +9,7 @@ const logger = createLogger({ component: "StatisticsExportRoute" });
 
 function exportQuery(request: NextRequest): string {
   const params = new URLSearchParams();
-  for (const key of ["from", "to", "format"] as const) {
+  for (const key of ["from", "to", "format", "section"] as const) {
     const value = request.nextUrl.searchParams.get(key);
     if (value) params.set(key, value);
   }

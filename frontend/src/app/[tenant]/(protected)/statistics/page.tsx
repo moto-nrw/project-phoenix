@@ -38,6 +38,7 @@ import {
   statisticsExportUrl,
   type StatisticsErrorCode,
   type StatisticsExportFormat,
+  type StatisticsExportSection,
   type StatisticsGroupRow,
   type StatisticsReport,
   type StatisticsRoomRow,
@@ -111,9 +112,7 @@ export default function StatisticsPage() {
   const [data, setData] = useState<StatisticsReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<StatisticsErrorCode | null>(null);
-  const [exporting, setExporting] = useState<StatisticsExportFormat | null>(
-    null,
-  );
+  const [exporting, setExporting] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: groups } = useSWRAuth("statistics-groups", fetchGroups);
@@ -156,13 +155,16 @@ export default function StatisticsPage() {
   }, [fromISO, toISO, groupIds]);
 
   const downloadExport = useCallback(
-    async (format: StatisticsExportFormat) => {
+    async (
+      format: StatisticsExportFormat,
+      section: StatisticsExportSection,
+    ) => {
       if (!fromISO || !toISO) return;
-      setExporting(format);
+      setExporting(`${section}-${format}`);
       setExportError(null);
       try {
         const res = await fetch(
-          statisticsExportUrl(fromISO, toISO, format, groupIds),
+          statisticsExportUrl(fromISO, toISO, format, groupIds, section),
         );
         if (!res.ok) {
           setExportError("Export fehlgeschlagen. Bitte erneut versuchen.");
@@ -172,7 +174,7 @@ export default function StatisticsPage() {
         const disposition = res.headers.get("Content-Disposition") ?? "";
         const filename =
           /filename="([^"]+)"/.exec(disposition)?.[1] ??
-          `statistik-${fromISO}-${toISO}.${format}`;
+          `${section === "rooms" ? "raumauslastung" : "statistik"}-${fromISO}-${toISO}.${format}`;
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -205,7 +207,8 @@ export default function StatisticsPage() {
       render: (row) => (
         <span className="font-medium text-gray-900">{row.name}</span>
       ),
-      sortValue: (row) => row.name,
+      // The pseudo group of children without a group (id 0) sorts last.
+      sortValue: (row) => (row.group_id === "0" ? "\uffff" : row.name),
     },
     {
       key: "students",
@@ -395,43 +398,34 @@ export default function StatisticsPage() {
     },
   ];
 
-  const exportButtons = (
-    <>
+  // Export trio in the Anmeldungen button idiom: quiet white bordered
+  // actions. The child table and the room table are separate documents
+  // (different columns), so each section carries its own trio.
+  const exportButtons = (section: StatisticsExportSection) => {
+    const formats: {
+      format: StatisticsExportFormat;
+      label: string;
+      Icon: typeof Download;
+    }[] = [
+      { format: "pdf", label: "PDF", Icon: Download },
+      { format: "xlsx", label: "Excel", Icon: FileSpreadsheet },
+      { format: "docx", label: "Word", Icon: FileText },
+    ];
+    return formats.map(({ format, label, Icon }) => (
       <Button
+        key={format}
         type="button"
         variant="outline"
         size="md"
         className="gap-2 bg-white"
         disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("pdf")}
+        onClick={() => void downloadExport(format, section)}
       >
-        <Download className="h-4 w-4" aria-hidden />
-        {exporting === "pdf" ? "Wird exportiert…" : "PDF"}
+        <Icon className="h-4 w-4" aria-hidden />
+        {exporting === `${section}-${format}` ? "Wird exportiert…" : label}
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("xlsx")}
-      >
-        <FileSpreadsheet className="h-4 w-4" aria-hidden />
-        {exporting === "xlsx" ? "Wird exportiert…" : "Excel"}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        className="gap-2 bg-white"
-        disabled={!data || exporting !== null}
-        onClick={() => void downloadExport("docx")}
-      >
-        <FileText className="h-4 w-4" aria-hidden />
-        {exporting === "docx" ? "Wird exportiert…" : "Word"}
-      </Button>
-    </>
-  );
+    ));
+  };
 
   const roomDataStartsInsideWindow =
     data !== null && fromISO !== null && data.room_data_from > fromISO;
@@ -474,7 +468,9 @@ export default function StatisticsPage() {
               summaryLabel={(n) => `${n} Gruppen`}
               className="w-full sm:w-44"
             />
-            <div className="flex flex-wrap gap-2">{exportButtons}</div>
+            <div className="flex flex-wrap gap-2">
+              {exportButtons("attendance")}
+            </div>
           </div>
         </div>
 
@@ -567,10 +563,17 @@ export default function StatisticsPage() {
             </div>
 
             <div className="mt-6">
-              <SectionHeading
-                title="Räume"
-                hint={`Raumdaten liegen nur für die letzten ${data.room_data_days} Tage vor (ab ${formatDate(data.room_data_from)}). Spitze = die meisten Kinder gleichzeitig im Raum. Auslastung = Spitze im Verhältnis zu den Plätzen.`}
-              />
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <SectionHeading
+                  title="Räume"
+                  hint={`Raumdaten liegen nur für die letzten ${data.room_data_days} Tage vor (ab ${formatDate(data.room_data_from)}). Spitze = die meisten Kinder gleichzeitig im Raum. Auslastung = Spitze im Verhältnis zu den Plätzen.`}
+                />
+                {!roomDataAllBeforeWindow && (
+                  <div className="mb-3 flex shrink-0 flex-wrap gap-2">
+                    {exportButtons("rooms")}
+                  </div>
+                )}
+              </div>
               {roomDataAllBeforeWindow ? (
                 <EmptyState
                   title="Keine Raumdaten für diesen Zeitraum"

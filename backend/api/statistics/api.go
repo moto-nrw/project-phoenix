@@ -92,13 +92,24 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	report, err := rs.Service.ReportForExport(r.Context(), filters, actorFromRequest(r), string(format))
+	section, err := parseSection(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	report, err := rs.Service.ReportForExport(r.Context(), filters, actorFromRequest(r), string(format)+"/"+section)
 	if err != nil {
 		rs.logFailure("statistics export failed", err)
 		common.RenderError(w, r, renderError(err))
 		return
 	}
-	file, err := rs.ListExport.Render(buildExportDocument(report), format, "statistik-"+report.From.String()+"-"+report.To.String())
+	doc := buildExportDocument(report)
+	filename := "statistik-" + report.From.String() + "-" + report.To.String()
+	if section == sectionRooms {
+		doc = buildRoomExportDocument(report)
+		filename = "raumauslastung-" + report.From.String() + "-" + report.To.String()
+	}
+	file, err := rs.ListExport.Render(doc, format, filename)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -151,6 +162,25 @@ func parseFilters(r *http.Request) (statisticsService.Filters, error) {
 		}
 	}
 	return filters, nil
+}
+
+const (
+	sectionAttendance = "attendance"
+	sectionRooms      = "rooms"
+)
+
+// parseSection picks the export document: the child/group table (default)
+// or the room utilization table, which has its own column grid.
+func parseSection(r *http.Request) (string, error) {
+	section := strings.TrimSpace(r.URL.Query().Get("section"))
+	switch section {
+	case "", sectionAttendance:
+		return sectionAttendance, nil
+	case sectionRooms:
+		return sectionRooms, nil
+	default:
+		return "", fmt.Errorf("unsupported export section %q", section)
+	}
 }
 
 func parseFormat(r *http.Request) (listexport.Format, error) {

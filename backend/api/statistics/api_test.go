@@ -346,6 +346,15 @@ func TestStatisticsExport_RendersAndAudits(t *testing.T) {
 	rec := authExec(t, tc, req, claims, reportPermissions)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 
+	req = httptest.NewRequest(http.MethodGet, "/export?from="+weekFrom.String()+"&to="+weekTo.String()+"&format=xlsx&section=rooms", nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Header().Get("Content-Disposition"), "raumauslastung-2026-06-08-2026-06-12.xlsx")
+
+	req = httptest.NewRequest(http.MethodGet, "/export?from="+weekFrom.String()+"&to="+weekTo.String()+"&section=nope", nil)
+	rec = authExec(t, tc, req, claims, reportPermissions)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+
 	// One audit row per export; the JSON view is deduplicated per window.
 	for range 2 {
 		req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
@@ -361,6 +370,6 @@ func TestStatisticsExport_RendersAndAudits(t *testing.T) {
 		ColumnExpr("count(*)").
 		Where("tenant_id = ? AND actor_account_id = ? AND resource_type = ? AND metadata->>'action' = 'view'", tenantID, account.ID, "attendance_statistics").
 		Scan(ctx, &viewRows))
-	assert.Equal(t, 3, exportRows, "every successful export writes its own audit row")
+	assert.Equal(t, 4, exportRows, "every successful export writes its own audit row")
 	assert.Equal(t, 1, viewRows, "repeated views of the same window collapse into one row")
 }

@@ -425,10 +425,10 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 		rows = append(rows, row)
 	}
 	sort.SliceStable(rows, func(i, j int) bool {
-		if c := strings.Compare(strings.ToLower(rows[i].LastName), strings.ToLower(rows[j].LastName)); c != 0 {
+		if c := strings.Compare(sortKey(rows[i].LastName), sortKey(rows[j].LastName)); c != 0 {
 			return c < 0
 		}
-		if c := strings.Compare(strings.ToLower(rows[i].FirstName), strings.ToLower(rows[j].FirstName)); c != 0 {
+		if c := strings.Compare(sortKey(rows[i].FirstName), sortKey(rows[j].FirstName)); c != 0 {
 			return c < 0
 		}
 		return rows[i].StudentID < rows[j].StudentID
@@ -469,10 +469,18 @@ func buildGroupRows(students []StudentRow, careDays int) []GroupRow {
 		if (rows[i].GroupID == 0) != (rows[j].GroupID == 0) {
 			return rows[j].GroupID == 0
 		}
-		return strings.ToLower(rows[i].Name) < strings.ToLower(rows[j].Name)
+		return sortKey(rows[i].Name) < sortKey(rows[j].Name)
 	})
 	return rows
 }
+
+// sortKey folds case and German umlauts so "Bärengruppe" sorts before
+// "Blumengruppe" (byte order would put every umlaut after z).
+func sortKey(s string) string {
+	return umlautFolder.Replace(strings.ToLower(s))
+}
+
+var umlautFolder = strings.NewReplacer("ä", "a", "ö", "o", "ü", "u", "ß", "ss")
 
 func buildTotals(students []StudentRow, careDays int) GroupRow {
 	total := GroupRow{Name: "Gesamt"}
@@ -533,7 +541,7 @@ func (s *service) roomRows(ctx context.Context, filters Filters) ([]RoomRow, err
 		if out[i].DaysUsed != out[j].DaysUsed {
 			return out[i].DaysUsed > out[j].DaysUsed
 		}
-		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
+		return sortKey(out[i].Name) < sortKey(out[j].Name)
 	})
 	return out, nil
 }
