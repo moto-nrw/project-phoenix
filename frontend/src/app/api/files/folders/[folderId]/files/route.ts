@@ -34,7 +34,7 @@ export const POST = createFileUploadHandler<unknown>(
 
     const file = formData.get("file");
     if (!file || !(file instanceof File)) {
-      throw new FileValidationError("No file provided", 400);
+      throw new FileValidationError("Bitte wählen Sie eine Datei aus.", 400);
     }
 
     const backendUrl = `${getServerApiUrl()}/api/files/folders/${folderId}/files`;

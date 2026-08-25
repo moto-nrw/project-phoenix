@@ -30,6 +30,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatDate } from "~/lib/date-helpers";
+import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
   FOLDER_VISIBILITY_LABELS,
@@ -198,7 +199,10 @@ export function FilesPage() {
     <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          <p
+            className="text-xs font-semibold tracking-wide uppercase"
+            style={{ color: LOCATION_COLORS.OTHER_ROOM }}
+          >
             Dateiablage
           </p>
           <h1 className="text-base font-semibold text-gray-900">Dateien</h1>
@@ -558,10 +562,16 @@ function FolderFilesPanel({
         <div
           className={cn(
             "flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-5 text-center transition-colors",
-            dragActive
-              ? "border-[#83CD2D] bg-[#83CD2D]/5"
-              : "border-gray-200 bg-gray-50/50",
+            dragActive ? "" : "border-gray-200 bg-gray-50/50",
           )}
+          style={
+            dragActive
+              ? {
+                  borderColor: LOCATION_COLORS.GROUP_ROOM,
+                  backgroundColor: GROUP_ROOM_SHADES.bgHover,
+                }
+              : undefined
+          }
           onDragOver={(e) => {
             e.preventDefault();
             setDragActive(true);
@@ -580,7 +590,7 @@ function FolderFilesPanel({
               type="button"
               variant="ghost"
               size="compact"
-              className="text-[#5080D8]"
+              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
               disabled={uploading}
               onClick={() => fileInputRef.current?.click()}
             >

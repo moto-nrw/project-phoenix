@@ -148,29 +148,48 @@ class FilesApiError extends Error {
   }
 }
 
+/**
+ * The wording of a failed request, decided here rather than taken from the
+ * response. Backend validation errors are English sentinels with an English
+ * detail appended ("invalid file storage request: name is required") and the
+ * page shows this message unchanged, so the raw `error` field is never used.
+ * A stable `code` or the status decides; everything else keeps the wording
+ * the calling method passes in.
+ */
+function filesErrorMessage(
+  code: string | undefined,
+  status: number,
+): string | null {
+  if (code === "folder_name_taken") {
+    return "Es gibt schon einen Ordner mit diesem Namen.";
+  }
+  if (code === "quota_exceeded") {
+    return "Der Speicherplatz der Dateiablage ist voll. Bitte erst Dateien löschen.";
+  }
+  switch (status) {
+    case 401:
+      return "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.";
+    case 403:
+      return "Dafür fehlt Ihnen die Berechtigung.";
+    case 413:
+      return "Die Datei ist zu groß.";
+    default:
+      return null;
+  }
+}
+
 async function throwFilesError(
   response: Response,
   fallback: string,
 ): Promise<never> {
-  let message = fallback;
   let code: string | undefined;
   try {
-    const body = (await response.json()) as { error?: string; code?: string };
-    if (body.error) message = body.error;
+    const body = (await response.json()) as { code?: string };
     code = body.code;
   } catch {
-    // Non-JSON body — keep the fallback.
+    // Non-JSON body — the fallback carries the wording.
   }
-  if (code === "folder_name_taken") {
-    message = "Es gibt schon einen Ordner mit diesem Namen.";
-  } else if (code === "quota_exceeded") {
-    message =
-      "Der Speicherplatz der Dateiablage ist voll. Bitte erst Dateien löschen.";
-  } else if (response.status === 403) {
-    message = "Dafür fehlt Ihnen die Berechtigung.";
-  } else if (response.status === 413) {
-    message = "Die Datei ist zu groß.";
-  }
+  const message = filesErrorMessage(code, response.status) ?? fallback;
   throw new FilesApiError(message, response.status, code);
 }
 
@@ -291,7 +310,10 @@ class FilesService {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) {
-      await throwFilesError(response, "Datei konnte nicht hochgeladen werden.");
+      await throwFilesError(
+        response,
+        "Die Datei konnte nicht hochgeladen werden. Erlaubt sind PDF, DOCX, XLSX, PPTX, PNG und JPEG bis 25 MB.",
+      );
     }
   }
 
