@@ -74,6 +74,9 @@ type SSEEventType =
   // open chat to refresh its "Gelesen" receipts only — no new message, no unread
   // badge change. See backend/realtime/events.go EventParentMessageRead.
   | "parent_message_read"
+  // OGS-internal colleague chat (#2598). Unlike parent_message this reaches ONLY
+  // the conversation's participants, so it keeps its thread_id on the wire.
+  | "staff_message"
   // Message-INDEPENDENT invalidation delivered to every guardian of a child so an
   // open parents-app tab refetches that child's care state (e.g. after an excused
   // request is created/decided/withdrawn), regardless of parent messaging being on.

@@ -81,7 +81,11 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
+  | "overview"
+  | "messages"
+  | "approvals"
+  | "announcements"
+  | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -135,6 +139,10 @@ export const STAFF_FLAT_PAGES = {
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
+  // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
+  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
+  // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
+  teamChat: { href: "/team-chat", label: "Team-Chat" },
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
