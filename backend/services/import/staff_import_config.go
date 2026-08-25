@@ -548,7 +548,15 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 				}}
 			}
 		}
-		if !authorize.CanGrantRole(role, ImporterPermissionsFromContext(ctx)) {
+		skipGrantCheck := importModeFromContext(ctx) == importModels.ImportModeUpdate
+		if importModeFromContext(ctx) == importModels.ImportModeUpsert {
+			existing, findErr := c.FindExisting(ctx, *row)
+			if findErr != nil {
+				return []importModels.ValidationError{{Field: "role", Message: fmt.Sprintf("Bestehende Person konnte nicht geprüft werden: %s", findErr.Error()), Code: "existing_lookup_failed", Severity: importModels.ErrorSeverityError}}
+			}
+			skipGrantCheck = existing != nil
+		}
+		if !skipGrantCheck && !authorize.CanGrantRole(role, ImporterPermissionsFromContext(ctx)) {
 			return []importModels.ValidationError{{
 				Field:    "role",
 				Message:  "Du darfst diese Rolle nicht vergeben",

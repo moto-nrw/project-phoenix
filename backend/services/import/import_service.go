@@ -12,6 +12,7 @@ import (
 
 // importerUserIDKey is a context key for the importing user's ID
 type importerUserIDKey struct{}
+type importModeKey struct{}
 
 // ContextWithImporterID stores the importer's user ID in the context
 func ContextWithImporterID(ctx context.Context, userID int64) context.Context {
@@ -24,6 +25,11 @@ func ImporterIDFromContext(ctx context.Context) int64 {
 		return id
 	}
 	return 0
+}
+
+func importModeFromContext(ctx context.Context) importModels.ImportMode {
+	mode, _ := ctx.Value(importModeKey{}).(importModels.ImportMode)
+	return mode
 }
 
 // ImportService handles generic import logic for any entity type
@@ -98,6 +104,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 
 	// Store importer's user ID in context for entity creation (e.g. pickup schedules)
 	ctx = ContextWithImporterID(ctx, request.UserID)
+	ctx = context.WithValue(ctx, importModeKey{}, request.Mode)
 
 	if err := s.config.PreloadReferenceData(ctx); err != nil {
 		return nil, fmt.Errorf("preload reference data: %w", err)

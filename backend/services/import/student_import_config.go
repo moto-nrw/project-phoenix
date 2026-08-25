@@ -345,7 +345,16 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 		}}
 	}
 	if student != nil {
-		return nil
+		matched, err := c.findStudentWithoutTag(ctx, *row)
+		if err == nil && matched == nil {
+			matched, err = c.findStudentByName(ctx, *row)
+		}
+		if err != nil {
+			return []importModels.ValidationError{{Field: "tag_id", Message: fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()), Code: "rfid_lookup_failed", Severity: importModels.ErrorSeverityError}}
+		}
+		if matched != nil && *matched == student.ID {
+			return nil
+		}
 	}
 	return []importModels.ValidationError{{
 		Field:       "tag_id",
@@ -634,6 +643,10 @@ func (c *StudentImportConfig) FindExisting(ctx context.Context, row importModels
 		}
 	}
 
+	return c.findStudentWithoutTag(ctx, row)
+}
+
+func (c *StudentImportConfig) findStudentWithoutTag(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
 	students, err := c.StudentRepo.FindByNameAndClass(ctx, row.FirstName, row.LastName, row.SchoolClass)
 	if err != nil {
 		return nil, err
@@ -706,6 +719,36 @@ func (c *StudentImportConfig) findStudentByNameAndBirthday(ctx context.Context, 
 	default:
 		return nil, fmt.Errorf("mehrere Kinder gefunden mit Name '%s %s' und Geburtstag %s", row.FirstName, row.LastName, row.Birthday)
 	}
+}
+
+// findStudentByName resolves a uniquely named child regardless of class. It
+// is used only to verify RFID ownership during a class change; normal import
+// matching intentionally remains stricter.
+func (c *StudentImportConfig) findStudentByName(ctx context.Context, row importModels.StudentImportRow) (*int64, error) {
+	persons, err := c.PersonRepo.List(ctx, map[string]any{
+		"first_name": strings.TrimSpace(row.FirstName),
+		"last_name":  strings.TrimSpace(row.LastName),
+	})
+	if err != nil {
+		return nil, err
+	}
+	var matches []int64
+	for _, person := range persons {
+		student, err := c.StudentRepo.FindByPersonID(ctx, person.ID)
+		if err != nil {
+			if stdErrors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		if student != nil {
+			matches = append(matches, student.ID)
+		}
+	}
+	if len(matches) == 1 {
+		return &matches[0], nil
+	}
+	return nil, nil
 }
 
 // Create creates a new student with all related entities.
@@ -1065,9 +1108,23 @@ func ptrEquals(ptr *string, val string) bool {
 
 // createGuardianPhoneNumbers creates phone numbers for a guardian from import data
 func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, guardianID int64, phones []importModels.PhoneImportData) error {
+	if len(phones) == 0 {
+		return nil
+	}
+	existing, err := c.GuardianPhoneRepo.FindByGuardianID(ctx, guardianID)
+	if err != nil {
+		return fmt.Errorf("Telefonnummern laden: %w", err)
+	}
+	existingNumbers := make(map[string]struct{}, len(existing))
+	for _, phone := range existing {
+		existingNumbers[phone.PhoneNumber] = struct{}{}
+	}
 	for i, phoneData := range phones {
 		if phoneData.PhoneNumber == "" {
 			continue // Skip empty phone numbers
+		}
+		if _, exists := existingNumbers[phoneData.PhoneNumber]; exists {
+			continue
 		}
 
 		// Map phone type string to enum
@@ -1091,6 +1148,7 @@ func (c *StudentImportConfig) createGuardianPhoneNumbers(ctx context.Context, gu
 		if err := c.GuardianPhoneRepo.Create(ctx, phone); err != nil {
 			return fmt.Errorf("phone %d: %w", i+1, err)
 		}
+		existingNumbers[phoneData.PhoneNumber] = struct{}{}
 	}
 	return nil
 }
@@ -1155,6 +1213,14 @@ func (c *StudentImportConfig) updateAllEntities(ctx context.Context, studentID i
 
 func (c *StudentImportConfig) updatePersonFromRow(ctx context.Context, person *users.Person, row importModels.StudentImportRow) error {
 	changed := false
+	if firstName := strings.TrimSpace(row.FirstName); firstName != "" && person.FirstName != firstName {
+		person.FirstName = firstName
+		changed = true
+	}
+	if lastName := strings.TrimSpace(row.LastName); lastName != "" && person.LastName != lastName {
+		person.LastName = lastName
+		changed = true
+	}
 	if birthday, _ := parseOptionalDate(row.Birthday); birthday != nil && (person.Birthday == nil || *person.Birthday != *birthday) {
 		person.Birthday = birthday
 		changed = true
@@ -1202,6 +1268,11 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student 
 	}
 	if d := parseOptionalImportCalendarDate(row.EnrolledFrom); d != nil {
 		student.EnrolledFrom = d
+		if enrollmentStartsInFuture(d) {
+			student.Status = users.StudentStatusPending
+		} else if student.Status == users.StudentStatusPending {
+			student.Status = users.StudentStatusActive
+		}
 	}
 	if d := parseOptionalImportCalendarDate(row.EnrolledUntil); d != nil {
 		student.EnrolledUntil = d
@@ -1302,7 +1373,7 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 	for _, sched := range schedules {
 		existing, err := c.ArrivalScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
 		if err != nil {
-			return fmt.Errorf("arrival schedule (weekday %d): %w", sched.Weekday, err)
+			return fmt.Errorf("Ankunftszeit für Wochentag %d laden: %w", sched.Weekday, err)
 		}
 		if existing == nil {
 			if err := c.createArrivalSchedules(ctx, studentID, []importModels.ArrivalScheduleImportData{sched}); err != nil {
@@ -1312,14 +1383,14 @@ func (c *StudentImportConfig) upsertArrivalSchedules(ctx context.Context, studen
 		}
 		parsed, err := time.Parse("15:04", sched.ExpectedArrival)
 		if err != nil {
-			return fmt.Errorf("arrival schedule: invalid time '%s': %w", sched.ExpectedArrival, err)
+			return fmt.Errorf("Ungültige Ankunftszeit '%s': %w", sched.ExpectedArrival, err)
 		}
 		existing.ExpectedArrival = time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
 		if err := c.ArrivalScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("update arrival schedule (weekday %d): %w", sched.Weekday, err)
+			return fmt.Errorf("Ankunftszeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
 		}
 	}
 	return nil
@@ -1332,7 +1403,7 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 	for _, sched := range schedules {
 		existing, err := c.PickupScheduleRepo.FindByStudentIDAndWeekday(ctx, studentID, sched.Weekday)
 		if err != nil {
-			return fmt.Errorf("pickup schedule (weekday %d): %w", sched.Weekday, err)
+			return fmt.Errorf("Abholzeit für Wochentag %d laden: %w", sched.Weekday, err)
 		}
 		if existing == nil {
 			if err := c.createPickupSchedules(ctx, studentID, []importModels.PickupScheduleImportData{sched}); err != nil {
@@ -1342,14 +1413,14 @@ func (c *StudentImportConfig) upsertPickupSchedules(ctx context.Context, student
 		}
 		parsed, err := time.Parse("15:04", sched.PickupTime)
 		if err != nil {
-			return fmt.Errorf("pickup schedule: invalid time '%s': %w", sched.PickupTime, err)
+			return fmt.Errorf("Ungültige Abholzeit '%s': %w", sched.PickupTime, err)
 		}
 		existing.PickupTime = time.Date(2024, 1, 1, parsed.Hour(), parsed.Minute(), 0, 0, time.UTC)
 		if strings.TrimSpace(sched.Notes) != "" {
 			existing.Notes = strutil.TrimToNil(sched.Notes)
 		}
 		if err := c.PickupScheduleRepo.Update(ctx, existing); err != nil {
-			return fmt.Errorf("update pickup schedule (weekday %d): %w", sched.Weekday, err)
+			return fmt.Errorf("Abholzeit für Wochentag %d aktualisieren: %w", sched.Weekday, err)
 		}
 	}
 	return nil
