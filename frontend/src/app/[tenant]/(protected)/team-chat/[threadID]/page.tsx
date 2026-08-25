@@ -67,6 +67,12 @@ function TeamThreadContent() {
     },
   );
 
+  // Die Schule kann den Chat abschalten, WAEHREND diese Seite offen steht. Dann
+  // laedt der Verlauf laengst, nur das Senden faellt in den 403. Ohne diesen
+  // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
+  // denselben Fehler.
+  const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
+
   const messages: StaffMessage[] = thread?.messages ?? [];
 
   // Reads are gated too: the service calls requireEnabled before loading a
@@ -81,7 +87,8 @@ function TeamThreadContent() {
   // Off is off, whichever side said so: the cached tenant flag (fast, may lag
   // by the metadata cache window) or the backend's stable code (authoritative,
   // covers a stale flag and a deep-linked thread).
-  const chatDisabled = !flagSaysEnabled || disabledByBackend;
+  const chatDisabled =
+    !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
 
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
@@ -142,14 +149,20 @@ function TeamThreadContent() {
         error: err instanceof Error ? err.message : String(err),
         thread_id: threadID,
       });
-      setSendError(
-        getApiErrorMessage(
-          err,
-          "senden",
-          "Nachricht",
-          "Die Nachricht konnte nicht gesendet werden.",
-        ),
-      );
+      if (isStaffMessagingDisabled(err)) {
+        // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
+        setDisabledWhileOpen(true);
+        setSendError(null);
+      } else {
+        setSendError(
+          getApiErrorMessage(
+            err,
+            "senden",
+            "Nachricht",
+            "Die Nachricht konnte nicht gesendet werden.",
+          ),
+        );
+      }
     } finally {
       setIsSending(false);
     }

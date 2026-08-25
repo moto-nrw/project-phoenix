@@ -1139,7 +1139,23 @@ export function useGlobalSSE(): SSEHookState {
           // thread_id survives here (the backend addresses only the
           // participants), so an open conversation can refetch selectively
           // instead of every mounted messaging surface reloading.
+          //
+          // Den eigenen Absender NICHT wecken. Sonst laesst ein zweiter
+          // offener Tab desselben Kontos ein GetThread laufen - und das
+          // markiert serverseitig als gelesen, was die Gegenseite in der
+          // Zwischenzeit geschrieben hat, ohne dass die Person es je gesehen
+          // hat. Genau der Fehler, den PostMessage nicht mehr macht; ueber die
+          // SSE-Hintertuer darf er nicht zurueckkommen.
           if (typeof window !== "undefined") {
+            const sender = event.data?.source ?? null;
+            const ownAccountId = session?.user?.id ?? null;
+            if (
+              sender !== null &&
+              ownAccountId !== null &&
+              sender === ownAccountId
+            ) {
+              break;
+            }
             window.dispatchEvent(
               new CustomEvent("team-messages-unread-refresh"),
             );
@@ -1153,7 +1169,12 @@ export function useGlobalSSE(): SSEHookState {
         }
       }
     },
-    [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],
+    [
+      scheduleFlush,
+      collectEduGroupScope,
+      collectActiveSupervisionChange,
+      session?.user?.id,
+    ],
   );
 
   // Use the underlying SSE hook with global event handler.

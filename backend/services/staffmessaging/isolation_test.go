@@ -344,3 +344,56 @@ func TestDeactivatedStaffCannotSend(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, detail.Messages, 1, "history stays readable")
 }
+
+// TestGloballyDeactivatedAccountIsNotAddressable covers the OTHER deactivation
+// switch: account management (services/auth/account_management.go) sets
+// auth.accounts.active = false and leaves account_tenants untouched. A
+// per-tenant check alone would still offer that account and accept it as a
+// recipient.
+func TestGloballyDeactivatedAccountIsNotAddressable(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+	ctx := testpkg.Ctx(t)
+
+	// Ben stays an active member of the school, but his account is switched off
+	// globally.
+	_, err := db.NewUpdate().
+		Table("auth.accounts").
+		Set("active = ?", false).
+		Where("id = ?", ben).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	recipients, err := svc.ListMessageableStaff(asAccount(t, anna))
+	require.NoError(t, err)
+	for _, r := range recipients {
+		assert.NotEqual(t, ben, r.AccountID,
+			"a globally deactivated account must not be offered")
+	}
+
+	_, err = svc.OpenThread(asAccount(t, anna), ben)
+	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
+		"a globally deactivated account must not be addressable")
+
+	// Und er selbst darf auch nicht mehr schreiben.
+	_, err = db.NewUpdate().
+		Table("auth.accounts").
+		Set("active = ?", true).
+		Where("id = ?", ben).
+		Exec(ctx)
+	require.NoError(t, err)
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	_, err = db.NewUpdate().
+		Table("auth.accounts").
+		Set("active = ?", false).
+		Where("id = ?", ben).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = svc.PostMessage(asAccount(t, ben), thread.ThreadID, "Trotzdem noch was")
+	require.ErrorIs(t, err, staffmessaging.ErrRecipientNotAvailable,
+		"a globally deactivated account must not be able to keep writing")
+}

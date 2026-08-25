@@ -35,9 +35,15 @@ func NewStaffMessageReadRepository(db *bun.DB) users.StaffMessageReadRepository 
 // user is offered, the predicate decides what the API accepts, and any drift
 // between them is an authorization hole reachable by hand-crafting a request.
 //
-// users.persons alone is NOT enough — that table also holds children and
-// guests, who can carry an account and an active tenant mapping. Only a
-// users.staff row makes someone a colleague.
+// Three relations, because each answers a different question and the account
+// lifecycle has two independent switches:
+//   - users.persons is NOT enough: it also holds children and guests, who can
+//     carry an account and an active tenant mapping;
+//   - users.staff says "colleague at this school";
+//   - auth.accounts.active is the GLOBAL switch. Account management
+//     (services/auth/account_management.go) deactivates an account there
+//     WITHOUT touching account_tenants, so a per-tenant check alone still lets
+//     a globally disabled account be addressed and keep writing.
 const staffJoin = `JOIN users.persons AS "person"
 		ON person.account_id = at.account_id
 		AND person.tenant_id = at.tenant_id
@@ -45,7 +51,10 @@ const staffJoin = `JOIN users.persons AS "person"
 	JOIN users.staff AS "staff_member"
 		ON staff_member.person_id = person.id
 		AND staff_member.tenant_id = at.tenant_id
-		AND staff_member.deleted_at IS NULL`
+		AND staff_member.deleted_at IS NULL
+	JOIN auth.accounts AS "account"
+		ON account.id = at.account_id
+		AND account.active = TRUE`
 
 // unreadPredicate is the correctness core of every unread number in this
 // feature: "message <alias> is strictly after the reader's cursor AND the
