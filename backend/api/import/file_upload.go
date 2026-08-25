@@ -28,6 +28,19 @@ type StaffFileUploadResult struct {
 	Filename string
 }
 
+// importModeFromRequest reads the optional "mode" form field of an upload
+// (create / update / upsert). Must run after the multipart form was parsed.
+// Writes the 400 itself and returns ok=false on an unknown value.
+func importModeFromRequest(w http.ResponseWriter, r *http.Request) (importModels.ImportMode, bool) {
+	mode, err := importModels.ParseImportMode(r.FormValue("mode"))
+	if err != nil {
+		render.Status(r, http.StatusBadRequest)
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return "", false
+	}
+	return mode, true
+}
+
 // openValidatedUploadFile performs the shared upload validation (size limit,
 // MIME type, magic-byte content check) and returns the open file plus whether
 // it is an Excel file. On any failure it writes the error response and returns

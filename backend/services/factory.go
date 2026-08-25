@@ -1426,6 +1426,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			PrivacyRepo:         repos.PrivacyConsent,
 			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
 		},
 		db,
@@ -1433,16 +1434,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	studentImportService := importService.NewImportService(studentImportConfig)
 	studentImportService.SetAuditRepository(repos.DataImport)
 
-	// Staff import bulk-creates invitations (reuses the invitation service);
-	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
+	// data) immediately and issues an invitation for rows with an e-mail;
+	// accepting links the account to the imported person (#2600).
 	staffImportConfig := importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			InvitationService: invitationService,
+			InvitationRepo:    repos.InvitationToken,
 			AccountRepo:       repos.Account,
 			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
 			PermissionRepo:    repos.Permission,
 			SchoolRepo:        repos.School,
+			PersonRepo:        repos.Person,
+			StaffRepo:         repos.Staff,
+			TeacherRepo:       repos.Teacher,
+			MasterDataRepo:    repos.StaffMasterData,
+			QualificationRepo: repos.StaffQualification,
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
