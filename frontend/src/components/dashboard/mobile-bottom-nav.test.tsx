@@ -702,6 +702,23 @@ describe("MobileBottomNav", () => {
       expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
     });
 
+    it("shows Statistik to non-admin staff with both required permissions", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "config:read" || permission === "users:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      fireEvent.click(getMoreButton());
+      expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
+        "href",
+        "/statistics",
+      );
+    });
+
     it("coming soon items are not clickable links", () => {
       render(<MobileBottomNav />);
 

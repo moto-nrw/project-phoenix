@@ -122,10 +122,10 @@ type Report struct {
 	Students     []StudentRow
 	Groups       []GroupRow
 	Rooms        []RoomRow
-	// RoomDataDays is the visit retention window in days: room rows can
-	// only cover roughly that many days back from today.
+	// RoomDataDays is the longest active visit-retention window in days.
+	// Individual children may have shorter windows.
 	RoomDataDays int
-	// RoomDataFrom is the earliest date room data can exist for.
+	// RoomDataFrom is the earliest date room data can still exist for.
 	RoomDataFrom timezone.Date
 	Totals       GroupRow
 }
@@ -170,17 +170,22 @@ type intResolver interface {
 	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
+type retentionSettingsReader interface {
+	ListAcceptedRetentionSettings(ctx context.Context) ([]userModels.StudentRetentionSetting, error)
+}
+
 // Config wires the service dependencies.
 type Config struct {
-	Statistics  activeModels.StatisticsRepository
-	Holidays    holidayDates
-	ClosingDays closingDayDates
-	Periods     calendarPeriods
-	Students    studentReader
-	Rooms       roomReader
-	AccessLog   accessLog
-	Settings    intResolver
-	Logger      *slog.Logger
+	Statistics      activeModels.StatisticsRepository
+	Holidays        holidayDates
+	ClosingDays     closingDayDates
+	Periods         calendarPeriods
+	Students        studentReader
+	Rooms           roomReader
+	AccessLog       accessLog
+	Settings        intResolver
+	PrivacyConsents retentionSettingsReader
+	Logger          *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
 	Now func() time.Time
 }
@@ -286,7 +291,10 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		return nil, err
 	}
 	report.Rooms = rooms
-	report.RoomDataDays = s.roomRetentionDays(ctx)
+	report.RoomDataDays, err = s.roomRetentionDays(ctx)
+	if err != nil {
+		return nil, err
+	}
 	report.RoomDataFrom = s.today().AddDays(-report.RoomDataDays)
 	return report, nil
 }
@@ -508,7 +516,7 @@ func rate(numerator, denominator int) *float64 {
 func (s *service) roomRows(ctx context.Context, filters Filters) ([]RoomRow, error) {
 	start := filters.From.BerlinMidnight()
 	end := filters.To.AddDays(1).BerlinMidnight()
-	agg, err := s.cfg.Statistics.RoomUtilization(ctx, start, end)
+	agg, err := s.cfg.Statistics.RoomUtilization(ctx, start, end, filters.GroupIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load room utilization: %w", err)
 	}
@@ -546,11 +554,28 @@ func (s *service) roomRows(ctx context.Context, filters Filters) ([]RoomRow, err
 	return out, nil
 }
 
-func (s *service) roomRetentionDays(ctx context.Context) int {
-	if s.cfg.Settings == nil {
-		return userModels.DefaultDataRetentionDays
+func (s *service) roomRetentionDays(ctx context.Context) (int, error) {
+	defaultDays := userModels.DefaultDataRetentionDays
+	if s.cfg.Settings != nil {
+		defaultDays = configService.ResolveIntOrDefault(ctx, s.cfg.Settings, configModel.KeyPrivacyConsentRetentionDays, defaultDays, s.cfg.Logger)
 	}
-	return configService.ResolveIntOrDefault(ctx, s.cfg.Settings, configModel.KeyPrivacyConsentRetentionDays, userModels.DefaultDataRetentionDays, s.cfg.Logger)
+	if s.cfg.PrivacyConsents == nil {
+		return defaultDays, nil
+	}
+	settings, err := s.cfg.PrivacyConsents.ListAcceptedRetentionSettings(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load visit retention settings: %w", err)
+	}
+	if len(settings) == 0 {
+		return defaultDays, nil
+	}
+	retentionDays := 0
+	for _, setting := range settings {
+		if setting.DataRetentionDays > retentionDays {
+			retentionDays = setting.DataRetentionDays
+		}
+	}
+	return retentionDays, nil
 }
 
 func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor, action, format string, dedup bool) error {
@@ -565,6 +590,11 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 		"action": action,
 		"from":   filters.From.String(),
 		"to":     filters.To.String(),
+	}
+	if len(filters.GroupIDs) > 0 {
+		groupIDs := append([]int64(nil), filters.GroupIDs...)
+		sort.Slice(groupIDs, func(i, j int) bool { return groupIDs[i] < groupIDs[j] })
+		meta["group_ids"] = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(groupIDs)), ","), "[]")
 	}
 	now := s.cfg.Now()
 	if dedup {
@@ -590,8 +620,8 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 	if format != "" {
 		entry.SetMetadata("format", format)
 	}
-	if len(filters.GroupIDs) > 0 {
-		entry.SetMetadata("group_ids", filters.GroupIDs)
+	if groupIDs, ok := meta["group_ids"]; ok {
+		entry.SetMetadata("group_ids", groupIDs)
 	}
 	if err := s.cfg.AccessLog.Create(ctx, entry); err != nil {
 		s.cfg.Logger.Error("statistics audit write failed",

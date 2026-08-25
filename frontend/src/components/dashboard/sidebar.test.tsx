@@ -669,8 +669,11 @@ describe("Sidebar", () => {
       expect(screen.getByText("Statistik")).toBeInTheDocument();
     });
 
-    it("hides the Statistik entry for staff without config:read", () => {
+    it("hides the Statistik entry unless staff have both required permissions", () => {
       mockIsAdmin.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "config:read",
+      );
 
       render(<Sidebar />);
 

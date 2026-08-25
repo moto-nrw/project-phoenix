@@ -235,6 +235,8 @@ interface AdditionalNavItem {
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
   requiresPermission?: string;
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
@@ -433,7 +435,7 @@ const additionalNavItems: AdditionalNavItem[] = [
     ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
     concept: "reports",
-    requiresAdmin: true,
+    requiresAllPermissions: ["config:read", "users:read"],
   },
 ];
 
@@ -651,6 +653,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.href === "/substitutions" && openCareGroupMode) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresAllPermissions) {
+      return (
+        userIsAdmin ||
+        item.requiresAllPermissions.every((permission) =>
+          hasPermission(session, permission),
+        )
+      );
+    }
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);
     }

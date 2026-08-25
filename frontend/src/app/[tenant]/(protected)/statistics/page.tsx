@@ -603,12 +603,12 @@ export default function StatisticsPage() {
               <div className="mt-3">
                 <SectionHeading
                   title="Räume"
-                  hint={`Raumdaten gibt es nur für die letzten ${data.room_data_days} Tage (ab ${formatDate(data.room_data_from)}). Spitze = meiste Kinder gleichzeitig im Raum, Auslastung = Spitze zu Plätzen.`}
+                  hint={`Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`}
                 />
                 {roomDataAllBeforeWindow ? (
                   <EmptyState
                     title="Keine Raumdaten für diesen Zeitraum"
-                    description={`Raumdaten gibt es nur für die letzten ${data.room_data_days} Tage. Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
+                    description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
                   />
                 ) : (
                   <>
@@ -616,7 +616,7 @@ export default function StatisticsPage() {
                       <div className="mb-3">
                         <Alert
                           type="info"
-                          message={`Die Raumzahlen beginnen erst am ${formatDate(data.room_data_from)}, ältere Raumdaten sind bereits gelöscht.`}
+                          message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
                         />
                       </div>
                     )}

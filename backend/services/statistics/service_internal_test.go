@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -28,6 +29,23 @@ type periodList []*scheduleModels.CalendarPeriod
 
 func (p periodList) FindActiveOverlappingByType(context.Context, string, timezone.Date, timezone.Date, int64) ([]*scheduleModels.CalendarPeriod, error) {
 	return p, nil
+}
+
+type retentionSettings []userModels.StudentRetentionSetting
+
+func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]userModels.StudentRetentionSetting, error) {
+	return s, nil
+}
+
+type accessLogSpy struct {
+	metadata []map[string]string
+}
+
+func (s *accessLogSpy) Create(context.Context, *auditModels.DataAccessLog) error { return nil }
+
+func (s *accessLogSpy) ExistsSince(_ context.Context, _ int64, _ string, metadata map[string]string, _ time.Time) (bool, error) {
+	s.metadata = append(s.metadata, metadata)
+	return false, nil
 }
 
 func fixedNow() time.Time {
@@ -144,4 +162,32 @@ func TestFilterStudentsByGroup(t *testing.T) {
 	assert.Len(t, filterStudentsByGroup(students, nil), 3)
 	assert.Len(t, filterStudentsByGroup(students, []int64{a}), 1)
 	assert.Empty(t, filterStudentsByGroup(students, []int64{99}))
+}
+
+func TestRoomRetentionDays_UsesLongestIndividualRetention(t *testing.T) {
+	t.Parallel()
+	svc := &service{cfg: Config{PrivacyConsents: retentionSettings{
+		{StudentID: 1, DataRetentionDays: 7},
+		{StudentID: 2, DataRetentionDays: 21},
+	}}}
+
+	days, err := svc.roomRetentionDays(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 21, days)
+}
+
+func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T) {
+	t.Parallel()
+	accessLog := &accessLogSpy{}
+	svc := &service{cfg: Config{AccessLog: accessLog, Now: fixedNow}}
+	filters := Filters{From: timezone.NewDate(2026, 8, 1), To: timezone.NewDate(2026, 8, 2)}
+
+	require.NoError(t, svc.recordAccess(context.Background(), Filters{From: filters.From, To: filters.To, GroupIDs: []int64{9, 2}}, Actor{AccountID: 1}, "view", "", true))
+	require.NoError(t, svc.recordAccess(context.Background(), Filters{From: filters.From, To: filters.To, GroupIDs: []int64{2, 9}}, Actor{AccountID: 1}, "view", "", true))
+	require.NoError(t, svc.recordAccess(context.Background(), Filters{From: filters.From, To: filters.To, GroupIDs: []int64{3}}, Actor{AccountID: 1}, "view", "", true))
+
+	require.Len(t, accessLog.metadata, 3)
+	assert.Equal(t, "2,9", accessLog.metadata[0]["group_ids"])
+	assert.Equal(t, "2,9", accessLog.metadata[1]["group_ids"])
+	assert.Equal(t, "3", accessLog.metadata[2]["group_ids"])
 }

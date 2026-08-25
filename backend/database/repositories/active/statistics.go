@@ -66,15 +66,20 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 // Minutes are clamped to the window. The peak is a sweep over entry (+1)
 // and exit (-1) events per room; at equal instants the exit sorts first so
 // a back-to-back room change never counts a child twice.
-func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time) ([]active.RoomUtilizationRow, error) {
+func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	// Placeholder order in the SQL below: GREATEST(start), LEAST(end),
-	// entry_time < end, exit_time > start, then the two tenant filters.
+	// entry_time < end, exit_time > start, then the three tenant filters.
 	tenantClause := ""
+	groupClause := ""
 	args := []any{start, end, end, start}
 	if tenantID > 0 {
-		tenantClause = " AND v.tenant_id = ? AND ag.tenant_id = ?"
-		args = append(args, tenantID, tenantID)
+		tenantClause = " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
+		args = append(args, tenantID, tenantID, tenantID)
+	}
+	if len(groupIDs) > 0 {
+		groupClause = " AND s.group_id IN (?)"
+		args = append(args, bun.In(groupIDs))
 	}
 
 	sql := `
@@ -85,8 +90,9 @@ WITH scoped AS (
 	       LEAST(COALESCE(v.exit_time, NOW()), ?) AS exit_at
 	FROM active.visits v
 	JOIN active.groups ag ON ag.id = v.active_group_id
+	JOIN users.students s ON s.id = v.student_id
 	WHERE v.entry_time < ?
-	  AND (v.exit_time IS NULL OR v.exit_time > ?)` + tenantClause + `
+	  AND (v.exit_time IS NULL OR v.exit_time > ?)` + tenantClause + groupClause + `
 ),
 events AS (
 	SELECT room_id, entry_at AS at, 1 AS delta FROM scoped

@@ -47,7 +47,7 @@ func buildRoomExportDocument(report *statisticsService.Report) listexport.Docume
 			{ID: columnUtilization, Label: "Auslastung"},
 		},
 		Filters: []string{
-			fmt.Sprintf("Raumdaten liegen nur für die letzten %d Tage vor (ab %s)", report.RoomDataDays, report.RoomDataFrom.Format("02.01.2006")),
+			fmt.Sprintf("Raumdaten können höchstens %d Tage zurückreichen (ab %s). Je Kind kann die Frist kürzer sein.", report.RoomDataDays, report.RoomDataFrom.Format("02.01.2006")),
 			"Spitze = die meisten Kinder gleichzeitig im Raum",
 			"Auslastung = Spitze im Verhältnis zu den Plätzen",
 		},

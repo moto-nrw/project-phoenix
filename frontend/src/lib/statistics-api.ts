@@ -150,9 +150,10 @@ export async function fetchStatisticsGroups(): Promise<
     );
   }
   const body = (await response.json()) as {
-    data?: { id: number | string; name: string }[];
-  };
-  return (body.data ?? []).map((group) => ({
+    id: number | string;
+    name: string;
+  }[];
+  return body.map((group) => ({
     id: String(group.id),
     name: group.name,
   }));

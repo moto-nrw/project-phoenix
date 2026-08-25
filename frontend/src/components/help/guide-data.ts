@@ -850,7 +850,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "So rechnet die Quote",
-          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten liegen nur für die letzten Tage vor, die unter `Einstellungen` -> `Datenschutz` als Aufbewahrung eingestellt sind; ältere Raumdaten sind gelöscht.",
+          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum.",
           tone: "blue",
         },
         screenshot:
