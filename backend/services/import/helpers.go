@@ -283,18 +283,24 @@ func MapStudentRow(mapper *ColumnMapper) (importModels.StudentImportRow, error) 
 			continue // No contact columns for this number
 		}
 
+		primaryValue := mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))
+		emergencyValue := mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))
+		pickupValue := mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))
 		guardian := importModels.GuardianImportData{
-			FirstName:          mapper.GetCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
-			LastName:           mapper.GetCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
-			Email:              mapper.GetCol(emailKey),
-			Phone:              mapper.GetRawCol(phoneKey),
-			MobilePhone:        mapper.GetRawCol(mobileKey),
-			RelationshipType:   mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
-			IsPrimary:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.hauptansprechpartner", guardianNum))),
-			IsEmergencyContact: ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.notfall", guardianNum))),
-			CanPickup:          ParseBool(mapper.GetCol(fmt.Sprintf("erz%d.abholberechtigt", guardianNum))),
-			GuardianRole:       mapper.GetCol(fmt.Sprintf("erz%d.rolle", guardianNum)),
-			PickupNotes:        mapper.GetCol(fmt.Sprintf("erz%d.abholhinweis", guardianNum)),
+			FirstName:             mapper.GetCol(fmt.Sprintf("erz%d.vorname", guardianNum)),
+			LastName:              mapper.GetCol(fmt.Sprintf("erz%d.nachname", guardianNum)),
+			Email:                 mapper.GetCol(emailKey),
+			Phone:                 mapper.GetRawCol(phoneKey),
+			MobilePhone:           mapper.GetRawCol(mobileKey),
+			RelationshipType:      mapper.GetCol(fmt.Sprintf("erz%d.verhältnis", guardianNum)),
+			IsPrimary:             ParseBool(primaryValue),
+			IsPrimarySet:          primaryValue != "",
+			IsEmergencyContact:    ParseBool(emergencyValue),
+			IsEmergencyContactSet: emergencyValue != "",
+			CanPickup:             ParseBool(pickupValue),
+			CanPickupSet:          pickupValue != "",
+			GuardianRole:          mapper.GetCol(fmt.Sprintf("erz%d.rolle", guardianNum)),
+			PickupNotes:           mapper.GetCol(fmt.Sprintf("erz%d.abholhinweis", guardianNum)),
 		}
 		if prio := mapper.GetCol(fmt.Sprintf("erz%d.notfallpriorität", guardianNum)); prio != "" {
 			n, err := strconv.Atoi(prio)

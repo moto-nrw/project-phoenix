@@ -102,6 +102,12 @@ type GuardianImportData struct {
 	IsPrimary          bool   `json:"is_primary"`
 	IsEmergencyContact bool   `json:"is_emergency_contact"`
 	CanPickup          bool   `json:"can_pickup"`
+	// The CSV format distinguishes a supplied "Nein" from an empty cell.
+	// These markers are parser-only and let update mode patch explicit false
+	// values without revoking permissions for absent columns.
+	IsPrimarySet          bool `json:"-"`
+	IsEmergencyContactSet bool `json:"-"`
+	CanPickupSet          bool `json:"-"`
 	// GuardianRole is the parent-portal role preset (primary_guardian,
 	// legal_guardian, co_guardian, emergency_contact, pickup_only,
 	// social_worker); German labels are accepted. Empty = derived from the

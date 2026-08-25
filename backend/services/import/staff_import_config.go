@@ -68,6 +68,7 @@ var employmentTypeAliases = map[string]string{
 // StaffImportDeps contains the dependencies for StaffImportConfig.
 type StaffImportDeps struct {
 	InvitationService authsvc.InvitationService
+	InvitationRepo    authModels.InvitationTokenRepository
 	AccountRepo       authModels.AccountRepository
 	AccountTenantRepo authModels.AccountTenantRepository
 	RoleRepo          authModels.RoleRepository
@@ -617,7 +618,7 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 	for _, staff := range candidates {
 		// A different personnel number on either side means a different person
 		// who happens to share the name.
-		if rowPN != "" && staff.PersonnelNumber != nil && strings.ToLower(strings.TrimSpace(*staff.PersonnelNumber)) != rowPN {
+		if rowPN != "" && (staff.PersonnelNumber == nil || strings.ToLower(strings.TrimSpace(*staff.PersonnelNumber)) != rowPN) {
 			continue
 		}
 		matches = append(matches, staff)
@@ -644,12 +645,12 @@ func (c *StaffImportConfig) findStaffByLoginEmail(ctx context.Context, rawEmail 
 	account, err := c.AccountRepo.FindByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return c.findStaffByPendingInvitation(ctx, email)
 		}
 		return nil, err
 	}
 	if account == nil {
-		return nil, nil
+		return c.findStaffByPendingInvitation(ctx, email)
 	}
 
 	exists, err := c.AccountTenantRepo.ExistsByAccountAndTenant(ctx, account.ID, tenant.FromContext(ctx))
@@ -671,8 +672,7 @@ func (c *StaffImportConfig) findStaffByLoginEmail(ctx context.Context, rawEmail 
 		return nil, err
 	}
 	if person == nil {
-		id := account.ID
-		return &id, nil
+		return nil, nil
 	}
 	staff, err := c.StaffRepo.FindByPersonID(ctx, person.ID)
 	if err != nil {
@@ -686,6 +686,41 @@ func (c *StaffImportConfig) findStaffByLoginEmail(ctx context.Context, rawEmail 
 	}
 	id := staff.ID
 	return &id, nil
+}
+
+// findStaffByPendingInvitation resolves staff created by an import but not yet
+// linked to an account. The invitation stores the imported person ID until it
+// is accepted, so e-mail remains a stable update key in that interval.
+func (c *StaffImportConfig) findStaffByPendingInvitation(ctx context.Context, email string) (*int64, error) {
+	if c.InvitationRepo == nil || c.StaffRepo == nil {
+		return nil, nil
+	}
+	invitations, err := c.InvitationRepo.FindByEmail(ctx, email)
+	if err != nil {
+		return nil, err
+	}
+	var match *int64
+	for _, invitation := range invitations {
+		if invitation.UsedAt != nil || invitation.PersonID == nil {
+			continue
+		}
+		staff, err := c.StaffRepo.FindByPersonID(ctx, *invitation.PersonID)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				continue
+			}
+			return nil, err
+		}
+		if staff == nil || staff.DeletedAt != nil {
+			continue
+		}
+		if match != nil && *match != staff.ID {
+			return nil, fmt.Errorf("mehrere offene Einladungen für E-Mail-Adresse '%s' verweisen auf unterschiedliche Personen", email)
+		}
+		id := staff.ID
+		match = &id
+	}
+	return match, nil
 }
 
 // Create files the Stammdatensatz (Person, Staff, caregiver profile when the

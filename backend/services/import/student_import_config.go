@@ -284,8 +284,9 @@ func (c *StudentImportConfig) Validate(ctx context.Context, row *importModels.St
 
 // validateTag resolves the RFID column to a card of this tenant and rewrites
 // the cell to the stored spelling. Blocks the row when the card is unknown or
-// already assigned to a different person; the same child (matched by name)
-// re-importing its own card passes, which is what the update mode needs.
+// already assigned to a different person. An occupied card is the import's
+// strongest match key, so it is accepted only when its wearer is a student;
+// names may legitimately change and are not an ownership proof.
 func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels.StudentImportRow) []importModels.ValidationError {
 	raw := strings.TrimSpace(row.TagID)
 	if raw == "" {
@@ -334,9 +335,17 @@ func (c *StudentImportConfig) validateTag(ctx context.Context, row *importModels
 	if wearer == nil {
 		return nil
 	}
-	if strings.EqualFold(strings.TrimSpace(wearer.FirstName), strings.TrimSpace(row.FirstName)) &&
-		strings.EqualFold(strings.TrimSpace(wearer.LastName), strings.TrimSpace(row.LastName)) {
-		return nil // the child's own card (update mode)
+	student, err := c.StudentRepo.FindByPersonID(ctx, wearer.ID)
+	if err != nil && !stdErrors.Is(err, sql.ErrNoRows) {
+		return []importModels.ValidationError{{
+			Field:    "tag_id",
+			Message:  fmt.Sprintf("RFID-Karte konnte nicht geprüft werden: %s", err.Error()),
+			Code:     "rfid_lookup_failed",
+			Severity: importModels.ErrorSeverityError,
+		}}
+	}
+	if student != nil {
+		return nil
 	}
 	return []importModels.ValidationError{{
 		Field:       "tag_id",
@@ -1218,8 +1227,8 @@ func (c *StudentImportConfig) updateStudentFromRow(ctx context.Context, student 
 
 // mergeGuardianRelationships links guardians the child does not have yet and
 // patches the relationship of the ones it has (role, pickup note, priority,
-// relationship type when given). The Ja/Nein flags of an existing relation are
-// left alone: an empty cell reads as "Nein", which must not revoke anything.
+// relationship type when given). The Ja/Nein flags are changed only when their
+// cells are supplied; an empty cell must not revoke an existing permission.
 func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, studentID int64, guardians []importModels.GuardianImportData) error {
 	if len(guardians) == 0 {
 		return nil
@@ -1263,6 +1272,18 @@ func (c *StudentImportConfig) mergeGuardianRelationships(ctx context.Context, st
 		}
 		if data.EmergencyPriority > 0 && data.EmergencyPriority != rel.EmergencyPriority {
 			rel.EmergencyPriority = data.EmergencyPriority
+			changed = true
+		}
+		if data.IsPrimarySet && data.IsPrimary != rel.IsPrimary {
+			rel.IsPrimary = data.IsPrimary
+			changed = true
+		}
+		if data.IsEmergencyContactSet && data.IsEmergencyContact != rel.IsEmergencyContact {
+			rel.IsEmergencyContact = data.IsEmergencyContact
+			changed = true
+		}
+		if data.CanPickupSet && data.CanPickup != rel.CanPickup {
+			rel.CanPickup = data.CanPickup
 			changed = true
 		}
 		if changed {

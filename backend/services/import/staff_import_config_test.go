@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	importModels "github.com/moto-nrw/project-phoenix/models/import"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -483,6 +484,24 @@ func TestStaffImportConfig_FindExisting(t *testing.T) {
 		require.NotNil(t, id)
 		assert.Equal(t, staffImportTestAccountID, *id)
 	})
+}
+
+func TestStaffImportConfig_FindExisting_PersonnelNumberDoesNotFallBackToNameWithoutNumber(t *testing.T) {
+	t.Parallel()
+
+	staff := &userModels.Staff{Person: &userModels.Person{FirstName: "Anna", LastName: "Lehmann"}}
+	staff.ID = 99
+	config := NewStaffImportConfig(StaffImportDeps{})
+	config.staffByName = map[string][]*userModels.Staff{
+		staffNameKey("Anna", "Lehmann"): {staff},
+	}
+
+	id, err := config.FindExisting(context.Background(), importModels.StaffImportRow{
+		FirstName: "Anna", LastName: "Lehmann", PersonnelNumber: "P-2600",
+	})
+
+	require.NoError(t, err)
+	assert.Nil(t, id, "a supplied personnel number must not match a namesake without one")
 }
 
 func TestStaffImportConfig_Create_WithoutRepositoriesFails(t *testing.T) {

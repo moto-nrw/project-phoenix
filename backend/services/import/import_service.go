@@ -3,6 +3,7 @@ package importpkg
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -30,6 +31,10 @@ type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
 	batchSize int
 	auditRepo audit.DataImportRepository
+	// config keeps request-specific reference data after PreloadReferenceData.
+	// Serialize imports using this service so one request cannot replace another
+	// tenant's lookup indexes while it is still validating or processing rows.
+	importMu sync.Mutex
 }
 
 // NewImportService creates a new import service
@@ -82,6 +87,9 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
+	s.importMu.Lock()
+	defer s.importMu.Unlock()
+
 	result := &importModels.ImportResult[T]{
 		StartedAt: time.Now(),
 		TotalRows: len(request.Rows),

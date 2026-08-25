@@ -31,6 +31,7 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations authsvc.Invi
 	repos := repositories.NewFactory(db)
 	config := NewStaffImportConfig(StaffImportDeps{
 		InvitationService: invitations,
+		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
 		AccountTenantRepo: repos.AccountTenant,
 		RoleRepo:          repos.Role,

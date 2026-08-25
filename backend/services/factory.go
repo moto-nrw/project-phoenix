@@ -1438,6 +1438,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	staffImportConfig := importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			InvitationService: invitationService,
+			InvitationRepo:    repos.InvitationToken,
 			AccountRepo:       repos.Account,
 			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
