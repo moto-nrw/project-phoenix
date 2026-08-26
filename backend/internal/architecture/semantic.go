@@ -35,6 +35,11 @@ var (
 		"Patch": true, "Query": true, "Read": true, "Remove": true, "Save": true,
 		"Search": true, "Update": true, "UpdateByID": true, "UpdateColumns": true, "Upsert": true,
 	}
+	sqlFragmentMethods = map[string]bool{
+		"ColumnExpr": true, "DistinctOn": true, "GroupExpr": true, "Having": true,
+		"Join": true, "JoinOn": true, "JoinOnOr": true, "On": true,
+		"OrderExpr": true, "Returning": true, "Set": true, "Where": true, "WhereOr": true,
+	}
 )
 
 func analyzeSemantics(project string, policy *Policy) ([]Violation, error) {
@@ -195,7 +200,7 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 	if method == "Model" {
 		return append(violations, a.modelMethodViolations(pkg, classification, functionName, receiver, call, parents)...)
 	}
-	if _, queryMethod := bunQueryOperation(receiver); queryMethod {
+	if _, queryMethod := bunQueryOperation(receiver); queryMethod && sqlFragmentMethods[method] {
 		return append(violations, a.queryFragmentViolations(pkg, classification, functionName, method, call.Args)...)
 	}
 	return violations
@@ -292,7 +297,14 @@ func queryReceiverHasExplicitTable(expr ast.Expr) bool {
 }
 
 func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName, method string, args []ast.Expr) []Violation {
-	query, ok := firstConstantString(pkg.TypesInfo, args)
+	queryIndex := 0
+	if strings.HasSuffix(method, "Context") {
+		queryIndex = 1
+	}
+	if len(args) <= queryIndex {
+		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
+	}
+	query, ok := constantString(pkg.TypesInfo, args[queryIndex])
 	if !ok {
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
@@ -311,7 +323,7 @@ func (a semanticAnalyzer) queryFragmentViolations(pkg *packages.Package, classif
 }
 
 func (a semanticAnalyzer) sqlStringViolations(source, sourceOwner, functionName, method, query string, includeWrites bool) []Violation {
-	query = stripIdentifierQuotes(query)
+	query = stripIdentifierQuotes(stripSQLLiteralsAndComments(query))
 	aliases := sqlCTEAliases(query)
 	matches := []tableMatchSummary{a.matchDataObjects(source, sourceOwner, sqlSourceDataObjects(query), aliases, tableRead)}
 	if includeWrites {
@@ -328,6 +340,88 @@ func (a semanticAnalyzer) sqlStringViolations(source, sourceOwner, functionName,
 		violations = append(violations, unresolvedTableViolation(source, functionName, method))
 	}
 	return violations
+}
+
+func stripSQLLiteralsAndComments(query string) string {
+	var result strings.Builder
+	for index := 0; index < len(query); {
+		if end := sqlDollarQuotedLiteralEnd(query, index); end > index {
+			result.WriteString(strings.Repeat(" ", end-index))
+			index = end
+			continue
+		}
+		end := index
+		switch {
+		case query[index] == '\'':
+			end = sqlStringLiteralEnd(query, index+1)
+		case index+1 < len(query) && query[index:index+2] == "--":
+			end = strings.IndexByte(query[index:], '\n')
+			if end < 0 {
+				end = len(query)
+			} else {
+				end += index
+			}
+		case index+1 < len(query) && query[index:index+2] == "/*":
+			end = strings.Index(query[index+2:], "*/")
+			if end < 0 {
+				end = len(query)
+			} else {
+				end += index + 4
+			}
+		default:
+			result.WriteByte(query[index])
+			index++
+			continue
+		}
+		result.WriteString(strings.Repeat(" ", end-index))
+		index = end
+	}
+	return result.String()
+}
+
+func sqlStringLiteralEnd(query string, index int) int {
+	for index < len(query) {
+		if query[index] != '\'' {
+			index++
+			continue
+		}
+		index++
+		if index == len(query) || query[index] != '\'' {
+			return index
+		}
+		index++
+	}
+	return len(query)
+}
+
+func sqlDollarQuotedLiteralEnd(query string, index int) int {
+	if query[index] != '$' || index+1 >= len(query) {
+		return index
+	}
+	end := index + 1
+	if query[end] != '$' && !isSQLIdentifierStart(query[end]) {
+		return index
+	}
+	for end < len(query) && isSQLIdentifierPart(query[end]) {
+		end++
+	}
+	if end >= len(query) || query[end] != '$' {
+		return index
+	}
+	delimiter := query[index : end+1]
+	closing := strings.Index(query[end+1:], delimiter)
+	if closing < 0 {
+		return index
+	}
+	return end + 1 + closing + len(delimiter)
+}
+
+func isSQLIdentifierStart(char byte) bool {
+	return char == '_' || char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z'
+}
+
+func isSQLIdentifierPart(char byte) bool {
+	return isSQLIdentifierStart(char) || char >= '0' && char <= '9'
 }
 
 type tableMatchSummary struct {
@@ -598,15 +692,6 @@ func constantString(info *types.Info, expression ast.Expr) (string, bool) {
 		return "", false
 	}
 	return constant.StringVal(typed.Value), true
-}
-
-func firstConstantString(info *types.Info, expressions []ast.Expr) (string, bool) {
-	for _, expression := range expressions {
-		if value, ok := constantString(info, expression); ok {
-			return value, true
-		}
-	}
-	return "", false
 }
 
 func (a semanticAnalyzer) legacyReferenceViolations(pkg *packages.Package) []Violation {

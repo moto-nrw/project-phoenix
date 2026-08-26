@@ -36,3 +36,15 @@ func RecursiveCTEAndTableFunction(db *bun.DB) {
 		SELECT records.id FROM reach JOIN alpha.records AS records ON true
 	) SELECT * FROM reach`)
 }
+
+func NonSQLQueryMethods(db *bun.DB) {
+	db.NewSelect().TableExpr("alpha.records").Scan(nil, nil)
+	db.NewSelect().TableExpr("alpha.records").Count(nil)
+	db.NewSelect().TableExpr("alpha.records").Limit(1)
+}
+
+func SQLLiteralsAndComments(db *bun.DB) {
+	db.Exec(`SELECT $message$FROM beta.records$message$ AS note,
+		'JOIN beta.records ''still text''' AS detail -- JOIN beta.records
+		FROM alpha.records /* JOIN beta.records */`)
+}

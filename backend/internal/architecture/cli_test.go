@@ -305,6 +305,8 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.Where",
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.ColumnExpr",
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.OrderExpr",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.Exec",
+		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.ExecContext",
 		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Leaky",
 		"production|contracts.repository-type|example.test/architecture-semantic/public|public.Leaky",
 		"production|contracts.filter-map|example.test/architecture-semantic/public|public.Leaky",
