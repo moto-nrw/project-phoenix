@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -126,7 +127,7 @@ type regularPickupReader interface {
 
 type studentReader interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
-	List(ctx context.Context, filters map[string]interface{}) ([]*userModel.Student, error)
+	ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*userModel.Student, error)
 }
 
 type personReader interface {
@@ -667,7 +668,7 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 	if err != nil {
 		return nil, err
 	}
-	students, err := s.listEligibleStudents(ctx, date)
+	students, err := s.listEligibleStudents(ctx, date, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -866,6 +867,9 @@ func (s *service) ListOptions(ctx context.Context, date timezone.Date) (*Options
 		}
 		for _, student := range students {
 			if _, ok := readable[student.ID]; !ok {
+				continue
+			}
+			if careDays[student.ID] == scheduleSvc.CareDayNotScheduled {
 				continue
 			}
 			cancelled := careDays[student.ID] == scheduleSvc.CareDayCancelled
@@ -1715,13 +1719,9 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 	return start, end
 }
 
-// eligibleOn reports whether a student is enrolled in the OGS on the given
-// calendar date. The enrollment interval (enrolled_from..enrolled_until) is the
-// source of truth: it is correct for past and future dates alike, whereas the
-// lifecycle status is only the scheduler's projection of "enrolled today" and
-// is wrong for any other date — a currently active child whose enrollment ends
-// before a future list date would otherwise still be counted, and a pending
-// child whose enrollment has already started would be missed (#1565 review).
+// eligibleOn reports whether a student may be a candidate on the given date.
+// Actual attendance wins before enrollment bounds are applied: a child who is
+// still present must remain visible even after their planned care ended.
 //
 // Immediate activation (enrollment.default_activation_mode = "immediate") is the
 // deliberate exception: the enrollment decision service creates an already
@@ -1733,20 +1733,20 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // retroactively enrolled for every past date before enrolled_from. Otherwise a
 // stale or manually created slot roster (or the /options counts) would show the
 // child as planned/missing before their enrollment ever began (#1565 review).
-// enrolled_until still drives deactivation for every status.
-//
-// When neither bound is recorded (legacy rows, manual create) the interval
-// carries no information, so the current lifecycle status is the only signal
-// and an inactive student is treated as no longer enrolled.
-//
 // today is the service clock's calendar day (s.todayDate()), threaded in so
 // the immediate-activation cutoff uses the same clock as every other date
 // guard in BuildList/ListOptions — deterministic simulations and
 // time-controlled tests pin Dependencies.Now, and reading the process clock
 // here instead would decide eligibility against a different "today" (#1565
 // review).
-func eligibleOn(student *userModel.Student, date, today timezone.Date) bool {
+func eligibleOn(student *userModel.Student, date, today timezone.Date, actuallyPresent bool) bool {
 	if student == nil {
+		return false
+	}
+	if actuallyPresent {
+		return true
+	}
+	if student.Status == userModel.StudentStatusAlumnus {
 		return false
 	}
 	active := student.Status == userModel.StudentStatusActive
@@ -1760,25 +1760,27 @@ func eligibleOn(student *userModel.Student, date, today timezone.Date) bool {
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
 		return false
 	}
-	if student.EnrolledFrom == nil && student.EnrolledUntil == nil {
-		return student.Status != userModel.StudentStatusInactive
+	if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModel.StudentStatusInactive {
+		return false
 	}
 	return true
 }
 
-// listEligibleStudents returns the tenant students enrolled on the given date —
-// the cohort candidate set shared by the pickup builder and the options
-// aggregation. Loading the full set and filtering by enrollment interval (not a
-// status filter) is what keeps pickup cohorts correct for non-today dates.
-func (s *service) listEligibleStudents(ctx context.Context, date timezone.Date) ([]*userModel.Student, error) {
-	all, err := s.studentRepo.List(ctx, map[string]interface{}{})
+// listEligibleStudents returns the cohort candidates shared by the pickup
+// builder and options aggregation. actual is supplied by the live pickup
+// reader so an open or historical attendance row survives the upper boundary.
+func (s *service) listEligibleStudents(
+	ctx context.Context, date timezone.Date, actual map[int64]struct{},
+) ([]*userModel.Student, error) {
+	all, err := s.studentRepo.ListWithOptions(ctx, modelBase.NewQueryOptions())
 	if err != nil {
 		return nil, err
 	}
 	today := s.todayDate()
 	eligible := make([]*userModel.Student, 0, len(all))
 	for _, student := range all {
-		if eligibleOn(student, date, today) {
+		_, present := actual[student.ID]
+		if eligibleOn(student, date, today, present) {
 			eligible = append(eligible, student)
 		}
 	}
@@ -1820,216 +1822,231 @@ func cohortPickupTime(cancelled bool, effective *scheduleSvc.EffectivePickupTime
 	return ""
 }
 
-// collectPickupEntries derives the cohort from effective pickup times
-// (weekly schedule + exceptions) and presence from attendance records on the
-// selected date. Closed attendance rows still count for historical lists.
-func (s *service) collectPickupEntries(ctx context.Context, params Params, buckets pickupBucketConfig, result *Result) ([]mergedEntry, error) {
-	// buckets is the single per-build cutoff snapshot resolved in BuildList, shared
-	// with listLabel so the header and the rows agree on the threshold (#1565
-	// review pass 2).
-	students, err := s.listEligibleStudents(ctx, params.Date)
+func includePickupParticipant(careDay scheduleSvc.CareDayStatus, present bool) bool {
+	return careDay != scheduleSvc.CareDayNotScheduled || present
+}
+
+func (s *service) loadPickupCandidates(
+	ctx context.Context, date timezone.Date,
+) ([]*userModel.Student, []int64, map[int64]struct{}, error) {
+	attendanceRows, err := s.attendanceRepo.FindForDate(ctx, date)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
+	}
+	present := make(map[int64]struct{}, len(attendanceRows))
+	for _, row := range attendanceRows {
+		present[row.StudentID] = struct{}{}
+	}
+	students, err := s.listEligibleStudents(ctx, date, present)
+	if err != nil {
+		return nil, nil, nil, err
 	}
 	studentIDs := make([]int64, 0, len(students))
 	for _, student := range students {
 		studentIDs = append(studentIDs, student.ID)
 	}
+	return students, studentIDs, present, nil
+}
 
-	pickupTimes := map[int64]*scheduleSvc.EffectivePickupTime{}
-	if len(studentIDs) > 0 {
-		pickupTimes, err = s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, params.Date)
-		if err != nil {
-			return nil, err
-		}
-	}
+type pickupEntryInputs struct {
+	pickupTimes    map[int64]*scheduleSvc.EffectivePickupTime
+	arrivalTimes   map[int64]*scheduleSvc.EffectiveArrivalTime
+	statusByID     map[int64]string
+	partialByID    map[int64]string
+	careDays       map[int64]scheduleSvc.CareDayStatus
+	regularByID    map[int64]string
+	presentStudent map[int64]struct{}
+}
 
-	// A reconciliation on today has only accrued the presence evidence up to
-	// "now": a child whose effective arrival time is still in the future has not
-	// been expected yet, so an empty attendance row is not a no-show. Load the
-	// arrival times to defer those children below rather than print them as
-	// "Fehlt" — the pickup analogue of collectSlotEntries excluding a
-	// not-yet-started slot from the merge (#1565 review pass 1). Only needed for
-	// the Abgleich (Plan lists the expected children, Ist only the present ones).
-	arrivalTimes := map[int64]*scheduleSvc.EffectiveArrivalTime{}
-	if params.Source == SourceReconciliation && len(studentIDs) > 0 {
-		arrivalTimes, err = s.arrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, params.Date)
-		if err != nil {
-			return nil, fmt.Errorf("load effective arrival times: %w", err)
-		}
-	}
-
-	attendanceRows, err := s.attendanceRepo.FindForDate(ctx, params.Date)
+// collectPickupEntries derives the cohort from effective times, dated care
+// participation and attendance. Closed attendance rows count historically.
+func (s *service) collectPickupEntries(
+	ctx context.Context, params Params, buckets pickupBucketConfig, result *Result,
+) ([]mergedEntry, error) {
+	students, studentIDs, present, err := s.loadPickupCandidates(ctx, params.Date)
 	if err != nil {
 		return nil, err
 	}
-	presentSet := make(map[int64]struct{}, len(attendanceRows))
-	for _, row := range attendanceRows {
-		presentSet[row.StudentID] = struct{}{}
-	}
-
-	// Broad day statuses (sick / excused / class trip) are the registered
-	// sign-offs for pickup cohorts — there is no instance_students row to
-	// carry them. Without this evidence a sick child with a recurring pickup
-	// time would show as unexplained "Fehlt" in the Abgleich and could
-	// trigger an unnecessary missing-child response. Include the scheduler's
-	// end-of-day archived rows, not just active ones: after the configured
-	// status-clear time (18:00 by default) the sick/excused flag is archived
-	// with cleared_at set and source = end_of_day, but it is still valid
-	// all-day sign-off evidence for this date (#1565 review pass 1).
-	statusDays, err := s.statusDayRepo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, params.Date)
+	inputs, err := s.loadPickupEntryInputs(ctx, params, studentIDs, present)
 	if err != nil {
-		return nil, fmt.Errorf("load student status days: %w", err)
+		return nil, err
 	}
-	statusByStudent := make(map[int64]string, len(statusDays))
+	entries, cohort := s.buildPickupCohortEntries(params, buckets, result.ListLabel, students, inputs)
+	return appendUnplannedPickupEntries(entries, cohort, params, buckets, result.ListLabel, inputs), nil
+}
+
+func (s *service) loadPickupEntryInputs(
+	ctx context.Context, params Params, studentIDs []int64, present map[int64]struct{},
+) (pickupEntryInputs, error) {
+	pickups, arrivals, err := s.loadPickupTiming(ctx, params, studentIDs)
+	if err != nil {
+		return pickupEntryInputs{}, err
+	}
+	statuses, partial, err := s.loadPickupAbsences(ctx, studentIDs, params.Date)
+	if err != nil {
+		return pickupEntryInputs{}, err
+	}
+	careDays, regular, err := s.loadPickupCareEvidence(ctx, studentIDs, params.Date)
+	if err != nil {
+		return pickupEntryInputs{}, err
+	}
+	return pickupEntryInputs{pickups, arrivals, statuses, partial, careDays, regular, present}, nil
+}
+
+func (s *service) loadPickupTiming(
+	ctx context.Context, params Params, studentIDs []int64,
+) (map[int64]*scheduleSvc.EffectivePickupTime, map[int64]*scheduleSvc.EffectiveArrivalTime, error) {
+	pickups := map[int64]*scheduleSvc.EffectivePickupTime{}
+	arrivals := map[int64]*scheduleSvc.EffectiveArrivalTime{}
+	if len(studentIDs) == 0 {
+		return pickups, arrivals, nil
+	}
+	var err error
+	pickups, err = s.pickupService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, params.Date)
+	if err != nil {
+		return nil, nil, err
+	}
+	if params.Source == SourceReconciliation {
+		arrivals, err = s.arrivalService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, params.Date)
+		if err != nil {
+			return nil, nil, fmt.Errorf("load effective arrival times: %w", err)
+		}
+	}
+	return pickups, arrivals, nil
+}
+
+func (s *service) loadPickupAbsences(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) (map[int64]string, map[int64]string, error) {
+	statusDays, err := s.statusDayRepo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load student status days: %w", err)
+	}
+	statuses := make(map[int64]string, len(statusDays))
 	for _, day := range statusDays {
-		statusByStudent[day.StudentID] = day.Status
+		statuses[day.StudentID] = day.Status
 	}
-
-	// Partial-day excusals live on student_pickup_exceptions.excused_from.
-	// After that cutoff the child is signed off for remaining care; without
-	// this evidence a partial-excused child with a pickup time at/after the
-	// cutoff would show as unexplained "Fehlt" on the Abgleich.
-	partialCutoffByStudent := map[int64]string{}
-	if s.pickupExceptionRepo != nil && len(studentIDs) > 0 {
-		exceptions, loadErr := s.pickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, params.Date)
-		if loadErr != nil {
-			return nil, fmt.Errorf("load pickup exceptions for partial absences: %w", loadErr)
-		}
-		for _, exc := range exceptions {
-			if exc == nil || exc.ExcusedFrom == nil {
-				continue
-			}
-			partialCutoffByStudent[exc.StudentID] = timezone.WallClock(*exc.ExcusedFrom).Format(timeLayout)
+	partial := map[int64]string{}
+	if s.pickupExceptionRepo == nil || len(studentIDs) == 0 {
+		return statuses, partial, nil
+	}
+	exceptions, err := s.pickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load pickup exceptions for partial absences: %w", err)
+	}
+	for _, exc := range exceptions {
+		if exc != nil && exc.ExcusedFrom != nil {
+			partial[exc.StudentID] = timezone.WallClock(*exc.ExcusedFrom).Format(timeLayout)
 		}
 	}
+	return statuses, partial, nil
+}
 
-	// A cancelled care day ("Kommt heute nicht") is also a registered absence,
-	// but it lives in the arrival/pickup exceptions, not in a status day. Its
-	// effective pickup may be nil (a timeless pickup exception) or the regular
-	// time (a timeless arrival exception) — so resolve the verdict and keep
-	// the regular weekly bucket to place such children into a cohort.
-	careDays, err := s.careDayService.ResolveForDate(ctx, studentIDs, params.Date)
+func (s *service) loadPickupCareEvidence(
+	ctx context.Context, studentIDs []int64, date timezone.Date,
+) (map[int64]scheduleSvc.CareDayStatus, map[int64]string, error) {
+	careDays, err := s.careDayService.ResolveForDate(ctx, studentIDs, date)
 	if err != nil {
-		return nil, fmt.Errorf("resolve care days: %w", err)
+		return nil, nil, fmt.Errorf("resolve care days: %w", err)
 	}
-	regularBucket, err := s.regularPickupBucket(ctx, studentIDs, params.Date)
+	regular, err := s.regularPickupBucket(ctx, studentIDs, date)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	return careDays, regular, nil
+}
 
-	slotLabel := result.ListLabel
+func (s *service) buildPickupCohortEntries(
+	params Params, buckets pickupBucketConfig, label string,
+	students []*userModel.Student, inputs pickupEntryInputs,
+) ([]mergedEntry, map[int64]struct{}) {
 	entries := []mergedEntry{}
 	cohort := map[int64]struct{}{}
 	for _, student := range students {
-		cancelled := careDays[student.ID] == scheduleSvc.CareDayCancelled
-		// No time from either source means the child is not in care on this
-		// date — like a not_scheduled slot row, they belong to no cohort.
-		hhmm := cohortPickupTime(cancelled, pickupTimes[student.ID], regularBucket[student.ID])
-		if hhmm == "" || !pickupMatchesCohort(params.PickupCohort, hhmm, buckets) {
-			continue
+		entry, belongs := s.pickupEntryForStudent(params, buckets, label, student.ID, inputs)
+		if belongs {
+			cohort[student.ID] = struct{}{}
 		}
-		cohort[student.ID] = struct{}{}
-		_, present := presentSet[student.ID]
-		_, hasStatusDay := statusByStudent[student.ID]
-		partialCovers := partialCoversPickup(hhmm, partialCutoffByStudent[student.ID])
-		// Defer a not-yet-arrived child on today's Abgleich: with no check-in yet
-		// and their effective arrival time still ahead, an empty attendance row is
-		// not a no-show, so emitting a planned row here would false-report the
-		// child as "Fehlt" and inflate the missing counter before they were ever
-		// expected (#1565 review pass 1). Registered absences (a cancelled care day,
-		// a sick/excused/trip status day, or a partial-day excusal covering this
-		// pickup) are sign-offs and still render "Abgemeldet", so only the
-		// would-be-"Fehlt" case defers. The child stays in `cohort` (already
-		// recorded above) so the unplanned sweep does not re-add them. Past dates
-		// are refused upstream; future dates too — so this only ever fires on today.
-		if params.Source == SourceReconciliation && !present && !cancelled && !hasStatusDay && !partialCovers &&
-			s.beforeEffectiveArrival(params.Date, arrivalTimes[student.ID]) {
-			continue
+		if entry != nil {
+			entries = append(entries, *entry)
 		}
-		if cancelled && present {
-			// The care day was signed off ("Kommt heute nicht") but the child
-			// attended anyway. That is an unplanned presence, not a
-			// planned-and-present child — mirror the slot-list path, which leaves
-			// the same cancelled-but-attended case unseen so it surfaces as
-			// "Ungeplant anwesend". Classifying it as Planned here would label the
-			// child "Anwesend" and disagree with collectSlotEntries and its
-			// counters (#1565 review). Emit a present-only entry; the child stays
-			// in `cohort` so the unplanned sweep below does not re-add them.
-			entries = append(entries, mergedEntry{
-				StudentID:  student.ID,
-				SlotLabel:  slotLabel,
-				PickupTime: hhmm,
-				Present:    true,
-			})
-			continue
-		}
-		entry := mergedEntry{
-			StudentID:  student.ID,
-			SlotLabel:  slotLabel,
-			PickupTime: hhmm,
-			Planned:    true,
-			Present:    present,
-		}
-		if !present {
-			// A signed-off absence carries absence evidence (sick / excused /
-			// class trip, a cancelled care day, or a partial-day excusal covering
-			// this pickup), the shape signedOffAbsence reads to render
-			// "Abgemeldet" instead of "Fehlt".
-			if status, ok := statusByStudent[student.ID]; ok {
-				statusCopy := status
-				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
-				entry.PlannedSubstatus = &statusCopy
-			} else if cancelled {
-				cancelledSubstatus := string(scheduleSvc.CareDayCancelled)
-				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
-				entry.PlannedSubstatus = &cancelledSubstatus
-			} else if partialCovers {
-				excused := scheduleModel.AttendanceSubstatusExcused
-				entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
-				entry.PlannedSubstatus = &excused
-			}
-		}
-		entries = append(entries, entry)
 	}
+	return entries, cohort
+}
 
-	// Children who attended on this date but whose effective pickup time puts
-	// them outside this cohort are "unplanned" — but only meaningful in the
-	// reconciliation merge. A pickup list has no physical room, so in the pure
-	// Ist view "every other present child in the school" is noise, not a member
-	// of this list. Plan/Ist therefore stay scoped to the cohort.
-	if params.Source == SourceReconciliation {
-		for id := range presentSet {
-			if _, ok := cohort[id]; ok {
-				continue
-			}
-			// A present child whose resolved pickup time belongs to ANOTHER valid
-			// cohort (short vs long day) is correctly planned there — it is simply
-			// not the cohort being reconciled. Only that child's own cohort
-			// Abgleich should account for them, so skip them here. Without this,
-			// presentSet (school-wide attendance) makes a short-day Abgleich label
-			// every long-day child "Ungeplant anwesend" (and vice versa), inflating
-			// the rows and the unplanned counter in the ordinary daily case where
-			// both cohorts attended. Unplanned rows are reserved for children with
-			// no valid cohort assignment at all — no care time, or a pickup time
-			// past the long-day cutoff (#1565 review pass 2 P1).
-			cancelled := careDays[id] == scheduleSvc.CareDayCancelled
-			if resolved := cohortPickupTime(cancelled, pickupTimes[id], regularBucket[id]); pickupInAnyCohort(resolved, buckets) {
-				continue
-			}
-			pickupLabel := ""
-			if pickup := pickupTimes[id]; pickup != nil && pickup.PickupTime != nil {
-				pickupLabel = pickup.PickupTime.Format(timeLayout)
-			}
-			entries = append(entries, mergedEntry{
-				StudentID:  id,
-				SlotLabel:  slotLabel,
-				PickupTime: pickupLabel,
-				Present:    true,
-			})
-		}
+func (s *service) pickupEntryForStudent(
+	params Params, buckets pickupBucketConfig, label string, studentID int64, inputs pickupEntryInputs,
+) (*mergedEntry, bool) {
+	careDay := inputs.careDays[studentID]
+	cancelled := careDay == scheduleSvc.CareDayCancelled
+	hhmm := cohortPickupTime(cancelled, inputs.pickupTimes[studentID], inputs.regularByID[studentID])
+	if hhmm == "" || !pickupMatchesCohort(params.PickupCohort, hhmm, buckets) {
+		return nil, false
 	}
-	return entries, nil
+	_, present := inputs.presentStudent[studentID]
+	if !includePickupParticipant(careDay, present) {
+		return nil, false
+	}
+	if careDay == scheduleSvc.CareDayNotScheduled || cancelled && present {
+		return &mergedEntry{StudentID: studentID, SlotLabel: label, PickupTime: hhmm, Present: true}, true
+	}
+	status, hasStatus := inputs.statusByID[studentID]
+	partial := partialCoversPickup(hhmm, inputs.partialByID[studentID])
+	if params.Source == SourceReconciliation && !present && !cancelled && !hasStatus && !partial &&
+		s.beforeEffectiveArrival(params.Date, inputs.arrivalTimes[studentID]) {
+		return nil, true
+	}
+	return plannedPickupEntry(studentID, label, hhmm, present, cancelled, partial, status, hasStatus), true
+}
+
+func plannedPickupEntry(
+	studentID int64, label, hhmm string, present, cancelled, partial bool, status string, hasStatus bool,
+) *mergedEntry {
+	entry := &mergedEntry{StudentID: studentID, SlotLabel: label, PickupTime: hhmm, Planned: true, Present: present}
+	if present {
+		return entry
+	}
+	entry.PlannedStatus = scheduleModel.AttendanceStatusAbsent
+	switch {
+	case hasStatus:
+		entry.PlannedSubstatus = &status
+	case cancelled:
+		substatus := string(scheduleSvc.CareDayCancelled)
+		entry.PlannedSubstatus = &substatus
+	case partial:
+		substatus := scheduleModel.AttendanceSubstatusExcused
+		entry.PlannedSubstatus = &substatus
+	default:
+		entry.PlannedStatus = ""
+	}
+	return entry
+}
+
+func appendUnplannedPickupEntries(
+	entries []mergedEntry, cohort map[int64]struct{}, params Params,
+	buckets pickupBucketConfig, label string, inputs pickupEntryInputs,
+) []mergedEntry {
+	if params.Source != SourceReconciliation {
+		return entries
+	}
+	for id := range inputs.presentStudent {
+		if _, belongs := cohort[id]; belongs {
+			continue
+		}
+		cancelled := inputs.careDays[id] == scheduleSvc.CareDayCancelled
+		resolved := cohortPickupTime(cancelled, inputs.pickupTimes[id], inputs.regularByID[id])
+		if pickupInAnyCohort(resolved, buckets) {
+			continue
+		}
+		pickupLabel := ""
+		if pickup := inputs.pickupTimes[id]; pickup != nil && pickup.PickupTime != nil {
+			pickupLabel = pickup.PickupTime.Format(timeLayout)
+		}
+		entries = append(entries, mergedEntry{
+			StudentID: id, SlotLabel: label, PickupTime: pickupLabel, Present: true,
+		})
+	}
+	return entries
 }
 
 func pickupMatchesCohort(cohort PickupCohort, hhmm string, buckets pickupBucketConfig) bool {
@@ -2117,7 +2134,7 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 		if student == nil {
 			continue
 		}
-		if !eligibleOn(student, date, today) {
+		if !eligibleOn(student, date, today, false) {
 			if !entry.Present {
 				continue
 			}

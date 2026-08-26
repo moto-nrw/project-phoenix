@@ -12,6 +12,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
+import { formatDate } from "~/lib/date-helpers";
 import type { SettingsSchema } from "~/lib/settings-api";
 import {
   fetchOperatorSettingsSchema,
@@ -23,7 +24,9 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
+import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
 import {
   ConceptPageHeader,
   ConceptSectionHeader,
@@ -164,6 +167,10 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     [schoolId],
   );
 
+  const bookingAuthority = useBookingAuthorityImpact(schoolId, handleSave);
+  const bookingAuthorityBlockers =
+    bookingAuthority.state.impact?.blockingChildren ?? [];
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
@@ -234,6 +241,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
                   category={category}
                   onSave={handleSave}
                   onReset={handleReset}
+                  onBookingAuthorityEnable={bookingAuthority.request}
                   audience="operator"
                   revealFn={handleReveal}
                 />
@@ -241,6 +249,95 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
             </div>
           </section>
         ))}
+
+      <ConfirmationModal
+        isOpen={bookingAuthority.state.isOpen}
+        onClose={bookingAuthority.close}
+        onConfirm={() => void bookingAuthority.confirm()}
+        title="Buchungsmodus aktivieren?"
+        confirmText="Buchungsmodus aktivieren"
+        cancelText="Abbrechen"
+        isConfirmLoading={bookingAuthority.state.isSaving}
+        isConfirmDisabled={
+          bookingAuthority.state.isLoading ||
+          bookingAuthority.state.impact === null ||
+          bookingAuthorityBlockers.length > 0 ||
+          bookingAuthority.state.error !== null
+        }
+      >
+        <div className="space-y-4 text-sm text-gray-700">
+          <p>
+            Nach dem Aktivieren bestimmen die Buchungen, an welchen Tagen die
+            Kinder betreut werden.
+          </p>
+          {bookingAuthority.state.isLoading ? (
+            <p>Auswirkungen werden geprüft …</p>
+          ) : null}
+          {bookingAuthority.state.error ? (
+            <Alert type="error" message={bookingAuthority.state.error} />
+          ) : null}
+          {bookingAuthority.state.impact &&
+          bookingAuthorityBlockers.length > 0 ? (
+            <div>
+              <p className="font-medium text-gray-900">
+                Aktivieren nicht möglich: Für {bookingAuthorityBlockers.length}
+                {bookingAuthorityBlockers.length === 1
+                  ? " Kind ist aktuell keine Betreuung gebucht."
+                  : " Kinder sind aktuell keine Betreuung gebucht."}
+              </p>
+              <ul className="mt-2 list-disc space-y-1 pl-5">
+                {bookingAuthorityBlockers.map((child) => (
+                  <li key={child.studentId}>
+                    {child.firstName} {child.lastName}
+                    {child.schoolClass ? " · " + child.schoolClass : ""}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2">
+                Bitte klären Sie diese Buchungen zuerst. Das Aktivieren kann
+                nicht übersprungen werden.
+              </p>
+            </div>
+          ) : null}
+          {bookingAuthority.state.impact &&
+          bookingAuthorityBlockers.length === 0 ? (
+            <p className="font-medium text-gray-900">
+              Alle aktuell betreuten Kinder haben mindestens einen gebuchten
+              Betreuungstag.
+            </p>
+          ) : null}
+          {bookingAuthority.state.impact ? (
+            <div>
+              <p className="font-medium text-gray-900">
+                Geplante Abschlüsse:{" "}
+                {bookingAuthority.state.impact.plannedCompletions.length}
+              </p>
+              {bookingAuthority.state.impact.plannedCompletions.length === 0 ? (
+                <p className="mt-1">Es werden keine Abschlüsse geplant.</p>
+              ) : (
+                <>
+                  <p className="mt-1">
+                    moto legt diese Abschlüsse sofort an. Die Kinder bleiben bis
+                    zum letzten gebuchten Betreuungstag in den Arbeitslisten.
+                  </p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {bookingAuthority.state.impact.plannedCompletions.map(
+                      (child) => (
+                        <li key={child.studentId}>
+                          {child.firstName} {child.lastName}
+                          {child.firstBookinglessDay
+                            ? " · ab " + formatDate(child.firstBookinglessDay)
+                            : ""}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </>
+              )}
+            </div>
+          ) : null}
+        </div>
+      </ConfirmationModal>
     </div>
   );
 }

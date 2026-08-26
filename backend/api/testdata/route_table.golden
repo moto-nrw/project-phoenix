@@ -488,6 +488,7 @@ GET /operator/schools/{id}/invoices
 GET /operator/schools/{id}/invoices/
 GET /operator/schools/{id}/persons
 GET /operator/schools/{id}/pwa-usage
+GET /operator/schools/{id}/settings/booking-authority-impact
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats

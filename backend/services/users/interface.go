@@ -131,6 +131,12 @@ type PersonService interface {
 	// GetStudentsByGroupIDs retrieves the students of multiple groups.
 	GetStudentsByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
 
+	// GetParticipationCandidatesByGroupIDs retrieves group students before the
+	// operational participation rule removes departed children. Readers that
+	// apply that shared rule need alumni in the candidate set so a still-open
+	// presence can retain them.
+	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+
 	// GetEligibleStudentsByGroupIDsOnDate retrieves group students enrolled on
 	// the requested calendar date. today is the caller's frozen calendar day,
 	// so a request crossing Berlin midnight keeps one notion of "today".

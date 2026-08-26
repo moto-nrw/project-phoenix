@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const {
   mockUseSession,
   mockFetchSchema,
+  mockFetchImpact,
   mockSetValue,
   mockResetValue,
   mockListSchools,
@@ -17,6 +18,7 @@ const {
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockFetchSchema: vi.fn(),
+  mockFetchImpact: vi.fn(),
   mockSetValue: vi.fn(),
   mockResetValue: vi.fn(),
   mockListSchools: vi.fn(),
@@ -49,6 +51,7 @@ vi.mock("next/link", () => ({
 
 vi.mock("~/lib/operator/operator-settings-api", () => ({
   fetchOperatorSettingsSchema: mockFetchSchema,
+  fetchBookingAuthorityImpact: mockFetchImpact,
   setOperatorSettingValue: mockSetValue,
   resetOperatorSettingValue: mockResetValue,
 }));
@@ -59,6 +62,22 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
   },
 }));
 
+function plannedBookingAuthorityImpact() {
+  return {
+    referenceDate: "2026-08-25",
+    blockingChildren: [],
+    plannedCompletions: [
+      {
+        studentId: "8",
+        firstName: "Noah",
+        lastName: "Beispiel",
+        schoolClass: "3b",
+        firstBookinglessDay: "2026-09-01",
+      },
+    ],
+  };
+}
+
 // The settings-category component is exercised in its own tests; stub it
 // here so we can assert onSave/onReset routing without the full field chrome.
 vi.mock("~/components/settings/settings-category", () => ({
@@ -66,10 +85,12 @@ vi.mock("~/components/settings/settings-category", () => ({
     category,
     onSave,
     onReset,
+    onBookingAuthorityEnable,
   }: {
     category: { key: string; label: string };
     onSave: (key: string, value: unknown) => Promise<string | null>;
     onReset: (key: string) => Promise<string | null>;
+    onBookingAuthorityEnable?: () => Promise<void>;
   }) => (
     <div data-testid={`category-${category.key}`}>
       <span>{category.label}</span>
@@ -78,6 +99,9 @@ vi.mock("~/components/settings/settings-category", () => ({
         onClick={() => void onSave("operations.session_end_time", "18:30")}
       >
         save-{category.key}
+      </button>
+      <button type="button" onClick={() => void onBookingAuthorityEnable?.()}>
+        enable-booking-mode-{category.key}
       </button>
       <button
         type="button"
@@ -271,6 +295,82 @@ describe("OperatorSchoolSettingsPage", () => {
       expect(mockResetValue).toHaveBeenCalledWith(
         "42",
         "operations.session_end_time",
+      );
+    });
+  });
+
+  it("blocks activation when the impact lists a child without care days", async () => {
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        {
+          key: "operations",
+          label: "Ops",
+          categories: [{ key: "sessions", label: "Sessions", items: [] }],
+        },
+      ],
+    });
+    mockFetchImpact.mockResolvedValue({
+      referenceDate: "2026-08-25",
+      blockingChildren: [
+        {
+          studentId: "7",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+        },
+      ],
+      plannedCompletions: [],
+    });
+
+    await renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "enable-booking-mode-sessions",
+      }),
+    );
+
+    expect(await screen.findByText(/Mia Muster/)).toBeDefined();
+    expect(
+      screen.getByRole("button", { name: "Buchungsmodus aktivieren" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Geplante Abschlüsse: 0")).toBeDefined();
+    expect(
+      screen.getByText("Es werden keine Abschlüsse geplant."),
+    ).toBeDefined();
+    expect(mockSetValue).not.toHaveBeenCalled();
+  });
+
+  it("shows planned completions and enables the reviewed activation", async () => {
+    mockFetchSchema.mockResolvedValue({
+      tabs: [
+        {
+          key: "operations",
+          label: "Ops",
+          categories: [{ key: "sessions", label: "Sessions", items: [] }],
+        },
+      ],
+    });
+    mockFetchImpact.mockResolvedValue(plannedBookingAuthorityImpact());
+    mockSetValue.mockResolvedValue(null);
+
+    await renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "enable-booking-mode-sessions",
+      }),
+    );
+
+    expect(await screen.findByText(/Noah Beispiel/)).toBeDefined();
+    expect(screen.getByText(/ab 01.09.2026/)).toBeDefined();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Buchungsmodus aktivieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mockSetValue).toHaveBeenCalledWith(
+        "42",
+        "enrollment.bookings_authoritative",
+        true,
       );
     });
   });

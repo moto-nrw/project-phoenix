@@ -123,6 +123,10 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
+	// participation evaluator, not a lifecycle status, decides visibility.
+	ListIDs(ctx context.Context) ([]int64, error)
+
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.

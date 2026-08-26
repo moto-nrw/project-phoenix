@@ -348,7 +348,8 @@ func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, wor
 	addCareOfferingMap(allowed, work.activeOfferingByID)
 	addCareOfferingMap(allowed, work.beforeOfferingByID)
 	grandfathered := grandfatheredOfferingsFromLinks(work.beforeLinks)
-	allowWithdrawal := work.authoritative && requestChildOfferingLinksHaveCareDays(work.beforeLinks, work.offeringByID)
+	allowWithdrawal := work.authoritative &&
+		requestChildOfferingLinksHaveCareDays(work.beforeLinks, work.offeringByID)
 	overridden, err := validateAppliedOfferingOverrides(
 		work.input.ExcludedAutoAddTargetIDs, submitChild, allowed,
 		work.phase.CareOfferingSelectionMode, grandfathered,
@@ -472,13 +473,13 @@ func (s *decisionService) recordOfferingAdjustment(
 func (s *decisionService) reconcileOfferingAdjustmentWithdrawal(
 	ctx context.Context, work *offeringAdjustmentWork, entry *auditModels.EnrollmentOfferingAdjustment,
 ) error {
-	if s.CareWithdrawal == nil || (!work.authoritative && !work.afterHasCareDays) {
+	if s.CareWithdrawal == nil {
 		return nil
 	}
 	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
 		StudentID: *work.child.CreatedStudentID, FirstBookinglessDay: work.selectionDate,
-		HasCareDays: work.afterHasCareDays, WasCompleteWithdrawal: work.isCompleteWithdrawal,
-		SourceAdjustmentID: entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
+		WasCompleteWithdrawal: work.isCompleteWithdrawal,
+		SourceAdjustmentID:    entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
 		ConfirmedRole: entry.ActorRole, SourceOfferings: careExitSourceOfferingsFromLinks(work.beforeLinks, work.offeringByID),
 	})
 	if err != nil {

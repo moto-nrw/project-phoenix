@@ -21,6 +21,17 @@ import (
 
 type failingBoolSettings struct{ err error }
 
+type presenceCapturingResolver struct {
+	actuallyPresent map[int64]bool
+}
+
+func (r *presenceCapturingResolver) ParticipatingStudentIDs(
+	_ context.Context, studentIDs []int64, _ timezone.Date, actuallyPresent map[int64]bool,
+) (map[int64]bool, error) {
+	r.actuallyPresent = actuallyPresent
+	return map[int64]bool{studentIDs[0]: true}, nil
+}
+
 func (s failingBoolSettings) ResolveBool(context.Context, string) (bool, error) {
 	return false, s.err
 }
@@ -62,6 +73,28 @@ func TestResolvePhotosEnabledPropagatesSettingsFailure(t *testing.T) {
 
 	assert.False(t, enabled)
 	assert.ErrorIs(t, err, want)
+}
+
+func TestFilterCareParticipationLetsResolverLoadOpenRosterCheckins(t *testing.T) {
+	t.Parallel()
+
+	student := &userModels.Student{}
+	student.ID = 7
+	resolver := &presenceCapturingResolver{}
+	svc := &service{deps: Dependencies{CareParticipation: resolver}}
+	state := &buildState{
+		students:   []*userModels.Student{student},
+		studentIDs: []int64{student.ID},
+		data: &snapshot{locations: &activeService.StudentLocationSnapshot{
+			Attendances: map[int64]*activeService.AttendanceStatus{student.ID: {Status: "checked_out"}},
+			Visits:      map[int64]*activeModels.Visit{},
+		}},
+		today: timezone.TodayDate(),
+	}
+
+	require.NoError(t, svc.filterCareParticipation(context.Background(), state))
+	assert.Nil(t, resolver.actuallyPresent, "the resolver loads open roster check-ins with the other presence sources")
+	require.Len(t, state.students, 1)
 }
 
 func TestNewServiceAppliesRuntimeDefaults(t *testing.T) {
