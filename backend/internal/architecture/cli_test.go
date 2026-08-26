@@ -320,7 +320,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
-		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun.DB.Begin",
+		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.Begin",
 		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Conn.ExecContext",
 		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Stmt.Exec",
 		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
