@@ -55,7 +55,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 func createCareBooking(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64,
 	key string, validFrom, validUntil *timezone.Date,
-) {
+) *enrollmentModels.RequestChild {
 	t.Helper()
 	offering := createCareBookingOffering(t, db, scope, studentID, key)
 	child := createCareBookingSource(t, db, scope, offering.PhaseID, studentID, key)
@@ -66,6 +66,7 @@ func createCareBooking(
 	link.TenantID = scope.TenantID
 	_, err := db.NewInsert().Model(link).ModelTableExpr(`enrollment.request_child_offerings AS "request_child_offering"`).Exec(scope.Context())
 	require.NoError(t, err)
+	return child
 }
 
 func createCareBookingOffering(
@@ -184,6 +185,25 @@ func TestBookingAuthorityIncludesImmediatelyActivatedStudents(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, impact.BlockingChildren, 1)
 	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.BlockingChildren[0].StudentID)
+}
+
+func TestBookingAuthorityIncludesBookingsFromExistingStudentApproval(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Bestehend", "Gebucht", "1a")
+	gap := timezone.TodayDate().AddDays(7)
+	child := createCareBooking(t, db, scope, student.ID, "matched", nil, &gap)
+
+	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
+		Set("created_student_id = NULL").Set("matched_student_id = ?", student.ID).
+		Where("id = ?", child.ID).Exec(scope.Context())
+	require.NoError(t, err)
+
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, impact.PlannedCompletions, 1)
+	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.PlannedCompletions[0].StudentID)
 }
 
 func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {

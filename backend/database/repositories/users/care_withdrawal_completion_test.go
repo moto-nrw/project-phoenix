@@ -103,6 +103,25 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 	assert.Equal(t, timezone.TodayDate().AddDays(5), rows[0].FirstBookinglessDay)
 }
 
+func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := repositories.NewFactory(db).CareWithdrawal
+	student := testpkg.CreateTestStudent(t, db, "Offen", "Grenze", "3b")
+	studentID := student.ID
+	firstGap := timezone.TodayDate().AddDays(4)
+
+	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: firstGap,
+		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	boundaries, err := repo.ListParticipationBoundaries(ctx, []int64{student.ID}, false)
+	require.NoError(t, err)
+	assert.Equal(t, firstGap, boundaries[student.ID])
+}
+
 func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

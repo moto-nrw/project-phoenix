@@ -600,6 +600,9 @@ func filterStudentsStartedOnDate(students []*userModels.Student, date, today tim
 			(student.Status != userModels.StudentStatusActive || date.Before(today)) {
 			continue
 		}
+		if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModels.StudentStatusInactive {
+			continue
+		}
 		eligible = append(eligible, student)
 	}
 	return eligible
