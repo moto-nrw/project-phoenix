@@ -8,10 +8,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/integration/phoenixapi"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -453,7 +455,8 @@ func TestNewFixedSeeder_WithStaffPassword(t *testing.T) {
 
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestSeeder_Seed_FullWorkflow(t *testing.T) {
-	srv := fullSeedAPIMock(t)
+	trace := &fullSeedAPITrace{}
+	srv := fullSeedAPIMock(t, trace)
 	defer srv.Close()
 
 	// Change to temp dir so output files are written there
@@ -473,8 +476,15 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Greater(t, result.Fixed.StudentCount, 0)
 
 	// Verify state file was written
-	_, err = os.Stat(filepath.Join(tmpDir, DefaultSeedStatePath))
+	statePath := filepath.Join(tmpDir, DefaultSeedStatePath)
+	_, err = os.Stat(statePath)
 	assert.NoError(t, err)
+	state, err := LoadSeedState(statePath)
+	require.NoError(t, err)
+	require.NotNil(t, state.CareWithdrawals)
+	assert.Equal(t, 2, state.Topology.Schools)
+	assert.NotEmpty(t, state.CareWithdrawals.SchoolAdmin.Email)
+	assertWithdrawalSeedTrace(t, trace)
 }
 
 func TestSeeder_Seed_HealthCheckFails(t *testing.T) {
@@ -568,9 +578,40 @@ func TestPrintSuccessSummary_DoesNotPanic(t *testing.T) {
 }
 
 // fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
-func fullSeedAPIMock(t *testing.T) *httptest.Server {
+type fullSeedAPITrace struct {
+	withdrawalRemovals []map[string]any
+	withdrawalPreviews int
+	withdrawalEnds     int
+	withdrawalToday    timezone.Date
+}
+
+func assertWithdrawalSeedTrace(t *testing.T, trace *fullSeedAPITrace) {
+	t.Helper()
+	require.Len(t, trace.withdrawalRemovals, 3)
+	dates := make([]timezone.Date, 0, 3)
+	for _, body := range trace.withdrawalRemovals {
+		assert.Equal(t, true, body["complete_withdrawal_confirmed"])
+		assert.Empty(t, body["offerings"])
+		date, err := timezone.ParseDate(body["effective_from"].(string))
+		require.NoError(t, err)
+		dates = append(dates, date)
+	}
+	slices.SortFunc(dates, func(a, b timezone.Date) int { return a.Compare(b) })
+	assert.Equal(t, trace.withdrawalToday, dates[0])
+	assert.Equal(t, dates[0].AddDays(1), dates[1])
+	assert.Equal(t, dates[0].AddDays(7), dates[2])
+	assert.Equal(t, 1, trace.withdrawalPreviews)
+	assert.Equal(t, 1, trace.withdrawalEnds)
+}
+
+// fullSeedAPIMock creates a comprehensive mock server for the full seed workflow.
+func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *httptest.Server {
 	t.Helper()
 	idCounter := int64(0)
+	var trace *fullSeedAPITrace
+	if len(traces) > 0 {
+		trace = traces[0]
+	}
 
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		idCounter++
@@ -612,6 +653,44 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 			})
 			return
 		}
+		if strings.HasPrefix(r.URL.Path, "/api/enrollment/admin/requests/") && strings.HasSuffix(r.URL.Path, "/offerings") {
+			var body map[string]any
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			if trace != nil && body["complete_withdrawal_confirmed"] == true {
+				if trace.withdrawalToday.IsZero() {
+					trace.withdrawalToday = timezone.TodayDate()
+				}
+				trace.withdrawalRemovals = append(trace.withdrawalRemovals, body)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"created_student_id": fmt.Sprintf("%d", idCounter+5000)},
+			})
+			return
+		}
+		if r.URL.Path == "/api/students/care-withdrawals" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data":   map[string]any{"items": []map[string]any{{"id": "7001"}}},
+			})
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/care-end/preview") && strings.Contains(r.URL.Path, "/care-withdrawals/") {
+			if trace != nil {
+				trace.withdrawalPreviews++
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": map[string]any{"token": "care-end-token"},
+			})
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, "/care-end") && strings.Contains(r.URL.Path, "/care-withdrawals/") {
+			if trace != nil {
+				trace.withdrawalEnds++
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/enrollment/admin/requests/") {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -621,6 +700,16 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 					"children": []map[string]any{
 						{"id": fmt.Sprintf("%d", idCounter+1000)},
 					},
+				},
+			})
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/submit") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"request_id": fmt.Sprintf("%d", idCounter),
+					"status_url": fmt.Sprintf("https://parents.example.test/status/status-token-%d", idCounter),
 				},
 			})
 			return

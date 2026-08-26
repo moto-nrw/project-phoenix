@@ -117,8 +117,9 @@ func newDecisionServiceForTestWithCareWithdrawal(
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.GradeTransition,
-			AuditService: usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
-			DB:           env.db, Logger: slog.Default(),
+			AuditService:          usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+			BookingsAuthoritative: testBookingsAuthority(settings),
+			DB:                    env.db, Logger: slog.Default(),
 		})
 	}
 	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
@@ -170,6 +171,15 @@ func newDecisionServiceForTestWithCareWithdrawal(
 		),
 		Logger: slog.Default(),
 	})
+}
+
+func testBookingsAuthority(settings enrollmentService.DecisionSettingsResolver) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		if settings == nil {
+			return false, nil
+		}
+		return settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+	}
 }
 
 func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestDecisionApplier {

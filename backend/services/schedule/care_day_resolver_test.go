@@ -1,14 +1,43 @@
 package schedule
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 )
+
+type fixedCareParticipation map[int64]bool
+
+func (f fixedCareParticipation) ParticipatingStudentIDsByDate(
+	_ context.Context, _ []int64, from, to timezone.Date,
+) (map[timezone.Date]map[int64]bool, error) {
+	result := make(map[timezone.Date]map[int64]bool)
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		result[day] = f
+	}
+	return result, nil
+}
+
+type countingCareParticipation struct {
+	calls int
+}
+
+func (f *countingCareParticipation) ParticipatingStudentIDsByDate(
+	_ context.Context, studentIDs []int64, from, to timezone.Date,
+) (map[timezone.Date]map[int64]bool, error) {
+	f.calls++
+	result := make(map[timezone.Date]map[int64]bool)
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		result[day] = map[int64]bool{studentIDs[0]: true}
+	}
+	return result, nil
+}
 
 // Monday 2026-04-20 / Thursday 2026-04-23 — fixed dates, so the matrix below
 // never depends on when the suite runs.
@@ -217,6 +246,38 @@ func TestCareDayStatusFor_AuthoritativeBookingOutranksPickupPlan(t *testing.T) {
 		careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday},
 	}
 	assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday))
+}
+
+func TestCareParticipationBoundaryOverridesAStaleCarePlan(t *testing.T) {
+	t.Parallel()
+	const participatingID int64 = 46
+	const withdrawnID int64 = 47
+	service := &careDayService{deps: CareDayDependencies{
+		CareParticipation: fixedCareParticipation{participatingID: true},
+	}}
+	out := map[int64]map[timezone.Date]CareDayStatus{
+		participatingID: {careDayMonday: CareDayScheduled},
+		withdrawnID:     {careDayMonday: CareDayScheduled},
+	}
+
+	require.NoError(t, service.applyCareParticipation(
+		context.Background(), out, []int64{participatingID, withdrawnID}, careDayMonday, careDayMonday,
+	))
+	assert.Equal(t, CareDayScheduled, out[participatingID][careDayMonday])
+	assert.Equal(t, CareDayNotScheduled, out[withdrawnID][careDayMonday])
+}
+
+func TestCareParticipationRangeLoadsBoundariesOnce(t *testing.T) {
+	t.Parallel()
+	resolver := &countingCareParticipation{}
+	service := &careDayService{deps: CareDayDependencies{CareParticipation: resolver}}
+	from := timezone.NewDate(2026, time.August, 24)
+	out := map[int64]map[timezone.Date]CareDayStatus{41: {}}
+
+	require.NoError(t, service.applyCareParticipation(
+		context.Background(), out, []int64{41}, from, from.AddDays(20),
+	))
+	assert.Equal(t, 1, resolver.calls)
 }
 
 func TestCareDayStatusFor_ArrivalPlanWithoutTime(t *testing.T) {

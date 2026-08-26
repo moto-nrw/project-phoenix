@@ -27,13 +27,16 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 			RoomID:      "42",
 			SchoolClass: "3a",
 		},
-	})
+	}, testExportDate)
 
 	assert.Equal(t, "mila", params.search)
 	assert.Equal(t, []int64{17}, params.groupIDs)
 	assert.Equal(t, int64(42), params.roomID)
 	assert.Equal(t, []string{"3a"}, params.schoolClasses)
 	assert.Equal(t, studentExportPageSize, params.pageSize)
+	assert.Equal(t, CareStatusRunning, params.careStatus)
+	assert.Equal(t, testExportDate, params.careStatusOn)
+	assert.Equal(t, testExportDate, params.careStatusToday)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
 }
@@ -65,7 +68,7 @@ func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
 		Preset: listexport.PresetBirthdayList,
 		// No search / group / class: without fetchAll this would paginate.
 		Filters: studentExportFilters{Months: []string{"09"}},
-	})
+	}, testExportDate)
 
 	assert.True(t, params.fetchAll)
 	assert.False(t, params.hasInMemoryFilters(),
@@ -309,14 +312,14 @@ func TestExportRequestToListParamsParsesDayStatus(t *testing.T) {
 
 	params := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{DayStatus: "not_coming_today"},
-	})
+	}, testExportDate)
 	assert.Equal(t, "not_coming_today", params.dayStatus)
 
 	// Administrative filters are applied client-side, so they must NOT leak
 	// into the backend list query params.
 	adminOnly := exportRequestToListParams(studentExportRequest{
 		Filters: studentExportFilters{Bus: "yes", PhotoConsent: "no", PickupStatus: "self"},
-	})
+	}, testExportDate)
 	assert.Equal(t, DayPlanningStatusAll, adminOnly.dayStatus)
 }
 
@@ -351,7 +354,7 @@ func TestExportRequestToListParamsAcceptsMultipleClassesAndGroups(t *testing.T) 
 			SchoolClass: "3a, 4b",
 			GroupID:     "17,19",
 		},
-	})
+	}, testExportDate)
 
 	assert.Equal(t, []string{"3a", "4b"}, params.schoolClasses)
 	assert.Equal(t, []int64{17, 19}, params.groupIDs)

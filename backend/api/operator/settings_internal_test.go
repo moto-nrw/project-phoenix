@@ -12,7 +12,7 @@ import (
 func TestNewSettingsResource(t *testing.T) {
 	t.Parallel()
 
-	res := NewSettingsResource(nil, nil, nil, nil, nil)
+	res := NewSettingsResource(nil, nil, nil, nil, nil, nil)
 	assert.NotNil(t, res)
 	assert.Nil(t, res.settingsService)
 	assert.Nil(t, res.db)

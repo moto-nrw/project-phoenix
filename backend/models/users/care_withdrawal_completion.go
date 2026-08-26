@@ -84,7 +84,6 @@ func (f CareWithdrawalCompletionFilter) Normalized() CareWithdrawalCompletionFil
 type CareWithdrawalBookingChange struct {
 	StudentID             int64
 	FirstBookinglessDay   timezone.Date
-	HasCareDays           bool
 	WasCompleteWithdrawal bool
 	SourceAdjustmentID    int64
 	SourceRequestChildID  int64
@@ -93,12 +92,55 @@ type CareWithdrawalBookingChange struct {
 	SourceOfferings       []CareExitSourceOffering
 }
 
+// CareBookingPeriod is one effective care-counting booking window. Validity
+// is half-open: ValidFrom is inclusive and ValidUntil is the first day on
+// which the booking no longer applies. Nil bounds are unbounded.
+type CareBookingPeriod struct {
+	ValidFrom            *timezone.Date
+	ValidUntil           *timezone.Date
+	Days                 []string
+	SourceRequestChildID int64
+	SourceOfferings      []CareExitSourceOffering
+}
+
+// CareBookingFacts contains the repository facts needed by the shared booking
+// evaluator. Names and class are read-model data for the operator preview.
+type CareBookingFacts struct {
+	StudentID     int64
+	FirstName     string
+	LastName      string
+	SchoolClass   string
+	EnrolledUntil *timezone.Date
+	// ConfirmedBookinglessDay is supplied only by a mutation that explicitly
+	// confirmed removing the final care booking. It lets the evaluator retain
+	// the boundary after the mutation has removed every source period.
+	ConfirmedBookinglessDay *timezone.Date
+	Periods                 []CareBookingPeriod
+}
+
+// CareBookingEvaluation is the single interpretation of CareBookingFacts used
+// by setting impact checks, natural expiry reconciliation, and operational
+// participation. A nil FirstBookinglessDay means no completion is needed.
+type CareBookingEvaluation struct {
+	StudentID            int64
+	FirstName            string
+	LastName             string
+	SchoolClass          string
+	HasCareDays          bool
+	FirstBookinglessDay  *timezone.Date
+	SourceRequestChildID int64
+	SourceOfferings      []CareExitSourceOffering
+}
+
 type CareWithdrawalCompletionRepository interface {
 	UpsertPending(ctx context.Context, completion *CareWithdrawalCompletion) error
 	FindByID(ctx context.Context, id int64) (*CareWithdrawalCompletion, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*CareWithdrawalCompletion, error)
 	ListPending(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
+	ListPendingByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*CareWithdrawalCompletion, error)
 	ListResolved(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
+	ListParticipationBoundaries(ctx context.Context, studentIDs []int64, includeBookingBoundaries bool) (map[int64]timezone.Date, error)
+	ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkStudentDeleted(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error)

@@ -27,6 +27,9 @@ type StudentService interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// ListIDs retrieves lightweight candidates for the dated participation rule.
+	ListIDs(ctx context.Context) ([]int64, error)
+
 	// GetByIDForUpdate retrieves a student with SELECT … FOR UPDATE row locking.
 	GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
 
@@ -163,6 +166,10 @@ func (s *studentService) CountWithOptions(ctx context.Context, options *base.Que
 
 func (s *studentService) ListSchoolClasses(ctx context.Context) ([]string, error) {
 	return s.studentRepo.ListSchoolClasses(ctx)
+}
+
+func (s *studentService) ListIDs(ctx context.Context) ([]int64, error) {
+	return s.studentRepo.ListIDs(ctx)
 }
 
 func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {

@@ -81,6 +81,60 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	assert.Equal(t, today.AddDays(-1), *stored.EnrolledUntil)
 }
 
+func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentRequest(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	scope := testpkg.TenantScope{TenantID: testpkg.Tenant(t)}
+	actorID := careActor(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Alle", "Buchungen", "2c")
+	createCareBooking(t, db, scope, student.ID, "first-request", nil, nil)
+	createCareBooking(t, db, scope, student.ID, "second-request", nil, nil)
+
+	var requestChildIDs []int64
+	err := db.NewSelect().TableExpr("enrollment.request_children").
+		Column("id").Where("created_student_id = ?", student.ID).Order("id ASC").Scan(ctx, &requestChildIDs)
+	require.NoError(t, err)
+	require.Len(t, requestChildIDs, 2)
+	studentID := student.ID
+	firstGap := timezone.TodayDate().AddDays(1)
+	completion := &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: firstGap,
+		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
+		SourceRequestChildID:  &requestChildIDs[0],
+		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}
+	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(ctx, completion))
+
+	input := userService.CareExitInput{
+		LastCareDay: timezone.TodayDate(), Reason: userModels.CareExitReasonNoCareNeed,
+	}
+	svc := newCareLifecycleService(t, db)
+	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
+	require.NoError(t, err)
+	_, err = svc.ConfirmWithdrawalCareEnd(ctx, completion.ID, preview.Token, input, actorID)
+	require.NoError(t, err)
+
+	assert.Equal(t, []timezone.Date{firstGap, firstGap}, bookingEndDates(t, db, ctx, student.ID))
+}
+
+func bookingEndDates(t *testing.T, db *bun.DB, ctx context.Context, studentID int64) []timezone.Date {
+	t.Helper()
+	var rows []struct {
+		ValidUntil timezone.Date `bun:"valid_until"`
+	}
+	err := db.NewSelect().TableExpr("enrollment.request_child_offerings AS rco").
+		Column("rco.valid_until").
+		Join("JOIN enrollment.request_children AS rc ON rc.id = rco.request_child_id").
+		Where("rc.created_student_id = ?", studentID).Order("rco.id ASC").Scan(ctx, &rows)
+	require.NoError(t, err)
+	result := make([]timezone.Date, len(rows))
+	for i, row := range rows {
+		result[i] = row.ValidUntil
+	}
+	return result
+}
+
 func TestCareWithdrawalLifecycle_DeletesStudentAndRedactsCompletionAtomically(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
