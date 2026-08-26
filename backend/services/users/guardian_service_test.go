@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
@@ -377,6 +378,9 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 		})
 		require.NoError(t, err)
 	}
+	for _, studentID := range []int64{siblingA.ID, siblingB.ID} {
+		require.NoError(t, service.SetStudentPayer(ctx, studentID, &guardian.ID, 1))
+	}
 
 	// The delete preview reports both children before deletion.
 	impact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
@@ -390,7 +394,7 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	// guardian ordering are only meaningful/atomic within a single tx), and the
 	// HTTP handler wraps it that way. Exercising the real contract here.
 	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs)
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, impact.LinkIDs, 1)
 	})
 
 	// ASSERT — guardian gone, and no links survive.
@@ -400,6 +404,16 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	remainingImpact, err := service.GetGuardianDeleteImpact(ctx, guardian.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
+
+	var unassignments []auditModels.GuardianFinancialChange
+	require.NoError(t, db.NewSelect().
+		Model(&unassignments).
+		ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+		Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+		Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"guardian_financial_change".new_value = ?`, "false").
+		Scan(ctx))
+	assert.Len(t, unassignments, 2, "every deleted payer relationship must be audited")
 }
 
 func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testing.T) {
@@ -422,7 +436,7 @@ func TestGuardianService_DeleteGuardianWithLinks_RejectsChangedPreview(t *testin
 	require.NoError(t, err)
 
 	err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999})
+		return service.DeleteGuardianWithLinks(txCtx, guardian.ID, []int64{999999}, 1)
 	})
 
 	require.ErrorIs(t, err, users.ErrGuardianDeletePreviewChanged)
@@ -1296,9 +1310,10 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		}
 		_, err := service.LinkGuardianToStudent(ctx, req)
 		require.NoError(t, err)
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID)
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1307,6 +1322,17 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		guardians, err := service.GetStudentGuardians(ctx, student.ID)
 		require.NoError(t, err)
 		assert.Empty(t, guardians)
+
+		count, err := db.NewSelect().
+			Model((*auditModels.GuardianFinancialChange)(nil)).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+			Where(`"guardian_financial_change".student_id = ?`, student.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".new_value = ?`, "false").
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count, "removing a payer relationship must be audited")
 	})
 
 	t.Run("returns error when relationship not found", func(t *testing.T) {
@@ -1314,7 +1340,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
 
 		// ACT
-		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999)
+		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999, 1)
 
 		// ASSERT
 		require.Error(t, err)

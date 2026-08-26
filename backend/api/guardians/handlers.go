@@ -848,9 +848,13 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// to satisfy the RESTRICT FK; otherwise a plain delete. Both run in one
 	// tenant transaction so a failure leaves guardian and links intact.
 	tenantID := tenant.FromContext(r.Context())
+	accountID, ok := actingAccountID(w, r)
+	if !ok {
+		return
+	}
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		if hasLinks {
-			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs)
+			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs, accountID)
 		}
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
@@ -1342,8 +1346,12 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 
 	// Remove guardian from student
 	tenantID := tenant.FromContext(r.Context())
+	accountID, ok := actingAccountID(w, r)
+	if !ok {
+		return
+	}
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID)
+		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID, accountID)
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

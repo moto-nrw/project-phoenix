@@ -271,7 +271,7 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
 // This is the "Komplett löschen" path from #819 and is gated to admins at the
 // handler, because it reaches across every linked student — including siblings
 // in groups the caller may not supervise.
-func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64) error {
+func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
 	}
@@ -288,6 +288,11 @@ func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 		return ErrGuardianDeletePreviewChanged
 	}
 	for _, link := range links {
+		if link.IsPayer {
+			if err := s.recordPayerChange(ctx, link.GuardianProfileID, link.StudentID, changedByAccountID, "true", "false"); err != nil {
+				return err
+			}
+		}
 		if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 			return fmt.Errorf("failed to remove guardian link %d: %w", link.ID, err)
 		}
@@ -937,7 +942,7 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 }
 
 // RemoveGuardianFromStudent removes a guardian from a student
-func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID int64) error {
+func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64) error {
 	// Find the relationship
 	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
@@ -946,6 +951,11 @@ func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, student
 
 	for _, rel := range relationships {
 		if rel.GuardianProfileID == guardianProfileID {
+			if rel.IsPayer {
+				if err := s.recordPayerChange(ctx, rel.GuardianProfileID, rel.StudentID, changedByAccountID, "true", "false"); err != nil {
+					return err
+				}
+			}
 			return s.StudentGuardianRepo.Delete(ctx, rel.ID)
 		}
 	}

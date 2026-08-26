@@ -297,6 +297,27 @@ func TestPaymentOverview_ListsChildrenWithoutAPayer(t *testing.T) {
 	assert.False(t, found.HasIBAN())
 }
 
+// TestPaymentOverview_ExcludesSoftDeletedStudents prevents former students
+// from appearing in a payment export merely because their student row remains.
+func TestPaymentOverview_ExcludesSoftDeletedStudents(t *testing.T) {
+	t.Parallel()
+
+	ctx := paymentContext(t)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Overview", "Deleted", "2a")
+	_, err := ctx.db.NewUpdate().
+		TableExpr(`users.persons AS "person"`).
+		Set("deleted_at = NOW()").
+		Where(`"person".id = ?`, student.PersonID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), 1, "test")
+	require.NoError(t, err)
+	for _, row := range rows {
+		assert.NotEqual(t, student.ID, row.StudentID)
+	}
+}
+
 // TestPaymentExport_RendersFileAndIsAuditedSeparately pins that the bulk export
 // produces a file and is logged as its own event — viewing masked rows and
 // downloading every full IBAN are materially different accesses.

@@ -232,7 +232,10 @@ func (s *GuardianService) SetStudentPayer(ctx context.Context, studentID int64, 
 
 	tenantID := tenant.FromContext(ctx)
 	return tenant.WithTenantTx(ctx, s.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if _, err := s.StudentRepo.FindByID(ctx, studentID); err != nil {
+		// The student row is the serialization point for every payer change.
+		// Lock it before loading relationships so a waiting assignment observes
+		// the committed payer and records an audit trail that matches reality.
+		if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
 			return err
 		}
 

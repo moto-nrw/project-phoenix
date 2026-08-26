@@ -594,6 +594,7 @@ func (r *StudentGuardianRepository) ListPaymentAssignments(ctx context.Context) 
 			ON "student_guardian".student_id = "student".id AND "student_guardian".is_payer`).
 		Join(`LEFT JOIN users.guardian_profiles AS "guardian" ON "guardian".id = "student_guardian".guardian_profile_id`).
 		Where(`"student".status != ?`, string(users.StudentStatusAlumnus)).
+		Where(`"student_person".deleted_at IS NULL`).
 		OrderExpr(`"student_person".last_name ASC`).
 		OrderExpr(`"student_person".first_name ASC`).
 		OrderExpr(`"student".id ASC`)

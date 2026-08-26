@@ -208,7 +208,7 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
 }
@@ -224,7 +224,7 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 		},
 	}},
 	}
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to load guardian links")
 }
@@ -247,7 +247,7 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 	}
 	// expectedLinkIDs matches the current set, so the stale-preview guard passes
 	// and execution reaches the link-deletion loop, which then fails.
-	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{5})
+	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{5}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to remove guardian link")
 }
