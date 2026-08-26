@@ -54,7 +54,7 @@ export function ParentShell({
       topLayer={
         <div
           data-parent-safe-area-top
-          className="h-[env(safe-area-inset-top)] bg-white lg:hidden"
+          className="h-[env(safe-area-inset-top)] min-h-8 bg-white lg:hidden"
           aria-hidden="true"
         />
       }

@@ -56,6 +56,7 @@ describe("ParentShell", () => {
     );
     expect(document.querySelector("[data-parent-safe-area-top]")).toHaveClass(
       "h-[env(safe-area-inset-top)]",
+      "min-h-8",
       "lg:hidden",
     );
     expect(screen.getByTestId("parent-bottom-nav")).toBeInTheDocument();
