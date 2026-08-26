@@ -26,8 +26,6 @@ const presenceModeBinary = "binary"
 // so in words (#2609).
 const healthInfoMissing = "Nicht hinterlegt"
 
-var healthInfoStyleMarkers = strings.NewReplacer("\x01", "", "\x02", "", "\x03", "")
-
 type attendanceReader interface {
 	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
 }
@@ -339,12 +337,10 @@ func buildDocumentRows(rows []snapshotRow, withHealth bool) []listexport.Row {
 // and both must say "Nicht hinterlegt" rather than leave a blank that reads as
 // an all-clear.
 func healthInfoCell(note string) string {
+	note = listexport.SanitizeUserText(note)
 	if strings.TrimSpace(note) == "" {
 		return healthInfoMissing
 	}
 
-	// listexport stores line styling inside cell text using these C0 control
-	// markers. Health notes are user-controlled free text, so passing a marker
-	// through would make the renderer interpret part of the note as styling.
-	return healthInfoStyleMarkers.Replace(note)
+	return note
 }

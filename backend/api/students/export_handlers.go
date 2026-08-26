@@ -679,6 +679,7 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 		listexport.ColumnDeparture:         departureExportCell(student),
 		listexport.ColumnDailyNotes:        dailyNotes(student),
 		listexport.ColumnCurrentLocation:   student.Location,
+		listexport.ColumnHealthInfo:        listexport.SanitizeUserText(student.HealthInfo),
 		listexport.ColumnBirthday:          birthdayExportCell(student.Birthday),
 		listexport.ColumnAge:               ageExportCell(student.Birthday, onDate),
 	}}

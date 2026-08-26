@@ -154,6 +154,14 @@ const (
 	markMuted  = "\x02"
 )
 
+var userTextMarkerReplacer = strings.NewReplacer(markStrong, "", markMuted, "", accentMark, "")
+
+// SanitizeUserText removes the renderer's reserved control markers from text
+// supplied by users so it cannot be interpreted as per-line styling.
+func SanitizeUserText(text string) string {
+	return userTextMarkerReplacer.Replace(text)
+}
+
 // StyledCell builds a cell from styled lines. Callers use this instead of
 // hand-assembling the markers, which stay an implementation detail.
 func StyledCell(lines []Line) string {

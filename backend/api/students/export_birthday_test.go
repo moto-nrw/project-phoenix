@@ -297,6 +297,16 @@ func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 	assert.Empty(t, row.Values[listexport.ColumnAge])
 }
 
+func TestBuildExportRowRendersHealthInfo(t *testing.T) {
+	t.Parallel()
+
+	row := buildExportRow(
+		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", HealthInfo: "Nuss\x03allergie"},
+		weeklySchedule{}, map[int64]string{}, testExportDate, true)
+
+	assert.Equal(t, "Nussallergie", row.Values[listexport.ColumnHealthInfo])
+}
+
 func TestExportTitleBirthdayList(t *testing.T) {
 	t.Parallel()
 
