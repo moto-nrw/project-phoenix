@@ -159,6 +159,10 @@ const tenantProviderMock = vi.hoisted(() => ({
   useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
+  // The health column on the printed Notfallliste (#2609) defaults ON, like
+  // the registry default. Tests covering the switched-off branch override
+  // this mock locally.
+  useEmergencyHealthInfoEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

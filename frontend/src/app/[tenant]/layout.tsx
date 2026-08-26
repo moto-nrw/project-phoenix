@@ -33,6 +33,7 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
+  emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
 }
 
@@ -81,6 +82,8 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     ),
     showTimetableCounts: data.show_timetable_counts !== false,
     waitlistEnabled: data.waitlist_enabled !== false,
+    emergencyHealthInfoEnabled:
+      data.emergency_list_health_info_enabled === true,
     gradeLevelMax: data.grade_level_max,
   };
 }

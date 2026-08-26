@@ -2235,6 +2235,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentGuardianRepo: repos.StudentGuardian,
 		ActiveService:       activeService,
 		ListExport:          listExportService,
+		Settings:            settingsService,
+		Logger:              logger,
 	})
 	slotListsService := slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        repos.ActivityInstance,

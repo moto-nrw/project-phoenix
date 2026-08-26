@@ -96,28 +96,29 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := &TenantResolveResponse{
-		TenantID:                 school.ID,
-		Slug:                     school.Slug,
-		Name:                     school.Name,
-		Subdomain:                school.Subdomain,
-		OrganizationID:           school.OrganizationID,
-		OrganizationName:         orgName,
-		Hidden:                   school.Hidden,
-		Settings:                 settings,
-		PresenceMode:             resolved.presenceMode,
-		StudentPhotosEnabled:     resolved.studentPhotosEnabled,
-		NFCEnabled:               resolved.nfcEnabled,
-		ParentMessagingEnabled:   resolved.parentMessagingEnabled,
-		StaffMessagingEnabled:    resolved.staffMessagingEnabled,
-		DisplayEnabled:           resolved.displayEnabled,
-		GradeLevelMax:            gradeLevelMax,
-		CareOfferingsEnabled:     resolved.careOfferingsEnabled,
-		AttendanceWebEnabled:     resolved.attendanceWebEnabled,
-		AttendanceLogEnabled:     resolved.attendanceLogEnabled,
-		GroupMode:                resolved.groupMode,
-		OperationalOverviewScope: resolved.overviewScope,
-		ShowTimetableCounts:      resolved.showTimetableCounts,
-		WaitlistEnabled:          resolved.waitlistEnabled,
+		TenantID:                   school.ID,
+		Slug:                       school.Slug,
+		Name:                       school.Name,
+		Subdomain:                  school.Subdomain,
+		OrganizationID:             school.OrganizationID,
+		OrganizationName:           orgName,
+		Hidden:                     school.Hidden,
+		Settings:                   settings,
+		PresenceMode:               resolved.presenceMode,
+		StudentPhotosEnabled:       resolved.studentPhotosEnabled,
+		NFCEnabled:                 resolved.nfcEnabled,
+		ParentMessagingEnabled:     resolved.parentMessagingEnabled,
+		StaffMessagingEnabled:      resolved.staffMessagingEnabled,
+		DisplayEnabled:             resolved.displayEnabled,
+		GradeLevelMax:              gradeLevelMax,
+		CareOfferingsEnabled:       resolved.careOfferingsEnabled,
+		AttendanceWebEnabled:       resolved.attendanceWebEnabled,
+		AttendanceLogEnabled:       resolved.attendanceLogEnabled,
+		GroupMode:                  resolved.groupMode,
+		OperationalOverviewScope:   resolved.overviewScope,
+		ShowTimetableCounts:        resolved.showTimetableCounts,
+		WaitlistEnabled:            resolved.waitlistEnabled,
+		EmergencyHealthInfoEnabled: resolved.emergencyHealthInfo,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
@@ -132,6 +133,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		overviewScope:          configModel.OverviewScopeOwn,
 		showTimetableCounts:    true,
 		waitlistEnabled:        true,
+		emergencyHealthInfo:    false,
 	}
 	if rs.SettingsService == nil {
 		return resolved, nil
@@ -150,6 +152,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 		configModel.KeyGroupMode,
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyParentNotesEnabled,
+		configModel.KeyEmergencyListHealthInfo,
 		configModel.KeyStaffMessagingEnabled,
 		// Not read from this snapshot — prefetched so the hard-fail
 		// resolveTenantGradeLevelMax call hits the request cache instead of
@@ -184,6 +187,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	resolved.attendanceLogEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceLogEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
+	resolved.emergencyHealthInfo = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
 	resolved.overviewScope = rs.resolveTenantOverviewScope(ctx, tenantID)
 
@@ -232,6 +236,7 @@ func resolveTenantShellSnapshot(
 	resolved.showTimetableCounts = resolveBool(configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = resolveBool(configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
 	resolved.parentMessagingEnabled = resolveBool(configModel.KeyParentNotesEnabled, true, slog.LevelWarn)
+	resolved.emergencyHealthInfo = resolveBool(configModel.KeyEmergencyListHealthInfo, false, slog.LevelWarn)
 	staffMessagingEnabled, err := snapshot.Bool(configModel.KeyStaffMessagingEnabled)
 	if err != nil {
 		logTenantResolveSettingFailure(ctx, tenantID, configModel.KeyStaffMessagingEnabled, err, slog.LevelError)

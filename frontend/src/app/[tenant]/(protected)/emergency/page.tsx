@@ -10,9 +10,11 @@ import {
   type EmergencySnapshotExportMode,
 } from "~/lib/emergency-export-api";
 import { SkeletonRegion, CardSkeleton } from "~/components/ui/page-skeletons";
+import { useEmergencyHealthInfoEnabled } from "~/lib/tenant-context";
 
 export default function EmergencyPage() {
   const { status } = useSession({ required: true });
+  const healthInfoOnList = useEmergencyHealthInfoEnabled();
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,8 +70,11 @@ export default function EmergencyPage() {
             Notfallliste
           </h1>
           <p className="mt-3 text-base leading-7 text-gray-600 sm:mt-4 sm:text-lg sm:leading-8">
-            Druckbare Liste aller aktuell anwesenden Kinder mit Ort oder Raum,
-            Klasse, Telefonnummern und Kontaktpersonen.
+            Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält
+            Klasse, Ort oder Raum, Telefonnummern
+            {healthInfoOnList
+              ? ", Kontaktpersonen und die hinterlegten Gesundheitsinfos."
+              : " und Kontaktpersonen."}
           </p>
         </div>
 
@@ -108,6 +113,14 @@ export default function EmergencyPage() {
         <p className="mt-4 text-sm leading-6 text-gray-500 sm:mt-6">
           Die Liste wird beim Erstellen aus der aktuellen Anwesenheit erzeugt.
         </p>
+
+        {healthInfoOnList ? (
+          <p className="mt-2 text-sm leading-6 text-gray-500">
+            Steht bei einem Kind &bdquo;Nicht hinterlegt&ldquo;, sind keine
+            Gesundheitsinfos eingetragen. Das heißt nicht, dass das Kind keine
+            Allergie hat.
+          </p>
+        ) : null}
       </section>
     </main>
   );
