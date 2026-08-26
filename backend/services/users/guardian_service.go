@@ -346,10 +346,8 @@ func (s *GuardianService) auditGuardianFinancialDataDeletion(ctx context.Context
 		changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
 	}
 	if data.AccountHolder != nil && *data.AccountHolder != "" {
-		changes = append(changes, stammdatenChange{
-			field:    auditModels.GuardianPaymentFieldAccountHolder,
-			oldValue: *data.AccountHolder,
-		})
+		changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldAccountHolder,
+			maskAllPtr(data.AccountHolder), nil))
 	}
 	for _, change := range changes {
 		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{

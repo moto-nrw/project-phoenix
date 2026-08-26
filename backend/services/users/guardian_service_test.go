@@ -316,7 +316,8 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-delete")
 		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
-			IBAN: strPtr("DE89370400440532013000"),
+			IBAN:          strPtr("DE89370400440532013000"),
+			AccountHolder: strPtr("Sabine Schneider"),
 		}, 1, ""))
 		// No defer - we're testing deletion
 
@@ -340,6 +341,30 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 			Scan(ctx))
 		assert.Equal(t, "•••• 3000", deletionAudit.OldValue)
 		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", deletionAudit.Note)
+
+		var accountHolderAudits []auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&accountHolderAudits).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Scan(ctx))
+		require.Len(t, accountHolderAudits, 2)
+		for _, audit := range accountHolderAudits {
+			assert.NotContains(t, audit.OldValue, "Sabine")
+			assert.NotContains(t, audit.NewValue, "Sabine")
+		}
+
+		var accountHolderDeletionAudit auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&accountHolderDeletionAudit).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".new_value = ?`, "").
+			Scan(ctx))
+		assert.Equal(t, "••••••••", accountHolderDeletionAudit.OldValue)
+		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", accountHolderDeletionAudit.Note)
 	})
 
 	t.Run("plain delete is refused while the guardian is still linked (RESTRICT)", func(t *testing.T) {

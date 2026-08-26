@@ -180,11 +180,8 @@ func (s *GuardianService) UpdateGuardianPayment(ctx context.Context, guardianPro
 				maskTailPtr(current.IBAN, 4), maskTailPtr(normalized.IBAN, 4)))
 		}
 		if strPtrAuditValue(current.AccountHolder) != strPtrAuditValue(normalized.AccountHolder) {
-			changes = append(changes, stammdatenChange{
-				field:    auditModels.GuardianPaymentFieldAccountHolder,
-				oldValue: strPtrAuditValue(current.AccountHolder),
-				newValue: strPtrAuditValue(normalized.AccountHolder),
-			})
+			changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldAccountHolder,
+				maskAllPtr(current.AccountHolder), maskAllPtr(normalized.AccountHolder)))
 		}
 		if len(changes) == 0 {
 			return nil
