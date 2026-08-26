@@ -356,8 +356,9 @@ func (a semanticAnalyzer) qualifiedDataObjects(query string) []string {
 	matches := qualifiedDataObjectPattern.FindAllStringSubmatch(query, -1)
 	objects := make([]string, 0, len(matches))
 	for _, match := range matches {
-		if a.knownDataSchema(match[1]) {
-			objects = append(objects, match[1])
+		name := strings.ToLower(match[1])
+		if _, ok := a.dataObjects[name]; ok {
+			objects = append(objects, name)
 		}
 	}
 	return objects

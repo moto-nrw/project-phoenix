@@ -9,6 +9,7 @@ func Read(db *bun.DB) {
 	db.NewSelect().TableExpr(`"alpha"."records"`)
 	db.NewSelect().TableExpr("alpha.records").Join("JOIN alpha.records AS related ON true")
 	db.NewSelect().TableExpr("alpha.records").ColumnExpr("(SELECT count(*) FROM alpha.records)")
+	db.NewSelect().TableExpr("alpha.records").Where("alpha.activity_group_id = ?", 1)
 	db.NewSelect().TableExpr("alpha.records").For("UPDATE SKIP LOCKED")
 }
 
