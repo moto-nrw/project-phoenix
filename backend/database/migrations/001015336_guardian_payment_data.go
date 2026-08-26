@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	guardianPaymentDataVersion     = "1.15.335"
+	guardianPaymentDataVersion     = "1.15.336"
 	guardianPaymentDataDescription = "Store guardian bank details (IBAN) and mark the paying guardian per child (#2608)"
 )
 
@@ -49,7 +49,7 @@ func init() {
 // in 1.15.251: school admins match via the admin:* wildcard anyway, and the
 // school office can be granted the permission explicitly without a migration.
 func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.335: Creating guardian payment data + guardians:financial permission...")
+	fmt.Println("Migration 1.15.336: Creating guardian payment data + guardians:financial permission...")
 
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.guardian_financial_data (
@@ -153,7 +153,7 @@ func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianPaymentDataDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.335: Dropping guardian payment objects...")
+	fmt.Println("Rolling back migration 1.15.336: Dropping guardian payment objects...")
 
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.role_permissions
