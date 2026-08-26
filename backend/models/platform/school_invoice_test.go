@@ -136,7 +136,7 @@ func TestSchoolInvoiceValidate_RejectsOverlongNote(t *testing.T) {
 
 	err := invoice.Validate()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "zu lang")
+	assert.ErrorIs(t, err, platform.ErrInvoiceNoteTooLong)
 }
 
 func TestSchoolInvoiceValidate_AcceptsNoteAtLimit(t *testing.T) {

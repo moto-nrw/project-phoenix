@@ -397,6 +397,7 @@ func TestIsInvoiceValidationError(t *testing.T) {
 		platformModel.ErrInvoiceUnknownStatus,
 		platformModel.ErrInvoicePaidOnRequired,
 		platformModel.ErrInvoicePaidOnNotAllowed,
+		platformModel.ErrInvoiceNoteTooLong,
 	} {
 		assert.Truef(t, isInvoiceValidationError(sentinel), "%v should be a 400", sentinel)
 	}

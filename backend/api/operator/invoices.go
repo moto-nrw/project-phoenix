@@ -196,6 +196,7 @@ func isInvoiceValidationError(err error) bool {
 		platformModel.ErrInvoiceUnknownStatus,
 		platformModel.ErrInvoicePaidOnRequired,
 		platformModel.ErrInvoicePaidOnNotAllowed,
+		platformModel.ErrInvoiceNoteTooLong,
 	} {
 		if errors.Is(err, sentinel) {
 			return true

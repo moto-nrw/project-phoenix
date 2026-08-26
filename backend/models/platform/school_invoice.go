@@ -31,6 +31,7 @@ var (
 	ErrInvoiceUnknownStatus       = errors.New("Unbekannter Zahlungsstatus.")
 	ErrInvoicePaidOnRequired      = errors.New("Bei „bezahlt“ wird ein Zahlungsdatum benötigt.")
 	ErrInvoicePaidOnNotAllowed    = errors.New("Ein Zahlungsdatum ist nur bei „bezahlt“ erlaubt.")
+	ErrInvoiceNoteTooLong         = errors.New("Hinweis ist zu lang.")
 )
 
 // MaxInvoiceNoteLen caps the free-text note so a paste accident cannot fill a
@@ -96,7 +97,7 @@ func (i *SchoolInvoice) Validate() error {
 		return ErrInvoicePaidOnNotAllowed
 	}
 	if len([]rune(i.Note)) > MaxInvoiceNoteLen {
-		return errors.New("Hinweis ist zu lang.")
+		return ErrInvoiceNoteTooLong
 	}
 	return nil
 }
