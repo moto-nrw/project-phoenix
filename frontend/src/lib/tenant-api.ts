@@ -96,6 +96,15 @@ export interface TenantInfo {
   operationalOverviewScope?: OperationalOverviewScope;
   showTimetableCounts?: boolean;
   waitlistEnabled?: boolean;
+  /**
+   * Whether the printed Notfallliste carries the children's stored health
+   * notes (operations.emergency_list_health_info, #2609). Every member of
+   * staff opens the Notfall page without config:read, so the page can only
+   * describe what it is about to print if the flag rides on tenant resolve.
+   * Missing metadata is treated as disabled because older backends do not
+   * print the health column.
+   */
+  emergencyHealthInfoEnabled?: boolean;
   /** Highest grade offered by this tenant (enrollment.grade_level_max). */
   gradeLevelMax: number;
 }
@@ -135,6 +144,7 @@ interface TenantResolveResponse {
   operational_overview_scope?: string;
   show_timetable_counts?: boolean;
   waitlist_enabled?: boolean;
+  emergency_list_health_info_enabled?: boolean;
   grade_level_max: number;
 }
 
@@ -202,6 +212,8 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       ),
       showTimetableCounts: data.show_timetable_counts !== false,
       waitlistEnabled: data.waitlist_enabled !== false,
+      emergencyHealthInfoEnabled:
+        data.emergency_list_health_info_enabled === true,
       gradeLevelMax: data.grade_level_max,
     };
   } catch {
