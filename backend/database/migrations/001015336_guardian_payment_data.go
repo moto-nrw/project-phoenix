@@ -55,13 +55,15 @@ func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS users.guardian_financial_data (
 			id BIGSERIAL PRIMARY KEY,
 			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			guardian_profile_id BIGINT NOT NULL
-				REFERENCES users.guardian_profiles(id) ON DELETE CASCADE,
+			guardian_profile_id BIGINT NOT NULL,
 			iban TEXT,
 			account_holder TEXT,
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			CONSTRAINT uq_guardian_financial_data_guardian UNIQUE (guardian_profile_id)
+			CONSTRAINT uq_guardian_financial_data_guardian UNIQUE (guardian_profile_id),
+			CONSTRAINT fk_guardian_financial_data_guardian_tenant
+				FOREIGN KEY (tenant_id, guardian_profile_id)
+				REFERENCES users.guardian_profiles(tenant_id, id) ON DELETE CASCADE
 		);
 
 		COMMENT ON COLUMN users.guardian_financial_data.account_holder IS

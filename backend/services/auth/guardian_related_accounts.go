@@ -14,6 +14,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // Operation names for AuthError wrapping (related-accounts flows).
@@ -827,6 +828,16 @@ func (s *guardianInvitationService) resolveStudentName(ctx context.Context, stud
 // the primary guardian; staff may remove anyone. The account/profile and
 // sibling links are untouched.
 func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req RevokeAccessRequest) error {
+	tenantID := tenant.FromContext(ctx)
+	return tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.StudentRepo.FindByIDForUpdate(txCtx, req.StudentID); err != nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: err}
+		}
+		return s.revokeAccess(txCtx, req)
+	})
+}
+
+func (s *guardianInvitationService) revokeAccess(ctx context.Context, req RevokeAccessRequest) error {
 	if req.StudentID <= 0 || req.GuardianProfileID <= 0 {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("student and guardian profile IDs are required")}
 	}
