@@ -7,7 +7,9 @@
 // Definitions (binding, mirrored on the screen):
 //
 //   - care day        = Monday..Friday inside [from, to] minus public
-//     holidays, tenant closing days and holiday calendar periods
+//     holidays, tenant closing days and holiday calendar periods; counted per
+//     child, so only the days the child is enrolled on (users.EnrolledOn)
+//     land in that child's denominator
 //   - present day     = care day with at least one attendance row
 //   - absence day     = care day without attendance; classified by the
 //     status day on that date: sick beats excused, class_trip counts as
@@ -123,7 +125,8 @@ type Report struct {
 	Students     []StudentRow
 	Groups       []GroupRow
 	Rooms        []RoomRow
-	// RoomDataDays is the longest active visit-retention window in days.
+	// RoomDataDays is the longest visit-retention window among the children
+	// this report covers — the group filter narrows it with the population.
 	// Individual children may have shorter windows.
 	RoomDataDays int
 	// RoomDataFrom is the earliest date room data can still exist for.
@@ -154,7 +157,7 @@ type calendarPeriods interface {
 }
 
 type studentReader interface {
-	FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
 }
 
 type roomReader interface {
@@ -236,14 +239,14 @@ func (s *service) today() timezone.Date {
 	return timezone.DateFromTime(s.cfg.Now())
 }
 
-func (s *service) validate(filters Filters) error {
+func (s *service) validate(filters Filters, today timezone.Date) error {
 	if filters.From.IsZero() || filters.To.IsZero() {
 		return fmt.Errorf("%w: from and to are required", ErrInvalidRange)
 	}
 	if filters.To.Before(filters.From) {
 		return fmt.Errorf("%w: from must not be after to", ErrInvalidRange)
 	}
-	if filters.To.After(s.today()) {
+	if filters.To.After(today) {
 		return fmt.Errorf("%w: to must not be in the future", ErrInvalidRange)
 	}
 	if filters.From.DaysUntil(filters.To)+1 > MaxRangeDays {
@@ -253,7 +256,11 @@ func (s *service) validate(filters Filters) error {
 }
 
 func (s *service) compute(ctx context.Context, filters Filters) (*Report, error) {
-	if err := s.validate(filters); err != nil {
+	// One clock read for the whole report: enrollment eligibility, the room
+	// clamp and the retention cutoff must all agree on "today" even when the
+	// request spans Berlin midnight (see users.EnrolledOn).
+	today := s.today()
+	if err := s.validate(filters, today); err != nil {
 		return nil, err
 	}
 
@@ -262,7 +269,7 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		return nil, err
 	}
 
-	students, err := s.cfg.Students.FindOverlappingWithGroups(ctx, filters.From, filters.To)
+	students, err := s.cfg.Students.FindOverlappingWithGroups(ctx, filters.From, filters.To, today)
 	if err != nil {
 		return nil, fmt.Errorf("load students: %w", err)
 	}
@@ -283,20 +290,20 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 		CareDays:     len(careDays),
 		ExcludedDays: excluded,
 	}
-	report.Students = buildStudentRows(students, careDays, attendance, statusDays)
+	report.Students = buildStudentRows(students, careDays, attendance, statusDays, today)
 	report.Groups = buildGroupRows(report.Students)
 	report.Totals = buildTotals(report.Students)
 
-	rooms, err := s.roomRows(ctx, filters)
+	rooms, err := s.roomRows(ctx, filters, today)
 	if err != nil {
 		return nil, err
 	}
 	report.Rooms = rooms
-	report.RoomDataDays, err = s.roomRetentionDays(ctx)
+	report.RoomDataDays, err = s.roomRetentionDays(ctx, report.Students)
 	if err != nil {
 		return nil, err
 	}
-	report.RoomDataFrom = s.today().AddDays(-report.RoomDataDays)
+	report.RoomDataFrom = today.AddDays(-report.RoomDataDays)
 	return report, nil
 }
 
@@ -395,7 +402,7 @@ type dayKey struct {
 	date      timezone.Date
 }
 
-func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[timezone.Date]bool, attendance []activeModels.AttendanceDayRow, statusDays []activeModels.StatusDayRow) []StudentRow {
+func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[timezone.Date]bool, attendance []activeModels.AttendanceDayRow, statusDays []activeModels.StatusDayRow, today timezone.Date) []StudentRow {
 	present := make(map[dayKey]bool, len(attendance))
 	for _, row := range attendance {
 		present[dayKey{row.StudentID, row.Date}] = true
@@ -430,7 +437,7 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 			row.LastName = st.Person.LastName
 		}
 		for day := range careDays {
-			if !studentEnrolledOn(st.Student, day) {
+			if !userModels.EnrolledOn(st.Student, day, today) {
 				continue
 			}
 			row.CareDays++
@@ -459,11 +466,6 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 		return rows[i].StudentID < rows[j].StudentID
 	})
 	return rows
-}
-
-func studentEnrolledOn(student *userModels.Student, day timezone.Date) bool {
-	return (student.EnrolledFrom == nil || !day.Before(*student.EnrolledFrom)) &&
-		(student.EnrolledUntil == nil || !day.After(*student.EnrolledUntil))
 }
 
 // NoGroupName labels the pseudo group of children without a group.
@@ -543,10 +545,10 @@ func rate(numerator, denominator int) *float64 {
 	return &v
 }
 
-func (s *service) roomRows(ctx context.Context, filters Filters) ([]RoomRow, error) {
+func (s *service) roomRows(ctx context.Context, filters Filters, today timezone.Date) ([]RoomRow, error) {
 	start := filters.From.BerlinMidnight()
 	end := filters.To.AddDays(1).BerlinMidnight()
-	agg, err := s.cfg.Statistics.RoomUtilization(ctx, start, end, filters.GroupIDs)
+	agg, err := s.cfg.Statistics.RoomUtilization(ctx, start, end, today, filters.GroupIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load room utilization: %w", err)
 	}
@@ -584,7 +586,21 @@ func (s *service) roomRows(ctx context.Context, filters Filters) ([]RoomRow, err
 	return out, nil
 }
 
-func (s *service) roomRetentionDays(ctx context.Context) (int, error) {
+// roomRetentionDays returns how far back the room section of THIS report can
+// reach: the longest retention window among the children it covers.
+//
+// The scope matters twice. Per child, the room aggregate clamps to
+// MIN(data_retention_days) over the accepted consents, so a child with a
+// 7-day and a 30-day consent contributes 7 — taking the maximum over raw
+// consent rows would advertise 30. Across children, a group filter narrows the
+// population, and the tenant-wide maximum would then promise data for dates
+// the filtered report can never populate.
+//
+// Children without an accepted consent contribute no room data at all (the
+// aggregate joins the retention set), so they do not raise the cutoff. When
+// none of the covered children has a consent, the configured default is the
+// only honest statement about how long visits are kept.
+func (s *service) roomRetentionDays(ctx context.Context, students []StudentRow) (int, error) {
 	defaultDays := userModels.DefaultDataRetentionDays
 	if s.cfg.Settings != nil {
 		defaultDays = configService.ResolveIntOrDefault(ctx, s.cfg.Settings, configModel.KeyPrivacyConsentRetentionDays, defaultDays, s.cfg.Logger)
@@ -596,14 +612,26 @@ func (s *service) roomRetentionDays(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("load visit retention settings: %w", err)
 	}
-	if len(settings) == 0 {
-		return defaultDays, nil
+	shortestPerStudent := make(map[int64]int, len(settings))
+	for _, setting := range settings {
+		if current, ok := shortestPerStudent[setting.StudentID]; !ok || setting.DataRetentionDays < current {
+			shortestPerStudent[setting.StudentID] = setting.DataRetentionDays
+		}
 	}
 	retentionDays := 0
-	for _, setting := range settings {
-		if setting.DataRetentionDays > retentionDays {
-			retentionDays = setting.DataRetentionDays
+	covered := false
+	for _, student := range students {
+		days, ok := shortestPerStudent[student.StudentID]
+		if !ok {
+			continue
 		}
+		covered = true
+		if days > retentionDays {
+			retentionDays = days
+		}
+	}
+	if !covered {
+		return defaultDays, nil
 	}
 	return retentionDays, nil
 }

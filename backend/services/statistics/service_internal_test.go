@@ -122,6 +122,7 @@ func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 			{StudentID: 100, Date: d3, Status: activeModels.StudentStatusDayClassTrip},
 			{StudentID: 100, Date: d1, Status: activeModels.StudentStatusDaySick}, // present beats any status
 		},
+		timezone.DateFromTime(fixedNow()),
 	)
 	require.Len(t, rows, 2)
 	assert.Equal(t, "Alpha", rows[0].LastName, "sorted by last name")
@@ -164,11 +165,11 @@ func TestValidate_RangeRules(t *testing.T) {
 	svc := &service{cfg: Config{Now: fixedNow}}
 	today := timezone.NewDate(2026, 8, 25)
 
-	assert.NoError(t, svc.validate(Filters{From: today.AddDays(-365), To: today}))
-	assert.ErrorIs(t, svc.validate(Filters{From: today.AddDays(-366), To: today}), ErrInvalidRange)
-	assert.ErrorIs(t, svc.validate(Filters{From: today, To: today.AddDays(1)}), ErrInvalidRange)
-	assert.ErrorIs(t, svc.validate(Filters{From: today, To: today.AddDays(-1)}), ErrInvalidRange)
-	assert.ErrorIs(t, svc.validate(Filters{}), ErrInvalidRange)
+	assert.NoError(t, svc.validate(Filters{From: today.AddDays(-365), To: today}, today))
+	assert.ErrorIs(t, svc.validate(Filters{From: today.AddDays(-366), To: today}, today), ErrInvalidRange)
+	assert.ErrorIs(t, svc.validate(Filters{From: today, To: today.AddDays(1)}, today), ErrInvalidRange)
+	assert.ErrorIs(t, svc.validate(Filters{From: today, To: today.AddDays(-1)}, today), ErrInvalidRange)
+	assert.ErrorIs(t, svc.validate(Filters{}, today), ErrInvalidRange)
 }
 
 func TestFilterStudentsByGroup(t *testing.T) {
@@ -199,7 +200,8 @@ func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
 	student.ID = 100
 
 	rows := buildStudentRows([]*userModels.StudentWithGroupInfo{{Student: student}}, care,
-		[]activeModels.AttendanceDayRow{{StudentID: student.ID, Date: enrolledFrom}}, nil)
+		[]activeModels.AttendanceDayRow{{StudentID: student.ID, Date: enrolledFrom}}, nil,
+		timezone.DateFromTime(fixedNow()))
 
 	require.Len(t, rows, 1)
 	assert.Equal(t, 2, rows[0].CareDays)
@@ -215,10 +217,80 @@ func TestRoomRetentionDays_UsesLongestIndividualRetention(t *testing.T) {
 		{StudentID: 1, DataRetentionDays: 7},
 		{StudentID: 2, DataRetentionDays: 21},
 	}}}
+	covered := []StudentRow{{StudentID: 1}, {StudentID: 2}}
 
-	days, err := svc.roomRetentionDays(context.Background())
+	days, err := svc.roomRetentionDays(context.Background(), covered)
 	require.NoError(t, err)
 	assert.Equal(t, 21, days)
+}
+
+// The cutoff describes the report that is on the screen: a group filter that
+// leaves only short-retention children must not advertise the tenant-wide
+// maximum, and a child's own shortest consent is what the room aggregate
+// clamps to.
+func TestRoomRetentionDays_ScopedToTheCoveredPopulation(t *testing.T) {
+	t.Parallel()
+	svc := &service{cfg: Config{PrivacyConsents: retentionSettings{
+		{StudentID: 1, DataRetentionDays: 7},
+		{StudentID: 1, DataRetentionDays: 90}, // same child, two consents
+		{StudentID: 2, DataRetentionDays: 21},
+	}}}
+
+	days, err := svc.roomRetentionDays(context.Background(), []StudentRow{{StudentID: 1}})
+	require.NoError(t, err)
+	assert.Equal(t, 7, days, "a child is only kept for their shortest accepted consent")
+
+	days, err = svc.roomRetentionDays(context.Background(), []StudentRow{{StudentID: 2}})
+	require.NoError(t, err)
+	assert.Equal(t, 21, days, "a filtered report must not inherit another group's window")
+
+	// Nobody in the population has consented, so no visit of theirs is kept.
+	// The configured default is then the only statement left to make.
+	days, err = svc.roomRetentionDays(context.Background(), []StudentRow{{StudentID: 99}})
+	require.NoError(t, err)
+	assert.Equal(t, userModels.DefaultDataRetentionDays, days)
+}
+
+// An immediately activated child (active, enrolled_from still ahead) is in
+// care from today on, so today counts in their denominator while the days
+// before it do not. The same child in status pending has no care day at all.
+func TestBuildStudentRows_CountsImmediateActivationFromTodayOn(t *testing.T) {
+	t.Parallel()
+	today := timezone.DateFromTime(fixedNow())
+	care := map[timezone.Date]bool{
+		today.AddDays(-2): true,
+		today.AddDays(-1): true,
+		today:             true,
+	}
+	startsLater := today.AddDays(14)
+
+	activated := &userModels.Student{EnrolledFrom: &startsLater, Status: userModels.StudentStatusActive}
+	activated.ID = 100
+	pending := &userModels.Student{EnrolledFrom: &startsLater, Status: userModels.StudentStatusPending}
+	pending.ID = 101
+
+	rows := buildStudentRows(
+		[]*userModels.StudentWithGroupInfo{{Student: activated}, {Student: pending}},
+		care,
+		[]activeModels.AttendanceDayRow{
+			{StudentID: activated.ID, Date: today},
+			{StudentID: activated.ID, Date: today.AddDays(-1)}, // before care begins
+			{StudentID: pending.ID, Date: today},
+		},
+		nil,
+		today,
+	)
+
+	require.Len(t, rows, 2)
+	byID := map[int64]StudentRow{}
+	for _, row := range rows {
+		byID[row.StudentID] = row
+	}
+	assert.Equal(t, 1, byID[activated.ID].CareDays, "only today is inside care")
+	assert.Equal(t, 1, byID[activated.ID].PresentDays)
+	assert.Equal(t, 0, byID[activated.ID].UnexplainedDays)
+	assert.Equal(t, 0, byID[pending.ID].CareDays, "a pending child is not in care yet")
+	assert.Nil(t, byID[pending.ID].AttendanceRate)
 }
 
 func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T) {

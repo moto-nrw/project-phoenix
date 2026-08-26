@@ -43,6 +43,8 @@ type StatisticsRepository interface {
 	// StatusDays returns every uncleared status day in [from, to].
 	StatusDays(ctx context.Context, from, to timezone.Date) ([]StatusDayRow, error)
 	// RoomUtilization aggregates visits that overlapped [start, end) per room.
-	// groupIDs restricts rows to students' current groups when non-empty.
-	RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]RoomUtilizationRow, error)
+	// today decides the immediate-activation part of users.EnrolledOn for the
+	// visiting child; groupIDs restricts rows to students' current groups when
+	// non-empty.
+	RoomUtilization(ctx context.Context, start, end time.Time, today timezone.Date, groupIDs []int64) ([]RoomUtilizationRow, error)
 }

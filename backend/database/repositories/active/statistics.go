@@ -70,18 +70,29 @@ func (r *StatisticsRepository) StatusDays(ctx context.Context, from, to timezone
 // collapses to nothing drops out entirely. The peak is a sweep over entry (+1)
 // and exit (-1) events per room; at equal instants the exit sorts first so
 // a back-to-back room change never counts a child twice.
-func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
+//
+// The visiting child must be enrolled — the same rule the child table applies
+// through users.EnrolledOn, or the two tables would report different
+// populations. The eligible_student CTE spells it in SQL: alumni and
+// bound-less inactive rows drop out, and the effective lower bound is
+// enrolled_from except for an active child whose enrollment starts later,
+// where immediate activation pulls it forward to today.
+func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end time.Time, today timezone.Date, groupIDs []int64) ([]active.RoomUtilizationRow, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return nil, fmt.Errorf("statistics room utilization requires a tenant context")
 	}
-	// Placeholder order in the SQL below: GREATEST(start), LEAST(end),
-	// entry_time < end, exit_time > start, alumni status, then the three
-	// tenant filters.
+	// Placeholders below are positional, so the args are appended in the order
+	// the SQL reads: the eligible_student CTE first (active status, today
+	// twice, alumnus, inactive, tenant, then the optional group filter), then
+	// the clamped CTE (GREATEST start, LEAST end, entry_time < end,
+	// exit_time > start, two tenant filters).
+	args := []any{
+		string(userModels.StudentStatusActive), today, today,
+		string(userModels.StudentStatusAlumnus), string(userModels.StudentStatusInactive),
+		tenantID,
+	}
 	groupClause := ""
-	args := []any{start, end, end, start, userModels.StudentStatusAlumnus}
-	tenantClause := " AND v.tenant_id = ? AND ag.tenant_id = ? AND s.tenant_id = ?"
-	args = append(args, tenantID, tenantID, tenantID)
 	if len(groupIDs) > 0 {
 		positiveGroupIDs := make([]int64, 0, len(groupIDs))
 		includeNoGroup := false
@@ -103,9 +114,22 @@ func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end t
 			args = append(args, bun.List(positiveGroupIDs))
 		}
 	}
+	args = append(args, start, end, end, start, tenantID, tenantID)
 
 	sql := `
-WITH retention AS (
+WITH eligible_student AS (
+	SELECT s.id,
+	       CASE
+	           WHEN s.status = ? AND s.enrolled_from > ?::date THEN ?::date
+	           ELSE s.enrolled_from
+	       END AS effective_from,
+	       s.enrolled_until
+	FROM users.students s
+	WHERE s.status <> ?
+	  AND NOT (s.enrolled_from IS NULL AND s.enrolled_until IS NULL AND s.status = ?)
+	  AND s.tenant_id = ?` + groupClause + `
+),
+retention AS (
 	SELECT "privacy_consent".student_id,
 	       MIN("privacy_consent".data_retention_days) AS retention_days
 	FROM users.privacy_consents AS "privacy_consent"
@@ -118,23 +142,23 @@ clamped AS (
 	       GREATEST(
 		       v.entry_time,
 		       ?,
-		       COALESCE(s.enrolled_from::timestamp AT TIME ZONE 'Europe/Berlin', '-infinity'::timestamptz)
+		       COALESCE(es.effective_from::timestamp AT TIME ZONE 'Europe/Berlin', '-infinity'::timestamptz)
 	       ) AS entry_at,
 	       LEAST(
 		       COALESCE(v.exit_time, NOW()),
 		       ?,
-		       COALESCE((s.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin', 'infinity'::timestamptz)
+		       COALESCE((es.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin', 'infinity'::timestamptz)
 	       ) AS exit_at
 	FROM active.visits v
 	JOIN active.groups ag ON ag.id = v.active_group_id
-	JOIN users.students s ON s.id = v.student_id
+	JOIN eligible_student es ON es.id = v.student_id
 	JOIN retention r ON r.student_id = v.student_id
 	WHERE v.entry_time < ?
 	  AND (v.exit_time IS NULL OR v.exit_time > ?)
-	  AND s.status <> ?
-	  AND (s.enrolled_from IS NULL OR COALESCE(v.exit_time, NOW()) > s.enrolled_from::timestamp AT TIME ZONE 'Europe/Berlin')
-	  AND (s.enrolled_until IS NULL OR v.entry_time < (s.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin')
-	  AND v.created_at >= NOW() - make_interval(days => r.retention_days)` + tenantClause + groupClause + `
+	  AND (es.effective_from IS NULL OR COALESCE(v.exit_time, NOW()) > es.effective_from::timestamp AT TIME ZONE 'Europe/Berlin')
+	  AND (es.enrolled_until IS NULL OR v.entry_time < (es.enrolled_until + 1)::timestamp AT TIME ZONE 'Europe/Berlin')
+	  AND v.created_at >= NOW() - make_interval(days => r.retention_days)
+	  AND v.tenant_id = ? AND ag.tenant_id = ?
 ),
 scoped AS (
 	-- A clamp can leave nothing: care that ended before the window start, or

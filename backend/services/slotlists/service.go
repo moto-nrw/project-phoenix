@@ -1716,28 +1716,10 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 }
 
 // eligibleOn reports whether a student is enrolled in the OGS on the given
-// calendar date. The enrollment interval (enrolled_from..enrolled_until) is the
-// source of truth: it is correct for past and future dates alike, whereas the
-// lifecycle status is only the scheduler's projection of "enrolled today" and
-// is wrong for any other date — a currently active child whose enrollment ends
-// before a future list date would otherwise still be counted, and a pending
-// child whose enrollment has already started would be missed (#1565 review).
-//
-// Immediate activation (enrollment.default_activation_mode = "immediate") is the
-// deliberate exception: the enrollment decision service creates an already
-// 'active' student while keeping enrolled_from at the phase's future
-// ServiceStartDate, so the child appears in lists/attendance from today. An
-// active status therefore overrides the enrolled_from lower bound — but only
-// from today onward: the override lets the child appear for the current and
-// future dates before the phase officially starts, it must NOT make the child
-// retroactively enrolled for every past date before enrolled_from. Otherwise a
-// stale or manually created slot roster (or the /options counts) would show the
-// child as planned/missing before their enrollment ever began (#1565 review).
-// enrolled_until still drives deactivation for every status.
-//
-// When neither bound is recorded (legacy rows, manual create) the interval
-// carries no information, so the current lifecycle status is the only signal
-// and an inactive student is treated as no longer enrolled.
+// calendar date. The rule (enrollment interval as the source of truth, with
+// immediate activation lifting the enrolled_from bound from today onward only)
+// lives in userModel.EnrolledOn so the slot lists, the day-log rosters and the
+// statistics report cannot drift apart (#1565, #2606).
 //
 // today is the service clock's calendar day (s.todayDate()), threaded in so
 // the immediate-activation cutoff uses the same clock as every other date
@@ -1746,24 +1728,7 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // here instead would decide eligibility against a different "today" (#1565
 // review).
 func eligibleOn(student *userModel.Student, date, today timezone.Date) bool {
-	if student == nil {
-		return false
-	}
-	active := student.Status == userModel.StudentStatusActive
-	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
-		// Before the recorded start date, an active child is only eligible from
-		// today onward (immediate activation); past dates keep the lower bound.
-		if !active || date.Before(today) {
-			return false
-		}
-	}
-	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
-		return false
-	}
-	if student.EnrolledFrom == nil && student.EnrolledUntil == nil {
-		return student.Status != userModel.StudentStatusInactive
-	}
-	return true
+	return userModel.EnrolledOn(student, date, today)
 }
 
 // listEligibleStudents returns the tenant students enrolled on the given date —

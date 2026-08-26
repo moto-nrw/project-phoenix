@@ -449,6 +449,133 @@ func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
 	assert.True(t, found, "room row missing")
 }
 
+// TestStatisticsReport_CountsImmediatelyActivatedChild pins the enrollment
+// rule end to end. A school that activates approved children immediately
+// (enrollment.default_activation_mode = "immediate") gets an 'active' child
+// whose enrolled_from still points at the future service start; that child may
+// already check in and use rooms, so a window containing today must report
+// them. The same child in status pending is not in care yet and must count
+// nowhere — child table and room aggregate alike.
+func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Sofort", "Tester")
+	claims := claimsFor(t, account.ID)
+
+	today := timezone.TodayDate()
+	startsLater := today.AddDays(14)
+	activated := testpkg.CreateTestStudent(t, tc.db, "Sofort", "Aktiv", "1a")
+	pending := testpkg.CreateTestStudent(t, tc.db, "Noch", "Wartend", "1a")
+	for _, row := range []struct {
+		id     int64
+		status userModels.StudentStatus
+	}{
+		{activated.ID, userModels.StudentStatusActive},
+		{pending.ID, userModels.StudentStatusPending},
+	} {
+		_, err := tc.db.NewUpdate().TableExpr("users.students").
+			Set("status = ?", row.status).
+			Set("enrolled_from = ?", startsLater).
+			Where("id = ?", row.id).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+	// Both children may be kept equally long, so anything that separates them
+	// below comes from the enrollment rule and not from retention.
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, activated.ID, 30)
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, pending.ID, 30)
+
+	device := testpkg.CreateTestDevice(t, tc.db, "stat-immediate-device")
+	insertAttendance(t, tc.db, tenantID, activated.ID, device.ID, today)
+
+	room := testpkg.CreateTestRoom(t, tc.db, "Sofortraum")
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "Sofort")
+	session := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+	entry := today.BerlinMidnight().Add(9 * time.Hour)
+	exit := entry.Add(time.Hour)
+	testpkg.CreateTestVisit(t, tc.db, activated.ID, session.ID, entry, &exit)
+	testpkg.CreateTestVisit(t, tc.db, pending.ID, session.ID, entry, &exit)
+
+	req := httptest.NewRequest(http.MethodGet, "/report?from="+today.AddDays(-3).String()+"&to="+today.String(), nil)
+	rec := authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload reportPayload
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+
+	listed := map[string]bool{}
+	for _, st := range payload.Data.Students {
+		listed[st.LastName] = true
+	}
+	assert.True(t, listed["Aktiv"], "an immediately activated child belongs in the report")
+	assert.False(t, listed["Wartend"], "a pending child is not in care yet")
+
+	var found bool
+	for _, r := range payload.Data.Rooms {
+		if r.RoomID != strconv.FormatInt(room.ID, 10) {
+			continue
+		}
+		found = true
+		assert.Equal(t, 1, r.DistinctStudents, "only the activated child was in care")
+		assert.Equal(t, 60, r.StudentMinutes)
+		assert.Equal(t, 1, r.PeakOccupancy)
+	}
+	assert.True(t, found, "room row missing")
+}
+
+// TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation pins that
+// the advertised room-data cutoff describes the report on the screen. With a
+// group filter the tenant-wide maximum would promise dates the filtered report
+// can never populate.
+func TestStatisticsReport_ScopesRoomRetentionToTheFilteredPopulation(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Frist", "Tester")
+	claims := claimsFor(t, account.ID)
+
+	longGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Langfrist")
+	shortGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Kurzfrist")
+	longChild := testpkg.CreateTestStudent(t, tc.db, "Lange", "Gespeichert", "1a")
+	shortChild := testpkg.CreateTestStudent(t, tc.db, "Kurz", "Gespeichert", "1a")
+	for _, row := range []struct {
+		studentID int64
+		groupID   int64
+		days      int
+	}{
+		{longChild.ID, longGroup.ID, 30},
+		{shortChild.ID, shortGroup.ID, 7},
+	} {
+		_, err := tc.db.NewUpdate().TableExpr("users.students").
+			Set("group_id = ?", row.groupID).
+			Where("id = ?", row.studentID).
+			Exec(ctx)
+		require.NoError(t, err)
+		insertAcceptedPrivacyConsent(t, tc.db, tenantID, row.studentID, row.days)
+	}
+	// A second consent for the long-retention child: the room aggregate keeps
+	// their visits for the SHORTER of the two, so the cutoff must say 21 and
+	// not the 30 days of the other row (the column caps at 31 days).
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, longChild.ID, 21)
+
+	retentionFor := func(query string) int {
+		req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String()+query, nil)
+		rec := authExec(t, tc, req, claims, reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		var payload reportPayload
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+		return payload.Data.RoomDataDays
+	}
+
+	assert.Equal(t, 21, retentionFor(""), "a child is kept for their shortest accepted consent")
+	assert.Equal(t, 7, retentionFor("&group_id="+strconv.FormatInt(shortGroup.ID, 10)),
+		"a filtered report must not advertise another group's window")
+	assert.Equal(t, 21, retentionFor("&group_id="+strconv.FormatInt(longGroup.ID, 10)))
+}
+
 func TestStatisticsExport_RendersAndAudits(t *testing.T) {
 	t.Parallel()
 	tc := setupTestContext(t)

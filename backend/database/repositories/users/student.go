@@ -1476,20 +1476,46 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 	return infos, nil
 }
 
-// FindOverlappingWithGroups retrieves non-alumni children whose inclusive
-// enrollment interval overlaps [from, to]. Unlike the live roster this keeps
-// children whose care has since ended and omits later enrollments.
+// FindOverlappingWithGroups retrieves the non-alumni children who are enrolled
+// on at least one day of [from, to], with their current group. Unlike the live
+// roster this keeps children whose care has since ended and omits later
+// enrollments.
+//
+// The membership rule is users.EnrolledOn, expressed here as an interval
+// overlap so one query answers it for the whole window:
+//
+//   - enrolled_until must not lie before the window
+//   - enrolled_from must not lie after it — unless immediate activation
+//     applies, which lifts that bound to today for an active child, and today
+//     is inside the window (callers pass today; statistics windows never end
+//     after it, so this is the last day at most)
+//   - a row with neither bound carries no interval, so an inactive status is
+//     the only remaining signal and means "no longer enrolled"
 //
 // Alumni stay out: they are soft-deleted and invisible everywhere else, and
 // the statistics room aggregate excludes them too — counting them here would
 // give the child table a different population than the room table (#2606).
-func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*users.StudentWithGroupInfo, error) {
+func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(ctx, &results).
+	query := r.newStudentWithGroupQuery(ctx, &results).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
-		Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, to).
 		Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, from).
+		Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`,
+			string(users.StudentStatusInactive))
+
+	if today.After(to) {
+		query = query.Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, to)
+	} else {
+		// Today lies inside the window, so an active child whose enrollment
+		// has not formally started is nonetheless enrolled on that day.
+		query = query.Where(
+			`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`,
+			to, string(users.StudentStatusActive),
+		)
+	}
+
+	err := query.
 		Distinct().
 		OrderExpr(`"person".last_name, "person".first_name`).
 		Scan(ctx)
