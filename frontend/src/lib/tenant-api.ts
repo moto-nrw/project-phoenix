@@ -62,6 +62,13 @@ export interface TenantInfo {
    */
   messagingEnabled: boolean;
   /**
+   * Whether the OGS-internal Team-Chat is switched on for this school
+   * (operations.staff_messaging_enabled, #2598). Defaults to FALSE: an
+   * internal staff channel must never appear at a school that did not ask for
+   * it, so a missing flag hides the whole area rather than showing it.
+   */
+  staffMessagingEnabled: boolean;
+  /**
    * Whether the Info-Point Dashboard (display.enabled) is enabled for this
    * tenant. The feature is opt-in and defaults off, so the sidebar entry and
    * admin page must stay hidden until a school explicitly enables it.
@@ -119,6 +126,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
+  staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
@@ -183,6 +191,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       studentPhotosEnabled: data.student_photos_enabled === true,
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
+      staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,

@@ -148,6 +148,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			markStudentsSickStep{},
 			seedCareExitsStep{},
 			seedAnnouncementsStep{},
+			seedStaffMessagingStep{},
 			seedFileStorageStep{},
 			seedTimeTrackingHistoryStep{},
 			// Nach der Zeiterfassungs-Historie: der Sitzungsstart stempelt die

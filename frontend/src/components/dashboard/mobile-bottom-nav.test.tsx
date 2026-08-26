@@ -96,6 +96,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
@@ -113,6 +114,7 @@ const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseTenantSlugSafe = vi.mocked(useTenantSlugSafe);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
 // Helper to create mock search params - use unknown cast for test flexibility
@@ -192,6 +194,7 @@ describe("MobileBottomNav", () => {
     // persist across tests.
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseTenantSlugSafe.mockReturnValue("test-tenant");
+    mockUseStaffMessagingEnabled.mockReturnValue(false);
   });
 
   describe("rendering", () => {
@@ -259,6 +262,18 @@ describe("MobileBottomNav", () => {
       expect(screen.getByText("Anfragen").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/anfragen",
+      );
+    });
+
+    it("prefixes the Team-Chat overflow link in path-routing mode", () => {
+      mockUseStaffMessagingEnabled.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.getByText("Team-Chat").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/team-chat",
       );
     });
   });

@@ -1129,6 +1129,42 @@ export function useGlobalSSE(): SSEHookState {
           }
           break;
         }
+
+        case "staff_message": {
+          // A colleague wrote in the OGS-internal Team-Chat. Fanned out on its
+          // OWN window events so a team message never nudges the parent badge
+          // and vice versa — the two inboxes are separate surfaces and their
+          // counts must not bleed into each other.
+          //
+          // thread_id survives here (the backend addresses only the
+          // participants), so an open conversation can refetch selectively
+          // instead of every mounted messaging surface reloading.
+          //
+          // data.source (das absendende Konto) faehrt mit, aber die Ereignisse
+          // gehen an ALLE Beteiligten - auch an die weiteren Tabs des
+          // Absenders, deren Posteingang sonst mit veralteter Vorschau,
+          // Sortierung und Ungelesen-Zahl stehenbliebe.
+          //
+          // Wer den Lesecursor VORSCHIEBT, filtert selbst: die Thread-Seite
+          // setzt ignoreOwnSource, damit der zweite Tab desselben Kontos nicht
+          // als gelesen markiert, was die Gegenseite in der Zwischenzeit
+          // geschrieben hat. Das Filtern gehoert zum lesenden Verbraucher, nicht
+          // in den Verteiler.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("team-messages-unread-refresh"),
+            );
+            window.dispatchEvent(
+              new CustomEvent("team-messages-activity", {
+                detail: {
+                  threadId: event.data?.thread_id ?? null,
+                  source: event.data?.source ?? null,
+                },
+              }),
+            );
+          }
+          break;
+        }
       }
     },
     [scheduleFlush, collectEduGroupScope, collectActiveSupervisionChange],

@@ -645,6 +645,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "api/staffmessaging",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "api/notifications",
       "owner": "inbound-notifications",
       "role": "http",
@@ -1591,6 +1598,13 @@
     },
     {
       "path": "services/parentmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/staffmessaging",
       "owner": "communication",
       "role": "application",
       "internal_test_role": "module-internal-test",

@@ -21,6 +21,13 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // leaves reloads/new tabs on the stale messagingEnabled value for up to the
   // layout cache TTL (300s).
   "operations.parent_notes_enabled",
+  // staff_messaging_enabled rides on /auth/tenant/resolve too (as
+  // staff_messaging_enabled) so every staff user can hide the Team-Chat entry
+  // without config:read. Without revalidation, switching it leaves reloads and
+  // new tabs on the stale visibility for up to the layout cache TTL (300s) -
+  // and because the chat fails CLOSED, that stale value shows "ausgeschaltet"
+  // on a school that just turned it on.
+  "operations.staff_messaging_enabled",
   // Approved-child offering corrections consume this through tenant shell
   // metadata so staff without config:read never see a save action that the
   // authoritative enrollment service will reject.
