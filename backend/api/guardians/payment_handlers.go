@@ -1,6 +1,7 @@
 package guardians
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -108,6 +110,10 @@ var paymentErrorMessages = []struct {
 // renderPaymentError maps the service sentinels to their HTTP status and to a
 // message the reader can act on.
 func renderPaymentError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, userModels.ErrGuardianProfileNotFound) || errors.Is(err, guardianSvc.ErrStudentNotFound) {
+		common.RenderError(w, r, common.ErrorNotFound(err))
+		return
+	}
 	for _, rule := range paymentErrorMessages {
 		if errors.Is(err, rule.sentinel) {
 			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response

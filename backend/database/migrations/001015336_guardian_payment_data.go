@@ -107,6 +107,11 @@ func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
 		BEFORE UPDATE ON users.guardian_financial_data
 		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
+		ALTER TABLE users.guardian_financial_data ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE users.guardian_financial_data FORCE ROW LEVEL SECURITY;
+		ALTER TABLE audit.guardian_financial_changes ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE audit.guardian_financial_changes FORCE ROW LEVEL SECURITY;
+
 		DO $$
 		BEGIN
 			IF NOT EXISTS (

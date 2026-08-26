@@ -66,8 +66,10 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 
 type fakeStudentRepo struct {
 	users.StudentRepository
-	findByIDFn  func(ctx context.Context, id interface{}) (*users.Student, error)
-	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDFn           func(ctx context.Context, id interface{}) (*users.Student, error)
+	findByIDsFn          func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDsForUpdateFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
+	findByIDForUpdateFn  func(ctx context.Context, id int64) (*users.Student, error)
 }
 
 func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
@@ -76,6 +78,20 @@ func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.
 
 func (f *fakeStudentRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
 	return f.findByIDsFn(ctx, ids)
+}
+
+func (f *fakeStudentRepo) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
+	if f.findByIDsForUpdateFn == nil {
+		return map[int64]*users.Student{}, nil
+	}
+	return f.findByIDsForUpdateFn(ctx, ids)
+}
+
+func (f *fakeStudentRepo) FindByIDForUpdate(ctx context.Context, id int64) (*users.Student, error) {
+	if f.findByIDForUpdateFn == nil {
+		return &users.Student{}, nil
+	}
+	return f.findByIDForUpdateFn(ctx, id)
 }
 
 type fakePersonRepo struct {
@@ -242,6 +258,10 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 		},
 		deleteFn: func(_ context.Context, _ interface{}) error {
 			return errors.New("delete failed")
+		},
+	}, StudentRepo: &fakeStudentRepo{
+		findByIDsForUpdateFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
+			return map[int64]*users.Student{7: {}}, nil
 		},
 	}},
 	}

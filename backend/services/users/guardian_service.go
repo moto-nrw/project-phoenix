@@ -280,6 +280,20 @@ func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 	if err != nil {
 		return fmt.Errorf("failed to load guardian links: %w", err)
 	}
+	studentIDs := make([]int64, 0, len(links))
+	for _, link := range links {
+		studentIDs = append(studentIDs, link.StudentID)
+	}
+	if _, err := s.StudentRepo.FindByIDsForUpdate(ctx, studentIDs); err != nil {
+		return fmt.Errorf("failed to lock guardian students: %w", err)
+	}
+	// Reload after acquiring the shared serialization points. A waiting payer
+	// assignment now commits before this read, so its final is_payer state is
+	// either audited below or cannot change until this delete commits.
+	links, err = s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
+	if err != nil {
+		return fmt.Errorf("failed to reload guardian links: %w", err)
+	}
 	currentLinkIDs := make([]int64, 0, len(links))
 	for _, link := range links {
 		currentLinkIDs = append(currentLinkIDs, link.ID)
@@ -943,7 +957,13 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 
 // RemoveGuardianFromStudent removes a guardian from a student
 func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64) error {
-	// Find the relationship
+	// The student row serializes this deletion with SetStudentPayer, which
+	// takes the same lock before it reads a relationship's is_payer state.
+	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+		return err
+	}
+
+	// Find the relationship after acquiring the lock so IsPayer is current.
 	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return err
