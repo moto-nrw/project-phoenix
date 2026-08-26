@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -18,7 +20,7 @@ import (
 
 // buildNoticeFeedService wires the parent service with both feature flags set
 // explicitly: the optional news feed and the cancellation notice (#2601).
-func buildNoticeFeedService(t *testing.T, newsEnabled, noticeEnabled bool) (parentService.Service, *repositories.Factory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled, noticeEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
@@ -36,7 +38,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled, noticeEnabled bool) (pare
 		DB:     db,
 		Logger: slog.Default(),
 	})
-	return svc, repos
+	return svc, db, repos
 }
 
 // seedCareCancellationNotice publishes a system-authored notice aimed at one
@@ -68,8 +70,7 @@ func seedCareCancellationNotice(t *testing.T, ctx context.Context, repo usersMod
 
 func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	t.Parallel()
-	svc, repos := buildNoticeFeedService(t, false, true)
-	db := testpkg.SetupTestDB(t)
+	svc, db, repos := buildNoticeFeedService(t, false, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
@@ -100,8 +101,7 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 
 func TestAnnouncementFeed_NoticeHiddenWhenBothSwitchesAreOff(t *testing.T) {
 	t.Parallel()
-	svc, repos := buildNoticeFeedService(t, false, false)
-	db := testpkg.SetupTestDB(t)
+	svc, db, repos := buildNoticeFeedService(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
@@ -118,8 +118,7 @@ func TestAnnouncementFeed_NoticeHiddenWhenBothSwitchesAreOff(t *testing.T) {
 
 func TestAnnouncementFeed_NewsOnShowsNoticeAndLetters(t *testing.T) {
 	t.Parallel()
-	svc, repos := buildNoticeFeedService(t, true, true)
-	db := testpkg.SetupTestDB(t)
+	svc, db, repos := buildNoticeFeedService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
@@ -133,8 +132,7 @@ func TestAnnouncementFeed_NewsOnShowsNoticeAndLetters(t *testing.T) {
 
 func TestAnnouncementFeed_NewsOnHidesNoticeWhenNoticeSwitchIsOff(t *testing.T) {
 	t.Parallel()
-	svc, repos := buildNoticeFeedService(t, true, false)
-	db := testpkg.SetupTestDB(t)
+	svc, db, repos := buildNoticeFeedService(t, true, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)

@@ -52,6 +52,8 @@ import { useLatest } from "~/lib/hooks/use-latest";
 interface MessagesActivityDetail {
   readonly threadId?: string | null;
   readonly studentId?: string | null;
+  /** Account that caused the event, when the emitter knows it. */
+  readonly source?: string | null;
 }
 
 export function useMessagesActivity({
@@ -62,6 +64,7 @@ export function useMessagesActivity({
   eventName = "messages-activity",
   marksRead = true,
   refetchOnFocus = false,
+  ignoreOwnSource,
 }: {
   onMatch: () => void;
   threadId?: string;
@@ -81,6 +84,12 @@ export function useMessagesActivity({
    * badge's refetchOnFocus so the open chat heals on the same focus the badge does.
    */
   refetchOnFocus?: boolean;
+  /**
+   * Skip events this account itself caused. Set it ONLY on read-advancing
+   * consumers (marksRead: true); a refetch-only consumer wants its own events
+   * too, or its view goes stale after its own write.
+   */
+  ignoreOwnSource?: string | null;
 }): void {
   const onMatchRef = useLatest(onMatch);
 
@@ -114,6 +123,20 @@ export function useMessagesActivity({
 
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<MessagesActivityDetail>).detail;
+      // A consumer that ADVANCES A READ CURSOR must ignore what this very
+      // account just did: the sender's other tab would otherwise refetch the
+      // thread and mark everything the counterpart wrote in the meantime as
+      // read, without anybody having looked. Refetch-only consumers (the
+      // inbox) leave this unset and stay fresh — suppressing the whole event
+      // for the sender would leave their own previews, ordering and unread
+      // pills stale until some other refresh path runs.
+      if (
+        ignoreOwnSource &&
+        detail?.source &&
+        detail.source === ignoreOwnSource
+      ) {
+        return;
+      }
       if (threadId && detail?.threadId && detail.threadId !== threadId) return;
       if (studentId && detail?.studentId && detail.studentId !== studentId) {
         return;
@@ -161,6 +184,7 @@ export function useMessagesActivity({
     eventName,
     marksRead,
     refetchOnFocus,
+    ignoreOwnSource,
     onMatchRef,
   ]);
 }

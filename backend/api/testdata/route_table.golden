@@ -306,6 +306,10 @@ GET /api/settings/schema
 GET /api/settings/values/{key}/reveal
 GET /api/shift-types/
 GET /api/sse/events
+GET /api/staff-messages/
+GET /api/staff-messages/recipients
+GET /api/staff-messages/threads/{threadID}
+GET /api/staff-messages/unread-count
 GET /api/staff-shifts/
 GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
@@ -666,6 +670,8 @@ POST /api/settings/enrollment/legal-agb-document
 POST /api/settings/login-image
 POST /api/shift-types/
 POST /api/shift-types/defaults
+POST /api/staff-messages/threads/open
+POST /api/staff-messages/threads/{threadID}
 POST /api/staff-shifts/
 POST /api/staff-shifts/export
 POST /api/staff-shifts/series

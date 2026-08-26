@@ -64,6 +64,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -221,6 +222,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging *messaging.Service
+
+	// StaffMessaging (OGS-internal colleague chat, #2598)
+	StaffMessaging *staffmessaging.Service
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -2105,6 +2109,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ParentsURL:       parentsURL,
 	})
 
+	// OGS-internal colleague chat (#2598). Shares the transport with the
+	// parent-OGS messenger (SSE hub + push) but none of its authorization:
+	// access here is thread membership, nothing else.
+	staffMessagingService := staffmessaging.NewService(staffmessaging.Config{
+		ThreadRepo:  repos.StaffMessageThread,
+		MessageRepo: repos.StaffMessage,
+		ReadRepo:    repos.StaffMessageRead,
+		Persons:     usersService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "staffmessaging"),
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
+	})
+
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		AppointmentRepo:      repos.CalendarAppointment,
 		RecurrenceRepo:       repos.CalendarRecurrenceRule,
@@ -2534,6 +2554,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		Parent:             parentService,
 		Messaging:          messagingService,
+		StaffMessaging:     staffMessagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
 		ParentEventEmitter: pillEmitter,

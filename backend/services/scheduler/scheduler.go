@@ -26,6 +26,7 @@ import (
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -129,6 +130,7 @@ type Scheduler struct {
 	timeTrackingCleanup        active.TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
+	staffMessageCleanup        staffMessagingSvc.CleanupService
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
@@ -164,6 +166,7 @@ type Scheduler struct {
 	lastTimeTrackingCleanup     sync.Map // tenant_id → time.Time (Tranche 0b)
 	lastStudentChangeLogCleanup sync.Map // tenant_id → time.Time (issue #1455)
 	lastPWAUsageCleanup         sync.Map // tenant_id → time.Time (issue #2189)
+	lastStaffMessageCleanup     sync.Map // tenant_id → time.Time (issue #2598)
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -340,6 +343,12 @@ func (s *Scheduler) SetStudentChangeLogCleanup(svc usersSvc.StudentChangeLogClea
 // register in Start().
 func (s *Scheduler) SetPWAUsageCleanup(svc pwaSvc.UsageService) {
 	s.pwaUsageCleanup = svc
+}
+
+// SetStaffMessageCleanup wires the OGS-internal chat retention cleanup
+// (issue #2598). Optional: nil disables the task.
+func (s *Scheduler) SetStaffMessageCleanup(svc staffMessagingSvc.CleanupService) {
+	s.staffMessageCleanup = svc
 }
 
 // SetBookingConsistencyAudit wires the tenant-scoped booking consistency
@@ -537,6 +546,7 @@ func (s *Scheduler) Start() {
 	// Schedule daily PWA standalone-usage GDPR cleanup (issue #2189).
 	// Same toggle + cleanup-time as the other retention jobs.
 	s.schedulePWAUsageCleanupTask()
+	s.scheduleStaffMessageCleanupTask()
 
 	// Compare authoritative booking windows with their planning projections.
 	s.scheduleBookingConsistencyAuditTask()
@@ -1548,6 +1558,33 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 	return fallback
 }
 
+func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key string, envVar string) (int, error) {
+	if s.settings == nil {
+		return 0, fmt.Errorf("settings resolver not configured")
+	}
+	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		return 0, fmt.Errorf("check override for %s: %w", key, err)
+	}
+	if !hasOverride {
+		if val := os.Getenv(envVar); val != "" {
+			parsed, err := strconv.Atoi(val)
+			if err != nil || parsed <= 0 {
+				return 0, fmt.Errorf("environment variable %s must be positive integer, got %q", envVar, val)
+			}
+			return parsed, nil
+		}
+	}
+	val, err := s.settings.ResolveInt(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	if val <= 0 {
+		return 0, fmt.Errorf("setting %s must be positive, got %d", key, val)
+	}
+	return val, nil
+}
+
 // resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
 // a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
 // checkout exactly at the planned shift end).
@@ -2387,6 +2424,65 @@ func (s *Scheduler) checkAndRunPWAUsageCleanup(task *ScheduledTask) {
 				slog.Int64("tenant_id", tenantID),
 				slog.String("cleanup_time", cleanupTime),
 				slog.Int("rows_deleted", result.RowsDeleted),
+				slog.Int("retention_days", result.RetentionDays),
+			)
+		}
+		return nil
+	})
+}
+
+// scheduleStaffMessageCleanupTask registers the daily retention sweep for the
+// OGS-internal colleague chat (#2598) when a cleanup service is wired in.
+// Nil → no task.
+func (s *Scheduler) scheduleStaffMessageCleanupTask() {
+	if s.staffMessageCleanup == nil {
+		s.getLogger().Info("staff message GDPR cleanup not configured (no staffmessaging.CleanupService)")
+		return
+	}
+
+	s.registerTask("staff-message-cleanup", "1m-poll", s.runStaffMessageCleanupTaskPolling)
+}
+
+// runStaffMessageCleanupTaskPolling ticks every minute and defers to
+// checkAndRunStaffMessageCleanup.
+func (s *Scheduler) runStaffMessageCleanupTaskPolling(task *ScheduledTask) {
+	s.runMinutePolling(task, "panic in staff message cleanup task",
+		"staff message cleanup task using minute-polling for per-tenant scheduling",
+		s.checkAndRunStaffMessageCleanup)
+}
+
+// checkAndRunStaffMessageCleanup sweeps expired internal staff messages per
+// tenant, sharing the same data-cleanup toggle/time/timeout as the other
+// retention jobs.
+func (s *Scheduler) checkAndRunStaffMessageCleanup(task *ScheduledTask) {
+	s.checkAndRunDailyGDPRCleanup(task, &s.lastStaffMessageCleanup, "staff-message-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES")
+		if err != nil {
+			s.getLogger().Error("staff message cleanup timeout setting failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("key", configModel.KeyDataCleanupTimeoutMinutes),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("staff message cleanup timeout for tenant %d: %w", tenantID, err)
+		}
+		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
+		defer cleanupCancel()
+
+		result, err := s.staffMessageCleanup.CleanupExpiredMessages(cleanupCtx)
+		if err != nil {
+			s.getLogger().Error("staff message cleanup failed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("staff message cleanup for tenant %d: %w", tenantID, err)
+		}
+
+		if result.MessagesDeleted > 0 || result.ThreadsDeleted > 0 {
+			s.getLogger().Info("staff message cleanup completed for tenant",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("cleanup_time", cleanupTime),
+				slog.Int("messages_deleted", result.MessagesDeleted),
+				slog.Int("threads_deleted", result.ThreadsDeleted),
 				slog.Int("retention_days", result.RetentionDays),
 			)
 		}

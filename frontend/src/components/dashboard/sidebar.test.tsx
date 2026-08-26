@@ -105,6 +105,7 @@ import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
+  useStaffMessagingEnabled,
   useTenantRoutingModeSafe,
 } from "~/lib/tenant-context";
 import useSWR from "swr";
@@ -128,6 +129,7 @@ const mockUseCareWithdrawalsPending = vi.mocked(useCareWithdrawalsPending);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUseOpenCareGroupMode = vi.mocked(useOpenCareGroupMode);
+const mockUseStaffMessagingEnabled = vi.mocked(useStaffMessagingEnabled);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
 const mockUseSWRDefault = vi.mocked(useSWR);
 
@@ -204,6 +206,7 @@ describe("Sidebar", () => {
     mockUsePresenceMode.mockReturnValue("detailed");
     mockUseNFCEnabled.mockReturnValue(true);
     mockUseOpenCareGroupMode.mockReturnValue(false);
+    mockUseStaffMessagingEnabled.mockReturnValue(false);
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseSWRDefault.mockReturnValue({
       data: undefined,
@@ -370,6 +373,17 @@ describe("Sidebar", () => {
         "/test-tenant/anfragen",
       );
       expect(screen.getByLabelText("9 offene Anfragen")).toBeInTheDocument();
+    });
+
+    it("prefixes the Team-Chat link in path-routing mode", () => {
+      mockUseStaffMessagingEnabled.mockReturnValue(true);
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Team-Chat").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/team-chat",
+      );
     });
 
     it("hides admin-only items for staff", () => {

@@ -775,6 +775,7 @@ let realReplaceState: typeof window.history.replaceState;
 describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-06T12:00:00"));
     // Leseansicht (#2283): Editier-Kontrollen hängen jetzt an
     // schedules:manage, die Kinderliste an users:read. Die Bestands-Tests
@@ -839,6 +840,7 @@ describe("BetreuungsplanView", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("renders the week view by default with the calendar as first content", () => {
