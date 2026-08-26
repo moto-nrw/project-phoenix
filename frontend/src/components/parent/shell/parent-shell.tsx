@@ -51,10 +51,11 @@ export function ParentShell({
     <PortalShell
       header={<Header />}
       headerClassName="sticky top-0 z-50 hidden lg:block"
+      backgroundClassName="moto-dotted-background--parent"
       topLayer={
         <div
           data-parent-safe-area-top
-          className="h-[env(safe-area-inset-top)] bg-white lg:hidden"
+          className="relative z-10 h-[env(safe-area-inset-top)] min-h-8 bg-transparent lg:hidden"
           aria-hidden="true"
         />
       }
