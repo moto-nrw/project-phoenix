@@ -12,6 +12,7 @@ func ReadAndWrite(db *bun.DB) {
 	db.NewSelect().TableExpr("alpha.records").ColumnExpr("(SELECT count(*) FROM beta.fragment_records JOIN ghost.records ON true)")
 	db.NewUpdate().TableExpr("beta.records")
 	db.Exec("TRUNCATE TABLE alpha.records, beta.truncated_records")
+	db.Exec("TRUNCATE alpha.records; TRUNCATE beta.later_truncated_records")
 	db.Exec("MERGE INTO beta.merged_records USING alpha.records ON false WHEN MATCHED THEN DELETE")
 	db.Exec("MERGE INTO alpha.records USING beta.merge_source ON false WHEN MATCHED THEN DELETE")
 	db.Exec("DELETE FROM alpha.records USING alpha.records, beta.delete_source WHERE false")

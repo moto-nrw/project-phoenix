@@ -188,7 +188,7 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 	}
 	receiver := pkg.TypesInfo.TypeOf(selector.X)
 	method := selector.Sel.Name
-	violations := a.directDBCallViolations(pkg, classification, functionName, receiver, method, call.Args)
+	violations := a.directDBCallViolations(pkg, classification, functionName, receiver, pkg.TypesInfo.Selections[selector], method, call.Args)
 	if !isRuntimeDataPackage(classification) {
 		return violations
 	}
@@ -206,8 +206,8 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 	return violations
 }
 
-func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, method string, args []ast.Expr) []Violation {
-	if !isBunDBCall(receiver, method) {
+func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, args []ast.Expr) []Violation {
+	if !isBunDBCall(receiver, selection, method) {
 		return nil
 	}
 	var violations []Violation
@@ -453,19 +453,17 @@ func (a semanticAnalyzer) matchDataObjects(source, sourceOwner string, objects [
 }
 
 func truncateDataObjects(query string) []string {
-	match := truncatePattern.FindStringSubmatch(query)
-	if len(match) != 2 {
-		return nil
-	}
-	clause := truncateModifier.ReplaceAllString(match[1], "")
 	var objects []string
-	for _, item := range strings.Split(clause, ",") {
-		fields := strings.Fields(strings.TrimSpace(item))
-		if len(fields) > 0 && strings.EqualFold(fields[0], "ONLY") {
-			fields = fields[1:]
-		}
-		if len(fields) > 0 {
-			objects = append(objects, strings.TrimSuffix(fields[0], "*"))
+	for _, match := range truncatePattern.FindAllStringSubmatch(query, -1) {
+		clause := truncateModifier.ReplaceAllString(match[1], "")
+		for _, item := range strings.Split(clause, ",") {
+			fields := strings.Fields(strings.TrimSpace(item))
+			if len(fields) > 0 && strings.EqualFold(fields[0], "ONLY") {
+				fields = fields[1:]
+			}
+			if len(fields) > 0 {
+				objects = append(objects, strings.TrimSuffix(fields[0], "*"))
+			}
 		}
 	}
 	return objects
@@ -657,11 +655,26 @@ func bunModelDataObject(model types.Type) (string, bool) {
 	}
 }
 
-func isBunDBCall(receiver types.Type, method string) bool {
+func isBunDBCall(receiver types.Type, selection *types.Selection, method string) bool {
 	knownMethod := strings.HasPrefix(method, "New") || method == "Exec" || method == "ExecContext" || method == "Query" || method == "QueryContext" || method == "QueryRow" || method == "QueryRowContext"
 	if !knownMethod {
 		return false
 	}
+	if isBunDBType(receiver) {
+		return true
+	}
+	if selection == nil {
+		return false
+	}
+	function, ok := selection.Obj().(*types.Func)
+	if !ok {
+		return false
+	}
+	signature, ok := function.Type().(*types.Signature)
+	return ok && signature.Recv() != nil && isBunDBType(signature.Recv().Type())
+}
+
+func isBunDBType(receiver types.Type) bool {
 	typeName := types.TypeString(receiver, packagePathQualifier)
 	return strings.Contains(typeName, "github.com/uptrace/bun.DB") || strings.Contains(typeName, "github.com/uptrace/bun.IDB") || strings.Contains(typeName, "github.com/uptrace/bun.Tx") || strings.Contains(typeName, "database/sql.DB") || strings.Contains(typeName, "database/sql.Tx")
 }

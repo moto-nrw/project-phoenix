@@ -31,6 +31,7 @@
     {"name": "beta.fragment_records", "write_owner": "beta"},
     {"name": "beta.hidden_records", "write_owner": "beta"},
     {"name": "beta.joined_records", "write_owner": "beta"},
+	{"name": "beta.later_truncated_records", "write_owner": "beta"},
     {"name": "beta.merged_records", "write_owner": "beta"},
     {"name": "beta.merge_source", "write_owner": "beta"},
     {"name": "beta.truncated_records", "write_owner": "beta"},

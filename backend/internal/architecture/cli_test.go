@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -296,6 +297,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.merged_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.truncated_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.later_truncated_records",
 		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.Exec",
 		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.ColumnExpr",
 		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.Join",
@@ -316,6 +318,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Get",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.NewFactory",
 	}
@@ -355,9 +358,31 @@ func fixturePath(t *testing.T, parts ...string) string {
 
 func packageDir(t *testing.T) string {
 	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if ok && filepath.IsAbs(file) {
+		return filepath.Dir(file)
+	}
 	dir, err := os.Getwd()
 	if err != nil {
 		t.Fatal("resolve test package directory")
 	}
-	return dir
+	for current := dir; ; current = filepath.Dir(current) {
+		if testPackageDir(current) {
+			return current
+		}
+		candidate := filepath.Join(current, "backend", "internal", "architecture")
+		if testPackageDir(candidate) {
+			return candidate
+		}
+		if parent := filepath.Dir(current); parent == current {
+			break
+		}
+	}
+	t.Fatal("resolve test package directory")
+	return ""
+}
+
+func testPackageDir(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, "testdata"))
+	return err == nil && info.IsDir()
 }
