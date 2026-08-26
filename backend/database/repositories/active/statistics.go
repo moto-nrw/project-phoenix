@@ -94,12 +94,12 @@ func (r *StatisticsRepository) RoomUtilization(ctx context.Context, start, end t
 		switch {
 		case includeNoGroup && len(positiveGroupIDs) > 0:
 			groupClause = " AND (s.group_id IN (?) OR s.group_id IS NULL)"
-			args = append(args, bun.In(positiveGroupIDs))
+			args = append(args, bun.List(positiveGroupIDs))
 		case includeNoGroup:
 			groupClause = " AND s.group_id IS NULL"
 		default:
 			groupClause = " AND s.group_id IN (?)"
-			args = append(args, bun.In(positiveGroupIDs))
+			args = append(args, bun.List(positiveGroupIDs))
 		}
 	}
 
