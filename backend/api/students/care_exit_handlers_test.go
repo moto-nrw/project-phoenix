@@ -83,6 +83,12 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	assert.True(t, listedIDs("&date=" + firstGap.String() + "&include_pending_withdrawals=true")[student.ID], "master-data administration keeps the open task reachable")
 	assert.False(t, listedIDs("&include_pending_withdrawals=true")[endedWithoutTask.ID], "the administration exception must not restore every ended child")
 
+	readOnlyRequest := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		"/?page_size=500&date="+firstGap.String()+"&include_pending_withdrawals=true", nil)
+	readOnlyResponse := authExec(t, tc, readOnlyRequest, claims, []string{"users:read"})
+	assert.Equal(t, http.StatusForbidden, readOnlyResponse.Code,
+		"the administrative exception must require users:delete")
+
 	// Move the same pending task onto today to exercise the live-presence
 	// exception without treating today's attendance as future planning data.
 	upsertNaturalCompletion(t, repos.CareWithdrawal, studentID, today)

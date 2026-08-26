@@ -606,9 +606,9 @@ func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezon
 	}
 }
 
-// careStatusFromRequest resolves the care_status parameter together with the
-// permission guarding its departed side, and returns the response to render
-// when either says no (#2487).
+// careStatusFromRequest resolves the administrative list parameters together
+// with the permission guarding departed children, and returns the response to
+// render when either says no (#2487).
 //
 // Extracted from listStudents so the handler keeps one branch instead of
 // three: a parameter with a permission and two different status codes is
@@ -616,8 +616,12 @@ func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezon
 // (backend-conventions rule 4).
 func careStatusFromRequest(r *http.Request) (string, render.Renderer) {
 	// The departed side of the list is the same set of children the archive
-	// view shows, so it needs the same permission.
+	// view shows. The pending-withdrawal exception also restores children the
+	// operational list hides, so it needs the same permission.
 	canReadEnded := authorize.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context()))
+	if r.URL.Query().Get("include_pending_withdrawals") == "true" && !canReadEnded {
+		return "", common.ErrorForbidden(ErrCareStatusForbidden)
+	}
 	careStatus, err := parseCareStatus(r.URL.Query().Get("care_status"), canReadEnded)
 	switch {
 	case err == nil:
