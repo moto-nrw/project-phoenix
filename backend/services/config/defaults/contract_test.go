@@ -91,6 +91,17 @@ func TestContractSettings_Types(t *testing.T) {
 	}
 }
 
+// TestContractSettings_TermStartLabel cannot sound like an end date. The
+// description says "Erster Tag", so the label must name the beginning too.
+func TestContractSettings_TermStartLabel(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyContractTermStart)
+	require.NotNil(t, def)
+	assert.Equal(t, "Vertragsbeginn", def.Label)
+	assert.NotContains(t, def.Label, "läuft ab")
+}
+
 // TestContractSettings_DefaultsAreEmpty encodes the deliberate decision that
 // an unconfigured school shows "noch nicht hinterlegt" rather than an invented
 // tier or price — the same reasoning as the DATEV Lohnarten.

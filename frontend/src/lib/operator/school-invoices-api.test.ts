@@ -181,6 +181,11 @@ describe("parseEuroToCents", () => {
     expect(parseEuroToCents("0.07")).toBe(7);
     expect(parseEuroToCents("1234.56")).toBe(123456);
   });
+
+  it("rejects values that cannot be represented as safe integer cents", () => {
+    expect(parseEuroToCents("90071992547409,92")).toBeNull();
+    expect(parseEuroToCents("9".repeat(400))).toBeNull();
+  });
 });
 
 describe("centsToEuroInput", () => {

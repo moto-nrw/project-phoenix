@@ -132,7 +132,13 @@ export function formatCents(cents: number): string {
 export function parseEuroToCents(value: string): number | null {
   const normalized = value.trim().replace(/\s/g, "").replace(",", ".");
   if (normalized === "" || !/^\d+(\.\d{1,2})?$/.test(normalized)) return null;
-  return Math.round(Number(normalized) * 100);
+
+  const [euros, cents = ""] = normalized.split(".");
+  if (!euros) return null;
+
+  const amountCents = BigInt(euros) * 100n + BigInt(cents.padEnd(2, "0"));
+  if (amountCents > BigInt(Number.MAX_SAFE_INTEGER)) return null;
+  return Number(amountCents);
 }
 
 /** Cent als bearbeitbarer Euro-Text ("1990" → "19,90"). */

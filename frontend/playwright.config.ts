@@ -40,16 +40,11 @@ const requiredWebServerEnv = [
   "TENANT_DOMAIN",
 ] as const;
 
+const webServerEnvCheckScript = `const required = ${JSON.stringify(requiredWebServerEnv)}; const missing = required.filter((key) => !process.env[key]); if (missing.length > 0) { throw new Error(missing.join(", ") + " required for Playwright E2E."); }`;
 const webServerEnvCheck = [
   "node",
   "-e",
-  JSON.stringify(
-    `const required = ${JSON.stringify(requiredWebServerEnv)};
-const missing = required.filter((key) => !process.env[key]);
-if (missing.length > 0) {
-  throw new Error(missing.join(", ") + " required for Playwright E2E.");
-}`,
-  ),
+  JSON.stringify(webServerEnvCheckScript),
 ].join(" ");
 
 export default defineConfig({

@@ -119,7 +119,7 @@ func init() {
 
 	config.Register(config.Definition{
 		Key:             config.KeyContractTermStart,
-		Label:           "Vertrag läuft ab",
+		Label:           "Vertragsbeginn",
 		Description:     "Erster Tag der Vertragslaufzeit. Leer lassen, wenn noch kein Datum feststeht.",
 		Type:            config.FieldDate,
 		Default:         "",
