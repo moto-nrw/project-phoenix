@@ -257,7 +257,13 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 // guardian is still linked to any student — the handler turns that into a 409.
 // Use this only for guardians with no remaining links; for the deliberate
 // full delete use DeleteGuardianWithLinks.
-func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
+func (s *GuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
+	}
 	return s.GuardianProfileRepo.Delete(ctx, id)
 }
 
@@ -274,6 +280,9 @@ func (s *GuardianService) DeleteGuardian(ctx context.Context, id int64) error {
 func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
 	}
 
 	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
@@ -312,6 +321,49 @@ func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 		}
 	}
 	return s.GuardianProfileRepo.Delete(ctx, id)
+}
+
+// auditGuardianFinancialDataDeletion records each stored payment value before
+// the guardian delete cascades to its financial-data row. The caller holds the
+// guardian profile lock and runs in the surrounding tenant transaction.
+func (s *GuardianService) auditGuardianFinancialDataDeletion(ctx context.Context, guardianProfileID, changedByAccountID int64) error {
+	data, err := s.GuardianFinancialRepo.FindByGuardianProfileID(ctx, guardianProfileID)
+	if err != nil {
+		return err
+	}
+	if data == nil || !data.HasData() {
+		return nil
+	}
+	if s.GuardianFinancialAudit == nil {
+		return fmt.Errorf("guardian financial audit repository is not wired; refusing unaudited deletion")
+	}
+	if changedByAccountID <= 0 {
+		return fmt.Errorf("changed-by actor id is required")
+	}
+
+	changes := []stammdatenChange{}
+	if data.IBAN != nil && *data.IBAN != "" {
+		changes = append(changes, maskedChange(auditModels.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
+	}
+	if data.AccountHolder != nil && *data.AccountHolder != "" {
+		changes = append(changes, stammdatenChange{
+			field:    auditModels.GuardianPaymentFieldAccountHolder,
+			oldValue: *data.AccountHolder,
+		})
+	}
+	for _, change := range changes {
+		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+			GuardianProfileID: guardianProfileID,
+			ChangedBy:         changedByAccountID,
+			FieldName:         change.field,
+			OldValue:          change.oldValue,
+			NewValue:          change.newValue,
+			Note:              "Erziehungsberechtigte Person gelöscht",
+		}); err != nil {
+			return fmt.Errorf("write guardian payment deletion audit: %w", err)
+		}
+	}
+	return nil
 }
 
 // GetGuardianDeleteImpact returns the exact current affected links and display

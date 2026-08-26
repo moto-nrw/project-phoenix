@@ -856,7 +856,7 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 		if hasLinks {
 			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs, accountID)
 		}
-		return rs.GuardianService.DeleteGuardian(ctx, id)
+		return rs.GuardianService.DeleteGuardian(ctx, id, accountID)
 	}); err != nil {
 		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return

@@ -107,35 +107,6 @@ func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
 		BEFORE UPDATE ON users.guardian_financial_data
 		FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
-		ALTER TABLE users.guardian_financial_data ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE users.guardian_financial_data FORCE ROW LEVEL SECURITY;
-		ALTER TABLE audit.guardian_financial_changes ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE audit.guardian_financial_changes FORCE ROW LEVEL SECURITY;
-
-		DO $$
-		BEGIN
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_policies
-				WHERE schemaname = 'users' AND tablename = 'guardian_financial_data'
-					AND policyname = 'tenant_isolation_users_guardian_financial_data'
-			) THEN
-				CREATE POLICY tenant_isolation_users_guardian_financial_data
-					ON users.guardian_financial_data
-					FOR ALL
-					USING (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
-					WITH CHECK (tenant_id = NULLIF(current_setting('app.current_tenant_id', true), '')::bigint);
-			END IF;
-			IF NOT EXISTS (
-				SELECT 1 FROM pg_policies
-				WHERE schemaname = 'audit' AND tablename = 'guardian_financial_changes'
-					AND policyname = 'tenant_isolation_guardian_financial_changes'
-			) THEN
-				CREATE POLICY tenant_isolation_guardian_financial_changes
-					ON audit.guardian_financial_changes
-					USING (tenant_id = current_setting('app.current_tenant_id')::BIGINT);
-			END IF;
-		END $$;
-
 		GRANT SELECT, INSERT, UPDATE, DELETE ON users.guardian_financial_data TO phoenix_tenant;
 		GRANT USAGE ON SEQUENCE users.guardian_financial_data_id_seq TO phoenix_tenant;
 
@@ -149,7 +120,10 @@ func guardianPaymentDataUp(ctx context.Context, db *bun.DB) error {
 	`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating guardian payment objects: %w", err)
 	}
-	return nil
+	return provisionTenantRLS(ctx, db,
+		"users.guardian_financial_data",
+		"audit.guardian_financial_changes",
+	)
 }
 
 func guardianPaymentDataDown(ctx context.Context, db *bun.DB) error {

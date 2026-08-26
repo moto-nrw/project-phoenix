@@ -72,6 +72,15 @@ type fakeStudentRepo struct {
 	findByIDForUpdateFn  func(ctx context.Context, id int64) (*users.Student, error)
 }
 
+type fakeGuardianFinancialRepo struct {
+	users.GuardianFinancialDataRepository
+	findFn func(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error)
+}
+
+func (f *fakeGuardianFinancialRepo) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) (*users.GuardianFinancialData, error) {
+	return f.findFn(ctx, guardianProfileID)
+}
+
 func (f *fakeStudentRepo) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
 	return f.findByIDFn(ctx, id)
 }
@@ -238,6 +247,8 @@ func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 		findByGuardianFn: func(_ context.Context, _ int64) ([]*users.StudentGuardian, error) {
 			return nil, errors.New("query failed")
 		},
+	}, GuardianFinancialRepo: &fakeGuardianFinancialRepo{
+		findFn: func(_ context.Context, _ int64) (*users.GuardianFinancialData, error) { return nil, nil },
 	}},
 	}
 	err := svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1)
@@ -263,6 +274,8 @@ func TestDeleteGuardianWithLinks_LinkDeleteError(t *testing.T) {
 		findByIDsForUpdateFn: func(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
 			return map[int64]*users.Student{7: {}}, nil
 		},
+	}, GuardianFinancialRepo: &fakeGuardianFinancialRepo{
+		findFn: func(_ context.Context, _ int64) (*users.GuardianFinancialData, error) { return nil, nil },
 	}},
 	}
 	// expectedLinkIDs matches the current set, so the stale-preview guard passes

@@ -315,10 +315,13 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 	t.Run("deletes guardian successfully", func(t *testing.T) {
 		// ARRANGE
 		profile := testpkg.CreateTestGuardianProfile(t, db, "to-delete")
+		require.NoError(t, service.UpdateGuardianPayment(ctx, profile.ID, users.GuardianPaymentInput{
+			IBAN: strPtr("DE89370400440532013000"),
+		}, 1, ""))
 		// No defer - we're testing deletion
 
 		// ACT
-		err := service.DeleteGuardian(ctx, profile.ID)
+		err := service.DeleteGuardian(ctx, profile.ID, 1)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -326,6 +329,17 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		// Verify deletion
 		result, _ := service.GetGuardianByID(ctx, profile.ID)
 		assert.Nil(t, result)
+
+		var deletionAudit auditModels.GuardianFinancialChange
+		require.NoError(t, db.NewSelect().
+			Model(&deletionAudit).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIBAN).
+			Where(`"guardian_financial_change".new_value = ?`, "").
+			Scan(ctx))
+		assert.Equal(t, "•••• 3000", deletionAudit.OldValue)
+		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", deletionAudit.Note)
 	})
 
 	t.Run("plain delete is refused while the guardian is still linked (RESTRICT)", func(t *testing.T) {
@@ -344,7 +358,7 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		err = service.DeleteGuardian(ctx, guardian.ID)
+		err = service.DeleteGuardian(ctx, guardian.ID, 1)
 
 		// ASSERT — the FK violation surfaces; the guardian survives.
 		require.Error(t, err, "RESTRICT FK must block deleting a linked guardian")
