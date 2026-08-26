@@ -12,6 +12,7 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -54,6 +55,14 @@ type GuardianServiceDependencies struct {
 	RoleRepo                authModels.RoleRepository
 	StudentRepo             users.StudentRepository
 	PersonRepo              users.PersonRepository
+
+	// Payment data (#2608). Kept as separate, narrow dependencies so the
+	// guardians:financial code path is the only one holding a reference to
+	// the bank rows. Both audit writers are mandatory for that path: it
+	// refuses to serve or change an IBAN when it cannot write the trail.
+	GuardianFinancialRepo  users.GuardianFinancialDataRepository
+	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
+	DataAccessLog          auditModels.DataAccessLogRepository
 
 	// Email dependencies
 	Mailer           email.Mailer

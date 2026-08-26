@@ -521,6 +521,20 @@ type StudentGuardianRepository interface {
 
 	// SetPrimary sets a guardian as the primary guardian for a student
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
+
+	// SetPayer moves the payment mark for one child (#2608): it clears the
+	// mark from every guardian of the child and sets it on the named guardian,
+	// or leaves the child unassigned when guardianProfileID is nil. Must run
+	// inside a tenant transaction — the clear and the set are only atomic
+	// together, and the partial unique index rejects a second marked row.
+	// Returns ErrStudentGuardianNotFound when the guardian is not linked to
+	// the child.
+	SetPayer(ctx context.Context, studentID int64, guardianProfileID *int64) error
+
+	// ListPaymentAssignments returns one row per non-alumnus child with the
+	// guardian marked as payer joined in. Children without an assigned payer
+	// are included with a nil GuardianProfileID so the list shows the gaps.
+	ListPaymentAssignments(ctx context.Context) ([]GuardianPaymentAssignment, error)
 }
 
 // StudentCompanionRepository defines operations for the child-to-child

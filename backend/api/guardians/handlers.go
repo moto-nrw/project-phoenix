@@ -210,6 +210,11 @@ type GuardianWithRelationship struct {
 	CanPickup          bool              `json:"can_pickup"`
 	PickupNotes        *string           `json:"pickup_notes,omitempty"`
 	EmergencyPriority  int               `json:"emergency_priority"`
+	// IsPayer marks this guardian's bank account as the one charged for this
+	// child (#2608). The flag itself is not bank data — it names a person, not
+	// an account — so it rides on the existing guardian read; the IBAN behind
+	// it needs guardians:financial.
+	IsPayer bool `json:"is_payer"`
 	// AccountStatus is the portal-access state of this guardian for the staff
 	// "Erziehungsberechtigte" tab: "active" (has login with access to this
 	// child), "active_no_access" (has login, but this child's link carries no
@@ -1032,6 +1037,7 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			CanPickup:          gwr.Relationship.CanPickup,
 			PickupNotes:        gwr.Relationship.PickupNotes,
 			EmergencyPriority:  gwr.Relationship.EmergencyPriority,
+			IsPayer:            gwr.Relationship.IsPayer,
 			AccountStatus: guardianAccountStatus(
 				gwr.Profile.HasAccount,
 				authorize.StudentGuardianHasPermission(gwr.Relationship, authorize.GuardianPermissionPortalAccess),
