@@ -122,6 +122,13 @@ type SchoolIdentityInput struct {
 	LastName  string
 	TagID     *string
 
+	// PersonID names an existing, account-less person at this school the
+	// account should be linked to before a new one would be created. The
+	// staff import sets it via the invitation (#2600). It is a hint, not a
+	// command: a person that is gone, belongs to another account, or is a
+	// child's record is skipped and the usual path runs.
+	PersonID *int64
+
 	// Position fills users.teachers.role when a caregiver profile is created.
 	Position string
 
@@ -289,6 +296,18 @@ func resolveIdentityPerson(
 		}
 		return person, nil
 	}
+
+	adopted, err := adoptHintedPerson(ctx, repos, in)
+	if err != nil {
+		return nil, err
+	}
+	if adopted != nil {
+		if err := applyIdentityTag(ctx, repos, adopted, tagID); err != nil {
+			return nil, err
+		}
+		return adopted, nil
+	}
+
 	if !in.CreatePerson {
 		return nil, nil
 	}
@@ -318,6 +337,55 @@ func resolveIdentityPerson(
 	}
 	person.AccountID = &in.AccountID
 
+	return person, nil
+}
+
+// adoptHintedPerson links the account to the person named by in.PersonID when
+// that person is still a free directory entry at this school: live, without an
+// account, and not a child's record. Returns (nil, nil) when there is no hint
+// or the hint does not qualify — the caller then falls back to creating a
+// person, which is what happened before the hint existed.
+//
+// This is what makes the staff import's "Stammdatensatz first, login later"
+// order work: the import files Person + Staff, the invitation remembers the
+// person, and acceptance completes the chain on the same rows instead of
+// filing a second person that the staff list would show twice (#2600).
+func adoptHintedPerson(
+	ctx context.Context,
+	repos SchoolIdentityRepos,
+	in SchoolIdentityInput,
+) (*userModels.Person, error) {
+	if in.PersonID == nil || *in.PersonID <= 0 {
+		return nil, nil
+	}
+
+	// Tenant-filtered: a person id from another school reads as unknown.
+	person, err := repos.Persons.FindByID(ctx, *in.PersonID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return nil, nil
+	}
+	if person.AccountID != nil && *person.AccountID != in.AccountID {
+		return nil, nil
+	}
+	if err := refuseStudentPerson(ctx, repos, person.ID); err != nil {
+		if errors.Is(err, ErrSchoolIdentityPersonIsStudent) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if person.AccountID == nil {
+		if err := repos.Persons.LinkToAccount(ctx, person.ID, in.AccountID); err != nil {
+			return nil, fmt.Errorf("link imported person to account: %w", err)
+		}
+		person.AccountID = &in.AccountID
+	}
 	return person, nil
 }
 

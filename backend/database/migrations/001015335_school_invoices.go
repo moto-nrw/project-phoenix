@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	schoolInvoicesVersion     = "1.15.332"
+	schoolInvoicesVersion     = "1.15.335"
 	schoolInvoicesDescription = "Per-school invoice schedule for the contract overview (#1459 demo)"
 )
 
@@ -16,7 +16,7 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     schoolInvoicesVersion,
 		Description: schoolInvoicesDescription,
-		DependsOn:   []string{attendanceCheckoutDeviceVersion},
+		DependsOn:   []string{invitationTokensPersonIDVersion},
 	})
 
 	Migrations.MustRegister(schoolInvoicesUp, schoolInvoicesDown)
@@ -43,7 +43,7 @@ func init() {
 // how config.setting_values is CRUD-granted while operator-only keys are
 // guarded in api/config.
 func schoolInvoicesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.332: Creating platform.school_invoices...")
+	fmt.Println("Migration 1.15.335: Creating platform.school_invoices...")
 
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS platform.school_invoices (
@@ -88,7 +88,7 @@ func schoolInvoicesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func schoolInvoicesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.332: Dropping platform.school_invoices...")
+	fmt.Println("Rolling back 1.15.335: Dropping platform.school_invoices...")
 
 	if _, err := db.NewRaw(`
 		DROP TABLE IF EXISTS platform.school_invoices;

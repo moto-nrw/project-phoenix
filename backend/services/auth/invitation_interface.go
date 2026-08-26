@@ -16,8 +16,12 @@ type InvitationRequest struct {
 	LastName         *string
 	Position         *string
 	CaregiverEnabled bool
-	CreatedBy        int64
-	SchoolName       string // Display name of the tenant (shown in invitation email)
+	// PersonID is the already existing person (without an account) the
+	// invitee should become on acceptance. The staff import sets it; the
+	// invitation form leaves it nil.
+	PersonID   *int64
+	CreatedBy  int64
+	SchoolName string // Display name of the tenant (shown in invitation email)
 
 	// ActorPermissions are the permissions of the account creating the
 	// invitation, used to decide whether it may hand out the requested role

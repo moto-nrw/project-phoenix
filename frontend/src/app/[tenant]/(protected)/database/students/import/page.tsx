@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { Download, Info, ListChecks, X } from "lucide-react";
+import { Download, Info, ListChecks, RefreshCw, X } from "lucide-react";
 import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -11,6 +11,12 @@ import { Alert } from "~/components/ui/alert";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import {
+  IMPORT_MODE_HINTS,
+  IMPORT_MODE_ITEMS,
+  type ImportMode,
+} from "~/lib/import-mode";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -21,7 +27,7 @@ interface ImportError {
   field: string;
   message: string;
   code: string;
-  severity: "error" | "warning";
+  severity: "error" | "warning" | "info";
 }
 
 interface ImportRowResult {
@@ -72,6 +78,7 @@ interface DisplayStudent {
   row: number;
   status: RowStatus;
   errors: string[];
+  notes: string[];
   first_name: string;
   last_name: string;
   school_class: string;
@@ -84,7 +91,33 @@ function childCountLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
 
+/** Blocking and warning messages in red; plain hints stay gray. */
+function splitMessages(errors: ImportError[]): {
+  errors: string[];
+  notes: string[];
+} {
+  return {
+    errors: errors.filter((e) => e.severity !== "info").map((e) => e.message),
+    notes: errors.filter((e) => e.severity === "info").map((e) => e.message),
+  };
+}
+
+/** "Maria Muster (Mutter)" from whatever parts the row carries; empty when none. */
+function guardianLabel(
+  guardians: ImportRowResult["Data"]["guardians"] | undefined,
+): string {
+  const first = guardians?.[0];
+  if (!first) return "";
+  const name = [first.first_name, first.last_name]
+    .filter((part) => part && part.trim() !== "")
+    .join(" ");
+  const relation = first.relationship_type?.trim() ?? "";
+  if (name && relation) return `${name} (${relation})`;
+  return name || relation || first.email || "";
+}
+
 export default function StudentImportPage() {
+  const previewGeneration = useRef(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [previewData, setPreviewData] = useState<DisplayStudent[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -94,6 +127,7 @@ export default function StudentImportPage() {
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
+  const [mode, setMode] = useState<ImportMode>("create");
 
   const { data: session, status } = useSession({
     required: true,
@@ -161,7 +195,8 @@ export default function StudentImportPage() {
 
   // Handle file upload and preview via backend API
   const handleFileUpload = useCallback(
-    async (file: File) => {
+    async (file: File, importMode: ImportMode = mode) => {
+      const generation = ++previewGeneration.current;
       setUploadedFile(file);
       setError(null);
       setIsLoading(true);
@@ -176,6 +211,7 @@ export default function StudentImportPage() {
 
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("mode", importMode);
 
         const response = await fetch("/api/import/students/preview", {
           method: "POST",
@@ -205,7 +241,7 @@ export default function StudentImportPage() {
               (e) => e.severity === "warning",
             );
             const isExisting = row.Errors.some(
-              (e) => e.code === "already_exists",
+              (e) => e.code === "already_exists" || e.code === "will_update",
             );
 
             // Determine row status based on error conditions
@@ -221,15 +257,12 @@ export default function StudentImportPage() {
             displayData.push({
               row: row.RowNumber,
               status: getRowStatus(),
-              errors: row.Errors.map((e) => e.message),
+              ...splitMessages(row.Errors),
               first_name: row.Data.first_name,
               last_name: row.Data.last_name,
               school_class: row.Data.school_class,
               group_name: row.Data.group_name ?? "",
-              guardian_info:
-                row.Data.guardians && row.Data.guardians.length > 0
-                  ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                  : "",
+              guardian_info: guardianLabel(row.Data.guardians),
               health_info: row.Data.health_info ?? "",
             });
           }
@@ -246,6 +279,7 @@ export default function StudentImportPage() {
             row: 0,
             status: "new",
             errors: [],
+            notes: [],
             first_name: `${importData.TotalRows} Kinder`,
             last_name: "bereit zum Import",
             school_class: "",
@@ -255,24 +289,36 @@ export default function StudentImportPage() {
           });
         }
 
+        if (generation !== previewGeneration.current) return;
         setPreviewData(displayData);
         setImportResult(importData);
       } catch (err) {
         logger.error("student_preview_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (generation !== previewGeneration.current) return;
         setError(err instanceof Error ? err.message : "Unbekannter Fehler");
         setPreviewData([]);
       } finally {
-        setIsLoading(false);
+        if (generation === previewGeneration.current) setIsLoading(false);
       }
     },
-    [session],
+    [session, mode],
   );
+
+  // A new mode changes what the preview means, so the uploaded file is
+  // checked again right away.
+  const handleModeChange = (next: ImportMode) => {
+    setMode(next);
+    if (uploadedFile) {
+      setPreviewData([]);
+      handleFileUpload(uploadedFile, next).catch(() => undefined);
+    }
+  };
 
   // Handle actual import
   const handleImport = async () => {
-    if (!uploadedFile) return;
+    if (!uploadedFile || isLoading) return;
 
     setIsImporting(true);
     setError(null);
@@ -285,6 +331,7 @@ export default function StudentImportPage() {
 
       const formData = new FormData();
       formData.append("file", uploadedFile);
+      formData.append("mode", mode);
 
       const response = await fetch("/api/import/students/import", {
         method: "POST",
@@ -313,16 +360,22 @@ export default function StudentImportPage() {
         const errorDisplayData: DisplayStudent[] = importData.Errors.map(
           (row) => ({
             row: row.RowNumber,
-            status: "error" as const,
-            errors: row.Errors.map((e) => e.message),
+            status: row.Errors.some(
+              (error) =>
+                error.code === "already_exists" || error.code === "will_update",
+            )
+              ? "existing"
+              : row.Errors.some((error) => error.severity === "error")
+                ? "error"
+                : row.Errors.some((error) => error.severity === "warning")
+                  ? "warning"
+                  : "new",
+            ...splitMessages(row.Errors),
             first_name: row.Data.first_name,
             last_name: row.Data.last_name,
             school_class: row.Data.school_class,
             group_name: row.Data.group_name ?? "",
-            guardian_info:
-              row.Data.guardians && row.Data.guardians.length > 0
-                ? `${row.Data.guardians[0]?.first_name ?? ""} ${row.Data.guardians[0]?.last_name ?? ""} (${row.Data.guardians[0]?.relationship_type ?? ""})`
-                : "",
+            guardian_info: guardianLabel(row.Data.guardians),
             health_info: row.Data.health_info ?? "",
           }),
         );
@@ -396,6 +449,12 @@ export default function StudentImportPage() {
     existing: importResult?.UpdatedCount ?? 0,
     errors: importResult?.ErrorCount ?? 0,
   };
+  const importLabel =
+    mode === "create"
+      ? `${childCountLabel(stats.new)} importieren`
+      : mode === "update"
+        ? `${childCountLabel(stats.existing)} aktualisieren`
+        : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
 
   if (status === "loading") {
     return (
@@ -426,6 +485,10 @@ export default function StudentImportPage() {
               <li>
                 Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
                 TT.MM.JJJJ oder TT.MM.JJ
+              </li>
+              <li>
+                Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+                Erziehungsberechtigte. Das Blatt „Hinweise" erklärt jede Spalte
               </li>
               <li>Speichern Sie die ausgefüllte Datei</li>
               <li>
@@ -510,8 +573,28 @@ export default function StudentImportPage() {
         </div>
       </div>
 
+      <div className="rounded-xl border border-gray-100 bg-white p-6">
+        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
+          Schritt 2: Was soll der Import tun?
+        </h3>
+        <SegmentedControl
+          items={IMPORT_MODE_ITEMS}
+          value={mode}
+          onChange={handleModeChange}
+          fullWidth
+          ariaLabel="Import-Modus"
+        />
+        <p className="mt-3 text-sm text-gray-600">{IMPORT_MODE_HINTS[mode]}</p>
+        <p className="mt-1 text-sm text-gray-500">
+          Bekannt ist eine Zeile über Vorname, Nachname und Klasse. Bei
+          Klassenwechsel über die RFID-Karte oder den Geburtstag.
+        </p>
+      </div>
+
       {/* Upload Section */}
       <UploadSection
+        title="Schritt 3: Datei hochladen"
         isDragging={isDragging}
         isLoading={isLoading}
         uploadedFile={uploadedFile}
@@ -530,6 +613,9 @@ export default function StudentImportPage() {
             total={stats.total}
             newCount={stats.new}
             existing={stats.existing}
+            existingTitle={
+              mode === "create" ? "Vorhanden" : "Wird aktualisiert"
+            }
             errors={stats.errors}
           />
 
@@ -541,7 +627,7 @@ export default function StudentImportPage() {
                   className="h-5 w-5 text-gray-600"
                   aria-hidden="true"
                 />
-                Schritt 3: Datenvorschau
+                Schritt 4: Datenvorschau
               </h3>
             </div>
 
@@ -553,6 +639,7 @@ export default function StudentImportPage() {
                     row: student.row,
                     status: student.status,
                     errors: student.errors,
+                    notes: student.notes,
                     first_name: student.first_name,
                     last_name: student.last_name,
                     meta: [
@@ -582,12 +669,10 @@ export default function StudentImportPage() {
             <button
               type="button"
               onClick={() => void handleImport()}
-              disabled={stats.errors > 0 || isImporting}
+              disabled={stats.errors > 0 || isImporting || isLoading}
               className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
-              {isImporting
-                ? "Importiere..."
-                : `${childCountLabel(stats.new)} importieren`}
+              {isImporting ? "Importiere..." : importLabel}
             </button>
           </div>
         </>

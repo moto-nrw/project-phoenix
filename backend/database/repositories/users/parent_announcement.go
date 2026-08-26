@@ -659,12 +659,53 @@ func (r *ParentAnnouncementRepository) AudienceRecipients(ctx context.Context, t
 	return rows, nil
 }
 
+// feedScopePredicate selects hand-written rows from schools with news on and
+// system-authored rows from schools with the cancellation-notice gate on. Both
+// placeholders are tenant lists, evaluated independently so disabling the
+// notice gate also hides existing cancellation notices.
+const feedScopePredicate = `((a.tenant_id IN (?) AND a.system_kind IS NULL) OR (a.tenant_id IN (?) AND a.system_kind IS NOT NULL))`
+
+// feedScopeList renders a tenant list for feedScopePredicate. An empty list
+// binds a sentinel no tenant has, because `IN ()` is not valid SQL.
+func feedScopeList(ids []int64) any {
+	if len(ids) == 0 {
+		return bun.List([]int64{-1})
+	}
+	return bun.List(ids)
+}
+
+// CountReachableGuardiansForStudents mirrors the student branch of
+// AudienceRecipients for a set of children that no announcement targets yet.
+func (r *ParentAnnouncementRepository) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	var count int
+	sqlStr := `
+		SELECT COUNT(DISTINCT gp.account_id)
+		FROM users.students s
+		JOIN users.persons p ON p.id = s.person_id AND p.deleted_at IS NULL
+		JOIN users.students_guardians sg ON sg.student_id = s.id AND sg.tenant_id = ?
+			AND sg.permissions @> '{"parent_portal.access": true}'::jsonb
+		JOIN users.guardian_profiles gp ON gp.id = sg.guardian_profile_id AND gp.tenant_id = ?
+			AND gp.account_id IS NOT NULL
+		JOIN auth.account_tenants act ON act.account_id = gp.account_id
+			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
+		WHERE s.tenant_id = ? AND s.id IN (?) AND s.status <> 'alumnus'`
+	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
+		tenantID, tenantID, tenantID, bun.List(studentIDs),
+	).Scan(ctx, &count); err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count reachable guardians for students", Err: err}
+	}
+	return count, nil
+}
+
 // ListFeedForAccount returns published, active, unexpired announcements the
 // account is targeted by across the given tenants, newest-published first, each
 // with the account's read/ack state. Cross-tenant: run under WithAdminTx with
 // the explicit tenant set.
-func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*users.AnnouncementFeedItem, error) {
-	if len(tenantIDs) == 0 {
+func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, accountID int64, scope users.AnnouncementFeedScope) ([]*users.AnnouncementFeedItem, error) {
+	if scope.IsEmpty() {
 		return []*users.AnnouncementFeedItem{}, nil
 	}
 	var rows []*users.AnnouncementFeedItem
@@ -672,7 +713,7 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 	sqlStr := `
 		SELECT a.id, a.tenant_id, a.title, a.body, a.priority, a.link_url,
 			a.requires_acknowledgement, a.published_at, a.expires_at,
-			a.response_type, a.response_deadline,
+			a.response_type, a.response_deadline, a.system_kind,
 			COALESCE(sch.name, '') AS school_name,
 			par.read_at AS read_at,
 			par.acknowledged_at AS acknowledged_at
@@ -680,19 +721,19 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 		LEFT JOIN platform.schools sch ON sch.id = a.tenant_id
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
-		WHERE a.tenant_id IN (?)
+		WHERE ` + feedScopePredicate + `
 			AND a.active
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
 			AND (a.expires_at IS NULL OR a.expires_at > NOW())
 			AND ` + reached + `
 		ORDER BY a.published_at DESC, a.id DESC`
-	// Arg order: read-state join (acc), tenant set, then reachedPredicate's acc
-	// appears three times (student EXISTS once, pending EXISTS twice: the primary
-	// guardian_account_id match plus the e-mail-fallback acc.id) since ann/tenant
-	// are column refs.
+	// Arg order: read-state join (acc), the two tenant sets, then
+	// reachedPredicate's acc appears three times (student EXISTS once, pending
+	// EXISTS twice: the primary guardian_account_id match plus the e-mail-fallback
+	// acc.id) since ann/tenant are column refs.
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID, accountID,
+		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID,
 	).Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement feed", Err: err}
 	}
@@ -701,8 +742,8 @@ func (r *ParentAnnouncementRepository) ListFeedForAccount(ctx context.Context, a
 
 // CountUnreadForAccount counts live announcements that still need attention:
 // unread letters, pending read confirmations, or unanswered open polls.
-func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
-	if len(tenantIDs) == 0 {
+func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context, accountID int64, scope users.AnnouncementFeedScope) (int, error) {
+	if scope.IsEmpty() {
 		return 0, nil
 	}
 	var count int
@@ -715,7 +756,7 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 		FROM users.parent_announcements a
 		LEFT JOIN users.parent_announcement_reads par
 			ON par.announcement_id = a.id AND par.account_id = ?
-		WHERE a.tenant_id IN (?)
+		WHERE ` + feedScopePredicate + `
 			AND a.active
 			AND a.published_at IS NOT NULL
 			AND a.published_at <= NOW()
@@ -726,10 +767,11 @@ func (r *ParentAnnouncementRepository) CountUnreadForAccount(ctx context.Context
 				OR ` + openPoll + `
 			)
 			AND ` + reached
-	// Arg order: read-state join (acc), tenant set, the open-poll predicate's acc,
-	// then reachedPredicate's acc three times (student once, pending twice).
+	// Arg order: read-state join (acc), the two tenant sets, the open-poll
+	// predicate's acc, then reachedPredicate's acc three times (student once,
+	// pending twice).
 	if err := base.GetDB(ctx, r.DB).NewRaw(sqlStr,
-		accountID, bun.List(tenantIDs), accountID, accountID, accountID, accountID,
+		accountID, feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs), accountID, accountID, accountID, accountID,
 	).Scan(ctx, &count); err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count outstanding parent announcements", Err: err}
 	}

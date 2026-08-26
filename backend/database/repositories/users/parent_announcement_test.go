@@ -112,7 +112,7 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	assert.Equal(t, 0, missCount, "class 9z reaches nobody in this fixture")
 
 	// --- Feed: published reachable announcements, drafts excluded ---
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	ids := map[int64]bool{}
 	for _, item := range feed {
@@ -124,14 +124,14 @@ func TestParentAnnouncementAudience(t *testing.T) {
 	assert.False(t, ids[draft.ID], "feed excludes drafts")
 
 	// --- Unread count drops after a read ---
-	unreadBefore, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
+	unreadBefore, err := repo.CountUnreadForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, unreadBefore, 2)
 
 	readApplied, err := repo.MarkRead(ctx, chain.TenantID, schoolWide.ID, chain.AccountID, *schoolWide.PublishedAt)
 	require.NoError(t, err)
 	assert.True(t, readApplied, "reading at the live version applies")
-	unreadAfter, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
+	unreadAfter, err := repo.CountUnreadForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	assert.Equal(t, unreadBefore-1, unreadAfter, "reading one announcement drops unread by one")
 
@@ -443,7 +443,7 @@ func TestParentAnnouncementAudience_InactiveMembershipExcluded(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, countBefore-1, count, "inactive membership excluded from CountAudience")
 
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	assert.Empty(t, feed, "inactive membership sees no feed for this tenant")
 }
@@ -580,7 +580,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	recipients, err := repo.ResolveAudienceEmails(ctx, chain.TenantID, announcement.ID)
 	require.NoError(t, err)
 	assert.Empty(t, recipients)
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, []int64{chain.TenantID})
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
 	assert.NotContains(t, announcementIDs(feed), announcement.ID)
 
@@ -602,7 +602,7 @@ func TestParentAnnouncementAudience_WeekdayScopedEnrollmentMatchesToday(t *testi
 	require.NoError(t, err)
 	require.Len(t, recipients, 1)
 	assert.Equal(t, chain.AccountID, recipients[0].AccountID)
-	feed, err = repo.ListFeedForAccount(ctx, chain.AccountID, []int64{chain.TenantID})
+	feed, err = repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: []int64{chain.TenantID}})
 	require.NoError(t, err)
 	assert.Contains(t, announcementIDs(feed), announcement.ID)
 }
@@ -708,7 +708,7 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	assert.False(t, otherMatched, "an account with no matching enrollment request must NOT be reached")
 
 	// --- Feed + unread badge include the announcement ---
-	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, tenantIDs)
+	feed, err := repo.ListFeedForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	inFeed := false
 	for _, item := range feed {
@@ -718,7 +718,7 @@ func TestParentAnnouncementAudience_PendingEnrollmentEmailFallback(t *testing.T)
 	}
 	assert.True(t, inFeed, "feed includes the pending_enrollment announcement for the e-mail-matched applicant")
 
-	unread, err := repo.CountUnreadForAccount(ctx, chain.AccountID, tenantIDs)
+	unread, err := repo.CountUnreadForAccount(ctx, chain.AccountID, usersModels.AnnouncementFeedScope{TenantIDs: tenantIDs})
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, unread, 1, "unread badge counts the announcement")
 

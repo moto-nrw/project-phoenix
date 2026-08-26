@@ -243,7 +243,7 @@ func TestSchoolInvoiceRepository_FindByIDOrNil_UnknownIDIsNil(t *testing.T) {
 }
 
 // The tenant boundary: school B must not see, read or delete school A's
-// invoices. RLS (migration 1.15.332) plus the repository's tenant filter.
+// invoices. RLS (migration 1.15.335) plus the repository's tenant filter.
 func TestSchoolInvoiceRepository_IsTenantIsolated(t *testing.T) {
 	t.Parallel()
 

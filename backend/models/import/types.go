@@ -2,6 +2,8 @@ package importpkg
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -47,7 +49,24 @@ type ImportMode string
 const (
 	ImportModeCreate ImportMode = "create" // Only create new (error on duplicate)
 	ImportModeUpdate ImportMode = "update" // Only update existing (error on new)
+	ImportModeUpsert ImportMode = "upsert" // Create new rows, update existing ones
 )
+
+// ParseImportMode maps the form value of the import UI to an ImportMode. An
+// empty value keeps the historical default (create-only); anything unknown is
+// rejected so a typo can never silently turn a preview into an update run.
+func ParseImportMode(raw string) (ImportMode, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", string(ImportModeCreate):
+		return ImportModeCreate, nil
+	case string(ImportModeUpdate):
+		return ImportModeUpdate, nil
+	case string(ImportModeUpsert):
+		return ImportModeUpsert, nil
+	default:
+		return "", fmt.Errorf("unbekannter Import-Modus '%s' (erlaubt: create, update, upsert)", raw)
+	}
+}
 
 // ErrorSeverity defines error importance
 type ErrorSeverity string

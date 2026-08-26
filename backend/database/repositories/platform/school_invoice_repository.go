@@ -22,7 +22,7 @@ type SchoolInvoiceRepository struct {
 
 // NewSchoolInvoiceRepository builds the tenant-scoped invoice repository.
 // TenantScoped adds the defense-in-depth WHERE tenant_id = ? on top of the
-// RLS policy provisioned in migration 1.15.332.
+// RLS policy provisioned in migration 1.15.335.
 func NewSchoolInvoiceRepository(db *bun.DB) platform.SchoolInvoiceRepository {
 	repo := base.NewRepository[*platform.SchoolInvoice](db, tablePlatformSchoolInvoices, "SchoolInvoice")
 	repo.TenantScoped = true

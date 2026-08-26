@@ -541,3 +541,48 @@ func TestEnsureSchoolIdentity_ReusesExistingPersonWithoutNames(t *testing.T) {
 	require.ErrorIs(t, err, ErrSchoolIdentityNamesRequired)
 	require.Empty(t, staffAll())
 }
+
+// The staff import files the person before the invitation goes out (#2600):
+// accepting must complete the chain on that person instead of filing a twin.
+func TestEnsureSchoolIdentity_AdoptsHintedImportedPerson(t *testing.T) {
+	t.Parallel()
+	repos, persons, staffAll, _ := identityRepos()
+
+	imported := &userModel.Person{FirstName: "Importierte", LastName: "Person"}
+	require.NoError(t, persons.Create(context.Background(), imported))
+	staffRow := &userModel.Staff{PersonID: imported.ID}
+	require.NoError(t, repos.Staff.Create(context.Background(), staffRow))
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.FirstName, in.LastName = "Anderer", "Name" // must not matter: the person exists
+	in.PersonID = &imported.ID
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos, in)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	require.Equal(t, imported.ID, identity.Person.ID, "the hinted person is reused")
+	require.NotNil(t, identity.Person.AccountID)
+	require.Equal(t, in.AccountID, *identity.Person.AccountID)
+	require.Equal(t, staffRow.ID, identity.Staff.ID, "the imported staff row is reused")
+	require.Len(t, staffAll(), 1, "no second staff row")
+	require.NotNil(t, identity.Teacher, "the caregiver profile is completed on acceptance")
+}
+
+func TestEnsureSchoolIdentity_IgnoresHintOwnedByAnotherAccount(t *testing.T) {
+	t.Parallel()
+	repos, persons, staffAll, _ := identityRepos()
+
+	other := &userModel.Person{FirstName: "Fremde", LastName: "Person"}
+	require.NoError(t, persons.Create(context.Background(), other))
+	require.NoError(t, persons.LinkToAccount(context.Background(), other.ID, 4242))
+
+	in := identityInput(customRole("Betreuung", "user"))
+	in.PersonID = &other.ID
+
+	identity, err := EnsureSchoolIdentity(context.Background(), repos, in)
+	require.NoError(t, err)
+	require.NotNil(t, identity)
+	require.NotEqual(t, other.ID, identity.Person.ID, "somebody else's person is never taken over")
+	require.Equal(t, "Ada", identity.Person.FirstName)
+	require.Len(t, staffAll(), 1)
+}
