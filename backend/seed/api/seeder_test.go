@@ -66,6 +66,56 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 	assert.Equal(t, false, seen[configModels.KeyEnrollmentRequireCaptcha])
 }
 
+func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/auth/login":
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"access_token":"staff-token"}}`)
+		case "/api/time-tracking/current":
+			// Die Aufsicht steht nach dem Sitzungsstart eingestempelt da.
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"77"}}`)
+		default:
+			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
+		}
+	}))
+	defer srv.Close()
+
+	step := seedStatisticsDemoStep{}
+	seeder := &FixedSeeder{
+		deviceKeys:      map[string]string{DemoDevices[0].DeviceID: "device-key"},
+		activityIDs:     map[string]int64{DemoActivities[0].Name: 11},
+		activityRoomIDs: map[int64]int64{11: 12},
+		staffIDs:        map[string]int64{"Mara Muster": 13},
+		staffCredentials: []StaffCredentials{
+			{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"},
+		},
+		studentIDByIndex: map[int]int64{0: 101, 1: 102, 2: 103},
+	}
+
+	err := step.Run(context.Background(), &Runtime{
+		Client:      newTestClient(srv.URL, false),
+		FixedSeeder: seeder,
+		StaffPIN:    "1234",
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []string{
+		"/api/iot/session/start",
+		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/session/end",
+		// Der Sitzungsstart stempelt die Aufsicht ein, das Sitzungsende bucht
+		// sie nicht aus: der Schritt holt das nach, sonst bliebe eine offene
+		// Arbeitszeit im Mandanten stehen.
+		"/auth/login", "/api/time-tracking/current", "/api/time-tracking/check-out",
+	}, paths)
+}
+
 func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	t.Parallel()
 

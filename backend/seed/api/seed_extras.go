@@ -93,6 +93,102 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
+// seedStatisticsDemoStep records a small, deterministic attendance and room
+// scenario so a fresh demo tenant can show the Statistik page immediately.
+type seedStatisticsDemoStep struct{}
+
+func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
+
+func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
+	if rt.FixedSeeder == nil || len(rt.FixedSeeder.staffCredentials) == 0 {
+		return fmt.Errorf("fixed seeder data not available")
+	}
+	deviceKey := rt.FixedSeeder.deviceKeys[DemoDevices[0].DeviceID]
+	activityID := rt.FixedSeeder.activityIDs[DemoActivities[0].Name]
+	roomID := rt.FixedSeeder.activityRoomIDs[activityID]
+	staffID := rt.FixedSeeder.staffIDs[rt.FixedSeeder.staffCredentials[0].Name]
+	if deviceKey == "" || activityID == 0 || roomID == 0 || staffID == 0 {
+		return fmt.Errorf("statistics demo prerequisites not available")
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/session/start", map[string]any{
+		"activity_id": activityID, "room_id": roomID, "supervisor_ids": []int64{staffID},
+	}, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("start statistics demo session: %w", err)
+	}
+	seeded := 0
+	for i := 0; i < 3 && i < len(DemoStudents); i++ {
+		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
+		if !ok {
+			continue
+		}
+		// Der Tag muss hexadezimal sein (models/users.RFIDCard.Validate).
+		rfid := fmt.Sprintf("57A7%08X", studentID)
+		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("assign statistics demo RFID: %w", err)
+		}
+		if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("record statistics demo attendance: %w", err)
+		}
+		if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
+			return fmt.Errorf("record statistics demo room visit: %w", err)
+		}
+		seeded++
+	}
+	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
+		return fmt.Errorf("end statistics demo session: %w", err)
+	}
+	if err := checkOutStatisticsSupervisor(rt); err != nil {
+		return err
+	}
+	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
+	return nil
+}
+
+// checkOutStatisticsSupervisor bucht die Aufsicht wieder aus. Der
+// Sitzungsstart stempelt sie per NFC ein (ensureNFCAutoCheckIn), das
+// Sitzungsende bucht sie nicht aus; sonst bliebe eine offene Arbeitszeit im
+// Mandanten stehen. Hat die Zeiterfassungs-Historie den heutigen Block schon
+// geschrieben, unterbleibt der NFC-Stempel und es gibt nichts auszubuchen.
+func checkOutStatisticsSupervisor(rt *Runtime) error {
+	cred := rt.FixedSeeder.staffCredentials[0]
+	previous := rt.Client.auth
+	defer rt.Client.BindAuth(previous)
+
+	if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
+		return fmt.Errorf("login statistics demo supervisor %s: %w", cred.Email, err)
+	}
+	open, err := hasOpenWorkSession(rt)
+	if err != nil {
+		return err
+	}
+	if !open {
+		return nil
+	}
+	if _, err := rt.Client.Post("/api/time-tracking/check-out", nil); err != nil {
+		return fmt.Errorf("check out statistics demo supervisor: %w", err)
+	}
+	return nil
+}
+
+// hasOpenWorkSession reports whether the logged-in staff account has a
+// running work session. GET /current answers with a null payload when there
+// is none.
+func hasOpenWorkSession(rt *Runtime) (bool, error) {
+	resp, err := rt.Client.Get("/api/time-tracking/current")
+	if err != nil {
+		return false, fmt.Errorf("read current work session: %w", err)
+	}
+	var payload struct {
+		Data *struct {
+			ID json.Number `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &payload); err != nil {
+		return false, fmt.Errorf("parse current work session: %w", err)
+	}
+	return payload.Data != nil && payload.Data.ID != "", nil
+}
+
 // seedCareExitsStep records two planned ends of care (#2487) so the child
 // management shows the "Betreuung endet am …" state and the reason table is
 // not empty on a fresh machine.

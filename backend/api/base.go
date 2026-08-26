@@ -51,6 +51,7 @@ import (
 	sseAPI "github.com/moto-nrw/project-phoenix/api/sse"
 	staffAPI "github.com/moto-nrw/project-phoenix/api/staff"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
+	statisticsAPI "github.com/moto-nrw/project-phoenix/api/statistics"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	timeTrackingAPI "github.com/moto-nrw/project-phoenix/api/time-tracking"
@@ -106,6 +107,7 @@ type API struct {
 	Auth             *authAPI.Resource
 	Rooms            *roomsAPI.Resource
 	Students         *studentsAPI.Resource
+	Statistics       *statisticsAPI.Resource
 	Groups           *groupsAPI.Resource
 	Guardians        *guardiansAPI.Resource
 	Import           *importAPI.Resource
@@ -564,6 +566,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		Logger:                 logger.With("handler", "students"),
 		DB:                     db,
 	})
+	api.Statistics = statisticsAPI.NewResource(api.Services.Statistics, api.Services.ListExport, db, logger.With("handler", "statistics"))
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.StaffMessaging = staffMessagingAPI.NewResource(api.Services.StaffMessaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
@@ -866,6 +869,7 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount student resources
 		r.Mount("/students", a.Students.Router())
+		r.Mount("/statistics", a.Statistics.Router())
 		r.Mount("/messages", a.Messaging.Router())
 		// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 		// separate surface from /messages (which is parent-facing).

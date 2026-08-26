@@ -70,6 +70,8 @@ interface NavItem {
   // An array shows the item when ANY listed permission is held (matching
   // backend RequiresAnyPermission routes).
   requiresPermission?: string | readonly string[];
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -189,12 +191,13 @@ const NAV_ITEMS: NavItem[] = [
     alwaysShow: true,
   },
   {
-    href: "#",
-    label: "Berichte",
+    // Statistik (#2606): Anwesenheitsquoten je Kind, Gruppe und Zeitraum
+    // plus Raumauslastung. Das Backend verlangt config:read UND users:read.
+    ...STAFF_FLAT_PAGES.statistics,
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
-    requiresAdmin: true,
+    requiresAllPermissions: ["config:read", "users:read"],
     concept: "reports",
-    comingSoon: true,
+    activeColor: "text-moto-blue",
   },
   {
     ...STAFF_FLAT_PAGES.emergency,
@@ -583,6 +586,12 @@ function SidebarContent({ className = "" }: SidebarProps) {
           : item.requiresPermission;
       if (!required.some((p) => hasPermission(session, p))) return false;
     }
+    if (
+      item.requiresAllPermissions &&
+      !userIsAdmin &&
+      !item.requiresAllPermissions.every((p) => hasPermission(session, p))
+    )
+      return false;
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });

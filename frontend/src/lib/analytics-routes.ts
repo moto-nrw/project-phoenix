@@ -66,6 +66,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/staff",
   "/staff/:id",
   "/staff/dienstplan",
+  "/statistics",
   "/students/:id",
   "/students/:id/change-history",
   "/students/:id/feedback-history",

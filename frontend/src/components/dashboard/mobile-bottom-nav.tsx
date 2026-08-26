@@ -43,6 +43,7 @@ import {
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
+  STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
   Drawer,
@@ -235,6 +236,8 @@ interface AdditionalNavItem {
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
   requiresPermission?: string;
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
@@ -440,12 +443,10 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
   {
-    href: "#",
-    label: "Berichte",
+    ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
     concept: "reports",
-    requiresAdmin: true,
-    comingSoon: true,
+    requiresAllPermissions: ["config:read", "users:read"],
   },
 ];
 
@@ -668,6 +669,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     if (item.href === "/team-chat" && !staffMessagingEnabled) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresAllPermissions) {
+      return (
+        userIsAdmin ||
+        item.requiresAllPermissions.every((permission) =>
+          hasPermission(session, permission),
+        )
+      );
+    }
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);
     }

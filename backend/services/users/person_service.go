@@ -590,6 +590,11 @@ func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context,
 // retroactively enrolled. Whether a child whose enrollment has not started yet
 // is REPORTED for the day is a separate question the day log answers on its
 // own — being on the roster only means their records count.
+//
+// This is deliberately NOT userModels.EnrolledOn (#1565, #2606): that rule also
+// applies the enrolled_until upper bound, which would undo the resolver's
+// actual-presence exception for a child who is still there after their planned
+// care ended. Keep the lower-bound half in step with EnrolledOn.
 func filterStudentsStartedOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
 	eligible := make([]*userModels.Student, 0, len(students))
 	for _, student := range students {
