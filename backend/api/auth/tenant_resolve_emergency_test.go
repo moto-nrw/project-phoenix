@@ -6,7 +6,9 @@
 package auth_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,8 +21,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
+
+type failingTenantShellSettings struct {
+	configSvc.SettingsService
+}
+
+func (failingTenantShellSettings) ResolveManyForTenant(
+	context.Context,
+	int64,
+	[]string,
+) (*configSvc.SettingsSnapshot, error) {
+	return nil, errors.New("settings unavailable")
+}
 
 type emergencyResolveResp struct {
 	Data struct {
@@ -67,9 +82,6 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 	require.NoError(t,
 		svc.Settings.SetValue(ctx, configModel.KeyEmergencyListHealthInfo, false, nil, nil),
 		"disable emergency_list_health_info for the isolated tenant")
-	t.Cleanup(func() {
-		require.NoError(t, svc.Settings.ResetValue(ctx, configModel.KeyEmergencyListHealthInfo, nil, nil))
-	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -87,4 +99,30 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.False(t, resp.Data.EmergencyHealthInfoEnabled,
 		"tenant override of false must round-trip to the tenant shell")
+}
+
+// If settings cannot be resolved, tenant metadata must not promise health
+// data that the emergency export deliberately omits in the same situation.
+func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	db, svc := testutil.SetupAPITest(t)
+	_, slug := newTenantResolveScope(t, db)
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = failingTenantShellSettings{SettingsService: svc.Settings}
+
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp emergencyResolveResp
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.False(t, resp.Data.EmergencyHealthInfoEnabled,
+		"unreadable settings must not promise health data that the export omits")
 }

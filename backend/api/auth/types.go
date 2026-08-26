@@ -86,10 +86,9 @@ type TenantResolveResponse struct {
 	// like the flags above: the Notfall page describes what the printed list
 	// contains, and every member of staff can open it without carrying
 	// config:read — so a school that switched the health column off must not
-	// be told the list carries it. Defaults to true, the registry default,
-	// when the setting is missing or unresolvable: describing a column that
-	// is actually there is the safe direction for a page whose only purpose
-	// is telling people what they are about to print.
+	// be told the list carries it. Defaults to false when the setting is
+	// missing or unresolvable, matching the export's fail-closed behavior so
+	// the page never promises health data that its PDF omits.
 	EmergencyHealthInfoEnabled bool `json:"emergency_list_health_info_enabled"`
 }
 

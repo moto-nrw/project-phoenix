@@ -152,9 +152,8 @@ describe("tenant-api", () => {
         showTimetableCounts: true,
         waitlistEnabled: true,
         // Older backends omit the health-column flag (#2609). Absent means
-        // enabled, matching the registry default — the Notfall page then
-        // describes the column the backend actually prints.
-        emergencyHealthInfoEnabled: true,
+        // disabled because those backends do not print the health column.
+        emergencyHealthInfoEnabled: false,
         gradeLevelMax: 13,
       });
     });
