@@ -1259,6 +1259,11 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err := s.RequestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
+	if input.Status == DecisionApproved && target.MatchedStudentID != nil {
+		if err := s.reconcileExistingStudentCareRenewal(ctx, target.ID, *target.MatchedStudentID, phase); err != nil {
+			return nil, err
+		}
+	}
 	// Multi-source templates are reconciled through the union resync, which
 	// resolves children by their APPROVED status — applyApproval deliberately
 	// runs before the status flip, so its in-flight resync cannot see this
@@ -1991,9 +1996,6 @@ func (s *decisionService) attachApprovalToExistingStudent(
 	}
 	if careOfferingsEnabled {
 		if err := s.materializeEnrollmentsForApproval(ctx, child.ID, studentID, phase); err != nil {
-			return nil, err
-		}
-		if err := s.reconcileExistingStudentCareRenewal(ctx, child.ID, studentID, phase); err != nil {
 			return nil, err
 		}
 	}
