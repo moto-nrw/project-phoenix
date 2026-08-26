@@ -57,7 +57,11 @@ describe("ParentShell", () => {
     expect(document.querySelector("[data-parent-safe-area-top]")).toHaveClass(
       "h-[env(safe-area-inset-top)]",
       "min-h-8",
+      "bg-transparent",
       "lg:hidden",
+    );
+    expect(document.querySelector("[data-portal-background]")).toHaveClass(
+      "moto-dotted-background--parent",
     );
     expect(screen.getByTestId("parent-bottom-nav")).toBeInTheDocument();
   });

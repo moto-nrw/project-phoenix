@@ -379,6 +379,10 @@
   inset: 3.5rem 0 0;
 }
 
+.moto-dotted-background--parent {
+  inset: 0;
+}
+
 @media (min-width: 1024px) {
   .moto-dotted-background--app-fixed {
     inset: 0;
