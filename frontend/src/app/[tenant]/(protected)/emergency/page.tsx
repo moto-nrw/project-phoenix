@@ -71,8 +71,10 @@ export default function EmergencyPage() {
           </h1>
           <p className="mt-3 text-base leading-7 text-gray-600 sm:mt-4 sm:text-lg sm:leading-8">
             Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält
-            Klasse, Ort oder Raum, Telefonnummern, Kontaktpersonen
-            {healthInfoOnList ? " und die hinterlegten Gesundheitsinfos." : "."}
+            Klasse, Ort oder Raum, Telefonnummern
+            {healthInfoOnList
+              ? ", Kontaktpersonen und die hinterlegten Gesundheitsinfos."
+              : " und Kontaktpersonen."}
           </p>
         </div>
 
