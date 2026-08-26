@@ -18,3 +18,9 @@ type Service interface {
 	Get(int64) (Leaky, error)
 	Upsert(Leaky) error
 }
+
+type service struct{}
+
+func New() service { return service{} }
+
+func (service) List(map[string]any) error { return nil }

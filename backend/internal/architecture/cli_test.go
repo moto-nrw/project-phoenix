@@ -303,6 +303,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.merged_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.truncated_records",
+		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.truncate_query_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.later_truncated_records",
 		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.Exec",
 		"production|tables.unresolved|example.test/architecture-semantic/foreign|foreign.ColumnExpr",
@@ -323,6 +324,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.List",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Get",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.New.List",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.Begin",
@@ -337,6 +339,24 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.NewFactory",
+	}
+}
+
+func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
+	t.Parallel()
+
+	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	for i := range policy.Packages {
+		if policy.Packages[i].Path == "legacy" {
+			policy.Packages[i].Owner = "alpha"
+			break
+		}
+	}
+	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition package "legacy" must have a composition owner and compose role`) {
+		t.Fatalf("legacy package outside composition was accepted: %v", err)
 	}
 }
 

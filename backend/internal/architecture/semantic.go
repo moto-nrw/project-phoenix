@@ -631,7 +631,7 @@ func bunQueryOperation(receiver types.Type) (tableOperation, bool) {
 	switch {
 	case strings.Contains(typeName, "github.com/uptrace/bun.SelectQuery"):
 		return tableRead, true
-	case strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery"), strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery"), strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery"), strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery"):
+	case strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery"), strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery"), strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery"), strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery"), strings.Contains(typeName, "github.com/uptrace/bun.TruncateTableQuery"):
 		return tableWrite, true
 	default:
 		return "", false
@@ -955,8 +955,28 @@ func contractMethodViolations(source, target string, named *types.Named) []Viola
 
 func contractFunctionViolations(source, target string, function *types.Func) []Violation {
 	violations := forbiddenTypeViolations(source, target, function.Type())
+	violations = append(violations, contractResultMethodViolations(source, target, function)...)
 	if crudMethodNames[function.Name()] {
 		violations = append(violations, contractViolation(source, "contracts.generic-crud", target, "public contracts use capability-specific operations, not generic CRUD"))
+	}
+	return violations
+}
+
+func contractResultMethodViolations(source, target string, function *types.Func) []Violation {
+	signature, ok := function.Type().(*types.Signature)
+	if !ok {
+		return nil
+	}
+	namedResults := make(map[*types.Named]struct{})
+	walkTuple(signature.Results(), make(map[types.Type]struct{}), func(current types.Type) {
+		named, ok := current.(*types.Named)
+		if ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == source {
+			namedResults[named] = struct{}{}
+		}
+	})
+	var violations []Violation
+	for named := range namedResults {
+		violations = append(violations, contractMethodViolations(source, target, named)...)
 	}
 	return violations
 }

@@ -38,6 +38,7 @@
     {"name": "beta.merge_source", "write_owner": "beta"},
 	{"name": "beta.table_expr_join", "write_owner": "beta"},
     {"name": "beta.truncated_records", "write_owner": "beta"},
+	{"name": "beta.truncate_query_records", "write_owner": "beta"},
     {"name": "beta.records", "write_owner": "beta"}
   ],
   "read_projections": [

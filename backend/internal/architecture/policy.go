@@ -150,7 +150,7 @@ func (p *Policy) Validate() error {
 	if err := p.validateReadProjections(owners, dataObjects); err != nil {
 		return err
 	}
-	if err := p.validateLegacyComposition(); err != nil {
+	if err := p.validateLegacyComposition(owners); err != nil {
 		return err
 	}
 	if err := p.validateExternalPackages(classes); err != nil {
@@ -271,12 +271,16 @@ func validateProjectionObjects(projection ReadProjection, objects map[string]Dat
 	return nil
 }
 
-func (p *Policy) validateLegacyComposition() error {
+func (p *Policy) validateLegacyComposition(owners map[string]Owner) error {
 	packages := p.packageMap()
 	seen := make(map[string]struct{})
 	for _, legacy := range p.LegacyComposition {
-		if _, ok := packages[p.absolutePackage(legacy.Package)]; !ok {
+		pkg, ok := packages[p.absolutePackage(legacy.Package)]
+		if !ok {
 			return fmt.Errorf("legacy composition references unknown package %q", legacy.Package)
+		}
+		if owners[pkg.Owner].Kind != "composition" || pkg.Role != "compose" {
+			return fmt.Errorf("legacy composition package %q must have a composition owner and compose role", legacy.Package)
 		}
 		if len(legacy.Symbols) == 0 {
 			return fmt.Errorf("legacy composition package %q has no symbols", legacy.Package)
