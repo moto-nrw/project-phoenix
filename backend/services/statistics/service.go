@@ -387,7 +387,7 @@ func filterStudentsByGroup(students []*userModels.StudentWithGroupInfo, groupIDs
 	}
 	out := make([]*userModels.StudentWithGroupInfo, 0, len(students))
 	for _, st := range students {
-		if st.Student == nil {
+		if st == nil || st.Student == nil {
 			continue
 		}
 		if (st.GroupID == nil && wanted[0]) || (st.GroupID != nil && wanted[*st.GroupID]) {

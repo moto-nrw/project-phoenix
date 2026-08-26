@@ -598,6 +598,9 @@ func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context,
 func filterStudentsStartedOnDate(students []*userModels.Student, date, today timezone.Date) []*userModels.Student {
 	eligible := make([]*userModels.Student, 0, len(students))
 	for _, student := range students {
+		if student == nil {
+			continue
+		}
 		if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) &&
 			(student.Status != userModels.StudentStatusActive || date.Before(today)) {
 			continue

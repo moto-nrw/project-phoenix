@@ -184,6 +184,12 @@ func TestFilterStudentsByGroup(t *testing.T) {
 	assert.Len(t, filterStudentsByGroup(students, []int64{a}), 1)
 	assert.Len(t, filterStudentsByGroup(students, []int64{0}), 1)
 	assert.Empty(t, filterStudentsByGroup(students, []int64{99}))
+
+	// A nil row and a row without a hydrated student are skipped, not
+	// dereferenced — buildStudentRows guards the same two cases.
+	withGaps := []*userModels.StudentWithGroupInfo{nil, {}, {Student: &userModels.Student{GroupID: &a}}}
+	assert.Len(t, filterStudentsByGroup(withGaps, []int64{a}), 1)
+	assert.Empty(t, filterStudentsByGroup(withGaps, []int64{0}))
 }
 
 func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
