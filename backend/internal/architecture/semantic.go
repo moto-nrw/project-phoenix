@@ -16,13 +16,14 @@ import (
 )
 
 var (
-	dataObjectPattern = regexp.MustCompile(`(?i)^\s*["` + "`" + `]?([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)`)
-	writeTablePattern = regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+(?:ONLY\s+)?([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)`)
-	truncatePattern   = regexp.MustCompile(`(?i)\bTRUNCATE(?:\s+TABLE)?\s+([^;]+)`)
-	truncateModifier  = regexp.MustCompile(`(?i)\s+(?:RESTART|CONTINUE)\s+IDENTITY\b.*$|\s+(?:CASCADE|RESTRICT)\b.*$`)
-	sqlCTEPattern     = regexp.MustCompile(`(?i)(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?(?:\s*\([^)]*\))?\s+AS\s*\(`)
-	sqlTokenPattern   = regexp.MustCompile(`(?i)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?|[(),;]`)
-	sqlSourceStops    = map[string]bool{
+	dataObjectPattern          = regexp.MustCompile(`(?i)^\s*["` + "`" + `]?([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)`)
+	qualifiedDataObjectPattern = regexp.MustCompile(`(?i)\b([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)\b`)
+	writeTablePattern          = regexp.MustCompile(`(?i)\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|MERGE\s+INTO)\s+(?:ONLY\s+)?([a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?)`)
+	truncatePattern            = regexp.MustCompile(`(?i)\bTRUNCATE(?:\s+TABLE)?\s+([^;]+)`)
+	truncateModifier           = regexp.MustCompile(`(?i)\s+(?:RESTART|CONTINUE)\s+IDENTITY\b.*$|\s+(?:CASCADE|RESTRICT)\b.*$`)
+	sqlCTEPattern              = regexp.MustCompile(`(?i)(?:\bWITH\s+(?:RECURSIVE\s+)?|,)\s*["` + "`" + `]?([a-z][a-z0-9_]*)["` + "`" + `]?(?:\s*\([^)]*\))?\s+AS\s*\(`)
+	sqlTokenPattern            = regexp.MustCompile(`(?i)[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)?|[(),;]`)
+	sqlSourceStops             = map[string]bool{
 		"CROSS": true, "EXCEPT": true, "FOR": true, "FULL": true, "GROUP": true,
 		"INNER": true, "INTERSECT": true, "LEFT": true, "LIMIT": true, "OFFSET": true,
 		"ON": true, "ORDER": true, "RETURNING": true, "RIGHT": true, "SET": true,
@@ -331,7 +332,10 @@ func (a semanticAnalyzer) queryFragmentViolations(pkg *packages.Package, classif
 func (a semanticAnalyzer) sqlStringViolations(source, sourceOwner, functionName, method, query string, includeWrites bool) []Violation {
 	query = stripIdentifierQuotes(stripSQLLiteralsAndComments(query))
 	aliases := sqlCTEAliases(query)
-	matches := []tableMatchSummary{a.matchDataObjects(source, sourceOwner, sqlSourceDataObjects(query), aliases, tableRead)}
+	matches := []tableMatchSummary{
+		a.matchDataObjects(source, sourceOwner, sqlSourceDataObjects(query), aliases, tableRead),
+		a.matchDataObjects(source, sourceOwner, a.qualifiedDataObjects(query), aliases, tableRead),
+	}
 	if includeWrites {
 		matches = append(matches, a.matchSQLTables(source, sourceOwner, query, aliases, writeTablePattern, tableWrite))
 		matches = append(matches, a.matchDataObjects(source, sourceOwner, truncateDataObjects(query), nil, tableWrite))
@@ -346,6 +350,17 @@ func (a semanticAnalyzer) sqlStringViolations(source, sourceOwner, functionName,
 		violations = append(violations, unresolvedTableViolation(source, functionName, method))
 	}
 	return violations
+}
+
+func (a semanticAnalyzer) qualifiedDataObjects(query string) []string {
+	matches := qualifiedDataObjectPattern.FindAllStringSubmatch(query, -1)
+	objects := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if a.knownDataSchema(match[1]) {
+			objects = append(objects, match[1])
+		}
+	}
+	return objects
 }
 
 func stripSQLLiteralsAndComments(query string) string {
@@ -665,7 +680,7 @@ func isBunDBCall(receiver types.Type, selection *types.Selection, method string)
 	if receiver == nil {
 		return false
 	}
-	if isBunDBType(receiver) || isBunDatabaseInterface(receiver) || isSQLDatabaseInterface(receiver, method) {
+	if isBunDBType(receiver) || isBunDatabaseInterface(receiver, method) || isSQLDatabaseInterface(receiver, method) {
 		return true
 	}
 	if selection == nil {
@@ -679,7 +694,7 @@ func isBunDBCall(receiver types.Type, selection *types.Selection, method string)
 	return ok && signature.Recv() != nil && isBunDBType(signature.Recv().Type())
 }
 
-func isBunDatabaseInterface(receiver types.Type) bool {
+func isBunDatabaseInterface(receiver types.Type, method string) bool {
 	if receiver == nil {
 		return false
 	}
@@ -689,15 +704,23 @@ func isBunDatabaseInterface(receiver types.Type) bool {
 	}
 	interfaceType.Complete()
 	for index := 0; index < interfaceType.NumMethods(); index++ {
-		signature, ok := interfaceType.Method(index).Type().(*types.Signature)
-		if !ok {
-			continue
+		interfaceMethod := interfaceType.Method(index)
+		if interfaceMethod.Name() == method && isBunQueryMethod(interfaceMethod) {
+			return true
 		}
-		for result := 0; result < signature.Results().Len(); result++ {
-			typeName := types.TypeString(signature.Results().At(result).Type(), packagePathQualifier)
-			if strings.Contains(typeName, "github.com/uptrace/bun.SelectQuery") || strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery") || strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery") || strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery") || strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery") || strings.Contains(typeName, "github.com/uptrace/bun.RawQuery") {
-				return true
-			}
+	}
+	return false
+}
+
+func isBunQueryMethod(function *types.Func) bool {
+	signature, ok := function.Type().(*types.Signature)
+	if !ok {
+		return false
+	}
+	for result := 0; result < signature.Results().Len(); result++ {
+		typeName := types.TypeString(signature.Results().At(result).Type(), packagePathQualifier)
+		if strings.Contains(typeName, "github.com/uptrace/bun.SelectQuery") || strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery") || strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery") || strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery") || strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery") || strings.Contains(typeName, "github.com/uptrace/bun.RawQuery") {
+			return true
 		}
 	}
 	return false
@@ -751,9 +774,21 @@ func isSQLDatabaseInterfaceMethod(method string, function *types.Func) bool {
 		return hasSQLResult(signature, "database/sql.Conn")
 	case "Prepare", "PrepareContext":
 		return hasSQLQueryArgument(signature, queryArgument) && hasSQLResult(signature, "database/sql.Stmt")
+	case "Ping":
+		return signature.Params().Len() == 0 && hasErrorResult(signature)
+	case "PingContext":
+		return signature.Params().Len() == 1 && hasContextArgument(signature, 0) && hasErrorResult(signature)
 	default:
 		return false
 	}
+}
+
+func hasContextArgument(signature *types.Signature, index int) bool {
+	return signature.Params().Len() > index && types.TypeString(signature.Params().At(index).Type(), packagePathQualifier) == "context.Context"
+}
+
+func hasErrorResult(signature *types.Signature) bool {
+	return signature.Results().Len() == 1 && types.Identical(signature.Results().At(0).Type(), types.Universe.Lookup("error").Type())
 }
 
 func hasSQLQueryArgument(signature *types.Signature, index int) bool {

@@ -45,6 +45,25 @@ func SQLAccessInterface(db SQLDB) {
 	db.ExecContext(context.Background(), "SELECT * FROM beta.fragment_records")
 }
 
+type PingDB interface {
+	Ping() error
+	PingContext(context.Context) error
+}
+
+func PingDatabase(db PingDB) {
+	_ = db.Ping()
+	_ = db.PingContext(context.Background())
+}
+
+type MixedDB interface {
+	NewSelect() *bun.SelectQuery
+	Close() error
+}
+
+func CloseMixedDB(db MixedDB) {
+	_ = db.Close()
+}
+
 type Event struct{}
 
 type EventExecutor interface {

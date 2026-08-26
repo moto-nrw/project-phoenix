@@ -283,6 +283,9 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 	if strings.Contains(output, "tables.foreign-read|example.test/architecture-semantic/projection|beta.records") {
 		t.Fatalf("tenant-safe projection read was rejected:\n%s", output)
 	}
+	if strings.Contains(output, "database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.MixedDB.Close") {
+		t.Fatalf("unrelated interface method was reported as database access:\n%s", output)
+	}
 }
 
 func expectedSemanticViolationKeys() []string {
@@ -294,6 +297,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.joined_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.merge_source",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.qualified_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.table_expr_join",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.hidden_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.merged_records",
@@ -326,6 +330,8 @@ func expectedSemanticViolationKeys() []string {
 		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Stmt.Exec",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SelectDB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SQLDB.ExecContext",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.Ping",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.PingContext",
 		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.fragment_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
 		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
