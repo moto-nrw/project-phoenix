@@ -324,6 +324,8 @@ func expectedSemanticViolationKeys() []string {
 		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Conn.ExecContext",
 		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Stmt.Exec",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SelectDB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SQLDB.ExecContext",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.fragment_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
 		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",

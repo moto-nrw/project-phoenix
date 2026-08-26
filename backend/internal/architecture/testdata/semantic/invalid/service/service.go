@@ -2,6 +2,7 @@ package service
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -31,4 +32,18 @@ func ReadInterface(db SelectDB) {
 func SQLAccess(conn *sql.Conn, stmt *sql.Stmt) {
 	conn.ExecContext(nil, "SELECT * FROM beta.records")
 	stmt.Exec()
+}
+
+type SQLDB interface {
+	ExecContext(any, string, ...any) (sql.Result, error)
+	Query(string, ...any) (*sql.Rows, error)
+	Begin() (*sql.Tx, error)
+}
+
+func SQLAccessInterface(db SQLDB) {
+	db.ExecContext(nil, "SELECT * FROM beta.fragment_records")
+}
+
+func PackageCall() error {
+	return fmt.Errorf("package-qualified calls have no receiver type")
 }

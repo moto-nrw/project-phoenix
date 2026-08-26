@@ -662,7 +662,10 @@ func bunModelDataObject(model types.Type) (string, bool) {
 }
 
 func isBunDBCall(receiver types.Type, selection *types.Selection, method string) bool {
-	if isBunDBType(receiver) || isBunDatabaseInterface(receiver) {
+	if receiver == nil {
+		return false
+	}
+	if isBunDBType(receiver) || isBunDatabaseInterface(receiver) || isSQLDatabaseInterface(receiver, method) {
 		return true
 	}
 	if selection == nil {
@@ -677,6 +680,9 @@ func isBunDBCall(receiver types.Type, selection *types.Selection, method string)
 }
 
 func isBunDatabaseInterface(receiver types.Type) bool {
+	if receiver == nil {
+		return false
+	}
 	interfaceType, ok := receiver.Underlying().(*types.Interface)
 	if !ok {
 		return false
@@ -692,6 +698,32 @@ func isBunDatabaseInterface(receiver types.Type) bool {
 			if strings.Contains(typeName, "github.com/uptrace/bun.SelectQuery") || strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery") || strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery") || strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery") || strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery") || strings.Contains(typeName, "github.com/uptrace/bun.RawQuery") {
 				return true
 			}
+		}
+	}
+	return false
+}
+
+var sqlDatabaseInterfaceMethods = map[string]struct{}{
+	"Begin": {}, "BeginTx": {}, "Conn": {}, "Exec": {}, "ExecContext": {},
+	"Ping": {}, "PingContext": {}, "Prepare": {}, "PrepareContext": {},
+	"Query": {}, "QueryContext": {}, "QueryRow": {}, "QueryRowContext": {},
+}
+
+func isSQLDatabaseInterface(receiver types.Type, method string) bool {
+	if receiver == nil {
+		return false
+	}
+	if _, ok := sqlDatabaseInterfaceMethods[method]; !ok {
+		return false
+	}
+	interfaceType, ok := receiver.Underlying().(*types.Interface)
+	if !ok {
+		return false
+	}
+	interfaceType.Complete()
+	for index := 0; index < interfaceType.NumMethods(); index++ {
+		if interfaceType.Method(index).Name() == method {
+			return true
 		}
 	}
 	return false
