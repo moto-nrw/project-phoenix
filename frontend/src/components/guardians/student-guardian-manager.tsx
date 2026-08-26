@@ -662,7 +662,7 @@ export default function StudentGuardianManager({
           <StudentPaymentCard
             studentId={studentId}
             guardians={guardians}
-            readOnly={readOnly}
+            readOnly={readOnly && !canSeePayment}
             onChanged={() => void loadGuardians()}
           />
         </div>

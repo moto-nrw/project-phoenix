@@ -2408,6 +2408,9 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	}
 
 	if pruneStalePrimary && primaryLink != nil {
+		if err := s.recordPayerTransfer(ctx, primaryLink, guardian.ID, reviewedBy); err != nil {
+			return nil, err
+		}
 		primaryLink.GuardianProfileID = guardian.ID
 		primaryLink.RelationshipType = "guardian"
 		primaryLink.IsPrimary = true
@@ -2501,6 +2504,28 @@ func (s *decisionService) recordPayerRemoval(ctx context.Context, link *users.St
 		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
 	}); err != nil {
 		return fmt.Errorf("decision: write payer removal audit: %w", err)
+	}
+	return nil
+}
+
+// recordPayerTransfer records both sides before a relationship row is pointed
+// at another guardian. Keeping is_payer on the row would otherwise silently
+// turn the new guardian into the payer.
+func (s *decisionService) recordPayerTransfer(ctx context.Context, link *users.StudentGuardian, newGuardianProfileID, reviewedBy int64) error {
+	if link == nil || !link.IsPayer || link.GuardianProfileID == newGuardianProfileID {
+		return nil
+	}
+	if s.GuardianFinancialAudit == nil || reviewedBy <= 0 {
+		return fmt.Errorf("decision: payer transfer requires a financial audit actor")
+	}
+	studentID := link.StudentID
+	for _, change := range []auditModels.GuardianFinancialChange{
+		{GuardianProfileID: link.GuardianProfileID, StudentID: &studentID, ChangedBy: reviewedBy, FieldName: auditModels.GuardianPaymentFieldIsPayer, OldValue: "true", NewValue: "false", Note: "Zahlungskonto auf andere erziehungsberechtigte Person übertragen"},
+		{GuardianProfileID: newGuardianProfileID, StudentID: &studentID, ChangedBy: reviewedBy, FieldName: auditModels.GuardianPaymentFieldIsPayer, OldValue: "false", NewValue: "true", Note: "Zahlungskonto von anderer erziehungsberechtigter Person übernommen"},
+	} {
+		if err := s.GuardianFinancialAudit.Create(ctx, &change); err != nil {
+			return fmt.Errorf("decision: write payer transfer audit: %w", err)
+		}
 	}
 	return nil
 }
