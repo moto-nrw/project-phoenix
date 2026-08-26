@@ -82,6 +82,21 @@ func TestEvaluateCareBookingStates_ReportsAnOverdueGapAfterAMissedSchedulerRun(t
 	assert.Equal(t, firstGap, *evaluations[0].FirstBookinglessDay)
 }
 
+func TestEvaluateCareBookingStates_ReportsAGapOnBookingValidityBoundary(t *testing.T) {
+	t.Parallel()
+
+	firstGap := timezone.NewDate(2026, time.August, 25)
+	evaluations := EvaluateCareBookingStates([]userModels.CareBookingFacts{{
+		StudentID: 48,
+		Periods:   []userModels.CareBookingPeriod{{ValidUntil: &firstGap, Days: []string{"mon"}}},
+	}}, firstGap)
+
+	require.Len(t, evaluations, 1)
+	assert.False(t, evaluations[0].HasCareDays)
+	require.NotNil(t, evaluations[0].FirstBookinglessDay)
+	assert.Equal(t, firstGap, *evaluations[0].FirstBookinglessDay)
+}
+
 func TestEvaluateCareBookingStates_KeepsAllOfferingsThatEndAtTheGap(t *testing.T) {
 	t.Parallel()
 
