@@ -24,3 +24,9 @@ type service struct{}
 func New() service { return service{} }
 
 func (service) List(map[string]any) error { return nil }
+
+type recursiveService struct{}
+
+func NewRecursive() recursiveService { return recursiveService{} }
+
+func (recursiveService) List() recursiveService { return recursiveService{} }

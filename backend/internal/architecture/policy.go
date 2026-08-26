@@ -245,14 +245,14 @@ func (p *Policy) validateReadProjections(owners map[string]Owner, objects map[st
 		if len(projection.DataObjects) == 0 {
 			return fmt.Errorf("read projection %q has no data objects", projection.ID)
 		}
-		if err := validateProjectionObjects(projection, objects, seenGrants); err != nil {
+		if err := p.validateProjectionObjects(projection, objects, seenGrants); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateProjectionObjects(projection ReadProjection, objects map[string]DataObject, seenGrants map[string]string) error {
+func (p *Policy) validateProjectionObjects(projection ReadProjection, objects map[string]DataObject, seenGrants map[string]string) error {
 	projectionObjects := make(map[string]struct{}, len(projection.DataObjects))
 	for _, name := range projection.DataObjects {
 		if _, ok := objects[name]; !ok {
@@ -261,7 +261,7 @@ func validateProjectionObjects(projection ReadProjection, objects map[string]Dat
 		if _, exists := projectionObjects[name]; exists {
 			return fmt.Errorf("read projection %q names data object %q more than once", projection.ID, name)
 		}
-		grant := projection.Package + "|" + name
+		grant := p.absolutePackage(projection.Package) + "|" + name
 		if previous, exists := seenGrants[grant]; exists {
 			return fmt.Errorf("read projections %q and %q both grant package %q access to data object %q", previous, projection.ID, projection.Package, name)
 		}

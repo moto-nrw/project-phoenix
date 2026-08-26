@@ -325,6 +325,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Get",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.New.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewRecursive.List",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.Begin",
@@ -357,6 +358,24 @@ func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
 	}
 	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition package "legacy" must have a composition owner and compose role`) {
 		t.Fatalf("legacy package outside composition was accepted: %v", err)
+	}
+}
+
+func TestPolicyRejectsProjectionPackageAliasesWithDuplicateGrants(t *testing.T) {
+	t.Parallel()
+
+	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+	if err != nil {
+		t.Fatalf("load policy: %v", err)
+	}
+	policy.ReadProjections = append(policy.ReadProjections, architecture.ReadProjection{
+		ID:          "duplicate-projection",
+		Package:     "/projection",
+		DataObjects: []string{"beta.records"},
+		TenantSafe:  true,
+	})
+	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `both grant package "/projection" access to data object "beta.records"`) {
+		t.Fatalf("projection package aliases were accepted: %v", err)
 	}
 }
 

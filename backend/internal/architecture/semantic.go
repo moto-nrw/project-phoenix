@@ -923,6 +923,14 @@ func contractViolations(pkg *packages.Package) []Violation {
 }
 
 func contractMethodViolations(source, target string, named *types.Named) []Violation {
+	return contractMethodViolationsSeen(source, target, named, make(map[*types.Named]struct{}))
+}
+
+func contractMethodViolationsSeen(source, target string, named *types.Named, seenTypes map[*types.Named]struct{}) []Violation {
+	if _, exists := seenTypes[named]; exists {
+		return nil
+	}
+	seenTypes[named] = struct{}{}
 	var violations []Violation
 	seen := make(map[string]struct{})
 	sets := []*types.MethodSet{types.NewMethodSet(named), types.NewMethodSet(types.NewPointer(named))}
@@ -931,7 +939,7 @@ func contractMethodViolations(source, target string, named *types.Named) []Viola
 		for i := 0; i < iface.NumMethods(); i++ {
 			method := iface.Method(i)
 			seen[method.Name()] = struct{}{}
-			violations = append(violations, contractFunctionViolations(source, target+"."+method.Name(), method)...)
+			violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, seenTypes)...)
 		}
 	}
 	for _, set := range sets {
@@ -947,22 +955,26 @@ func contractMethodViolations(source, target string, named *types.Named) []Viola
 				continue
 			}
 			seen[method.Name()] = struct{}{}
-			violations = append(violations, contractFunctionViolations(source, target+"."+method.Name(), method)...)
+			violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, seenTypes)...)
 		}
 	}
 	return violations
 }
 
 func contractFunctionViolations(source, target string, function *types.Func) []Violation {
+	return contractFunctionViolationsSeen(source, target, function, make(map[*types.Named]struct{}))
+}
+
+func contractFunctionViolationsSeen(source, target string, function *types.Func, seenTypes map[*types.Named]struct{}) []Violation {
 	violations := forbiddenTypeViolations(source, target, function.Type())
-	violations = append(violations, contractResultMethodViolations(source, target, function)...)
+	violations = append(violations, contractResultMethodViolations(source, target, function, seenTypes)...)
 	if crudMethodNames[function.Name()] {
 		violations = append(violations, contractViolation(source, "contracts.generic-crud", target, "public contracts use capability-specific operations, not generic CRUD"))
 	}
 	return violations
 }
 
-func contractResultMethodViolations(source, target string, function *types.Func) []Violation {
+func contractResultMethodViolations(source, target string, function *types.Func, seenTypes map[*types.Named]struct{}) []Violation {
 	signature, ok := function.Type().(*types.Signature)
 	if !ok {
 		return nil
@@ -976,7 +988,7 @@ func contractResultMethodViolations(source, target string, function *types.Func)
 	})
 	var violations []Violation
 	for named := range namedResults {
-		violations = append(violations, contractMethodViolations(source, target, named)...)
+		violations = append(violations, contractMethodViolationsSeen(source, target, named, seenTypes)...)
 	}
 	return violations
 }
