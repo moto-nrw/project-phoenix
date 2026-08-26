@@ -148,7 +148,6 @@ describe("ContractPage", () => {
         status: "offen",
         overdue: false,
         paidOn: null,
-        note: "",
       },
     });
 
@@ -169,7 +168,6 @@ describe("ContractPage", () => {
         status: "offen",
         overdue: true,
         paidOn: null,
-        note: "",
       },
     });
 

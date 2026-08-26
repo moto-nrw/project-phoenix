@@ -43,7 +43,6 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     status: "offen",
     overdue: false,
     paidOn: null,
-    note: "",
     ...overrides,
   };
 }

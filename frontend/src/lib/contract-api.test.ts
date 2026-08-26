@@ -28,7 +28,6 @@ function backendInvoice(overrides: Record<string, unknown> = {}) {
     status: "offen" as const,
     overdue: false,
     paid_on: null,
-    note: "",
     ...overrides,
   };
 }
@@ -74,6 +73,12 @@ describe("mapInvoice", () => {
     expect(
       mapInvoice(backendInvoice({ paid_on: undefined })).paidOn,
     ).toBeNull();
+  });
+
+  it("does not expose operator-only notes on school invoices", () => {
+    expect(
+      mapInvoice(backendInvoice({ note: "nur intern" })),
+    ).not.toHaveProperty("note");
   });
 });
 
@@ -166,7 +171,6 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     status: "offen",
     overdue: false,
     paidOn: null,
-    note: "",
     ...overrides,
   };
 }

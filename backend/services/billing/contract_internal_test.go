@@ -176,7 +176,7 @@ func TestApplyInput_CopiesEveryEditableField(t *testing.T) {
 	assert.Equal(t, int64(7), invoice.GetTenantID(), "applyInput must never touch the tenant")
 }
 
-func TestToViews_DerivesOverdueAndSkipsNils(t *testing.T) {
+func TestToViews_DerivesOverdueAndKeepsOperatorNote(t *testing.T) {
 	t.Parallel()
 
 	today := day(2026, time.February, 1)
@@ -185,6 +185,7 @@ func TestToViews_DerivesOverdueAndSkipsNils(t *testing.T) {
 		AmountCents: 100,
 		DueDate:     day(2026, time.January, 31),
 		Status:      platform.InvoiceStatusOpen,
+		Note:        "nur intern",
 	}
 	overdue.ID = 1
 	future := &platform.SchoolInvoice{
@@ -200,7 +201,28 @@ func TestToViews_DerivesOverdueAndSkipsNils(t *testing.T) {
 	require.Len(t, views, 2, "nil rows are skipped, not rendered as empty invoices")
 	assert.True(t, views[0].Overdue)
 	assert.Equal(t, int64(1), views[0].ID)
+	assert.Equal(t, "nur intern", views[0].Note)
 	assert.False(t, views[1].Overdue)
+}
+
+func TestToSchoolViews_DerivesOverdueAndSkipsNils(t *testing.T) {
+	t.Parallel()
+
+	today := day(2026, time.February, 1)
+	row := &platform.SchoolInvoice{
+		PeriodLabel: "Januar",
+		AmountCents: 100,
+		DueDate:     day(2026, time.January, 31),
+		Status:      platform.InvoiceStatusOpen,
+		Note:        "nur intern",
+	}
+	row.ID = 1
+
+	views := ToSchoolViews([]*platform.SchoolInvoice{row, nil}, today)
+
+	require.Len(t, views, 1, "nil rows are skipped, not rendered as empty invoices")
+	assert.True(t, views[0].Overdue)
+	assert.Equal(t, int64(1), views[0].ID)
 }
 
 func TestToViews_EmptyInputYieldsEmptySlice(t *testing.T) {
@@ -216,7 +238,7 @@ func TestToViews_EmptyInputYieldsEmptySlice(t *testing.T) {
 func TestSummarizeInvoices_SumsOnlyOpenInvoices(t *testing.T) {
 	t.Parallel()
 
-	views := []InvoiceView{
+	views := []SchoolInvoiceView{
 		{ID: 3, AmountCents: 300, Status: platform.InvoiceStatusOpen, DueDate: day(2026, time.March, 31)},
 		{ID: 2, AmountCents: 200, Status: platform.InvoiceStatusCancelled, DueDate: day(2026, time.February, 28)},
 		{ID: 1, AmountCents: 100, Status: platform.InvoiceStatusPaid, DueDate: day(2026, time.January, 31)},
@@ -232,7 +254,7 @@ func TestSummarizeInvoices_SumsOnlyOpenInvoices(t *testing.T) {
 func TestSummarizeInvoices_PrefersTheOldestOverdueInvoice(t *testing.T) {
 	t.Parallel()
 
-	views := []InvoiceView{
+	views := []SchoolInvoiceView{
 		{ID: 4, AmountCents: 400, Status: platform.InvoiceStatusOpen, DueDate: day(2026, time.April, 30)},
 		{ID: 3, AmountCents: 300, Status: platform.InvoiceStatusOpen, DueDate: day(2026, time.March, 31), Overdue: true},
 		{ID: 2, AmountCents: 200, Status: platform.InvoiceStatusOpen, DueDate: day(2026, time.February, 28), Overdue: true},
@@ -249,7 +271,7 @@ func TestSummarizeInvoices_PrefersTheOldestOverdueInvoice(t *testing.T) {
 func TestSummarizeInvoices_NothingOpen(t *testing.T) {
 	t.Parallel()
 
-	open, next := summarizeInvoices([]InvoiceView{
+	open, next := summarizeInvoices([]SchoolInvoiceView{
 		{ID: 1, AmountCents: 100, Status: platform.InvoiceStatusPaid},
 	})
 
@@ -290,18 +312,18 @@ func TestIsConfigured(t *testing.T) {
 			// contract" — claiming otherwise above a list of bills would be
 			// the exact contradiction the Verständlichkeit rule forbids.
 			name:     "only invoices",
-			overview: ContractOverview{Invoices: []InvoiceView{{ID: 1}}},
+			overview: ContractOverview{Invoices: []SchoolInvoiceView{{ID: 1}}},
 			want:     true,
 		},
 		{
-			name:     "support email alone is not a contract",
+			name:     "support email alone is visible contract data",
 			overview: ContractOverview{SupportEmail: "hilfe@moto.nrw"},
-			want:     false,
+			want:     true,
 		},
 		{
-			name:     "a note alone is not a contract",
+			name:     "a note alone is visible contract data",
 			overview: ContractOverview{Note: "Bitte melden"},
-			want:     false,
+			want:     true,
 		},
 	}
 

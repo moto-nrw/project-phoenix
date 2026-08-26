@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -40,16 +41,21 @@ func setupContractTest(t *testing.T) (*bun.DB, *billingAPI.Resource, int64) {
 	return db, billingAPI.NewResource(services.Billing, services.Settings, db), tenantID
 }
 
-func seedInvoice(t *testing.T, db *bun.DB, tenantID int64, label string, cents int64, due timezone.Date, status string) {
+func seedInvoice(t *testing.T, db *bun.DB, tenantID int64, label string, cents int64, due timezone.Date, status string, note ...string) {
 	t.Helper()
+
+	storedNote := ""
+	if len(note) > 0 {
+		storedNote = note[0]
+	}
 
 	require.NoError(t, tenant.WithTenantTx(context.Background(), db, tenantID,
 		func(ctx context.Context, tx bun.Tx) error {
 			_, err := tx.ExecContext(ctx, `
 				INSERT INTO platform.school_invoices
-					(tenant_id, period_label, amount_cents, due_date, status)
-				VALUES (?, ?, ?, ?, ?)`,
-				tenantID, label, cents, due.String(), status)
+					(tenant_id, period_label, amount_cents, due_date, status, note)
+				VALUES (?, ?, ?, ?, ?, ?)`,
+				tenantID, label, cents, due.String(), status, storedNote)
 			return err
 		}))
 }
@@ -86,6 +92,21 @@ func TestContractOverview_RequiresAuthentication(t *testing.T) {
 		testutil.NewRequest(http.MethodGet, "/", nil))
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}
+
+func TestContractOverview_AcceptsMountedNoSlashPath(t *testing.T) {
+	t.Parallel()
+
+	_, resource, tenantID := setupContractTest(t)
+	router := chi.NewRouter()
+	resource.RegisterRoutes(router, "/contract")
+
+	rr := testutil.ExecuteWithAuthPermissions(t, router,
+		testutil.NewRequest(http.MethodGet, "/contract", nil),
+		adminClaims(tenantID),
+		[]string{"config:manage"})
+
+	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
 // Contract and payment data is commercial information about the school. A
@@ -142,7 +163,7 @@ func TestContractOverview_ReturnsSettingsAndInvoices(t *testing.T) {
 
 	past := timezone.TodayDate().AddDays(-30)
 	future := timezone.TodayDate().AddDays(30)
-	seedInvoice(t, db, tenantID, "Vergangener Zeitraum", 10000, past, platformModel.InvoiceStatusOpen)
+	seedInvoice(t, db, tenantID, "Vergangener Zeitraum", 10000, past, platformModel.InvoiceStatusOpen, "Nur intern")
 	seedInvoice(t, db, tenantID, "Kommender Zeitraum", 20000, future, platformModel.InvoiceStatusOpen)
 
 	rr := testutil.ExecuteWithAuthPermissions(t, resource.Router(),
@@ -171,6 +192,7 @@ func TestContractOverview_ReturnsSettingsAndInvoices(t *testing.T) {
 	assert.Equal(t, "Preis gilt bis Schuljahresende.", data.Note)
 
 	require.Len(t, data.Invoices, 2)
+	assert.NotContains(t, rr.Body.String(), "Nur intern")
 	assert.Equal(t, "Kommender Zeitraum", data.Invoices[0].PeriodLabel, "newest due date first")
 	assert.Equal(t, int64(30000), data.OpenAmountCents)
 

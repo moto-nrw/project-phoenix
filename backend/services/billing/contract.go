@@ -52,8 +52,8 @@ func ContractSettingKeys() []string {
 	return append([]string(nil), contractSettingKeys...)
 }
 
-// InvoiceView is one invoice as the school and the operator see it: the stored
-// row plus the one derived flag that only makes sense against a reference day.
+// InvoiceView is one invoice as the operator sees it: the stored row plus the
+// one derived flag that only makes sense against a reference day.
 type InvoiceView struct {
 	ID            int64          `json:"id"`
 	PeriodLabel   string         `json:"period_label"`
@@ -64,6 +64,19 @@ type InvoiceView struct {
 	Overdue       bool           `json:"overdue"`
 	PaidOn        *timezone.Date `json:"paid_on,omitempty"`
 	Note          string         `json:"note"`
+}
+
+// SchoolInvoiceView is the school-facing projection. It deliberately omits
+// SchoolInvoice.Note: the operator UI labels that field as an internal note.
+type SchoolInvoiceView struct {
+	ID            int64          `json:"id"`
+	PeriodLabel   string         `json:"period_label"`
+	InvoiceNumber string         `json:"invoice_number"`
+	AmountCents   int64          `json:"amount_cents"`
+	DueDate       timezone.Date  `json:"due_date"`
+	Status        string         `json:"status"`
+	Overdue       bool           `json:"overdue"`
+	PaidOn        *timezone.Date `json:"paid_on,omitempty"`
 }
 
 // ContractOverview is the complete /vertrag payload: the contract facts from
@@ -88,15 +101,15 @@ type ContractOverview struct {
 	Configured bool `json:"configured"`
 	// ReferenceDate is the day Overdue and the child count were computed for.
 	// Shipping it makes the page's "Stand heute" honest across timezones.
-	ReferenceDate timezone.Date `json:"reference_date"`
-	Invoices      []InvoiceView `json:"invoices"`
+	ReferenceDate timezone.Date       `json:"reference_date"`
+	Invoices      []SchoolInvoiceView `json:"invoices"`
 	// OpenAmountCents sums every invoice that is neither paid nor cancelled.
 	OpenAmountCents int64 `json:"open_amount_cents"`
 	// NextDue is the earliest unpaid invoice on or after ReferenceDate, or the
 	// oldest overdue one when something is already late. Nil when nothing is
 	// open. The school's single most important number, so it is computed once
 	// here instead of three times in the UI.
-	NextDue *InvoiceView `json:"next_due,omitempty"`
+	NextDue *SchoolInvoiceView `json:"next_due,omitempty"`
 }
 
 // InvoiceInput is the operator's write payload. Distinct from the model so a
@@ -200,6 +213,20 @@ func toView(invoice *platform.SchoolInvoice, today timezone.Date) InvoiceView {
 	}
 }
 
+// toSchoolView projects a stored row for the school-facing wire contract.
+func toSchoolView(invoice *platform.SchoolInvoice, today timezone.Date) SchoolInvoiceView {
+	return SchoolInvoiceView{
+		ID:            invoice.ID,
+		PeriodLabel:   invoice.PeriodLabel,
+		InvoiceNumber: invoice.InvoiceNumber,
+		AmountCents:   invoice.AmountCents,
+		DueDate:       invoice.DueDate,
+		Status:        invoice.Status,
+		Overdue:       invoice.IsOverdueOn(today),
+		PaidOn:        invoice.PaidOn,
+	}
+}
+
 // ToViews projects a list of stored rows, preserving order.
 func ToViews(invoices []*platform.SchoolInvoice, today timezone.Date) []InvoiceView {
 	views := make([]InvoiceView, 0, len(invoices))
@@ -212,15 +239,28 @@ func ToViews(invoices []*platform.SchoolInvoice, today timezone.Date) []InvoiceV
 	return views
 }
 
+// ToSchoolViews projects invoices for the school-facing contract overview,
+// preserving order and omitting operator-only fields.
+func ToSchoolViews(invoices []*platform.SchoolInvoice, today timezone.Date) []SchoolInvoiceView {
+	views := make([]SchoolInvoiceView, 0, len(invoices))
+	for _, invoice := range invoices {
+		if invoice == nil {
+			continue
+		}
+		views = append(views, toSchoolView(invoice, today))
+	}
+	return views
+}
+
 // summarizeInvoices computes the two aggregates the overview carries.
 //
 // "Next due" prefers the oldest overdue invoice over the nearest future one:
 // a school that is already late needs to see that date, not the next one it
 // has not missed yet. Input order is due date DESC (the repository contract),
 // so the last matching row in each pass is the earliest one.
-func summarizeInvoices(views []InvoiceView) (openCents int64, next *InvoiceView) {
-	var earliestOpen *InvoiceView
-	var earliestOverdue *InvoiceView
+func summarizeInvoices(views []SchoolInvoiceView) (openCents int64, next *SchoolInvoiceView) {
+	var earliestOpen *SchoolInvoiceView
+	var earliestOverdue *SchoolInvoiceView
 
 	for i := range views {
 		view := &views[i]

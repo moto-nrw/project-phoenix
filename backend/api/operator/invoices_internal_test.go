@@ -65,12 +65,12 @@ func (f *fakeBillingService) DeleteInvoice(_ context.Context, tenantID, invoiceI
 func invoiceRouter(service billingSvc.Service) chi.Router {
 	resource := NewInvoicesResource(service)
 	r := chi.NewRouter()
-	r.Route("/schools/{id}/invoices", func(r chi.Router) {
-		r.Get("/", resource.ListSchoolInvoices)
-		r.Post("/", resource.CreateSchoolInvoice)
-		r.Put("/{invoiceId}", resource.UpdateSchoolInvoice)
-		r.Delete("/{invoiceId}", resource.DeleteSchoolInvoice)
-	})
+	r.Get("/schools/{id}/invoices", resource.ListSchoolInvoices)
+	r.Get("/schools/{id}/invoices/", resource.ListSchoolInvoices)
+	r.Post("/schools/{id}/invoices", resource.CreateSchoolInvoice)
+	r.Post("/schools/{id}/invoices/", resource.CreateSchoolInvoice)
+	r.Put("/schools/{id}/invoices/{invoiceId}", resource.UpdateSchoolInvoice)
+	r.Delete("/schools/{id}/invoices/{invoiceId}", resource.DeleteSchoolInvoice)
 	return r
 }
 
@@ -129,6 +129,17 @@ func TestListSchoolInvoices_ReturnsSchedule(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "2026-01-31", "dates travel as calendar days")
 }
 
+func TestListSchoolInvoices_AcceptsNoSlashPath(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeBillingService{listResult: []billingSvc.InvoiceView{*sampleView()}}
+
+	rec := doInvoiceRequest(t, service, http.MethodGet, "/schools/42/invoices", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, int64(42), service.gotTenantID)
+}
+
 func TestListSchoolInvoices_RejectsNonNumericSchoolID(t *testing.T) {
 	t.Parallel()
 
@@ -166,6 +177,17 @@ func TestCreateSchoolInvoice_Returns201AndParsesPayload(t *testing.T) {
 	assert.Equal(t, int64(19900), service.gotInput.AmountCents)
 	assert.Equal(t, "2026-01-31", service.gotInput.DueDate.String())
 	assert.Nil(t, service.gotInput.PaidOn)
+}
+
+func TestCreateSchoolInvoice_AcceptsNoSlashPath(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeBillingService{view: sampleView()}
+
+	rec := doInvoiceRequest(t, service, http.MethodPost, "/schools/42/invoices", validInvoiceBody())
+
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	assert.Equal(t, int64(42), service.gotTenantID)
 }
 
 func TestCreateSchoolInvoice_ParsesPaidOn(t *testing.T) {

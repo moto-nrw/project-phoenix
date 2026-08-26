@@ -106,7 +106,7 @@ func (s *service) GetOverview(ctx context.Context) (*ContractOverview, error) {
 	if err != nil {
 		return nil, fmt.Errorf("billing: list invoices: %w", err)
 	}
-	views := ToViews(invoices, today)
+	views := ToSchoolViews(invoices, today)
 	openCents, nextDue := summarizeInvoices(views)
 
 	overview := &ContractOverview{
@@ -138,6 +138,8 @@ func isConfigured(o *ContractOverview) bool {
 		o.TermEnd != nil ||
 		o.InvoiceRecipient != "" ||
 		o.CustomerNumber != "" ||
+		o.SupportEmail != "" ||
+		o.Note != "" ||
 		len(o.Invoices) > 0
 }
 

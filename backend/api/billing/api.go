@@ -48,6 +48,24 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
+// RegisterRoutes mounts the overview at one concrete parent path and its
+// trailing-slash twin. Use this from the real /api router: chi subrouters
+// cannot register an empty child pattern for the no-slash mount path.
+func (rs *Resource) RegisterRoutes(r chi.Router, path string) {
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
+		r.With(
+			render.SetContentType(render.ContentTypeJSON),
+			authorize.RequiresPermission(permissions.ConfigManage),
+			withTx,
+		).Get(path, rs.getOverview)
+		r.With(
+			render.SetContentType(render.ContentTypeJSON),
+			authorize.RequiresPermission(permissions.ConfigManage),
+			withTx,
+		).Get(path+"/", rs.getOverview)
+	})
+}
+
 // getOverview returns the contract facts, the live child count and the
 // payment schedule in one payload.
 func (rs *Resource) getOverview(w http.ResponseWriter, r *http.Request) {

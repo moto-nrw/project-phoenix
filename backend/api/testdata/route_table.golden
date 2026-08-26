@@ -159,6 +159,7 @@ GET /api/calendar/appointments/{appointmentId}/overview
 GET /api/calendar/my
 GET /api/calendar/recipient-options
 GET /api/class-list-entries/
+GET /api/contract
 GET /api/contract/
 GET /api/database/stats
 GET /api/display/
@@ -483,6 +484,7 @@ GET /operator/schools/{id}/accounts
 GET /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
+GET /operator/schools/{id}/invoices
 GET /operator/schools/{id}/invoices/
 GET /operator/schools/{id}/persons
 GET /operator/schools/{id}/pwa-usage
@@ -827,6 +829,7 @@ POST /operator/schools/
 POST /operator/schools/{id}/accounts/{accountId}/caregiver-capability/
 POST /operator/schools/{id}/create-account
 POST /operator/schools/{id}/invite-admin
+POST /operator/schools/{id}/invoices
 POST /operator/schools/{id}/invoices/
 POST /operator/schools/{id}/restore
 POST /operator/unregistered-tag-scans/{id}/resolve

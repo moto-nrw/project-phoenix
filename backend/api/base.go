@@ -964,7 +964,7 @@ func (a *API) registerTenantRoutes() {
 
 		// Mount the read-only contract overview (#1459). Named /contract, not
 		// /abrechnung: "Abrechnung" is already the staff-payroll surface.
-		r.Mount("/contract", a.Contract.Router())
+		a.Contract.RegisterRoutes(r, "/contract")
 
 		// Mount admin resources
 		r.Mount("/admin/grade-transitions", a.GradeTransitions.Router())

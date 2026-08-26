@@ -52,6 +52,60 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 	return nil
 }
 
+// seedSchoolInvoicesStep creates the demo payment schedule through the same
+// operator API the moto team uses in the UI.
+type seedSchoolInvoicesStep struct{}
+
+func (seedSchoolInvoicesStep) Name() string { return "Seeding school invoices" }
+
+func (seedSchoolInvoicesStep) Run(ctx context.Context, rt *Runtime) error {
+	if rt.Bootstrap == nil {
+		return fmt.Errorf("bootstrap state not available")
+	}
+
+	rt.Client.BindAuth(rt.OperatorAuth)
+	defer rt.Client.BindAuth(rt.TenantAuth)
+
+	today := timezone.TodayDate()
+	invoices := []map[string]any{
+		{
+			"period_label":   "Mai 2026",
+			"invoice_number": "MOTO-2026-0501",
+			"amount_cents":   29900,
+			"due_date":       today.AddDays(-14).String(),
+			"status":         "offen",
+			"note":           "Demo: Erinnerung vorbereitet.",
+		},
+		{
+			"period_label":   "Juni 2026",
+			"invoice_number": "MOTO-2026-0601",
+			"amount_cents":   29900,
+			"due_date":       today.AddDays(14).String(),
+			"status":         "offen",
+			"note":           "",
+		},
+		{
+			"period_label":   "April 2026",
+			"invoice_number": "MOTO-2026-0401",
+			"amount_cents":   29900,
+			"due_date":       today.AddDays(-45).String(),
+			"status":         "bezahlt",
+			"paid_on":        today.AddDays(-30).String(),
+			"note":           "Demo: Zahlung eingegangen.",
+		},
+	}
+
+	path := fmt.Sprintf("/operator/schools/%d/invoices", rt.Bootstrap.SchoolID)
+	for _, invoice := range invoices {
+		if _, err := rt.Client.Post(path, invoice); err != nil {
+			return fmt.Errorf("seed school invoice %q: %w", invoice["period_label"], err)
+		}
+	}
+
+	fmt.Printf("  %d school invoices created\n", len(invoices))
+	return nil
+}
+
 // seedPrivacyConsentsStep creates privacy consent records for all students.
 type seedPrivacyConsentsStep struct{}
 

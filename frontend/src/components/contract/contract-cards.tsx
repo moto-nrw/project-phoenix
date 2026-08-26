@@ -12,6 +12,7 @@ import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { EmptyState } from "~/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { DetailIcons } from "~/components/ui/detail-modal-components";
 
 // Vertrag (#1459 Demo) — reine Anzeigebausteine.
 //
@@ -31,63 +32,6 @@ function orNotSetDate(value: string | null): string {
   return value ? formatDate(value) : NOT_SET;
 }
 
-function DocumentIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-gray-600"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2z"
-      />
-    </svg>
-  );
-}
-
-function ChildrenIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-gray-600"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-      />
-    </svg>
-  );
-}
-
-function MailIcon() {
-  return (
-    <svg
-      className="h-5 w-5 text-gray-600"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-      />
-    </svg>
-  );
-}
-
 /** „Ihr Tarif": was gebucht ist, zu welchem Preis und wie lange. */
 export function ContractFactsCard({
   overview,
@@ -103,7 +47,7 @@ export function ContractFactsCard({
       : NOT_SET;
 
   return (
-    <InfoCard title="Ihr Tarif" icon={<DocumentIcon />}>
+    <InfoCard title="Ihr Tarif" icon={DetailIcons.document}>
       <p className="text-sm text-gray-600">
         Das hat Ihre Schule mit moto vereinbart.
       </p>
@@ -129,7 +73,7 @@ export function ChildQuotaCard({
   const exceeded = booked > 0 && active > booked;
 
   return (
-    <InfoCard title="Kinder im Vertrag" icon={<ChildrenIcon />}>
+    <InfoCard title="Kinder im Vertrag" icon={DetailIcons.group}>
       <p className="text-sm text-gray-600">
         So viele Kinder deckt Ihr Vertrag ab, verglichen mit heute.
       </p>
@@ -156,7 +100,7 @@ export function BillingContactCard({
   overview,
 }: Readonly<{ overview: ContractOverview }>) {
   return (
-    <InfoCard title="Rechnung und Kontakt" icon={<MailIcon />}>
+    <InfoCard title="Rechnung und Kontakt" icon={DetailIcons.document}>
       <p className="text-sm text-gray-600">
         Dorthin schickt moto die Rechnungen. Dort beantwortet moto Ihre Fragen.
       </p>

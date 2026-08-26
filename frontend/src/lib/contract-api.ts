@@ -17,7 +17,6 @@ interface BackendInvoice {
   status: InvoiceStatus;
   overdue: boolean;
   paid_on?: string | null;
-  note: string;
 }
 
 interface BackendContractOverview {
@@ -52,7 +51,6 @@ export interface Invoice {
   status: InvoiceStatus;
   overdue: boolean;
   paidOn: string | null;
-  note: string;
 }
 
 export interface ContractOverview {
@@ -86,7 +84,6 @@ export function mapInvoice(invoice: BackendInvoice): Invoice {
     status: invoice.status,
     overdue: invoice.overdue,
     paidOn: invoice.paid_on ?? null,
-    note: invoice.note,
   };
 }
 

@@ -322,12 +322,12 @@ func (rs *Resource) mountSchoolRoutes(r chi.Router) {
 		if rs.invoicesResource != nil {
 			// Payment schedule per school (#1459 demo). The tenant reads the
 			// same rows through GET /api/contract and can never write them.
-			r.Route("/{id}/invoices", func(r chi.Router) {
-				r.Get("/", rs.invoicesResource.ListSchoolInvoices)
-				r.Post("/", rs.invoicesResource.CreateSchoolInvoice)
-				r.Put("/{invoiceId}", rs.invoicesResource.UpdateSchoolInvoice)
-				r.Delete("/{invoiceId}", rs.invoicesResource.DeleteSchoolInvoice)
-			})
+			r.Get("/{id}/invoices", rs.invoicesResource.ListSchoolInvoices)
+			r.Get("/{id}/invoices/", rs.invoicesResource.ListSchoolInvoices)
+			r.Post("/{id}/invoices", rs.invoicesResource.CreateSchoolInvoice)
+			r.Post("/{id}/invoices/", rs.invoicesResource.CreateSchoolInvoice)
+			r.Put("/{id}/invoices/{invoiceId}", rs.invoicesResource.UpdateSchoolInvoice)
+			r.Delete("/{id}/invoices/{invoiceId}", rs.invoicesResource.DeleteSchoolInvoice)
 		}
 		if rs.settingsResource != nil {
 			r.Route("/{id}/settings", func(r chi.Router) {
