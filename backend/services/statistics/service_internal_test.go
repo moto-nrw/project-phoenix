@@ -79,6 +79,26 @@ func TestCareDays_UnionOfExclusions(t *testing.T) {
 	assert.False(t, care[timezone.NewDate(2026, 6, 13)], "weekend never a care day")
 }
 
+// A holiday period reaching far beyond the window is clamped to it.
+func TestCareDays_ClampsHolidayPeriodToWindow(t *testing.T) {
+	t.Parallel()
+	from, to := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 12)
+	svc := &service{cfg: Config{
+		Periods: periodList{{
+			StartDate: timezone.NewDate(1900, 1, 1),
+			EndDate:   timezone.NewDate(2100, 1, 1),
+		}},
+		Now: fixedNow,
+	}}
+
+	care, excluded, err := svc.careDays(context.Background(), from, to)
+	require.NoError(t, err)
+
+	assert.Empty(t, care, "the whole window falls into the holiday period")
+	assert.Equal(t, 5, excluded.HolidayPeriods, "only weekdays inside the window are counted")
+	assert.Equal(t, 5, excluded.Total)
+}
+
 func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 	t.Parallel()
 	d1, d2, d3, d4 := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 9), timezone.NewDate(2026, 6, 10), timezone.NewDate(2026, 6, 11)

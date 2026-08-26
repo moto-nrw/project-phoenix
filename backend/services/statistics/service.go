@@ -328,7 +328,16 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 			return nil, excluded, fmt.Errorf("load holiday periods: %w", err)
 		}
 		for _, p := range periods {
-			for d := p.StartDate; !d.After(p.EndDate); d = d.AddDays(1) {
+			// Clamp to the report window: a period may span years, and only
+			// its overlap with [from, to] can ever be a care day.
+			start, end := p.StartDate, p.EndDate
+			if start.Before(from) {
+				start = from
+			}
+			if end.After(to) {
+				end = to
+			}
+			for d := start; !d.After(end); d = d.AddDays(1) {
 				vacation[d] = true
 			}
 		}
