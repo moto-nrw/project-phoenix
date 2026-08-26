@@ -233,7 +233,7 @@ export function StudentPaymentCard({
                 Bankverbindung wird geladen…
               </p>
             ) : isEditing ? (
-              <div className="space-y-3">
+              <div className="max-w-sm space-y-3">
                 <Input
                   id="payment-iban"
                   label="IBAN"
