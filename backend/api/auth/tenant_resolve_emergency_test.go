@@ -19,6 +19,7 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -101,9 +102,10 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 		"tenant override of false must round-trip to the tenant shell")
 }
 
-// If settings cannot be resolved, tenant metadata must not promise health
-// data that the emergency export deliberately omits in the same situation.
-func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsClosed(t *testing.T) {
+// A settings backend that cannot answer at all is not a health-column
+// decision: resolveTenant fails the whole contract rather than shipping a
+// tenant shell assembled from fallbacks, so nothing is promised to the page.
+func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing.T) {
 	t.Parallel()
 
 	db, svc := testutil.SetupAPITest(t)
@@ -119,10 +121,44 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsClosed(t *testing.
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+}
+
+// A single unreadable value is the case the resolver absorbs: the rest of the
+// shell still loads, and the health column must not be announced off the back
+// of a value nobody can interpret — the export omits it in the same situation.
+func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	db, svc := testutil.SetupAPITest(t)
+	scope, slug := newTenantResolveScope(t, db)
+
+	// Stored straight through the repository: SetValue would reject the
+	// non-boolean, and what we need to pin is the read side meeting a row
+	// that no longer matches the registry type.
+	stored := &configModel.SettingValue{
+		SettingKey: configModel.KeyEmergencyListHealthInfo,
+		Value:      json.RawMessage(`"vielleicht"`),
+	}
+	stored.SetTenantID(scope.TenantID)
+	require.NoError(t,
+		configRepo.NewSettingValueRepository(db).Upsert(scope.Context(), stored),
+		"store an unreadable emergency_list_health_info override")
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = svc.Settings
+
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	var resp emergencyResolveResp
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.False(t, resp.Data.EmergencyHealthInfoEnabled,
-		"unreadable settings must not promise health data that the export omits")
+		"an unreadable value must not promise health data that the export omits")
 }
