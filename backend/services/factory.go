@@ -1706,6 +1706,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffRepo:                repos.Staff,
 		StudentRepo:              repos.Student,
 		StudentGuardianRepo:      repos.StudentGuardian,
+		GuardianFinancialAudit:   repos.GuardianFinancialChange,
 		GuardianProfileRepo:      repos.GuardianProfile,
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		PickupScheduleRepo:       repos.StudentPickupSchedule,

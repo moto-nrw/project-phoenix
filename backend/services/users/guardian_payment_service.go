@@ -53,6 +53,18 @@ var ErrGuardianNotLinkedToStudent = errors.New("guardian is not linked to this s
 // separately by ibanChecksumValid.
 var guardianIBANPattern = regexp.MustCompile(`^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$`)
 
+// guardianIBANLengths contains the ISO 13616 lengths for countries whose
+// accounts can be entered in moto. A checksum alone cannot detect a truncated
+// German IBAN that happens to satisfy mod-97.
+var guardianIBANLengths = map[string]int{
+	"AD": 24, "AT": 20, "BE": 16, "BG": 22, "CH": 21, "CY": 28,
+	"CZ": 24, "DE": 22, "DK": 18, "EE": 20, "ES": 24, "FI": 18,
+	"FR": 27, "GB": 22, "GI": 23, "GR": 27, "HR": 21, "HU": 28,
+	"IE": 22, "IS": 26, "IT": 27, "LI": 21, "LT": 20, "LU": 20,
+	"LV": 21, "MC": 27, "MT": 31, "NL": 18, "NO": 15, "PL": 28,
+	"PT": 25, "RO": 24, "SE": 24, "SI": 19, "SK": 24,
+}
+
 // maxAccountHolderLen bounds the Kontoinhaber free-text. The column is TEXT;
 // the bound keeps a paste accident from storing an unbounded payload.
 const maxAccountHolderLen = 120
@@ -444,7 +456,11 @@ func normalizeGuardianPaymentInput(input GuardianPaymentInput) (GuardianPaymentI
 
 	if v := normalizeCompact(input.IBAN); v != nil {
 		iban := strings.ToUpper(*v)
-		if !guardianIBANPattern.MatchString(iban) || !ibanChecksumValid(iban) {
+		if !guardianIBANPattern.MatchString(iban) {
+			return out, ErrGuardianIBANInvalid
+		}
+		expectedLength, knownCountry := guardianIBANLengths[iban[:2]]
+		if !knownCountry || len(iban) != expectedLength || !ibanChecksumValid(iban) {
 			return out, ErrGuardianIBANInvalid
 		}
 		out.IBAN = &iban

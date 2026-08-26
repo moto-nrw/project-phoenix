@@ -36,6 +36,14 @@ func TestNormalizeGuardianPaymentInput(t *testing.T) {
 		assert.True(t, errors.Is(err, ErrGuardianPaymentInvalid))
 	})
 
+	t.Run("rejects a checksum-valid IBAN with the wrong country length", func(t *testing.T) {
+		t.Parallel()
+		_, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+			IBAN: paymentStrPtr("DE41370400440532013"),
+		})
+		require.ErrorIs(t, err, ErrGuardianIBANInvalid)
+	})
+
 	t.Run("empty values clear the fields", func(t *testing.T) {
 		t.Parallel()
 		out, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
