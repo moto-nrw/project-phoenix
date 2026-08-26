@@ -145,10 +145,10 @@ const accentMark = "\x03"
 
 // Style markers. They are encoded IN the cell string rather than beside it so
 // that Row.Values stays a plain map[ColumnID]string and the eight existing
-// export call sites keep working untouched. The markers are C0 control
-// characters, which cannot occur in any name, room, or note, and every
-// renderer either interprets them (PDF, DOCX) or strips them (XLSX) — they
-// never reach a reader.
+// export call sites keep working untouched. The markers are reserved C0
+// control characters. Callers must remove them from user-controlled values;
+// every renderer either interprets them (PDF, DOCX) or strips them (XLSX), so
+// they never reach a reader.
 const (
 	markStrong = "\x01"
 	markMuted  = "\x02"

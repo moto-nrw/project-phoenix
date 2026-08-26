@@ -428,4 +428,6 @@ func TestHealthInfoCell(t *testing.T) {
 	assert.Equal(t, "Nicht hinterlegt", healthInfoCell(""))
 	assert.Equal(t, "Nicht hinterlegt", healthInfoCell("  \t\n "))
 	assert.Equal(t, "Nussallergie", healthInfoCell("Nussallergie"))
+	assert.Equal(t, "VorderseiteRückseite", healthInfoCell("Vorderseite\x03Rückseite"))
+	assert.Equal(t, "Nussallergie", healthInfoCell("\x01Nuss\x02allergie"))
 }
