@@ -45,6 +45,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
+	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -128,6 +129,7 @@ type Factory struct {
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
 	StudentDocuments         users.StudentDocumentService
+	FileStore                filestore.Service
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -1428,6 +1430,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			PrivacyRepo:         repos.PrivacyConsent,
 			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
 		},
 		db,
@@ -1435,16 +1438,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	studentImportService := importService.NewImportService(studentImportConfig)
 	studentImportService.SetAuditRepository(repos.DataImport)
 
-	// Staff import bulk-creates invitations (reuses the invitation service);
-	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
+	// data) immediately and issues an invitation for rows with an e-mail;
+	// accepting links the account to the imported person (#2600).
 	staffImportConfig := importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			InvitationService: invitationService,
+			InvitationRepo:    repos.InvitationToken,
 			AccountRepo:       repos.Account,
 			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
 			PermissionRepo:    repos.Permission,
 			SchoolRepo:        repos.School,
+			PersonRepo:        repos.Person,
+			StaffRepo:         repos.Staff,
+			TeacherRepo:       repos.Teacher,
+			MasterDataRepo:    repos.StaffMasterData,
+			QualificationRepo: repos.StaffQualification,
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
@@ -1878,6 +1888,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "student_documents"),
 	)
 
+	// School file storage (#2596): folders, visibility, quota, audit trail.
+	fileStoreService := filestore.NewService(
+		db,
+		repos.FileFolder,
+		repos.File,
+		repos.FileEvent,
+		settingsService,
+		logger.With("service", "filestore"),
+	)
+
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
 		MessageRepo:              repos.ChangeRequestMessage,
@@ -2171,6 +2191,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "announcement"),
 	})
 
+	// The cancellation notice (#2601) rides on the announcement service, which
+	// is built after the instance service; inject it now that both exist.
+	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
+		setter.SetGuardianNoticePublisher(parentAnnouncementService)
+	}
+
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
 		SchoolRepo:            repos.School,
@@ -2430,6 +2456,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
 		StudentDocuments:         studentDocumentService,
+		FileStore:                fileStoreService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,

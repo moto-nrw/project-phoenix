@@ -704,6 +704,24 @@ func fullSeedAPIMock(t *testing.T) *httptest.Server {
 				},
 			})
 
+		case "/api/files/audience":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"roles":    []map[string]any{{"id": "2", "name": "Betreuungskraft"}},
+					"accounts": []map[string]any{{"account_id": "41"}, {"account_id": "42"}},
+				},
+			})
+
+		case "/api/files/folders":
+			// Ids leave this API as decimal strings (#2596).
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success",
+				"data": map[string]any{
+					"id": fmt.Sprintf("%d", idCounter),
+				},
+			})
+
 		case "/api/enrollment/demo-school/submit", "/parent/enrollments/demo-school/submit":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",

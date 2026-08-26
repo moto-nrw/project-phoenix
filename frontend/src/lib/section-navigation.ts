@@ -81,11 +81,7 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  | "overview"
-  | "messages"
-  | "approvals"
-  | "announcements"
-  | "mealPlan";
+  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -147,6 +143,10 @@ export const STAFF_FLAT_PAGES = {
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
+  // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
+  // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
+  // Personal ist ein anderer Ort.
+  dateien: { href: "/dateien", label: "Dateien" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },

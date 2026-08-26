@@ -77,6 +77,9 @@ type ApplyDeviationsInput struct {
 	SubstitutionRemovals []DeviationSubstitutionRemovalInput
 	Presences            []DeviationPresenceInput
 	ActorAccountID       *int64
+	// GuardianNotice informs the families when Cancel is set (#2601). Ignored
+	// on a non-cancel save.
+	GuardianNotice *GuardianNoticeInput
 }
 
 // DeviationAffected is one classified target the save touched — the neutral
@@ -91,13 +94,15 @@ type DeviationAffected struct {
 // ApplyDeviationsResult is what ApplyDeviations returns on success. ActiveTouched
 // plus the counts drive the handler's SSE broadcast and log line.
 type ApplyDeviationsResult struct {
-	InstanceID               int64
-	Cancelled                bool
-	UnderstaffedAck          bool
-	Affected                 []DeviationAffected
-	Warnings                 []SubstituteTimeConflict
-	ActiveTouched            map[int64]*scheduleModel.ActivityInstance
-	AppliedWrites            int
+	InstanceID      int64
+	Cancelled       bool
+	UnderstaffedAck bool
+	Affected        []DeviationAffected
+	Warnings        []SubstituteTimeConflict
+	ActiveTouched   map[int64]*scheduleModel.ActivityInstance
+	AppliedWrites   int
+	// GuardianNotice is the notice outcome of a cancel save, nil otherwise.
+	GuardianNotice           *GuardianNoticeResult
 	AckChanged               bool
 	ClearedAcks              int
 	AbsenceCount             int
@@ -297,17 +302,27 @@ func (s *instanceService) cancelDeviation(ctx context.Context, instanceID int64,
 	if locked.Date.Before(timezone.TodayDate()) {
 		return nil, devErrBadRequest("dieser Termin liegt in der Vergangenheit")
 	}
-	cancelled, err := s.Cancel(ctx, instanceID, trimDeviationReason(in.CancelReason), in.ActorAccountID)
+	cancelled, err := s.CancelWithNotice(ctx, CancelInstanceInput{
+		InstanceID:     instanceID,
+		Reason:         trimDeviationReason(in.CancelReason),
+		ActorAccountID: in.ActorAccountID,
+		GuardianNotice: in.GuardianNotice,
+	})
 	if err != nil {
 		return nil, err
 	}
+	message := "Termin wurde abgesagt"
+	if cancelled.GuardianNotice != nil && cancelled.GuardianNotice.FamilyCount > 0 {
+		message = "Termin wurde abgesagt, die Eltern sind informiert"
+	}
 	return &ApplyDeviationsResult{
-		InstanceID:      cancelled.ID,
+		InstanceID:      cancelled.Instance.ID,
 		Cancelled:       true,
-		UnderstaffedAck: cancelled.UnderstaffedAck,
+		UnderstaffedAck: cancelled.Instance.UnderstaffedAck,
 		Affected:        []DeviationAffected{},
 		Warnings:        []SubstituteTimeConflict{},
-		Message:         "Termin wurde abgesagt",
+		GuardianNotice:  cancelled.GuardianNotice,
+		Message:         message,
 	}, nil
 }
 

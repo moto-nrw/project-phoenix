@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	staffMessagingVersion     = "1.15.332"
+	staffMessagingVersion     = "1.15.335"
 	staffMessagingDescription = "Create OGS-internal staff messaging tables (threads, participants, messages, reads) for the 1:1 colleague chat (#2598)"
 )
 

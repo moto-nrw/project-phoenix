@@ -3,6 +3,7 @@ package importpkg
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -11,6 +12,7 @@ import (
 
 // importerUserIDKey is a context key for the importing user's ID
 type importerUserIDKey struct{}
+type importModeKey struct{}
 
 // ContextWithImporterID stores the importer's user ID in the context
 func ContextWithImporterID(ctx context.Context, userID int64) context.Context {
@@ -25,12 +27,26 @@ func ImporterIDFromContext(ctx context.Context) int64 {
 	return 0
 }
 
+func importModeFromContext(ctx context.Context) importModels.ImportMode {
+	mode, _ := ctx.Value(importModeKey{}).(importModels.ImportMode)
+	return mode
+}
+
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
 	config    importModels.ImportConfig[T]
 	batchSize int
 	auditRepo audit.DataImportRepository
+	// config keeps request-specific reference data after PreloadReferenceData.
+	// Serialize processing while that mutable configuration is shared.
+	importMu sync.Mutex
 }
+
+type requestScopedConfig[T any] interface {
+	NewRequestScoped() importModels.ImportConfig[T]
+}
+
+type importConfigLocker interface{ ImportLock() *sync.Mutex }
 
 // NewImportService creates a new import service
 func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
@@ -82,6 +98,24 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 
 // Import executes the import operation
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
+	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
+		clone := &ImportService[T]{
+			config:    scoped.NewRequestScoped(),
+			batchSize: s.batchSize,
+			auditRepo: s.auditRepo,
+		}
+		if locker, ok := clone.config.(importConfigLocker); ok {
+			locker.ImportLock().Lock()
+			defer locker.ImportLock().Unlock()
+		}
+		return clone.importWithConfig(ctx, request)
+	}
+	s.importMu.Lock()
+	defer s.importMu.Unlock()
+	return s.importWithConfig(ctx, request)
+}
+
+func (s *ImportService[T]) importWithConfig(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	result := &importModels.ImportResult[T]{
 		StartedAt: time.Now(),
 		TotalRows: len(request.Rows),
@@ -90,6 +124,7 @@ func (s *ImportService[T]) Import(ctx context.Context, request importModels.Impo
 
 	// Store importer's user ID in context for entity creation (e.g. pickup schedules)
 	ctx = ContextWithImporterID(ctx, request.UserID)
+	ctx = context.WithValue(ctx, importModeKey{}, request.Mode)
 
 	if err := s.config.PreloadReferenceData(ctx); err != nil {
 		return nil, fmt.Errorf("preload reference data: %w", err)
@@ -196,24 +231,34 @@ func categorizeValidationErrors(validationErrors []importModels.ValidationError)
 	return blockingErrors, warnings
 }
 
-// recordWarnings records warnings in the result
-func recordWarnings[T any](result *importModels.ImportResult[T], rowNum int, row *T, warnings []importModels.ValidationError) {
+// appendRowErrors adds messages to the result entry of a row, creating the
+// entry on first use. One entry per row: the preview renders entries as
+// cards keyed by row number, and a row that collects a warning during
+// validation and a duplicate note afterwards must not appear twice.
+func appendRowErrors[T any](result *importModels.ImportResult[T], rowNum int, row *T, errs []importModels.ValidationError) {
+	for i := range result.Errors {
+		if result.Errors[i].RowNumber == rowNum {
+			result.Errors[i].Errors = append(result.Errors[i].Errors, errs...)
+			result.Errors[i].Timestamp = time.Now()
+			return
+		}
+	}
 	result.Errors = append(result.Errors, importModels.ImportError[T]{
 		RowNumber: rowNum,
 		Data:      *row,
-		Errors:    warnings,
+		Errors:    errs,
 		Timestamp: time.Now(),
 	})
 }
 
+// recordWarnings records warnings in the result
+func recordWarnings[T any](result *importModels.ImportResult[T], rowNum int, row *T, warnings []importModels.ValidationError) {
+	appendRowErrors(result, rowNum, row, warnings)
+}
+
 // recordBlockingErrors records blocking errors in the result
 func recordBlockingErrors[T any](result *importModels.ImportResult[T], rowNum int, row *T, blockingErrors, warnings []importModels.ValidationError) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors:    append(blockingErrors, warnings...),
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, append(blockingErrors, warnings...))
 	result.ErrorCount++
 }
 
@@ -230,6 +275,7 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 			recordAlreadyExistsError(s, result, rowNum, row)
 			return false
 		}
+		recordWillUpdateInfo(s, result, rowNum, row)
 		result.UpdatedCount++
 	} else if request.Mode == importModels.ImportModeUpdate {
 		recordNotFoundError(s, result, rowNum, row)
@@ -238,6 +284,18 @@ func (s *ImportService[T]) processDryRunRow(ctx context.Context, request importM
 	}
 
 	return false
+}
+
+// recordWillUpdateInfo marks a preview row that resolves to an existing record
+// in update/upsert mode, so the UI can show which rows will be changed rather
+// than created.
+func recordWillUpdateInfo[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "update",
+		Message:  "Schon vorhanden: Die Zeile aktualisiert diesen Datensatz. Leere Zellen ändern nichts.",
+		Code:     "will_update",
+		Severity: importModels.ErrorSeverityInfo,
+	}})
 }
 
 // processActualImportRow processes a row for actual import
@@ -312,81 +370,56 @@ func (s *ImportService[T]) performUpdateAction(ctx context.Context, request impo
 
 // recordDuplicateCheckError records a duplicate check error
 func recordDuplicateCheckError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "duplicate_check",
-			Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
-			Code:     "duplicate_check_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "duplicate_check",
+		Message:  fmt.Sprintf("Fehler bei Duplikatprüfung: %s", err.Error()),
+		Code:     "duplicate_check_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordAlreadyExistsError records an error when entity already exists
 func recordAlreadyExistsError[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "duplicate",
-			Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
-			Code:     "already_exists",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "duplicate",
+		Message:  fmt.Sprintf("%s existiert bereits", s.config.EntityName()),
+		Code:     "already_exists",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordNotFoundError records an error when entity is not found
 func recordNotFoundError[T any](s *ImportService[T], result *importModels.ImportResult[T], rowNum int, row *T) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "not_found",
-			Message:  fmt.Sprintf("%s nicht gefunden", s.config.EntityName()),
-			Code:     "not_found",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "not_found",
+		Message:  fmt.Sprintf("%s nicht gefunden", s.config.EntityName()),
+		Code:     "not_found",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordCreationError records a creation error
 func recordCreationError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "creation",
-			Message:  fmt.Sprintf("Fehler beim Erstellen: %s", err.Error()),
-			Code:     "creation_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "creation",
+		Message:  fmt.Sprintf("Fehler beim Erstellen: %s", err.Error()),
+		Code:     "creation_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 
 // recordUpdateError records an update error
 func recordUpdateError[T any](result *importModels.ImportResult[T], rowNum int, row *T, err error) {
-	result.Errors = append(result.Errors, importModels.ImportError[T]{
-		RowNumber: rowNum,
-		Data:      *row,
-		Errors: []importModels.ValidationError{{
-			Field:    "update",
-			Message:  fmt.Sprintf("Fehler beim Aktualisieren: %s", err.Error()),
-			Code:     "update_failed",
-			Severity: importModels.ErrorSeverityError,
-		}},
-		Timestamp: time.Now(),
-	})
+	appendRowErrors(result, rowNum, row, []importModels.ValidationError{{
+		Field:    "update",
+		Message:  fmt.Sprintf("Fehler beim Aktualisieren: %s", err.Error()),
+		Code:     "update_failed",
+		Severity: importModels.ErrorSeverityError,
+	}})
 	result.ErrorCount++
 }
 

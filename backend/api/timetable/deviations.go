@@ -91,6 +91,9 @@ type applyDeviationsRequest struct {
 	// Presences marks staff present again. Numeric legacy items are day-wide;
 	// object items may target selected appointments.
 	Presences []deviationPresence `json:"presences,omitempty"`
+	// GuardianNotice informs the families of the booked children when cancel
+	// is set (#2601).
+	GuardianNotice *GuardianNoticeRequest `json:"guardian_notice,omitempty"`
 }
 
 // ApplyDeviationsResponse is the 200 body.
@@ -100,6 +103,7 @@ type ApplyDeviationsResponse struct {
 	UnderstaffedAck   bool                                 `json:"understaffed_ack"`
 	AffectedInstances []AffectedInstance                   `json:"affected_instances"`
 	Warnings          []scheduleSvc.SubstituteTimeConflict `json:"warnings"`
+	GuardianNotice    *GuardianNoticeResponse              `json:"guardian_notice,omitempty"`
 }
 
 // toServiceInput maps the wire request onto the service input, resolving the
@@ -142,6 +146,7 @@ func (req applyDeviationsRequest) toServiceInput(actor *int64) scheduleSvc.Apply
 		SubstitutionRemovals: removals,
 		Presences:            presences,
 		ActorAccountID:       actor,
+		GuardianNotice:       req.GuardianNotice.toServiceInput(),
 	}
 }
 
@@ -211,6 +216,7 @@ func deviationResponseOf(id int64, result *scheduleSvc.ApplyDeviationsResult) Ap
 		UnderstaffedAck:   result.UnderstaffedAck,
 		AffectedInstances: affected,
 		Warnings:          warnings,
+		GuardianNotice:    guardianNoticeResponseOf(result.GuardianNotice),
 	}
 }
 

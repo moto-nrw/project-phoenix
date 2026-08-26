@@ -15,6 +15,12 @@ type StudentImportRow struct {
 	SupervisorNotes string `json:"supervisor_notes,omitempty"`
 	HealthInfo      string `json:"health_info,omitempty"`
 	PickupStatus    string `json:"pickup_status,omitempty"` // "Geht alleine nach Hause" or "Wird abgeholt"
+
+	// Child's own address (users.students.address_*), independent of the
+	// guardians' addresses.
+	AddressStreet     string `json:"address_street,omitempty"`
+	AddressCity       string `json:"address_city,omitempty"`
+	AddressPostalCode string `json:"address_postal_code,omitempty"`
 	// BusPermission is the legacy single "Bus" column (Ja/Nein). When true and no
 	// per-day columns are present it maps to all weekdays (Mo–Fr).
 	BusPermission bool `json:"bus_permission"`
@@ -96,6 +102,19 @@ type GuardianImportData struct {
 	IsPrimary          bool   `json:"is_primary"`
 	IsEmergencyContact bool   `json:"is_emergency_contact"`
 	CanPickup          bool   `json:"can_pickup"`
+	// The CSV format distinguishes a supplied "Nein" from an empty cell.
+	// These markers are parser-only and let update mode patch explicit false
+	// values without revoking permissions for absent columns.
+	IsPrimarySet          bool `json:"-"`
+	IsEmergencyContactSet bool `json:"-"`
+	CanPickupSet          bool `json:"-"`
+	// GuardianRole is the parent-portal role preset (primary_guardian,
+	// legal_guardian, co_guardian, emergency_contact, pickup_only,
+	// social_worker); German labels are accepted. Empty = derived from the
+	// flags above (authorize.DefaultStudentGuardianRole).
+	GuardianRole      string `json:"guardian_role,omitempty"`
+	PickupNotes       string `json:"pickup_notes,omitempty"`
+	EmergencyPriority int    `json:"emergency_priority,omitempty"` // 1 = first to call; 0 = default
 	// PhoneNumbers contains flexible phone number data (from CSV columns like Erz{N}.Dienstlich)
 	PhoneNumbers []PhoneImportData `json:"phone_numbers,omitempty"`
 
