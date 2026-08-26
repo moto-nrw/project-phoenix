@@ -235,15 +235,15 @@ func (a semanticAnalyzer) tableMethodViolations(pkg *packages.Package, classific
 	if !ok {
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
-	names, ok := tableExpressionDataObjects(table)
-	if !ok {
+	names := sqlSourceDataObjects(stripIdentifierQuotes(stripSQLLiteralsAndComments("FROM " + table)))
+	if len(names) == 0 {
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
 	var violations []Violation
 	for _, name := range names {
 		violations = append(violations, a.tableAccessViolations(pkg.PkgPath, classification.Owner, operation, name)...)
 	}
-	return append(violations, a.sqlStringViolations(pkg.PkgPath, classification.Owner, functionName, method, table, false)...)
+	return violations
 }
 
 func (a semanticAnalyzer) modelMethodViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, call *ast.CallExpr, parents map[ast.Node]ast.Node) []Violation {
@@ -722,7 +722,47 @@ func isSQLDatabaseInterface(receiver types.Type, method string) bool {
 	}
 	interfaceType.Complete()
 	for index := 0; index < interfaceType.NumMethods(); index++ {
-		if interfaceType.Method(index).Name() == method {
+		if interfaceType.Method(index).Name() == method && isSQLDatabaseInterfaceMethod(method, interfaceType.Method(index)) {
+			return true
+		}
+	}
+	return false
+}
+
+func isSQLDatabaseInterfaceMethod(method string, function *types.Func) bool {
+	signature, ok := function.Type().(*types.Signature)
+	if !ok {
+		return false
+	}
+	queryArgument := 0
+	if strings.HasSuffix(method, "Context") {
+		queryArgument = 1
+	}
+	switch method {
+	case "Exec", "ExecContext":
+		return hasSQLQueryArgument(signature, queryArgument) && hasSQLResult(signature, "database/sql.Result")
+	case "Query", "QueryContext":
+		return hasSQLQueryArgument(signature, queryArgument) && hasSQLResult(signature, "database/sql.Rows")
+	case "QueryRow", "QueryRowContext":
+		return hasSQLQueryArgument(signature, queryArgument) && hasSQLResult(signature, "database/sql.Row")
+	case "Begin", "BeginTx":
+		return hasSQLResult(signature, "database/sql.Tx")
+	case "Conn":
+		return hasSQLResult(signature, "database/sql.Conn")
+	case "Prepare", "PrepareContext":
+		return hasSQLQueryArgument(signature, queryArgument) && hasSQLResult(signature, "database/sql.Stmt")
+	default:
+		return false
+	}
+}
+
+func hasSQLQueryArgument(signature *types.Signature, index int) bool {
+	return signature.Params().Len() > index && types.Identical(signature.Params().At(index).Type(), types.Typ[types.String])
+}
+
+func hasSQLResult(signature *types.Signature, typeName string) bool {
+	for index := 0; index < signature.Results().Len(); index++ {
+		if strings.TrimPrefix(types.TypeString(signature.Results().At(index).Type(), packagePathQualifier), "*") == typeName {
 			return true
 		}
 	}
@@ -763,19 +803,6 @@ func normalizeDataObject(expression string) (string, bool) {
 		return "", false
 	}
 	return strings.ToLower(match[1]), true
-}
-
-func tableExpressionDataObjects(expression string) ([]string, bool) {
-	parts := strings.Split(expression, ",")
-	objects := make([]string, 0, len(parts))
-	for _, part := range parts {
-		object, ok := normalizeDataObject(part)
-		if !ok {
-			return nil, false
-		}
-		objects = append(objects, object)
-	}
-	return objects, true
 }
 
 func stripIdentifierQuotes(value string) string {

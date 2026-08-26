@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 
@@ -35,13 +36,23 @@ func SQLAccess(conn *sql.Conn, stmt *sql.Stmt) {
 }
 
 type SQLDB interface {
-	ExecContext(any, string, ...any) (sql.Result, error)
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
 	Query(string, ...any) (*sql.Rows, error)
 	Begin() (*sql.Tx, error)
 }
 
 func SQLAccessInterface(db SQLDB) {
-	db.ExecContext(nil, "SELECT * FROM beta.fragment_records")
+	db.ExecContext(context.Background(), "SELECT * FROM beta.fragment_records")
+}
+
+type Event struct{}
+
+type EventExecutor interface {
+	Exec(Event) error
+}
+
+func ExecuteEvent(executor EventExecutor, event Event) {
+	_ = executor.Exec(event)
 }
 
 func PackageCall() error {

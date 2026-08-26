@@ -294,6 +294,7 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.joined_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.merge_source",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.records",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.table_expr_join",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.hidden_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.merged_records",
 		"production|tables.foreign-write|example.test/architecture-semantic/foreign|beta.records",
