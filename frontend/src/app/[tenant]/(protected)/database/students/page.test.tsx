@@ -898,6 +898,7 @@ describe("StudentsPage", () => {
         page: 1,
         pageSize: 1000,
         include_arrival_times: true,
+        include_pending_withdrawals: true,
       });
     });
 

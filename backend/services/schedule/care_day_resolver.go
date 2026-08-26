@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
@@ -161,6 +162,11 @@ type CareDayDependencies struct {
 	ArrivalExceptions schedule.StudentArrivalExceptionRepository
 	PickupBaselines   PickupBaselineReader
 	PickupExceptions  schedule.StudentPickupExceptionRepository
+	CareParticipation CareParticipationResolver
+}
+
+type CareParticipationResolver interface {
+	ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[timezone.Date]map[int64]bool, error)
 }
 
 type careDayService struct {
@@ -174,6 +180,17 @@ func NewCareDayService(deps CareDayDependencies) CareDayService {
 		panic("schedule.NewCareDayService: required dependency is nil")
 	}
 	return &careDayService{deps: deps}
+}
+
+// WireCareParticipation attaches the lifecycle after both services exist in
+// the factory. Care-day construction happens earlier because CareLifecycle
+// itself depends on schedule repositories.
+func WireCareParticipation(service CareDayService, resolver CareParticipationResolver) {
+	concrete, ok := service.(*careDayService)
+	if !ok {
+		panic("schedule care-day service does not support participation wiring")
+	}
+	concrete.deps.CareParticipation = resolver
 }
 
 func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]CareDayStatus, error) {
@@ -208,7 +225,32 @@ func (s *careDayService) ResolveForRange(
 		}
 		out[studentID] = byDate
 	}
+	if err := s.applyCareParticipation(ctx, out, studentIDs, from, to); err != nil {
+		return nil, err
+	}
 	return out, nil
+}
+
+func (s *careDayService) applyCareParticipation(
+	ctx context.Context, out map[int64]map[timezone.Date]CareDayStatus,
+	studentIDs []int64, from, to timezone.Date,
+) error {
+	if s.deps.CareParticipation == nil {
+		return &ScheduleError{Op: opResolveCareDay, Err: errors.New("care participation resolver is not configured")}
+	}
+	participatingByDate, err := s.deps.CareParticipation.ParticipatingStudentIDsByDate(ctx, studentIDs, from, to)
+	if err != nil {
+		return &ScheduleError{Op: opResolveCareDay, Err: err}
+	}
+	for date := from; !date.After(to); date = date.AddDays(1) {
+		participating := participatingByDate[date]
+		for _, studentID := range studentIDs {
+			if !participating[studentID] {
+				out[studentID][date] = CareDayNotScheduled
+			}
+		}
+	}
+	return nil
 }
 
 // carePlans is the in-memory projection every date lookup reads from.

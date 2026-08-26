@@ -47,6 +47,7 @@ interface SettingsCategoryProps {
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
   readonly onSchemaRefresh?: () => void;
+  readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience identifies who is viewing the settings page. Controls the
   // "auch von {other side} änderbar" hint on shared settings. Defaults
   // to "admin" for the tenant settings page; the operator page passes
@@ -64,6 +65,7 @@ export function SettingsCategory({
   onSave,
   onReset,
   onSchemaRefresh,
+  onBookingAuthorityEnable,
   audience = "admin",
   revealFn,
 }: SettingsCategoryProps) {
@@ -90,6 +92,7 @@ export function SettingsCategory({
             onSave={onSave}
             onReset={onReset}
             onSchemaRefresh={onSchemaRefresh}
+            onBookingAuthorityEnable={onBookingAuthorityEnable}
             audience={audience}
             revealFn={revealFn}
           />

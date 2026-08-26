@@ -45,19 +45,24 @@ type Getter interface {
 }
 
 type Dependencies struct {
-	People          userService.PersonService
-	Education       educationService.Service
-	UserContext     userContextService.UserContextService
-	Active          activeService.Service
-	Settings        configService.SettingsService
-	Pickups         scheduleService.PickupScheduleService
-	Arrivals        scheduleService.ArrivalScheduleService
-	Instances       scheduleService.InstanceService
-	CareDays        scheduleService.CareDayService
-	ExcusedRequests absenceService.ExcusedAbsenceRequestService
-	StatusDays      *activeService.StudentStatusDayService
-	Logger          *slog.Logger
-	Now             func() time.Time
+	People            userService.PersonService
+	Education         educationService.Service
+	UserContext       userContextService.UserContextService
+	Active            activeService.Service
+	Settings          configService.SettingsService
+	Pickups           scheduleService.PickupScheduleService
+	Arrivals          scheduleService.ArrivalScheduleService
+	Instances         scheduleService.InstanceService
+	CareDays          scheduleService.CareDayService
+	CareParticipation CareParticipationResolver
+	ExcusedRequests   absenceService.ExcusedAbsenceRequestService
+	StatusDays        *activeService.StudentStatusDayService
+	Logger            *slog.Logger
+	Now               func() time.Time
+}
+
+type CareParticipationResolver interface {
+	ParticipatingStudentIDs(ctx context.Context, studentIDs []int64, on timezone.Date, actuallyPresent map[int64]bool) (map[int64]bool, error)
 }
 
 type service struct{ deps Dependencies }
@@ -213,7 +218,7 @@ func (s *service) validateDependencies() error {
 	if s.deps.People == nil || s.deps.Education == nil || s.deps.UserContext == nil ||
 		s.deps.Active == nil || s.deps.Settings == nil || s.deps.Pickups == nil ||
 		s.deps.Arrivals == nil || s.deps.Instances == nil || s.deps.CareDays == nil ||
-		s.deps.StatusDays == nil {
+		s.deps.CareParticipation == nil || s.deps.StatusDays == nil {
 		return errors.New("OGS group live service is not fully configured")
 	}
 	return nil
@@ -314,7 +319,7 @@ func (s *service) mapGroups(ctx context.Context, groups []*educationModels.Group
 }
 
 func (s *service) loadStudents(ctx context.Context, state *buildState) error {
-	students, err := s.deps.People.GetStudentsByGroupIDs(ctx, []int64{state.selected.ID})
+	students, err := s.deps.People.GetParticipationCandidatesByGroupIDs(ctx, []int64{state.selected.ID})
 	if err != nil {
 		return fmt.Errorf("load group students: %w", err)
 	}
@@ -327,14 +332,37 @@ func (s *service) loadStudents(ctx context.Context, state *buildState) error {
 		return fmt.Errorf("load student data snapshot: %w", err)
 	}
 	state.data = data
+	if err := s.filterCareParticipation(ctx, state); err != nil {
+		return err
+	}
 
 	photosEnabled, err := resolvePhotosEnabled(ctx, s.deps.Settings)
 	if err != nil {
 		return fmt.Errorf("resolve student photos setting: %w", err)
 	}
 	access := userContextService.ResolveStudentAccess(ctx, s.deps.UserContext)
-	state.projected = projectStudents(students, data, access, photosEnabled)
+	state.projected = projectStudents(state.students, data, access, photosEnabled)
 	return s.applyStatusDays(ctx, state)
+}
+
+func (s *service) filterCareParticipation(ctx context.Context, state *buildState) error {
+	participating, err := s.deps.CareParticipation.ParticipatingStudentIDs(
+		ctx, state.studentIDs, state.today, nil,
+	)
+	if err != nil {
+		return fmt.Errorf("apply care participation: %w", err)
+	}
+	students := state.students[:0]
+	studentIDs := state.studentIDs[:0]
+	for _, student := range state.students {
+		if participating[student.ID] {
+			students = append(students, student)
+			studentIDs = append(studentIDs, student.ID)
+		}
+	}
+	state.students = students
+	state.studentIDs = studentIDs
+	return nil
 }
 
 func resolvePhotosEnabled(ctx context.Context, settings boolSettingResolver) (bool, error) {
@@ -391,20 +419,16 @@ func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activ
 		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
 		return result, nil
 	}
-	return s.loadDetailedLocations(ctx, result)
+	return s.loadDetailedLocations(ctx, result, ids)
 }
 
-func (s *service) loadDetailedLocations(ctx context.Context, result *activeService.StudentLocationSnapshot) (*activeService.StudentLocationSnapshot, error) {
-	checkedIn := make([]int64, 0, len(result.Attendances))
-	for id, status := range result.Attendances {
-		if status != nil && status.Status == "checked_in" {
-			checkedIn = append(checkedIn, id)
-		}
-	}
-	if len(checkedIn) == 0 {
+func (s *service) loadDetailedLocations(
+	ctx context.Context, result *activeService.StudentLocationSnapshot, studentIDs []int64,
+) (*activeService.StudentLocationSnapshot, error) {
+	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	visits, err := s.deps.Active.GetStudentsCurrentVisits(ctx, checkedIn)
+	visits, err := s.deps.Active.GetStudentsCurrentVisits(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}

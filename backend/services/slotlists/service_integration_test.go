@@ -169,6 +169,22 @@ type slotListUserContext struct {
 	currentStaff *userModels.Staff
 }
 
+type slotListParticipation map[int64]bool
+
+func (p slotListParticipation) ParticipatingStudentIDsByDate(
+	_ context.Context, studentIDs []int64, from, to timezone.Date,
+) (map[timezone.Date]map[int64]bool, error) {
+	result := make(map[timezone.Date]map[int64]bool)
+	for day := from; !day.After(to); day = day.AddDays(1) {
+		result[day] = make(map[int64]bool, len(studentIDs))
+		for _, id := range studentIDs {
+			participating, specified := p[id]
+			result[day][id] = !specified || participating
+		}
+	}
+	return result, nil
+}
+
 func (u slotListUserContext) GetCurrentStaff(context.Context) (*userModels.Staff, error) {
 	return u.currentStaff, nil
 }
@@ -213,6 +229,17 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 	ResolveString(context.Context, string) (string, error)
 	LockSlotListCutoffPairShared(context.Context) error
 }, userCtx slotListUserContext) slotlists.Service {
+	return newTestServiceWithParticipation(db, roomRepo, settings, userCtx, slotListParticipation{})
+}
+
+func newTestServiceWithParticipation(db *bun.DB, roomRepo interface {
+	FindByID(context.Context, any) (*facilitiesModels.Room, error)
+}, settings interface {
+	HasTenantOverride(context.Context, string) (bool, error)
+	ResolveBool(context.Context, string) (bool, error)
+	ResolveString(context.Context, string) (string, error)
+	LockSlotListCutoffPairShared(context.Context) error
+}, userCtx slotListUserContext, participation scheduleSvc.CareParticipationResolver) slotlists.Service {
 	return slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        scheduleRepo.NewActivityInstanceRepository(db),
 		InstanceStudentRepo: scheduleRepo.NewInstanceStudentRepository(db),
@@ -227,7 +254,8 @@ func newTestServiceWithCustomAccess(db *bun.DB, roomRepo interface {
 				enrollmentRepo.NewRequestChildOfferingRepository(db),
 				enrollmentRepo.NewCareOfferingRepository(db),
 			),
-			PickupExceptions: scheduleRepo.NewStudentPickupExceptionRepository(db),
+			PickupExceptions:  scheduleRepo.NewStudentPickupExceptionRepository(db),
+			CareParticipation: participation,
 		}),
 		PickupExceptionRepo: scheduleRepo.NewStudentPickupExceptionRepository(db),
 		PickupBaselines: scheduletest.NewPickupBaselineService(
@@ -1667,11 +1695,11 @@ func TestBuildList_PickupReconciliationMarksCancelledCareDayAsExcused(t *testing
 	}
 }
 
-// A pending or inactive student keeps their recurring pickup schedule
+// A child whose care period expired keeps their recurring pickup schedule
 // (lifecycle deactivation does not delete it). They must not be placed into a
 // cohort as a planned / "Fehlt" child, and must not inflate options
 // availability (#1565 review).
-func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
+func TestBuildList_PickupCohortExcludesExpiredStudents(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
@@ -1685,6 +1713,7 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 
 	_, err := db.NewUpdate().TableExpr(`users.students`).
 		Set(`status = ?`, string(userModels.StudentStatusInactive)).
+		Set(`enrolled_until = ?`, pickupDate.AddDays(-1)).
 		Where(`id = ?`, gone.ID).Exec(ctx)
 	require.NoError(t, err)
 
@@ -1707,7 +1736,7 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.NotNil(t, rowByStudent(result.Rows, active.ID), "active child is in the cohort")
-	assert.Nil(t, rowByStudent(result.Rows, gone.ID), "inactive child must not appear")
+	assert.Nil(t, rowByStudent(result.Rows, gone.ID), "expired child must not appear")
 
 	options, err := svc.ListOptions(ctx, pickupDate)
 	require.NoError(t, err)
@@ -1715,7 +1744,7 @@ func TestBuildList_PickupCohortExcludesInactiveStudents(t *testing.T) {
 	for _, opt := range options.PickupCohorts {
 		byCohort[opt.Cohort] = opt
 	}
-	assert.Equal(t, 1, byCohort[slotlists.PickupCohortLongDay].RowCount, "inactive child must not inflate availability")
+	assert.Equal(t, 1, byCohort[slotlists.PickupCohortLongDay].RowCount, "expired child must not inflate availability")
 }
 
 // A Ganztag pickup plan cannot be reconstructed for a past date — the pickup
@@ -1822,6 +1851,37 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 		byCohort[opt.Cohort] = opt
 	}
 	assert.Equal(t, 1, byCohort[slotlists.PickupCohortShortDay].RowCount, "options availability matches the preview cohort")
+}
+
+func TestBuildList_PickupCohortKeepsExpiredActualAttendance(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	student := testpkg.CreateTestStudent(t, db, "SL-Live", fmt.Sprintf("EX-%d", testpkg.UniqueSuffix()), "2a")
+	staff := testpkg.CreateTestStaff(t, db, "SL-LiveStaff", fmt.Sprintf("LS-%d", testpkg.UniqueSuffix()))
+	device := testpkg.CreateTestDevice(t, db, fmt.Sprintf("slot-live-%d", testpkg.UniqueSuffix()))
+	_, err := db.NewUpdate().TableExpr(`users.students`).
+		Set(`status = ?`, string(userModels.StudentStatusAlumnus)).
+		Set(`enrolled_until = ?`, pickupDate.AddDays(-1)).
+		Where(`id = ?`, student.ID).Exec(ctx)
+	require.NoError(t, err)
+	pickup := &scheduleModels.StudentPickupSchedule{StudentID: student.ID, Weekday: int(pickupDate.Weekday()),
+		PickupTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC), CreatedBy: staff.ID}
+	pickup.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, scheduleRepo.NewStudentPickupScheduleRepository(db).Create(ctx, pickup))
+	attendance := &activeModels.Attendance{StudentID: student.ID, Date: pickupDate,
+		CheckInTime: atOn(pickupDate, 8, 0), CheckedInBy: staff.ID, DeviceID: device.ID}
+	attendance.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, activeRepo.NewAttendanceRepository(db).Create(ctx, attendance))
+	svc := newTestServiceWithParticipation(db, facilitiesRepo.NewRoomRepository(db), stubSlotListSettings{},
+		slotListUserContext{currentStaff: &userModels.Staff{}}, slotListParticipation{student.ID: false})
+	result, err := svc.BuildList(ctx, slotlists.Params{Date: pickupDate, Target: slotlists.TargetPickupCohort,
+		PickupCohort: slotlists.PickupCohortShortDay, Source: slotlists.SourceReconciliation})
+	require.NoError(t, err)
+	row := rowByStudent(result.Rows, student.ID)
+	require.NotNil(t, row)
+	assert.True(t, row.Present)
+	assert.False(t, row.Planned)
 }
 
 // A cancelled care day whose same-day exception cleared the effective pickup

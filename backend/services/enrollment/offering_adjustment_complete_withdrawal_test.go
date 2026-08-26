@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -184,7 +186,10 @@ func newWithdrawalLifecycle(env *decisionTestEnv) usersService.CareLifecycleServ
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.GradeTransition,
 		AuditService: usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
-		DB:           env.db, Logger: slog.Default(),
+		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
+			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+		},
+		DB: env.db, Logger: slog.Default(),
 	})
 }
 
@@ -193,6 +198,16 @@ func TestDecisionService_CompleteWithdrawalIsDisabledWhenBookingsAreNotAuthorita
 	fixture := newNonAuthoritativeWithdrawalFixture(t)
 	require.NoError(t, fixture.apply(withdrawalSelection(fixture.careID)))
 	require.NoError(t, fixture.apply(nil), "the ordinary correction does not require withdrawal confirmation")
+	pending, err := pendingWithdrawalForStudent(fixture.ctx, fixture.env.repos.CareWithdrawal, fixture.studentID)
+	require.NoError(t, err)
+	assert.Nil(t, pending)
+}
+
+func TestDecisionService_ExplicitConfirmationCannotBypassBookingAuthority(t *testing.T) {
+	t.Parallel()
+	fixture := newNonAuthoritativeWithdrawalFixture(t)
+	require.NoError(t, fixture.apply(withdrawalSelection(fixture.careID)))
+	require.NoError(t, fixture.applyConfirmed(nil))
 	pending, err := pendingWithdrawalForStudent(fixture.ctx, fixture.env.repos.CareWithdrawal, fixture.studentID)
 	require.NoError(t, err)
 	assert.Nil(t, pending)
@@ -212,7 +227,8 @@ func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdra
 	t.Cleanup(cleanup)
 	ctx := testpkg.Ctx(t)
 	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-10))
-	requestID, childID := submitOneChild(t, env, "non-authoritative-withdrawal@example.com", "Toni", "Optional")
+	email := fmt.Sprintf("non-authoritative-withdrawal-%d@example.com", testpkg.UniqueSuffix())
+	requestID, childID := submitOneChild(t, env, email, "Toni", "Optional")
 	care := createWithdrawalOffering(t, env, "Ganztag", true)
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID,
@@ -223,10 +239,21 @@ func newNonAuthoritativeWithdrawalFixture(t *testing.T) *nonAuthoritativeWithdra
 }
 
 func (f *nonAuthoritativeWithdrawalFixture) apply(offerings []enrollmentService.OfferingAdjustmentSelection) error {
+	return f.applyInput(offerings, false)
+}
+
+func (f *nonAuthoritativeWithdrawalFixture) applyConfirmed(offerings []enrollmentService.OfferingAdjustmentSelection) error {
+	return f.applyInput(offerings, true)
+}
+
+func (f *nonAuthoritativeWithdrawalFixture) applyInput(
+	offerings []enrollmentService.OfferingAdjustmentSelection, confirmed bool,
+) error {
 	return tenant.WithTenantTx(f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {
 		_, err := f.env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID: f.requestID, ChildID: f.childID, Offerings: offerings,
 			ActorAccountID: f.env.creatorID, ActorRole: "admin", Reason: "Betreuung geändert",
+			CompleteWithdrawalConfirmed: confirmed,
 		})
 		return err
 	})
@@ -278,7 +305,8 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 			close(f.completionWaiting)
 			return f.recurrenceGate(ctx)
 		},
-		DB: f.env.db, Logger: slog.Default(),
+		BookingsAuthoritative: func(context.Context) (bool, error) { return *authoritative, nil },
+		DB:                    f.env.db, Logger: slog.Default(),
 	})
 	f.decision = newDecisionServiceForTestWithCareWithdrawal(f.env.rolloverTestEnv,
 		stubActivationSettings{bookingsAuthoritative: authoritative}, f.recurrenceGate, f.lifecycle)
