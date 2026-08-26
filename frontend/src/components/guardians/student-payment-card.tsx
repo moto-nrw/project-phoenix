@@ -306,6 +306,7 @@ export function StudentPaymentCard({
                       variant="outline"
                       onClick={() => void handleReveal()}
                       disabled={isRevealing}
+                      className="grow sm:grow-0"
                     >
                       <Eye className="mr-1.5 h-4 w-4" aria-hidden />
                       {isRevealing ? "Wird geladen…" : "Anzeigen"}
@@ -318,6 +319,7 @@ export function StudentPaymentCard({
                       variant="outline"
                       onClick={() => void handleStartEdit()}
                       disabled={isRevealing}
+                      className="grow sm:grow-0"
                     >
                       {ibanMasked ? "Bearbeiten" : "IBAN eintragen"}
                     </Button>

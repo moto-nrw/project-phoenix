@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  fireEvent,
+  within,
+} from "@testing-library/react";
 
 import type { PaymentOverviewRow } from "~/lib/guardian-payment-api";
 
@@ -68,6 +74,11 @@ describe("BankverbindungenPage", () => {
     expect(mockFetchOverview).not.toHaveBeenCalled();
   });
 
+  // jsdom applies no CSS, so the stacked and the table layout both render.
+  // Scoping every row query keeps the assertions unambiguous.
+  const table = () => within(screen.getByTestId("payment-list-table"));
+  const stacked = () => within(screen.getByTestId("payment-list-stacked"));
+
   it("shows children without bank details as a gap, not as a blank cell", async () => {
     mockFetchOverview.mockResolvedValue([
       row({}),
@@ -84,10 +95,10 @@ describe("BankverbindungenPage", () => {
     render(<BankverbindungenPage />);
 
     await waitFor(() =>
-      expect(screen.getByText("Mia Schneider")).toBeInTheDocument(),
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
     );
-    expect(screen.getByText("Nicht zugeordnet")).toBeInTheDocument();
-    expect(screen.getByText("Fehlt")).toBeInTheDocument();
+    expect(table().getByText("Nicht zugeordnet")).toBeInTheDocument();
+    expect(table().getByText("Fehlt")).toBeInTheDocument();
     expect(screen.getByText("Ohne IBAN (1)")).toBeInTheDocument();
   });
 
@@ -99,13 +110,14 @@ describe("BankverbindungenPage", () => {
 
     render(<BankverbindungenPage />);
     await waitFor(() =>
-      expect(screen.getByText("Mia Schneider")).toBeInTheDocument(),
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Ohne IBAN (1)" }));
 
-    expect(screen.queryByText("Mia Schneider")).not.toBeInTheDocument();
-    expect(screen.getByText("Lea Wolf")).toBeInTheDocument();
+    expect(table().queryByText("Mia Schneider")).not.toBeInTheDocument();
+    expect(table().getByText("Lea Wolf")).toBeInTheDocument();
+    expect(stacked().getByText("Lea Wolf")).toBeInTheDocument();
   });
 
   it("downloads in the chosen format", async () => {
@@ -114,15 +126,48 @@ describe("BankverbindungenPage", () => {
 
     render(<BankverbindungenPage />);
     await waitFor(() =>
-      expect(screen.getByText("Mia Schneider")).toBeInTheDocument(),
+      expect(table().getByText("Mia Schneider")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByRole("button", { name: "PDF" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: /Liste herunterladen/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Herunterladen/ }));
 
     await waitFor(() => expect(mockExport).toHaveBeenCalledWith("pdf"));
+  });
+
+  // The defect this layout exists to fix: in the table the IBAN is a fourth
+  // column that a phone viewport cannot show.
+  it("carries the IBAN as a labelled field in the stacked layout", async () => {
+    mockFetchOverview.mockResolvedValue([row({})]);
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(stacked().getByText("Mia Schneider")).toBeInTheDocument(),
+    );
+
+    expect(stacked().getByText("IBAN")).toBeInTheDocument();
+    expect(stacked().getByText("Kontoinhaber")).toBeInTheDocument();
+    expect(stacked().getByText("•••• 3000")).toBeInTheDocument();
+    expect(stacked().getByText("1a")).toBeInTheDocument();
+  });
+
+  it("reveals the rest of a long list on demand instead of rendering it all", async () => {
+    mockFetchOverview.mockResolvedValue(
+      Array.from({ length: 30 }, (_, i) =>
+        row({ studentId: String(i), studentName: `Kind ${i}` }),
+      ),
+    );
+
+    render(<BankverbindungenPage />);
+    await waitFor(() =>
+      expect(stacked().getByText("Kind 0")).toBeInTheDocument(),
+    );
+
+    expect(stacked().queryByText("Kind 25")).not.toBeInTheDocument();
+
+    fireEvent.click(stacked().getByRole("button", { name: /Weitere 5/ }));
+
+    expect(stacked().getByText("Kind 25")).toBeInTheDocument();
   });
 
   it("warns that the downloaded file carries full IBANs", async () => {

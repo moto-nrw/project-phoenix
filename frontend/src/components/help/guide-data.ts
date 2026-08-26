@@ -700,7 +700,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Läuft das Konto auf einen anderen Namen, tragen Sie diesen unter `Anderer Kontoinhaber` ein. Sonst bleibt das Feld leer.",
           "Später zeigt moto nur die letzten vier Ziffern. Mit `Anzeigen` sehen Sie die ganze IBAN.",
           "Die gesammelte Liste finden Sie in der Seitenleiste unter `Eltern` -> `Bankverbindungen`. Mit `Ohne IBAN` sehen Sie nur die Kinder, bei denen noch etwas fehlt.",
-          "Format wählen (PDF, Excel oder Word) und auf `Liste herunterladen` klicken.",
+          "Format wählen (PDF, Excel oder Word) und auf `Herunterladen` klicken.",
         ],
         callout: {
           title: "Geschwister nur einmal pflegen",

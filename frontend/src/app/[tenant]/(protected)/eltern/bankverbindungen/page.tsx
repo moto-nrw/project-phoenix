@@ -10,6 +10,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Skeleton } from "~/components/ui/skeleton";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import {
@@ -30,6 +31,133 @@ const FORMAT_LABELS: Record<PaymentExportFormat, string> = {
   xlsx: "Excel",
   docx: "Word",
 };
+
+// A school has hundreds of children; rendering every row at once costs a long
+// scroll on both layouts and a lot of DOM on a phone.
+const ROWS_PER_PAGE = 25;
+
+/** One field of a stacked row: a fixed label column so the values line up. */
+function RowField({
+  label,
+  children,
+}: Readonly<{ label: string; children: React.ReactNode }>) {
+  return (
+    <div className="flex gap-3">
+      <dt className="w-28 shrink-0 text-gray-500">{label}</dt>
+      <dd className="min-w-0 flex-1 text-right">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * The phone layout of the list: one stacked row per child inside a single
+ * surface, so the IBAN sits under the name instead of in a fourth column the
+ * viewport cannot show.
+ */
+function PaymentRowList({
+  rows,
+  caption,
+  isLoading,
+  emptyState,
+}: Readonly<{
+  rows: readonly PaymentOverviewRow[];
+  caption: string;
+  isLoading: boolean;
+  emptyState: React.ReactNode;
+}>) {
+  const [visibleCount, setVisibleCount] = useState(ROWS_PER_PAGE);
+
+  // A narrowed filter must show its first results, not the tail of the
+  // previous page.
+  const key = rows.length;
+  const [lastKey, setLastKey] = useState(key);
+  if (key !== lastKey) {
+    setLastKey(key);
+    setVisibleCount(ROWS_PER_PAGE);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-gray-600">{caption}</p>
+        <div className="moto-content-surface rounded-2xl border shadow-sm">
+          <ul className="divide-y divide-gray-100">
+            {Array.from({ length: 5 }, (_, i) => (
+              <li key={i} className="space-y-2 p-4">
+                <Skeleton className="h-4 w-40 rounded" />
+                <Skeleton className="h-3 w-full rounded" />
+                <Skeleton className="h-3 w-2/3 rounded" />
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="moto-content-surface rounded-2xl border p-6 shadow-sm">
+        {emptyState}
+      </div>
+    );
+  }
+
+  const shown = rows.slice(0, visibleCount);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm text-gray-600">{caption}</p>
+      <div className="moto-content-surface rounded-2xl border shadow-sm">
+        <ul className="divide-y divide-gray-100">
+          {shown.map((row) => (
+            <li key={row.studentId} className="p-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 font-medium text-gray-900">
+                  {row.studentName}
+                </span>
+                <span className="shrink-0 text-xs text-gray-500">
+                  {row.schoolClass || "—"}
+                </span>
+              </div>
+              <dl className="mt-2 space-y-1 text-sm">
+                <RowField label="Kontoinhaber">
+                  {row.guardianId ? (
+                    <span className="text-gray-900">{row.accountHolder}</span>
+                  ) : (
+                    <span className="text-gray-500">Nicht zugeordnet</span>
+                  )}
+                </RowField>
+                <RowField label="IBAN">
+                  {row.ibanMasked === "" ? (
+                    <span style={{ color: LOCATION_COLORS.WARNING }}>
+                      Fehlt
+                    </span>
+                  ) : (
+                    <span className="font-mono text-gray-900">
+                      {row.ibanMasked}
+                    </span>
+                  )}
+                </RowField>
+              </dl>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {shown.length < rows.length && (
+        <Button
+          type="button"
+          size="md"
+          variant="outline"
+          className="w-full"
+          onClick={() => setVisibleCount((count) => count + ROWS_PER_PAGE)}
+        >
+          Weitere {Math.min(ROWS_PER_PAGE, rows.length - shown.length)} anzeigen
+        </Button>
+      )}
+    </div>
+  );
+}
 
 function BankverbindungenContent() {
   const { data: session, status } = useSession({ required: true });
@@ -81,13 +209,6 @@ function BankverbindungenContent() {
     [rows],
   );
 
-  // The caption states how complete the list is rather than repeating the page
-  // name — two labels sharing the stem "Bankverbindung" would read as two
-  // different things.
-  const captionText = isLoading
-    ? "Liste wird geladen…"
-    : `${rows.length} Kinder, davon ${rows.length - missingCount} mit Bankverbindung`;
-
   const visibleRows = useMemo(() => {
     const needle = searchValue.trim().toLowerCase();
     return rows.filter((row) => {
@@ -100,6 +221,18 @@ function BankverbindungenContent() {
       );
     });
   }, [rows, searchValue, completeness]);
+
+  // The caption states how complete the list is rather than repeating the page
+  // name — two labels sharing the stem "Bankverbindung" would read as two
+  // different things. Once a search or filter narrows the list it says how much
+  // of it is on screen instead, so the number never contradicts the rows below.
+  const captionText = (() => {
+    if (isLoading) return "Liste wird geladen…";
+    if (visibleRows.length !== rows.length) {
+      return `${visibleRows.length} von ${rows.length} Kindern`;
+    }
+    return `${rows.length} Kinder, davon ${rows.length - missingCount} mit Bankverbindung`;
+  })();
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -161,6 +294,22 @@ function BankverbindungenContent() {
     },
   ];
 
+  const emptyState = (
+    <EmptyState
+      icon={<Landmark className="h-12 w-12" />}
+      title={
+        completeness === "missing"
+          ? "Keine offenen Bankverbindungen"
+          : "Noch keine Kinder in der Liste"
+      }
+      description={
+        completeness === "missing"
+          ? "Für jedes Kind ist eine IBAN gespeichert."
+          : "Sobald Kinder angelegt sind, erscheinen sie hier."
+      }
+    />
+  );
+
   if (status !== "loading" && !canRead) {
     return (
       <div className="p-4 sm:p-6">
@@ -189,9 +338,8 @@ function BankverbindungenContent() {
         <BackButton referrer="/eltern" />
 
         <p className="max-w-3xl text-sm text-gray-600">
-          Ein Eintrag je Kind: von welchem Konto der Beitrag eingezogen wird.
-          Die IBAN tragen Sie beim Kind ein, im Reiter „Erziehungsberechtigte“.
-          Hier sehen Sie nur die letzten Ziffern.
+          Von welchem Konto der Beitrag je Kind eingezogen wird. Die IBAN tragen
+          Sie beim Kind ein, im Reiter „Erziehungsberechtigte“.
         </p>
 
         <div className="flex flex-wrap items-end justify-between gap-3">
@@ -221,39 +369,41 @@ function BankverbindungenContent() {
               disabled={isExporting || rows.length === 0}
             >
               <Download className="mr-1.5 h-4 w-4" aria-hidden />
-              {isExporting ? "Wird erstellt…" : "Liste herunterladen"}
+              {isExporting ? "Wird erstellt…" : "Herunterladen"}
             </Button>
           </div>
         </div>
 
         <p className="max-w-3xl text-xs text-gray-500">
-          Die Datei enthält die ganzen IBANs. Wer sie herunterlädt, wird
-          protokolliert. Bitte nicht per E-Mail weitergeben.
+          Die Datei enthält die ganzen IBANs und wird protokolliert. Bitte nicht
+          per E-Mail weitergeben.
         </p>
 
-        <DataTable
-          columns={columns}
-          rows={visibleRows}
-          getRowKey={(row) => row.studentId}
-          isLoading={isLoading}
-          defaultSortKey="student"
-          caption={captionText}
-          emptyState={
-            <EmptyState
-              icon={<Landmark className="h-12 w-12" />}
-              title={
-                completeness === "missing"
-                  ? "Keine offenen Bankverbindungen"
-                  : "Noch keine Kinder in der Liste"
-              }
-              description={
-                completeness === "missing"
-                  ? "Für jedes Kind ist eine IBAN gespeichert."
-                  : "Sobald Kinder angelegt sind, erscheinen sie hier."
-              }
-            />
-          }
-        />
+        {/* A four-column table on a phone pushes the IBAN — the one value the
+            page exists for — off screen. Under md the same rows render as a
+            stacked list; from md up the table is the denser read. */}
+        <div className="md:hidden" data-testid="payment-list-stacked">
+          <PaymentRowList
+            rows={visibleRows}
+            caption={captionText}
+            isLoading={isLoading}
+            emptyState={emptyState}
+          />
+        </div>
+
+        <div className="hidden md:block" data-testid="payment-list-table">
+          <DataTable
+            columns={columns}
+            rows={visibleRows}
+            getRowKey={(row) => row.studentId}
+            isLoading={isLoading}
+            defaultSortKey="student"
+            caption={captionText}
+            pageSize={ROWS_PER_PAGE}
+            paginationResetKey={`${completeness}:${searchValue}`}
+            emptyState={emptyState}
+          />
+        </div>
       </div>
     </div>
   );
