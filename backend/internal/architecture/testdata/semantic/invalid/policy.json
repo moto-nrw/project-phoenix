@@ -12,6 +12,7 @@
   ],
   "roles": ["application", "compose", "domain", "module-behavior-test", "module-internal-test", "postgres", "public"],
   "packages": [
+	{"path": "capability", "owner": "alpha", "role": "domain", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
     {"path": "consumer", "owner": "alpha", "role": "application", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
     {"path": "database/repositories", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
     {"path": "dynamic", "owner": "alpha", "role": "postgres", "internal_test_role": "module-internal-test", "external_test_role": "module-behavior-test"},
@@ -45,7 +46,8 @@
     {"id": "report-view", "package": "projection", "data_objects": ["beta.records"], "tenant_safe": true}
   ],
   "legacy_composition": [
-    {"package": "legacy", "symbols": ["Factory", "NewFactory"]}
+    {"package": "legacy", "symbols": ["Factory"]},
+    {"package": "/legacy", "symbols": ["NewFactory"]}
   ],
   "external_classes": ["orm-sql"],
   "external_packages": [{"path": "database/sql", "class": "orm-sql"}, {"path": "github.com/uptrace/bun", "class": "orm-sql"}],

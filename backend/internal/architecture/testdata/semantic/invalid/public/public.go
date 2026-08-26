@@ -1,6 +1,7 @@
 package public
 
 import (
+	"example.test/architecture-semantic/capability"
 	"example.test/architecture-semantic/database/repositories"
 	"example.test/architecture-semantic/models/internalmodel"
 	"github.com/uptrace/bun"
@@ -19,14 +20,30 @@ type Service interface {
 	Upsert(Leaky) error
 }
 
-type service struct{}
+type factoryResult struct{}
 
-func New() service { return service{} }
+func New() factoryResult { return factoryResult{} }
 
-func (service) List(map[string]any) error { return nil }
+func (factoryResult) List(map[string]any) error { return nil }
 
-type recursiveService struct{}
+type recursiveFactoryResult struct{}
 
-func NewRecursive() recursiveService { return recursiveService{} }
+func NewRecursive() recursiveFactoryResult { return recursiveFactoryResult{} }
 
-func (recursiveService) List() recursiveService { return recursiveService{} }
+func (recursiveFactoryResult) List() recursiveFactoryResult { return recursiveFactoryResult{} }
+
+func NewAnonymous() interface{ List() error } { return nil }
+
+func NewImported() capability.Service { return nil }
+
+type sharedFactoryResult struct{}
+
+type sharedNestedResult struct{}
+
+func NewShared() sharedFactoryResult { return sharedFactoryResult{} }
+
+func (sharedFactoryResult) First() sharedNestedResult { return sharedNestedResult{} }
+
+func (sharedFactoryResult) Second() sharedNestedResult { return sharedNestedResult{} }
+
+func (sharedNestedResult) List() error { return nil }

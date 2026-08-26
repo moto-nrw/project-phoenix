@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -289,6 +290,15 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 }
 
 func expectedSemanticViolationKeys() []string {
+	return slices.Concat(
+		expectedTableViolationKeys(),
+		expectedContractViolationKeys(),
+		expectedDatabaseViolationKeys(),
+		expectedCompositionViolationKeys(),
+	)
+}
+
+func expectedTableViolationKeys() []string {
 	return []string{
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_source",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_table_expr",
@@ -316,6 +326,14 @@ func expectedSemanticViolationKeys() []string {
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.OrderExpr",
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.Exec",
 		"production|tables.unresolved|example.test/architecture-semantic/dynamic|dynamic.ExecContext",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.fragment_records",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
+		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
+	}
+}
+
+func expectedContractViolationKeys() []string {
+	return []string{
 		"production|contracts.orm-type|example.test/architecture-semantic/public|public.Leaky",
 		"production|contracts.repository-type|example.test/architecture-semantic/public|public.Leaky",
 		"production|contracts.filter-map|example.test/architecture-semantic/public|public.Leaky",
@@ -326,6 +344,15 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.New.List",
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewRecursive.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewAnonymous.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewImported.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.First.List",
+		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.NewShared.Second.List",
+	}
+}
+
+func expectedDatabaseViolationKeys() []string {
+	return []string{
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.Begin",
@@ -335,9 +362,11 @@ func expectedSemanticViolationKeys() []string {
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.SQLDB.ExecContext",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.Ping",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.PingDB.PingContext",
-		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.fragment_records",
-		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
-		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
+	}
+}
+
+func expectedCompositionViolationKeys() []string {
+	return []string{
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.NewFactory",
 	}
@@ -346,18 +375,43 @@ func expectedSemanticViolationKeys() []string {
 func TestPolicyRejectsLegacyReferencesOutsideCompositionPackages(t *testing.T) {
 	t.Parallel()
 
+	tests := map[string]func(*architecture.Package){
+		"domain owner":     func(pkg *architecture.Package) { pkg.Owner = "alpha" },
+		"non-compose role": func(pkg *architecture.Package) { pkg.Role = "application" },
+	}
+	for name, mutate := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
+			if err != nil {
+				t.Fatalf("load policy: %v", err)
+			}
+			for i := range policy.Packages {
+				if policy.Packages[i].Path == "legacy" {
+					mutate(&policy.Packages[i])
+					break
+				}
+			}
+			if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition package "legacy" must have a composition owner and compose role`) {
+				t.Fatalf("legacy package outside composition was accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestPolicyRejectsLegacyPackageAliasesWithDuplicateSymbols(t *testing.T) {
+	t.Parallel()
+
 	policy, err := architecture.LoadPolicy(fixturePath(t, "semantic", "invalid", "policy.json"))
 	if err != nil {
 		t.Fatalf("load policy: %v", err)
 	}
-	for i := range policy.Packages {
-		if policy.Packages[i].Path == "legacy" {
-			policy.Packages[i].Owner = "alpha"
-			break
-		}
-	}
-	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition package "legacy" must have a composition owner and compose role`) {
-		t.Fatalf("legacy package outside composition was accepted: %v", err)
+	policy.LegacyComposition = append(policy.LegacyComposition, architecture.LegacyReference{
+		Package: "/legacy",
+		Symbols: []string{"Factory"},
+	})
+	if err := policy.Validate(); err == nil || !strings.Contains(err.Error(), `legacy composition symbol "example.test/architecture-semantic/legacy.Factory" is declared more than once`) {
+		t.Fatalf("duplicate legacy symbol package aliases were accepted: %v", err)
 	}
 }
 

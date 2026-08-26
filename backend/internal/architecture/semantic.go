@@ -111,11 +111,15 @@ func populateSemanticPolicy(analyzer *semanticAnalyzer, policy *Policy) {
 		analyzer.projections[packagePath] = objects
 	}
 	for _, legacy := range policy.LegacyComposition {
-		symbols := make(map[string]struct{}, len(legacy.Symbols))
+		packagePath := policy.absolutePackage(legacy.Package)
+		symbols := analyzer.legacySymbols[packagePath]
+		if symbols == nil {
+			symbols = make(map[string]struct{}, len(legacy.Symbols))
+		}
 		for _, symbol := range legacy.Symbols {
 			symbols[symbol] = struct{}{}
 		}
-		analyzer.legacySymbols[policy.absolutePackage(legacy.Package)] = symbols
+		analyzer.legacySymbols[packagePath] = symbols
 	}
 }
 
@@ -923,24 +927,23 @@ func contractViolations(pkg *packages.Package) []Violation {
 }
 
 func contractMethodViolations(source, target string, named *types.Named) []Violation {
-	return contractMethodViolationsSeen(source, target, named, make(map[*types.Named]struct{}))
+	return contractMethodViolationsSeen(source, target, named, make(map[types.Type]struct{}))
 }
 
-func contractMethodViolationsSeen(source, target string, named *types.Named, seenTypes map[*types.Named]struct{}) []Violation {
-	if _, exists := seenTypes[named]; exists {
+func contractMethodViolationsSeen(source, target string, named *types.Named, contractStack map[types.Type]struct{}) []Violation {
+	if _, exists := contractStack[named]; exists {
 		return nil
 	}
-	seenTypes[named] = struct{}{}
+	contractStack[named] = struct{}{}
+	defer delete(contractStack, named)
 	var violations []Violation
 	seen := make(map[string]struct{})
 	sets := []*types.MethodSet{types.NewMethodSet(named), types.NewMethodSet(types.NewPointer(named))}
 	if iface, ok := named.Underlying().(*types.Interface); ok {
-		iface.Complete()
-		for i := 0; i < iface.NumMethods(); i++ {
-			method := iface.Method(i)
+		for _, method := range contractInterfaceMethods(iface) {
 			seen[method.Name()] = struct{}{}
-			violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, seenTypes)...)
 		}
+		violations = append(violations, contractInterfaceMethodViolationsSeen(source, target, iface, contractStack)...)
 	}
 	for _, set := range sets {
 		for i := 0; i < set.Len(); i++ {
@@ -955,42 +958,69 @@ func contractMethodViolationsSeen(source, target string, named *types.Named, see
 				continue
 			}
 			seen[method.Name()] = struct{}{}
-			violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, seenTypes)...)
+			violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, contractStack)...)
 		}
 	}
 	return violations
 }
 
 func contractFunctionViolations(source, target string, function *types.Func) []Violation {
-	return contractFunctionViolationsSeen(source, target, function, make(map[*types.Named]struct{}))
+	return contractFunctionViolationsSeen(source, target, function, make(map[types.Type]struct{}))
 }
 
-func contractFunctionViolationsSeen(source, target string, function *types.Func, seenTypes map[*types.Named]struct{}) []Violation {
+func contractFunctionViolationsSeen(source, target string, function *types.Func, contractStack map[types.Type]struct{}) []Violation {
 	violations := forbiddenTypeViolations(source, target, function.Type())
-	violations = append(violations, contractResultMethodViolations(source, target, function, seenTypes)...)
+	violations = append(violations, contractResultMethodViolations(source, target, function, contractStack)...)
 	if crudMethodNames[function.Name()] {
 		violations = append(violations, contractViolation(source, "contracts.generic-crud", target, "public contracts use capability-specific operations, not generic CRUD"))
 	}
 	return violations
 }
 
-func contractResultMethodViolations(source, target string, function *types.Func, seenTypes map[*types.Named]struct{}) []Violation {
+func contractResultMethodViolations(source, target string, function *types.Func, contractStack map[types.Type]struct{}) []Violation {
 	signature, ok := function.Type().(*types.Signature)
 	if !ok {
 		return nil
 	}
-	namedResults := make(map[*types.Named]struct{})
+	resultTypes := make(map[types.Type]struct{})
 	walkTuple(signature.Results(), make(map[types.Type]struct{}), func(current types.Type) {
-		named, ok := current.(*types.Named)
-		if ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == source {
-			namedResults[named] = struct{}{}
+		switch current.(type) {
+		case *types.Named, *types.Interface:
+			resultTypes[current] = struct{}{}
 		}
 	})
 	var violations []Violation
-	for named := range namedResults {
-		violations = append(violations, contractMethodViolationsSeen(source, target, named, seenTypes)...)
+	for resultType := range resultTypes {
+		switch typed := resultType.(type) {
+		case *types.Named:
+			violations = append(violations, contractMethodViolationsSeen(source, target, typed, contractStack)...)
+		case *types.Interface:
+			violations = append(violations, contractInterfaceMethodViolationsSeen(source, target, typed, contractStack)...)
+		}
 	}
 	return violations
+}
+
+func contractInterfaceMethodViolationsSeen(source, target string, iface *types.Interface, contractStack map[types.Type]struct{}) []Violation {
+	if _, exists := contractStack[iface]; exists {
+		return nil
+	}
+	contractStack[iface] = struct{}{}
+	defer delete(contractStack, iface)
+	var violations []Violation
+	for _, method := range contractInterfaceMethods(iface) {
+		violations = append(violations, contractFunctionViolationsSeen(source, target+"."+method.Name(), method, contractStack)...)
+	}
+	return violations
+}
+
+func contractInterfaceMethods(iface *types.Interface) []*types.Func {
+	iface.Complete()
+	methods := make([]*types.Func, 0, iface.NumMethods())
+	for i := 0; i < iface.NumMethods(); i++ {
+		methods = append(methods, iface.Method(i))
+	}
+	return methods
 }
 
 func forbiddenTypeViolations(source, target string, contractType types.Type) []Violation {

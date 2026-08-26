@@ -275,7 +275,8 @@ func (p *Policy) validateLegacyComposition(owners map[string]Owner) error {
 	packages := p.packageMap()
 	seen := make(map[string]struct{})
 	for _, legacy := range p.LegacyComposition {
-		pkg, ok := packages[p.absolutePackage(legacy.Package)]
+		packagePath := p.absolutePackage(legacy.Package)
+		pkg, ok := packages[packagePath]
 		if !ok {
 			return fmt.Errorf("legacy composition references unknown package %q", legacy.Package)
 		}
@@ -289,7 +290,7 @@ func (p *Policy) validateLegacyComposition(owners map[string]Owner) error {
 			if !token.IsExported(symbol) {
 				return fmt.Errorf("legacy composition symbol %q.%s is not exported", legacy.Package, symbol)
 			}
-			key := legacy.Package + "." + symbol
+			key := packagePath + "." + symbol
 			if _, exists := seen[key]; exists {
 				return fmt.Errorf("legacy composition symbol %q is declared more than once", key)
 			}
