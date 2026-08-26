@@ -20,6 +20,14 @@ func Control(db *bun.DB) {
 	db.Begin()
 }
 
+type SelectDB interface {
+	NewSelect() *bun.SelectQuery
+}
+
+func ReadInterface(db SelectDB) {
+	db.NewSelect().TableExpr("beta.records")
+}
+
 func SQLAccess(conn *sql.Conn, stmt *sql.Stmt) {
 	conn.ExecContext(nil, "SELECT * FROM beta.records")
 	stmt.Exec()

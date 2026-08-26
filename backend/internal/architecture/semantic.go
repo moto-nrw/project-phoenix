@@ -662,7 +662,7 @@ func bunModelDataObject(model types.Type) (string, bool) {
 }
 
 func isBunDBCall(receiver types.Type, selection *types.Selection, method string) bool {
-	if isBunDBType(receiver) {
+	if isBunDBType(receiver) || isBunDatabaseInterface(receiver) {
 		return true
 	}
 	if selection == nil {
@@ -674,6 +674,27 @@ func isBunDBCall(receiver types.Type, selection *types.Selection, method string)
 	}
 	signature, ok := function.Type().(*types.Signature)
 	return ok && signature.Recv() != nil && isBunDBType(signature.Recv().Type())
+}
+
+func isBunDatabaseInterface(receiver types.Type) bool {
+	interfaceType, ok := receiver.Underlying().(*types.Interface)
+	if !ok {
+		return false
+	}
+	interfaceType.Complete()
+	for index := 0; index < interfaceType.NumMethods(); index++ {
+		signature, ok := interfaceType.Method(index).Type().(*types.Signature)
+		if !ok {
+			continue
+		}
+		for result := 0; result < signature.Results().Len(); result++ {
+			typeName := types.TypeString(signature.Results().At(result).Type(), packagePathQualifier)
+			if strings.Contains(typeName, "github.com/uptrace/bun.SelectQuery") || strings.Contains(typeName, "github.com/uptrace/bun.InsertQuery") || strings.Contains(typeName, "github.com/uptrace/bun.UpdateQuery") || strings.Contains(typeName, "github.com/uptrace/bun.DeleteQuery") || strings.Contains(typeName, "github.com/uptrace/bun.MergeQuery") || strings.Contains(typeName, "github.com/uptrace/bun.RawQuery") {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func isBunDBType(receiver types.Type) bool {
