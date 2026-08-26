@@ -166,9 +166,7 @@ var extraGuardSources = []string{
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
 	t.Parallel()
 
-	_, file, _, ok := runtime.Caller(0)
-	require.True(t, ok, "locating api/iot test source")
-	iotDir := filepath.Dir(file)
+	iotDir := iotPackageDir(t)
 	backendRoot := filepath.Dir(filepath.Dir(iotDir)) // backend/
 
 	var blob strings.Builder
@@ -218,4 +216,15 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 			want,
 		)
 	}
+}
+
+func iotPackageDir(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if ok && filepath.IsAbs(file) {
+		return filepath.Dir(file)
+	}
+	dir, err := os.Getwd()
+	require.NoError(t, err, "locating api/iot sources")
+	return dir
 }
