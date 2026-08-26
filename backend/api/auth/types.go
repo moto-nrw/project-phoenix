@@ -81,6 +81,16 @@ type TenantResolveResponse struct {
 	OperationalOverviewScope string `json:"operational_overview_scope"`
 	ShowTimetableCounts      bool   `json:"show_timetable_counts"`
 	WaitlistEnabled          bool   `json:"waitlist_enabled"`
+	// EmergencyHealthInfoEnabled is the tenant's resolved
+	// operations.emergency_list_health_info setting (#2609). Shell metadata
+	// like the flags above: the Notfall page describes what the printed list
+	// contains, and every member of staff can open it without carrying
+	// config:read — so a school that switched the health column off must not
+	// be told the list carries it. Defaults to true, the registry default,
+	// when the setting is missing or unresolvable: describing a column that
+	// is actually there is the safe direction for a page whose only purpose
+	// is telling people what they are about to print.
+	EmergencyHealthInfoEnabled bool `json:"emergency_list_health_info_enabled"`
 }
 
 type tenantShellSettings struct {
@@ -96,6 +106,7 @@ type tenantShellSettings struct {
 	overviewScope          string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
+	emergencyHealthInfo    bool
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

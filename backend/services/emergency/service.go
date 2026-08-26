@@ -3,6 +3,7 @@ package emergency
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -11,12 +12,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
 const presenceModeBinary = "binary"
+
+// healthInfoMissing is what a child WITHOUT a stored health note prints as.
+// An empty cell reads as "no allergies" to whoever grabs the sheet, which is
+// the one reading that could get a child hurt — so the absence of data says
+// so in words (#2609).
+const healthInfoMissing = "Nicht hinterlegt"
 
 type attendanceReader interface {
 	ListOpenStudentIDsForDate(ctx context.Context, date timezone.Date) ([]int64, error)
@@ -43,6 +51,12 @@ type guardianContactReader interface {
 	ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModel.GuardianEmergencyContactRow, error)
 }
 
+// settingsReader is the narrow slice of the settings service this package
+// needs: one boolean, resolved for the request's tenant.
+type settingsReader interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
 type Dependencies struct {
 	AttendanceRepo      attendanceReader
 	StudentRepo         studentReader
@@ -51,6 +65,12 @@ type Dependencies struct {
 	StudentGuardianRepo guardianContactReader
 	ActiveService       activePresenceReader
 	ListExport          *listexport.RendererService
+	// Settings decides whether the health column is printed
+	// (operations.emergency_list_health_info). Optional: a nil service means
+	// no school-level opinion is available, and the column is left off — see
+	// healthInfoEnabled.
+	Settings settingsReader
+	Logger   *slog.Logger
 }
 
 // Service renders the emergency list ("Notfallliste") snapshot: every
@@ -66,6 +86,7 @@ type snapshotRow struct {
 	Location        string
 	ContactName     string
 	ContactPhone    string
+	HealthInfo      string
 	GuardianName    string
 	GuardianContact string
 	GuardianPhone   string
@@ -98,19 +119,58 @@ func (s *Service) BuildSnapshotDocument(ctx context.Context, generatedAt time.Ti
 		return listexport.Document{}, err
 	}
 
+	withHealth := s.healthInfoEnabled(ctx)
+
+	columns := []listexport.Column{
+		{ID: listexport.ColumnName, Label: "Name"},
+		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
+		{ID: listexport.ColumnCurrentLocation, Label: "Ort / Raum"},
+		{ID: listexport.ColumnContactPhone, Label: "Telefonnummer"},
+		{ID: listexport.ColumnContactName, Label: "Kontakt"},
+	}
+	if withHealth {
+		columns = append(columns, listexport.Column{ID: listexport.ColumnHealthInfo, Label: "Gesundheit / Allergien"})
+	}
+
 	return listexport.Document{
 		Title:       "Notfallliste",
 		Subtitle:    fmt.Sprintf("%d anwesende Kinder", len(rows)),
 		GeneratedAt: generatedAt,
-		Columns: []listexport.Column{
-			{ID: listexport.ColumnName, Label: "Name"},
-			{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
-			{ID: listexport.ColumnCurrentLocation, Label: "Ort / Raum"},
-			{ID: listexport.ColumnContactPhone, Label: "Telefonnummer"},
-			{ID: listexport.ColumnContactName, Label: "Kontakt"},
-		},
-		Rows: buildDocumentRows(rows),
+		Columns:     columns,
+		Rows:        buildDocumentRows(rows, withHealth),
 	}, nil
+}
+
+// healthInfoEnabled reports whether the school prints health notes on the
+// Notfallliste. It is NOT a read gate — the note is already visible to every
+// account with users:read in the child's record, and this export requires the
+// same permission; the switch only decides what lands on the paper.
+//
+// It errs towards leaving the column OFF when the setting cannot be read: a
+// school that switched it off did so for a data-protection reason, and a
+// column that appears because a lookup failed would break that silently. The
+// rest of the list (names, location, phone numbers) is unaffected, so the
+// sheet still does its job.
+func (s *Service) healthInfoEnabled(ctx context.Context) bool {
+	if s.Settings == nil {
+		return false
+	}
+	enabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEmergencyListHealthInfo)
+	if err != nil {
+		s.logger().WarnContext(ctx, "emergency list: health info setting could not be resolved, printing list without health column",
+			slog.String("key", configModel.KeyEmergencyListHealthInfo),
+			slog.String("error", err.Error()),
+		)
+		return false
+	}
+	return enabled
+}
+
+func (s *Service) logger() *slog.Logger {
+	if s.Logger != nil {
+		return s.Logger
+	}
+	return slog.Default()
 }
 
 func (s *Service) loadSnapshotRows(ctx context.Context, studentIDs []int64) ([]snapshotRow, error) {
@@ -170,6 +230,7 @@ func buildSnapshotRows(
 			Name:            person.GetFullName(),
 			SchoolClass:     student.SchoolClass,
 			Location:        locations[id],
+			HealthInfo:      strings.TrimSpace(base.Deref(student.HealthInfo)),
 			GuardianName:    base.Deref(student.GuardianName),
 			GuardianContact: base.Deref(student.GuardianContact),
 			GuardianPhone:   base.Deref(student.GuardianPhone),
@@ -253,16 +314,31 @@ func (s *Service) loadGuardianContacts(ctx context.Context, studentIDs []int64) 
 	return contacts, nil
 }
 
-func buildDocumentRows(rows []snapshotRow) []listexport.Row {
+func buildDocumentRows(rows []snapshotRow, withHealth bool) []listexport.Row {
 	result := make([]listexport.Row, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, listexport.Row{Values: map[listexport.ColumnID]string{
+		values := map[listexport.ColumnID]string{
 			listexport.ColumnName:            row.Name,
 			listexport.ColumnSchoolClass:     row.SchoolClass,
 			listexport.ColumnCurrentLocation: row.Location,
 			listexport.ColumnContactPhone:    row.ContactPhone,
 			listexport.ColumnContactName:     row.ContactName,
-		}})
+		}
+		if withHealth {
+			values[listexport.ColumnHealthInfo] = healthInfoCell(row.HealthInfo)
+		}
+		result = append(result, listexport.Row{Values: values})
 	}
 	return result
+}
+
+// healthInfoCell renders one child's health note. Whitespace-only notes count
+// as no note: "   " on screen and "" on paper mean the same thing to a reader,
+// and both must say "Nicht hinterlegt" rather than leave a blank that reads as
+// an all-clear.
+func healthInfoCell(note string) string {
+	if strings.TrimSpace(note) == "" {
+		return healthInfoMissing
+	}
+	return note
 }

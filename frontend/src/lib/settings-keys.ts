@@ -38,4 +38,9 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // saved setting cannot leave new forms enforcing the old cap for five
   // minutes.
   "enrollment.grade_level_max",
+  // The Notfall page describes what the printed list contains, including the
+  // health column. Without revalidation, an admin switching the column off
+  // leaves the page promising health data the PDF no longer carries for up to
+  // the layout cache TTL (300s).
+  "operations.emergency_list_health_info",
 ]);

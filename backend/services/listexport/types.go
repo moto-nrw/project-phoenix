@@ -46,10 +46,15 @@ const (
 	ColumnContactName       ColumnID = "contact_name"
 	ColumnContactPhone      ColumnID = "contact_phone"
 	ColumnGuardianContacts  ColumnID = "guardian_contacts"
-	ColumnBirthday          ColumnID = "birthday"
-	ColumnAge               ColumnID = "age"
-	ColumnSlot              ColumnID = "slot"
-	ColumnPresenceStatus    ColumnID = "presence_status"
+	// ColumnHealthInfo carries the child's stored health note (allergies,
+	// medication, medical hints). It exists for the Notfallliste (#2609), which
+	// schools print as an offline backup: the note has to be readable next to
+	// the phone number, not looked up in a portal that just went offline.
+	ColumnHealthInfo     ColumnID = "health_info"
+	ColumnBirthday       ColumnID = "birthday"
+	ColumnAge            ColumnID = "age"
+	ColumnSlot           ColumnID = "slot"
+	ColumnPresenceStatus ColumnID = "presence_status"
 
 	// Plan-matrix columns (#2079). Deliberately distinct from the
 	// ColumnWeekly* family: those carry one short care marker per weekday in

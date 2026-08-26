@@ -533,6 +533,31 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyBirthdayDisplayEnabled, true),
 	})
 
+	// --- Notfallliste (#2609) ---
+	//
+	// The printed Notfallliste is a school's offline backup for the moment the
+	// internet is gone, so the health note a school already stores on the child
+	// belongs next to the phone number. It is Art. 9 data on a sheet of paper
+	// that lies around, though, so the school decides: default ON, because the
+	// schools asking for the list are the ones who want it, and a school with a
+	// stricter data-protection concept can switch it off. The column is not a
+	// second read gate — the note is already visible to every account with
+	// users:read in the child's record; the switch only decides whether it is
+	// printed.
+
+	config.Register(config.Definition{
+		Key:             config.KeyEmergencyListHealthInfo,
+		Label:           "Gesundheitsinfos auf der Notfallliste",
+		Description:     "Druckt zu jedem anwesenden Kind die hinterlegten Gesundheitsinfos mit: Allergien, Medikamente, medizinische Hinweise. Kinder ohne Eintrag erscheinen als \"Nicht hinterlegt\". Ausgeschaltet enthält die Liste nur Name, Klasse, Ort und Kontakte.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "notfallliste",
+		SortOrder:       1,
+	})
+
 	// --- Elternportal (parents-portal write features) ---
 	//
 	// These gate what guardians may submit through the parents app. Both

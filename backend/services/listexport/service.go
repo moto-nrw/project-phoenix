@@ -98,6 +98,7 @@ func ColumnCatalog() map[ColumnID]Column {
 		ColumnContactName:       {ID: ColumnContactName, Label: "Kontakt"},
 		ColumnContactPhone:      {ID: ColumnContactPhone, Label: "Telefonnummer"},
 		ColumnGuardianContacts:  {ID: ColumnGuardianContacts, Label: "Erziehungsberechtigte"},
+		ColumnHealthInfo:        {ID: ColumnHealthInfo, Label: "Gesundheit / Allergien"},
 		ColumnBirthday:          {ID: ColumnBirthday, Label: "Geburtstag"},
 		ColumnAge:               {ID: ColumnAge, Label: "Alter"},
 	}

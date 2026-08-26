@@ -246,6 +246,20 @@ export function useAttendanceWebEnabled(): boolean {
 }
 
 /**
+ * Returns whether the printed Notfallliste carries the children's health
+ * notes (operations.emergency_list_health_info, #2609).
+ *
+ * Missing tenant metadata counts as enabled, matching the registry default.
+ * This is a description hint, never a gate: the backend decides what the PDF
+ * contains. It exists so the Notfall page can name what it is about to print
+ * for staff who do not carry config:read.
+ */
+export function useEmergencyHealthInfoEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.emergencyHealthInfoEnabled !== false;
+}
+
+/**
  * Returns whether the attendance log / Tagesauswertung
  * (gdpr.attendance_log_enabled) is enabled for this tenant. Opt-in feature,
  * defaults to false when tenant metadata is unavailable.

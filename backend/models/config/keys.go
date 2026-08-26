@@ -132,6 +132,7 @@ const (
 	KeyGroupMode                       = "operations.group_mode"
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"
+	KeyEmergencyListHealthInfo         = "operations.emergency_list_health_info"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyRequirePickupOfferingReview     = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"

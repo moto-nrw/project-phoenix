@@ -151,6 +151,10 @@ describe("tenant-api", () => {
         operationalOverviewScope: "own",
         showTimetableCounts: true,
         waitlistEnabled: true,
+        // Older backends omit the health-column flag (#2609). Absent means
+        // enabled, matching the registry default — the Notfall page then
+        // describes the column the backend actually prints.
+        emergencyHealthInfoEnabled: true,
         gradeLevelMax: 13,
       });
     });
@@ -178,6 +182,7 @@ describe("tenant-api", () => {
                 operational_overview_scope: "all_staff",
                 show_timetable_counts: true,
                 waitlist_enabled: true,
+                emergency_list_health_info_enabled: true,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -195,6 +200,7 @@ describe("tenant-api", () => {
                 operational_overview_scope: "nonsense_from_a_newer_backend",
                 show_timetable_counts: false,
                 waitlist_enabled: false,
+                emergency_list_health_info_enabled: false,
               },
             }),
             { status: 200, headers: { "Content-Type": "application/json" } },
@@ -208,6 +214,7 @@ describe("tenant-api", () => {
         operationalOverviewScope: "all_staff",
         showTimetableCounts: true,
         waitlistEnabled: true,
+        emergencyHealthInfoEnabled: true,
       });
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
         careOfferingsEnabled: false,
@@ -218,6 +225,7 @@ describe("tenant-api", () => {
         operationalOverviewScope: "own",
         showTimetableCounts: false,
         waitlistEnabled: false,
+        emergencyHealthInfoEnabled: false,
       });
     });
 
