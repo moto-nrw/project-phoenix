@@ -8,6 +8,7 @@ import (
 
 func ReadAndWrite(db *bun.DB) {
 	db.NewSelect().TableExpr("beta.records")
+	db.NewSelect().TableExpr("alpha.records, beta.comma_table_expr")
 	db.NewSelect().TableExpr("alpha.records").Join("JOIN beta.joined_records ON true")
 	db.NewSelect().TableExpr("alpha.records").ColumnExpr("(SELECT count(*) FROM beta.fragment_records JOIN ghost.records ON true)")
 	db.NewUpdate().TableExpr("beta.records")

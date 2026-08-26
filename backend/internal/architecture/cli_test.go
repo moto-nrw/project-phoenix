@@ -288,6 +288,7 @@ func TestCheckReportsSemanticArchitectureViolations(t *testing.T) {
 func expectedSemanticViolationKeys() []string {
 	return []string{
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_source",
+		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.comma_table_expr",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.delete_source",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.fragment_records",
 		"production|tables.foreign-read|example.test/architecture-semantic/foreign|beta.joined_records",
@@ -319,6 +320,11 @@ func expectedSemanticViolationKeys() []string {
 		"production|contracts.generic-crud|example.test/architecture-semantic/public|public.Service.Upsert",
 		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun." + "DB.NewSelect",
 		"production|database.direct-access|example.test/architecture-semantic/service|example.test/architecture-semantic/service.WrappedDB.NewSelect",
+		"production|database.direct-access|example.test/architecture-semantic/service|github.com/uptrace/bun.DB.Begin",
+		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Conn.ExecContext",
+		"production|database.direct-access|example.test/architecture-semantic/service|database/sql.Stmt.Exec",
+		"production|tables.foreign-read|example.test/architecture-semantic/service|beta.records",
+		"production|tables.unresolved|example.test/architecture-semantic/service|service.Exec",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.Factory",
 		"production|composition.legacy-reference|example.test/architecture-semantic/consumer|example.test/architecture-semantic/legacy.NewFactory",
 	}

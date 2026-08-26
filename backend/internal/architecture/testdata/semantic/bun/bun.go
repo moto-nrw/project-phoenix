@@ -13,6 +13,7 @@ func (*DB) NewSelect() *SelectQuery         { return &SelectQuery{} }
 func (*DB) NewInsert() *InsertQuery         { return &InsertQuery{} }
 func (*DB) NewUpdate() *UpdateQuery         { return &UpdateQuery{} }
 func (*DB) NewDelete() *DeleteQuery         { return &DeleteQuery{} }
+func (*DB) Begin()                          {}
 func (*DB) Exec(string, ...any)             {}
 func (*DB) ExecContext(any, string, ...any) {}
 

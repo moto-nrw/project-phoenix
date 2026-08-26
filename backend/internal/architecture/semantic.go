@@ -218,7 +218,7 @@ func (a semanticAnalyzer) directDBCallViolations(pkg *packages.Package, classifi
 		})
 	}
 	if isRuntimeDataPackage(classification) && isRawSQLMethod(method) {
-		violations = append(violations, a.rawSQLViolations(pkg, classification, functionName, method, args)...)
+		violations = append(violations, a.rawSQLViolations(pkg, classification, functionName, receiver, selection, method, args)...)
 	}
 	return violations
 }
@@ -235,11 +235,14 @@ func (a semanticAnalyzer) tableMethodViolations(pkg *packages.Package, classific
 	if !ok {
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
-	name, ok := normalizeDataObject(table)
+	names, ok := tableExpressionDataObjects(table)
 	if !ok {
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
 	}
-	violations := a.tableAccessViolations(pkg.PkgPath, classification.Owner, operation, name)
+	var violations []Violation
+	for _, name := range names {
+		violations = append(violations, a.tableAccessViolations(pkg.PkgPath, classification.Owner, operation, name)...)
+	}
 	return append(violations, a.sqlStringViolations(pkg.PkgPath, classification.Owner, functionName, method, table, false)...)
 }
 
@@ -296,7 +299,10 @@ func queryReceiverHasExplicitTable(expr ast.Expr) bool {
 	return queryReceiverHasExplicitTable(selector.X)
 }
 
-func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName, method string, args []ast.Expr) []Violation {
+func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, selection *types.Selection, method string, args []ast.Expr) []Violation {
+	if isSQLStmtCall(receiver, selection) {
+		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, method)}
+	}
 	queryIndex := 0
 	if strings.HasSuffix(method, "Context") {
 		queryIndex = 1
@@ -656,10 +662,6 @@ func bunModelDataObject(model types.Type) (string, bool) {
 }
 
 func isBunDBCall(receiver types.Type, selection *types.Selection, method string) bool {
-	knownMethod := strings.HasPrefix(method, "New") || method == "Exec" || method == "ExecContext" || method == "Query" || method == "QueryContext" || method == "QueryRow" || method == "QueryRowContext"
-	if !knownMethod {
-		return false
-	}
 	if isBunDBType(receiver) {
 		return true
 	}
@@ -676,7 +678,22 @@ func isBunDBCall(receiver types.Type, selection *types.Selection, method string)
 
 func isBunDBType(receiver types.Type) bool {
 	typeName := types.TypeString(receiver, packagePathQualifier)
-	return strings.Contains(typeName, "github.com/uptrace/bun.DB") || strings.Contains(typeName, "github.com/uptrace/bun.IDB") || strings.Contains(typeName, "github.com/uptrace/bun.Tx") || strings.Contains(typeName, "database/sql.DB") || strings.Contains(typeName, "database/sql.Tx")
+	return strings.Contains(typeName, "github.com/uptrace/bun.DB") || strings.Contains(typeName, "github.com/uptrace/bun.IDB") || strings.Contains(typeName, "github.com/uptrace/bun.Tx") || strings.Contains(typeName, "database/sql.DB") || strings.Contains(typeName, "database/sql.Tx") || strings.Contains(typeName, "database/sql.Conn") || strings.Contains(typeName, "database/sql.Stmt")
+}
+
+func isSQLStmtCall(receiver types.Type, selection *types.Selection) bool {
+	if strings.Contains(types.TypeString(receiver, packagePathQualifier), "database/sql.Stmt") {
+		return true
+	}
+	if selection == nil {
+		return false
+	}
+	function, ok := selection.Obj().(*types.Func)
+	if !ok {
+		return false
+	}
+	signature, ok := function.Type().(*types.Signature)
+	return ok && signature.Recv() != nil && strings.Contains(types.TypeString(signature.Recv().Type(), packagePathQualifier), "database/sql.Stmt")
 }
 
 func bunCallTarget(receiver types.Type, method string) string {
@@ -693,6 +710,19 @@ func normalizeDataObject(expression string) (string, bool) {
 		return "", false
 	}
 	return strings.ToLower(match[1]), true
+}
+
+func tableExpressionDataObjects(expression string) ([]string, bool) {
+	parts := strings.Split(expression, ",")
+	objects := make([]string, 0, len(parts))
+	for _, part := range parts {
+		object, ok := normalizeDataObject(part)
+		if !ok {
+			return nil, false
+		}
+		objects = append(objects, object)
+	}
+	return objects, true
 }
 
 func stripIdentifierQuotes(value string) string {
