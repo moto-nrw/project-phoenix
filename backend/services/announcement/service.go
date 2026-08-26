@@ -56,9 +56,10 @@ const (
 
 // Sentinel errors mapped to HTTP status by the handler.
 var (
-	ErrNotFound     = errors.New("announcement: not found")
-	ErrValidation   = errors.New("announcement: invalid input")
-	ErrNewsDisabled = errors.New("announcement: parent news is disabled for this school")
+	ErrNotFound                    = errors.New("announcement: not found")
+	ErrValidation                  = errors.New("announcement: invalid input")
+	ErrNewsDisabled                = errors.New("announcement: parent news is disabled for this school")
+	ErrSystemAnnouncementImmutable = errors.New("announcement: system announcements cannot be changed")
 	// ErrPublishedImmutable: a published announcement is frozen — parents may
 	// already have read (or been e-mailed) the exact wording, so silent edits
 	// are forbidden. Correcting means unpublish (retract) → edit → republish,
@@ -116,6 +117,9 @@ type Service interface {
 	// RemindUnanswered notifies the guardians of children that have not answered
 	// yet and reports how many were reached.
 	RemindUnanswered(ctx context.Context, id int64) (int, error)
+
+	// --- cancellation notice (#2601) ---
+	CareCancellationPublisher
 }
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -346,6 +350,9 @@ func (s *service) Delete(ctx context.Context, id int64) error {
 	if a == nil {
 		return ErrNotFound
 	}
+	if a.IsSystem() {
+		return ErrSystemAnnouncementImmutable
+	}
 	// Cancel any not-yet-sent e-mails before removing the announcement: outbox
 	// rows reference it only by related_entity_id (no FK), so a delete would
 	// otherwise leave pending rows that still deliver a notification for an
@@ -478,8 +485,9 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 	// factory always does — the pre-consent behaviour is kept for that case so
 	// a partially constructed service does not silently stop notifying. When a
 	// service IS present, its answer is final: no consent, no push.
+	notificationType, copyKind, deepLink := pushShapeFor(a)
 	if s.preferences != nil {
-		accountIDs, err = s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		accountIDs, err = s.preferences.FilterOptedIn(ctx, notificationType, accountIDs)
 		if err != nil {
 			return fmt.Errorf("filter opted-in guardians: %w", err)
 		}
@@ -495,21 +503,17 @@ func (s *service) notifyAnnouncementGuardians(ctx context.Context, a *usersModel
 		}
 	}
 
-	kind := notifications.ParentAnnouncementPublished
-	if a.IsPoll() {
-		kind = notifications.ParentPollPublished
-	}
 	groups := make(map[string][]int64)
 	for _, accountID := range accountIDs {
 		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, kind)
+		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
 		err = s.notifier.Notify(ctx, notifications.Event{
-			Type:     parentAnnouncementNotificationType,
+			Type:     notificationType,
 			Title:    title,
 			Body:     body,
-			DeepLink: "/",
+			DeepLink: deepLink,
 			Priority: priority,
 			Audience: notifications.Audience{
 				TenantID:           a.GetTenantID(),
@@ -576,7 +580,8 @@ func (s *service) enqueueAnnouncementEmails(ctx context.Context, a *usersModels.
 		// received announcement e-mails before the consent switches existed, and
 		// most families have no row at all. Requiring an opt-in here would stop
 		// the e-mails for practically everybody.
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		notificationType, _, _ := pushShapeFor(a)
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, notificationType, accountIDs)
 		if err != nil {
 			return fmt.Errorf("announcement: filter opted-out e-mail recipients: %w", err)
 		}
@@ -734,6 +739,9 @@ func (s *service) Unpublish(ctx context.Context, id int64) (*usersModels.ParentA
 	}
 	if a == nil {
 		return nil, ErrNotFound
+	}
+	if a.IsSystem() {
+		return nil, ErrSystemAnnouncementImmutable
 	}
 	if a.IsPublished() {
 		if err := s.repo.SetPublished(ctx, id, nil); err != nil {

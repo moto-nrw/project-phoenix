@@ -62,6 +62,7 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
@@ -139,6 +140,7 @@ type API struct {
 	Messaging        *messagingAPI.Resource
 	Calendar         *calendarAPI.Resource
 	Announcements    *announcementAPI.Resource
+	FileStore        *filestoreAPI.Resource
 	Reminders        *remindersAPI.Resource
 	Notifications    *notificationsAPI.Resource
 	PWA              *pwaAPI.Resource
@@ -566,6 +568,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Messaging = messagingAPI.NewResource(api.Services.Messaging, db)
 	api.Calendar = calendarAPI.NewResource(api.Services.Calendar, db, logger.With("handler", "calendar"))
 	api.Announcements = announcementAPI.NewResource(api.Services.ParentAnnouncement, db)
+	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = guardiansAPI.NewResource(api.Services.Guardian, api.Services.GuardianInvitation, api.Services.Users, api.Services.Education, api.Services.UserContext, db)
 	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
@@ -865,6 +868,7 @@ func (a *API) registerTenantRoutes() {
 		r.Mount("/statistics", a.Statistics.Router())
 		r.Mount("/messages", a.Messaging.Router())
 		r.Mount("/parent-announcements", a.Announcements.Router())
+		r.Mount("/files", a.FileStore.Router())
 
 		// Mount guardian resources
 		r.Mount("/guardians", a.Guardians.Router())

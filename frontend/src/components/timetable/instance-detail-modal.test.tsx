@@ -17,6 +17,22 @@ vi.mock("next-auth/react", () => ({
   })),
 }));
 
+vi.mock("~/lib/timetable-api", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("~/lib/timetable-api")>();
+  return {
+    ...actual,
+    timetableService: {
+      ...actual.timetableService,
+      getGuardianNoticeReach: vi.fn().mockResolvedValue({
+        enabled: false,
+        defaultOn: false,
+        childCount: 0,
+        familyCount: 0,
+      }),
+    },
+  };
+});
+
 import { InstanceDetailModal } from "./instance-detail-modal";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import {
@@ -409,6 +425,7 @@ describe("InstanceDetailModal", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Absagen/ }));
     expect(screen.getByText("Termin absagen?")).toBeInTheDocument();
+    await waitFor(() => expect(confirmDialogButton("Absagen")).toBeEnabled());
     fireEvent.click(confirmDialogButton("Absagen"));
     await waitFor(() =>
       expect(onLifecycleAction).toHaveBeenCalledWith("cancel"),

@@ -171,6 +171,15 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-moto-blue",
   },
   {
+    // Dateiablage (#2596): jeder mit Tenant-Zugang sieht den Eintrag; welche
+    // Ordner sichtbar sind, entscheidet das Backend pro Ordner.
+    ...STAFF_FLAT_PAGES.dateien,
+    icon: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z",
+    concept: "files",
+    activeColor: "text-moto-indigo",
+    alwaysShow: true,
+  },
+  {
     // Statistik (#2606): Anwesenheitsquoten je Kind, Gruppe und Zeitraum
     // plus Raumauslastung. Das Backend verlangt config:read UND users:read.
     ...STAFF_FLAT_PAGES.statistics,

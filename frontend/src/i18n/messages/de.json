@@ -126,6 +126,7 @@
     "newsNew": "Neuer Elternbrief",
     "newsOutstanding": "Offen",
     "newsLetter": "Elternbrief",
+    "newsCareCancellation": "Betreuung fällt aus",
     "newsImportant": "Wichtig",
     "newsAcknowledge": "Gelesen bestätigen",
     "newsAcknowledgeSaving": "Wird bestätigt …",
@@ -251,6 +252,10 @@
       "parent_request_decided": {
         "label": "Entscheidung über Ihre Anfrage",
         "description": "Wenn die OGS über eine Ihrer Anfragen entschieden hat."
+      },
+      "parent_care_cancelled": {
+        "label": "Betreuung fällt aus",
+        "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
       }
     }
   },

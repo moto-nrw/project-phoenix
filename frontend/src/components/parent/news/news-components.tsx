@@ -104,13 +104,21 @@ function NewsCardMeta({
   item,
 }: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
   const t = useTranslations("parentDashboard");
-  const type = isPoll(item) ? t("newsPoll") : t("newsLetter");
+  const cancellation = item.system_kind === "care_cancellation";
+  const type = cancellation
+    ? t("newsCareCancellation")
+    : isPoll(item)
+      ? t("newsPoll")
+      : t("newsLetter");
   const outstanding = isOutstandingAnnouncement(item);
+  const typeClass = cancellation
+    ? "text-moto-red-strong"
+    : outstanding
+      ? "text-moto-blue-strong"
+      : "text-gray-500";
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
-      <span className={outstanding ? "text-moto-blue-strong" : "text-gray-500"}>
-        {type}
-      </span>
+      <span className={typeClass}>{type}</span>
       {item.priority === "important" && (
         <>
           <span className="text-gray-300" aria-hidden="true">

@@ -58,7 +58,7 @@ export function SegmentedControl<T extends string>({
   readonly value: T | null;
   readonly onChange: (next: T) => void;
   readonly variant?: "joined" | "pills";
-  /** Stretch to the container and split the width evenly (modal tab bars). */
+  /** Stretch to the container; segments share the width and wrap when it is too narrow (modal tab bars). */
   readonly fullWidth?: boolean;
   readonly ariaLabel?: string;
   readonly className?: string;
@@ -95,14 +95,17 @@ export function SegmentedControl<T extends string>({
   }
 
   // Full-width variant reads as a tab bar (light track, raised active
-  // segment); the inline one is the compact bordered switcher.
+  // segment); the inline one is the compact bordered switcher. The segments
+  // size from their label and share the remaining width; when the track is
+  // narrower than the labels (three long German options in a mobile card)
+  // they wrap onto a second row instead of overflowing the track.
   return (
     <div
       role="group"
       aria-label={ariaLabel}
       className={
         fullWidth
-          ? `flex w-full gap-1 rounded-lg bg-gray-100 p-1 ${className}`
+          ? `flex w-full flex-wrap gap-1 rounded-lg bg-gray-100 p-1 ${className}`
           : `inline-flex items-center overflow-hidden rounded-full border border-gray-200 bg-white ${className}`
       }
     >
@@ -116,7 +119,7 @@ export function SegmentedControl<T extends string>({
               aria-pressed={active}
               disabled={item.disabled}
               onClick={() => onChange(item.value)}
-              className={`${base} flex-1 rounded-md text-sm ${
+              className={`${base} min-w-0 flex-[1_1_auto] rounded-md text-sm ${
                 active
                   ? "bg-white text-gray-900 shadow-sm"
                   : "text-gray-500 hover:text-gray-700"

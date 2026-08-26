@@ -781,6 +781,10 @@ export interface ParentAnnouncement {
   readonly response_deadline?: string; // ISO timestamp
   readonly options?: readonly ParentAnnouncementOption[];
   readonly children?: readonly ParentAnnouncementPollChild[];
+
+  // Set on rows the system wrote on the school's behalf (#2601). A
+  // cancellation notice is labelled as such instead of "Elternbrief".
+  readonly system_kind?: "care_cancellation";
 }
 
 interface ParentAnnouncementOption {

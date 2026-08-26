@@ -988,6 +988,9 @@ func TestMapStudentRow_FullCSVRow(t *testing.T) {
 	assert.True(t, g.IsPrimary)
 	assert.True(t, g.IsEmergencyContact)
 	assert.True(t, g.CanPickup)
+	assert.True(t, g.IsPrimarySet)
+	assert.True(t, g.IsEmergencyContactSet)
+	assert.True(t, g.CanPickupSet)
 	assert.Equal(t, "Musterstr. 1", g.AddressStreet)
 	assert.Equal(t, "Köln", g.AddressCity)
 	assert.Equal(t, "50667", g.AddressPostalCode)
@@ -1002,6 +1005,27 @@ func TestMapStudentRow_FullCSVRow(t *testing.T) {
 	assert.Equal(t, 5, row.PickupSchedules[1].Weekday)
 	assert.Equal(t, "14:00", row.PickupSchedules[1].PickupTime)
 	assert.Equal(t, "Frühschluss", row.PickupSchedules[1].Notes)
+}
+
+func TestMapStudentRow_GuardianExplicitNoTracksPresence(t *testing.T) {
+	t.Parallel()
+	mapper := NewColumnMapper(map[string]int{
+		"vorname": 0, "nachname": 1, "klasse": 2,
+		"erz1.email": 3, "erz1.hauptansprechpartner": 4,
+		"erz1.notfall": 5, "erz1.abholberechtigt": 6,
+	}, []string{"Max", "Mustermann", "1A", "maria@example.test", "Nein", "Nein", "Nein"})
+
+	row, err := MapStudentRow(mapper)
+
+	require.NoError(t, err)
+	require.Len(t, row.Guardians, 1)
+	guardian := row.Guardians[0]
+	assert.False(t, guardian.IsPrimary)
+	assert.False(t, guardian.IsEmergencyContact)
+	assert.False(t, guardian.CanPickup)
+	assert.True(t, guardian.IsPrimarySet)
+	assert.True(t, guardian.IsEmergencyContactSet)
+	assert.True(t, guardian.CanPickupSet)
 }
 
 // TestColumnMapperIntegration tests the integration between ColumnMapper and other helpers
