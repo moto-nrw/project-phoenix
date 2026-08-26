@@ -148,6 +148,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),
+  // Team-Chat (#2598) is opt-in and defaults off, and it fails CLOSED — so the
+  // default here is false too. Tests covering the feature override it locally.
+  useStaffMessagingEnabled: vi.fn(() => false),
   // Care offerings were historically always enabled. Preserve that behaviour
   // in unrelated fixtures unless a capability test opts out explicitly.
   useCareOfferingsEnabled: vi.fn(() => true),

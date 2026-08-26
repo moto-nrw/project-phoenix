@@ -622,6 +622,23 @@ func init() {
 		SortOrder:       61,
 	})
 
+	// OGS-internal colleague chat (#2598). Defaults OFF: an internal staff
+	// channel is switched on deliberately by the school, not sprung on it by a
+	// deploy. Category "team" keeps it visibly apart from the "elternportal"
+	// block right above, so nobody reads it as another parent-facing feature.
+	config.Register(config.Definition{
+		Key:             config.KeyStaffMessagingEnabled,
+		Label:           "Team-Chat für Mitarbeitende",
+		Description:     "Wenn aktiviert, können sich Mitarbeitende dieser Schule in moto gegenseitig Nachrichten schreiben. Eltern sehen davon nichts.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "team",
+		SortOrder:       1,
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyParentCarePickupRequestEnabled,
 		Label:           "Dauerhafte Abholzeiten durch Eltern ändern lassen",

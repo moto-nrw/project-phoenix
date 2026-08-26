@@ -1,6 +1,7 @@
 package architecture_test
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
@@ -250,5 +251,25 @@ func packageDir(t *testing.T) string {
 	if !ok {
 		t.Fatal("resolve test package directory")
 	}
-	return filepath.Dir(file)
+	if filepath.IsAbs(file) {
+		if _, err := os.Stat(file); err == nil {
+			return filepath.Dir(file)
+		}
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("resolve working directory: %v", err)
+	}
+	moduleRoot := wd
+	for {
+		if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err == nil {
+			return filepath.Join(moduleRoot, "internal", "architecture")
+		}
+		parent := filepath.Dir(moduleRoot)
+		if parent == moduleRoot {
+			t.Fatalf("resolve module root from %s", wd)
+		}
+		moduleRoot = parent
+	}
 }

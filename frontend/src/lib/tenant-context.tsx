@@ -269,6 +269,18 @@ export function useAttendanceLogEnabled(): boolean {
   return ctx?.tenant?.attendanceLogEnabled === true;
 }
 
+/**
+ * Returns whether the OGS-internal Team-Chat is switched on (#2598).
+ *
+ * Fails CLOSED: missing tenant metadata hides the feature. An internal staff
+ * channel must never appear at a school that did not ask for it, so an older
+ * backend without the flag shows nothing rather than opening the area.
+ */
+export function useStaffMessagingEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.staffMessagingEnabled === true;
+}
+
 export function useOpenCareGroupMode(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.groupMode === "open_care";

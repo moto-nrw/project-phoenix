@@ -33,6 +33,7 @@ function makeTenant(
     studentPhotosEnabled: false,
     nfcEnabled: false,
     messagingEnabled: false,
+    staffMessagingEnabled: false,
     displayEnabled: false,
     gradeLevelMax: 4,
     groupMode,

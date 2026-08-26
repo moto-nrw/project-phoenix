@@ -49,6 +49,15 @@ type TenantResolveResponse struct {
 	// the school has parent-OGS messaging turned off, instead of composing into a
 	// 403 dead-end. Defaults to false when the setting is missing/unresolvable.
 	ParentMessagingEnabled bool `json:"parent_messaging_enabled"`
+	// StaffMessagingEnabled is the tenant's resolved
+	// operations.staff_messaging_enabled setting — the OGS-internal colleague
+	// chat (#2598). Shell metadata like the flags above so non-admin staff (no
+	// config:read) can hide the Team-Chat entry entirely.
+	//
+	// Defaults to FALSE and fails closed, unlike ParentMessagingEnabled: a
+	// school that has not switched the internal chat on must not see it offered
+	// because a settings read hiccuped. Matches the service-side gate.
+	StaffMessagingEnabled bool `json:"staff_messaging_enabled"`
 	// DisplayEnabled is the tenant's resolved display.enabled setting. The
 	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
 	// this to hide the sidebar entry / admin page for schools that haven't
@@ -97,6 +106,7 @@ type tenantShellSettings struct {
 	studentPhotosEnabled   bool
 	nfcEnabled             bool
 	parentMessagingEnabled bool
+	staffMessagingEnabled  bool
 	displayEnabled         bool
 	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool

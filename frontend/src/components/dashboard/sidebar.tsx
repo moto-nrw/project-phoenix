@@ -8,6 +8,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { normalizeTenantPathname, useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceLogEnabled,
+  useStaffMessagingEnabled,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -27,6 +28,7 @@ import { useSidebarAccordion } from "~/lib/hooks/use-sidebar-accordion";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useStaffAbsencesPending } from "~/lib/hooks/use-staff-absences-pending";
 import { useMessagesUnread } from "~/lib/hooks/use-messages-unread";
+import { useStaffMessagesUnread } from "~/lib/hooks/use-staff-messages-unread";
 import { useChangeRequestsPending } from "~/lib/hooks/use-change-requests-pending";
 import { useEnrollmentRequestsPending } from "~/lib/hooks/use-enrollment-requests-pending";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -109,6 +111,15 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.staff,
     concept: "staff",
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
+    activeColor: "text-moto-orange",
+    alwaysShow: true,
+  },
+  {
+    ...STAFF_FLAT_PAGES.teamChat,
+    // Kein eigenes moto-Konzept-Icon: der Team-Chat ist eine neue Fläche und
+    // teilt sich die Sprechblasen-Form mit den Eltern-Nachrichten, nur in der
+    // Mitarbeitenden-Farbe statt in Blau.
+    icon: "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
     activeColor: "text-moto-orange",
     alwaysShow: true,
   },
@@ -398,6 +409,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const { unreadCount: staffAbsencesPendingCount } = useStaffAbsencesPending();
   // Unread parent-OGS messages badge (staff/teacher mode)
   const { unreadCount: messagesUnreadCount } = useMessagesUnread();
+  // Ungelesene Team-Chat-Nachrichten (#2598). Eigener Zähler, damit eine
+  // Eltern-Nachricht nie den Team-Badge hochzählt und umgekehrt.
+  const { unreadCount: teamChatUnreadCount } = useStaffMessagesUnread();
   // Pending parent change-requests badge (Änderungsanfragen; users:update,
   // scoped per child in the backend so the count reflects the caller's own
   // group's requests)
@@ -434,6 +448,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const nfcEnabled = useNFCEnabled();
   const displayEnabled = useDisplayEnabled();
   const attendanceLogEnabled = useAttendanceLogEnabled();
+  const staffMessagingEnabled = useStaffMessagingEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
@@ -554,6 +569,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
     // Tagesauswertung (#1456) hängt am Anwesenheitsprotokoll-Gate
     // (gdpr.attendance_log_enabled, Opt-in, Default aus).
     if (!attendanceLogEnabled && item.href === "/day-log") return false;
+    // Team-Chat (#2598) ist Opt-in (operations.staff_messaging_enabled,
+    // Default aus): ohne Einschalten taucht der Eintrag gar nicht erst auf.
+    if (!staffMessagingEnabled && item.href === "/team-chat") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
     // admins or anyone holding the permission (any of them, for arrays),
@@ -753,7 +771,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
+          href={
+            item.href === "/anfragen" || item.href === "/team-chat"
+              ? tenantPath(item.href)
+              : item.href
+          }
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }
@@ -767,6 +789,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
                 count={requestsPendingCount}
                 tone="staff"
                 ariaLabel={`${requestsPendingCount} ${requestsPendingCount === 1 ? "offene Anfrage" : "offene Anfragen"}`}
+                className="ml-2"
+              />
+            )}
+            {item.href === "/team-chat" && (
+              <NotificationBadge
+                count={teamChatUnreadCount}
+                tone="staff"
+                ariaLabel={`${teamChatUnreadCount} ungelesene Nachrichten im Team-Chat`}
                 className="ml-2"
               />
             )}
