@@ -2395,6 +2395,9 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
 		}
 		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID {
+			if primaryLink.IsPayer {
+				return nil, fmt.Errorf("decision: refusing to remove payer without a financial audit actor")
+			}
 			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
 				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
 			}
@@ -2490,6 +2493,9 @@ func (s *decisionService) deleteRemovedStudentGuardianLinks(ctx context.Context,
 			continue
 		}
 		if previous[link.GuardianProfileID] && !keep[link.GuardianProfileID] {
+			if link.IsPayer {
+				return fmt.Errorf("decision: refusing to remove payer without a financial audit actor")
+			}
 			if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {
 				return err
 			}

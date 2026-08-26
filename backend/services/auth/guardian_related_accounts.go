@@ -10,6 +10,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -892,6 +893,22 @@ func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req Revoke
 			slog.Bool("by_parent", req.ByParent),
 		)
 		return nil
+	}
+	if link.IsPayer {
+		if s.GuardianFinancialAudit == nil || req.ActorAccountID <= 0 {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("refusing to remove payer without a financial audit")}
+		}
+		if err := s.GuardianFinancialAudit.Create(ctx, &auditModels.GuardianFinancialChange{
+			GuardianProfileID: link.GuardianProfileID,
+			StudentID:         &link.StudentID,
+			ChangedBy:         req.ActorAccountID,
+			FieldName:         auditModels.GuardianPaymentFieldIsPayer,
+			OldValue:          "true",
+			NewValue:          "false",
+			Note:              "Erziehungsberechtigte Person vom Kind entfernt",
+		}); err != nil {
+			return &AuthError{Op: opGuardianRevokeAccess, Err: fmt.Errorf("write payer removal audit: %w", err)}
+		}
 	}
 
 	if err := s.StudentGuardianRepo.Delete(ctx, link.ID); err != nil {

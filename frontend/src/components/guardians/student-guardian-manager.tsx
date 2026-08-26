@@ -662,7 +662,9 @@ export default function StudentGuardianManager({
           <StudentPaymentCard
             studentId={studentId}
             guardians={guardians}
-            readOnly={readOnly}
+            // Bankdaten haben eine eigene Berechtigung. users:update darf sie
+            // weder öffnen noch ändern, guardians:financial dagegen schon.
+            readOnly={readOnly && !canSeePayment}
             onChanged={() => void loadGuardians()}
           />
         </div>

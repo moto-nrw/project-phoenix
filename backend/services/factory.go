@@ -1267,23 +1267,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	})
 
 	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:       repos.GuardianInvitation,
-		AccountRepo:          repos.Account,
-		AccountTenantRepo:    repos.AccountTenant,
-		AccountRoleRepo:      repos.AccountRole,
-		RoleRepo:             repos.Role,
-		PersonRepo:           repos.Person,
-		GuardianProfileRepo:  repos.GuardianProfile,
-		StudentGuardianRepo:  repos.StudentGuardian,
-		StudentRepo:          repos.Student,
-		SchoolRepo:           repos.School,
-		OutboxEnqueuer:       emailOutboxService,
-		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
-		SettingsResolver:     settingsService,
-		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:       invitationTokenExpiry,
-		DB:                   db,
-		Logger:               authLogger.With("flow", "guardian_invitation"),
+		InvitationRepo:         repos.GuardianInvitation,
+		AccountRepo:            repos.Account,
+		AccountTenantRepo:      repos.AccountTenant,
+		AccountRoleRepo:        repos.AccountRole,
+		RoleRepo:               repos.Role,
+		PersonRepo:             repos.Person,
+		GuardianProfileRepo:    repos.GuardianProfile,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianFinancialAudit: repos.GuardianFinancialChange,
+		StudentRepo:            repos.Student,
+		SchoolRepo:             repos.School,
+		OutboxEnqueuer:         emailOutboxService,
+		EnrollmentBackfiller:   repos.ParentEnrollmentRequest,
+		SettingsResolver:       settingsService,
+		FrontendURL:            parentsURL, // accept link goes to the parents portal, not the staff frontend
+		FallbackExpiry:         invitationTokenExpiry,
+		DB:                     db,
+		Logger:                 authLogger.With("flow", "guardian_invitation"),
 	})
 
 	// Register the guardian_invitation renderer at startup so the outbox
