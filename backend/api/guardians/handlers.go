@@ -1009,6 +1009,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 // getStudentGuardians handles getting all guardians for a student (PUBLIC - everyone can view for emergency)
 func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) {
+	canSeePayment := authorize.HasPermission(permissions.GuardiansFinancial, jwt.PermissionsFromCtx(r.Context()))
 	// Parse student ID from URL
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
@@ -1041,7 +1042,7 @@ func (rs *Resource) getStudentGuardians(w http.ResponseWriter, r *http.Request) 
 			CanPickup:          gwr.Relationship.CanPickup,
 			PickupNotes:        gwr.Relationship.PickupNotes,
 			EmergencyPriority:  gwr.Relationship.EmergencyPriority,
-			IsPayer:            gwr.Relationship.IsPayer,
+			IsPayer:            canSeePayment && gwr.Relationship.IsPayer,
 			AccountStatus: guardianAccountStatus(
 				gwr.Profile.HasAccount,
 				authorize.StudentGuardianHasPermission(gwr.Relationship, authorize.GuardianPermissionPortalAccess),

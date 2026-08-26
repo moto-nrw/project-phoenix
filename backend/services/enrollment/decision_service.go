@@ -2385,6 +2385,18 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 	}
 
 	if currentLink != nil {
+		payerTransferred := false
+		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID && primaryLink.IsPayer {
+			if err := s.recordPayerTransfer(ctx, primaryLink, currentLink.GuardianProfileID, reviewedBy); err != nil {
+				return nil, err
+			}
+			primaryLink.IsPayer = false
+			if err := s.StudentGuardianRepo.Update(ctx, primaryLink); err != nil {
+				return nil, fmt.Errorf("decision: clear stale payer link: %w", err)
+			}
+			currentLink.IsPayer = true
+			payerTransferred = true
+		}
 		currentLink.RelationshipType = "guardian"
 		currentLink.IsPrimary = true
 		currentLink.IsEmergencyContact = true
@@ -2397,8 +2409,10 @@ func (s *decisionService) reconcilePrimaryGuardianLink(
 			return nil, fmt.Errorf("decision: update current primary guardian link: %w", err)
 		}
 		if pruneStalePrimary && primaryLink != nil && primaryLink.ID != currentLink.ID {
-			if err := s.recordPayerRemoval(ctx, primaryLink, reviewedBy); err != nil {
-				return nil, err
+			if !payerTransferred {
+				if err := s.recordPayerRemoval(ctx, primaryLink, reviewedBy); err != nil {
+					return nil, err
+				}
 			}
 			if err := s.StudentGuardianRepo.Delete(ctx, primaryLink.ID); err != nil {
 				return nil, fmt.Errorf("decision: remove stale primary guardian link: %w", err)
