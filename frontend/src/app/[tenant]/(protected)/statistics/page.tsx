@@ -25,6 +25,7 @@ import { MultiSelect } from "~/components/ui/multi-select";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
+import { StatCard } from "~/components/ui/stat-card";
 import {
   berlinTodayISO,
   formatDate,
@@ -65,30 +66,6 @@ const ERROR_MESSAGES: Record<StatisticsErrorCode, string> = {
     "Der Zeitraum ist ungültig. Er darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
   unknown: "Die Statistik konnte nicht geladen werden.",
 };
-
-// Stat is the calm gray value block used across the Anmeldungen section:
-// value on top, muted label below, no chart-style color.
-function Stat({
-  label,
-  value,
-  highlight = false,
-}: Readonly<{ label: string; value: string | number; highlight?: boolean }>) {
-  const isPositive = typeof value === "number" ? value > 0 : value !== "";
-  return (
-    <div className="rounded-xl bg-gray-50 px-3 py-2">
-      <span
-        className={`block text-sm font-semibold ${
-          highlight && isPositive ? "text-moto-red-strong" : "text-gray-900"
-        }`}
-      >
-        {value}
-      </span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
-    </div>
-  );
-}
 
 function SectionHeading({
   title,
@@ -515,19 +492,43 @@ export default function StatisticsPage() {
         {!loading && errorCode === null && data && (
           <>
             <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <Stat label="Betreuungstage" value={data.care_days} />
-              <Stat label="Tage abgezogen" value={data.excluded_days.total} />
-              <Stat label="Kinder" value={data.totals.student_count} />
-              <Stat
+              <StatCard
+                variant="tile"
+                label="Betreuungstage"
+                value={data.care_days}
+              />
+              <StatCard
+                variant="tile"
+                label="Tage abgezogen"
+                value={data.excluded_days.total}
+              />
+              <StatCard
+                variant="tile"
+                label="Kinder"
+                value={data.totals.student_count}
+              />
+              <StatCard
+                variant="tile"
                 label="Quote gesamt"
                 value={formatRate(data.totals.attendance_rate)}
               />
-              <Stat label="Krank" value={data.totals.sick_days} />
-              <Stat label="Entschuldigt" value={data.totals.excused_days} />
-              <Stat
+              <StatCard
+                variant="tile"
+                label="Krank"
+                value={data.totals.sick_days}
+              />
+              <StatCard
+                variant="tile"
+                label="Entschuldigt"
+                value={data.totals.excused_days}
+              />
+              {/* Rot, sobald es offene Fälle gibt: die Zahl ist die einzige
+                  auf dem Schirm, der jemand nachgehen muss. */}
+              <StatCard
+                variant="tile"
                 label="Ohne Meldung"
                 value={data.totals.unexplained_days}
-                highlight
+                tone={data.totals.unexplained_days > 0 ? "red" : undefined}
               />
             </div>
             <p className="mt-2 text-xs leading-5 text-gray-500">

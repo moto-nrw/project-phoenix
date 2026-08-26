@@ -145,12 +145,15 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			bootstrapTenantStep{seeder: seeder},
 			seedMasterDataStep{seeder: seeder},
 			seedPrivacyConsentsStep{},
-			seedStatisticsDemoStep{},
 			markStudentsSickStep{},
 			seedCareExitsStep{},
 			seedAnnouncementsStep{},
 			seedFileStorageStep{},
 			seedTimeTrackingHistoryStep{},
+			// Nach der Zeiterfassungs-Historie: der Sitzungsstart stempelt die
+			// Aufsicht per NFC ein, und ein Arbeitsblock von heute würde sonst
+			// mit dem heutigen Block der Historie kollidieren.
+			seedStatisticsDemoStep{},
 			parentEnrollmentSeedStep{seeder: seeder},
 			buildStateStep{seeder: seeder},
 			printSummaryStep{seeder: seeder},

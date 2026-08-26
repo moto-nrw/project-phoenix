@@ -121,7 +121,8 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		if !ok {
 			continue
 		}
-		rfid := fmt.Sprintf("STATS%06d", studentID)
+		// Der Tag muss hexadezimal sein (models/users.RFIDCard.Validate).
+		rfid := fmt.Sprintf("57A7%08X", studentID)
 		if _, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", studentID), map[string]string{"rfid_tag": rfid}, deviceKey, rt.StaffPIN); err != nil {
 			return fmt.Errorf("assign statistics demo RFID: %w", err)
 		}
@@ -136,8 +137,56 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	if _, err := rt.Client.DevicePost("/api/iot/session/end", nil, deviceKey, rt.StaffPIN); err != nil {
 		return fmt.Errorf("end statistics demo session: %w", err)
 	}
+	if err := checkOutStatisticsSupervisor(rt); err != nil {
+		return err
+	}
 	fmt.Printf("  %d attendance records and room visits seeded for Statistik\n", seeded)
 	return nil
+}
+
+// checkOutStatisticsSupervisor bucht die Aufsicht wieder aus. Der
+// Sitzungsstart stempelt sie per NFC ein (ensureNFCAutoCheckIn), das
+// Sitzungsende bucht sie nicht aus; sonst bliebe eine offene Arbeitszeit im
+// Mandanten stehen. Hat die Zeiterfassungs-Historie den heutigen Block schon
+// geschrieben, unterbleibt der NFC-Stempel und es gibt nichts auszubuchen.
+func checkOutStatisticsSupervisor(rt *Runtime) error {
+	cred := rt.FixedSeeder.staffCredentials[0]
+	previous := rt.Client.auth
+	defer rt.Client.BindAuth(previous)
+
+	if err := rt.Client.Login(cred.Email, cred.Password); err != nil {
+		return fmt.Errorf("login statistics demo supervisor %s: %w", cred.Email, err)
+	}
+	open, err := hasOpenWorkSession(rt)
+	if err != nil {
+		return err
+	}
+	if !open {
+		return nil
+	}
+	if _, err := rt.Client.Post("/api/time-tracking/check-out", nil); err != nil {
+		return fmt.Errorf("check out statistics demo supervisor: %w", err)
+	}
+	return nil
+}
+
+// hasOpenWorkSession reports whether the logged-in staff account has a
+// running work session. GET /current answers with a null payload when there
+// is none.
+func hasOpenWorkSession(rt *Runtime) (bool, error) {
+	resp, err := rt.Client.Get("/api/time-tracking/current")
+	if err != nil {
+		return false, fmt.Errorf("read current work session: %w", err)
+	}
+	var payload struct {
+		Data *struct {
+			ID json.Number `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &payload); err != nil {
+		return false, fmt.Errorf("parse current work session: %w", err)
+	}
+	return payload.Data != nil && payload.Data.ID != "", nil
 }
 
 // seedCareExitsStep records two planned ends of care (#2487) so the child
