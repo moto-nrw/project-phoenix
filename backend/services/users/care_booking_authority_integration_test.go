@@ -187,6 +187,24 @@ func TestBookingAuthorityIncludesImmediatelyActivatedStudents(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.BlockingChildren[0].StudentID)
 }
 
+func TestBookingAuthorityExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Alt", "Inaktiv", "1a")
+
+	_, err := db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", userModels.StudentStatusInactive).
+		Set("enrolled_from = NULL, enrolled_until = NULL").
+		Where("tenant_id = ? AND id = ?", scope.TenantID, student.ID).
+		Exec(scope.Context())
+	require.NoError(t, err)
+
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	require.NoError(t, err)
+	assert.Empty(t, impact.BlockingChildren)
+}
+
 func TestBookingAuthorityIncludesBookingsFromExistingStudentApproval(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

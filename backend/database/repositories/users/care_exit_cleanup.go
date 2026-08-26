@@ -803,6 +803,7 @@ func (r *CareExitCleanupRepository) listCareBookingStudents(
 		query = query.Where(`"student".id IN (?)`, bun.List(studentIDs))
 	} else {
 		query = query.
+			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`, userModels.StudentStatusInactive).
 			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`, on, userModels.StudentStatusActive).
 			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, on)
 	}
