@@ -771,7 +771,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
         </div>
       ) : (
         <Link
-          href={item.href === "/anfragen" ? tenantPath(item.href) : item.href}
+          href={
+            item.href === "/anfragen" || item.href === "/team-chat"
+              ? tenantPath(item.href)
+              : item.href
+          }
           className={getLinkClasses(item.href)}
           {...(item.newTab
             ? { target: "_blank", rel: "noopener noreferrer" }

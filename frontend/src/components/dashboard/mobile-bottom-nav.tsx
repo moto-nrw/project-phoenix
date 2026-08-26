@@ -787,6 +787,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   const href =
                     item.href === "/eltern" ||
                     item.href === "/anfragen" ||
+                    item.href === "/team-chat" ||
                     isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;

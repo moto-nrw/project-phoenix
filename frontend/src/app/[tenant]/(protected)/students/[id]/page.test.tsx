@@ -570,6 +570,7 @@ const mockStudentAtHome = {
 describe("StudentDetailPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
     mockSearchParams.delete("from");
     mockSearchParams.delete("tab");
     vi.mocked(useSession).mockReturnValue({
@@ -609,6 +610,7 @@ describe("StudentDetailPage", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
   });
 
   describe("Loading State", () => {
