@@ -19,6 +19,7 @@ export const resourceLabels: Record<string, string> = {
   grade_transitions: "Klassenwechsel",
   calendar: "Kalender",
   staff: "Mitarbeitende",
+  files: "Dateiablage",
 };
 
 export const actionLabels: Record<string, string> = {

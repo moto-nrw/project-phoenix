@@ -96,6 +96,12 @@ type StudentDocumentFileCleaner interface {
 	CleanupOrphanedStudentDocumentFiles(ctx context.Context) (int, error)
 }
 
+// FileStoreCleaner removes objects of the school file storage whose metadata
+// either never committed or was cascaded away by a folder deletion (#2596).
+type FileStoreCleaner interface {
+	CleanupOrphanedFiles(ctx context.Context) (int, error)
+}
+
 // SettingsResolver resolves setting values per tenant. Implemented by config.SettingsService.
 type SettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
@@ -117,6 +123,7 @@ type Scheduler struct {
 	unregisteredTagScanCleaner UnregisteredTagScanCleaner
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
+	fileStoreCleaner           FileStoreCleaner
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
@@ -289,6 +296,12 @@ func (s *Scheduler) SetStaffDocumentFileCleaner(cleaner StaffDocumentFileCleaner
 // recovery worker. Nil disables the task for tests without file storage.
 func (s *Scheduler) SetStudentDocumentFileCleaner(cleaner StudentDocumentFileCleaner) {
 	s.studentDocumentFileCleaner = cleaner
+}
+
+// SetFileStoreCleaner wires the storage-backed file storage recovery worker
+// (#2596). Nil disables the task for tests without file storage.
+func (s *Scheduler) SetFileStoreCleaner(cleaner FileStoreCleaner) {
+	s.fileStoreCleaner = cleaner
 }
 
 // SetMaterializer wires the timetable materialization service. When set, the
@@ -538,6 +551,7 @@ func (s *Scheduler) Start() {
 	// when no tenant user later opens the documents UI.
 	s.scheduleStaffDocumentFileCleanupTask()
 	s.scheduleStudentDocumentFileCleanupTask()
+	s.scheduleFileStoreCleanupTask()
 
 	// Schedule abandoned session cleanup
 	s.scheduleSessionCleanupTask()

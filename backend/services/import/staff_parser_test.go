@@ -168,6 +168,28 @@ func TestStaffImportConfig_EntityNameAndUpdate(t *testing.T) {
 	config := NewStaffImportConfig(StaffImportDeps{})
 
 	assert.Equal(t, "Mitarbeiter", config.EntityName())
-	// Update is a no-op (create-only import); existing accounts are skipped.
-	assert.NoError(t, config.Update(context.Background(), 0, importModels.StaffImportRow{}))
+	// Update writes the Stammdatensatz (#2600); without the repositories it
+	// must fail loudly instead of silently skipping the row.
+	require.Error(t, config.Update(context.Background(), 0, importModels.StaffImportRow{}))
+}
+
+func TestMapStaffRow_ReadsStammdatenColumns(t *testing.T) {
+	t.Parallel()
+
+	headers := []string{"Vorname", "Nachname", "Rolle", "Email (optional)", "Personalnummer (optional)", "Geschlecht (optional)", "Wochenstunden (optional)", "Qualifikationen (optional)", "Notfallkontakt Telefon (optional)"}
+	mapping := make(map[string]int, len(headers))
+	for i, h := range headers {
+		mapping[normalizeHeaderKey(h)] = i
+	}
+	mapper := NewColumnMapper(mapping, []string{"Anna", "Lehmann", "Betreuer", "", "P-7", "w", "19,5", "Erste Hilfe", "+49 171 1"})
+
+	row := MapStaffRow(mapper)
+
+	assert.Equal(t, "P-7", row.PersonnelNumber)
+	assert.Equal(t, "w", row.Gender)
+	assert.Equal(t, "19,5", row.WeeklyHours)
+	assert.Equal(t, "Erste Hilfe", row.Qualifications)
+	assert.True(t, row.HasQualificationsColumn)
+	assert.Equal(t, "+49 171 1", row.EmergencyContactPhone, "phone columns must keep the leading +")
+	assert.Empty(t, row.Email, "e-mail is optional since #2600")
 }

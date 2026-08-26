@@ -97,6 +97,18 @@ func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID 
 	return m.startResult, m.startErr
 }
 
+func (m *mockInstanceService) CancelWithNotice(ctx context.Context, in scheduleSvc.CancelInstanceInput) (*scheduleSvc.CancelInstanceResult, error) {
+	instance, err := m.Cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID)
+	if err != nil {
+		return nil, err
+	}
+	return &scheduleSvc.CancelInstanceResult{Instance: instance}, nil
+}
+
+func (m *mockInstanceService) GuardianNoticeReachFor(context.Context, int64) (*scheduleSvc.GuardianNoticeReach, error) {
+	return &scheduleSvc.GuardianNoticeReach{}, nil
+}
+
 func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	m.lastCancelReason = reason
 	if m.cancelErr != nil {

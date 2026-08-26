@@ -332,6 +332,14 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string, *int6
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
+func (s *autoStartInstanceStarter) CancelWithNotice(context.Context, CancelInstanceInput) (*CancelInstanceResult, error) {
+	return nil, nil
+}
+
+func (s *autoStartInstanceStarter) GuardianNoticeReachFor(context.Context, int64) (*GuardianNoticeReach, error) {
+	return nil, nil
+}
+
 func (s *autoStartInstanceStarter) SetUnderstaffedAck(context.Context, int64, bool, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
