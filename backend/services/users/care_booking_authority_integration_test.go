@@ -224,6 +224,28 @@ func TestBookingAuthorityIncludesBookingsFromExistingStudentApproval(t *testing.
 	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.PlannedCompletions[0].StudentID)
 }
 
+func TestBookingAuthorityExcludesUnapprovedBookingForExistingStudent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Bestehend", "Unbestätigt", "1a")
+	child := createCareBooking(t, db, scope, student.ID, "submitted", nil, nil)
+
+	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
+		Set("created_student_id = NULL").
+		Set("matched_student_id = ?", student.ID).
+		Set("status = ?", enrollmentModels.ChildStatusSubmitted).
+		Where("id = ?", child.ID).
+		Exec(scope.Context())
+	require.NoError(t, err)
+
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	require.NoError(t, err)
+	assert.Empty(t, impact.PlannedCompletions)
+	require.Len(t, impact.BlockingChildren, 1)
+	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.BlockingChildren[0].StudentID)
+}
+
 func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

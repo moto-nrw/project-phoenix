@@ -858,11 +858,12 @@ func (r *CareExitCleanupRepository) listCareBookingPeriods(
 		  ON rc.id = rco.request_child_id AND rc.tenant_id = rco.tenant_id
 		JOIN enrollment.care_offerings AS co
 		  ON co.id = rco.care_offering_id AND co.tenant_id = rco.tenant_id
-		WHERE rco.tenant_id = ? AND COALESCE(rc.created_student_id, rc.matched_student_id) IN (?) AND co.counts_as_care
+		WHERE rco.tenant_id = ? AND COALESCE(rc.created_student_id, rc.matched_student_id) IN (?)
+		  AND rc.status = ? AND co.counts_as_care
 		  AND ((co.days_of_week_mode = 'fixed' AND jsonb_array_length(co.available_days) > 0)
 		    OR (co.days_of_week_mode <> 'fixed' AND jsonb_array_length(rco.selected_days) > 0))
 		ORDER BY COALESCE(rc.created_student_id, rc.matched_student_id), rco.valid_from NULLS FIRST, rco.valid_until NULLS LAST, rco.id
-	`, tenant.FromContext(ctx), bun.List(studentIDs)).Scan(ctx, &rows)
+	`, tenant.FromContext(ctx), bun.List(studentIDs), enrollmentModels.ChildStatusApproved).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list care booking periods for evaluation", Err: err}
 	}
