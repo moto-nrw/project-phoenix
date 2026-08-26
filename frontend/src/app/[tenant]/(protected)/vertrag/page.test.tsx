@@ -4,17 +4,34 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ContractPage from "./page";
 import type { ContractOverview } from "~/lib/contract-api";
 
-const { swrState, permissionState } = vi.hoisted(() => ({
-  swrState: { data: undefined as unknown, error: undefined as unknown },
-  permissionState: { isReady: true, isLoading: false },
-}));
+const { mockUseSWR, swrState, permissionState, tenantState } = vi.hoisted(
+  () => ({
+    mockUseSWR: vi.fn(),
+    swrState: { data: undefined as unknown, error: undefined as unknown },
+    permissionState: { isReady: true, isLoading: false },
+    tenantState: { slug: "demo-school" as string | null },
+  }),
+);
 
 vi.mock("swr", () => ({
-  default: () => ({ data: swrState.data, error: swrState.error }),
+  default: mockUseSWR,
+}));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => tenantState.slug,
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
   useRequirePermission: () => permissionState,
+}));
+
+mockUseSWR.mockImplementation(() => ({
+  get data() {
+    return swrState.data;
+  },
+  get error() {
+    return swrState.error;
+  },
 }));
 
 function overview(overrides: Partial<ContractOverview> = {}): ContractOverview {
@@ -42,13 +59,46 @@ function overview(overrides: Partial<ContractOverview> = {}): ContractOverview {
 }
 
 beforeEach(() => {
+  mockUseSWR.mockClear();
   swrState.data = overview();
   swrState.error = undefined;
   permissionState.isReady = true;
   permissionState.isLoading = false;
+  tenantState.slug = "demo-school";
 });
 
 describe("ContractPage", () => {
+  it("scopes the SWR cache key to the current tenant", () => {
+    const { unmount } = render(<ContractPage />);
+    unmount();
+
+    tenantState.slug = "second-school";
+    render(<ContractPage />);
+
+    expect(mockUseSWR).toHaveBeenNthCalledWith(
+      1,
+      "demo-school:contract-overview",
+      expect.any(Function),
+      { keepPreviousData: false },
+    );
+    expect(mockUseSWR).toHaveBeenNthCalledWith(
+      2,
+      "second-school:contract-overview",
+      expect.any(Function),
+      { keepPreviousData: false },
+    );
+  });
+
+  it("waits for the tenant slug before fetching contract data", () => {
+    tenantState.slug = null;
+
+    render(<ContractPage />);
+
+    expect(mockUseSWR).toHaveBeenCalledWith(null, expect.any(Function), {
+      keepPreviousData: false,
+    });
+  });
+
   it('is titled "Vertrag", never "Abrechnung"', () => {
     render(<ContractPage />);
 

@@ -9,6 +9,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { fetchContractOverview, formatCents } from "~/lib/contract-api";
 import { formatDate } from "~/lib/date-helpers";
 import {
@@ -43,10 +44,12 @@ export default function ContractPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
     "config:manage",
   ]);
+  const tenantSlug = useTenantSlugSafe();
 
   const { data: overview, error } = useSWR(
-    isReady ? "contract-overview" : null,
+    isReady && tenantSlug ? `${tenantSlug}:contract-overview` : null,
     fetchContractOverview,
+    { keepPreviousData: false },
   );
 
   const showSkeleton = permissionLoading || !isReady || (!error && !overview);
