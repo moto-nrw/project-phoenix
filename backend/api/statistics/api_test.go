@@ -506,11 +506,27 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 
 	listed := map[string]bool{}
+	activatedFound := false
+	activatedPresentDays := 0
+	var activatedRate *float64
 	for _, st := range payload.Data.Students {
 		listed[st.LastName] = true
+		if st.LastName == "Aktiv" {
+			activatedFound = true
+			activatedPresentDays = st.PresentDays
+			activatedRate = st.AttendanceRate
+		}
 	}
 	assert.True(t, listed["Aktiv"], "an immediately activated child belongs in the report")
 	assert.False(t, listed["Wartend"], "a pending child is not in care yet")
+
+	// Being listed is not enough: the day loop asks users.EnrolledOn per date,
+	// which reads the lifecycle status. A row hydrated without it counts zero
+	// care days, so the child would sit in the table with an empty quota while
+	// the room aggregate still counts them (#2606).
+	require.True(t, activatedFound, "row of the activated child missing")
+	assert.Equal(t, 1, activatedPresentDays, "today counts as a care day with attendance")
+	require.NotNil(t, activatedRate, "a child with care days has a quota")
 
 	var found bool
 	for _, r := range payload.Data.Rooms {

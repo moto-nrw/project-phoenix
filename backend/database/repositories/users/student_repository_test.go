@@ -785,23 +785,29 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 		require.NoError(t, err)
 	}
 
-	contains := func(today timezone.Date) map[int64]bool {
+	contains := func(today timezone.Date) map[int64]*users.StudentWithGroupInfo {
 		results, err := repo.FindOverlappingWithGroups(ctx, from, to, today)
 		require.NoError(t, err)
-		ids := make(map[int64]bool, len(results))
+		ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
 		for _, result := range results {
-			ids[result.ID] = true
+			ids[result.ID] = result
 		}
 		return ids
 	}
 
 	inWindow := contains(insideWindow)
-	assert.True(t, inWindow[activated.ID], "an immediately activated child is in care from today on")
-	assert.False(t, inWindow[pending.ID], "a pending child is not in care before enrolled_from")
-	assert.False(t, inWindow[dormant.ID], "an inactive row without an interval is no longer enrolled")
+	assert.Contains(t, inWindow, activated.ID, "an immediately activated child is in care from today on")
+	assert.NotContains(t, inWindow, pending.ID, "a pending child is not in care before enrolled_from")
+	assert.NotContains(t, inWindow, dormant.ID, "an inactive row without an interval is no longer enrolled")
+
+	// The row must carry the lifecycle status, not only pass the WHERE clause:
+	// users.EnrolledOn reads it per day, so a zero value would drop the very
+	// child this query just admitted (#2606).
+	require.NotNil(t, inWindow[activated.ID])
+	assert.Equal(t, users.StudentStatusActive, inWindow[activated.ID].Status)
 
 	afterWindow := contains(to.AddDays(1))
-	assert.False(t, afterWindow[activated.ID], "the override reaches today, not a window that ended before it")
+	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")
 }
 
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {

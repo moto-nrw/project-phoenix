@@ -1284,6 +1284,12 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
 		ColumnExpr(`"student".group_id AS "student__group_id"`).
 		ColumnExpr(`"student".enrolled_from AS "student__enrolled_from", "student".enrolled_until AS "student__enrolled_until"`).
+		// status carries the immediate-activation signal of users.EnrolledOn:
+		// without it the scanned zero value drops an active child whose
+		// enrolled_from still lies ahead, although the WHERE clause of
+		// FindOverlappingWithGroups and the statistics room aggregate both
+		// admit them (#2606).
+		ColumnExpr(`"student".status AS "student__status"`).
 		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
 		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
 		// departure_companion_note is scanonly and hydrated via
