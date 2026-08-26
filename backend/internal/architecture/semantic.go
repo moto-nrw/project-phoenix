@@ -372,7 +372,7 @@ func stripSQLLiteralsAndComments(query string) string {
 			index = end
 			continue
 		}
-		end := index
+		var end int
 		switch {
 		case query[index] == '\'':
 			end = sqlStringLiteralEnd(query, index+1)
