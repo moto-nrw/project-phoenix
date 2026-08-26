@@ -38,6 +38,8 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { StudentPaymentCard } from "./student-payment-card";
+import { hasPermission } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
 
@@ -95,6 +97,11 @@ export default function StudentGuardianManager({
   const canFullDelete = (session?.user?.permissions ?? []).some(
     (p) => p === "admin:*" || p === "*:*",
   );
+  // The bank section is its own permission (#2608): maintaining the guardian
+  // directory and handling bank data are different jobs, so users:update alone
+  // must not reveal an IBAN. Mirror the backend gate, or the card would render
+  // and every request behind it 403.
+  const canSeePayment = hasPermission(session, "guardians:financial");
 
   useEffect(() => {
     return () => {
@@ -649,6 +656,17 @@ export default function StudentGuardianManager({
           showRelationship={true}
         />
       </div>
+
+      {canSeePayment && (
+        <div className="mt-6">
+          <StudentPaymentCard
+            studentId={studentId}
+            guardians={guardians}
+            readOnly={readOnly}
+            onChanged={() => void loadGuardians()}
+          />
+        </div>
+      )}
 
       {/* Form Modal */}
       <GuardianFormModal
