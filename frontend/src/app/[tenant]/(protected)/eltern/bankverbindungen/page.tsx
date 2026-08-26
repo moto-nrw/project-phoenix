@@ -81,6 +81,13 @@ function BankverbindungenContent() {
     [rows],
   );
 
+  // The caption states how complete the list is rather than repeating the page
+  // name — two labels sharing the stem "Bankverbindung" would read as two
+  // different things.
+  const captionText = isLoading
+    ? "Liste wird geladen…"
+    : `${rows.length} Kinder, davon ${rows.length - missingCount} mit Bankverbindung`;
+
   const visibleRows = useMemo(() => {
     const needle = searchValue.trim().toLowerCase();
     return rows.filter((row) => {
@@ -181,7 +188,7 @@ function BankverbindungenContent() {
       <div className="space-y-4 px-4 sm:px-6">
         <BackButton referrer="/eltern" />
 
-        <p className="text-sm text-gray-600">
+        <p className="max-w-3xl text-sm text-gray-600">
           Ein Eintrag je Kind: von welchem Konto der Beitrag eingezogen wird.
           Die IBAN tragen Sie beim Kind ein, im Reiter „Erziehungsberechtigte“.
           Hier sehen Sie nur die letzten Ziffern.
@@ -219,7 +226,7 @@ function BankverbindungenContent() {
           </div>
         </div>
 
-        <p className="text-xs text-gray-500">
+        <p className="max-w-3xl text-xs text-gray-500">
           Die Datei enthält die ganzen IBANs. Wer sie herunterlädt, wird
           protokolliert. Bitte nicht per E-Mail weitergeben.
         </p>
@@ -230,7 +237,7 @@ function BankverbindungenContent() {
           getRowKey={(row) => row.studentId}
           isLoading={isLoading}
           defaultSortKey="student"
-          caption="Bankverbindungen je Kind"
+          caption={captionText}
           emptyState={
             <EmptyState
               icon={<Landmark className="h-12 w-12" />}

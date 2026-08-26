@@ -23,9 +23,25 @@ import (
 // belongs to the relationship (StudentGuardian.IsPayer). Siblings therefore
 // share one maintained IBAN and carry the mark once per child.
 
-// ErrGuardianPaymentInvalid marks a semantically invalid payment payload —
-// HTTP 400. Wrapped with a field-specific message.
-var ErrGuardianPaymentInvalid = errors.New("invalid payment value")
+// Payment input errors — HTTP 400. Each is its own sentinel so the handler can
+// render one specific German sentence: these messages are shown to a school
+// office worker, not to a developer, and a wrapped "invalid payment value:
+// malformed IBAN" told them nothing they could act on.
+var (
+	// ErrGuardianPaymentInvalid is the class marker every input error wraps,
+	// so callers can classify without listing each case.
+	ErrGuardianPaymentInvalid = errors.New("invalid payment value")
+
+	// ErrGuardianIBANInvalid marks an IBAN that fails the structural check or
+	// the ISO 13616 mod-97 checksum.
+	ErrGuardianIBANInvalid = fmt.Errorf("%w: malformed IBAN", ErrGuardianPaymentInvalid)
+
+	// ErrGuardianAccountHolderTooLong marks a Kontoinhaber over the column bound.
+	ErrGuardianAccountHolderTooLong = fmt.Errorf("%w: account holder too long", ErrGuardianPaymentInvalid)
+
+	// ErrGuardianStudentRequired marks a missing student id.
+	ErrGuardianStudentRequired = fmt.Errorf("%w: student id is required", ErrGuardianPaymentInvalid)
+)
 
 // ErrGuardianNotLinkedToStudent is returned when a guardian is named as payer
 // for a child they are not linked to — HTTP 400 rather than 404: the caller
@@ -205,7 +221,7 @@ func (s *GuardianService) UpdateGuardianPayment(ctx context.Context, guardianPro
 // share one tenant transaction with the audit row.
 func (s *GuardianService) SetStudentPayer(ctx context.Context, studentID int64, guardianProfileID *int64, changedByAccountID int64) error {
 	if studentID <= 0 {
-		return fmt.Errorf("%w: student id is required", ErrGuardianPaymentInvalid)
+		return ErrGuardianStudentRequired
 	}
 	if s.GuardianFinancialAudit == nil {
 		return fmt.Errorf("guardian financial audit repository is not wired; refusing unaudited change")
@@ -429,13 +445,13 @@ func normalizeGuardianPaymentInput(input GuardianPaymentInput) (GuardianPaymentI
 	if v := normalizeCompact(input.IBAN); v != nil {
 		iban := strings.ToUpper(*v)
 		if !guardianIBANPattern.MatchString(iban) || !ibanChecksumValid(iban) {
-			return out, fmt.Errorf("%w: malformed IBAN", ErrGuardianPaymentInvalid)
+			return out, ErrGuardianIBANInvalid
 		}
 		out.IBAN = &iban
 	}
 	if v := normalizeOptional(input.AccountHolder); v != nil {
 		if len([]rune(*v)) > maxAccountHolderLen {
-			return out, fmt.Errorf("%w: Kontoinhaber is too long", ErrGuardianPaymentInvalid)
+			return out, ErrGuardianAccountHolderTooLong
 		}
 		out.AccountHolder = v
 	}

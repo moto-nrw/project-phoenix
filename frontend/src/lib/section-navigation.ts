@@ -81,7 +81,12 @@ export const DATABASE_SUB_PAGES: readonly SectionSubPage[] = [
  * sidebar.tsx; hier steht nur, welche Regel gilt.
  */
 type ParentSubPageFeature =
-  "overview" | "messages" | "approvals" | "announcements" | "mealPlan";
+  | "overview"
+  | "messages"
+  | "approvals"
+  | "announcements"
+  | "bankDetails"
+  | "mealPlan";
 
 export interface ParentSubPage extends SectionSubPage {
   readonly feature: ParentSubPageFeature;
@@ -107,6 +112,11 @@ export const PARENT_SUB_PAGES: readonly ParentSubPage[] = [
     href: "/parent-announcements",
     label: "Mitteilungen und Umfragen",
     feature: "announcements",
+  },
+  {
+    href: "/eltern/bankverbindungen",
+    label: "Bankverbindungen",
+    feature: "bankDetails",
   },
   { href: "/meal-plan", label: "Essensplan", feature: "mealPlan" },
 ];

@@ -91,15 +91,37 @@ func paymentActor(r *http.Request) (int64, string, error) {
 	return int64(claims.ID), strings.Join(claims.Roles, ","), nil
 }
 
-// renderPaymentError maps the service sentinels to their HTTP status.
+// paymentErrorMessages renders each input error as the German sentence the
+// school office reads in the toast. The service sentinels stay English for the
+// code; only the wire message is translated, so a rule change is one line here
+// rather than a string match in the frontend.
+var paymentErrorMessages = []struct {
+	sentinel error
+	message  string
+}{
+	{guardianSvc.ErrGuardianIBANInvalid, "Die IBAN ist nicht gültig. Bitte prüfen Sie die Eingabe."},
+	{guardianSvc.ErrGuardianAccountHolderTooLong, "Der Name des Kontoinhabers ist zu lang."},
+	{guardianSvc.ErrGuardianNotLinkedToStudent, "Diese Person ist bei diesem Kind nicht als erziehungsberechtigt eingetragen."},
+	{guardianSvc.ErrGuardianStudentRequired, "Das Kind konnte nicht zugeordnet werden."},
+}
+
+// renderPaymentError maps the service sentinels to their HTTP status and to a
+// message the reader can act on.
 func renderPaymentError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, guardianSvc.ErrGuardianPaymentInvalid),
-		errors.Is(err, guardianSvc.ErrGuardianNotLinkedToStudent):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	for _, rule := range paymentErrorMessages {
+		if errors.Is(err, rule.sentinel) {
+			//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(rule.message)))
+			return
+		}
 	}
+	if errors.Is(err, guardianSvc.ErrGuardianPaymentInvalid) {
+		//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			errors.New("Die Eingabe ist nicht gültig. Bitte prüfen Sie die Felder.")))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 func (rs *Resource) getGuardianPayment(w http.ResponseWriter, r *http.Request) {

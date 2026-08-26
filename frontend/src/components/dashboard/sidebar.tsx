@@ -540,6 +540,8 @@ function SidebarContent({ className = "" }: SidebarProps) {
             return userIsAdmin;
           case "announcements":
             return canAnnounce && parentNewsEnabled;
+          case "bankDetails":
+            return hasPermission(session, "guardians:financial");
           case "mealPlan":
             return (
               mealPlanEnabled === true &&

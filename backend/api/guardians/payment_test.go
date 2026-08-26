@@ -146,9 +146,11 @@ func TestGuardianPayment_RejectsMalformedIBAN(t *testing.T) {
 		"DE8937040044",           // too short
 		"370400440532013000",     // no country code
 	} {
-		code := paymentRequest(t, ctx, http.MethodPut, fmt.Sprintf("/%d/payment", guardian.ID),
+		code, body := paymentBody(t, ctx, http.MethodPut, fmt.Sprintf("/%d/payment", guardian.ID),
 			map[string]any{"iban": iban}, financialPerm)
 		assert.Equal(t, http.StatusBadRequest, code, "IBAN %q must be refused", iban)
+		// The message is read by a school office worker, not a developer.
+		assert.Contains(t, body, "Die IBAN ist nicht gültig", "IBAN %q", iban)
 	}
 }
 
@@ -225,9 +227,10 @@ func TestStudentPayer_RejectsGuardianOfAnotherChild(t *testing.T) {
 	other := testpkg.CreateTestStudent(t, ctx.db, "Payer", "Other", "1b")
 	stranger := linkGuardian(t, ctx, other.ID, "payer-stranger")
 
-	code := paymentRequest(t, ctx, http.MethodPut, fmt.Sprintf("/students/%d/payer", student.ID),
+	code, body := paymentBody(t, ctx, http.MethodPut, fmt.Sprintf("/students/%d/payer", student.ID),
 		map[string]any{"guardian_id": fmt.Sprintf("%d", stranger.ID)}, financialPerm)
 	assert.Equal(t, http.StatusBadRequest, code)
+	assert.Contains(t, body, "nicht als erziehungsberechtigt eingetragen")
 }
 
 // TestStudentPayer_SiblingsShareOneMaintainedIBAN is the sibling requirement

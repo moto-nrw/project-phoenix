@@ -218,6 +218,7 @@ export function StudentPaymentCard({
             onChange={(value) => void handleSelectPayer(value)}
             disabled={readOnly || guardians.length === 0}
             testId="payment-payer-select"
+            className="max-w-sm"
           />
           <p className="mt-1 text-xs text-gray-500">
             Zur Auswahl stehen die Erziehungsberechtigten dieses Kindes.
