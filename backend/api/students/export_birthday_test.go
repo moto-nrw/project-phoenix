@@ -297,14 +297,28 @@ func TestBuildExportRowLeavesBirthdayCellsEmptyWithoutBirthday(t *testing.T) {
 	assert.Empty(t, row.Values[listexport.ColumnAge])
 }
 
-func TestBuildExportRowRendersHealthInfo(t *testing.T) {
+// The generic child export must not carry the health note: the decision whether
+// allergies are printed belongs to operations.emergency_list_health_info, which
+// only the Notfallliste asks (#2609). A value here would reach paper past that
+// switch, so a requested health column resolves to nothing at all.
+func TestGenericExportCarriesNoHealthInfo(t *testing.T) {
 	t.Parallel()
 
 	row := buildExportRow(
-		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", HealthInfo: "Nuss\x03allergie"},
+		StudentResponse{ID: 101, FirstName: "Mila", LastName: "Anders", HealthInfo: "Nussallergie"},
 		weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
-	assert.Equal(t, "Nussallergie", row.Values[listexport.ColumnHealthInfo])
+	assert.Empty(t, row.Values[listexport.ColumnHealthInfo],
+		"generic export rows must not carry the health note")
+
+	columns := listexport.ResolveColumns(
+		[]listexport.ColumnID{listexport.ColumnName, listexport.ColumnHealthInfo},
+		listexport.PresetOGSWeekly)
+
+	assert.False(t, exportHasColumn(columns, listexport.ColumnHealthInfo),
+		"a requested health column must not resolve in a generic export")
+	assert.True(t, exportHasColumn(columns, listexport.ColumnName),
+		"the remaining requested columns stay untouched")
 }
 
 func TestExportTitleBirthdayList(t *testing.T) {

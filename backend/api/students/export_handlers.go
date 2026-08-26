@@ -664,6 +664,13 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 	return strconv.Itoa(years)
 }
 
+// buildExportRow renders one child into the generic list document.
+//
+// It deliberately carries NO health note: whether a child's allergies land on
+// paper is decided by operations.emergency_list_health_info, and that switch is
+// asked once, by the Notfallliste (#2609). The generic export never resolves
+// ColumnHealthInfo (see listexport.ColumnCatalog), so a value here could only
+// reach a document past that switch.
 func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
@@ -682,7 +689,6 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 		listexport.ColumnDeparture:         departureExportCell(student),
 		listexport.ColumnDailyNotes:        dailyNotes(student),
 		listexport.ColumnCurrentLocation:   student.Location,
-		listexport.ColumnHealthInfo:        listexport.SanitizeUserText(student.HealthInfo),
 		listexport.ColumnBirthday:          birthdayExportCell(student.Birthday),
 		listexport.ColumnAge:               ageExportCell(student.Birthday, onDate),
 	}}
