@@ -6,7 +6,7 @@
 import { sessionFetch } from "./session-cache";
 
 /** Zahlungsstatus, wie er im Backend gespeichert ist. */
-export type InvoiceStatus = "offen" | "bezahlt" | "storniert";
+type InvoiceStatus = "offen" | "bezahlt" | "storniert";
 
 interface BackendInvoice {
   id: number;

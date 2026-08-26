@@ -42,8 +42,8 @@ type invoiceRequest struct {
 // errInvalidDueDate / errInvalidPaidOn are German because the operator UI
 // shows them verbatim.
 var (
-	errInvalidDueDate = errors.New("Fälligkeitsdatum muss im Format JJJJ-MM-TT angegeben werden.")
-	errInvalidPaidOn  = errors.New("Zahlungsdatum muss im Format JJJJ-MM-TT angegeben werden.")
+	errInvalidDueDate = errors.New("fälligkeitsdatum muss im Format JJJJ-MM-TT angegeben werden")
+	errInvalidPaidOn  = errors.New("zahlungsdatum muss im Format JJJJ-MM-TT angegeben werden")
 )
 
 // toInput parses the wire payload into the service input.

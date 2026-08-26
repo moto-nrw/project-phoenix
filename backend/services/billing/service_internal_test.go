@@ -3,7 +3,6 @@ package billing
 import (
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"testing"
 	"time"
@@ -148,7 +147,7 @@ func newTestService(repo platform.SchoolInvoiceRepository, settings settingsReso
 		Students: students,
 		Settings: settings,
 		// No DB: inTenantTx then runs fn against a tenant-tagged context.
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger: slog.New(slog.DiscardHandler),
 		Now:    fixedToday,
 	})
 }
@@ -311,7 +310,7 @@ func TestGetOverview_WithoutCollaboratorsStillWorks(t *testing.T) {
 
 	svc := NewService(Config{
 		Invoices: newFakeInvoiceRepo(),
-		Logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:   slog.New(slog.DiscardHandler),
 		Now:      fixedToday,
 	})
 

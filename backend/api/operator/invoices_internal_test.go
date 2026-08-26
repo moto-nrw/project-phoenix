@@ -204,7 +204,7 @@ func TestCreateSchoolInvoice_RejectsMissingDueDate(t *testing.T) {
 	rec := doInvoiceRequest(t, service, http.MethodPost, "/schools/42/invoices/", body)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Fälligkeitsdatum")
+	assert.Contains(t, rec.Body.String(), "fälligkeitsdatum")
 }
 
 // A German date must be rejected, not silently reinterpreted: "01.02.2026"
@@ -232,7 +232,7 @@ func TestCreateSchoolInvoice_RejectsNonISOPaidOn(t *testing.T) {
 	rec := doInvoiceRequest(t, service, http.MethodPost, "/schools/42/invoices/", body)
 
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Contains(t, rec.Body.String(), "Zahlungsdatum")
+	assert.Contains(t, rec.Body.String(), "zahlungsdatum")
 }
 
 func TestCreateSchoolInvoice_ValidationErrorIs400(t *testing.T) {

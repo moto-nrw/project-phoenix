@@ -25,13 +25,13 @@ const (
 
 // Validation errors. German because they surface in the operator UI verbatim.
 var (
-	ErrInvoicePeriodLabelRequired = errors.New("Zeitraum darf nicht leer sein.")
-	ErrInvoiceAmountNegative      = errors.New("Betrag darf nicht negativ sein.")
-	ErrInvoiceDueDateRequired     = errors.New("Fälligkeitsdatum wird benötigt.")
-	ErrInvoiceUnknownStatus       = errors.New("Unbekannter Zahlungsstatus.")
-	ErrInvoicePaidOnRequired      = errors.New("Bei „bezahlt“ wird ein Zahlungsdatum benötigt.")
-	ErrInvoicePaidOnNotAllowed    = errors.New("Ein Zahlungsdatum ist nur bei „bezahlt“ erlaubt.")
-	ErrInvoiceNoteTooLong         = errors.New("Hinweis ist zu lang.")
+	ErrInvoicePeriodLabelRequired = errors.New("zeitraum darf nicht leer sein")
+	ErrInvoiceAmountNegative      = errors.New("betrag darf nicht negativ sein")
+	ErrInvoiceDueDateRequired     = errors.New("fälligkeitsdatum wird benötigt")
+	ErrInvoiceUnknownStatus       = errors.New("unbekannter Zahlungsstatus")
+	ErrInvoicePaidOnRequired      = errors.New("bei „bezahlt“ wird ein Zahlungsdatum benötigt")
+	ErrInvoicePaidOnNotAllowed    = errors.New("ein Zahlungsdatum ist nur bei „bezahlt“ erlaubt")
+	ErrInvoiceNoteTooLong         = errors.New("hinweis ist zu lang")
 )
 
 // MaxInvoiceNoteLen caps the free-text note so a paste accident cannot fill a

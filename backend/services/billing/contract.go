@@ -21,10 +21,10 @@ import (
 var (
 	// ErrInvoiceNotFound is returned for an unknown invoice id, or for one that
 	// belongs to another school — the two are indistinguishable on purpose.
-	ErrInvoiceNotFound = errors.New("Rechnung wurde nicht gefunden.")
+	ErrInvoiceNotFound = errors.New("rechnung wurde nicht gefunden")
 	// ErrInvoiceNumberTaken maps the (tenant_id, invoice_number) unique index
 	// to something an operator can act on.
-	ErrInvoiceNumberTaken = errors.New("Diese Rechnungsnummer gibt es für diese Schule schon.")
+	ErrInvoiceNumberTaken = errors.New("diese Rechnungsnummer gibt es für diese Schule schon")
 	// ErrNoTenantContext guards the tenant read path against being called
 	// outside a tenant transaction, where it would silently see nothing.
 	ErrNoTenantContext = errors.New("billing: no tenant in context")

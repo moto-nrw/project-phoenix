@@ -31,26 +31,26 @@ function loadLocalEnv(): void {
 
 loadLocalEnv();
 
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`${name} is required for Playwright E2E.`);
-  }
-  return value;
-}
+const requiredWebServerEnv = [
+  "API_URL",
+  "NEXT_PUBLIC_API_URL",
+  "NEXT_PUBLIC_OPERATOR_HOSTNAME",
+  "NEXT_PUBLIC_PARENTS_HOSTNAME",
+  "NEXT_PUBLIC_SCHOOL_HOSTNAME",
+  "TENANT_DOMAIN",
+] as const;
 
-const webServerEnv = {
-  API_URL: requiredEnv("API_URL"),
-  NEXT_PUBLIC_API_URL: requiredEnv("NEXT_PUBLIC_API_URL"),
-  NEXT_PUBLIC_OPERATOR_HOSTNAME: requiredEnv("NEXT_PUBLIC_OPERATOR_HOSTNAME"),
-  NEXT_PUBLIC_PARENTS_HOSTNAME: requiredEnv("NEXT_PUBLIC_PARENTS_HOSTNAME"),
-  NEXT_PUBLIC_SCHOOL_HOSTNAME: requiredEnv("NEXT_PUBLIC_SCHOOL_HOSTNAME"),
-  TENANT_DOMAIN: requiredEnv("TENANT_DOMAIN"),
-};
-
-const webServerEnvPrefix = Object.entries(webServerEnv)
-  .map(([key, value]) => `${key}=${value}`)
-  .join(" ");
+const webServerEnvCheck = [
+  "node",
+  "-e",
+  JSON.stringify(
+    `const required = ${JSON.stringify(requiredWebServerEnv)};
+const missing = required.filter((key) => !process.env[key]);
+if (missing.length > 0) {
+  throw new Error(missing.join(", ") + " required for Playwright E2E.");
+}`,
+  ),
+].join(" ");
 
 export default defineConfig({
   testDir: "./e2e",
@@ -69,7 +69,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `${webServerEnvPrefix} pnpm run dev`,
+    command: `${webServerEnvCheck} && pnpm run dev`,
     port: 3000,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
