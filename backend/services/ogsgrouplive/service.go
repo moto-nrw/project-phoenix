@@ -346,17 +346,8 @@ func (s *service) loadStudents(ctx context.Context, state *buildState) error {
 }
 
 func (s *service) filterCareParticipation(ctx context.Context, state *buildState) error {
-	present := make(map[int64]bool, len(state.data.locations.Attendances)+len(state.data.locations.Visits))
-	for id, status := range state.data.locations.Attendances {
-		present[id] = status.IsCurrentlyPresent()
-	}
-	for id, visit := range state.data.locations.Visits {
-		if visit != nil {
-			present[id] = true
-		}
-	}
 	participating, err := s.deps.CareParticipation.ParticipatingStudentIDs(
-		ctx, state.studentIDs, state.today, present,
+		ctx, state.studentIDs, state.today, nil,
 	)
 	if err != nil {
 		return fmt.Errorf("apply care participation: %w", err)

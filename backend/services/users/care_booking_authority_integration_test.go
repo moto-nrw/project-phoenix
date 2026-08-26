@@ -344,6 +344,27 @@ func TestFiniteRebookingKeepsCompletionEventHistory(t *testing.T) {
 	})
 }
 
+func TestOverdueRebookingReplacesTheStaleCompletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Nachträglich", "Gebucht", "3d")
+	oldGap := timezone.TodayDate().AddDays(-2)
+	newGap := timezone.TodayDate().AddDays(5)
+	createCareBooking(t, db, scope, student.ID, "renewed", &oldGap, &newGap)
+	repo := repositories.NewFactory(db).CareWithdrawal
+	studentID := student.ID
+	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: oldGap,
+		Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	require.NoError(t, bookingAuthorityService(t, db, true).ReconcileAuthoritativeBookingChange(
+		scope.Context(), userModels.CareWithdrawalBookingChange{StudentID: student.ID, FirstBookinglessDay: oldGap},
+	))
+	assert.Equal(t, newGap, requirePendingCompletion(t, repo, scope.Context(), student.ID).FirstBookinglessDay)
+}
+
 func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)

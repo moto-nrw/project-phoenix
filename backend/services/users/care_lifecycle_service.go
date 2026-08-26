@@ -797,7 +797,11 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 	if !authoritative {
 		return s.reconcileWeeklyPlanRebooking(ctx, change)
 	}
-	facts, err := s.cleanupRepo.ListCareBookingFacts(ctx, today, []int64{change.StudentID})
+	effectiveOn := today
+	if !change.FirstBookinglessDay.IsZero() {
+		effectiveOn = change.FirstBookinglessDay
+	}
+	facts, err := s.cleanupRepo.ListCareBookingFacts(ctx, effectiveOn, []int64{change.StudentID})
 	if err != nil {
 		return err
 	}
@@ -807,12 +811,12 @@ func (s *careLifecycleService) ReconcileAuthoritativeBookingChange(
 	if change.WasCompleteWithdrawal {
 		facts[0].ConfirmedBookinglessDay = &change.FirstBookinglessDay
 	}
-	evaluation := EvaluateCareBookingStates(facts, today)[0]
+	evaluation := EvaluateCareBookingStates(facts, effectiveOn)[0]
 	pending, err := s.withdrawalRepo.ListPendingByStudentIDs(ctx, []int64{change.StudentID})
 	if err != nil {
 		return err
 	}
-	return s.reconcileBookingEvaluation(ctx, evaluation, change, today, pending[change.StudentID])
+	return s.reconcileBookingEvaluation(ctx, evaluation, change, effectiveOn, pending[change.StudentID])
 }
 
 func (s *careLifecycleService) reconcileWeeklyPlanRebooking(
@@ -856,9 +860,6 @@ func (s *careLifecycleService) reconcileBookingEvaluation(
 		return err
 	}
 	if pending != nil {
-		if !pending.FirstBookinglessDay.After(obsoleteFrom) {
-			return nil
-		}
 		if *evaluation.FirstBookinglessDay != pending.FirstBookinglessDay {
 			changed, obsoleteErr := s.withdrawalRepo.MarkObsoleteForRebooking(ctx, evaluation.StudentID, obsoleteFrom, time.Now())
 			if obsoleteErr != nil {
