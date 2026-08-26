@@ -384,6 +384,19 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 	return classes, nil
 }
 
+func (r *StudentRepository) ListIDs(ctx context.Context) ([]int64, error) {
+	ids := make([]int64, 0)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id`).
+		OrderExpr(`"student".id`)
+	query = base.WithTenantFilter(ctx, query, "student")
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list student ids", Err: err}
+	}
+	return ids, nil
+}
+
 // Create overrides the base Create method to handle validation
 func (r *StudentRepository) Create(ctx context.Context, student *users.Student) error {
 	if student == nil {

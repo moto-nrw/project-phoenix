@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -649,6 +650,7 @@ func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChil
 type AdminUpdateOfferingsRequest struct {
 	Offerings                   []AdminUpdateOfferingSelection `json:"offerings"`
 	Reason                      string                         `json:"reason"`
+	EffectiveFrom               string                         `json:"effective_from,omitempty"`
 	CompleteWithdrawalConfirmed bool                           `json:"complete_withdrawal_confirmed"`
 }
 
@@ -693,54 +695,66 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	updated, err := rs.applyAdminOfferingUpdate(r, requestID, childID, body)
+	if err != nil {
+		common.RenderError(w, r, updateAdminOfferingsErrorRenderer(err))
+		return
+	}
+	out := newAdminRequestChild(updated)
+	out.CustomData = updated.CustomData
+	rs.enrichUpdatedAdminOfferings(r, requestID, childID, &out)
+	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
+}
+
+func (rs *Resource) applyAdminOfferingUpdate(
+	r *http.Request, requestID, childID int64, body *AdminUpdateOfferingsRequest,
+) (*enrollmentModels.RequestChild, error) {
+	selections, effectiveFrom, err := parseAdminOfferingUpdate(body)
+	if err != nil {
+		return nil, err
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	var updated *enrollmentModels.RequestChild
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+			RequestID: requestID, ChildID: childID, Offerings: selections, Reason: body.Reason,
+			ActorAccountID: int64(claims.ID), ActorRole: actorRoleFromClaims(claims.Roles),
+			EffectiveFrom: effectiveFrom, CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
+		})
+		updated = child
+		return updateErr
+	})
+	return updated, err
+}
+
+func parseAdminOfferingUpdate(
+	body *AdminUpdateOfferingsRequest,
+) ([]enrollmentService.OfferingAdjustmentSelection, *timezone.Date, error) {
 	selections := make([]enrollmentService.OfferingAdjustmentSelection, 0, len(body.Offerings))
 	for _, row := range body.Offerings {
 		offeringID, parseErr := strconv.ParseInt(row.OfferingID, 10, 64)
 		if parseErr != nil || offeringID <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid offering_id")))
-			return
+			return nil, nil, fmt.Errorf("%w: invalid offering_id", enrollmentService.ErrOfferingAdjustmentInvalid)
 		}
 		selections = append(selections, enrollmentService.OfferingAdjustmentSelection{
 			OfferingID:   offeringID,
 			SelectedDays: row.SelectedDays,
 		})
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
-	actorRole := actorRoleFromClaims(claims.Roles)
+	var effectiveFrom *timezone.Date
+	if strings.TrimSpace(body.EffectiveFrom) != "" {
+		parsed, parseErr := timezone.ParseDate(body.EffectiveFrom)
+		if parseErr != nil {
+			return nil, nil, fmt.Errorf("%w: das Datum muss im Format JJJJ-MM-TT angegeben werden", enrollmentService.ErrOfferingAdjustmentInvalid)
+		}
+		effectiveFrom = &parsed
+	}
+	return selections, effectiveFrom, nil
+}
 
-	var updated *enrollmentModels.RequestChild
-	err := rs.runInTenantTx(r, func(ctx context.Context) error {
-		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
-			RequestID:                   requestID,
-			ChildID:                     childID,
-			Offerings:                   selections,
-			Reason:                      body.Reason,
-			ActorAccountID:              int64(claims.ID),
-			ActorRole:                   actorRole,
-			CompleteWithdrawalConfirmed: body.CompleteWithdrawalConfirmed,
-		})
-		updated = child
-		return updateErr
-	})
-	if err != nil {
-		common.RenderError(w, r, updateAdminOfferingsErrorRenderer(err))
-		return
-	}
-	out := AdminRequestChild{
-		ID:                strconv.FormatInt(updated.ID, 10),
-		FirstName:         updated.FirstName,
-		LastName:          updated.LastName,
-		DateOfBirth:       updated.DateOfBirth.String(),
-		TargetGradeLevel:  updated.TargetGradeLevel,
-		TargetSchoolClass: updated.TargetSchoolClass,
-		Status:            updated.Status,
-		StatusReason:      updated.StatusReason,
-		ReviewedAt:        updated.ReviewedAt,
-		ReviewedBy:        updated.ReviewedBy,
-		ActivationMode:    updated.ActivationMode,
-		CreatedStudentID:  optionalInt64String(updated.CreatedStudentID),
-		CustomData:        updated.CustomData,
-	}
+func (rs *Resource) enrichUpdatedAdminOfferings(
+	r *http.Request, requestID, childID int64, out *AdminRequestChild,
+) {
 	// The correction is already committed. This re-read only enriches the
 	// response, so a transient failure here must not report the save as
 	// failed — the admin would retry and apply the replacement twice, with
@@ -763,7 +777,6 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 			slog.Int64("child_id", childID),
 		)
 	}
-	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
 }
 
 func optionalInt64String(value *int64) string {

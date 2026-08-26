@@ -85,13 +85,14 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	// Resolved before the fetch for the same reason as in listStudents: the
 	// room pre-filter reads today's live active.visits state (#1939).
-	planningDate, isToday, errResp := resolveExportPlanningDate(req.Filters, rs.Now())
+	now := rs.Now()
+	planningDate, isToday, errResp := resolveExportPlanningDate(req.Filters, now)
 	if errResp != nil {
 		renderError(w, r, errResp)
 		return
 	}
 
-	params := exportRequestToListParams(req)
+	params := exportRequestToListParams(req, timezone.DateFromTime(now))
 	params.careStatusOn = planningDate
 	students, errResp := rs.fetchStudentsForExport(r, params)
 	if errResp != nil {
@@ -325,7 +326,7 @@ func errExportSelectionTooLarge(total int) error {
 	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }
 
-func exportRequestToListParams(req studentExportRequest) *studentListParams {
+func exportRequestToListParams(req studentExportRequest, today timezone.Date) *studentListParams {
 	params := &studentListParams{
 		search:              strings.TrimSpace(req.Filters.Search),
 		page:                1,
@@ -333,7 +334,9 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includePickupTimes:  true,
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
-		careStatusOn:        timezone.TodayDate(),
+		careStatus:          CareStatusRunning,
+		careStatusOn:        today,
+		careStatusToday:     today,
 		// Class and group travel comma-separated so an export mirrors a
 		// multi-selection made in the Kindersuche (#2218).
 		schoolClasses: parseMultiValueParam([]string{req.Filters.SchoolClass}),

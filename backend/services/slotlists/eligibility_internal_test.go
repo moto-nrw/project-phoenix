@@ -3,18 +3,28 @@ package slotlists
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
+
+func TestIncludePickupParticipantUsesCareBoundaryAndActualPresence(t *testing.T) {
+	t.Parallel()
+	assert.False(t, includePickupParticipant(scheduleSvc.CareDayNotScheduled, false))
+	assert.True(t, includePickupParticipant(scheduleSvc.CareDayNotScheduled, true))
+	assert.True(t, includePickupParticipant(scheduleSvc.CareDayScheduled, false))
+}
 
 func ptrDate(d timezone.Date) *timezone.Date { return &d }
 
 // TestEligibleOn_ImmediateActivation covers the #1565-review fix: an immediately
 // activated child (enrollment.default_activation_mode = "immediate") is 'active'
 // with a future enrolled_from, and must count from today — the active status
-// overrides the enrolled_from lower bound. enrolled_until still bounds the top
-// end for every status, and non-active children keep the interval semantics.
+// overrides the enrolled_from lower bound. Actual attendance overrides every
+// bound so safety information cannot disappear.
 func TestEligibleOn_ImmediateActivation(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +54,7 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "active child is still bounded by enrolled_until",
+			name: "expired child without attendance is excluded",
 			student: &userModel.Student{
 				Status:        userModel.StudentStatusActive,
 				EnrolledUntil: ptrDate(past),
@@ -68,7 +78,7 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "no interval falls back to status: inactive is excluded",
+			name: "inactive legacy child without enrollment bounds is excluded",
 			student: &userModel.Student{
 				Status: userModel.StudentStatusInactive,
 			},
@@ -78,7 +88,7 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := eligibleOn(tc.student, list, today); got != tc.want {
+			if got := eligibleOn(tc.student, list, today, false); got != tc.want {
 				t.Fatalf("eligibleOn = %v, want %v", got, tc.want)
 			}
 		})
@@ -105,16 +115,19 @@ func TestEligibleOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 		}
 	}
 
-	if eligibleOn(activeChild(enrolledFrom), beforeEnrollment, today) {
+	if eligibleOn(activeChild(enrolledFrom), beforeEnrollment, today, false) {
 		t.Fatal("active child must NOT be eligible for a past date before enrolled_from")
 	}
-	if !eligibleOn(activeChild(enrolledFrom), withinWindow, today) {
+	if !eligibleOn(activeChild(enrolledFrom), withinWindow, today, false) {
 		t.Fatal("active child must be eligible within the enrollment window")
 	}
 	// Immediate activation is unchanged: a future enrolled_from must still let the
 	// current day count.
-	if !eligibleOn(activeChild(today.AddDays(30)), today, today) {
+	if !eligibleOn(activeChild(today.AddDays(30)), today, today, false) {
 		t.Fatal("immediately-activated child must be eligible today despite a future enrolled_from")
+	}
+	if !eligibleOn(&userModel.Student{Status: userModel.StudentStatusInactive}, today, today, true) {
+		t.Fatal("actual attendance must override the inactive marker")
 	}
 }
 

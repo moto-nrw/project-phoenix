@@ -16,8 +16,11 @@ import (
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,6 +45,7 @@ func operatorTestClaims() jwt.AppClaims {
 // operatorSettingsTestContext holds dependencies for operator settings tests.
 type operatorSettingsTestContext struct {
 	db       *bun.DB
+	settings configSvc.SettingsService
 	resource *operatorAPI.SettingsResource
 	router   chi.Router
 }
@@ -60,18 +64,21 @@ func setupOperatorSettingsTest(t *testing.T) *operatorSettingsTestContext {
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
-	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, nil, svc.Active)
+	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, nil, svc.Active, svc.CareLifecycle)
+	resource.OnValueSet(svc.SettingsSideEffects.Dispatch)
 
 	// Operator routes do not use TenantTxMiddleware — handlers call
 	// tenant.WithTenantTx internally using the school ID from the URL path.
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
+	router.Get("/schools/{id}/settings/booking-authority-impact", resource.GetBookingAuthorityImpact)
 	router.Get("/schools/{id}/settings/values/{key}/reveal", resource.RevealSchoolSettingValue)
 	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
 	router.Delete("/schools/{id}/settings/values/{key}", resource.ResetSchoolSettingValue)
 
 	return &operatorSettingsTestContext{
 		db:       db,
+		settings: svc.Settings,
 		resource: resource,
 		router:   router,
 	}
@@ -159,6 +166,27 @@ func TestOperatorSetSchoolSettingValue_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(ctx.router, req)
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+
+	previewReq := newOperatorRequest(t, http.MethodGet, schoolPath(t, "/settings/booking-authority-impact"), nil)
+	preview := testutil.ExecuteRequest(ctx.router, previewReq)
+	testutil.AssertSuccessResponse(t, preview, http.StatusOK)
+	assert.Contains(t, preview.Body.String(), `"blocking_children":[]`)
+
+	// The preview is advisory. A child can enter the unsafe set before the
+	// operator confirms; the locked write must evaluate the current rows again.
+	student := testpkg.CreateTestStudent(t, ctx.db, "Ohne", "Buchung", "2a")
+	body = map[string]interface{}{"value": true}
+	setReq := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/enrollment.bookings_authoritative"), body)
+	setResult := testutil.ExecuteRequest(ctx.router, setReq)
+	testutil.AssertErrorResponse(t, setResult, http.StatusConflict)
+
+	overrides, err := ctx.db.NewSelect().TableExpr("config.setting_values").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("setting_key = ?", configModel.KeyEnrollmentBookingsAuthoritative).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Zero(t, overrides, "the blocked write must roll the setting override back")
+	assert.Positive(t, student.ID)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
@@ -230,11 +258,28 @@ func TestOperatorSetSchoolSettingValue_InvalidSchoolID(t *testing.T) {
 // Deliberately NOT parallel: mutates process-global configuration.
 func TestOperatorResetSchoolSettingValue_Success(t *testing.T) {
 	ctx := setupOperatorSettingsTest(t)
+	tenantCtx := testpkg.Ctx(t)
+	require.NoError(t, ctx.settings.SetValue(
+		tenantCtx, configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	))
+	student := testpkg.CreateTestStudent(t, ctx.db, "Reset", "Buchungsmodus", "2c")
+	studentID := student.ID
+	repo := repositories.NewFactory(ctx.db).CareWithdrawal
+	require.NoError(t, repo.UpsertPending(tenantCtx, &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
+		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}))
 
-	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/operations.session_end_time"), nil)
+	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/enrollment.bookings_authoritative"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
-
 	testutil.AssertSuccessResponse(t, rr, http.StatusNoContent)
+
+	_, pending, err := repo.ListPending(tenantCtx, userModels.CareWithdrawalCompletionFilter{
+		StudentID: studentID, Page: 1, PageSize: 1,
+	})
+	require.NoError(t, err)
+	assert.Zero(t, pending)
 }
 
 // Deliberately NOT parallel: mutates process-global configuration.
