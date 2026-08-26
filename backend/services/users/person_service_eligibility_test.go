@@ -65,6 +65,18 @@ func TestFilterStudentsEligibleOnDate_ImmediateActivationOnlyFromTodayOnward(t *
 		"the enrollment window itself still governs future dates")
 }
 
+func TestFilterStudentsStartedOnDate_SkipsNilStudents(t *testing.T) {
+	t.Parallel()
+
+	today := timezone.TodayDate()
+	kept := &userModels.Student{Status: userModels.StudentStatusActive}
+
+	filtered := filterStudentsStartedOnDate([]*userModels.Student{nil, kept, nil}, today, today)
+
+	require.Len(t, filtered, 1)
+	assert.Same(t, kept, filtered[0])
+}
+
 func TestFilterStudentsStartedOnDate_ExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t *testing.T) {
 	t.Parallel()
 

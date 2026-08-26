@@ -1,6 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+
 import { StatCard } from "./stat-card";
 
 describe("StatCard", () => {
@@ -26,6 +28,22 @@ describe("StatCard", () => {
       );
 
       expect(screen.getByText("Abholung")).toBeInTheDocument();
+    });
+
+    it("bleibt ohne tone neutral", () => {
+      render(<StatCard variant="tile" label="Krank" value={0} />);
+
+      expect(screen.getByText("0")).not.toHaveStyle({ color: "#B91C1C" });
+    });
+
+    it("färbt den Wert mit tone", () => {
+      render(
+        <StatCard variant="tile" label="Ohne Meldung" value={3} tone="red" />,
+      );
+
+      expect(screen.getByText("3")).toHaveStyle({
+        color: getAccessibleTextColor(LOCATION_COLORS.DANGER),
+      });
     });
   });
 });

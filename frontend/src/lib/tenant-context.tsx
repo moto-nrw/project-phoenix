@@ -246,6 +246,23 @@ export function useAttendanceWebEnabled(): boolean {
 }
 
 /**
+ * Returns whether the printed Notfallliste carries the children's health
+ * notes (operations.emergency_list_health_info, #2609).
+ *
+ * Only an explicit true counts. Missing tenant metadata — an older backend
+ * without the field, or a tenant that has not resolved yet — reads as
+ * disabled, mirroring the backend, which fails closed and omits the column
+ * whenever it cannot read the setting. This is a description hint, never a
+ * gate: the backend decides what the PDF contains. It exists so the Notfall
+ * page can name what it is about to print for staff who do not carry
+ * config:read, and it must never promise a column the PDF lacks.
+ */
+export function useEmergencyHealthInfoEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.emergencyHealthInfoEnabled === true;
+}
+
+/**
  * Returns whether the attendance log / Tagesauswertung
  * (gdpr.attendance_log_enabled) is enabled for this tenant. Opt-in feature,
  * defaults to false when tenant metadata is unavailable.

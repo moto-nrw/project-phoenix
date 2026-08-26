@@ -700,8 +700,7 @@ describe("MobileBottomNav", () => {
       return navButtons.find((btn) => !btn.hasAttribute("data-testid"))!;
     };
 
-    it("displays coming soon badge for upcoming features", () => {
-      // "Berichte" is the remaining coming soon item and is admin-only.
+    it("shows Statistik as a real link for admins, without a coming-soon badge (#2606)", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -711,8 +710,28 @@ describe("MobileBottomNav", () => {
       const moreButton = getMoreButton();
       fireEvent.click(moreButton);
 
-      // Coming soon items should have badge
-      expect(screen.getAllByText("Bald verfügbar").length).toBeGreaterThan(0);
+      const link = screen.getByText("Statistik").closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/statistics");
+      expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
+    });
+
+    it("shows Statistik to non-admin staff with both required permissions", () => {
+      mockIsAdmin.mockReturnValue(false);
+      mockUseSession.mockReturnValue(createMockSession(false));
+      mockHasPermission.mockImplementation(
+        (_session, permission) =>
+          permission === "config:read" || permission === "users:read",
+      );
+
+      render(<MobileBottomNav />);
+
+      fireEvent.click(getMoreButton());
+      expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
+        "href",
+        "/statistics",
+      );
     });
 
     it("coming soon items are not clickable links", () => {
@@ -740,7 +759,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton);
 
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
-      expect(screen.getByText("Berichte")).toBeInTheDocument();
+      expect(screen.getByText("Statistik")).toBeInTheDocument();
     });
   });
 

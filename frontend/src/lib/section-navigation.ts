@@ -161,6 +161,8 @@ export const STAFF_FLAT_PAGES = {
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
   dayLog: { href: "/day-log", label: "Tagesauswertung" },
+  // Statistik (#2606): Quoten je Kind, Gruppe und Zeitraum plus Raumauslastung.
+  statistics: { href: "/statistics", label: "Statistik" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },

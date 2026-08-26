@@ -638,40 +638,18 @@ describe("Sidebar", () => {
     });
   });
 
-  describe("coming soon items", () => {
-    it("displays coming soon items with badge", () => {
-      // "Berichte" is the remaining coming soon item and is admin-only.
+  describe("Statistik entry (#2606, formerly the Berichte placeholder)", () => {
+    it("is a real navigation link for admins, without a coming-soon badge", () => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
-      // Coming soon items should have "Bald" badge
-      expect(screen.getByText("Berichte")).toBeInTheDocument();
-      expect(screen.getAllByText("Bald").length).toBeGreaterThan(0);
-    });
-
-    it("coming soon items are not clickable", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-
-      render(<Sidebar />);
-
-      // Berichte is still a coming soon feature
-      const comingSoonElement = screen.getByText("Berichte");
-      expect(comingSoonElement.closest("a")).toBeNull();
-    });
-
-    it("coming soon items have disabled styling", () => {
-      mockIsAdmin.mockReturnValue(true);
-      mockUseSession.mockReturnValue(createMockSession(true));
-
-      render(<Sidebar />);
-
-      const comingSoonElement = screen.getByText("Berichte");
-      const container = comingSoonElement.closest("div");
-      expect(container).toHaveClass("text-gray-400");
-      expect(container).toHaveClass("cursor-not-allowed");
+      const link = screen.getByText("Statistik").closest("a");
+      expect(link).not.toBeNull();
+      expect(link).toHaveAttribute("href", "/statistics");
+      expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
+      expect(screen.queryByText("Bald")).not.toBeInTheDocument();
     });
 
     it("Zeiterfassung is an active navigation link", () => {
@@ -702,17 +680,19 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
-      expect(screen.getByText("Berichte")).toBeInTheDocument();
+      expect(screen.getByText("Statistik")).toBeInTheDocument();
     });
 
-    it("hides admin-only coming soon items for staff", () => {
+    it("hides the Statistik entry unless staff have both required permissions", () => {
       mockIsAdmin.mockReturnValue(false);
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "config:read",
+      );
 
       render(<Sidebar />);
 
-      // Admin-only coming soon features should not be visible
       expect(screen.queryByText("Dienstpläne")).not.toBeInTheDocument();
-      expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
+      expect(screen.queryByText("Statistik")).not.toBeInTheDocument();
     });
   });
 

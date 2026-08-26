@@ -9,9 +9,9 @@
 // über dem Wort, dicht genug, dass mehrere davon IN eine Karte passen
 // (Klassenansicht, Aufsichten des Schul-Portals). Bewusst dieselbe Komponente
 // und keine zweite daneben: „welche Kennzahl-Komponente nehme ich" darf keine
-// Ermessensfrage sein, und die Props der großen Variante (tone, hint,
-// progressPct, action) sind in der kleinen per Typ ausgeschlossen statt still
-// wirkungslos.
+// Ermessensfrage sein. Die kleine Variante teilt das Farbvokabular der großen
+// (`tone`, ohne Angabe grau); die Form-Props der großen (hint, progressPct,
+// action) sind in ihr per Typ ausgeschlossen statt still wirkungslos.
 //
 // InfoCard bleibt die Antwort für die Karte mit Icon, Überschrift und Inhalt;
 // DataField die für ein Label-Wert-Paar in einem Detail-Panel.
@@ -59,13 +59,25 @@ type StatTileProps = {
   readonly label: string;
   /** Zahl oder kurzer Text. Lange Werte gehören in ein DataField. */
   readonly value: string | number;
+  /**
+   * Färbt die Zahl, wenn sie mehr sagt als ihre Höhe — etwa offene Fälle, die
+   * jemand ansehen muss. Ohne Angabe bleibt sie neutral dunkelgrau.
+   */
+  readonly tone?: StatCardTone;
 };
 
 export function StatCard(props: StatCardProps | StatTileProps) {
   if (props.variant === "tile") {
     return (
       <div className="rounded-xl bg-gray-50 px-3 py-2">
-        <span className="block text-sm font-semibold text-gray-900">
+        <span
+          className="block text-sm font-semibold text-gray-900"
+          style={
+            props.tone === undefined
+              ? undefined
+              : { color: getAccessibleTextColor(TONE_COLOR[props.tone]) }
+          }
+        >
           {props.value}
         </span>
         <span className="block text-[11px] font-medium text-gray-500">

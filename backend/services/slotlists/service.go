@@ -1733,6 +1733,11 @@ func instanceTimeRange(inst *scheduleModel.ActivityInstance) (time.Time, time.Ti
 // retroactively enrolled for every past date before enrolled_from. Otherwise a
 // stale or manually created slot roster (or the /options counts) would show the
 // child as planned/missing before their enrollment ever began (#1565 review).
+// The enrollment part of that rule lives in userModel.EnrolledOn so the slot
+// lists, the day-log rosters and the statistics report cannot drift apart
+// (#1565, #2606); presence and alumnus status are decided here because they
+// are candidate rules, not enrollment ones.
+//
 // today is the service clock's calendar day (s.todayDate()), threaded in so
 // the immediate-activation cutoff uses the same clock as every other date
 // guard in BuildList/ListOptions — deterministic simulations and
@@ -1749,21 +1754,7 @@ func eligibleOn(student *userModel.Student, date, today timezone.Date, actuallyP
 	if student.Status == userModel.StudentStatusAlumnus {
 		return false
 	}
-	active := student.Status == userModel.StudentStatusActive
-	if student.EnrolledFrom != nil && date.Before(*student.EnrolledFrom) {
-		// Before the recorded start date, an active child is only eligible from
-		// today onward (immediate activation); past dates keep the lower bound.
-		if !active || date.Before(today) {
-			return false
-		}
-	}
-	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
-		return false
-	}
-	if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModel.StudentStatusInactive {
-		return false
-	}
-	return true
+	return userModel.EnrolledOn(student, date, today)
 }
 
 // listEligibleStudents returns the cohort candidates shared by the pickup

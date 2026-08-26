@@ -863,6 +863,29 @@ export const appChapters: readonly GuideChapter[] = [
           "Tagesauswertung mit Status-Zählern und Kinderliste nach Status gruppiert.",
       },
       {
+        id: "statistik",
+        title: "Statistik",
+        searchTerms: ["Anwesenheitsquote", "Fehlzeiten", "Raumauslastung"],
+        icon: ClipboardCheck,
+        summary:
+          "Zeigt für einen frei wählbaren Zeitraum, wie oft jedes Kind da war, wie viele Tage es krank, entschuldigt oder ohne Meldung gefehlt hat, und wie stark die Räume genutzt wurden. Mit Export als PDF, Excel und Word.",
+        steps: [
+          "`Statistik` in der Seitenleiste öffnen.",
+          "Oben den Zeitraum wählen, zum Beispiel `Letzte 30 Tage` oder einen eigenen Bereich. Der Zeitraum darf höchstens ein Jahr umfassen und nicht in der Zukunft enden.",
+          "Daneben bei Bedarf eine oder mehrere Gruppen wählen. Ohne Auswahl zählt die Statistik alle Kinder.",
+          "Die Kacheln zeigen die Betreuungstage des Zeitraums, die abgezogenen Tage, die Gesamtquote und die Fehltage nach Art. Darunter stehen die Zahlen je Gruppe, je Kind und je Raum.",
+          "Über `PDF`, `Excel` oder `Word` die Statistik mit dem gewählten Zeitraum und Gruppenfilter ausgeben.",
+        ],
+        callout: {
+          title: "So rechnet die Quote",
+          body: "Betreuungstage sind Montag bis Freitag im Zeitraum, abzüglich Feiertage, Schließtage und der Ferien aus dem Kalender. Ein Tag zählt als anwesend, wenn das Kind an diesem Tag angemeldet war. Fehlt eine Anmeldung, ordnet die Statistik den Tag nach der Meldung ein: `Krank`, `Entschuldigt` (auch Klassenfahrt) oder `Ohne Meldung`. Kinder werden immer in ihrer heutigen Gruppe gezählt. Raumdaten können je Kind unterschiedlich lange vorliegen. Die Statistik zeigt das früheste mögliche Datum.",
+          tone: "blue",
+        },
+        screenshot:
+          "Statistik mit Zeitraum- und Gruppenfilter, Kennzahl-Kacheln und den Tabellen je Gruppe, Kind und Raum.",
+        image: "/help/screens/statistik.webp",
+      },
+      {
         id: "abwesenheiten",
         title: "Abwesenheiten",
         icon: CalendarRange,
@@ -887,13 +910,15 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Notfall",
         icon: CircleStop,
         summary:
-          "Der schnellste Weg zur Notfallliste: eine druckbare Liste aller Kinder, die gerade anwesend sind, mit Ort, Klasse, Telefonnummern und Kontaktpersonen. Der Eintrag steht für alle Mitarbeitenden ganz unten in der Seitenleiste; zum Erstellen der Liste braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
+          "Der schnellste Weg zur Notfallliste: eine druckbare Liste aller Kinder, die gerade anwesend sind, mit Ort, Klasse, Telefonnummern und Kontaktpersonen. Wenn die Schule es einschaltet, enthält die Liste auch die beim Kind hinterlegten Gesundheitsinfos. Der Eintrag steht für alle Mitarbeitenden ganz unten in der Seitenleiste; zum Erstellen der Liste braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
         steps: [
           "In der Seitenleiste unten `Notfall` öffnen.",
           "Zum Drucken oder Herunterladen braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
           "`Notfallliste drucken` erzeugt die Liste und öffnet direkt den Druckdialog.",
           "`PDF herunterladen` speichert dieselbe Liste als Datei, zum Beispiel für das Handy der Einsatzleitung.",
           "Die Liste ist eine Momentaufnahme der Anwesenheit beim Erstellen. Im Ernstfall unmittelbar vorher neu erzeugen: Nach Einchecken, Auschecken oder einem Ortswechsel kann ein vorhandener Ausdruck veraltet sein.",
+          "Die Spalte `Gesundheit / Allergien` zeigt, was im Kinderdetail unter `Gesundheitsinformationen` steht. Steht dort `Nicht hinterlegt`, ist bei diesem Kind nichts eingetragen; das ist keine Entwarnung.",
+          "Wer die Gesundheitsinfos nicht auf dem Ausdruck haben möchte: `Einstellungen` -> `Betrieb` -> `Notfallliste` -> `Gesundheitsinfos auf der Notfallliste` ausschalten. Die Liste enthält dann nur Name, Klasse, Ort und Kontakte.",
         ],
         callout: {
           title: "Vor dem Ernstfall einmal üben",
@@ -1640,7 +1665,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesplanung`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin unter `Alle Kinder` bei `Exportieren`.",
           "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
           "Unter `Personallisten` gibt die Karte `Geburtstagsliste` die Geburtstage der Mitarbeitenden nach Kalender sortiert aus, mit derselben Monatsauswahl wie bei den Kindern. Die Liste enthält Name und Geburtsdatum, kein Alter. Sie erscheint nur für Konten, die auch die Stammdaten des Personals öffnen dürfen.",
-          "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
+          "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. Wenn die Schule es einschaltet, enthält die Liste auch Gesundheitsinfos. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
           "Unter `Auf anderen Seiten` führt `Tageslisten` zu den Listen aus geplanten Angeboten (Mensa, Lernzeit, AG-Angebote, Randstunden, Ganztag) mit den Datenbasen Plan, Ist und Abgleich - der Einstieg liegt im Bereich `Planung`, siehe das Kapitel `Tageslisten`. Daneben führen `Dienstplan` und `Betreuungsplan` auf die jeweilige Planungsseite: Beide Pläne werden dort über `Drucken` als Wochenblatt ausgegeben, weil der Export immer die Woche meint, die gerade zu sehen ist. `Anmeldungen` und `Zeitnachweis` führen ebenso auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
         ],
         callout: {
