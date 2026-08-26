@@ -213,7 +213,15 @@
     "title": "Cilësimet",
     "description": "Caktoni gjuhën dhe njoftimet për llogarinë tuaj.",
     "languageTitle": "Gjuha",
-    "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto."
+    "languageDescription": "Zgjidhni gjuhën në të cilën shfaqet moto.",
+    "appInstallTitle": "Instaloni moto si aplikacion",
+    "appInstallDescription": "Mos e instaloni moto përmes Samsung Internet. Hapeni moto në Chrome.",
+    "appInstallStepsLabel": "Instaloni moto me Chrome",
+    "appInstallStep1": "Prekni “Hap në Chrome”.",
+    "appInstallStep2": "Hyni në llogari në Chrome.",
+    "appInstallStep3": "Hapni menunë e Chrome dhe zgjidhni “Instalo aplikacionin”.",
+    "appInstallFallback": "Nëse kjo nuk funksionon, hapni Chrome dhe shkoni te {host}.",
+    "openInChrome": "Hap në Chrome"
   },
   "notificationPreferences": {
     "title": "Njoftimet",

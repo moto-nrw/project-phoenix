@@ -40,6 +40,32 @@ export function isAndroidDevice(nav: Navigator): boolean {
   );
 }
 
+/** True for Samsung Internet, whose install prompt currently creates an old WebAPK. */
+export function isSamsungInternet(nav: Navigator): boolean {
+  return isAndroidDevice(nav) && /SamsungBrowser\//i.test(nav.userAgent);
+}
+
+/** Opens the same page in Chrome, with the normal URL as an Android fallback. */
+export function createChromeIntentUrl(url: URL): string {
+  const scheme = url.protocol.replace(":", "");
+  if (scheme !== "http" && scheme !== "https") {
+    throw new Error("Chrome intent URLs require an HTTP or HTTPS URL.");
+  }
+
+  return [
+    "intent://",
+    url.host,
+    url.pathname,
+    url.search,
+    url.hash,
+    "#Intent;scheme=",
+    scheme,
+    ";package=com.android.chrome;S.browser_fallback_url=",
+    encodeURIComponent(url.href),
+    ";end",
+  ].join("");
+}
+
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
 let installationCompleted = false;
 const subscribers = new Set<() => void>();
@@ -171,6 +197,10 @@ export function dismissInstallHint(win: Window): void {
 if (typeof window !== "undefined") {
   window.addEventListener("beforeinstallprompt", (event) => {
     if (!isAndroidDevice(window.navigator)) {
+      return;
+    }
+    if (isSamsungInternet(window.navigator) && isCurrentInstallHost()) {
+      event.preventDefault();
       return;
     }
     if (!canCaptureInstallPrompt()) return;

@@ -18,6 +18,7 @@ import { PushNotificationSection } from "~/components/settings/push-notification
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { ParentSection } from "~/components/parent/shell/parent-section";
+import { SamsungChromeInstallSection } from "~/components/parent/samsung-chrome-install-section";
 
 export default function ParentSettingsPage() {
   const t = useTranslations("parentSettings");
@@ -40,6 +41,7 @@ export default function ParentSettingsPage() {
         }
       />
 
+      <SamsungChromeInstallSection />
       <NotificationPreferencesSection portal="parent" />
       <PushNotificationSection portal="parent" />
     </ParentPage>

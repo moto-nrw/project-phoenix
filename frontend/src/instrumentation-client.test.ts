@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockInit = vi.fn();
 const ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
+const SAMSUNG_INTERNET_UA =
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/130.0.0.0 Mobile Safari/537.36";
 const DESKTOP_CHROME_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36";
 
@@ -97,6 +99,33 @@ describe("instrumentation-client", () => {
     expect(event.defaultPrevented).toBe(true);
     expect(canPromptInstall()).toBe(true);
   });
+
+  it.each([
+    "https://school-a.moto-app.de/dashboard",
+    "https://school-a.moto-app.de/",
+    "https://eltern.moto-app.de/settings",
+    "https://eltern.moto-app.de/login",
+  ])(
+    "suppresses Samsung Internet installation without caching its prompt on %s",
+    async (url) => {
+      vi.stubGlobal("navigator", { userAgent: SAMSUNG_INTERNET_UA });
+      window.location.href = url;
+      await import("./instrumentation-client");
+      const { canPromptInstall } = await import("./lib/pwa-install-prompt");
+      const event = Object.assign(
+        new Event("beforeinstallprompt", { cancelable: true }),
+        {
+          prompt: vi.fn().mockResolvedValue(undefined),
+          userChoice: Promise.resolve({ outcome: "accepted" as const }),
+        },
+      );
+
+      window.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(canPromptInstall()).toBe(false);
+    },
+  );
 
   it("leaves Chrome's native install prompt enabled on desktop tenant hosts", async () => {
     vi.stubGlobal("navigator", { userAgent: DESKTOP_CHROME_UA });

@@ -213,7 +213,15 @@
     "title": "Einstellungen",
     "description": "Legen Sie Sprache und Benachrichtigungen für Ihr Konto fest.",
     "languageTitle": "Sprache",
-    "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird."
+    "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird.",
+    "appInstallTitle": "moto als App installieren",
+    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome.",
+    "appInstallStepsLabel": "moto mit Chrome installieren",
+    "appInstallStep1": "Tippen Sie auf „In Chrome öffnen“.",
+    "appInstallStep2": "Melden Sie sich in Chrome an.",
+    "appInstallStep3": "Öffnen Sie das Chrome-Menü und wählen Sie „App installieren“.",
+    "appInstallFallback": "Klappt das nicht, öffnen Sie Chrome und rufen Sie {host} auf.",
+    "openInChrome": "In Chrome öffnen"
   },
   "notificationPreferences": {
     "title": "Benachrichtigungen",

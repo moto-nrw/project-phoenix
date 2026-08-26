@@ -2,25 +2,27 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { Download, EllipsisVertical, Share, X } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { trackEvent } from "~/lib/analytics";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   canPromptInstall,
+  createChromeIntentUrl,
   dismissInstallHint,
   isAndroidDevice,
   isInstallHintEligible,
   isInstallationCompleted,
+  isSamsungInternet,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
 
-export { isAndroidDevice } from "~/lib/pwa-install-prompt";
+export { isAndroidDevice, isSamsungInternet } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PwaInstallHint" });
 
-export type InstallPlatform = "ios" | "android";
+export type InstallPlatform = "ios" | "android" | "samsung";
 
 /** True on iPhone/iPad (iPadOS reports itself as MacIntel with touch). */
 export function isIosDevice(nav: Navigator): boolean {
@@ -42,6 +44,31 @@ export function isStandaloneDisplay(win: Window): boolean {
   if (win.matchMedia("(display-mode: standalone)").matches) return true;
   const nav = win.navigator as Navigator & { standalone?: boolean };
   return nav.standalone === true;
+}
+
+function SamsungChromeInstructions({ pageUrl }: Readonly<{ pageUrl: URL }>) {
+  return (
+    <>
+      <p className="mt-1">
+        Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto in
+        Chrome und melden Sie sich dort an.
+      </p>
+      <p className="mt-2">
+        Wählen Sie danach im Chrome-Menü{" "}
+        <span className="font-medium">App installieren</span>.
+      </p>
+      <ButtonLink
+        href={createChromeIntentUrl(pageUrl)}
+        size="md"
+        className="mt-3"
+      >
+        In Chrome öffnen
+      </ButtonLink>
+      <p className="mt-2 text-gray-600">
+        Klappt das nicht, öffnen Sie Chrome und rufen Sie {pageUrl.host} auf.
+      </p>
+    </>
+  );
 }
 
 /**
@@ -89,6 +116,7 @@ export function PwaInstallHint() {
   useEffect(() => {
     let detected: InstallPlatform | null = null;
     if (isIosSafari(window.navigator)) detected = "ios";
+    else if (isSamsungInternet(window.navigator)) detected = "samsung";
     else if (isAndroidDevice(window.navigator)) detected = "android";
     if (!detected) return;
     if (isStandaloneDisplay(window)) return;
@@ -174,7 +202,11 @@ export function PwaInstallHint() {
           >
             moto als App nutzen
           </h2>
-          {showOneTapInstall ? (
+          {platform === "samsung" ? (
+            <SamsungChromeInstructions
+              pageUrl={new URL(window.location.href)}
+            />
+          ) : showOneTapInstall ? (
             <p className="mt-1">
               Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich
               moto immer im Vollbild, ohne Browserleiste.
