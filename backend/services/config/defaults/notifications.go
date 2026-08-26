@@ -99,4 +99,49 @@ func init() {
 		Category:        "benachrichtigungen",
 		SortOrder:       5,
 	})
+
+	// Cancellation notice to families (#2601). The gate is separate from the
+	// parent-news flag: news is an optional broadcast channel, the notice is a
+	// service obligation. The two companions only shape the dialog and the
+	// delivery, so they hide when the gate is off.
+	config.Register(config.Definition{
+		Key:             config.KeyNotificationsCareCancelledEnabled,
+		Label:           "Eltern bei Ausfall informieren",
+		Description:     "Erlaubt beim Absagen eines Betreuungstermins eine Mitteilung an die Eltern der betroffenen Kinder. Die Mitteilung erscheint im Elternportal, auch wenn die Neuigkeiten ausgeschaltet sind.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "benachrichtigungen",
+		SortOrder:       6,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyNotificationsCareCancelledDefaultOn,
+		Label:           "Eltern informieren vorauswählen",
+		Description:     "Beim Absagen ist \"Eltern informieren\" bereits angehakt. Die absagende Person kann den Haken jederzeit entfernen.",
+		Type:            config.FieldBoolean,
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "benachrichtigungen",
+		SortOrder:       7,
+		DependsOn:       config.DependsOnEq(config.KeyNotificationsCareCancelledEnabled, true),
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyNotificationsCareCancelledEmail,
+		Label:           "Ausfall zusätzlich per E-Mail",
+		Description:     "Schickt die Ausfall-Mitteilung zusätzlich als E-Mail an die Eltern. Ohne diese Einstellung bleibt es bei Elternportal und Push-Nachricht.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "benachrichtigungen",
+		SortOrder:       8,
+		DependsOn:       config.DependsOnEq(config.KeyNotificationsCareCancelledEnabled, true),
+	})
 }

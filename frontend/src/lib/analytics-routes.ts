@@ -39,6 +39,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/database/students/class-list/import",
   "/database/students/ended-care",
   "/database/students/import",
+  "/dateien",
   "/day-log",
   "/dienstplan",
   "/eltern",
@@ -71,6 +72,10 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/students/:id/room-history",
   "/students/search",
   "/substitutions",
+  // OGS-interner Team-Chat (#2598). Nur die Route, nie ein Nachrichteninhalt
+  // oder eine Konto-ID — der Thread-Parameter bleibt als :threadID stehen.
+  "/team-chat",
+  "/team-chat/:threadID",
   "/time-tracking",
   "/timetables",
   "/vertretung",

@@ -138,6 +138,9 @@ describe("tenant-api", () => {
         studentPhotosEnabled: false,
         nfcEnabled: false,
         messagingEnabled: false,
+        // Der Team-Chat (#2598) fehlt in dieser Antwort, also bleibt er aus —
+        // eine ältere Backend-Antwort darf die Fläche nie aufschalten.
+        staffMessagingEnabled: false,
         displayEnabled: false,
         // Older backend responses omit this additive field. Keep the editor
         // available until the server explicitly publishes false.

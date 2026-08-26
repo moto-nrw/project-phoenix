@@ -45,6 +45,7 @@ import (
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/announcement"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -165,6 +166,13 @@ type InstanceService interface {
 	// a plain cancel. actorAccountID stamps the Änderungsprotokoll entry
 	// (#1886); nil records an actor-less event.
 	Cancel(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
+	// CancelWithNotice cancels like Cancel and, when the input carries a
+	// guardian notice, informs the booked children's families in the same
+	// transaction (#2601).
+	CancelWithNotice(ctx context.Context, in CancelInstanceInput) (*CancelInstanceResult, error)
+	// GuardianNoticeReachFor previews how many children and families a
+	// cancellation notice for the block would reach (#2601).
+	GuardianNoticeReachFor(ctx context.Context, instanceID int64) (*GuardianNoticeReach, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
 	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
 	// planned or active instance (Vertretungsplan, issue #1840). It only
@@ -322,6 +330,11 @@ type InstanceServiceDependencies struct {
 	RecoveryRepo       scheduleModel.ActivityRecoveryRepository
 	Now                func() time.Time
 	EnforceTimePolicy  bool
+	// GuardianNotices publishes the cancellation notice to families (#2601).
+	// Optional: nil means a cancellation can never carry a notice. Wired via
+	// SetGuardianNoticePublisher because the announcement service is built
+	// after this one.
+	GuardianNotices announcement.CareCancellationPublisher
 }
 
 type instanceService struct {

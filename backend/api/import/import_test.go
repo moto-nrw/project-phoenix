@@ -5,9 +5,12 @@
 package importapi_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -1019,4 +1022,139 @@ func TestImportStudents_PersistsAuditRecord(t *testing.T) {
 	assert.False(t, records[0].DryRun, "actual import audit row must not be dry_run")
 	assert.Equal(t, account.ID, records[0].ImportedBy)
 	assert.Equal(t, 1, records[0].CreatedCount)
+}
+
+// newMultipartRequestWithMode builds an upload request that also carries the
+// "mode" form field of the import UI (#2600).
+func newMultipartRequestWithMode(t *testing.T, target, fileName, content, mode string, opts ...testutil.RequestOption) *http.Request {
+	t.Helper()
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+	require.NoError(t, writer.WriteField("mode", mode))
+	fw, err := writer.CreateFormFile("file", fileName)
+	require.NoError(t, err)
+	_, err = fw.Write([]byte(content))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+	req := httptest.NewRequest(http.MethodPost, target, &buf)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	for _, opt := range opts {
+		opt(req)
+	}
+	return req
+}
+
+// TestImportStudents_UpsertModeUpdatesExisting verifies the update path of the
+// child import: a second upload in upsert mode changes the stored record
+// instead of reporting a duplicate, and empty cells keep their values.
+func TestImportStudents_UpsertModeUpdatesExisting(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Upsert", "Admin")
+	claims := adminBearer(t, account.ID)
+	router := tc.resource.Router()
+
+	unique := time.Now().UnixNano()
+	// The birthday is the second key that survives the class change below.
+	first := fmt.Sprintf("Vorname,Nachname,Klasse,Geburtstag,Straße,Ort,Datenschutz\nUps,Ert%d,1A,03.02.2018,Kinderweg 1,Köln,Ja\n", unique)
+	rr := testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/import", "k.csv", first, "create", claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	// Create mode again: duplicate.
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/preview", "k.csv", first, "create", claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "already_exists")
+
+	// Upsert: class and city change, street stays.
+	second := fmt.Sprintf("Vorname,Nachname,Klasse,Geburtstag,Ort,Datenschutz\nUps,Ert%d,2A,03.02.2018,Bonn,Ja\n", unique)
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/preview", "k.csv", second, "upsert", claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"UpdatedCount":1`)
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/import", "k.csv", second, "upsert", claims))
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"UpdatedCount":1`)
+
+	var stored struct {
+		SchoolClass   string  `bun:"school_class"`
+		AddressStreet *string `bun:"address_street"`
+		AddressCity   *string `bun:"address_city"`
+	}
+	err := tc.db.NewSelect().Table("users.students").
+		ColumnExpr("students.school_class, students.address_street, students.address_city").
+		Join("JOIN users.persons AS p ON p.id = students.person_id").
+		Where("p.last_name = ?", fmt.Sprintf("Ert%d", unique)).
+		Scan(context.Background(), &stored)
+	require.NoError(t, err)
+	assert.Equal(t, "2A", stored.SchoolClass)
+	require.NotNil(t, stored.AddressCity)
+	assert.Equal(t, "Bonn", *stored.AddressCity)
+	require.NotNil(t, stored.AddressStreet)
+	assert.Equal(t, "Kinderweg 1", *stored.AddressStreet)
+
+	// Unknown mode is a 400, never a silent create.
+	rr = testutil.ExecuteRequest(router, newMultipartRequestWithMode(t, "/students/preview", "k.csv", second, "merge", claims))
+	assert.Equal(t, http.StatusBadRequest, rr.Code, rr.Body.String())
+}
+
+// TestImportStaff_FilesStammdatensatz verifies that the staff import creates
+// the person and staff rows immediately (#2600): with an e-mail the invitation
+// points at that person, without one the row is a directory entry only.
+func TestImportStaff_FilesStammdatensatz(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	role := testpkg.CreateTestRoleForTenant(t, tc.db, "ImportStammdaten", testpkg.Tenant(t))
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StaffImport", "Admin")
+	router := chi.NewRouter()
+	router.Post("/import", tc.resource.ImportStaff)
+
+	unique := time.Now().UnixNano()
+	email := fmt.Sprintf("stamm.%d@example.com", unique)
+	csvContent := "Vorname,Nachname,Rolle,Email,Personalnummer,Wochenstunden,Ort\n" +
+		fmt.Sprintf("Mit,Konto%d,%s,%s,PN-%d,39,Köln\n", unique, role.Name, email, unique) +
+		fmt.Sprintf("Ohne,Konto%d,%s,,,8,Bonn\n", unique, role.Name)
+
+	req := testutil.NewMultipartRequest(t, "POST", "/import", "file", "staff.csv", csvContent,
+		testutil.WithClaims(t, testutil.AdminTestClaims(int(account.ID))))
+	rr := testutil.ExecuteRequest(router, req)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"CreatedCount":2`)
+
+	type staffRow struct {
+		FirstName       string   `bun:"first_name"`
+		PersonID        int64    `bun:"person_id"`
+		AccountID       *int64   `bun:"account_id"`
+		PersonnelNumber *string  `bun:"personnel_number"`
+		City            *string  `bun:"address_city"`
+		WeeklyHours     *float64 `bun:"weekly_hours"`
+	}
+	var rows []staffRow
+	err := tc.db.NewSelect().Table("users.staff").
+		ColumnExpr("p.first_name, p.id AS person_id, p.account_id, staff.personnel_number, m.address_city, m.weekly_hours").
+		Join("JOIN users.persons AS p ON p.id = staff.person_id").
+		Join("LEFT JOIN users.staff_master_data AS m ON m.staff_id = staff.id").
+		Where("p.last_name = ?", fmt.Sprintf("Konto%d", unique)).
+		OrderExpr("p.first_name").
+		Scan(context.Background(), &rows)
+	require.NoError(t, err)
+	require.Len(t, rows, 2, "both rows become staff records immediately")
+	assert.Equal(t, "Mit", rows[0].FirstName)
+	assert.Nil(t, rows[0].AccountID, "no account until the invitation is accepted")
+	require.NotNil(t, rows[0].PersonnelNumber)
+	assert.Equal(t, fmt.Sprintf("PN-%d", unique), *rows[0].PersonnelNumber)
+	assert.Equal(t, "Köln", *rows[0].City)
+	assert.InDelta(t, 39, *rows[0].WeeklyHours, 0.001)
+	assert.Equal(t, "Ohne", rows[1].FirstName)
+	assert.Equal(t, "Bonn", *rows[1].City)
+
+	var invitedPersonID *int64
+	err = tc.db.NewSelect().Table("auth.invitation_tokens").Column("person_id").
+		Where("LOWER(email) = LOWER(?)", email).Limit(1).Scan(context.Background(), &invitedPersonID)
+	require.NoError(t, err)
+	require.NotNil(t, invitedPersonID, "the invitation remembers the imported person")
+	assert.Equal(t, rows[0].PersonID, *invitedPersonID)
+
+	invitations, err := tc.db.NewSelect().Table("auth.invitation_tokens").
+		Where("LOWER(email) = ''").Where("created_at > now() - interval '1 minute'").Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 0, invitations, "no invitation without an e-mail")
 }

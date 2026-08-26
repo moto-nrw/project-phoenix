@@ -45,6 +45,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/feedback"
+	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -62,6 +63,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -127,6 +129,7 @@ type Factory struct {
 	Birthdays                users.BirthdayService
 	StaffDocuments           users.StaffDocumentService
 	StudentDocuments         users.StudentDocumentService
+	FileStore                filestore.Service
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
 	Guardian                 *users.GuardianService
@@ -215,6 +218,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging *messaging.Service
+
+	// StaffMessaging (OGS-internal colleague chat, #2598)
+	StaffMessaging *staffmessaging.Service
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -1424,6 +1430,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			PrivacyRepo:         repos.PrivacyConsent,
 			ArrivalScheduleRepo: repos.StudentArrivalSchedule,
 			PickupScheduleRepo:  repos.StudentPickupSchedule,
+			RFIDCardRepo:        repos.RFIDCard,
 			Resolver:            relationshipResolver,
 		},
 		db,
@@ -1431,16 +1438,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	studentImportService := importService.NewImportService(studentImportConfig)
 	studentImportService.SetAuditRepository(repos.DataImport)
 
-	// Staff import bulk-creates invitations (reuses the invitation service);
-	// Person/Account/Staff/Teacher are created when each invitee accepts.
+	// Staff import files the Stammdatensatz (Person/Staff/Teacher/master
+	// data) immediately and issues an invitation for rows with an e-mail;
+	// accepting links the account to the imported person (#2600).
 	staffImportConfig := importService.NewStaffImportConfig(
 		importService.StaffImportDeps{
 			InvitationService: invitationService,
+			InvitationRepo:    repos.InvitationToken,
 			AccountRepo:       repos.Account,
 			AccountTenantRepo: repos.AccountTenant,
 			RoleRepo:          repos.Role,
 			PermissionRepo:    repos.Permission,
 			SchoolRepo:        repos.School,
+			PersonRepo:        repos.Person,
+			StaffRepo:         repos.Staff,
+			TeacherRepo:       repos.Teacher,
+			MasterDataRepo:    repos.StaffMasterData,
+			QualificationRepo: repos.StaffQualification,
 		},
 	)
 	staffImportService := importService.NewImportService(staffImportConfig)
@@ -1877,6 +1891,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "student_documents"),
 	)
 
+	// School file storage (#2596): folders, visibility, quota, audit trail.
+	fileStoreService := filestore.NewService(
+		db,
+		repos.FileFolder,
+		repos.File,
+		repos.FileEvent,
+		settingsService,
+		logger.With("service", "filestore"),
+	)
+
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
 		ChangeRequestRepo:        repos.ChangeRequest,
 		MessageRepo:              repos.ChangeRequestMessage,
@@ -2073,6 +2097,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ParentsURL:       parentsURL,
 	})
 
+	// OGS-internal colleague chat (#2598). Shares the transport with the
+	// parent-OGS messenger (SSE hub + push) but none of its authorization:
+	// access here is thread membership, nothing else.
+	staffMessagingService := staffmessaging.NewService(staffmessaging.Config{
+		ThreadRepo:  repos.StaffMessageThread,
+		MessageRepo: repos.StaffMessage,
+		ReadRepo:    repos.StaffMessageRead,
+		Persons:     usersService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "staffmessaging"),
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
+	})
+
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		AppointmentRepo:      repos.CalendarAppointment,
 		RecurrenceRepo:       repos.CalendarRecurrenceRule,
@@ -2153,6 +2193,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ParentsURL:  parentsURL,
 		Logger:      logger.With("service", "announcement"),
 	})
+
+	// The cancellation notice (#2601) rides on the announcement service, which
+	// is built after the instance service; inject it now that both exist.
+	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
+		setter.SetGuardianNoticePublisher(parentAnnouncementService)
+	}
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		OrganizationRepo:      repos.Organization,
@@ -2414,6 +2460,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Birthdays:                birthdayService,
 		StaffDocuments:           staffDocumentService,
 		StudentDocuments:         studentDocumentService,
+		FileStore:                fileStoreService,
 		StaffOffboarding:         staffOffboardingService,
 		CaregiverCapability:      caregiverCapabilityService,
 		Guardian:                 guardianService,
@@ -2495,6 +2542,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		Parent:             parentService,
 		Messaging:          messagingService,
+		StaffMessaging:     staffMessagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
 		ParentEventEmitter: pillEmitter,

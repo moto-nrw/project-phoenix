@@ -1068,4 +1068,44 @@ describe("StudentImportPage", () => {
       );
     });
   });
+
+  it("sends the chosen import mode and labels the button accordingly", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            TotalRows: 2,
+            CreatedCount: 2,
+            UpdatedCount: 2,
+            ErrorCount: 0,
+            Errors: [],
+          },
+        }),
+    });
+
+    render(<StudentImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 Kinder importieren")).toBeInTheDocument();
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Nur bestehende aktualisieren" }),
+    );
+
+    expect(screen.queryByText("2 Kinder importieren")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText("2 Kinder aktualisieren")).toBeInTheDocument();
+    });
+
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const previewCalls = fetchMock.mock.calls.filter(
+      (call) => call[0] === "/api/import/students/preview",
+    );
+    expect(previewCalls).toHaveLength(2);
+    const previewInit = previewCalls[1]![1] as { body: FormData };
+    expect(previewInit.body.get("mode")).toBe("update");
+  });
 });

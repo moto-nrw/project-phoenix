@@ -216,6 +216,37 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 	assert.NotContains(t, rr.Body.String(), "private database failure detail")
 }
 
+func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
+	t.Parallel()
+
+	db, svc := testutil.SetupAPITest(t)
+	_, slug := newTenantResolveScope(t, db)
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = &configtest.Mock{
+		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
+			if key == configModel.KeyStaffMessagingEnabled {
+				return false, errors.New("private staff messaging settings failure")
+			}
+			return false, nil
+		},
+		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
+			return 4, nil
+		},
+	}
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), http.StatusText(http.StatusInternalServerError))
+	assert.NotContains(t, rr.Body.String(), "private staff messaging settings failure")
+}
+
 func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 	t.Parallel()
 

@@ -35,6 +35,10 @@ type AnnouncementResponse struct {
 	ResponseDeadline *time.Time              `json:"response_deadline,omitempty"`
 	Options          []AnnouncementOption    `json:"options,omitempty"`
 	Children         []AnnouncementPollChild `json:"children,omitempty"`
+
+	// SystemKind marks a row the school's system wrote, e.g. the cancellation
+	// notice (#2601). The portal labels it instead of "Elternbrief".
+	SystemKind *string `json:"system_kind,omitempty"`
 }
 
 // AnnouncementOption is one answer choice of a poll.
@@ -74,6 +78,7 @@ func toAnnouncementResponse(item *usersModels.AnnouncementFeedItem) Announcement
 		})
 	}
 	return AnnouncementResponse{
+		SystemKind:              item.SystemKind,
 		ResponseType:            item.ResponseType,
 		ResponseDeadline:        item.ResponseDeadline,
 		Options:                 options,

@@ -235,6 +235,13 @@ const (
 
 	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
 	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
+
+	// School file storage (#2596). Reading is not a permission: it is the
+	// visibility of the folder. Managing (folders, visibility, any upload or
+	// delete) is catalog-only, so admins match via AdminWildcard and a
+	// dedicated role can be granted it explicitly.
+	ResourceFiles = "files"
+	FilesManage   = ResourceFiles + ":" + ActionManage
 )
 
 // Grade Transition permissions (admin only)

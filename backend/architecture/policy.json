@@ -79,6 +79,10 @@
       "kind": "domain"
     },
     {
+      "id": "file-storage",
+      "kind": "domain"
+    },
+    {
       "id": "group-live-view",
       "kind": "projection"
     },
@@ -156,6 +160,10 @@
     },
     {
       "id": "inbound-feedback",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-filestore",
       "kind": "inbound"
     },
     {
@@ -549,6 +557,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "api/filestore",
+      "owner": "inbound-filestore",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "api/groups",
       "owner": "inbound-groups",
       "role": "http",
@@ -620,6 +635,13 @@
     },
     {
       "path": "api/messaging",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/staffmessaging",
       "owner": "inbound-messaging",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -955,6 +977,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "database/repositories/filestore",
+      "owner": "file-storage",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "database/repositories/iot",
       "owner": "device-fleet",
       "role": "postgres",
@@ -1249,6 +1278,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "models/filestore",
+      "owner": "file-storage",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "models/import",
       "owner": "data-import",
       "role": "domain",
@@ -1473,6 +1509,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "services/filestore",
+      "owner": "file-storage",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/import",
       "owner": "data-import",
       "role": "application",
@@ -1544,6 +1587,13 @@
     },
     {
       "path": "services/parentmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/staffmessaging",
       "owner": "communication",
       "role": "application",
       "internal_test_role": "module-internal-test",

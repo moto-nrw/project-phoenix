@@ -10,6 +10,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/stretchr/testify/assert"
 )
 
 // --- test doubles -----------------------------------------------------------
@@ -123,10 +124,13 @@ func (m *mockRepo) SchoolName(ctx context.Context, tenantID int64) (string, erro
 func (m *mockRepo) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*usersModels.AnnouncementRecipientStatus, error) {
 	return m.audienceFn(ctx, tenantID, announcementID)
 }
-func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*usersModels.AnnouncementFeedItem, error) {
+func (m *mockRepo) ListFeedForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) ([]*usersModels.AnnouncementFeedItem, error) {
 	return nil, nil
 }
-func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error) {
+func (m *mockRepo) CountUnreadForAccount(ctx context.Context, accountID int64, scope usersModels.AnnouncementFeedScope) (int, error) {
+	return 0, nil
+}
+func (m *mockRepo) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {
 	return 0, nil
 }
 func (m *mockRepo) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {
@@ -464,6 +468,19 @@ func TestService_Delete_NotFound(t *testing.T) {
 	if err := svc.Delete(context.Background(), testAnnID); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
+}
+
+func TestService_SystemAnnouncementCannotBeDeletedOrUnpublished(t *testing.T) {
+	t.Parallel()
+	kind := usersModels.ParentAnnouncementSystemKindCareCancellation
+	system := published()
+	system.SystemKind = &kind
+	repo := &mockRepo{findByIDFn: func(_ context.Context, _ int64) (*usersModels.ParentAnnouncement, error) { return system, nil }}
+	svc := NewService(ServiceConfig{Repo: repo})
+
+	assert.ErrorIs(t, svc.Delete(context.Background(), testAnnID), ErrSystemAnnouncementImmutable)
+	_, err := svc.Unpublish(context.Background(), testAnnID)
+	assert.ErrorIs(t, err, ErrSystemAnnouncementImmutable)
 }
 
 func TestService_Delete_CancelError(t *testing.T) {

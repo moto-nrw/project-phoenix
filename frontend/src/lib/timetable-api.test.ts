@@ -932,6 +932,70 @@ describe("timetableService", () => {
     );
   });
 
+  it("sends the family notice next to the reason on cancel (#2601)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          instance_id: 42,
+          status: "cancelled",
+          guardian_notice: {
+            announcement_id: 7,
+            child_count: 3,
+            family_count: 2,
+          },
+        },
+      }),
+    );
+
+    const result = await timetableService.cancel("42", "Ausflug", {
+      title: "Fußball-AG entfällt",
+      message: "Heute keine AG.",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          reason: "Ausflug",
+          guardian_notice: {
+            title: "Fußball-AG entfällt",
+            message: "Heute keine AG.",
+          },
+        }),
+      }),
+    );
+    expect(result.guardianNotice).toEqual({
+      announcementId: "7",
+      childCount: 3,
+      familyCount: 2,
+    });
+  });
+
+  it("loads the family reach preview for the cancel dialog (#2601)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          enabled: true,
+          default_on: false,
+          child_count: 4,
+          family_count: 3,
+        },
+      }),
+    );
+
+    const reach = await timetableService.getGuardianNoticeReach("42");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/guardian-notice",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(reach).toEqual({
+      enabled: true,
+      defaultOn: false,
+      childCount: 4,
+      familyCount: 3,
+    });
+  });
+
   it("applies a cancel-only deviation, ignoring the other edits (#1840)", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

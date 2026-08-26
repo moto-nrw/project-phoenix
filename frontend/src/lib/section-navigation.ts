@@ -135,10 +135,18 @@ export const STAFF_FLAT_PAGES = {
   activities: { href: "/activities", label: "Aktivitäten" },
   rooms: { href: "/rooms", label: "Räume" },
   staff: { href: "/staff", label: "Mitarbeiter" },
+  // OGS-interner Team-Chat (#2598). Bewusst NICHT „Nachrichten": so heißt der
+  // Eltern-Chat im Eltern-Akkordeon. Zwei gleich benannte Einträge waren genau
+  // der Grund, warum Schulen ihre Anfragen am falschen Ort gesucht haben.
+  teamChat: { href: "/team-chat", label: "Team-Chat" },
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und Mitarbeitenden
   // an einem Ort, mit Reitern nach Herkunft.
   anfragen: { href: "/anfragen", label: "Anfragen" },
   calendar: { href: "/calendar", label: "Mein Kalender" },
+  // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
+  // Bewusst „Dateien“, nicht „Dokumente“: der Dokumente-Tab bei Kind und
+  // Personal ist ein anderer Ort.
+  dateien: { href: "/dateien", label: "Dateien" },
   substitutions: { href: "/substitutions", label: "Gruppenzugriff" },
   infoDisplays: { href: "/info-displays", label: "Info-Displays" },
   timeTracking: { href: "/time-tracking", label: "Zeiterfassung" },
