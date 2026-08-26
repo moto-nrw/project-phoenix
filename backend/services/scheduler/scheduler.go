@@ -1544,6 +1544,33 @@ func (s *Scheduler) resolveIntSetting(ctx context.Context, key string, envVar st
 	return fallback
 }
 
+func (s *Scheduler) resolveRequiredPositiveIntSetting(ctx context.Context, key string, envVar string) (int, error) {
+	if s.settings == nil {
+		return 0, fmt.Errorf("settings resolver not configured")
+	}
+	hasOverride, err := s.settings.HasTenantOverride(ctx, key)
+	if err != nil {
+		return 0, fmt.Errorf("check override for %s: %w", key, err)
+	}
+	if !hasOverride {
+		if val := os.Getenv(envVar); val != "" {
+			parsed, err := strconv.Atoi(val)
+			if err != nil || parsed <= 0 {
+				return 0, fmt.Errorf("environment variable %s must be positive integer, got %q", envVar, val)
+			}
+			return parsed, nil
+		}
+	}
+	val, err := s.settings.ResolveInt(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	if val <= 0 {
+		return 0, fmt.Errorf("setting %s must be positive, got %d", key, val)
+	}
+	return val, nil
+}
+
 // resolveNonNegativeIntSetting is resolveIntSetting for settings where zero is
 // a meaningful value (e.g. tracking.auto_checkout_grace_minutes = 0 means
 // checkout exactly at the planned shift end).
@@ -2415,7 +2442,15 @@ func (s *Scheduler) runStaffMessageCleanupTaskPolling(task *ScheduledTask) {
 // retention jobs.
 func (s *Scheduler) checkAndRunStaffMessageCleanup(task *ScheduledTask) {
 	s.checkAndRunDailyGDPRCleanup(task, &s.lastStaffMessageCleanup, "staff-message-cleanup-check", func(tenantCtx context.Context, tenantID int64, cleanupTime string) error {
-		timeoutMinutes := s.resolveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES", 30)
+		timeoutMinutes, err := s.resolveRequiredPositiveIntSetting(tenantCtx, configModel.KeyDataCleanupTimeoutMinutes, "CLEANUP_SCHEDULER_TIMEOUT_MINUTES")
+		if err != nil {
+			s.getLogger().Error("staff message cleanup timeout setting failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("key", configModel.KeyDataCleanupTimeoutMinutes),
+				slog.String("error", err.Error()),
+			)
+			return fmt.Errorf("staff message cleanup timeout for tenant %d: %w", tenantID, err)
+		}
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 

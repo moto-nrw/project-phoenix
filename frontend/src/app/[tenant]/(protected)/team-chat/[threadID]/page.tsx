@@ -87,12 +87,14 @@ function TeamThreadContent() {
   // the user sees "Der Verlauf konnte nicht geladen werden." for a school that
   // simply switched the feature off.
   const disabledByBackend = isStaffMessagingDisabled(loadError);
-  const chatEnabled = flagSaysEnabled && !disabledByBackend;
+  const chatEnabled =
+    flagSaysEnabled && !disabledByBackend && !disabledWhileOpen;
   // Off is off, whichever side said so: the cached tenant flag (fast, may lag
   // by the metadata cache window) or the backend's stable code (authoritative,
   // covers a stale flag and a deep-linked thread).
   const chatDisabled =
     !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
+  const threadLoadFailed = Boolean(loadError) && !disabledByBackend;
   // Getrennt vom Aus-Zustand: der Chat laeuft, nur DIESE Unterhaltung ist zu.
   const readOnlyThread = !chatDisabled && counterpartGone;
 
@@ -241,6 +243,13 @@ function TeamThreadContent() {
               ref={scrollRef}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
             >
+              {threadLoadFailed && messages.length > 0 && (
+                <Alert
+                  type="error"
+                  message="Der Verlauf konnte nicht aktualisiert werden."
+                />
+              )}
+
               {messages.length > 0 ? (
                 messages.map((message) => (
                   <ChatBubble
@@ -254,7 +263,7 @@ function TeamThreadContent() {
                     showOwnSenderName={false}
                   />
                 ))
-              ) : loadError ? (
+              ) : threadLoadFailed ? (
                 <Alert
                   type="error"
                   message="Der Verlauf konnte nicht geladen werden."

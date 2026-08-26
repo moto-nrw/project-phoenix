@@ -358,6 +358,39 @@ func TestInboxShowsCounterpartAndPreview(t *testing.T) {
 	assert.Equal(t, 1, benInbox[0].UnreadCount)
 }
 
+func TestInboxCounterpartNameUsesThreadTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+
+	schoolB, _ := testpkg.CreateTestTenant(t, db)
+	testpkg.EnsureAccountTenant(t, db, ben, schoolB)
+
+	ctx := context.Background()
+	_, err := db.ExecContext(ctx,
+		`INSERT INTO users.persons (tenant_id, first_name, last_name, account_id)
+		 VALUES (?, ?, ?, ?)`,
+		schoolB, "Falscher", "Tenant", ben)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(ctx,
+			`DELETE FROM users.persons
+			 WHERE tenant_id = ? AND account_id = ? AND first_name = ? AND last_name = ?`,
+			schoolB, ben, "Falscher", "Tenant")
+	})
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Bis gleich")
+	require.NoError(t, err)
+
+	inbox, err := svc.ListInbox(asAccount(t, anna), false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, "Ben Beispiel", inbox[0].CounterpartName)
+}
+
 func TestInboxOnlyUnreadFilter(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

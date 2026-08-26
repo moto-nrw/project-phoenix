@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -89,6 +89,12 @@ function TeamChatInboxContent() {
   const chatEnabled = flagSaysEnabled && !disabledByBackend;
   // Only a REAL failure belongs in a red alert. "Switched off" is not one.
   const loadFailed = Boolean(error) && !disabledByBackend;
+
+  useEffect(() => {
+    if (!chatEnabled && composeOpen) {
+      setComposeOpen(false);
+    }
+  }, [chatEnabled, composeOpen]);
 
   // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` haelt jede
   // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
@@ -247,7 +253,7 @@ function TeamChatInboxContent() {
         </>
       )}
 
-      {composeOpen && (
+      {composeOpen && chatEnabled && (
         <NewTeamMessageModal
           onClose={() => setComposeOpen(false)}
           onOpened={(threadId) => router.push(`/team-chat/${threadId}`)}

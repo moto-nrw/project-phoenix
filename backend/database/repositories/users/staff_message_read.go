@@ -163,9 +163,11 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 		Join(`JOIN users.staff_message_participants AS "mine"
 			ON mine.thread_id = t.id AND mine.account_id = ?`, accountID).
 		Join(`JOIN users.staff_message_participants AS "other"
-			ON other.thread_id = t.id AND other.account_id <> ?`, accountID).
+				ON other.thread_id = t.id AND other.account_id <> ?`, accountID).
 		Join(`LEFT JOIN users.persons AS "person"
-			ON person.account_id = other.account_id AND person.deleted_at IS NULL`).
+				ON person.account_id = other.account_id
+				AND person.tenant_id = t.tenant_id
+				AND person.deleted_at IS NULL`).
 		Join(`LEFT JOIN users.staff_message_reads AS "r"
 			ON r.thread_id = t.id AND r.account_id = ?`, accountID).
 		Where(`t.last_message_at IS NOT NULL`).
