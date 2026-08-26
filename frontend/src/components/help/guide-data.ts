@@ -862,7 +862,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Notfall",
         icon: CircleStop,
         summary:
-          "Der schnellste Weg zur Notfallliste: eine druckbare Liste aller Kinder, die gerade anwesend sind, mit Ort, Klasse, Telefonnummern, Kontaktpersonen und den beim Kind hinterlegten Gesundheitsinfos. Der Eintrag steht für alle Mitarbeitenden ganz unten in der Seitenleiste; zum Erstellen der Liste braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
+          "Der schnellste Weg zur Notfallliste: eine druckbare Liste aller Kinder, die gerade anwesend sind, mit Ort, Klasse, Telefonnummern und Kontaktpersonen. Wenn die Schule es einschaltet, enthält die Liste auch die beim Kind hinterlegten Gesundheitsinfos. Der Eintrag steht für alle Mitarbeitenden ganz unten in der Seitenleiste; zum Erstellen der Liste braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
         steps: [
           "In der Seitenleiste unten `Notfall` öffnen.",
           "Zum Drucken oder Herunterladen braucht das Konto die Berechtigung `Benutzerinformationen ansehen`.",
@@ -1583,7 +1583,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesplanung`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin unter `Alle Kinder` bei `Exportieren`.",
           "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
           "Unter `Personallisten` gibt die Karte `Geburtstagsliste` die Geburtstage der Mitarbeitenden nach Kalender sortiert aus, mit derselben Monatsauswahl wie bei den Kindern. Die Liste enthält Name und Geburtsdatum, kein Alter. Sie erscheint nur für Konten, die auch die Stammdaten des Personals öffnen dürfen.",
-          "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten und den hinterlegten Gesundheitsinfos, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
+          "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. Wenn die Schule es einschaltet, enthält die Liste auch Gesundheitsinfos. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
           "Unter `Auf anderen Seiten` führt `Tageslisten` zu den Listen aus geplanten Angeboten (Mensa, Lernzeit, AG-Angebote, Randstunden, Ganztag) mit den Datenbasen Plan, Ist und Abgleich - der Einstieg liegt im Bereich `Planung`, siehe das Kapitel `Tageslisten`. Daneben führen `Dienstplan` und `Betreuungsplan` auf die jeweilige Planungsseite: Beide Pläne werden dort über `Drucken` als Wochenblatt ausgegeben, weil der Export immer die Woche meint, die gerade zu sehen ist. `Anmeldungen` und `Zeitnachweis` führen ebenso auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
         ],
         callout: {
