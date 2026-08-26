@@ -168,7 +168,12 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 
 	_, thisFile, _, ok := runtime.Caller(0)
 	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
-	iotDir := filepath.Dir(thisFile)                  // backend/api/iot
+	iotDir := filepath.Dir(thisFile) // backend/api/iot
+	if !filepath.IsAbs(iotDir) {
+		var err error
+		iotDir, err = os.Getwd()
+		require.NoError(t, err, "locating api/iot source directory")
+	}
 	backendRoot := filepath.Dir(filepath.Dir(iotDir)) // backend/
 
 	var blob strings.Builder

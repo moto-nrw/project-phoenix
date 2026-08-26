@@ -1760,6 +1760,9 @@ func eligibleOn(student *userModel.Student, date, today timezone.Date, actuallyP
 	if student.EnrolledUntil != nil && date.After(*student.EnrolledUntil) {
 		return false
 	}
+	if student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Status == userModel.StudentStatusInactive {
+		return false
+	}
 	return true
 }
 

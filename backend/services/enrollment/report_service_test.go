@@ -696,6 +696,27 @@ func TestClassRosterAppliesChildLimitAfterClassFiltering(t *testing.T) {
 	assert.True(t, report.Rows[0].Registered)
 }
 
+func TestClassRosterAppliesStudentLimitAfterParticipationFiltering(t *testing.T) {
+	t.Parallel()
+
+	students := make([]*userModels.Student, 0, maxReportRows+1)
+	participating := fakeClassCareParticipation{1: true}
+	for id := 1; id <= maxReportRows+1; id++ {
+		students = append(students, &userModels.Student{
+			Model: baseModels.Model{ID: int64(id)}, SchoolClass: "1a",
+		})
+	}
+	svc := &reportService{ReportServiceConfig{
+		StudentRepo:       &fakeClassRosterStudentRepo{students: students},
+		CareParticipation: participating,
+	}}
+
+	result, err := svc.classRosterStudents(context.Background(), ClassRosterFilters{AllClasses: true})
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, students[0].ID, result[0].ID)
+}
+
 func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *testing.T) {
 	t.Parallel()
 

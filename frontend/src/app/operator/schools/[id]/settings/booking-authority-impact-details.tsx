@@ -1,42 +1,14 @@
 import type { BookingAuthorityImpact } from "~/lib/operator/operator-settings-api";
 import { Alert } from "~/components/ui/alert";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { formatDate } from "~/lib/date-helpers";
 
 interface Props {
   readonly impact: BookingAuthorityImpact | null;
-  readonly isOpen: boolean;
   readonly isLoading: boolean;
-  readonly isSaving: boolean;
   readonly error: string | null;
-  readonly onClose: () => void;
-  readonly onConfirm: () => void;
 }
 
-export function BookingAuthorityImpactModal(props: Props) {
-  const blockers = props.impact?.blockingChildren ?? [];
-  return (
-    <ConfirmationModal
-      isOpen={props.isOpen}
-      onClose={props.onClose}
-      onConfirm={props.onConfirm}
-      title="Buchungsmodus aktivieren?"
-      confirmText="Buchungsmodus aktivieren"
-      cancelText="Abbrechen"
-      isConfirmLoading={props.isSaving}
-      isConfirmDisabled={
-        props.isLoading ||
-        props.impact === null ||
-        blockers.length > 0 ||
-        props.error !== null
-      }
-    >
-      <ImpactDetails {...props} />
-    </ConfirmationModal>
-  );
-}
-
-function ImpactDetails(props: Props) {
+export function BookingAuthorityImpactDetails(props: Props) {
   const blockers = props.impact?.blockingChildren ?? [];
   return (
     <div className="space-y-4 text-sm text-gray-700">

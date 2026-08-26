@@ -78,11 +78,11 @@ func TestEligibleOn_ImmediateActivation(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "inactive marker alone does not exclude a candidate",
+			name: "inactive legacy child without enrollment bounds is excluded",
 			student: &userModel.Student{
 				Status: userModel.StudentStatusInactive,
 			},
-			want: true,
+			want: false,
 		},
 	}
 

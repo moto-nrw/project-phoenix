@@ -585,6 +585,31 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_Unterwegs(t *tes
 	assert.Nil(t, info.Since)
 }
 
+func TestDetailedMode_OpenVisitWithoutAttendanceRemainsVisible(t *testing.T) {
+	t.Parallel()
+
+	entryTime := time.Date(2026, time.August, 26, 9, 15, 0, 0, time.UTC)
+	snapshot := &common.StudentLocationSnapshot{
+		Mode:        common.PresenceModeDetailed,
+		Attendances: map[int64]*activeService.AttendanceStatus{},
+		Visits: map[int64]*activeModels.Visit{
+			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
+		},
+		Groups: map[int64]*activeModels.Group{
+			99: {RoomID: 1, Room: &facilities.Room{Name: "Kunstraum"}},
+		},
+	}
+
+	fullAccess := snapshot.ResolveStudentLocationWithTime(42, true)
+	assert.Equal(t, "Anwesend - Kunstraum", fullAccess.Location)
+	require.NotNil(t, fullAccess.Since)
+	assert.Equal(t, entryTime, *fullAccess.Since)
+
+	redacted := snapshot.ResolveStudentLocationWithTime(42, false)
+	assert.Equal(t, "Anwesend", redacted.Location)
+	assert.Nil(t, redacted.Since)
+}
+
 // =============================================================================
 // Multiple Students Tests
 // =============================================================================

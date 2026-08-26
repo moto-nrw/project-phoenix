@@ -201,6 +201,46 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	assert.Equal(t, strconv.FormatInt(present.ID, 10), students[0]["id"])
 }
 
+func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	repos := repositories.NewFactory(tc.db)
+	require.NoError(t, tc.services.Settings.SetValue(
+		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
+	))
+	t.Cleanup(func() {
+		_ = tc.services.Settings.ResetValue(testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, nil, nil)
+	})
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBesuch", "Leitung")
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "OGSBesuchsgruppe")
+	student := testpkg.CreateTestStudent(t, tc.db, "Offener", "Besuch", "OG2")
+	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
+	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
+
+	studentID := student.ID
+	require.NoError(t, repos.CareWithdrawal.UpsertPending(testpkg.Ctx(t), &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
+		WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}))
+	room := testpkg.CreateTestRoom(t, tc.db, "OGS Besuchsraum")
+	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "OGS Besuchsaktivität")
+	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
+	testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
+	_, err := tc.db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", userModels.StudentStatusAlumnus).Where("id = ?", student.ID).Exec(t.Context())
+	require.NoError(t, err)
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	students := decodeOGSLive(t, rr.Body.Bytes()).Data.Students
+	require.Len(t, students, 1)
+	assert.Equal(t, strconv.FormatInt(student.ID, 10), students[0]["id"])
+	assert.Equal(t, "Anwesend - "+room.Name, students[0]["current_location"])
+}
+
 // TestOGSGroupLive_MinimalProjection is the payload guard for #2056: the
 // production student list averaged ~7.4x staging size (up to ~198 KB) because
 // it ships the full student projection. The aggregate must never carry the

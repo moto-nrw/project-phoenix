@@ -375,7 +375,15 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetParticipationCandidatesByGroupIDs(ctx, params.groupIDs)
+	var (
+		students []*users.Student
+		err      error
+	)
+	if params.canUseGroupOnlyShortcut() {
+		students, err = rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
+	} else {
+		students, err = rs.PersonService.GetParticipationCandidatesByGroupIDs(ctx, params.groupIDs)
+	}
 	if err != nil {
 		return nil, 0, false, err
 	}

@@ -23,8 +23,9 @@ import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import { resolveOperatorBackHref } from "~/lib/operator/back-href";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { Alert } from "~/components/ui/alert";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { Skeleton } from "~/components/ui/skeleton";
-import { BookingAuthorityImpactModal } from "./booking-authority-impact-modal";
+import { BookingAuthorityImpactDetails } from "./booking-authority-impact-details";
 import { useBookingAuthorityImpact } from "./use-booking-authority-impact";
 import {
   ConceptPageHeader,
@@ -163,6 +164,8 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
   );
 
   const bookingAuthority = useBookingAuthorityImpact(schoolId, handleSave);
+  const bookingAuthorityBlockers =
+    bookingAuthority.state.impact?.blockingChildren ?? [];
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
@@ -243,15 +246,27 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           </section>
         ))}
 
-      <BookingAuthorityImpactModal
-        impact={bookingAuthority.state.impact}
+      <ConfirmationModal
         isOpen={bookingAuthority.state.isOpen}
         onClose={bookingAuthority.close}
         onConfirm={() => void bookingAuthority.confirm()}
-        isLoading={bookingAuthority.state.isLoading}
-        isSaving={bookingAuthority.state.isSaving}
-        error={bookingAuthority.state.error}
-      />
+        title="Buchungsmodus aktivieren?"
+        confirmText="Buchungsmodus aktivieren"
+        cancelText="Abbrechen"
+        isConfirmLoading={bookingAuthority.state.isSaving}
+        isConfirmDisabled={
+          bookingAuthority.state.isLoading ||
+          bookingAuthority.state.impact === null ||
+          bookingAuthorityBlockers.length > 0 ||
+          bookingAuthority.state.error !== null
+        }
+      >
+        <BookingAuthorityImpactDetails
+          impact={bookingAuthority.state.impact}
+          isLoading={bookingAuthority.state.isLoading}
+          error={bookingAuthority.state.error}
+        />
+      </ConfirmationModal>
     </div>
   );
 }

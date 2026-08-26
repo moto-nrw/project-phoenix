@@ -1184,11 +1184,15 @@ func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRo
 	} else {
 		students = studentsWithClass(students)
 	}
+	today := s.today()
+	students, err = s.filterClassParticipation(ctx, students, filters.careDate(today), today)
+	if err != nil {
+		return nil, err
+	}
 	if len(students) > maxReportRows {
 		return nil, fmt.Errorf("class roster report: %d students: %w", len(students), ErrReportExportTooLarge)
 	}
-	today := s.today()
-	return s.filterClassParticipation(ctx, students, filters.careDate(today), today)
+	return students, nil
 }
 
 func studentsInClass(students []*userModels.Student, schoolClass string) []*userModels.Student {

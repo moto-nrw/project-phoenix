@@ -519,6 +519,17 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 		response := authExec(t, tc, request, claims, readOnly)
 		require.Equal(t, http.StatusOK, response.Code, "the ordinary list stays open")
 	})
+
+	t.Run("group-only archive view hides alumni", func(t *testing.T) {
+		_, err := tc.db.NewUpdate().TableExpr("users.students").
+			Set("status = ?", userModels.StudentStatusAlumnus).
+			Where("id = ?", ended.ID).
+			Exec(t.Context())
+		require.NoError(t, err)
+
+		rows := listed(fmt.Sprintf("?group_id=%d&page_size=500&care_status=all", group.ID))
+		assert.NotContains(t, rows, ended.ID)
+	})
 }
 
 // The list has to say WHY a child carries an end date: a recorded exit can be

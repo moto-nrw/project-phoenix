@@ -346,9 +346,14 @@ func (s *service) loadStudents(ctx context.Context, state *buildState) error {
 }
 
 func (s *service) filterCareParticipation(ctx context.Context, state *buildState) error {
-	present := make(map[int64]bool, len(state.data.locations.Attendances))
+	present := make(map[int64]bool, len(state.data.locations.Attendances)+len(state.data.locations.Visits))
 	for id, status := range state.data.locations.Attendances {
 		present[id] = status.IsCurrentlyPresent()
+	}
+	for id, visit := range state.data.locations.Visits {
+		if visit != nil {
+			present[id] = true
+		}
 	}
 	participating, err := s.deps.CareParticipation.ParticipatingStudentIDs(
 		ctx, state.studentIDs, state.today, present,
@@ -423,20 +428,16 @@ func (s *service) loadLocations(ctx context.Context, studentIDs []int64) (*activ
 		result.YardRoomColor = activeService.ResolveYardRoomColor(ctx, s.deps.Active)
 		return result, nil
 	}
-	return s.loadDetailedLocations(ctx, result)
+	return s.loadDetailedLocations(ctx, result, ids)
 }
 
-func (s *service) loadDetailedLocations(ctx context.Context, result *activeService.StudentLocationSnapshot) (*activeService.StudentLocationSnapshot, error) {
-	checkedIn := make([]int64, 0, len(result.Attendances))
-	for id, status := range result.Attendances {
-		if status != nil && status.Status == "checked_in" {
-			checkedIn = append(checkedIn, id)
-		}
-	}
-	if len(checkedIn) == 0 {
+func (s *service) loadDetailedLocations(
+	ctx context.Context, result *activeService.StudentLocationSnapshot, studentIDs []int64,
+) (*activeService.StudentLocationSnapshot, error) {
+	if len(studentIDs) == 0 {
 		return result, nil
 	}
-	visits, err := s.deps.Active.GetStudentsCurrentVisits(ctx, checkedIn)
+	visits, err := s.deps.Active.GetStudentsCurrentVisits(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}

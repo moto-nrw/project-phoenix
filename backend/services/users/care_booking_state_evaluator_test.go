@@ -123,3 +123,23 @@ func TestEvaluateCareBookingStates_IgnoresWindowsWithoutAProjectedCareDay(t *tes
 	assert.False(t, evaluations[0].HasCareDays)
 	assert.Nil(t, evaluations[0].FirstBookinglessDay)
 }
+
+func TestEvaluateCareBookingStates_KeepsRecurringBookingUntilValidityBoundary(t *testing.T) {
+	t.Parallel()
+
+	monday := timezone.NewDate(2026, time.August, 24)
+	tuesday := monday.AddDays(1)
+	friday := monday.AddDays(4)
+
+	evaluations := EvaluateCareBookingStates([]userModels.CareBookingFacts{{
+		StudentID: 47,
+		Periods: []userModels.CareBookingPeriod{{
+			ValidFrom: &monday, ValidUntil: &friday, Days: []string{"mon"},
+		}},
+	}}, tuesday)
+
+	require.Len(t, evaluations, 1)
+	assert.True(t, evaluations[0].HasCareDays)
+	require.NotNil(t, evaluations[0].FirstBookinglessDay)
+	assert.Equal(t, friday, *evaluations[0].FirstBookinglessDay)
+}
