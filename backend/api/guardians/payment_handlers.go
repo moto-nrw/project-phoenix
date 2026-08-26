@@ -27,7 +27,10 @@ import (
 // exportConfidentialityNote is stamped on every page of the exported list.
 // The file leaves the building the moment it is downloaded, so the reminder
 // belongs in the document, not only on the screen that produced it.
-const exportConfidentialityNote = "Vertraulich. Enthält Bankverbindungen. Bitte nicht per E-Mail weitergeben."
+const (
+	exportConfidentialityNote   = "Vertraulich. Enthält Bankverbindungen. Bitte nicht per E-Mail weitergeben."
+	errInvalidPaymentGuardianID = "Die erziehungsberechtigte Person konnte nicht zugeordnet werden."
+)
 
 // GuardianPaymentMaskedResponse is the default bank read of one guardian.
 type GuardianPaymentMaskedResponse struct {
@@ -133,7 +136,7 @@ func renderPaymentError(w http.ResponseWriter, r *http.Request, err error) {
 func (rs *Resource) getGuardianPayment(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseIDParam(r, "id")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPaymentGuardianID)))
 		return
 	}
 	accountID, role, err := paymentActor(r)
@@ -160,7 +163,7 @@ func (rs *Resource) getGuardianPayment(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) revealGuardianPayment(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseIDParam(r, "id")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPaymentGuardianID)))
 		return
 	}
 	accountID, role, err := paymentActor(r)
@@ -185,7 +188,7 @@ func (rs *Resource) revealGuardianPayment(w http.ResponseWriter, r *http.Request
 func (rs *Resource) updateGuardianPayment(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseIDParam(r, "id")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPaymentGuardianID)))
 		return
 	}
 	req := &GuardianPaymentRequest{}
@@ -231,7 +234,7 @@ func (rs *Resource) setStudentPayer(w http.ResponseWriter, r *http.Request) {
 	if req.GuardianID != nil && strings.TrimSpace(*req.GuardianID) != "" {
 		parsed, perr := strconv.ParseInt(strings.TrimSpace(*req.GuardianID), 10, 64)
 		if perr != nil || parsed <= 0 {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidPaymentGuardianID)))
 			return
 		}
 		guardianID = &parsed
