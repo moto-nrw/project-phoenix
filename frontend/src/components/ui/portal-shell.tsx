@@ -18,6 +18,7 @@ import type { ReactNode } from "react";
 interface PortalShellProps {
   readonly header: ReactNode;
   readonly headerClassName?: string;
+  readonly backgroundClassName?: string;
   readonly topLayer?: ReactNode;
   readonly sidebar: ReactNode;
   readonly bottomNav: ReactNode;
@@ -27,6 +28,7 @@ interface PortalShellProps {
 export function PortalShell({
   header,
   headerClassName = "sticky top-0 z-40",
+  backgroundClassName = "",
   topLayer,
   sidebar,
   bottomNav,
@@ -35,7 +37,8 @@ export function PortalShell({
   return (
     <div className="relative min-h-screen">
       <div
-        className="moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0"
+        data-portal-background
+        className={`moto-dotted-background moto-dotted-background--app-fixed moto-dotted-background--fullscreen pointer-events-none z-0 ${backgroundClassName}`}
         aria-hidden="true"
       />
       {topLayer}
