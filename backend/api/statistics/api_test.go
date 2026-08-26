@@ -336,11 +336,14 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	assert.Equal(t, 1, data.ExcludedDays.HolidayPeriods)
 	assert.Equal(t, 0, data.ExcludedDays.PublicHolidays)
 
-	require.Len(t, data.Students, 3)
+	// The graduated child is out of every section, not just the room table:
+	// child rows, totals and the room aggregate share one population (#2606).
+	require.Len(t, data.Students, 2)
 	byName := map[string]int{}
 	for i, st := range data.Students {
 		byName[st.LastName] = i
 	}
+	assert.NotContains(t, byName, "Archiv", "alumni must not appear in the child table")
 	annaRow := data.Students[byName["Anwesend"]]
 	assert.Equal(t, 2, annaRow.PresentDays)
 	assert.Equal(t, 0, annaRow.SickDays)
@@ -358,12 +361,12 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	require.NotNil(t, bertRow.AttendanceRate)
 	assert.InDelta(t, 33.3, *bertRow.AttendanceRate, 0.01)
 
-	require.Len(t, data.Groups, 2)
+	require.Len(t, data.Groups, 1)
 	assert.Equal(t, group.Name, data.Groups[0].Name)
 	assert.Equal(t, 2, data.Groups[0].StudentCount)
 	require.NotNil(t, data.Groups[0].AttendanceRate)
 	assert.InDelta(t, 50.0, *data.Groups[0].AttendanceRate, 0.01)
-	assert.Equal(t, 3, data.Totals.StudentCount)
+	assert.Equal(t, 2, data.Totals.StudentCount)
 
 	require.NotEmpty(t, data.Rooms)
 	var found bool
@@ -390,6 +393,60 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 	assert.Len(t, payload.Data.Students, 2)
+}
+
+// TestStatisticsReport_DropsCollapsedRoomVisits pins that a visit whose
+// clamped span leaves nothing inside the window counts nowhere. The child
+// here left care on the Friday before the window but has a visit running into
+// the Monday: the entry is clamped up to the window start, the exit down to
+// the end of care, so the exit lands before the entry. Counted, it would add a
+// child to the room and feed the occupancy sweep an exit that precedes its own
+// entry.
+func TestStatisticsReport_DropsCollapsedRoomVisits(t *testing.T) {
+	t.Parallel()
+	tc := setupTestContext(t)
+	tenantID := testpkg.Tenant(t)
+	ctx := testpkg.Ctx(t)
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, tenantID, "Klemm", "Tester")
+	claims := claimsFor(t, account.ID)
+
+	gone := testpkg.CreateTestStudent(t, tc.db, "Frueh", "Weg", "1a")
+	present := testpkg.CreateTestStudent(t, tc.db, "Immer", "Da", "1a")
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, gone.ID, 30)
+	insertAcceptedPrivacyConsent(t, tc.db, tenantID, present.ID, 30)
+	_, err := tc.db.NewUpdate().TableExpr("users.students").
+		Set("enrolled_until = ?", timezone.NewDate(2026, 6, 5)).
+		Where("id = ?", gone.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	room := testpkg.CreateTestRoom(t, tc.db, "Klemmraum")
+	activity := testpkg.CreateTestActivityGroup(t, tc.db, "Klemmen")
+	session := testpkg.CreateTestActiveGroup(t, tc.db, activity.ID, room.ID)
+	monday := weekFrom.BerlinMidnight()
+	end := func(t time.Time) *time.Time { return &t }
+	testpkg.CreateTestVisit(t, tc.db, gone.ID, session.ID, monday.Add(-72*time.Hour), end(monday.Add(10*time.Hour)))
+	testpkg.CreateTestVisit(t, tc.db, present.ID, session.ID, monday.Add(14*time.Hour), end(monday.Add(15*time.Hour)))
+
+	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
+	rec := authExec(t, tc, req, claims, reportPermissions)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	var payload reportPayload
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
+
+	var found bool
+	for _, r := range payload.Data.Rooms {
+		if r.RoomID != strconv.FormatInt(room.ID, 10) {
+			continue
+		}
+		found = true
+		assert.Equal(t, 1, r.DistinctStudents, "the collapsed visit must not count a child")
+		assert.Equal(t, 1, r.DaysUsed)
+		assert.Equal(t, 60, r.StudentMinutes)
+		assert.Equal(t, 1, r.PeakOccupancy)
+	}
+	assert.True(t, found, "room row missing")
 }
 
 func TestStatisticsExport_RendersAndAudits(t *testing.T) {

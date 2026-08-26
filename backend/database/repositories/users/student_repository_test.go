@@ -708,6 +708,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	overlapping := testpkg.CreateTestStudent(t, db, "Historisch", "Dabei", "3a")
 	past := testpkg.CreateTestStudent(t, db, "Historisch", "Vorbei", "3a")
 	future := testpkg.CreateTestStudent(t, db, "Historisch", "Später", "3a")
+	alumnus := testpkg.CreateTestStudent(t, db, "Historisch", "Abgang", "3a")
 
 	overlappingUntil := timezone.NewDate(2026, 6, 5)
 	pastUntil := timezone.NewDate(2026, 5, 31)
@@ -724,7 +725,9 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 		_, err := db.NewUpdate().TableExpr(`users.students`).Set(update.column+` = ?`, update.value).Where(`id = ?`, update.id).Exec(ctx)
 		require.NoError(t, err)
 	}
-	_, err := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`id = ?`, overlapping.ID).Exec(ctx)
+	// A graduated child stays out even while the interval overlaps: alumni are
+	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
+	_, err := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`id = ?`, alumnus.ID).Exec(ctx)
 	require.NoError(t, err)
 
 	results, err := repo.FindOverlappingWithGroups(ctx, from, to)
@@ -736,6 +739,7 @@ func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
 	assert.Contains(t, ids, overlapping.ID)
 	assert.NotContains(t, ids, past.ID)
 	assert.NotContains(t, ids, future.ID)
+	assert.NotContains(t, ids, alumnus.ID)
 	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
 	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
 }

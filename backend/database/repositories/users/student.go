@@ -1259,8 +1259,8 @@ type studentWithPersonAndGroup struct {
 
 // newStudentWithGroupQuery returns a select query pre-configured with student+person column
 // expressions and the person JOIN. Callers add group JOIN, WHERE, and ORDER as needed.
-// Historical readers include alumni because their enrollment may overlap the report range.
-func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, results *[]*studentWithPersonAndGroup, includeAlumni bool) *bun.SelectQuery {
+// Alumni are excluded for every caller — see the filter below.
+func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, results *[]*studentWithPersonAndGroup) *bun.SelectQuery {
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(results).
 		ModelTableExpr(`users.students AS "student"`).
@@ -1288,9 +1288,9 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 	// student roster (GET /api/iot/students) and the calendar student picker;
 	// without this filter graduates stayed visible on the tablet teacher list
 	// and bracelet-assignment despite the documented promise (#405).
-	if !includeAlumni {
-		query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-	}
+	// FindOverlappingWithGroups (statistics) shares the filter so its child
+	// numbers cover the same population as the room aggregate (#2606).
+	query = query.Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
 
 	return query
 }
@@ -1429,7 +1429,7 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 // FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results, false)).
+	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
 		ColumnExpr(`"group".name AS "group_name"`).
 		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
@@ -1455,7 +1455,7 @@ func (r *StudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teach
 // Uses LEFT JOIN on groups so students without a group assignment are included.
 func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results, false)).
+	err := activeRosterEnrollmentFilter(r.newStudentWithGroupQuery(ctx, &results)).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Distinct().
@@ -1479,9 +1479,13 @@ func (r *StudentRepository) FindAllWithGroups(ctx context.Context) ([]*users.Stu
 // FindOverlappingWithGroups retrieves non-alumni children whose inclusive
 // enrollment interval overlaps [from, to]. Unlike the live roster this keeps
 // children whose care has since ended and omits later enrollments.
+//
+// Alumni stay out: they are soft-deleted and invisible everywhere else, and
+// the statistics room aggregate excludes them too — counting them here would
+// give the child table a different population than the room table (#2606).
 func (r *StudentRepository) FindOverlappingWithGroups(ctx context.Context, from, to timezone.Date) ([]*users.StudentWithGroupInfo, error) {
 	var results []*studentWithPersonAndGroup
-	err := r.newStudentWithGroupQuery(ctx, &results, true).
+	err := r.newStudentWithGroupQuery(ctx, &results).
 		ColumnExpr(`COALESCE("group".name, '') AS "group_name"`).
 		Join(`LEFT JOIN education.groups AS "group" ON "group".id = "student".group_id`).
 		Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, to).

@@ -67,18 +67,6 @@ const ERROR_MESSAGES: Record<StatisticsErrorCode, string> = {
   unknown: "Die Statistik konnte nicht geladen werden.",
 };
 
-function SectionHeading({
-  title,
-  hint,
-}: Readonly<{ title: string; hint: string }>) {
-  return (
-    <div className="mb-3">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      <p className="text-xs leading-5 text-gray-500">{hint}</p>
-    </div>
-  );
-}
-
 function addDays(d: Date, days: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + days);
@@ -425,6 +413,26 @@ export default function StatisticsPage() {
   const roomDataAllBeforeWindow =
     data !== null && toISO !== null && data.room_data_from > toISO;
 
+  // Überschrift des sichtbaren Bereichs. Die drei Bereiche stehen nie
+  // gleichzeitig auf dem Schirm, deshalb reicht eine Zeile Markup unter dem
+  // Umschalter statt einer eigenen Komponente.
+  const sectionHeading: Readonly<{ title: string; hint: string }> = {
+    groups: {
+      title: "Gruppen",
+      hint: "Kinder zählen in ihrer heutigen Gruppe. Die Quote teilt alle Anwesenheitstage durch alle Betreuungstage.",
+    },
+    students: {
+      title: "Kinder",
+      hint: "Zahlen sind Tage. Ein Klick auf den Namen öffnet die Detailseite des Kindes.",
+    },
+    rooms: {
+      title: "Räume",
+      hint: data
+        ? `Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`
+        : "",
+    },
+  }[view];
+
   return (
     <div className="w-full">
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
@@ -555,12 +563,17 @@ export default function StatisticsPage() {
               )}
             </div>
 
-            {view === "groups" && (
-              <div className="mt-3">
-                <SectionHeading
-                  title="Gruppen"
-                  hint="Kinder zählen in ihrer heutigen Gruppe. Die Quote teilt alle Anwesenheitstage durch alle Betreuungstage."
-                />
+            <div className="mt-3">
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {sectionHeading.title}
+                </h3>
+                <p className="text-xs leading-5 text-gray-500">
+                  {sectionHeading.hint}
+                </p>
+              </div>
+
+              {view === "groups" && (
                 <DataTable
                   columns={groupColumns}
                   rows={data.groups}
@@ -573,15 +586,9 @@ export default function StatisticsPage() {
                     />
                   }
                 />
-              </div>
-            )}
+              )}
 
-            {view === "students" && (
-              <div className="mt-3">
-                <SectionHeading
-                  title="Kinder"
-                  hint="Zahlen sind Tage. Ein Klick auf den Namen öffnet die Detailseite des Kindes."
-                />
+              {view === "students" && (
                 <DataTable
                   columns={studentColumns}
                   rows={data.students}
@@ -596,16 +603,10 @@ export default function StatisticsPage() {
                     />
                   }
                 />
-              </div>
-            )}
+              )}
 
-            {view === "rooms" && (
-              <div className="mt-3">
-                <SectionHeading
-                  title="Räume"
-                  hint={`Raumdaten können höchstens ${data.room_data_days} Tage zurückreichen (ab ${formatDate(data.room_data_from)}). Je Kind kann die Frist kürzer sein.`}
-                />
-                {roomDataAllBeforeWindow ? (
+              {view === "rooms" &&
+                (roomDataAllBeforeWindow ? (
                   <EmptyState
                     title="Keine Raumdaten für diesen Zeitraum"
                     description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
@@ -634,9 +635,8 @@ export default function StatisticsPage() {
                       }
                     />
                   </>
-                )}
-              </div>
-            )}
+                ))}
+            </div>
           </>
         )}
       </section>
