@@ -167,6 +167,10 @@ export function useSSE(
           "instance_overdue",
           "parent_message",
           "parent_message_read",
+          // OGS-internal Team-Chat (#2598). Named event like the two above, so
+          // it has to be registered here or its useGlobalSSE branch is dead and
+          // the team badge only refreshes on focus.
+          "staff_message",
           // Named SSE events MUST be registered here or the browser's EventSource
           // never delivers them (onmessage fires only for UNNAMED events). Both of
           // these are sent as NAMED events by the backend and consumed by their

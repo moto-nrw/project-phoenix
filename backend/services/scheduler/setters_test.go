@@ -828,6 +828,49 @@ func TestResolveIntSetting_OverrideZeroFallsThrough(t *testing.T) {
 	assert.Equal(t, 11, val)
 }
 
+func TestResolveRequiredPositiveIntSetting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("positive value", func(t *testing.T) {
+		t.Parallel()
+		s := &Scheduler{
+			settings: &stubSettingsResolver{intVal: 30},
+			logger:   slog.Default(),
+		}
+
+		val, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_POSITIVE")
+
+		require.NoError(t, err)
+		assert.Equal(t, 30, val)
+	})
+
+	t.Run("resolver error", func(t *testing.T) {
+		t.Parallel()
+		s := &Scheduler{
+			settings: &stubSettingsResolver{intErr: errors.New("db down")},
+			logger:   slog.Default(),
+		}
+
+		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ERROR")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "db down")
+	})
+
+	t.Run("zero rejected", func(t *testing.T) {
+		t.Parallel()
+		s := &Scheduler{
+			settings: &stubSettingsResolver{intVal: 0},
+			logger:   slog.Default(),
+		}
+
+		_, err := s.resolveRequiredPositiveIntSetting(context.Background(), "some.key", "NEVER_SET_REQUIRED_ZERO")
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "must be positive")
+	})
+}
+
 func TestResolveNonNegativeIntSetting_OverrideZeroHonored(t *testing.T) {
 	t.Parallel()
 

@@ -32,7 +32,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("staff catalogue is grouped and ordered", func(t *testing.T) {
 		defs := notifications.TypesForPortal(notifications.PortalStaff)
-		require.Len(t, defs, 7)
+		require.Len(t, defs, 8)
 
 		keys := make([]string, len(defs))
 		for i, def := range defs {
@@ -46,6 +46,7 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 			notifications.TypeMyActivityStarting,
 			notifications.TypeStudentAbsenceReported,
 			notifications.TypeStaffParentMessage,
+			notifications.TypeStaffMessage,
 		}, keys, "order is fixed by group then SortOrder, not by registration order")
 	})
 

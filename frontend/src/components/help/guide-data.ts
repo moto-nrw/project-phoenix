@@ -995,6 +995,28 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/mitarbeiter.webp",
       },
       {
+        id: "team-chat",
+        title: "Team-Chat",
+        icon: MessageSquare,
+        summary:
+          "Nachrichten an einzelne Kolleginnen und Kollegen Ihrer Schule. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+        steps: [
+          "`Team-Chat` in der Seitenleiste öffnen.",
+          "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule.",
+          "Nachricht schreiben und mit `Senden` abschicken.",
+          "Eine Zahl neben `Team-Chat` zeigt, wie viele Nachrichten Sie noch nicht gelesen haben. Sie verschwindet, sobald Sie die Unterhaltung öffnen.",
+          "Über `Nur ungelesen` blenden Sie alles aus, was Sie schon gelesen haben.",
+          "Nachrichten lassen sich nicht nachträglich ändern oder löschen.",
+        ],
+        callout: {
+          title: "Nicht für Elternnachrichten",
+          body: "Der Team-Chat geht nur an Ihr Team. Nachrichten an Eltern schreiben Sie unter `Eltern` im Bereich `Nachrichten`.",
+        },
+        screenshot:
+          "Team-Chat mit der Liste der Unterhaltungen und der Schaltfläche für eine neue Nachricht.",
+        image: "/help/screens/team-chat.webp",
+      },
+      {
         id: "mitarbeiter-admin-profil",
         title: "Mitarbeiterprofil für die Leitung",
         icon: Eye,

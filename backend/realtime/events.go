@@ -197,6 +197,19 @@ const (
 	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
 	EventParentMessageRead EventType = "parent_message_read"
 
+	// EventStaffMessage signals a new message in an OGS-INTERNAL colleague
+	// conversation (#2598), so the participants' inbox, open chat and unread
+	// badge refetch. Trigger only — clients refetch via the API.
+	//
+	// Unlike EventParentMessage this one KEEPS its thread_id on the wire. That
+	// event fans out to every staff client in the tenant, so it is stripped by
+	// staffSafeParentMessage to stop an unauthorized staffer correlating events
+	// to a conversation. This one is delivered with BroadcastToStaffAccounts to
+	// the thread's participants ONLY, so the id reaches nobody who may not open
+	// the thread anyway — and carrying it lets an open chat refetch just that
+	// conversation instead of every mounted messaging surface.
+	EventStaffMessage EventType = "staff_message"
+
 	// EventParentChildUpdated is a message-INDEPENDENT invalidation delivered to
 	// EVERY guardian of a child (not just the one who acted) so an already-open
 	// parents-app tab refetches that child's care state in real time — after a
@@ -370,6 +383,20 @@ func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Eve
 // accompanies no message. The caller fans it out once per guardian of the child.
 func NewParentChildUpdatedEvent(guardianAccountID, studentID int64) Event {
 	return NewEvent(EventParentChildUpdated, "", parentMessageData(guardianAccountID, 0, studentID))
+}
+
+// NewStaffMessageEvent builds the EventStaffMessage SSE event for the
+// OGS-internal chat. It carries the thread id (see EventStaffMessage on why
+// that is safe here) and the sender account as Source, so the sender's own tabs
+// can skip the refetch their own send already triggered.
+func NewStaffMessageEvent(senderAccountID, threadID int64) Event {
+	sid := strconv.FormatInt(senderAccountID, 10)
+	data := EventData{Source: &sid}
+	if threadID > 0 {
+		tid := strconv.FormatInt(threadID, 10)
+		data.ThreadID = &tid
+	}
+	return NewEvent(EventStaffMessage, "", data)
 }
 
 // parentMessageData builds the shared payload for the parent-messaging events:
