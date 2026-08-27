@@ -9,13 +9,17 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
-import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
+import {
+  SkeletonRegion,
+  PageHeaderSkeleton,
+  DetailSkeleton,
+} from "~/components/ui/page-skeletons";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
-import { PageIntro } from "~/components/ui/page-intro";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -25,15 +29,11 @@ import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
-// Der Kopf gehört nicht in den Skeleton: die Kopfkarte rendert sofort,
-// nur die Datenregion darunter skeletonisiert.
 const profileLoadingFallback = (
-  <div className="w-full">
-    <PageIntro title="Profil" className="mb-6" />
-    <SkeletonRegion label="Profil wird geladen…">
-      <DetailSkeleton sections={3} fieldsPerSection={3} />
-    </SkeletonRegion>
-  </div>
+  <SkeletonRegion label="Profil wird geladen…">
+    <PageHeaderSkeleton search={false} />
+    <DetailSkeleton sections={3} fieldsPerSection={3} />
+  </SkeletonRegion>
 );
 
 function ProfileContent() {
@@ -136,62 +136,63 @@ function ProfileContent() {
     redirect("/");
   }
 
-  // Das Profilbild sitzt in der Kopfkarte, damit darunter keine eigene, sonst
-  // leere Zeile nur für den Avatar steht.
-  const avatarLeading = (
-    <div className="group relative shrink-0">
-      <div className="bg-moto-green-soft text-moto-green-strong relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full">
-        {profile?.avatar ? (
-          <Image
-            src={profile.avatar}
-            alt="Profile"
-            fill
-            className="object-cover"
-            sizes="64px"
-            priority
-            unoptimized
-          />
-        ) : (
-          <span className="text-xl font-bold">
-            {getInitials(`${formData.firstName} ${formData.lastName}`.trim())}
-          </span>
-        )}
-      </div>
-      <label
-        htmlFor="avatar-upload"
-        aria-label="Profilbild ändern"
-        className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-      >
-        <Camera className="h-5 w-5 text-white" />
-      </label>
-      <input
-        id="avatar-upload"
-        type="file"
-        accept="image/*"
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) void handleAvatarChange(file);
-        }}
-        className="hidden"
-      />
-      <button
-        type="button"
-        aria-label="Profilbild ändern"
-        onClick={() => document.getElementById("avatar-upload")?.click()}
-        className="absolute -right-1 -bottom-1 flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
-      >
-        <Camera className="h-3.5 w-3.5" />
-      </button>
-    </div>
-  );
-
   return (
-    <div className="w-full">
-      <PageIntro title="Profil" className="mb-6" leading={avatarLeading} />
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch title="Profil" />
 
-      <div className="max-w-3xl space-y-6 pb-8">
+      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
+        {/* Avatar Section */}
+        <div className="flex flex-col items-center pt-4">
+          <div className="group relative">
+            <div className="bg-moto-green-soft text-moto-green-strong relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full">
+              {profile?.avatar ? (
+                <Image
+                  src={profile.avatar}
+                  alt="Profile"
+                  fill
+                  className="object-cover"
+                  sizes="112px"
+                  priority
+                  unoptimized
+                />
+              ) : (
+                <span className="text-3xl font-bold">
+                  {getInitials(
+                    `${formData.firstName} ${formData.lastName}`.trim(),
+                  )}
+                </span>
+              )}
+            </div>
+            <label
+              htmlFor="avatar-upload"
+              aria-label="Profilbild ändern"
+              className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              <Camera className="h-7 w-7 text-white" />
+            </label>
+            <input
+              id="avatar-upload"
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void handleAvatarChange(file);
+              }}
+              className="hidden"
+            />
+            <button
+              type="button"
+              aria-label="Profilbild ändern"
+              onClick={() => document.getElementById("avatar-upload")?.click()}
+              className="absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
         {/* Profile Data */}
-        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-base font-semibold text-gray-900">
               Persönliche Daten
@@ -255,7 +256,7 @@ function ProfileContent() {
                   variant="primary"
                   size="md"
                   isLoading={isSaving}
-                  loadingText="Speichern…"
+                  loadingText="Speichern..."
                   onClick={() => void handleSaveProfile()}
                 >
                   Speichern
@@ -287,7 +288,7 @@ function ProfileContent() {
         </div>
 
         {/* Security Section */}
-        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 shadow-sm sm:p-6">
+        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 backdrop-blur-sm md:p-6">
           <h3 className="text-base font-semibold text-gray-900">Passwort</h3>
           <Button
             type="button"
@@ -299,12 +300,12 @@ function ProfileContent() {
           </Button>
         </div>
 
-        {/* Trusted Devices Section: personal device management.
+        {/* Trusted Devices Section — personal device management.
             Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
         {/* "Was" before "wo": pick the topics first, then the device. */}
         <NotificationPreferencesSection />
-        {/* Persönliche Geburtstagsanzeige (#1542): steht bei den anderen
-            Sichtbarkeits- und Benachrichtigungsentscheidungen des eigenen Kontos. */}
+        {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
+            Sichtbarkeits-/Benachrichtigungsentscheidungen des eigenen Kontos. */}
         <BirthdayVisibilitySection />
         <PushNotificationSection />
         <PasskeySettingsSection />
