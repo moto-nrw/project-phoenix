@@ -1482,23 +1482,26 @@ describe("TimeTrackingPage", () => {
     });
 
     it("keeps counting a block that is still inside its live window", () => {
-      // Relative to the clock the component reads, so the assertion holds
-      // whatever time of day (or faked timer) the suite runs under.
-      const startedAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
-      const startedISO = `${startedAt.getFullYear()}-${String(startedAt.getMonth() + 1).padStart(2, "0")}-${String(startedAt.getDate()).padStart(2, "0")}`;
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-01-15T00:50:00+01:00"));
+      try {
+        setupDefaultMocks({
+          currentSession: {
+            ...mockActiveSession,
+            date: "2026-01-14",
+            checkInTime: "2026-01-14T22:50:00+01:00",
+          },
+        });
+        const { container } = render(<TimeTrackingPage />);
 
-      setupDefaultMocks({
-        currentSession: {
-          ...mockActiveSession,
-          date: startedISO,
-          checkInTime: startedAt.toISOString(),
-        },
-      });
-      const { container } = render(<TimeTrackingPage />);
-
-      expect(container.querySelector(".text-4xl")).not.toHaveTextContent(
-        "0min",
-      );
+        // Only the 50 minutes after midnight belong to today. Match the
+        // complete value: "50min" must not be mistaken for "0min".
+        expect(container.querySelector(".text-4xl")).toHaveTextContent(
+          /^50min$/,
+        );
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     // The table's history key is shared with usePeriodMetrics so SWR dedupes

@@ -75,6 +75,9 @@ docker compose up -d      # starts everything; migrations run automatically
 
 # seed demo data (the setup script prints this command with your credentials)
 docker compose run server go run . seed --email <op-email> --password '<pw>' --pin 1234 --url http://server:8080
+
+# create attendance and room data for the statistics demo
+docker compose run server go run . simulate full-day --close
 ```
 
 Then log in at **http://localhost:3000** (staff account from the seeder output) or **http://operator.localhost:3000** (your operator credentials).

@@ -28,6 +28,7 @@ function makeTenant(nfcEnabled: boolean): TenantInfo {
     studentPhotosEnabled: false,
     nfcEnabled,
     messagingEnabled: false,
+    staffMessagingEnabled: false,
     displayEnabled: false,
     gradeLevelMax: 4,
   };

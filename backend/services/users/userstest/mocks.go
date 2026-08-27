@@ -58,6 +58,7 @@ type PersonServiceMock struct {
 	GetStudentsByIDsFn               func(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
 	GetStudentsByGroupIDFn           func(ctx context.Context, groupID int64) ([]*userModels.Student, error)
 	GetStudentsByGroupIDsFn          func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
+	GetParticipationCandidatesFn     func(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error)
 	GetEligibleGroupStudentsFn       func(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error)
 	CountStudentsByGroupIDsFn        func(ctx context.Context, groupIDs []int64) (map[int64]int, error)
 	CreateStaffWithTeacherFn         func(ctx context.Context, input users.CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
@@ -364,6 +365,13 @@ func (m *PersonServiceMock) GetStudentsByGroupIDs(ctx context.Context, groupIDs 
 		return m.GetStudentsByGroupIDsFn(ctx, groupIDs)
 	}
 	return nil, nil
+}
+
+func (m *PersonServiceMock) GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	if m.GetParticipationCandidatesFn != nil {
+		return m.GetParticipationCandidatesFn(ctx, groupIDs)
+	}
+	return m.GetStudentsByGroupIDs(ctx, groupIDs)
 }
 
 func (m *PersonServiceMock) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]*userModels.Student, error) {

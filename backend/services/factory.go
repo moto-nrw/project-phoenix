@@ -63,6 +63,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/slotlists"
+	"github.com/moto-nrw/project-phoenix/services/staffmessaging"
+	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
@@ -173,12 +175,14 @@ type Factory struct {
 	CareRequests         schedule.CareScheduleRequestService
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
-	OfferingChanges         enrollment.OfferingChangeRequestService
-	PickupAdjustments       enrollment.PickupAdjustmentService
-	ExcusedRequests         absence.ExcusedAbsenceRequestService
-	StudentStatusDays       *active.StudentStatusDayService
-	AbsenceOverview         *active.StudentStatusDayOverviewService
-	StudentHistory          active.StudentHistoryService
+	OfferingChanges   enrollment.OfferingChangeRequestService
+	PickupAdjustments enrollment.PickupAdjustmentService
+	ExcusedRequests   absence.ExcusedAbsenceRequestService
+	StudentStatusDays *active.StudentStatusDayService
+	AbsenceOverview   *active.StudentStatusDayOverviewService
+	StudentHistory    active.StudentHistoryService
+	// Statistics is the Statistik report (#2606).
+	Statistics              statistics.Service
 	OGSGroupLive            ogsgrouplive.Getter
 	SupervisionDashboard    supervisiondashboard.Getter
 	TimetableData           *schedule.TimetableDataService
@@ -217,6 +221,9 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging *messaging.Service
+
+	// StaffMessaging (OGS-internal colleague chat, #2598)
+	StaffMessaging *staffmessaging.Service
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -1658,6 +1665,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:     db,
 		Logger: logger.With("service", "care_lifecycle"),
 	})
+	users.WirePersonCareParticipation(usersService, careLifecycleService)
+	schedule.WireCareParticipation(careDayService, careLifecycleService)
 	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
 	// enrollment writes that change a child's live care data.
 	pillEmitter := parentmessaging.NewEmitter(
@@ -1846,6 +1855,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalScheduleSvc:       arrivalScheduleService,
 		CareDaySvc:               careDayService,
 		Settings:                 settingsService,
+		CareParticipation:        careLifecycleService,
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
@@ -2090,6 +2100,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ParentsURL:       parentsURL,
 	})
 
+	// OGS-internal colleague chat (#2598). Shares the transport with the
+	// parent-OGS messenger (SSE hub + push) but none of its authorization:
+	// access here is thread membership, nothing else.
+	staffMessagingService := staffmessaging.NewService(staffmessaging.Config{
+		ThreadRepo:  repos.StaffMessageThread,
+		MessageRepo: repos.StaffMessage,
+		ReadRepo:    repos.StaffMessageRead,
+		Persons:     usersService,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		DB:          db,
+		Logger:      logger.With("service", "staffmessaging"),
+		Notifier:    notificationsService,
+		Preferences: notificationPreferencesService,
+	})
+
 	calendarSvc := calendarService.NewService(calendarService.Config{
 		AppointmentRepo:      repos.CalendarAppointment,
 		RecurrenceRepo:       repos.CalendarRecurrenceRule,
@@ -2212,6 +2238,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentGuardianRepo: repos.StudentGuardian,
 		ActiveService:       activeService,
 		ListExport:          listExportService,
+		Settings:            settingsService,
+		Logger:              logger,
 	})
 	slotListsService := slotlists.NewService(slotlists.Dependencies{
 		InstanceRepo:        repos.ActivityInstance,
@@ -2311,18 +2339,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
 	ogsGroupLiveService := ogsgrouplive.NewService(ogsgrouplive.Dependencies{
-		People:          usersService,
-		Education:       educationService,
-		UserContext:     userContextService,
-		Active:          activeService,
-		Settings:        settingsService,
-		Pickups:         pickupScheduleService,
-		Arrivals:        arrivalScheduleService,
-		Instances:       instanceService,
-		CareDays:        careDayService,
-		ExcusedRequests: excusedRequestService,
-		StatusDays:      studentStatusDayService,
-		Logger:          logger.With("service", "ogs-group-live"),
+		People:            usersService,
+		Education:         educationService,
+		UserContext:       userContextService,
+		Active:            activeService,
+		Settings:          settingsService,
+		Pickups:           pickupScheduleService,
+		Arrivals:          arrivalScheduleService,
+		Instances:         instanceService,
+		CareDays:          careDayService,
+		CareParticipation: careLifecycleService,
+		ExcusedRequests:   excusedRequestService,
+		StatusDays:        studentStatusDayService,
+		Logger:            logger.With("service", "ogs-group-live"),
 	})
 
 	supervisionDashboardService := supervisiondashboard.NewService(supervisiondashboard.Dependencies{
@@ -2472,25 +2501,37 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		// two narrower interfaces so that each handler depends only on the
 		// methods it actually calls. NewOperatorAuthService returns the
 		// combined interface, so both fields can be assigned directly.
-		OperatorAuth:            operatorAuthService,
-		OperatorInvitation:      operatorAuthService,
-		OperatorProvisioning:    operatorProvisioningService,
-		Announcement:            announcementService,
-		Schools:                 platform.NewSchoolService(repos.School),
-		WorkTimeModels:          workTimeModelService,
-		Students:                studentService,
-		ClassListEntries:        users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		StudentDeletion:         studentDeletionService,
-		CareLifecycle:           careLifecycleService,
-		StudentAudit:            studentAuditService,
-		MasterDataReview:        users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
-		CareRequests:            careRequestService,
-		OfferingChanges:         offeringChangeRequestService,
-		PickupAdjustments:       pickupAdjustmentService,
-		ExcusedRequests:         excusedRequestService,
-		StudentStatusDays:       studentStatusDayService,
-		AbsenceOverview:         studentStatusDayOverviewService,
-		StudentHistory:          active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		OperatorAuth:         operatorAuthService,
+		OperatorInvitation:   operatorAuthService,
+		OperatorProvisioning: operatorProvisioningService,
+		Announcement:         announcementService,
+		Schools:              platform.NewSchoolService(repos.School),
+		WorkTimeModels:       workTimeModelService,
+		Students:             studentService,
+		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
+		StudentDeletion:      studentDeletionService,
+		CareLifecycle:        careLifecycleService,
+		StudentAudit:         studentAuditService,
+		MasterDataReview:     users.NewMasterDataReviewServiceWithAudit(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, studentAuditService, logger.With("service", "master-data-review"), realtimeHub),
+		CareRequests:         careRequestService,
+		OfferingChanges:      offeringChangeRequestService,
+		PickupAdjustments:    pickupAdjustmentService,
+		ExcusedRequests:      excusedRequestService,
+		StudentStatusDays:    studentStatusDayService,
+		AbsenceOverview:      studentStatusDayOverviewService,
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
+		Statistics: statistics.NewService(statistics.Config{
+			Statistics:      repos.Statistics,
+			Holidays:        holidayService,
+			ClosingDays:     closingDayService,
+			Periods:         repos.CalendarPeriod,
+			Students:        repos.Student,
+			Rooms:           repos.Room,
+			AccessLog:       repos.DataAccessLog,
+			Settings:        settingsService,
+			PrivacyConsents: repos.PrivacyConsent,
+			Logger:          logger.With("service", "statistics"),
+		}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
@@ -2518,6 +2559,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 		Parent:             parentService,
 		Messaging:          messagingService,
+		StaffMessaging:     staffMessagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
 		ParentEventEmitter: pillEmitter,
@@ -2525,7 +2567,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, repos.CareWithdrawal)
+	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 
 	// #1843 sick cascade: setter-injected after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence

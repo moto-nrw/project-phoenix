@@ -24,6 +24,9 @@ interface DateRangePickerProps {
   readonly className?: string;
   readonly fromMin?: Date;
   readonly toMax?: Date;
+  /** Extra classes on the trigger chip, e.g. `w-full sm:w-auto` for a
+   * mobile filter row that should fill the line. */
+  readonly triggerClassName?: string;
 }
 
 /**
@@ -39,6 +42,7 @@ export function DateRangePicker({
   className = "",
   fromMin,
   toMax,
+  triggerClassName = "",
 }: DateRangePickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,7 +74,7 @@ export function DateRangePicker({
         onClick={() => setIsOpen((v) => !v)}
         className={`inline-flex h-8 items-center gap-2 rounded-full border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors ${
           isOpen ? "bg-gray-50" : "hover:bg-gray-50"
-        }`}
+        } ${triggerClassName}`}
       >
         <svg
           className="h-3.5 w-3.5 text-gray-400"

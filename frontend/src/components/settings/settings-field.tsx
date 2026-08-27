@@ -142,6 +142,7 @@ interface SettingsFieldProps {
   readonly onSave: (key: string, value: unknown) => Promise<string | null>;
   readonly onReset: (key: string) => Promise<string | null>;
   readonly onSchemaRefresh?: () => void;
+  readonly onBookingAuthorityEnable?: () => Promise<void>;
   // audience controls the "auch von {other side} änderbar" hint shown
   // on shared settings. Defaults to "admin" (tenant settings page).
   readonly audience?: "admin" | "operator";
@@ -165,6 +166,7 @@ export function SettingsField({
   onSave,
   onReset,
   onSchemaRefresh,
+  onBookingAuthorityEnable,
   audience = "admin",
   revealFn,
 }: SettingsFieldProps) {
@@ -431,6 +433,14 @@ export function SettingsField({
         setConfirmOpen(true);
         return;
       }
+      if (
+        setting.key === "enrollment.bookings_authoritative" &&
+        value === true &&
+        onBookingAuthorityEnable
+      ) {
+        await onBookingAuthorityEnable();
+        return;
+      }
       await doSave(value);
     },
     [
@@ -441,6 +451,8 @@ export function SettingsField({
       legalAGBDisplayMode,
       legalActivationTextKey,
       legalActivationTextSetting?.value,
+      onBookingAuthorityEnable,
+      setting.key,
     ],
   );
 

@@ -141,7 +141,7 @@ func (s *Scheduler) runActivateStudentsForTenantWithError(ctx context.Context, t
 	// The enrollment interval's upper bound is INCLUSIVE: a child still
 	// belongs to the OGS on their last care day and only leaves the day after
 	// (#2487). The deactivation boundary is therefore YESTERDAY, not today —
-	// matching filterStudentsEligibleOnDate, which every operational reader
+	// matching filterStudentsStartedOnDate, which every operational reader
 	// already agrees with.
 	careBoundary := asOf.AddDays(-1)
 

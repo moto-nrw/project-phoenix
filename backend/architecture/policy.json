@@ -79,6 +79,10 @@
       "kind": "domain"
     },
     {
+      "id": "file-storage",
+      "kind": "domain"
+    },
+    {
       "id": "group-live-view",
       "kind": "projection"
     },
@@ -156,6 +160,10 @@
     },
     {
       "id": "inbound-feedback",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-filestore",
       "kind": "inbound"
     },
     {
@@ -252,6 +260,10 @@
     },
     {
       "id": "inbound-staff-shifts",
+      "kind": "inbound"
+    },
+    {
+      "id": "inbound-statistics",
       "kind": "inbound"
     },
     {
@@ -550,7 +562,7 @@
     },
     {
       "path": "api/filestore",
-      "owner": "inbound-common-documents",
+      "owner": "inbound-filestore",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -627,6 +639,13 @@
     },
     {
       "path": "api/messaging",
+      "owner": "inbound-messaging",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/staffmessaging",
       "owner": "inbound-messaging",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -719,6 +738,13 @@
     {
       "path": "api/staff-shifts",
       "owner": "inbound-staff-shifts",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "api/statistics",
+      "owner": "inbound-statistics",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -934,13 +960,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/filestore",
-      "owner": "document-rendering",
-      "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "database/repositories/education",
       "owner": "school-structure",
       "role": "postgres",
@@ -964,6 +983,13 @@
     {
       "path": "database/repositories/feedback",
       "owner": "feedback",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "database/repositories/filestore",
+      "owner": "file-storage",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1235,13 +1261,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/filestore",
-      "owner": "document-rendering",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "models/education",
       "owner": "school-structure",
       "role": "domain",
@@ -1265,6 +1284,13 @@
     {
       "path": "models/feedback",
       "owner": "feedback",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "models/filestore",
+      "owner": "file-storage",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1445,13 +1471,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/filestore",
-      "owner": "document-rendering",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "services/education",
       "owner": "school-structure",
       "role": "application",
@@ -1496,6 +1515,13 @@
     {
       "path": "services/feedback",
       "owner": "feedback",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/filestore",
+      "owner": "file-storage",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -1578,6 +1604,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "services/staffmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/planexport",
       "owner": "document-rendering",
       "role": "application",
@@ -1629,6 +1662,13 @@
     {
       "path": "services/slotlists",
       "owner": "class-day-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "services/statistics",
+      "owner": "student-presence",
       "role": "application",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"

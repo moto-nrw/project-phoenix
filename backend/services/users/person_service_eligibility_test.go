@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFilterStudentsEligibleOnDate_UsesEnrollmentWindowForPastDates(t *testing.T) {
+func TestFilterStudentsStartedOnDate_UsesEnrollmentStartForPastDates(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.TodayDate().AddDays(-1)
@@ -21,10 +21,11 @@ func TestFilterStudentsEligibleOnDate_UsesEnrollmentWindowForPastDates(t *testin
 	laterEnrolled := &userModels.Student{EnrolledFrom: &fromToday}
 	departed := &userModels.Student{EnrolledUntil: &untilBeforeDate}
 
-	filtered := filterStudentsEligibleOnDate([]*userModels.Student{eligible, laterEnrolled, departed}, date, timezone.TodayDate())
+	filtered := filterStudentsStartedOnDate([]*userModels.Student{eligible, laterEnrolled, departed}, date, timezone.TodayDate())
 
-	require.Len(t, filtered, 1)
+	require.Len(t, filtered, 2)
 	assert.Same(t, eligible, filtered[0])
+	assert.Same(t, departed, filtered[1])
 }
 
 func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToday(t *testing.T) {
@@ -33,7 +34,7 @@ func TestFilterStudentsEligibleOnDate_IncludesImmediatelyActiveFutureStudentToda
 	today := timezone.TodayDate()
 	tomorrow := today.AddDays(1)
 
-	filtered := filterStudentsEligibleOnDate([]*userModels.Student{
+	filtered := filterStudentsStartedOnDate([]*userModels.Student{
 		{Status: userModels.StudentStatusActive, EnrolledFrom: &tomorrow},
 		{Status: userModels.StudentStatusActive, EnrolledFrom: &today},
 	}, today, today)
@@ -56,10 +57,29 @@ func TestFilterStudentsEligibleOnDate_ImmediateActivationOnlyFromTodayOnward(t *
 	activeFuture := &userModels.Student{Status: userModels.StudentStatusActive, EnrolledFrom: &nextWeek}
 	pendingFuture := &userModels.Student{Status: userModels.StudentStatusPending, EnrolledFrom: &nextWeek}
 
-	assert.Empty(t, filterStudentsEligibleOnDate([]*userModels.Student{activeFuture}, yesterday, today),
+	assert.Empty(t, filterStudentsStartedOnDate([]*userModels.Student{activeFuture}, yesterday, today),
 		"an active child is not retroactively enrolled before enrolled_from")
-	assert.Empty(t, filterStudentsEligibleOnDate([]*userModels.Student{pendingFuture}, today, today),
+	assert.Empty(t, filterStudentsStartedOnDate([]*userModels.Student{pendingFuture}, today, today),
 		"only an active status gets the immediate-activation override")
-	assert.Len(t, filterStudentsEligibleOnDate([]*userModels.Student{activeFuture}, nextWeek, today), 1,
+	assert.Len(t, filterStudentsStartedOnDate([]*userModels.Student{activeFuture}, nextWeek, today), 1,
 		"the enrollment window itself still governs future dates")
+}
+
+func TestFilterStudentsStartedOnDate_SkipsNilStudents(t *testing.T) {
+	t.Parallel()
+
+	today := timezone.TodayDate()
+	kept := &userModels.Student{Status: userModels.StudentStatusActive}
+
+	filtered := filterStudentsStartedOnDate([]*userModels.Student{nil, kept, nil}, today, today)
+
+	require.Len(t, filtered, 1)
+	assert.Same(t, kept, filtered[0])
+}
+
+func TestFilterStudentsStartedOnDate_ExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t *testing.T) {
+	t.Parallel()
+
+	inactive := &userModels.Student{Status: userModels.StudentStatusInactive}
+	assert.Empty(t, filterStudentsStartedOnDate([]*userModels.Student{inactive}, timezone.TodayDate(), timezone.TodayDate()))
 }

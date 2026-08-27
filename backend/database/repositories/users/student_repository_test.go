@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -693,6 +694,120 @@ func TestStudentRepository_FindAllWithGroups(t *testing.T) {
 		}
 		assert.Greater(t, posBeta, posAlpha, "Alpha should come before Beta alphabetically")
 	})
+}
+
+func TestStudentRepository_FindOverlappingWithGroups(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.Ctx(t)
+	from := timezone.NewDate(2026, 6, 1)
+	to := timezone.NewDate(2026, 6, 10)
+
+	overlapping := testpkg.CreateTestStudent(t, db, "Historisch", "Dabei", "3a")
+	past := testpkg.CreateTestStudent(t, db, "Historisch", "Vorbei", "3a")
+	future := testpkg.CreateTestStudent(t, db, "Historisch", "Später", "3a")
+	alumnus := testpkg.CreateTestStudent(t, db, "Historisch", "Abgang", "3a")
+
+	overlappingUntil := timezone.NewDate(2026, 6, 5)
+	pastUntil := timezone.NewDate(2026, 5, 31)
+	futureFrom := timezone.NewDate(2026, 6, 11)
+	for _, update := range []struct {
+		id     int64
+		column string
+		value  timezone.Date
+	}{
+		{overlapping.ID, "enrolled_until", overlappingUntil},
+		{past.ID, "enrolled_until", pastUntil},
+		{future.ID, "enrolled_from", futureFrom},
+	} {
+		_, err := db.NewUpdate().TableExpr(`users.students`).Set(update.column+` = ?`, update.value).Where(`id = ?`, update.id).Exec(ctx)
+		require.NoError(t, err)
+	}
+	// A graduated child stays out even while the interval overlaps: alumni are
+	// soft-deleted, and the statistics room aggregate excludes them too (#2606).
+	_, err := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, users.StudentStatusAlumnus).Where(`id = ?`, alumnus.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	// A day after the window: nobody gets the immediate-activation override,
+	// so membership is the plain interval overlap.
+	afterWindow := to.AddDays(1)
+	results, err := repo.FindOverlappingWithGroups(ctx, from, to, afterWindow)
+	require.NoError(t, err)
+	ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
+	for _, result := range results {
+		ids[result.ID] = result
+	}
+	assert.Contains(t, ids, overlapping.ID)
+	assert.NotContains(t, ids, past.ID)
+	assert.NotContains(t, ids, future.ID)
+	assert.NotContains(t, ids, alumnus.ID)
+	require.NotNil(t, ids[overlapping.ID].EnrolledUntil)
+	assert.Equal(t, overlappingUntil, *ids[overlapping.ID].EnrolledUntil)
+}
+
+// TestStudentRepository_FindOverlappingWithGroupsImmediateActivation pins the
+// enrollment rule of users.EnrolledOn at the query: a child activated
+// immediately (status active, enrolled_from still ahead) is in care from today
+// on, so a window containing today must list them — otherwise the statistics
+// drop their attendance and their room visits. The same child in status
+// pending stays out, and so does a bound-less inactive row.
+func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db).Student
+	ctx := testpkg.Ctx(t)
+	from := timezone.NewDate(2026, 6, 1)
+	to := timezone.NewDate(2026, 6, 10)
+	insideWindow := timezone.NewDate(2026, 6, 9)
+
+	activated := testpkg.CreateTestStudent(t, db, "Sofort", "Aktiv", "3a")
+	pending := testpkg.CreateTestStudent(t, db, "Noch", "Wartend", "3a")
+	dormant := testpkg.CreateTestStudent(t, db, "Ohne", "Zeitraum", "3a")
+
+	startsLater := timezone.NewDate(2026, 9, 1)
+	for _, update := range []struct {
+		id     int64
+		status users.StudentStatus
+		from   *timezone.Date
+	}{
+		{activated.ID, users.StudentStatusActive, &startsLater},
+		{pending.ID, users.StudentStatusPending, &startsLater},
+		{dormant.ID, users.StudentStatusInactive, nil},
+	} {
+		query := db.NewUpdate().TableExpr(`users.students`).Set(`status = ?`, update.status)
+		if update.from != nil {
+			query = query.Set(`enrolled_from = ?`, *update.from)
+		}
+		_, err := query.Where(`id = ?`, update.id).Exec(ctx)
+		require.NoError(t, err)
+	}
+
+	contains := func(today timezone.Date) map[int64]*users.StudentWithGroupInfo {
+		results, err := repo.FindOverlappingWithGroups(ctx, from, to, today)
+		require.NoError(t, err)
+		ids := make(map[int64]*users.StudentWithGroupInfo, len(results))
+		for _, result := range results {
+			ids[result.ID] = result
+		}
+		return ids
+	}
+
+	inWindow := contains(insideWindow)
+	assert.Contains(t, inWindow, activated.ID, "an immediately activated child is in care from today on")
+	assert.NotContains(t, inWindow, pending.ID, "a pending child is not in care before enrolled_from")
+	assert.NotContains(t, inWindow, dormant.ID, "an inactive row without an interval is no longer enrolled")
+
+	// The row must carry the lifecycle status, not only pass the WHERE clause:
+	// users.EnrolledOn reads it per day, so a zero value would drop the very
+	// child this query just admitted (#2606).
+	require.NotNil(t, inWindow[activated.ID])
+	assert.Equal(t, users.StudentStatusActive, inWindow[activated.ID].Status)
+
+	afterWindow := contains(to.AddDays(1))
+	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")
 }
 
 func TestStudentRepository_FindByNameAndClass(t *testing.T) {

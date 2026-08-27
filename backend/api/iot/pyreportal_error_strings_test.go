@@ -166,7 +166,9 @@ var extraGuardSources = []string{
 func TestPyrePortalErrorStringsGuard(t *testing.T) {
 	t.Parallel()
 
-	iotDir := iotPackageDir(t)
+	_, thisFile, _, ok := runtime.Caller(0)
+	require.True(t, ok, "runtime.Caller failed — cannot locate guard sources")
+	iotDir := iotSourceDir(t, thisFile)               // backend/api/iot
 	backendRoot := filepath.Dir(filepath.Dir(iotDir)) // backend/
 
 	var blob strings.Builder
@@ -218,13 +220,24 @@ func TestPyrePortalErrorStringsGuard(t *testing.T) {
 	}
 }
 
-func iotPackageDir(t *testing.T) string {
+func iotSourceDir(t *testing.T, callerPath string) string {
 	t.Helper()
-	_, file, _, ok := runtime.Caller(0)
-	if ok && filepath.IsAbs(file) {
-		return filepath.Dir(file)
+
+	if filepath.IsAbs(callerPath) {
+		if _, err := os.Stat(callerPath); err == nil {
+			return filepath.Dir(callerPath)
+		}
 	}
-	dir, err := os.Getwd()
-	require.NoError(t, err, "locating api/iot sources")
-	return dir
+
+	wd, err := os.Getwd()
+	require.NoError(t, err, "resolve working directory")
+	moduleRoot := wd
+	for {
+		if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err == nil {
+			return filepath.Join(moduleRoot, "api", "iot")
+		}
+		parent := filepath.Dir(moduleRoot)
+		require.NotEqual(t, moduleRoot, parent, "resolve module root from %s", wd)
+		moduleRoot = parent
+	}
 }

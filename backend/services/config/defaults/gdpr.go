@@ -197,4 +197,30 @@ func init() {
 			Value:     true,
 		},
 	})
+
+	// Retention for the OGS-internal colleague chat (#2598). Staff messages are
+	// employee personal data, so the window ships with the feature rather than
+	// being added later. The floor of 30 days keeps a conversation usable across
+	// a holiday period; the ceiling of 2 years is the defensible upper bound for
+	// day-to-day operational chatter.
+	minStaffMessageRetentionDays := float64(30)
+	maxStaffMessageRetentionDays := float64(730)
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStaffMessageRetentionDays,
+		Label:           "Aufbewahrungsdauer Team-Chat (Tage)",
+		Description:     "Wie lange Nachrichten im internen Team-Chat gespeichert bleiben. Ältere Nachrichten werden automatisch gelöscht. Unterhaltungen ohne Nachrichten verschwinden danach aus der Übersicht.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       16,
+		Validation:      &config.ValidationRules{Min: &minStaffMessageRetentionDays, Max: &maxStaffMessageRetentionDays},
+		DependsOn: &config.Dependency{
+			Key:       config.KeyDataCleanupEnabled,
+			Condition: "eq",
+			Value:     true,
+		},
+	})
 }

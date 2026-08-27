@@ -44,7 +44,8 @@ func TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, 1, total)
 	require.Len(t, rows, 1)
-	assert.Equal(t, first.FirstBookinglessDay, rows[0].FirstBookinglessDay)
+	assert.Equal(t, second.FirstBookinglessDay, rows[0].FirstBookinglessDay,
+		"reconciliation must move the one open task when the real gap moves")
 	assert.Equal(t, "Mira", rows[0].FirstName)
 }
 
@@ -80,6 +81,47 @@ func TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap(t *
 	assert.Empty(t, rows)
 }
 
+func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := repositories.NewFactory(db).CareWithdrawal
+	student := testpkg.CreateTestStudent(t, db, "Echte", "Lücke", "3b")
+	studentID := student.ID
+	firstGap := timezone.TodayDate().AddDays(-2)
+	completion := &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: firstGap,
+		Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+	}
+	require.NoError(t, repo.UpsertPending(ctx, completion))
+	completion.ID = 0
+	completion.FirstBookinglessDay = timezone.TodayDate().AddDays(5)
+	require.NoError(t, repo.UpsertPending(ctx, completion))
+	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, timezone.TodayDate().AddDays(5), rows[0].FirstBookinglessDay)
+}
+
+func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := repositories.NewFactory(db).CareWithdrawal
+	student := testpkg.CreateTestStudent(t, db, "Offen", "Grenze", "3b")
+	studentID := student.ID
+	firstGap := timezone.TodayDate().AddDays(4)
+
+	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: firstGap,
+		Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	boundaries, err := repo.ListParticipationBoundaries(ctx, []int64{student.ID}, false)
+	require.NoError(t, err)
+	assert.Equal(t, firstGap, boundaries[student.ID])
+}
+
 func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -90,6 +132,13 @@ func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testin
 	studentID := student.ID
 	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:               userModels.CareWithdrawalTriggerBookingExpired,
+		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}))
+	direct := testpkg.CreateTestStudent(t, db, "Noah", "Direkt", "2b")
+	directID := direct.ID
+	require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+		StudentID: &directID, FirstBookinglessDay: timezone.TodayDate(),
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}))
@@ -100,6 +149,10 @@ func TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending(t *testin
 	rows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1})
 	require.NoError(t, err)
 	assert.Empty(t, rows)
+	directRows, _, err := repo.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{StudentID: directID, Page: 1, PageSize: 1})
+	require.NoError(t, err)
+	require.Len(t, directRows, 1)
+	assert.Equal(t, userModels.CareWithdrawalTriggerDirectSchool, directRows[0].Trigger)
 }
 
 func TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent(t *testing.T) {

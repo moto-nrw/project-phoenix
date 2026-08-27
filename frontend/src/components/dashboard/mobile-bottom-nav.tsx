@@ -24,6 +24,7 @@ import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
+  useStaffMessagingEnabled,
   usePresenceMode,
   useTenantRoutingModeSafe,
   useTenantSlugSafe,
@@ -42,6 +43,7 @@ import {
   ENROLLMENT_SUB_PAGES,
   PARENT_SECTION,
   PARENT_SUB_PAGES,
+  STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
   Drawer,
@@ -234,6 +236,8 @@ interface AdditionalNavItem {
   // Show for admins or anyone holding this tenant permission (matches the
   // backend route gate). Use instead of alwaysShow for permission-gated pages.
   requiresPermission?: string;
+  // All listed permissions are required (matching RequiresAllPermissions).
+  requiresAllPermissions?: readonly string[];
   requiresSupervision?: boolean;
   requiresActiveSupervision?: boolean;
   alwaysShow?: boolean;
@@ -334,6 +338,16 @@ const additionalNavItems: AdditionalNavItem[] = [
     alwaysShow: true,
   },
   {
+    // Team-Chat (#2598). Ohne diesen Eintrag ist die Flaeche auf kleinen
+    // Bildschirmen ueber die Oberflaeche gar nicht erreichbar - die
+    // Seitenleiste gibt es dort nicht. Gating unten in
+    // filteredAdditionalItems: der Chat ist Opt-in (Default aus).
+    href: "/team-chat",
+    label: "Team-Chat",
+    iconKey: "chat",
+    concept: "messages",
+  },
+  {
     // Anfragen-Modul (#2429). Gating unten in filteredAdditionalItems über
     // canOpenRequestsPage: requiresPermission kann das
     // users:absence+users:read-Paar nicht ausdrücken.
@@ -429,12 +443,10 @@ const additionalNavItems: AdditionalNavItem[] = [
   // Reminders live in the header bell (always visible on desktop + mobile),
   // so the bottom nav no longer carries a coming-soon "Erinnerungen" entry.
   {
-    href: "#",
-    label: "Berichte",
+    ...STAFF_FLAT_PAGES.statistics,
     iconKey: "chart",
     concept: "reports",
-    requiresAdmin: true,
-    comingSoon: true,
+    requiresAllPermissions: ["config:read", "users:read"],
   },
 ];
 
@@ -605,6 +617,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
 
   // Gruppenzugriff (#1940) ist nur bei festen Gruppen sinnvoll.
   const openCareGroupMode = useOpenCareGroupMode();
+  const staffMessagingEnabled = useStaffMessagingEnabled();
   // Planung-Einträge (#1946) hängen an timetable.enabled. Gleiches
   // settingsSchema-Lesemuster wie die Desktop-Sidebar; `!== false`, damit die
   // Einträge während des Schema-Ladens nicht kurz verschwinden. Das Ergebnis
@@ -650,8 +663,20 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       return false;
     }
     if (item.href === "/substitutions" && openCareGroupMode) return false;
+    // Team-Chat (#2598) ist Opt-in und faellt fail-closed: ohne eingeschalteten
+    // Schalter taucht der Eintrag gar nicht erst auf, genau wie in der
+    // Seitenleiste.
+    if (item.href === "/team-chat" && !staffMessagingEnabled) return false;
     if (item.alwaysShow) return true;
     if (item.requiresAdmin) return userIsAdmin;
+    if (item.requiresAllPermissions) {
+      return (
+        userIsAdmin ||
+        item.requiresAllPermissions.every((permission) =>
+          hasPermission(session, permission),
+        )
+      );
+    }
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);
     }
@@ -771,6 +796,7 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   const href =
                     item.href === "/eltern" ||
                     item.href === "/anfragen" ||
+                    item.href === "/team-chat" ||
                     isPlanningPageHref(item.href)
                       ? tenantPath(item.href)
                       : item.href;

@@ -12,24 +12,25 @@ const DefaultSeedStatePath = ".seed-state.json"
 const CurrentSeedStateVersion = "2"
 
 type SeedState struct {
-	Version     string                `json:"version"`
-	CreatedAt   time.Time             `json:"created_at"`
-	BaseURL     string                `json:"base_url"`
-	DevicePIN   string                `json:"device_pin"`
-	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
-	Accounts    SeedStateAccounts     `json:"accounts"`
-	Parents     []ParentCredentials   `json:"parents,omitempty"`
-	Devices     map[string]SeedDevice `json:"devices"`
-	Students    []SeedStudent         `json:"students"`
-	Rooms       map[string]int64      `json:"rooms"`
-	Activities  map[string]int64      `json:"activities"`
-	Groups      map[string]int64      `json:"groups"`
-	Enrollment  SeedEnrollmentState   `json:"enrollment,omitempty"`
-	Credentials SeedStateCredentials  `json:"credentials"`
-	Topology    SeedStateTopology     `json:"topology"`
-	Entities    SeedStateEntities     `json:"entities"`
-	Lookups     SeedStateLookups      `json:"lookups"`
-	Scenarios   SeedStateScenarios    `json:"scenarios"`
+	Version         string                  `json:"version"`
+	CreatedAt       time.Time               `json:"created_at"`
+	BaseURL         string                  `json:"base_url"`
+	DevicePIN       string                  `json:"device_pin"`
+	Bootstrap       SeedStateBootstrap      `json:"bootstrap"`
+	Accounts        SeedStateAccounts       `json:"accounts"`
+	Parents         []ParentCredentials     `json:"parents,omitempty"`
+	Devices         map[string]SeedDevice   `json:"devices"`
+	Students        []SeedStudent           `json:"students"`
+	Rooms           map[string]int64        `json:"rooms"`
+	Activities      map[string]int64        `json:"activities"`
+	Groups          map[string]int64        `json:"groups"`
+	Enrollment      SeedEnrollmentState     `json:"enrollment,omitempty"`
+	CareWithdrawals *SeedCareWithdrawalDemo `json:"care_withdrawals,omitempty"`
+	Credentials     SeedStateCredentials    `json:"credentials"`
+	Topology        SeedStateTopology       `json:"topology"`
+	Entities        SeedStateEntities       `json:"entities"`
+	Lookups         SeedStateLookups        `json:"lookups"`
+	Scenarios       SeedStateScenarios      `json:"scenarios"`
 }
 
 type SeedStateCredentials struct {
@@ -48,6 +49,13 @@ type SeedStateTopology struct {
 	Organizations int    `json:"organizations"`
 	Schools       int    `json:"schools"`
 	Mode          string `json:"mode,omitempty"`
+}
+
+type SeedCareWithdrawalDemo struct {
+	SchoolID    int64                     `json:"school_id"`
+	SchoolName  string                    `json:"school_name"`
+	TenantSlug  string                    `json:"tenant_slug"`
+	SchoolAdmin BootstrapAdminCredentials `json:"school_admin"`
 }
 
 type SeedStateEntities struct {

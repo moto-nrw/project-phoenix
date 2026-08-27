@@ -304,6 +304,10 @@ GET /api/settings/schema
 GET /api/settings/values/{key}/reveal
 GET /api/shift-types/
 GET /api/sse/events
+GET /api/staff-messages/
+GET /api/staff-messages/recipients
+GET /api/staff-messages/threads/{threadID}
+GET /api/staff-messages/unread-count
 GET /api/staff-shifts/
 GET /api/staff-shifts/overview
 GET /api/staff-shifts/series/{id}
@@ -342,6 +346,8 @@ GET /api/staff/{id}/time-tracking/month-summary
 GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
+GET /api/statistics/export
+GET /api/statistics/report
 GET /api/students/
 GET /api/students/arrival-settings
 GET /api/students/care-withdrawals
@@ -479,6 +485,7 @@ GET /operator/schools/{id}/accounts/{accountId}/mfa/
 GET /operator/schools/{id}/devices
 GET /operator/schools/{id}/persons
 GET /operator/schools/{id}/pwa-usage
+GET /operator/schools/{id}/settings/booking-authority-impact
 GET /operator/schools/{id}/settings/schema
 GET /operator/schools/{id}/settings/values/{key}/reveal
 GET /operator/stats
@@ -663,6 +670,8 @@ POST /api/settings/enrollment/legal-agb-document
 POST /api/settings/login-image
 POST /api/shift-types/
 POST /api/shift-types/defaults
+POST /api/staff-messages/threads/open
+POST /api/staff-messages/threads/{threadID}
 POST /api/staff-shifts/
 POST /api/staff-shifts/export
 POST /api/staff-shifts/series

@@ -168,6 +168,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 			TeacherRepo: repos.Teacher,
 			DB:          db,
 		})
+		userService.WirePersonCareParticipation(personSvc, svc)
 		eligible, err := personSvc.GetEligibleStudentsByGroupIDsOnDate(
 			ctx, []int64{group.ID}, today, today)
 		require.NoError(t, err)

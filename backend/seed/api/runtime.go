@@ -19,6 +19,7 @@ type Runtime struct {
 	State            *SeedState
 	Parents          []ParentCredentials
 	Enrollment       SeedEnrollmentState
+	CareWithdrawals  *SeedCareWithdrawalDemo
 	Values           map[string]any
 }
 

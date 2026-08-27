@@ -468,30 +468,28 @@ func fixturePath(t *testing.T, parts ...string) string {
 func packageDir(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
-	if ok && filepath.IsAbs(file) {
-		return filepath.Dir(file)
-	}
-	dir, err := os.Getwd()
-	if err != nil {
+	if !ok {
 		t.Fatal("resolve test package directory")
 	}
-	for current := dir; ; current = filepath.Dir(current) {
-		if testPackageDir(current) {
-			return current
-		}
-		candidate := filepath.Join(current, "backend", "internal", "architecture")
-		if testPackageDir(candidate) {
-			return candidate
-		}
-		if parent := filepath.Dir(current); parent == current {
-			break
+	if filepath.IsAbs(file) {
+		if _, err := os.Stat(file); err == nil {
+			return filepath.Dir(file)
 		}
 	}
-	t.Fatal("resolve test package directory")
-	return ""
-}
 
-func testPackageDir(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, "testdata"))
-	return err == nil && info.IsDir()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("resolve working directory: %v", err)
+	}
+	moduleRoot := wd
+	for {
+		if _, err := os.Stat(filepath.Join(moduleRoot, "go.mod")); err == nil {
+			return filepath.Join(moduleRoot, "internal", "architecture")
+		}
+		parent := filepath.Dir(moduleRoot)
+		if parent == moduleRoot {
+			t.Fatalf("resolve module root from %s", wd)
+		}
+		moduleRoot = parent
+	}
 }

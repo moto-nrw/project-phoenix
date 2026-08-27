@@ -3,6 +3,7 @@ package parent_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -118,11 +119,12 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		Logger:              slog.Default(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
 	_, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
-		json.RawMessage(`"new.parent@example.test"`),
+		json.RawMessage(strconv.Quote(newEmail)),
 	)
 	assert.ErrorIs(t, err, parentService.ErrGuardianManagementDisabled)
 
@@ -292,15 +294,16 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
-		json.RawMessage(`"  NEW.PARENT@EXAMPLE.TEST  "`),
+		json.RawMessage(strconv.Quote("  "+newEmail+"  ")),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, data.Email)
-	assert.Equal(t, "new.parent@example.test", *data.Email)
+	assert.Equal(t, newEmail, *data.Email)
 
 	data, err = svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
@@ -327,7 +330,7 @@ func TestUpdateMasterDataField_GuardianProfile_AppliesAndAudits(t *testing.T) {
 	require.Len(t, rows, 2)
 	assert.Equal(t, usersModels.DataChangeTargetGuardianProfile, rows[0].Target)
 	assert.Equal(t, "email", rows[0].FieldKey)
-	assert.Equal(t, `"new.parent@example.test"`, rows[0].NewValue)
+	assert.Equal(t, strconv.Quote(newEmail), rows[0].NewValue)
 	require.NotNil(t, rows[0].TargetRefID)
 	assert.Equal(t, chain.GuardianProfileID, *rows[0].TargetRefID)
 }
@@ -337,20 +340,21 @@ func TestUpdateMasterDataField_GuardianProfile_NormalizesDisplayNameEmail(t *tes
 
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	newEmail := fmt.Sprintf("mom.%d@example.test", chain.AccountID)
 
 	data, err := svc.UpdateMasterDataField(
 		context.Background(), chain.AccountID, chain.StudentID,
 		usersModels.DataChangeTargetGuardianProfile, "email",
-		json.RawMessage(`"Mom <MOM@EXAMPLE.TEST>"`),
+		json.RawMessage(strconv.Quote("Mom <"+newEmail+">")),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, data.Email)
-	assert.Equal(t, "mom@example.test", *data.Email)
+	assert.Equal(t, newEmail, *data.Email)
 
 	profile, err := repositories.NewFactory(db).GuardianProfile.FindByID(context.Background(), chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, profile.Email)
-	assert.Equal(t, "mom@example.test", *profile.Email)
+	assert.Equal(t, newEmail, *profile.Email)
 }
 
 func TestUpdateMasterDataField_GuardianProfile_DuplicateEmailConflict(t *testing.T) {

@@ -61,6 +61,15 @@ func (s stubActivePresence) GetStudentsAttendanceStatuses(_ context.Context, _ [
 	return s.statuses, s.err
 }
 
+type stubSettings struct {
+	enabled bool
+	err     error
+}
+
+func (s stubSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+	return s.enabled, s.err
+}
+
 func newMockBunDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock, func()) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()
@@ -224,7 +233,7 @@ func TestBuildDocumentRows(t *testing.T) {
 			ContactPhone: "02551 123",
 			ContactName:  "Lea Albrecht",
 		},
-	})
+	}, false)
 
 	assert.Len(t, rows, 1)
 	assert.Equal(t, "Mila Albrecht", rows[0].Values[listexport.ColumnName])
@@ -276,4 +285,150 @@ func TestSortSnapshotRowsGermanNameOrder(t *testing.T) {
 		"Unterwegs/Ben Anders",
 	}
 	assert.Equal(t, want, got)
+}
+
+// --- Gesundheitsinfos auf der Notfallliste (#2609) ---
+
+func healthDeps(t *testing.T, db *bun.DB, settings settingsReader, health map[int64]*string) Dependencies {
+	t.Helper()
+	students := map[int64]*users.Student{
+		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: health[101]},
+		202: {PersonID: 302, SchoolClass: "Klasse 2a", HealthInfo: health[202]},
+	}
+	return Dependencies{
+		AttendanceRepo: stubAttendanceRepo{ids: []int64{101, 202}},
+		StudentRepo:    stubStudentRepo{students: students},
+		PersonRepo: stubPersonRepo{persons: map[int64]*users.Person{
+			301: {FirstName: "Mila", LastName: "Albrecht"},
+			302: {FirstName: "Max", LastName: "Schmitt"},
+		}},
+		ListExport:          listexport.NewService(),
+		VisitRepo:           activeRepo.NewVisitRepository(db),
+		StudentGuardianRepo: usersRepo.NewStudentGuardianRepository(db),
+		Settings:            settings,
+	}
+}
+
+func expectEmptySnapshotQueries(mock sqlmock.Sqlmock) {
+	mock.ExpectQuery(`(?s)SELECT .*active\.visits`).
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "room_name"}))
+	mock.ExpectQuery(`(?s)SELECT .*users\.students_guardians`).
+		WillReturnRows(sqlmock.NewRows([]string{"student_id", "first_name", "last_name", "phone_number"}))
+}
+
+// healthByName indexes the rendered rows by child name: the document is
+// sorted by location and then German collation, so an index is the wrong
+// handle for "the child with the allergy".
+func healthByName(t *testing.T, doc listexport.Document) map[string]string {
+	t.Helper()
+	out := make(map[string]string, len(doc.Rows))
+	for _, row := range doc.Rows {
+		out[row.Values[listexport.ColumnName]] = row.Values[listexport.ColumnHealthInfo]
+	}
+	return out
+}
+
+func columnIDs(doc listexport.Document) []listexport.ColumnID {
+	ids := make([]listexport.ColumnID, 0, len(doc.Columns))
+	for _, col := range doc.Columns {
+		ids = append(ids, col.ID)
+	}
+	return ids
+}
+
+// With the setting on, every present child carries its stored health note —
+// and a child WITHOUT one says so, rather than leaving a blank that reads as
+// "no allergies".
+func TestBuildSnapshotDocumentIncludesHealthInfoWhenEnabled(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+	expectEmptySnapshotQueries(mock)
+
+	note := "Nussallergie, Epipen im Gruppenraum"
+	svc := NewService(healthDeps(t, db, stubSettings{enabled: true}, map[int64]*string{101: &note}))
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC))
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+
+	require.Contains(t, columnIDs(doc), listexport.ColumnHealthInfo)
+	require.Len(t, doc.Rows, 2)
+	health := healthByName(t, doc)
+	assert.Equal(t, note, health["Mila Albrecht"])
+	assert.Equal(t, "Nicht hinterlegt", health["Max Schmitt"])
+}
+
+// A whitespace-only note is no note: on paper "   " and "" are the same blank,
+// and both must be spelled out.
+func TestBuildSnapshotDocumentTreatsBlankHealthInfoAsMissing(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+	expectEmptySnapshotQueries(mock)
+
+	blank := "   \n\t "
+	svc := NewService(healthDeps(t, db, stubSettings{enabled: true}, map[int64]*string{101: &blank}))
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	require.NoError(t, err)
+	require.Len(t, doc.Rows, 2)
+	assert.Equal(t, "Nicht hinterlegt", healthByName(t, doc)["Mila Albrecht"])
+}
+
+// A school that switched the setting off gets the old five-column list: no
+// health column at all, not an empty one.
+func TestBuildSnapshotDocumentOmitsHealthInfoWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+	expectEmptySnapshotQueries(mock)
+
+	note := "Asthma, Spray in der Tasche"
+	svc := NewService(healthDeps(t, db, stubSettings{enabled: false}, map[int64]*string{101: &note}))
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, columnIDs(doc), listexport.ColumnHealthInfo)
+	require.Len(t, doc.Rows, 2)
+	for _, row := range doc.Rows {
+		assert.NotContains(t, row.Values, listexport.ColumnHealthInfo)
+	}
+	// The rest of the list is untouched.
+	assert.Contains(t, healthByName(t, doc), "Mila Albrecht")
+}
+
+// An unreadable setting must not print health data a school may have switched
+// off — the column stays out and the remaining columns still render.
+func TestBuildSnapshotDocumentOmitsHealthInfoWhenSettingUnreadable(t *testing.T) {
+	t.Parallel()
+
+	db, mock, cleanup := newMockBunDB(t)
+	defer cleanup()
+	expectEmptySnapshotQueries(mock)
+
+	note := "Diabetes Typ 1"
+	svc := NewService(healthDeps(t, db, stubSettings{enabled: true, err: assert.AnError}, map[int64]*string{101: &note}))
+
+	doc, err := svc.BuildSnapshotDocument(context.Background(), time.Time{})
+	require.NoError(t, err)
+
+	assert.NotContains(t, columnIDs(doc), listexport.ColumnHealthInfo)
+	require.Len(t, doc.Rows, 2)
+	assert.Contains(t, healthByName(t, doc), "Mila Albrecht")
+}
+
+func TestHealthInfoCell(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "Nicht hinterlegt", healthInfoCell(""))
+	assert.Equal(t, "Nicht hinterlegt", healthInfoCell("  \t\n "))
+	assert.Equal(t, "Nussallergie", healthInfoCell("Nussallergie"))
+	assert.Equal(t, "VorderseiteRückseite", healthInfoCell("Vorderseite\x03Rückseite"))
+	assert.Equal(t, "Nussallergie", healthInfoCell("\x01Nuss\x02allergie"))
+	assert.Equal(t, "Nicht hinterlegt", healthInfoCell(" \x01\x02\x03 \n"))
 }

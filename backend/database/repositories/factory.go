@@ -143,13 +143,15 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup           activeModels.GroupRepository
-	ActiveVisit           activeModels.VisitRepository
-	GroupSupervisor       activeModels.GroupSupervisorRepository
-	CombinedGroup         activeModels.CombinedGroupRepository
-	GroupMapping          activeModels.GroupMappingRepository
-	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	ActiveGroup      activeModels.GroupRepository
+	ActiveVisit      activeModels.VisitRepository
+	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CombinedGroup    activeModels.CombinedGroupRepository
+	GroupMapping     activeModels.GroupMappingRepository
+	Attendance       activeModels.AttendanceRepository
+	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
+	// Statistics serves the aggregate reads of the Statistik page (#2606).
+	Statistics            activeModels.StatisticsRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
@@ -253,6 +255,11 @@ type Factory struct {
 	ParentMessageThread userModels.ParentMessageThreadRepository
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
+
+	// OGS-internal colleague chat (#2598)
+	StaffMessageThread userModels.StaffMessageThreadRepository
+	StaffMessage       userModels.StaffMessageRepository
+	StaffMessageRead   userModels.StaffMessageReadRepository
 
 	// Calendar domain
 	CalendarAppointment               calendarModels.AppointmentRepository
@@ -375,6 +382,7 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupMapping:          active.NewGroupMappingRepository(db),
 		Attendance:            active.NewAttendanceRepository(db),
 		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		Statistics:            active.NewStatisticsRepository(db),
 		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:           active.NewWorkSessionRepository(db),
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
@@ -475,6 +483,10 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+
+		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
+		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageRead:   users.NewStaffMessageReadRepository(db),
 
 		// Calendar repositories
 		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
