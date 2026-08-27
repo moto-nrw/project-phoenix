@@ -31,6 +31,8 @@ import type {
   BackendApplyDeviationsResponse,
   BackendBulkSubstitutionResponse,
   BulkSubstitutionResponse,
+  BackendGuardianNoticeReach,
+  BackendGuardianNoticeResult,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -56,6 +58,8 @@ import type {
   ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
+  GuardianNoticeReach,
+  GuardianNoticeResult,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
@@ -751,6 +755,7 @@ export function mapApplyDeviations(
       startTime: warning.start_time,
       endTime: warning.end_time,
     })),
+    guardianNotice: mapGuardianNoticeResult(raw.guardian_notice),
   };
 }
 
@@ -799,6 +804,29 @@ export function mapInstanceStatusResult(
     status: raw.status,
     completedAt: raw.completed_at,
     reopenUntil: raw.reopen_until,
+    guardianNotice: mapGuardianNoticeResult(raw.guardian_notice),
+  };
+}
+
+function mapGuardianNoticeResult(
+  raw: BackendGuardianNoticeResult | undefined | null,
+): GuardianNoticeResult | undefined {
+  if (!raw) return undefined;
+  return {
+    announcementId: String(raw.announcement_id),
+    childCount: raw.child_count,
+    familyCount: raw.family_count,
+  };
+}
+
+export function mapGuardianNoticeReach(
+  raw: BackendGuardianNoticeReach,
+): GuardianNoticeReach {
+  return {
+    enabled: raw.enabled,
+    defaultOn: raw.default_on,
+    childCount: raw.child_count,
+    familyCount: raw.family_count,
   };
 }
 

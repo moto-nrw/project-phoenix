@@ -94,7 +94,8 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Resolved BEFORE the fetch: the room/location pre-filters below query
 	// today's live active.visits state, so a non-today planning request has to
 	// be rejected before that query runs, not after it (#1939).
-	planningDate, isToday, dateErr := resolvePlanningDate(params.date, rs.Now())
+	now := rs.Now()
+	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
 	if dateErr != nil {
 		renderError(w, r, common.ErrorInvalidRequest(dateErr))
 		return
@@ -104,6 +105,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	params.careStatusOn = planningDate
+	params.careStatusToday = timezone.DateFromTime(now)
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Fetch students based on parameters
@@ -254,8 +256,43 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 			return students, totalCount, nil
 		}
 	}
+	if nonEmpty, err := rs.resolveOperationalParticipantFilter(ctx, params); err != nil {
+		return nil, 0, err
+	} else if !nonEmpty {
+		return []*users.Student{}, 0, nil
+	}
 
 	return rs.runStandardStudentQuery(ctx, params)
+}
+
+func (rs *Resource) resolveOperationalParticipantFilter(
+	ctx context.Context, params *studentListParams,
+) (bool, error) {
+	if params.careStatus != CareStatusRunning {
+		return true, nil
+	}
+	if rs.CareLifecycleService == nil {
+		return false, errors.New("student list: care lifecycle service is not configured")
+	}
+	resolution, err := rs.CareLifecycleService.ResolveListParticipation(
+		ctx, params.studentIDs, params.careStatusOn, params.careStatusToday, params.includePendingWithdrawals,
+	)
+	if err != nil {
+		return false, err
+	}
+	params.actuallyPresentIDs = retainedStudentIDs(resolution.CandidateIDs, resolution.ActuallyPresentIDs)
+	params.studentIDs = retainedStudentIDs(resolution.CandidateIDs, resolution.ParticipatingIDs)
+	return len(params.studentIDs) > 0, nil
+}
+
+func retainedStudentIDs(candidates []int64, participating map[int64]bool) []int64 {
+	retained := make([]int64, 0, len(candidates))
+	for _, id := range candidates {
+		if participating[id] {
+			retained = append(retained, id)
+		}
+	}
+	return retained
 }
 
 // resolveLocationStateFilter resolves the present/transit pre-filter into
@@ -338,7 +375,15 @@ func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListPa
 // resolves params.studentIDs for the standard query and returns done=false.
 // done=true with an empty slice signals a short-circuit empty page.
 func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
-	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
+	var (
+		students []*users.Student
+		err      error
+	)
+	if params.canUseGroupOnlyShortcut() {
+		students, err = rs.PersonService.GetStudentsByGroupIDs(ctx, params.groupIDs)
+	} else {
+		students, err = rs.PersonService.GetParticipationCandidatesByGroupIDs(ctx, params.groupIDs)
+	}
 	if err != nil {
 		return nil, 0, false, err
 	}
@@ -1684,6 +1729,21 @@ type studentDeletePreservedDataResponse struct {
 	SharedInstances  bool `json:"shared_instances"`
 }
 
+func toStudentDeleteImpactResponse(impact *userService.StudentDeletionPreview) studentDeleteImpactResponse {
+	return studentDeleteImpactResponse{
+		ConfirmationName: impact.ConfirmationName,
+		Fingerprint:      impact.Fingerprint,
+		Total:            impact.Counts.Total(),
+		Counts:           impact.Counts,
+		Preserved: studentDeletePreservedDataResponse{
+			GuardianProfiles: true,
+			ParentAccounts:   true,
+			OtherStudents:    true,
+			SharedInstances:  true,
+		},
+	}
+}
+
 func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
@@ -1708,18 +1768,7 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 		renderError(w, r, studentDeletionErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, studentDeleteImpactResponse{
-		ConfirmationName: impact.ConfirmationName,
-		Fingerprint:      impact.Fingerprint,
-		Total:            impact.Counts.Total(),
-		Counts:           impact.Counts,
-		Preserved: studentDeletePreservedDataResponse{
-			GuardianProfiles: true,
-			ParentAccounts:   true,
-			OtherStudents:    true,
-			SharedInstances:  true,
-		},
-	}, "Student deletion impact retrieved")
+	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Student deletion impact retrieved")
 }
 
 type studentDeleteRequest struct {
@@ -2041,15 +2090,35 @@ func deleteStudentTxErrorRenderer(err error) render.Renderer {
 }
 
 var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: userService.ErrStudentDeletionPreviewChanged, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionInvalidReason, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrStudentDeletionAlumnus, Render: common.ErrorConflict},
-	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrCompanionWouldLoseDeparture, Render: common.ErrorConflict},
-	{Target: userService.ErrCompanionLockBusy, Render: common.ErrorConflict},
+	{Target: userService.ErrStudentDeletionPreviewChanged, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionPreviewChanged)
+	}},
+	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionConfirmationMismatch)
+	}},
+	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionAcknowledgement)
+	}},
+	{Target: userService.ErrStudentDeletionInvalidReason, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionInvalidReason)
+	}},
+	{Target: userService.ErrStudentDeletionAlumnus, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionAlumnus)
+	}},
+	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionRetentionNotEnded)
+	}},
+	{Target: userService.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionBlocked)
+	}},
+	{Target: userService.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionLockBusy)
+	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
-		return common.ErrorConflictMessage("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen.")
+		return common.ErrorConflictWithCode(
+			//nolint:staticcheck // ST1005: user-facing German message
+			errors.New("Kind konnte wegen gleichzeitig geänderter Verknüpfungen nicht gelöscht werden. Bitte erneut prüfen."),
+			errCodeStudentDeletionConstraintsChanged,
+		)
 	}},
 }, common.ErrorInternalServer)

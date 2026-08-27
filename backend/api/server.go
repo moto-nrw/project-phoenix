@@ -84,6 +84,9 @@ func newScheduler(api *API, logger *slog.Logger) *scheduler.Scheduler {
 	if api.Students != nil {
 		sched.SetStudentDocumentFileCleaner(api.Students)
 	}
+	if api.FileStore != nil {
+		sched.SetFileStoreCleaner(api.FileStore)
+	}
 
 	return sched
 }
@@ -127,6 +130,12 @@ func configureSchedulerServices(sched *scheduler.Scheduler, svc *services.Factor
 	// Issue #2189: PWA standalone-usage GDPR cleanup. Same nil-safe wiring.
 	if svc.PWAUsage != nil {
 		sched.SetPWAUsageCleanup(svc.PWAUsage)
+	}
+	// Issue #2598: Team-Chat-Aufbewahrung. Eigener nil-Wachposten wie jede
+	// andere Scheduler-Registrierung hier - verschachtelt unter PWAUsage haette
+	// sie stillschweigend ausgesetzt, sobald jene Konstruktion bedingt wird.
+	if svc.StaffMessaging != nil {
+		sched.SetStaffMessageCleanup(svc.StaffMessaging)
 	}
 	if svc.EnrollmentRejectedCleanup != nil {
 		sched.SetEnrollmentRejectedCleanup(svc.EnrollmentRejectedCleanup)

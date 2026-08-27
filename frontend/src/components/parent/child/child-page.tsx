@@ -398,6 +398,7 @@ function ChildAreaTabs({
           studentId={child.student_id}
           childFirstName={child.first_name}
           careEnded={careEnded}
+          enrolledUntil={child.enrolled_until}
         />
       </TabsContent>
 

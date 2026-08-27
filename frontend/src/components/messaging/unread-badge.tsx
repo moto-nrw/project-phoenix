@@ -1,10 +1,14 @@
 import { NotificationBadge } from "~/components/ui/notification-badge";
 
-export type UnreadBadgeTone = "parents" | "feedback";
+// "staff" is the Mitarbeitende hue already used for staff counts in the sidebar
+// and on the staff list; the internal Team-Chat badge reuses it rather than
+// introducing a fourth colour for the same audience.
+export type UnreadBadgeTone = "parents" | "feedback" | "staff";
 
 /**
- * The domain-colored unread count shown on parent and feedback surfaces. One
- * component keeps size, weight, the 99+ cap, and the accessible label aligned.
+ * The domain-colored unread count shown on parent, feedback and team-chat
+ * surfaces. One component keeps size, weight, the 99+ cap, and the accessible
+ * label aligned.
  */
 export function UnreadBadge({
   count,

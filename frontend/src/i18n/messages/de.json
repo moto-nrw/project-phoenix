@@ -126,6 +126,7 @@
     "newsNew": "Neuer Elternbrief",
     "newsOutstanding": "Offen",
     "newsLetter": "Elternbrief",
+    "newsCareCancellation": "Betreuung fällt aus",
     "newsImportant": "Wichtig",
     "newsAcknowledge": "Gelesen bestätigen",
     "newsAcknowledgeSaving": "Wird bestätigt …",
@@ -214,7 +215,26 @@
     "title": "Einstellungen",
     "description": "Legen Sie Sprache und Benachrichtigungen für Ihr Konto fest.",
     "languageTitle": "Sprache",
-    "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird."
+    "languageDescription": "Wählen Sie die Sprache, in der moto angezeigt wird.",
+    "appInstallTitle": "moto als App installieren",
+    "appInstallDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto dafür in Chrome."
+  },
+  "pwaInstallHint": {
+    "title": "moto als App nutzen",
+    "samsungDescription": "Installieren Sie moto nicht über Samsung Internet. Öffnen Sie moto in Chrome und melden Sie sich dort an.",
+    "samsungStep": "Wählen Sie danach im Chrome-Menü",
+    "samsungFallback": "Klappt das nicht, öffnen Sie Chrome und rufen Sie {host} auf.",
+    "oneTapDescription": "Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich moto immer im Vollbild, ohne Browserleiste.",
+    "iosBefore": "Tippen Sie in Safari auf",
+    "iosBetween": "und dann auf",
+    "androidBefore": "Öffnen Sie das Browser-Menü und tippen Sie auf",
+    "androidOr": "oder",
+    "share": "Teilen",
+    "homeScreen": "Zum Home-Bildschirm",
+    "install": "App installieren",
+    "addToHome": "Zum Startbildschirm hinzufügen",
+    "openInChrome": "In Chrome öffnen",
+    "close": "Hinweis schließen"
   },
   "notificationPreferences": {
     "title": "Benachrichtigungen",
@@ -253,6 +273,10 @@
       "parent_request_decided": {
         "label": "Entscheidung über Ihre Anfrage",
         "description": "Wenn die OGS über eine Ihrer Anfragen entschieden hat."
+      },
+      "parent_care_cancelled": {
+        "label": "Betreuung fällt aus",
+        "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
       }
     }
   },
@@ -1242,6 +1266,9 @@
       "disabledPeriodOver": "Der Betreuungszeitraum ist abgelaufen. Für den neuen Zeitraum melden Sie Ihr Kind bitte neu an.",
       "requestsTitle": "Beantragte Änderung",
       "decisionApproved": "Änderung übernommen",
+      "withdrawalApproved": "Abmeldung bestätigt",
+      "withdrawalApprovedHint": "Die Schule schließt die Abmeldung ab. Sie müssen nichts tun.",
+      "withdrawalCareEnded": "Betreuung beendet am {date}",
       "decisionApprovedFrom": "Gültig ab {date}",
       "decisionRejected": "Anfrage abgelehnt",
       "decisionReason": "Begründung der Betreuung: {reason}",
@@ -1275,7 +1302,11 @@
       "noDaysSelected": "Wählen Sie für jedes gewählte Angebot mindestens einen Tag.",
       "submitError": "Die Anfrage konnte nicht gesendet werden.",
       "capacityFull": "Für ein gewähltes Angebot ist kein Platz mehr frei.",
-      "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab."
+      "alreadyPending": "Für Ihr Kind liegt bereits eine Anfrage vor. Bitte warten Sie die Prüfung ab.",
+      "withdrawalConfirmTitle": "Betreuung vollständig abmelden?",
+      "withdrawalConfirmBody": "Danach ist für {name} kein Betreuungstag mehr gebucht. Möchten Sie diese Anfrage wirklich senden?",
+      "withdrawalConfirmBack": "Zurück",
+      "withdrawalConfirmSubmit": "Anfrage senden"
     },
     "weekdayShort": {
       "1": "Mo",

@@ -27,6 +27,7 @@ import {
   canPromptInstall,
   isAndroidDevice,
   isInstallationCompleted,
+  isSamsungInternet,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
@@ -109,6 +110,7 @@ export function ParentNotificationOnboarding({
       }
       if (
         isAndroidDevice(window.navigator) &&
+        !isSamsungInternet(window.navigator) &&
         !isStandaloneApp() &&
         !installationCompleted &&
         !installAccepted

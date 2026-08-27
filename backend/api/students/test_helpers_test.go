@@ -77,6 +77,7 @@ func setupTestContext(t *testing.T) *testContext {
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
+		CareLifecycleService:    svc.CareLifecycle,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
 		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
 		ExcusedRequestService:   svc.ExcusedRequests,

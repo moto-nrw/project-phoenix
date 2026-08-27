@@ -43,13 +43,18 @@ const impact: StudentDeletionImpact = {
   },
 };
 
-function renderModal(onDeleted = vi.fn(), onClose = vi.fn()) {
+function renderModal(
+  onDeleted = vi.fn(),
+  onClose = vi.fn(),
+  completionId?: string,
+) {
   render(
     <ModalProvider>
       <StudentDeletionModal
         isOpen
         studentId="42"
         displayName="Mia Muster"
+        completionId={completionId}
         onClose={onClose}
         onDeleted={onDeleted}
       />
@@ -113,12 +118,16 @@ describe("StudentDeletionModal", () => {
     fireEvent.click(finalButton);
 
     await waitFor(() => {
-      expect(mockDeleteStudent).toHaveBeenCalledWith("42", {
-        expected_fingerprint: "abc123",
-        confirmation_name: "Mia Muster",
-        reason: "test_data",
-        acknowledged: true,
-      });
+      expect(mockDeleteStudent).toHaveBeenCalledWith(
+        "42",
+        {
+          expected_fingerprint: "abc123",
+          confirmation_name: "Mia Muster",
+          reason: "test_data",
+          acknowledged: true,
+        },
+        undefined,
+      );
     });
     expect(onDeleted).toHaveBeenCalledOnce();
   });
@@ -126,7 +135,11 @@ describe("StudentDeletionModal", () => {
   it("returns to a refreshed impact when the backend reports a conflict", async () => {
     const { StudentDeletionApiError } = await import("~/lib/student-api");
     mockDeleteStudent.mockRejectedValueOnce(
-      new StudentDeletionApiError(409, "Die Daten haben sich geändert."),
+      new StudentDeletionApiError(
+        409,
+        "Die Daten haben sich geändert.",
+        "students.deletion_preview_changed",
+      ),
     );
     renderModal();
 

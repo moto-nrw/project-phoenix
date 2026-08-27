@@ -148,6 +148,9 @@ const tenantProviderMock = vi.hoisted(() => ({
   // Tagesauswertung / Anwesenheitsprotokoll (#1456) is opt-in and defaults
   // off; same reasoning as useDisplayEnabled above.
   useAttendanceLogEnabled: vi.fn(() => false),
+  // Team-Chat (#2598) is opt-in and defaults off, and it fails CLOSED — so the
+  // default here is false too. Tests covering the feature override it locally.
+  useStaffMessagingEnabled: vi.fn(() => false),
   // Care offerings were historically always enabled. Preserve that behaviour
   // in unrelated fixtures unless a capability test opts out explicitly.
   useCareOfferingsEnabled: vi.fn(() => true),
@@ -156,6 +159,10 @@ const tenantProviderMock = vi.hoisted(() => ({
   useOperationalOverviewScope: vi.fn(() => "own"),
   useShowTimetableCounts: vi.fn(() => true),
   useWaitlistEnabled: vi.fn(() => true),
+  // The health column on the printed Notfallliste (#2609) defaults ON, like
+  // the registry default. Tests covering the switched-off branch override
+  // this mock locally.
+  useEmergencyHealthInfoEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

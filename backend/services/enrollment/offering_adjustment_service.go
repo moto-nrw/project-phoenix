@@ -36,11 +36,12 @@ type offeringAdjustmentSnapshot struct {
 // shared adjustment path. The change-request decision uses it for its snapshot
 // so a second catalog read cannot describe a different booking.
 type appliedOfferingAdjustment struct {
-	Child      *enrollmentModels.RequestChild
-	Before     []*enrollmentModels.RequestChildOffering
-	Selections []materializedOfferingSelection
-	Offerings  map[int64]*enrollmentModels.CareOffering
-	Overridden []enrollmentModels.OfferingChangeSnapshotOffering
+	Child              *enrollmentModels.RequestChild
+	Before             []*enrollmentModels.RequestChildOffering
+	Selections         []materializedOfferingSelection
+	Offerings          map[int64]*enrollmentModels.CareOffering
+	Overridden         []enrollmentModels.OfferingChangeSnapshotOffering
+	CompleteWithdrawal bool
 }
 
 func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
@@ -347,7 +348,8 @@ func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, wor
 	addCareOfferingMap(allowed, work.activeOfferingByID)
 	addCareOfferingMap(allowed, work.beforeOfferingByID)
 	grandfathered := grandfatheredOfferingsFromLinks(work.beforeLinks)
-	allowWithdrawal := work.authoritative && requestChildOfferingLinksHaveCareDays(work.beforeLinks, work.offeringByID)
+	allowWithdrawal := work.authoritative &&
+		requestChildOfferingLinksHaveCareDays(work.beforeLinks, work.offeringByID)
 	overridden, err := validateAppliedOfferingOverrides(
 		work.input.ExcludedAutoAddTargetIDs, submitChild, allowed,
 		work.phase.CareOfferingSelectionMode, grandfathered,
@@ -365,7 +367,7 @@ func (s *decisionService) materializeOfferingAdjustment(ctx context.Context, wor
 	work.selections, work.overridden = materialized[0], overridden
 	work.afterHasCareDays = materializedSelectionsHaveCareDays(work.selections, work.offeringByID)
 	work.isCompleteWithdrawal = allowWithdrawal && !work.afterHasCareDays
-	if work.source == auditModels.OfferingAdjustmentSourceDirect && work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
+	if work.isCompleteWithdrawal && !work.input.CompleteWithdrawalConfirmed {
 		return ErrCompleteWithdrawalConfirmationRequired
 	}
 	return s.buildOfferingAdjustmentReplacement(work)
@@ -471,13 +473,13 @@ func (s *decisionService) recordOfferingAdjustment(
 func (s *decisionService) reconcileOfferingAdjustmentWithdrawal(
 	ctx context.Context, work *offeringAdjustmentWork, entry *auditModels.EnrollmentOfferingAdjustment,
 ) error {
-	if s.CareWithdrawal == nil || (!work.authoritative && !work.afterHasCareDays) {
+	if s.CareWithdrawal == nil {
 		return nil
 	}
 	err := s.CareWithdrawal.ReconcileAuthoritativeBookingChange(ctx, users.CareWithdrawalBookingChange{
 		StudentID: *work.child.CreatedStudentID, FirstBookinglessDay: work.selectionDate,
-		HasCareDays: work.afterHasCareDays, WasCompleteWithdrawal: work.isCompleteWithdrawal,
-		SourceAdjustmentID: entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
+		WasCompleteWithdrawal: work.isCompleteWithdrawal,
+		SourceAdjustmentID:    entry.ID, SourceRequestChildID: work.child.ID, ConfirmedBy: work.input.ActorAccountID,
 		ConfirmedRole: entry.ActorRole, SourceOfferings: careExitSourceOfferingsFromLinks(work.beforeLinks, work.offeringByID),
 	})
 	if err != nil {
@@ -500,6 +502,7 @@ func (s *decisionService) finishOfferingAdjustment(
 	return &appliedOfferingAdjustment{
 		Child: updated, Before: work.beforeLinks, Selections: work.selections,
 		Offerings: work.offeringByID, Overridden: work.overridden,
+		CompleteWithdrawal: work.isCompleteWithdrawal,
 	}, nil
 }
 

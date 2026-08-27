@@ -15,6 +15,7 @@ const binaryTenant: TenantInfo = {
   studentPhotosEnabled: true,
   nfcEnabled: true,
   messagingEnabled: true,
+  staffMessagingEnabled: false,
   displayEnabled: false,
   gradeLevelMax: 4,
 };

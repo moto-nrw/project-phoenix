@@ -24,6 +24,7 @@ import type {
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable } from "~/components/ui/data-table";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type { DataTableColumn } from "~/components/ui/data-table";
 import { FormModal } from "~/components/ui/form-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
@@ -474,11 +475,19 @@ function ParentAnnouncementsContent() {
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             <p className="truncate font-semibold text-gray-900">{row.title}</p>
-            {row.priority === "important" && (
-              <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
-                Wichtig
-              </span>
+            {row.system_kind === "care_cancellation" && (
+              <StatusBadge
+                label="Ausfall"
+                tone="red"
+                title="Automatisch beim Absagen eines Termins erstellt"
+              />
             )}
+            {row.priority === "important" &&
+              row.system_kind !== "care_cancellation" && (
+                <span className="inline-flex shrink-0 items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700">
+                  Wichtig
+                </span>
+              )}
           </div>
           <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">
             {row.body}
@@ -569,14 +578,14 @@ function ParentAnnouncementsContent() {
         onClick: () => setDetailFor(row),
       },
     ];
-    if (row.status === "draft") {
+    if (!row.system_kind && row.status === "draft") {
       menuItems.push({
         label: "Bearbeiten",
         icon: <Pencil className="size-4" aria-hidden />,
         onClick: () => openEdit(row),
       });
     }
-    if (row.status === "published") {
+    if (!row.system_kind && row.status === "published") {
       menuItems.push({
         label: "Zurückziehen",
         icon: <Undo2 className="size-4" aria-hidden />,
@@ -587,15 +596,17 @@ function ParentAnnouncementsContent() {
         disabled: pendingActionId === row.id,
       });
     }
-    menuItems.push({
-      label: "Löschen",
-      icon: <Trash2 className="size-4" aria-hidden />,
-      destructive: true,
-      onClick: () => {
-        setDeleteError("");
-        setDeleteTarget(row);
-      },
-    });
+    if (!row.system_kind) {
+      menuItems.push({
+        label: "Löschen",
+        icon: <Trash2 className="size-4" aria-hidden />,
+        destructive: true,
+        onClick: () => {
+          setDeleteError("");
+          setDeleteTarget(row);
+        },
+      });
+    }
     return menuItems;
   }
 

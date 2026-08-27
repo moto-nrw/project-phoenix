@@ -98,6 +98,14 @@ const (
 	AnnouncementTargetPendingEnrollment = "pending_enrollment"
 )
 
+// System kinds mark announcements the system wrote on behalf of the team
+// (mirrors chk_parent_announcements_system_kind). NULL/empty is a hand-written
+// announcement. A system row is published on creation and shown in the parent
+// feed regardless of the optional news feature flag.
+const (
+	ParentAnnouncementSystemKindCareCancellation = "care_cancellation"
+)
+
 // ValidAnnouncementPriority reports whether p is a known priority.
 func ValidAnnouncementPriority(p string) bool {
 	return p == ParentAnnouncementPriorityInfo || p == ParentAnnouncementPriorityImportant
@@ -153,6 +161,10 @@ type ParentAnnouncement struct {
 	DeliveryMode  string `bun:"delivery_mode,notnull,nullzero,default:'standard'" json:"delivery_mode"`
 	EmailAudience string `bun:"email_audience,notnull,nullzero,default:'portal_only'" json:"email_audience"`
 
+	// SystemKind is set on announcements the system authored (#2601), nil for
+	// everything staff wrote by hand. See ParentAnnouncementSystemKind*.
+	SystemKind *string `bun:"system_kind" json:"system_kind,omitempty"`
+
 	// Targets is attached by the repository (ListTargets), never a bun relation:
 	// the parent feed resolves audience in a cross-tenant admin tx where explicit
 	// joins are clearer than relation magic. bun:"-" so it is never persisted.
@@ -177,6 +189,11 @@ func (a *ParentAnnouncement) IsLetter() bool {
 // audience to guardians that have an address but no portal access.
 func (a *ParentAnnouncement) ReachesContactsWithoutPortal() bool {
 	return a.EmailAudience == EmailAudienceAllContacts
+}
+
+// IsSystem reports whether the system authored the announcement.
+func (a *ParentAnnouncement) IsSystem() bool {
+	return a.SystemKind != nil && *a.SystemKind != ""
 }
 
 // IsPoll reports whether the announcement asks guardians a question.
@@ -312,6 +329,20 @@ type ParentAnnouncementRead struct {
 	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 }
 
+// AnnouncementFeedScope names the tenants a guardian's feed draws from. A
+// school with the news feature on contributes every live announcement; a school
+// with news off but the cancellation notice on (#2601) contributes only the
+// system-authored rows. The two lists never overlap.
+type AnnouncementFeedScope struct {
+	TenantIDs           []int64
+	SystemOnlyTenantIDs []int64
+}
+
+// IsEmpty reports whether no tenant contributes anything.
+func (s AnnouncementFeedScope) IsEmpty() bool {
+	return len(s.TenantIDs) == 0 && len(s.SystemOnlyTenantIDs) == 0
+}
+
 // AnnouncementFeedItem is the parent-facing list/detail projection: the
 // announcement core fields plus the authoring school's name (the feed is
 // cross-tenant, so each row is labelled with its school) and the guardian's
@@ -333,6 +364,7 @@ type AnnouncementFeedItem struct {
 	// RequiresAcknowledgement alone.
 	DeliveryMode     string     `bun:"delivery_mode" json:"delivery_mode"`
 	ResponseDeadline *time.Time `bun:"response_deadline" json:"response_deadline,omitempty"`
+	SystemKind       *string    `bun:"system_kind" json:"system_kind,omitempty"`
 	SchoolName       string     `bun:"school_name" json:"school_name"`
 	ReadAt           *time.Time `bun:"read_at" json:"read_at,omitempty"`
 	AcknowledgedAt   *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
@@ -543,9 +575,16 @@ type ParentAnnouncementRepository interface {
 	// ListFeedForAccount returns published, active, unexpired announcements the
 	// account is targeted by across the given tenants, newest-published first,
 	// each with the account's read/ack state.
-	ListFeedForAccount(ctx context.Context, accountID int64, tenantIDs []int64) ([]*AnnouncementFeedItem, error)
+	ListFeedForAccount(ctx context.Context, accountID int64, scope AnnouncementFeedScope) ([]*AnnouncementFeedItem, error)
 	// CountUnreadForAccount returns how many of those the account has not read.
-	CountUnreadForAccount(ctx context.Context, accountID int64, tenantIDs []int64) (int, error)
+	CountUnreadForAccount(ctx context.Context, accountID int64, scope AnnouncementFeedScope) (int, error)
+
+	// CountReachableGuardiansForStudents counts the distinct guardian accounts
+	// a student-targeted announcement for the given children would reach right
+	// now: linked portal account, parent_portal.access on the relationship,
+	// active tenant membership, child not an alumnus. Used to show "erreicht N
+	// Familien" before a cancellation notice is sent (#2601).
+	CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error)
 
 	// --- read / ack state ---
 	// MarkRead / MarkAcknowledged stamp the guardian's read/ack row only while

@@ -208,6 +208,9 @@ func (rs *Resource) Router() chi.Router {
 				Post("/{id}/reopen", rs.reopenInstance)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 				Post("/{id}/cancel", rs.cancelInstance)
+			// #2601: preview for "Eltern informieren" in the cancel dialog.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Get("/{id}/guardian-notice", rs.guardianNoticeReach)
 				// #1840 Vertretungsplan: mark a block as deliberately left
 				// unstaffed so it drops out of the gap list. SchedulesManage
 				// like the other instance mutations.

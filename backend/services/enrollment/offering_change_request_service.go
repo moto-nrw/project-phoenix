@@ -219,8 +219,9 @@ type OfferingChangeView struct {
 // carries no diff: after an approval was applied the "current → requested"
 // comparison is empty, which would read as "nothing changed".
 type OfferingChangeDecision struct {
-	ID     int64
-	Status string
+	ID                 int64
+	Status             string
+	CompleteWithdrawal bool
 	// DecidedAt is when staff decided it.
 	DecidedAt time.Time
 	// EffectiveFrom is the date the switch took (or would have taken) effect.
@@ -321,11 +322,12 @@ const offeringDecisionRecencyDays = 14
 
 // CreateOfferingChangeInput is a guardian's submission.
 type CreateOfferingChangeInput struct {
-	StudentID     int64
-	AccountID     int64
-	Selections    []OfferingChangeSelection
-	EffectiveFrom timezone.Date
-	Note          string
+	StudentID                   int64
+	AccountID                   int64
+	Selections                  []OfferingChangeSelection
+	EffectiveFrom               timezone.Date
+	Note                        string
+	CompleteWithdrawalConfirmed bool
 }
 
 // DecideOfferingChangeInput is a staff decision.
@@ -344,6 +346,9 @@ type DecideOfferingChangeInput struct {
 	// on (#2484). Nil keeps the guardian's requested date, moved forward to the
 	// first date it can still apply on. Only valid together with Approve.
 	EffectiveFrom *timezone.Date
+	// CompleteWithdrawalConfirmed is the reviewer's explicit confirmation of
+	// the current fully materialized target state.
+	CompleteWithdrawalConfirmed bool
 }
 
 // OfferingChangeRequestService is the lifecycle contract. Every method runs
@@ -409,6 +414,7 @@ type OfferingChangeRequestServiceConfig struct {
 	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
 	StudentRepo              usersModels.StudentRepository
 	PersonRepo               usersModels.PersonRepository
+	CareWithdrawalRepo       usersModels.CareWithdrawalCompletionRepository
 	// OfferingAdjustmentRepo backs the direct-correction feed of the central
 	// history (#2436); the same append-only log the decision service writes.
 	OfferingAdjustmentRepo auditModels.EnrollmentOfferingAdjustmentRepository
@@ -832,15 +838,23 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 			continue
 		}
 		isFutureApproval := row.Status == enrollmentModels.OfferingChangeStatusApproved && today.Before(row.EffectiveFrom)
-		if row.ReviewedAt.Before(cutoff) && !isFutureApproval {
+		keepWithdrawalStatus := false
+		if row.Status == enrollmentModels.OfferingChangeStatusApproved && row.ApprovedCompleteWithdrawal {
+			keepWithdrawalStatus, err = s.keepCompleteWithdrawalStatus(ctx, studentID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if row.ReviewedAt.Before(cutoff) && !isFutureApproval && !keepWithdrawalStatus {
 			// Rows are newest-first, so everything below is older too.
 			return nil, nil
 		}
 		decision := &OfferingChangeDecision{
-			ID:            row.ID,
-			Status:        row.Status,
-			DecidedAt:     *row.ReviewedAt,
-			EffectiveFrom: row.EffectiveFrom,
+			ID:                 row.ID,
+			Status:             row.Status,
+			CompleteWithdrawal: row.ApprovedCompleteWithdrawal,
+			DecidedAt:          *row.ReviewedAt,
+			EffectiveFrom:      row.EffectiveFrom,
 		}
 		if row.DecisionReason != nil {
 			decision.Reason = *row.DecisionReason
@@ -863,6 +877,26 @@ func (s *offeringChangeRequestService) lastDecisionForStudent(
 		return decision, nil
 	}
 	return nil, nil
+}
+
+func (s *offeringChangeRequestService) keepCompleteWithdrawalStatus(ctx context.Context, studentID int64) (bool, error) {
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return false, fmt.Errorf("offering change: load student withdrawal state: %w", err)
+	}
+	if student.CareEndedOn(timezone.TodayDate()) {
+		return true, nil
+	}
+	if s.CareWithdrawalRepo == nil {
+		return false, nil
+	}
+	_, total, err := s.CareWithdrawalRepo.ListPending(ctx, usersModels.CareWithdrawalCompletionFilter{
+		StudentID: studentID, Page: 1, PageSize: 1,
+	})
+	if err != nil {
+		return false, fmt.Errorf("offering change: load pending withdrawal completion: %w", err)
+	}
+	return total > 0, nil
 }
 
 // requestedItems reads the stored payload back into named offerings, sorted by
@@ -953,17 +987,30 @@ func (s *offeringChangeRequestService) Create(
 	if err != nil {
 		return nil, fmt.Errorf("offering change: list current offerings: %w", err)
 	}
+	authoritative, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: resolve booking authority: %w", err)
+	}
+	phaseOfferings, err := s.CareOfferingRepo.ListByPhase(ctx, phase.ID)
+	if err != nil {
+		return nil, fmt.Errorf("offering change: list phase offerings: %w", err)
+	}
+	allowCompleteWithdrawal := authoritative && requestChildOfferingLinksHaveCareDays(current, offeringsByID(phaseOfferings))
 	selections, err := s.validateSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom,
-		withoutAutomaticSelections(current, input.Selections))
+		withoutAutomaticSelections(current, input.Selections), allowCompleteWithdrawal)
 	if err != nil {
 		return nil, err
 	}
-	materialized, err := s.materializedSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom, selections)
+	materialized, err := s.materializedSelections(ctx, phase, period.RequestChildID, input.EffectiveFrom, selections, allowCompleteWithdrawal)
 	if err != nil {
 		return nil, err
 	}
 	if sameMaterializedOfferingSelections(current, materialized) {
 		return nil, fmt.Errorf("%w: offerings are unchanged", ErrOfferingChangeInvalid)
+	}
+	completeWithdrawal := allowCompleteWithdrawal && !materializedSelectionsHaveCareDays(materialized, offeringsByID(phaseOfferings))
+	if completeWithdrawal && !input.CompleteWithdrawalConfirmed {
+		return nil, ErrCompleteWithdrawalConfirmationRequired
 	}
 	existing, err := s.ChangeRepo.GetPendingForStudent(ctx, input.StudentID)
 	if err != nil {
@@ -973,12 +1020,18 @@ func (s *offeringChangeRequestService) Create(
 		return nil, enrollmentModels.ErrOfferingChangeAlreadyPending
 	}
 	row := &enrollmentModels.OfferingChangeRequest{
-		StudentID:      input.StudentID,
-		RequestChildID: period.RequestChildID,
-		SubmittedBy:    input.AccountID,
-		Payload:        payloadFromSelections(selections),
-		EffectiveFrom:  input.EffectiveFrom,
-		Status:         enrollmentModels.OfferingChangeStatusPending,
+		StudentID:                   input.StudentID,
+		RequestChildID:              period.RequestChildID,
+		SubmittedBy:                 input.AccountID,
+		Payload:                     payloadFromSelections(selections),
+		EffectiveFrom:               input.EffectiveFrom,
+		Status:                      enrollmentModels.OfferingChangeStatusPending,
+		CompleteWithdrawalConfirmed: completeWithdrawal,
+	}
+	if completeWithdrawal {
+		now := time.Now()
+		row.WithdrawalConfirmedBy = &input.AccountID
+		row.WithdrawalConfirmedAt = &now
 	}
 	if note != "" {
 		row.ParentNote = &note
@@ -1405,9 +1458,10 @@ func (s *offeringChangeRequestService) pendingReviews(
 			continue
 		}
 		submit.TargetGradeLevel = child.TargetGradeLevel
-		materialized, materializeErr := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+		allowWithdrawal := row.CompleteWithdrawalConfirmed && requestChildOfferingLinksHaveCareDays(currentByChild[child.ID], allowed)
+		materialized, materializeErr := materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 			[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
-			grandfatheredOfferingsFromLinks(currentByChild[child.ID]),
+			grandfatheredOfferingsFromLinks(currentByChild[child.ID]), allowWithdrawal,
 		)
 		if materializeErr != nil {
 			continue
@@ -1429,7 +1483,7 @@ func (s *offeringChangeRequestService) pendingReviews(
 		if review == nil {
 			continue
 		}
-		review.FullWithdrawal = leavesNoOfferings(entries)
+		review.FullWithdrawal = leavesNoCareOfferings(entries, offeringsByID)
 		review.Unchanged = unchangedBookings(entries, changedByOfferingID)
 		entries = slices.DeleteFunc(entries, func(entry OfferingChangeDiffEntry) bool {
 			return !changedByOfferingID[entry.OfferingID] && len(entry.NewRuleDays) == 0
@@ -1440,13 +1494,16 @@ func (s *offeringChangeRequestService) pendingReviews(
 	return reviews, nil
 }
 
-// leavesNoOfferings reports the Komplett-Abmeldung: the child holds bookings
-// today and would hold none after the change. Judged on the full entry list
-// (both sides of every offering), never on the changed lines alone — a request
-// that drops one of two offerings also has only "removed" lines in its diff.
-func leavesNoOfferings(entries []OfferingChangeDiffEntry) bool {
+// leavesNoCareOfferings reports the Komplett-Abmeldung: the child holds a
+// care-bearing booking today and would hold none after the change. Non-care
+// extras such as lunch do not hide that state.
+func leavesNoCareOfferings(entries []OfferingChangeDiffEntry, offerings map[int64]*enrollmentModels.CareOffering) bool {
 	held := false
 	for _, entry := range entries {
+		offering := offerings[entry.OfferingID]
+		if offering == nil || !offering.CountsAsCare {
+			continue
+		}
 		if entry.NewState == "booked" {
 			return false
 		}
@@ -1543,6 +1600,9 @@ func (s *offeringChangeRequestService) Decide(ctx context.Context, input DecideO
 	diff := materializedDecisionDiff(
 		applied.Before, applied.Selections, nil, applied.Offerings, applied.Overridden,
 	)
+	if err := s.ChangeRepo.UpdateApprovedCompleteWithdrawal(ctx, row.ID, applied.CompleteWithdrawal); err != nil {
+		return err
+	}
 	if err := s.ChangeRepo.Decide(
 		ctx, row.ID, enrollmentModels.OfferingChangeStatusApproved, optionalString(reason), &input.ReviewedBy, true,
 	); err != nil {
@@ -1592,10 +1652,14 @@ func (s *offeringChangeRequestService) PreviewDecision(
 	if err != nil {
 		return nil, err
 	}
+	allowCompleteWithdrawal, err := s.approvalAllowsCompleteWithdrawal(ctx)
+	if err != nil {
+		return nil, err
+	}
 	// The preview is what the office decides from, so it has to fail on
 	// everything the approval would fail on — at the same date (#2484).
 	if err := s.assertApplicableAt(
-		ctx, diff.phase, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs),
+		ctx, diff.phase, row.RequestChildID, diff.effectiveFrom, diff.requested, offeringIDSet(excludedIDs), allowCompleteWithdrawal,
 	); err != nil {
 		return nil, err
 	}
@@ -1910,8 +1974,21 @@ func (s *offeringChangeRequestService) applyApproved(
 		return nil, fmt.Errorf("%w: care ends before the approved effective date", ErrOfferingChangeInvalid)
 	}
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
-	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded); err != nil {
+	allowCompleteWithdrawal, err := s.approvalAllowsCompleteWithdrawal(ctx)
+	if err != nil {
 		return nil, err
+	}
+	if err := s.assertApplicableAt(ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal); err != nil {
+		return nil, err
+	}
+	completeWithdrawal, err := s.completeWithdrawalAt(
+		ctx, phase, row.RequestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if completeWithdrawal && !input.CompleteWithdrawalConfirmed {
+		return nil, ErrCompleteWithdrawalConfirmationRequired
 	}
 	// Keep the actual date in memory for the adjustment audit. Persist it only
 	// after the switch succeeds, so a client error leaves the pending row intact.
@@ -1927,9 +2004,9 @@ func (s *offeringChangeRequestService) applyApproved(
 		ActorRole:                cmpOr(strings.TrimSpace(input.ActorRole), "admin"),
 		EffectiveFrom:            &effectiveFrom,
 		ExcludedAutoAddTargetIDs: excluded,
-		// The parent explicitly requested the booked care days to be removed;
-		// the staff approval is the second recorded confirmation.
-		CompleteWithdrawalConfirmed: true,
+		// Staff explicitly confirms the fully materialized result at review time;
+		// it may differ from the state materialized when the request was filed.
+		CompleteWithdrawalConfirmed: completeWithdrawal && input.CompleteWithdrawalConfirmed,
 	}
 	applied, err := s.Applier.applyApprovedChangeRequestOfferingsWithResult(ctx, adjustment)
 	if err != nil {
@@ -1939,6 +2016,51 @@ func (s *offeringChangeRequestService) applyApproved(
 		return nil, fmt.Errorf("offering change: update applied effective date: %w", err)
 	}
 	return applied, nil
+}
+
+func (s *offeringChangeRequestService) approvalAllowsCompleteWithdrawal(ctx context.Context) (bool, error) {
+	if s.Settings == nil {
+		return false, ErrCareOfferingsDisabled
+	}
+	authoritative, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+	if err != nil {
+		return false, fmt.Errorf("offering change: resolve booking authority: %w", err)
+	}
+	return authoritative, nil
+}
+
+func (s *offeringChangeRequestService) completeWithdrawalAt(
+	ctx context.Context,
+	phase *enrollmentModels.Phase,
+	requestChildID int64,
+	effectiveFrom timezone.Date,
+	selections []OfferingChangeSelection,
+	excluded map[int64]bool,
+	allowCompleteWithdrawal bool,
+) (bool, error) {
+	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, effectiveFrom)
+	if err != nil {
+		return false, fmt.Errorf("offering change: list current offerings for withdrawal check: %w", err)
+	}
+	ids := offeringIDsFromLinks(current)
+	materialized, err := s.materializedSelectionsExcluding(
+		ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal,
+	)
+	if err != nil {
+		return false, err
+	}
+	for _, selection := range materialized {
+		ids = append(ids, selection.OfferingID)
+	}
+	slices.Sort(ids)
+	ids = slices.Compact(ids)
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, ids)
+	if err != nil {
+		return false, fmt.Errorf("offering change: list offerings for withdrawal check: %w", err)
+	}
+	byID := offeringsByID(offerings)
+	return requestChildOfferingLinksHaveCareDays(current, byID) &&
+		!materializedSelectionsHaveCareDays(materialized, byID), nil
 }
 
 // confirmedEffectiveFrom resolves the date an approval applies on. Without a
@@ -1977,11 +2099,12 @@ func (s *offeringChangeRequestService) assertApplicableAt(
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
+	allowCompleteWithdrawal bool,
 ) error {
-	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections); err != nil {
+	if _, err := s.validateSelections(ctx, phase, requestChildID, effectiveFrom, selections, allowCompleteWithdrawal); err != nil {
 		return err
 	}
-	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded)
+	return s.assertCapacityAvailable(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
 }
 
 func appliedOfferingChangeDate(effectiveFrom timezone.Date) timezone.Date {
@@ -2009,13 +2132,14 @@ func (s *offeringChangeRequestService) assertCapacityAvailable(
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
+	allowCompleteWithdrawal bool,
 ) error {
 	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, requestChildID, effectiveFrom)
 	if err != nil {
 		return fmt.Errorf("offering change: list current offerings: %w", err)
 	}
 	held := heldOfferingIDs(current)
-	replacementOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, effectiveFrom, selections, excluded)
+	replacementOfferingIDs, err := s.materializedOfferingIDs(ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal)
 	if err != nil {
 		return err
 	}
@@ -2085,9 +2209,10 @@ func (s *offeringChangeRequestService) materializedOfferingIDs(
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
+	allowCompleteWithdrawal bool,
 ) ([]int64, error) {
 	materialized, err := s.materializedSelectionsExcluding(
-		ctx, phase, requestChildID, effectiveFrom, selections, excluded,
+		ctx, phase, requestChildID, effectiveFrom, selections, excluded, allowCompleteWithdrawal,
 	)
 	if err != nil {
 		return nil, err
@@ -2155,8 +2280,9 @@ func (s *offeringChangeRequestService) materializedSelections(
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
+	allowCompleteWithdrawal bool,
 ) ([]materializedOfferingSelection, error) {
-	return s.materializedSelectionsExcluding(ctx, phase, requestChildID, effectiveFrom, selections, nil)
+	return s.materializedSelectionsExcluding(ctx, phase, requestChildID, effectiveFrom, selections, nil, allowCompleteWithdrawal)
 }
 
 // materializedSelectionsExcluding is the variant behind a staff approval with
@@ -2169,6 +2295,7 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
 	excluded map[int64]bool,
+	allowCompleteWithdrawal bool,
 ) ([]materializedOfferingSelection, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
@@ -2179,6 +2306,7 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	if err != nil {
 		return nil, err
 	}
+	allowCompleteWithdrawal = allowCompleteWithdrawal && requestChildOfferingLinksHaveCareDays(current, allowed)
 	_, submit, err := normalizeOfferingSelections(selections, allowed)
 	if err != nil {
 		return nil, err
@@ -2189,9 +2317,9 @@ func (s *offeringChangeRequestService) materializedSelectionsExcluding(
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
 	submit.ExcludedAutoAddTargetIDs = excluded
-	materialized, err := materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+	materialized, err := materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
-		grandfatheredOfferingsFromLinks(current),
+		grandfatheredOfferingsFromLinks(current), allowCompleteWithdrawal,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
@@ -2209,6 +2337,7 @@ func (s *offeringChangeRequestService) validateSelections(
 	requestChildID int64,
 	effectiveFrom timezone.Date,
 	selections []OfferingChangeSelection,
+	allowCompleteWithdrawal bool,
 ) ([]OfferingChangeSelection, error) {
 	active, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
 	if err != nil {
@@ -2222,6 +2351,7 @@ func (s *offeringChangeRequestService) validateSelections(
 	if err != nil {
 		return nil, err
 	}
+	allowCompleteWithdrawal = allowCompleteWithdrawal && requestChildOfferingLinksHaveCareDays(current, allowed)
 	normalized, submit, err := normalizeOfferingSelections(selections, allowed)
 	if err != nil {
 		return nil, err
@@ -2231,9 +2361,9 @@ func (s *offeringChangeRequestService) validateSelections(
 		return nil, fmt.Errorf("offering change: load request child: %w", err)
 	}
 	submit.TargetGradeLevel = child.TargetGradeLevel
-	_, err = materializeAndValidateChildrenOfferingSelectionsGrandfathering(
+	_, err = materializeAndValidateChildrenOfferingSelectionsForAdjustment(
 		[]SubmitChild{submit}, allowed, phase.CareOfferingSelectionMode,
-		grandfatheredOfferingsFromLinks(current),
+		grandfatheredOfferingsFromLinks(current), allowCompleteWithdrawal,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrOfferingChangeInvalid, err)
@@ -2422,7 +2552,11 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 	if err != nil {
 		return nil, err
 	}
-	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested)
+	allowCompleteWithdrawal, err := s.approvalAllowsCompleteWithdrawal(ctx)
+	if err != nil {
+		return nil, err
+	}
+	base, err := s.materializedSelections(ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, allowCompleteWithdrawal)
 	if err != nil {
 		return nil, err
 	}
@@ -2434,7 +2568,7 @@ func (s *offeringChangeRequestService) materializeDecisionSelections(
 		return result, nil
 	}
 	result.selected, err = s.materializedSelectionsExcluding(
-		ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, excluded,
+		ctx, phase, rowCopy.RequestChildID, rowCopy.EffectiveFrom, requested, excluded, allowCompleteWithdrawal,
 	)
 	if err != nil {
 		return nil, err

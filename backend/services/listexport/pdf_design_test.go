@@ -875,3 +875,77 @@ func TestDesignedPDFLineBreaksGrowRowHeight(t *testing.T) {
 		t.Fatalf("row lines = %d, want 3", got)
 	}
 }
+
+// The Notfallliste (#2609) prints a free-text health note next to a phone
+// number. Whoever grabs that sheet in an emergency must get the WHOLE note:
+// a silently clipped "Nussallergie, Epipen im…" is worse than no note at all.
+// Two properties, both on the real six-column emergency layout: the health
+// column is wide enough to wrap into readable lines, and wrapping keeps every
+// word without introducing an ellipsis.
+func TestDesignedPDFHealthColumnWrapsWithoutTruncation(t *testing.T) {
+	t.Parallel()
+
+	const note = "Erdnussallergie und Hausstaubmilbenallergie, Notfallset (Epipen) hängt im Gruppenraum neben der Tür, bei Atemnot sofort Notarzt rufen und die Mutter unter der ersten Nummer erreichen"
+
+	doc := Document{
+		Title:       "Notfallliste",
+		GeneratedAt: time.Date(2026, 8, 26, 8, 0, 0, 0, time.UTC),
+		Columns: []Column{
+			{ID: ColumnName, Label: "Name"},
+			{ID: ColumnSchoolClass, Label: "Klasse"},
+			{ID: ColumnCurrentLocation, Label: "Ort / Raum"},
+			{ID: ColumnContactPhone, Label: "Telefonnummer"},
+			{ID: ColumnContactName, Label: "Kontakt"},
+			{ID: ColumnHealthInfo, Label: "Gesundheit / Allergien"},
+		},
+		Rows: []Row{{Values: map[ColumnID]string{
+			ColumnName:            "Albrecht, Mila",
+			ColumnSchoolClass:     "3b",
+			ColumnCurrentLocation: "Kreativraum",
+			ColumnContactPhone:    "02551 111",
+			ColumnContactName:     "Lea Albrecht",
+			ColumnHealthInfo:      note,
+		}}},
+	}
+
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatal(err)
+	}
+
+	// The health column must be the widest on the sheet — a long note in a
+	// name-sized column wraps into one word per line and stops being readable.
+	healthWidth := r.widths[5]
+	for i, w := range r.widths[:5] {
+		if healthWidth <= w {
+			t.Fatalf("health column width %.1f is not wider than column %d (%.1f)", healthWidth, i, w)
+		}
+	}
+
+	row := r.buildRow(doc.Rows[0])
+	lines := make([]string, 0, len(row.cells[5]))
+	for _, ln := range row.cells[5] {
+		if strings.Contains(ln.text, "...") || strings.Contains(ln.text, "…") {
+			t.Fatalf("health note was truncated: %q", ln.text)
+		}
+		lines = append(lines, ln.text)
+	}
+	if len(lines) < 2 {
+		t.Fatalf("health note rendered in %d line(s), expected it to wrap", len(lines))
+	}
+	if got := strings.Join(lines, " "); got != note {
+		t.Fatalf("wrapping dropped or altered the health note:\n got: %q\nwant: %q", got, note)
+	}
+
+	// And the whole row still renders through the real pipeline.
+	file, err := NewService().Render(doc, FormatPDF, "notfallliste")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if !bytes.HasPrefix(file.Data, []byte("%PDF-1.")) {
+		t.Fatalf("PDF header = %q", file.Data[:8])
+	}
+}

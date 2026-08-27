@@ -1,26 +1,29 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 import { Download, EllipsisVertical, Share, X } from "lucide-react";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { trackEvent } from "~/lib/analytics";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   canPromptInstall,
+  createChromeIntentUrl,
   dismissInstallHint,
   isAndroidDevice,
   isInstallHintEligible,
   isInstallationCompleted,
+  isSamsungInternet,
   subscribeInstallPrompt,
   triggerInstallPrompt,
 } from "~/lib/pwa-install-prompt";
 
-export { isAndroidDevice } from "~/lib/pwa-install-prompt";
+export { isAndroidDevice, isSamsungInternet } from "~/lib/pwa-install-prompt";
 
 const logger = createLogger({ component: "PwaInstallHint" });
 
-export type InstallPlatform = "ios" | "android";
+export type InstallPlatform = "ios" | "android" | "samsung";
 
 /** True on iPhone/iPad (iPadOS reports itself as MacIntel with touch). */
 export function isIosDevice(nav: Navigator): boolean {
@@ -42,6 +45,30 @@ export function isStandaloneDisplay(win: Window): boolean {
   if (win.matchMedia("(display-mode: standalone)").matches) return true;
   const nav = win.navigator as Navigator & { standalone?: boolean };
   return nav.standalone === true;
+}
+
+export function SamsungChromeInstructions({
+  pageUrl,
+}: Readonly<{ pageUrl: URL }>) {
+  const t = useTranslations("pwaInstallHint");
+  return (
+    <>
+      <p className="mt-1">{t("samsungDescription")}</p>
+      <p className="mt-2">
+        {t("samsungStep")} <span className="font-medium">{t("install")}</span>.
+      </p>
+      <ButtonLink
+        href={createChromeIntentUrl(pageUrl)}
+        size="md"
+        className="mt-3"
+      >
+        {t("openInChrome")}
+      </ButtonLink>
+      <p className="mt-2 text-gray-600">
+        {t("samsungFallback", { host: pageUrl.host })}
+      </p>
+    </>
+  );
 }
 
 /**
@@ -71,6 +98,7 @@ export function isStandaloneDisplay(win: Window): boolean {
  * second visit, or after the user dismissed it.
  */
 export function PwaInstallHint() {
+  const t = useTranslations("pwaInstallHint");
   const [platform, setPlatform] = useState<InstallPlatform | null>(null);
 
   // Chrome may fire beforeinstallprompt before or after this mounts, so read
@@ -89,6 +117,7 @@ export function PwaInstallHint() {
   useEffect(() => {
     let detected: InstallPlatform | null = null;
     if (isIosSafari(window.navigator)) detected = "ios";
+    else if (isSamsungInternet(window.navigator)) detected = "samsung";
     else if (isAndroidDevice(window.navigator)) detected = "android";
     if (!detected) return;
     if (isStandaloneDisplay(window)) return;
@@ -172,28 +201,26 @@ export function PwaInstallHint() {
             id="pwa-install-hint-title"
             className="font-semibold text-gray-900"
           >
-            moto als App nutzen
+            {t("title")}
           </h2>
-          {showOneTapInstall ? (
-            <p className="mt-1">
-              Installieren Sie moto direkt aus dieser Ansicht. So öffnet sich
-              moto immer im Vollbild, ohne Browserleiste.
-            </p>
+          {platform === "samsung" ? (
+            <SamsungChromeInstructions
+              pageUrl={new URL(window.location.href)}
+            />
+          ) : showOneTapInstall ? (
+            <p className="mt-1">{t("oneTapDescription")}</p>
           ) : platform === "ios" ? (
             <p className="mt-1">
-              Tippen Sie in Safari auf{" "}
-              <span className="font-medium">Teilen</span> und dann auf{" "}
-              <span className="font-medium">Zum Home-Bildschirm</span>. So
-              öffnet sich moto immer im Vollbild.
+              {t("iosBefore")} <span className="font-medium">{t("share")}</span>{" "}
+              {t("iosBetween")}{" "}
+              <span className="font-medium">{t("homeScreen")}</span>.
             </p>
           ) : (
             <p className="mt-1">
-              Öffnen Sie das Browser-Menü und tippen Sie auf{" "}
-              <span className="font-medium">App installieren</span> oder{" "}
-              <span className="font-medium">
-                Zum Startbildschirm hinzufügen
-              </span>
-              . So öffnet sich moto immer im Vollbild.
+              {t("androidBefore")}{" "}
+              <span className="font-medium">{t("install")}</span>{" "}
+              {t("androidOr")}{" "}
+              <span className="font-medium">{t("addToHome")}</span>.
             </p>
           )}
           {showOneTapInstall && (
@@ -204,7 +231,7 @@ export function PwaInstallHint() {
               className="mt-3"
               onClick={install}
             >
-              App installieren
+              {t("install")}
             </Button>
           )}
         </div>
@@ -212,7 +239,7 @@ export function PwaInstallHint() {
           type="button"
           variant="ghost"
           size="icon"
-          aria-label="Hinweis schließen"
+          aria-label={t("close")}
           onClick={dismiss}
         >
           <X className="h-4 w-4" aria-hidden="true" />

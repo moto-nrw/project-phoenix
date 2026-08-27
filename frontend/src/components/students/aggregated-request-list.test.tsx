@@ -140,6 +140,7 @@ describe("AggregatedRequestList", () => {
           schoolClass: "2a",
           firstBookinglessDay: "2026-09-01",
           urgency: "planned",
+          state: "pending",
         },
       ],
       total: 1,
@@ -180,6 +181,7 @@ describe("AggregatedRequestList", () => {
       schoolClass: "2a",
       firstBookinglessDay: "2026-09-01",
       urgency: "planned" as const,
+      state: "pending" as const,
     }));
     mockListWithdrawals
       .mockResolvedValueOnce({
@@ -212,6 +214,122 @@ describe("AggregatedRequestList", () => {
     });
   });
 
+  it("warns before opening the detailed deletion preview", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-delete",
+          studentId: "10",
+          firstName: "Mia",
+          lastName: "Muster",
+          schoolClass: "2a",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "planned",
+          state: "pending",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+    render(
+      <AggregatedRequestList
+        view="open"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Anfrage für Mia Muster/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kind sofort löschen" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Kind sofort löschen" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Das Kind wird sofort gelöscht. Auch ein späterer letzter Betreuungstag wird nicht abgewartet.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Löschen prüfen" }),
+    ).toBeVisible();
+  });
+
+  it("shows a deleted completion without child data in history", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-deleted",
+          studentId: "",
+          firstName: "",
+          lastName: "",
+          schoolClass: "",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "overdue",
+          state: "resolved",
+          outcome: "deleted",
+          resolvedAt: "2026-09-02T09:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="history"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    expect(await screen.findByText("Gelöschtes Kind")).toBeVisible();
+    expect(screen.getByText("Kind sofort gelöscht")).toBeVisible();
+    expect(mockListWithdrawals).toHaveBeenCalledWith({
+      search: "",
+      page: 1,
+      pageSize: 100,
+      state: "resolved",
+    });
+  });
+
+  it("preserves a care-ended outcome after the child data is redacted", async () => {
+    mockListWithdrawals.mockResolvedValue({
+      items: [
+        {
+          id: "withdrawal-care-ended-redacted",
+          studentId: "",
+          firstName: "",
+          lastName: "",
+          schoolClass: "",
+          firstBookinglessDay: "2026-09-01",
+          urgency: "overdue",
+          state: "resolved",
+          outcome: "care_ended",
+          resolvedAt: "2026-09-02T09:00:00Z",
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 100,
+    });
+
+    render(
+      <AggregatedRequestList
+        view="history"
+        filters={{ ...NO_FILTERS, includeCareWithdrawals: true }}
+      />,
+    );
+
+    expect(await screen.findByText("Gelöschtes Kind")).toBeVisible();
+    expect(screen.getByText("Betreuung beendet")).toBeVisible();
+    expect(screen.queryByText("Kind sofort gelöscht")).not.toBeInTheDocument();
+  });
+
   it("does not show withdrawals when another request type is selected", async () => {
     mockListWithdrawals.mockResolvedValue({
       items: [
@@ -223,6 +341,7 @@ describe("AggregatedRequestList", () => {
           schoolClass: "2a",
           firstBookinglessDay: "2026-09-01",
           urgency: "planned",
+          state: "pending",
         },
       ],
       total: 1,

@@ -13,7 +13,7 @@ type ButtonVariant =
   | "surface"
   | "ghost";
 type ButtonSize =
-  "sm" | "md" | "base" | "lg" | "xl" | "touch" | "compact" | "icon";
+  "sm" | "md" | "base" | "lg" | "xl" | "touch" | "compact" | "icon" | "card";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   ref?: React.Ref<HTMLButtonElement>;
@@ -50,6 +50,7 @@ function buttonClassName({
     touch: "",
     compact: "text-xs",
     icon: "text-xs",
+    card: "text-sm",
   };
   const sizeStyles: Record<ButtonSize, string> = {
     sm: "rounded-lg px-5 py-3",
@@ -63,6 +64,7 @@ function buttonClassName({
     touch: "min-h-12 rounded-xl px-5 text-[17px] font-semibold",
     compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
     icon: "h-8 w-8 rounded-md disabled:cursor-not-allowed",
+    card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {
     primary:

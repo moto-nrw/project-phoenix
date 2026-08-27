@@ -31,6 +31,21 @@ func seedPublishedPoll(
 	labels ...string,
 ) *usersModels.ParentAnnouncement {
 	t.Helper()
+	return seedPublishedPollWithTargets(t, ctx, repo, createdBy, tenantID, deadline,
+		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		labels...)
+}
+
+func seedPublishedPollWithTargets(
+	t *testing.T,
+	ctx context.Context,
+	repo usersModels.ParentAnnouncementRepository,
+	createdBy, tenantID int64,
+	deadline *time.Time,
+	targets []*usersModels.ParentAnnouncementTarget,
+	labels ...string,
+) *usersModels.ParentAnnouncement {
+	t.Helper()
 	a := &usersModels.ParentAnnouncement{
 		Title:            "Murmelparty",
 		Body:             "Kommt Ihr Kind zur Murmelparty?",
@@ -42,8 +57,7 @@ func seedPublishedPoll(
 	}
 	a.SetTenantID(tenantID)
 	require.NoError(t, repo.Create(ctx, a))
-	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
 
 	options := make([]*usersModels.ParentAnnouncementOption, 0, len(labels))
 	for i, label := range labels {
@@ -75,7 +89,12 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
+		[]*usersModels.ParentAnnouncementTarget{{
+			TargetType:  usersModels.AnnouncementTargetStudent,
+			TargetRefID: &chain.StudentID,
+		}},
+		"Ja", "Nein")
 	require.Len(t, poll.Options, 2)
 
 	ctx := context.Background()
@@ -146,7 +165,12 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(context.Background(), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
+		[]*usersModels.ParentAnnouncementTarget{{
+			TargetType:  usersModels.AnnouncementTargetStudent,
+			TargetRefID: &chain.StudentID,
+		}},
+		"Ja", "Nein")
 	_, err := db.NewUpdate().
 		TableExpr("users.students_guardians").
 		Set("permissions = ?", `{"parent_portal.access": true}`).

@@ -786,6 +786,10 @@ export interface ParentAnnouncement {
   readonly response_deadline?: string; // ISO timestamp
   readonly options?: readonly ParentAnnouncementOption[];
   readonly children?: readonly ParentAnnouncementPollChild[];
+
+  // Set on rows the system wrote on the school's behalf (#2601). A
+  // cancellation notice is labelled as such instead of "Elternbrief".
+  readonly system_kind?: "care_cancellation";
 }
 
 interface ParentAnnouncementOption {
@@ -1223,6 +1227,7 @@ interface OfferingDecision {
   /** Date the switch took (or would have taken) effect (YYYY-MM-DD). */
   readonly effective_from: string;
   readonly reason?: string;
+  readonly complete_withdrawal?: boolean;
   /** What the family asked for, so the decision stays readable on its own. */
   readonly requested: OfferingRequestedItem[];
   /** The frozen diff the decision was made on; absent for older decisions. */
@@ -1326,6 +1331,7 @@ export async function submitOfferingChangeRequest(
     offerings: OfferingChangeSelectionInput[];
     effective_from: string;
     note?: string;
+    complete_withdrawal_confirmed?: boolean;
   },
 ): Promise<ChildCareOfferings> {
   return postJson<ChildCareOfferings>(

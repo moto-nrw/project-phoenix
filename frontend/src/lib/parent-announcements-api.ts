@@ -64,6 +64,8 @@ export interface Announcement {
   targets: AnnouncementTarget[];
   response_type: AnnouncementResponseType;
   response_deadline?: string;
+  /** Set on rows the system wrote, e.g. the cancellation notice (#2601). */
+  system_kind?: "care_cancellation";
   options: AnnouncementOption[];
   delivery_mode: AnnouncementDeliveryMode;
   email_audience: AnnouncementEmailAudience;

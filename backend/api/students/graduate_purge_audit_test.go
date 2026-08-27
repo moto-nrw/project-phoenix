@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -32,10 +33,18 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 		repos.StudentDeletionAudit,
 		tc.db,
 	)
+	usersService.WireStudentDeletionCareWithdrawals(tc.resource.StudentDeletionService, repos.CareWithdrawal)
 	tc.resource.GradeTransitionService = tc.services.GradeTransition
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")
+	studentID := student.ID
+	completion := &usersModels.CareWithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: timezone.TodayDate(),
+		Trigger:               usersModels.CareWithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actor.ID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+	}
+	require.NoError(t, repos.CareWithdrawal.UpsertPending(testpkg.Ctx(t), completion))
 	room := testpkg.CreateTestRoom(t, tc.db, "graduate-purge-audit-room")
 	instance := testpkg.CreateTestActivityInstance(t, tc.db, timezone.TodayDate().AddDays(-1), room.ID, testpkg.ActivityInstanceOpts{
 		Title:         "Retained graduate roster assignment",
@@ -73,4 +82,10 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 	require.NoError(t, tc.db.NewSelect().TableExpr(`schedule.instance_students`).ColumnExpr("COUNT(*)").
 		Where("id = ?", assignment.ID).Scan(testpkg.Ctx(t), &assignmentCount))
 	assert.Zero(t, assignmentCount, "the retained historical assignment must not block the student delete")
+
+	redacted, err := repos.CareWithdrawal.FindByID(testpkg.Ctx(t), completion.ID)
+	require.NoError(t, err)
+	require.NotNil(t, redacted.Outcome)
+	assert.Equal(t, usersModels.CareWithdrawalOutcomeDeleted, *redacted.Outcome)
+	assert.Nil(t, redacted.StudentID)
 }

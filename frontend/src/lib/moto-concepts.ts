@@ -28,6 +28,7 @@ import {
   DotsThreeIcon,
   EnvelopeIcon,
   EnvelopeOpenIcon,
+  FolderOpenIcon,
   EyeIcon,
   FileArrowDownIcon,
   FingerprintSimpleIcon,
@@ -347,7 +348,7 @@ export const MOTO_CONCEPTS = {
     "administration",
   ),
   reports: concept(
-    "Berichte",
+    "Statistik",
     PresentationChartIcon,
     "indigo",
     "function",
@@ -418,6 +419,8 @@ export const MOTO_CONCEPTS = {
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
   // Mitarbeitenden, über die die OGS entscheidet.
   requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
+  // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
+  files: concept("Dateien", FolderOpenIcon, "neutral", "function", "system"),
   rfid: concept(
     "RFID",
     ContactlessPaymentIcon,

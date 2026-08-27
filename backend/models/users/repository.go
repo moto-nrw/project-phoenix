@@ -123,6 +123,10 @@ type StudentRepository interface {
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)
 
+	// ListIDs retrieves lightweight tenant-scoped candidates. The shared dated
+	// participation evaluator, not a lifecycle status, decides visibility.
+	ListIDs(ctx context.Context) ([]int64, error)
+
 	// FindBirthdaysOn returns the non-graduated children whose birthday falls
 	// on one of the given annually recurring days (#1542). Children without a
 	// stored birth date are omitted, never rendered as an unknown date.
@@ -147,6 +151,11 @@ type StudentRepository interface {
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
+	// FindOverlappingWithGroups retrieves the non-alumni students enrolled on
+	// at least one day of the inclusive report range, with their current
+	// group. Membership follows EnrolledOn, so today decides whether an
+	// immediately activated child (active, enrolled_from still ahead) counts.
+	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*StudentWithGroupInfo, error)
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
 	// Alumni are excluded: a graduate is soft-deleted and must not block the

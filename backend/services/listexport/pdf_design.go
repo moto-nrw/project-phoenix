@@ -302,6 +302,11 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 			weight = 1.5
 		case ColumnGuardianContacts:
 			weight = 2.7
+		case ColumnHealthInfo:
+			// A free-text health note is the widest cell on the Notfallliste
+			// (#2609): it has to wrap into readable lines rather than into a
+			// one-word-per-line column, so it gets roughly twice a name's width.
+			weight = 2.4
 		case ColumnPlanRowLabel:
 			// A plan matrix inverts the child-list balance: the row label is
 			// one name or one area, the day cells carry everything else.

@@ -135,6 +135,8 @@ type announcementResponse struct {
 	Options                 []optionResponse `json:"options"`
 	DeliveryMode            string           `json:"delivery_mode"`
 	EmailAudience           string           `json:"email_audience"`
+	// SystemKind marks rows the system wrote (cancellation notice, #2601).
+	SystemKind *string `json:"system_kind,omitempty"`
 }
 
 type statsResponse struct {
@@ -198,6 +200,7 @@ func toAnnouncementResponse(a *usersModels.ParentAnnouncement) announcementRespo
 		Options:                 toOptionResponses(a.Options),
 		DeliveryMode:            a.DeliveryMode,
 		EmailAudience:           a.EmailAudience,
+		SystemKind:              a.SystemKind,
 	}
 }
 
@@ -608,6 +611,8 @@ func renderAnnouncementError(w http.ResponseWriter, r *http.Request, err error) 
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "parent_news_disabled"))
 	case errors.Is(err, announcementService.ErrPublishedImmutable):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "announcement_published_immutable"))
+	case errors.Is(err, announcementService.ErrSystemAnnouncementImmutable):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "system_announcement_immutable"))
 	case errors.Is(err, announcementService.ErrNotAPoll):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, announcementService.ErrPollNotOpen):

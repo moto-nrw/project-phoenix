@@ -42,13 +42,18 @@ import {
   getSectionBreadcrumb,
 } from "./header/breadcrumb-utils";
 
-
 // Seitentitel des Schul-Portals. Beide Schreibweisen eines Pfades führen zum
 // selben Titel: auf dem Schul-Host zeigt die Adresszeile "/" und
 // "/aufsichten", intern laufen die Seiten unter /school und
 // /school/aufsichten.
 function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/school") return "Klassenansicht";
+  // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
+  // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
+  // die Seite selbst.
+  if (pathname === "/klasse" || pathname === "/school/klasse") {
+    return "Klassenansicht";
+  }
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
     return "Meine Aufsichten";
   }

@@ -1,11 +1,13 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -13,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // "Betreuung beenden" (#2487). The whole surface sits behind users:delete —
@@ -203,12 +206,15 @@ func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
 
 type careWithdrawalResponse struct {
 	ID                  string `json:"id"`
-	StudentID           string `json:"student_id"`
+	StudentID           string `json:"student_id,omitempty"`
 	FirstName           string `json:"first_name,omitempty"`
 	LastName            string `json:"last_name,omitempty"`
 	SchoolClass         string `json:"school_class,omitempty"`
 	FirstBookinglessDay string `json:"first_bookingless_day"`
 	Urgency             string `json:"urgency"`
+	State               string `json:"state"`
+	Outcome             string `json:"outcome,omitempty"`
+	ResolvedAt          string `json:"resolved_at,omitempty"`
 }
 
 func toCareWithdrawalResponse(row *userModels.CareWithdrawalCompletion) careWithdrawalResponse {
@@ -216,11 +222,18 @@ func toCareWithdrawalResponse(row *userModels.CareWithdrawalCompletion) careWith
 	if row.StudentID != nil {
 		studentID = strconv.FormatInt(*row.StudentID, 10)
 	}
-	return careWithdrawalResponse{
+	response := careWithdrawalResponse{
 		ID: strconv.FormatInt(row.ID, 10), StudentID: studentID,
 		FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
-		FirstBookinglessDay: row.FirstBookinglessDay.String(), Urgency: row.UrgencyOn(timezone.TodayDate()),
+		FirstBookinglessDay: row.FirstBookinglessDay.String(), Urgency: row.UrgencyOn(timezone.TodayDate()), State: row.State,
 	}
+	if row.Outcome != nil {
+		response.Outcome = *row.Outcome
+	}
+	if row.ResolvedAt != nil {
+		response.ResolvedAt = row.ResolvedAt.Format(time.RFC3339)
+	}
+	return response
 }
 
 func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) {
@@ -238,7 +251,18 @@ func (rs *Resource) listCareWithdrawals(w http.ResponseWriter, r *http.Request) 
 	filter := userModels.CareWithdrawalCompletionFilter{
 		Search: r.URL.Query().Get("search"), StudentID: studentID, Page: page, PageSize: pageSize,
 	}.Normalized()
-	rows, total, err := rs.CareLifecycleService.ListPendingWithdrawals(r.Context(), filter)
+	state := strings.TrimSpace(r.URL.Query().Get("state"))
+	var rows []*userModels.CareWithdrawalCompletion
+	var total int
+	switch state {
+	case "", userModels.CareWithdrawalStatePending:
+		rows, total, err = rs.CareLifecycleService.ListPendingWithdrawals(r.Context(), filter)
+	case userModels.CareWithdrawalStateResolved:
+		rows, total, err = rs.CareLifecycleService.ListResolvedWithdrawals(r.Context(), filter)
+	default:
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("state must be pending or resolved")))
+		return
+	}
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
 		return
@@ -321,6 +345,110 @@ func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 		"students_ended": result.StudentsEnded, "roster_rows_removed": result.RosterRowsRemoved,
 		"bookings_ended": result.BookingsEnded,
 	}, "Betreuung beendet")
+}
+
+func (rs *Resource) previewWithdrawalDeletion(w http.ResponseWriter, r *http.Request) {
+	if rs.CareLifecycleService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "completionId", "invalid completion ID")
+	if !ok {
+		return
+	}
+	if _, ok := rs.authorizeWithdrawalDeletion(w, r, id); !ok {
+		return
+	}
+	impact, err := rs.CareLifecycleService.PreviewWithdrawalDeletion(r.Context(), id)
+	if err != nil {
+		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Auswirkungen der Löschung geladen")
+}
+
+func (rs *Resource) deleteWithdrawalStudent(w http.ResponseWriter, r *http.Request) {
+	if rs.CareLifecycleService == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("care lifecycle service not configured")))
+		return
+	}
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "completionId", "invalid completion ID")
+	if !ok {
+		return
+	}
+	body := new(studentDeleteRequest)
+	if err := render.Bind(r, body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	completion, ok := rs.authorizeWithdrawalDeletion(w, r, id)
+	if !ok {
+		return
+	}
+	studentID := *completion.StudentID
+	result, err := rs.CareLifecycleService.DeleteWithdrawal(r.Context(), id, userService.StudentDeletionInput{
+		ActorAccountID:      int64(jwt.ClaimsFromCtx(r.Context()).ID),
+		ExpectedFingerprint: body.ExpectedFingerprint,
+		ConfirmationName:    body.ConfirmationName,
+		Reason:              body.Reason,
+		Acknowledged:        body.Acknowledged,
+	})
+	if err != nil {
+		// The route middleware owns the ambient transaction. The service cannot
+		// roll it back itself when the delete re-check fails.
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		return
+	}
+	rs.scheduleWithdrawalDeletionEffects(r.Context(), studentID, result)
+	common.Respond(w, r, http.StatusOK, nil, "Kind und verknüpfte Daten gelöscht")
+}
+
+func (rs *Resource) scheduleWithdrawalDeletionEffects(
+	ctx context.Context,
+	studentID int64,
+	result *userService.StudentDeletionResult,
+) {
+	if rs.StudentPhotos != nil {
+		rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, result.PhotoPath)
+	}
+	if len(result.CompanionIDs) == 0 {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	tenant.RegisterAfterCommit(ctx, func() {
+		rs.broadcastStudentCompanionsChanged(tenantID, studentID)
+	})
+}
+
+func (rs *Resource) authorizeWithdrawalDeletion(
+	w http.ResponseWriter,
+	r *http.Request,
+	completionID int64,
+) (*userModels.CareWithdrawalCompletion, bool) {
+	completion, err := rs.CareLifecycleService.GetPendingWithdrawal(r.Context(), completionID)
+	if err != nil {
+		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		return nil, false
+	}
+	students, err := rs.StudentService.GetByIDs(r.Context(), []int64{*completion.StudentID})
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return nil, false
+	}
+	student := students[*completion.StudentID]
+	if student == nil {
+		renderError(w, r, common.ErrorNotFound(userService.ErrCareWithdrawalNotFound))
+		return nil, false
+	}
+	authorized, authErr := canDeleteStudent(
+		r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService,
+	)
+	if !authorized {
+		renderError(w, r, common.ErrorForbidden(authErr))
+		return nil, false
+	}
+	return completion, true
 }
 
 type careExitCancelRequest struct {
@@ -514,3 +642,13 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 		cause,
 	)
 })
+
+func withdrawalDeletionErrorRenderer(err error) render.Renderer {
+	if errors.Is(err, userService.ErrCareWithdrawalNotFound) {
+		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
+	}
+	if errors.Is(err, userModels.ErrCareWithdrawalAlreadyResolved) {
+		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
+	}
+	return studentDeletionErrorRenderer(err)
+}

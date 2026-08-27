@@ -12,12 +12,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
 	"github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/feedback"
+	"github.com/moto-nrw/project-phoenix/database/repositories/filestore"
 	"github.com/moto-nrw/project-phoenix/database/repositories/iot"
 	mealplanRepo "github.com/moto-nrw/project-phoenix/database/repositories/mealplan"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
+	filestoreModels "github.com/moto-nrw/project-phoenix/models/filestore"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -91,6 +93,11 @@ type Factory struct {
 	StaffDocument   userModels.StaffDocumentRepository
 	StudentDocument userModels.StudentDocumentRepository
 
+	// School file storage (#2596)
+	FileFolder filestoreModels.FolderRepository
+	File       filestoreModels.FileRepository
+	FileEvent  auditModels.FileEventRepository
+
 	NotificationPreference userModels.NotificationPreferenceRepository
 
 	// Facilities domain
@@ -136,13 +143,15 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup           activeModels.GroupRepository
-	ActiveVisit           activeModels.VisitRepository
-	GroupSupervisor       activeModels.GroupSupervisorRepository
-	CombinedGroup         activeModels.CombinedGroupRepository
-	GroupMapping          activeModels.GroupMappingRepository
-	Attendance            activeModels.AttendanceRepository
-	StudentStatusDay      activeModels.StudentStatusDayOverviewRepository
+	ActiveGroup      activeModels.GroupRepository
+	ActiveVisit      activeModels.VisitRepository
+	GroupSupervisor  activeModels.GroupSupervisorRepository
+	CombinedGroup    activeModels.CombinedGroupRepository
+	GroupMapping     activeModels.GroupMappingRepository
+	Attendance       activeModels.AttendanceRepository
+	StudentStatusDay activeModels.StudentStatusDayOverviewRepository
+	// Statistics serves the aggregate reads of the Statistik page (#2606).
+	Statistics            activeModels.StatisticsRepository
 	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
 	WorkSession           activeModels.WorkSessionRepository
 	WorkSessionBreak      activeModels.WorkSessionBreakRepository
@@ -248,6 +257,11 @@ type Factory struct {
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
 
+	// OGS-internal colleague chat (#2598)
+	StaffMessageThread userModels.StaffMessageThreadRepository
+	StaffMessage       userModels.StaffMessageRepository
+	StaffMessageRead   userModels.StaffMessageReadRepository
+
 	// Calendar domain
 	CalendarAppointment               calendarModels.AppointmentRepository
 	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
@@ -312,6 +326,11 @@ func NewFactory(db *bun.DB) *Factory {
 		StaffDocument:   users.NewStaffDocumentRepository(db),
 		StudentDocument: users.NewStudentDocumentRepository(db),
 
+		// School file storage (#2596)
+		FileFolder: filestore.NewFolderRepository(db),
+		File:       filestore.NewFileRepository(db),
+		FileEvent:  audit.NewFileEventRepository(db),
+
 		NotificationPreference: users.NewNotificationPreferenceRepository(db),
 
 		// Facilities repositories
@@ -364,6 +383,7 @@ func NewFactory(db *bun.DB) *Factory {
 		GroupMapping:          active.NewGroupMappingRepository(db),
 		Attendance:            active.NewAttendanceRepository(db),
 		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		Statistics:            active.NewStatisticsRepository(db),
 		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
 		WorkSession:           active.NewWorkSessionRepository(db),
 		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
@@ -465,6 +485,10 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
+
+		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
+		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageRead:   users.NewStaffMessageReadRepository(db),
 
 		// Calendar repositories
 		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),

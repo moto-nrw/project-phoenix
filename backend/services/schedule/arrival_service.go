@@ -81,6 +81,9 @@ type EffectiveArrivalTime struct {
 	IsException bool              `json:"is_exception"`
 	Notes       string            `json:"notes,omitempty"`
 	DayNotes    []ArrivalNoteData `json:"day_notes,omitempty"`
+	// ChangedAt is when the overriding day exception was recorded; set only
+	// together with IsException.
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
 }
 
 type ArrivalScheduleInput struct {
@@ -830,6 +833,7 @@ func arrivalEffectiveTime(result *effectiveTimeResult) *EffectiveArrivalTime {
 		WeekdayName: result.WeekdayName,
 		IsException: result.IsException,
 		Notes:       result.Notes,
+		ChangedAt:   result.ChangedAt,
 	}
 	for _, note := range result.DayNotes {
 		mapped.DayNotes = append(mapped.DayNotes, ArrivalNoteData(note))

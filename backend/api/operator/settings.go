@@ -12,11 +12,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -69,7 +71,8 @@ type SettingsResource struct {
 	// post-commit closure. Mirrors the tenant SettingsResource.OnValueSet
 	// contract so side effects apply uniformly regardless of who flipped the
 	// value; passed to the operatorSettings service on each write.
-	onValueSet configSvc.OperatorValueSetHook
+	onValueSet    configSvc.OperatorValueSetHook
+	careLifecycle usersSvc.CareLifecycleService
 }
 
 // NewSettingsResource creates a new operator settings resource. broadcaster
@@ -80,12 +83,20 @@ type SettingsResource struct {
 // for tenant-resolve-affecting settings (e.g. student_photos_enabled).
 // broadcaster and activeService are optional — nil disables the corresponding
 // mechanism (broadcast fan-out / presence-mode guard).
-func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster realtime.Broadcaster, schoolService platformSvc.SchoolService, activeService activeSvc.Service) *SettingsResource {
+func NewSettingsResource(
+	svc configSvc.SettingsService,
+	db *bun.DB,
+	broadcaster realtime.Broadcaster,
+	schoolService platformSvc.SchoolService,
+	activeService activeSvc.Service,
+	lifecycle usersSvc.CareLifecycleService,
+) *SettingsResource {
 	return &SettingsResource{
 		settingsService:  svc,
 		db:               db,
 		operatorSettings: configSvc.NewOperatorSettingsService(svc, db, broadcaster, activeService, slog.Default()),
 		schoolService:    schoolService,
+		careLifecycle:    lifecycle,
 	}
 }
 
@@ -160,6 +171,31 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusOK, schema, "Schema retrieved successfully")
 }
 
+// GetBookingAuthorityImpact shows the facts an operator must review before
+// enabling booking-led care. The write path repeats this evaluation under the
+// booking-write lock, so a stale preview cannot bypass the guard.
+func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *http.Request) {
+	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
+	if !ok {
+		return
+	}
+	if rs.careLifecycle == nil {
+		render.Render(w, r, ErrInternal("Booking authority impact service is not configured")) //nolint:errcheck
+		return
+	}
+	var impact *usersSvc.BookingAuthorityImpact
+	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
+		var impactErr error
+		impact, impactErr = rs.careLifecycle.PreviewBookingAuthorityImpact(ctx, timezone.TodayDate())
+		return impactErr
+	})
+	if err != nil {
+		render.Render(w, r, ErrInternal("Failed to review booking authority impact")) //nolint:errcheck
+		return
+	}
+	common.Respond(w, r, http.StatusOK, impact, "Booking authority impact retrieved successfully")
+}
+
 // SetSchoolSettingValue sets a setting value for a specific school.
 func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http.Request) {
 	schoolID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid school ID")
@@ -194,6 +230,10 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		// keeps the branch resilient to wrapping, unlike string equality.
 		if errors.Is(err, configSvc.ErrPresenceModeSwitchBlocked) {
 			render.Render(w, r, ErrConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
+			return
+		}
+		if errors.Is(err, usersSvc.ErrBookingAuthorityBlocked) {
+			render.Render(w, r, ErrConflict(usersSvc.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)

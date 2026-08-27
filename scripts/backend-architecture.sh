@@ -6,6 +6,14 @@ cd "$repo_root/backend"
 
 case "${1:-}" in
   check)
+    shift
+    exec go run ./internal/architecture/cmd check "$@"
+    ;;
+  explain)
+    shift
+    exec go run ./internal/architecture/cmd explain "$@"
+    ;;
+  legacy-check)
     go_arch_lint=$(go -C tools tool -n go-arch-lint)
     exec "$go_arch_lint" check \
       --project-path . \
@@ -34,7 +42,7 @@ case "${1:-}" in
     echo "$output"
     ;;
   *)
-    echo "Usage: $0 {check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path]|explain|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
     exit 2
     ;;
 esac
