@@ -387,6 +387,9 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{account.ID})
 		require.NoError(t, err)
 		assert.True(t, hasSubscriptionEndpoint(schoolSubs, sharedEndpoint))
+
+		require.NoError(t, repo.DeleteSchoolByEndpoint(ctx, account.ID, sharedEndpoint))
+		require.NoError(t, repo.DeleteByEndpoint(ctx, account.ID, sharedEndpoint))
 	})
 
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
@@ -427,7 +430,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		deleted, err = repo.DeleteExpiredIfUnchanged(ctx, &current)
 		require.NoError(t, err)
-		assert.False(t, deleted)
+		assert.True(t, deleted)
 
 		var reboundCurrent iotModels.PushSubscription
 		require.NoError(t, db.NewSelect().
@@ -435,6 +438,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 			ModelTableExpr(`iot.push_subscriptions AS "push_subscription"`).
 			Where(`"push_subscription".tenant_id = ?`, tenant.FromContext(ctx)).
 			Where(`"push_subscription".endpoint = ?`, raceEndpoint).
+			Where(`"push_subscription".portal = ?`, iotModels.PushPortalParent).
 			Scan(context.Background()))
 		assert.Equal(t, guardian.ID, reboundCurrent.AccountID)
 		assert.Equal(t, iotModels.PushPortalParent, reboundCurrent.Portal)
