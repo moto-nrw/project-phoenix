@@ -3862,7 +3862,7 @@ function TimeTrackingContent() {
             )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes)}`
           )
         }
-        className="mb-4 md:mb-6"
+        className="mb-6"
       />
 
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
@@ -3889,11 +3889,11 @@ function TimeTrackingContent() {
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
           #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
-      <div className="mb-4 md:mb-6">
+      <div className="mb-6">
         <BetreuungsplanHeuteCard />
       </div>
 
-      <div className="mb-4 md:mb-6">
+      <div className="mb-6">
         <LeaveRequestsCard />
       </div>
 
@@ -4065,17 +4065,17 @@ function TimeTrackingPageSkeleton() {
       <PageIntro
         title="Zeiterfassung"
         description={<Skeleton className="h-4 w-56" />}
-        className="mb-4 md:mb-6"
+        className="mb-6"
       />
       <SkeletonRegion label="Zeiterfassung wird geladen">
         <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
           <CardSkeleton rows={4} />
           <CardSkeleton rows={4} />
         </div>
-        <div className="mb-4 md:mb-6">
+        <div className="mb-6">
           <CardSkeleton rows={2} />
         </div>
-        <div className="mb-4 md:mb-6">
+        <div className="mb-6">
           <CardSkeleton rows={2} />
         </div>
         <TableSkeleton rows={7} columns={5} />

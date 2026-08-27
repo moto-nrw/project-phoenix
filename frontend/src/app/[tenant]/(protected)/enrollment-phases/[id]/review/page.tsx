@@ -21,7 +21,7 @@ export default function RolloverReviewPage({ params }: PageProps) {
   const { isReady } = useRequireAdmin();
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-6">
       <BackButton referrer="/enrollment-phases" />
       {/* Titel und Erklärtext trägt die Kopfkarte der Prüfliste (PageIntro). */}
       {isReady ? (

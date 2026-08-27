@@ -62,7 +62,7 @@ export function DatabasePageLayout({
           title={intro.title}
           description={intro.description}
           actions={intro.actions}
-          className="mb-4"
+          className="mb-6"
         >
           {!isLoading && search ? search : null}
         </PageIntro>

@@ -149,7 +149,7 @@ export function FilesPage() {
         <PageIntro
           title="Dateien"
           description={formatStatusDate()}
-          className="mb-4"
+          className="mb-6"
         />
         <Alert
           type="error"

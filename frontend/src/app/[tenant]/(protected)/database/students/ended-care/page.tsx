@@ -183,7 +183,7 @@ export default function EndedCarePage() {
 
   if (status === "loading") {
     return (
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-6">
         <BackButton referrer="/database/students" />
 
         {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
@@ -202,7 +202,7 @@ export default function EndedCarePage() {
 
   if (!canManage) {
     return (
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-6">
         <BackButton referrer="/database/students" />
         <ForbiddenPage message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“." />
       </div>
@@ -210,7 +210,7 @@ export default function EndedCarePage() {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-6">
       <BackButton referrer="/database/students" />
 
       <PageIntro

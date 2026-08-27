@@ -22,7 +22,7 @@ export default function EnrollmentPhasesPage() {
   const showSkeleton = !isReady;
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-6">
       {showSkeleton ? (
         <>
           {/* Im geladenen Zustand trägt der Editor die Kopfkarte, weil die

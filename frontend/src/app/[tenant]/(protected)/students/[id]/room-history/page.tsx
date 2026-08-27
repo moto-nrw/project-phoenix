@@ -952,7 +952,7 @@ function StudentRoomHistoryPageContent() {
 
       {/* Feature disabled banner */}
       {errorCode === "feature_disabled" && (
-        <div className="mb-4 md:mb-6">
+        <div className="mb-6">
           <Alert type="warning" message={ERROR_MESSAGES.feature_disabled} />
         </div>
       )}
@@ -965,7 +965,7 @@ function StudentRoomHistoryPageContent() {
             </div>
           )}
           {/* Charts */}
-          <div className="mb-4 md:mb-6">
+          <div className="mb-6">
             <HistoryCharts days={history.days} />
           </div>
 

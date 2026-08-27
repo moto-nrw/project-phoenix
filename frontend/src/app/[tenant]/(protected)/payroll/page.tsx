@@ -109,7 +109,7 @@ export default function PayrollPage() {
         kicker="Planung"
         title="Abrechnung"
         description="Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren DATEV-Export (LODAS und Lohn und Gehalt)."
-        className="mb-5"
+        className="mb-6"
       />
       {showSkeleton ? (
         <PayrollDataSkeleton />

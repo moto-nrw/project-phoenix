@@ -482,7 +482,7 @@ export default function OpeningBalanceImportPage() {
 
   if (status === "loading") {
     return (
-      <div className="w-full space-y-5">
+      <div className="w-full space-y-6">
         <BackButton referrer="/database/personal" />
 
         {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
@@ -516,7 +516,7 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full space-y-6">
       <BackButton referrer="/database/personal" />
 
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}

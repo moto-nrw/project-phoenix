@@ -254,7 +254,7 @@ function MessageThreadContent() {
 
   if (!showSkeleton && !thread) {
     return (
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-6">
         <BackButton referrer="/messages" />
         <Alert
           type="error"

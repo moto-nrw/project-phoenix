@@ -1274,7 +1274,7 @@ function TimetablesContent() {
     !periodsLoading && periods !== undefined && calendarPeriods.length === 0;
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-6">
       <PlanningContextBar
         title="Betreuungsplan"
         kicker="Planung"

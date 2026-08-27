@@ -43,7 +43,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
 
   if (!isReady || (phase === null && error === null)) {
     return (
-      <div className="w-full space-y-4">
+      <div className="w-full space-y-6">
         <PageIntro
           kicker="Anschlussphase"
           title="Anschlussphase erstellen"
@@ -57,7 +57,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
   }
 
   return (
-    <div className="w-full space-y-4">
+    <div className="w-full space-y-6">
       <BackButton referrer="/enrollment-phases" />
       {/* Ohne geladene Phase trägt die Seite trotzdem eine Kopfkarte. */}
       {phase ? null : (
