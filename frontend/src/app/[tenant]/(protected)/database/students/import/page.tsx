@@ -472,7 +472,7 @@ export default function StudentImportPage() {
       ]
         .filter(Boolean)
         .join(" · ")
-    : "Schritt 1 von 4 · noch keine Datei gewählt";
+    : "Noch keine Datei gewählt";
 
   if (status === "loading") {
     return (
@@ -503,23 +503,35 @@ export default function StudentImportPage() {
       />
 
       {/* Info Section */}
-      <SectionCard title="Import-Anleitung" icon={Info}>
-        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-          <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
-          <li>
-            Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
-            oder TT.MM.JJ
-          </li>
-          <li>
-            Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
-            Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
-          </li>
-          <li>Speichern Sie die ausgefüllte Datei</li>
-          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
-          <li>Bestätigen Sie den Import</li>
-        </ul>
-      </SectionCard>
+      <section className="border-moto-blue/20 bg-moto-blue-soft rounded-2xl border p-5">
+        <div className="flex items-center gap-3">
+          <span className="text-moto-blue flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">
+            <Info className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <h2 className="text-base font-semibold text-gray-900">
+            Import-Anleitung
+          </h2>
+        </div>
+        <div className="mt-4">
+          <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+            <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+            <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
+            <li>
+              Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
+              oder TT.MM.JJ
+            </li>
+            <li>
+              Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+              Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
+            </li>
+            <li>Speichern Sie die ausgefüllte Datei</li>
+            <li>
+              Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
+            </li>
+            <li>Bestätigen Sie den Import</li>
+          </ul>
+        </div>
+      </section>
 
       {/* Error Display */}
       {error && (

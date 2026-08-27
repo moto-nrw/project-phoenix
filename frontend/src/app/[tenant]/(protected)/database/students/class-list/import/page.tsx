@@ -362,7 +362,7 @@ export default function ClassListImportPage() {
       ]
         .filter(Boolean)
         .join(" · ")
-    : "Schritt 1 von 3 · noch keine Datei gewählt";
+    : "Noch keine Datei gewählt";
 
   if (status === "loading" || !isReady) {
     return (

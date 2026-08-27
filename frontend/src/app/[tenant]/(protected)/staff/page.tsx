@@ -617,7 +617,7 @@ function StaffPageContent() {
           !absenceLocations.has(location)
         );
       }).length;
-      return `${staff.length} ${staff.length === 1 ? "Person" : "Personen"} · ${absent} heute abwesend · ${clockedIn} eingestempelt`;
+      return `${staff.length} ${staff.length === 1 ? "Person" : "Personen"} · ${absent} abwesend · ${clockedIn} eingestempelt`;
     }
     if (canManageTimeTracking) {
       const count = accounts?.rows.length ?? 0;

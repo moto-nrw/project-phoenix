@@ -477,8 +477,8 @@ export default function OpeningBalanceImportPage() {
         .filter(Boolean)
         .join(" · ")
     : effectiveDate
-      ? `Schritt 2 von 4 · Stichtag ${formatDate(effectiveDate)}`
-      : "Schritt 1 von 4 · noch keine Datei gewählt";
+      ? `Stichtag ${formatDate(effectiveDate)}`
+      : "Noch keine Datei gewählt";
 
   if (status === "loading") {
     return (
