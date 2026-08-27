@@ -3228,8 +3228,8 @@ describe("TimeTrackingPage", () => {
     it("shows dash for absent location column when no session on past day", () => {
       setupDefaultMocks({ history: [] });
       render(<TimeTrackingPage />);
-      // Past days without sessions show "—" in the Ort column
-      const dashes = screen.queryAllByText("—");
+      // Past days without sessions show "–" in the Ort column
+      const dashes = screen.queryAllByText("–");
       expect(dashes.length).toBeGreaterThanOrEqual(0);
     });
 

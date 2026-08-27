@@ -17,6 +17,7 @@ import type { ChildStatus } from "~/lib/enrollment-admin-api";
 import { createLogger } from "~/lib/logger";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { Alert } from "~/components/ui/alert";
@@ -412,13 +413,13 @@ export function RolloverForm({
       </fieldset>
 
       <div className="space-y-2">
-        <RolloverCheckbox
+        <CheckboxCard
           checked={draft.rollover_bumps_grade ?? true}
           onChange={(checked) => update("rollover_bumps_grade", checked)}
           label="Klassenstufe automatisch um 1 erhöhen"
           hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
         />
-        <RolloverCheckbox
+        <CheckboxCard
           checked={draft.rollover_auto_approve}
           onChange={(checked) => update("rollover_auto_approve", checked)}
           label="Vorgemerkte Anmeldungen automatisch genehmigen"
@@ -468,48 +469,3 @@ const PREVIEW_REVIEW_REASON_LABELS: Record<string, string> = {
   grade_above_max: "Klassenstufe über der Höchstgrenze",
   no_grade_level: "Keine Klassenstufe hinterlegt",
 };
-
-function RolloverCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint: string;
-}>) {
-  return (
-    <label
-      className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        checked
-          ? "border-gray-300 bg-gray-50"
-          : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
-      <span className="min-w-0 flex-1 leading-snug">
-        {label}
-        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
-      </span>
-    </label>
-  );
-}

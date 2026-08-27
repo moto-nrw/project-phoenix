@@ -375,7 +375,7 @@ function SubstitutePicker(props: PersonCardProps) {
           onChange={(value) => onUpdate({ substituteId: value })}
         />
       ) : (
-        <span className="text-sm text-gray-500">—</span>
+        <span className="text-sm text-gray-500">–</span>
       )}
       <SubstituteHint
         unstaffed={props.unstaffed}

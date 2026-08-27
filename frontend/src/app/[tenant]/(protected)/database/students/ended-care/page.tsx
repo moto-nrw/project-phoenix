@@ -119,7 +119,7 @@ export default function EndedCarePage() {
       key: "schoolClass",
       header: "Klasse",
       render: (entry) => (
-        <span className="text-gray-700">{entry.schoolClass || "—"}</span>
+        <span className="text-gray-700">{entry.schoolClass || "–"}</span>
       ),
       sortValue: (entry) => entry.schoolClass.toLowerCase(),
     },

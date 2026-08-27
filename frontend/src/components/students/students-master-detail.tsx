@@ -295,7 +295,7 @@ export function StudentsMasterDetail({
     } else if (!hasArrival) {
       subtitleParts.push("keine Ankunft");
     }
-    const subtitleText = subtitleParts.join(" · ") || "—";
+    const subtitleText = subtitleParts.join(" · ") || "–";
     const subtitle = !hasArrival ? (
       <span className="text-moto-orange font-medium">{subtitleText}</span>
     ) : (

@@ -90,7 +90,7 @@ function buildSubtitle(teacher: Teacher): string {
   const roleLine = buildRoleLine(teacher);
   if (roleLine) return roleLine;
   if (teacher.email) return teacher.email;
-  return "—";
+  return "–";
 }
 
 export function StaffMasterDetail({

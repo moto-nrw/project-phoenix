@@ -206,7 +206,7 @@ function DeviceStammdatenTab({ device }: { device: Device }) {
               ) : null}
             </span>
           </DataField>
-          <DataField label="Standort">{device.room_name ?? "—"}</DataField>
+          <DataField label="Standort">{device.room_name ?? "–"}</DataField>
           <DataField label="Status">
             <span
               className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${getDeviceStatusColor(device.status)}`}

@@ -568,7 +568,7 @@ function TodayTimeStatusInlineRow({
           }
           style={status.textColor ? { color: status.textColor } : undefined}
         >
-          {status.displayTime ?? "—"}
+          {status.displayTime ?? "–"}
         </span>
         {showPlannedHint && plannedDisplay && (
           <span className="ml-1 text-gray-500">

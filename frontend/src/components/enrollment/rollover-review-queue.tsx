@@ -162,7 +162,7 @@ export function RolloverReviewQueue({ phaseID }: Props) {
                       {item.guardian_email}
                     </p>
                     <p className="mt-1 text-xs text-gray-500">
-                      Vorgemerkt: Klasse {item.target_grade_level ?? "—"}
+                      Vorgemerkt: Klasse {item.target_grade_level ?? "–"}
                       {item.source_grade_level && (
                         <> (vorher: Klasse {item.source_grade_level})</>
                       )}

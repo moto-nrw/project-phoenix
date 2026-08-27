@@ -163,7 +163,7 @@ function targetKey(target: AnnouncementTarget): string {
 
 /** Compact, name-free summary for the list table (e.g. "2 Gruppen, 1 Klasse"). */
 function summarizeTargets(targets: AnnouncementTarget[]): string {
-  if (targets.length === 0) return "—";
+  if (targets.length === 0) return "–";
   if (targets.some((t) => t.target_type === "school_all")) {
     // Whole-school subsumes the class/group/student targets, but pending
     // enrollments are separate applicants the backend still notifies — so

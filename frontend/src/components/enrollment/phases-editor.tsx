@@ -16,6 +16,7 @@ import {
   X,
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import {
   type Phase,
   type PhaseAudience,
@@ -1599,7 +1600,7 @@ function PhaseForm(props: PhaseFormProps) {
         </label>
 
         <div className="flex flex-col gap-2 pt-5">
-          <PhaseCheckbox
+          <CheckboxCard
             checked={draft.show_status_reason_to_parent}
             onChange={(checked) =>
               update({ show_status_reason_to_parent: checked })
@@ -1607,7 +1608,7 @@ function PhaseForm(props: PhaseFormProps) {
             label="Begründung für Eltern sichtbar"
             hint="(auf der Status-Seite und in Status-E-Mails)"
           />
-          <PhaseCheckbox
+          <CheckboxCard
             checked={draft.is_active}
             onChange={(checked) => update({ is_active: checked })}
             label="Aktiv"
@@ -1734,7 +1735,7 @@ function PhaseForm(props: PhaseFormProps) {
           }}
         />
         <div className="mt-3">
-          <PhaseCheckbox
+          <CheckboxCard
             // Only meaningful once at least one class is offered.
             checked={hasSchoolClasses && (draft.require_school_class ?? false)}
             onChange={(checked) => update({ require_school_class: checked })}
@@ -1882,55 +1883,5 @@ function SchoolClassListEditor({
         </p>
       )}
     </div>
-  );
-}
-
-function PhaseCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-  disabled = false,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint: string;
-  disabled?: boolean;
-}>) {
-  return (
-    <label
-      className={`flex min-h-11 items-center gap-3 rounded-2xl border px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors focus-within:ring-2 focus-within:ring-gray-300 ${
-        disabled
-          ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-          : checked
-            ? "cursor-pointer border-gray-300 bg-gray-50"
-            : "cursor-pointer border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-          checked ? "border-gray-900 bg-gray-900" : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        <Check
-          className={`h-3.5 w-3.5 text-white transition-opacity ${
-            checked ? "opacity-100" : "opacity-0"
-          }`}
-        />
-      </span>
-      <span className="min-w-0 flex-1 leading-snug">
-        {label}
-        <span className="ml-1 text-xs font-normal text-gray-500">{hint}</span>
-      </span>
-    </label>
   );
 }

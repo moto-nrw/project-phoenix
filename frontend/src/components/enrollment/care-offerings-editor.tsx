@@ -35,6 +35,7 @@ import {
 } from "~/lib/care-offering-booking-stats";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -1621,7 +1622,7 @@ function CareOfferingWeekdayFields({
         </div>
       ) : null}
       <div className="mt-3">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.days_of_week_mode === "parent_choice"}
           onChange={(checked) =>
             onChange({
@@ -1694,7 +1695,7 @@ function CareOfferingAutomationFields({
         Betreuungstage & Mitbuchung
       </legend>
       <div className="space-y-4">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.counts_as_care}
           onChange={(checked) => onChange({ counts_as_care: checked })}
           label="Als Betreuungstage zählen"
@@ -1709,7 +1710,7 @@ function CareOfferingAutomationFields({
           {triggerOptions.length > 0 ? (
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               {triggerOptions.map((offering) => (
-                <CareOfferingCheckbox
+                <CheckboxCard
                   key={offering.id}
                   checked={(draft.auto_add_trigger_offering_ids ?? []).includes(
                     offering.id,
@@ -1829,7 +1830,7 @@ function CareOfferingAvailabilityFields({
       <legend className="px-1 text-xs font-medium text-gray-700">
         Bedingungen für die Verfügbarkeit
       </legend>
-      <CareOfferingCheckbox
+      <CheckboxCard
         checked={rule !== null}
         onChange={(checked) =>
           onChange({
@@ -2136,25 +2137,25 @@ function CareOfferingDisplayFields({
         Anzeige im Elternformular
       </legend>
       <div className="grid gap-2 sm:grid-cols-3">
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.includes_holiday_care}
           onChange={(checked) => onChange({ includes_holiday_care: checked })}
           label="Ferienbetreuung"
           hint="Wird als Ferienangebot gekennzeichnet"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.includes_lunch}
           onChange={(checked) => onChange({ includes_lunch: checked })}
           label="Mittagessen"
           hint="Zeigt Eltern, dass Essen enthalten ist"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.is_active}
           onChange={(checked) => onChange({ is_active: checked })}
           label="Aktiv"
           hint="Nur aktive Angebote sind auswählbar"
         />
-        <CareOfferingCheckbox
+        <CheckboxCard
           checked={draft.is_required}
           onChange={(checked) =>
             onChange(
@@ -2440,51 +2441,6 @@ function CareOfferingForm({
         onCancel={onCancel}
       />
     </form>
-  );
-}
-
-function CareOfferingCheckbox({
-  checked,
-  onChange,
-  label,
-  hint,
-}: Readonly<{
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  label: string;
-  hint?: string;
-}>) {
-  return (
-    <label
-      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-        checked
-          ? "border-moto-green/40 bg-moto-green/10"
-          : "border-gray-200 bg-white hover:bg-gray-50"
-      }`}
-    >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="sr-only"
-      />
-      <span
-        className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
-          checked
-            ? "border-moto-green bg-moto-green text-gray-950"
-            : "border-gray-300 bg-white"
-        }`}
-        aria-hidden="true"
-      >
-        {checked ? <Check className="h-3.5 w-3.5" /> : null}
-      </span>
-      <span className="min-w-0">
-        <span className="block text-sm font-medium text-gray-900">{label}</span>
-        {hint ? (
-          <span className="mt-0.5 block text-xs text-gray-500">{hint}</span>
-        ) : null}
-      </span>
-    </label>
   );
 }
 

@@ -1410,7 +1410,7 @@ function StatsRow({ instance }: StatsRowProps) {
         <TimetableRatioPill
           icon={<MotoConceptIcon concept="present" size={16} />}
           label="Anwesend"
-          value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+          value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
           tone={attendanceStudentTone(present, totalStudents)}
         />
       )}
@@ -1419,7 +1419,7 @@ function StatsRow({ instance }: StatsRowProps) {
         label="Personal"
         value={
           instance.staffCount === 0
-            ? "—"
+            ? "–"
             : `${activeStaff} / ${instance.staffCount}`
         }
         tone={attendanceStaffTone(
@@ -1432,7 +1432,7 @@ function StatsRow({ instance }: StatsRowProps) {
         label="Besetzung"
         value={
           instance.requiredStaffCount === 0
-            ? "—"
+            ? "–"
             : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
         }
         tone={capacityTone(

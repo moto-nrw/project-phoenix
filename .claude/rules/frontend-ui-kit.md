@@ -43,6 +43,8 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons), `StatCard` for every figure (it has `icon`, `href`, `loading`), `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-handrolled-surface` fails a page that spells the surface out again.
 
+**One empty-value glyph.** Where a table cell or a field has no value, it shows „–" (en dash). „—" was in use side by side with it, sometimes in the same table. Where there is room, say why the value is missing instead of printing a glyph.
+
 **Planning surfaces have no second head.** `PlanningContextBar` is the control band inside the head card (`searchSlot`), not a card of its own.
 
 The full conversion spec, including what to do when a page's head lives in a view component, is `frontend/src/components/ui/TENANT-PAGE-SPEC.md`.

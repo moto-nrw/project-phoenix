@@ -81,7 +81,7 @@ function RetentionCell({ doc }: { readonly doc: StaffDocument }) {
       </span>
     );
   }
-  return <span className="text-xs text-gray-400">—</span>;
+  return <span className="text-xs text-gray-400">–</span>;
 }
 
 export function DokumenteTab({ staffId }: { readonly staffId: string }) {

@@ -3121,10 +3121,10 @@ function SearchPageContent() {
                     extraContent={
                       <>
                         <StudentInfoRow icon={<SchoolClassIcon />}>
-                          {student.school_class || "—"}
+                          {student.school_class || "–"}
                         </StudentInfoRow>
                         <StudentInfoRow icon={<GroupIcon />}>
-                          Gruppe: {student.group_name || "—"}
+                          Gruppe: {student.group_name || "–"}
                         </StudentInfoRow>
                         {student.has_full_access !== false && (
                           <StudentInfoRow icon={<DepartureModeIcon />} wrap>

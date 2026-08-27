@@ -54,7 +54,7 @@ function Field({
   label,
   value,
   mono,
-  emptyText = "—",
+  emptyText = "–",
 }: {
   readonly label: string;
   readonly value: string | null | undefined;

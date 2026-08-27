@@ -374,8 +374,8 @@ describe("Kopf der Kindakte", () => {
       // system rendered nothing on purpose or hit an error.
       renderHeaderWithTimes({});
 
-      expect(rowFor("arrival").getByText("—")).toBeInTheDocument();
-      expect(rowFor("pickup").getByText("—")).toBeInTheDocument();
+      expect(rowFor("arrival").getByText("–")).toBeInTheDocument();
+      expect(rowFor("pickup").getByText("–")).toBeInTheDocument();
     });
 
     it("shows the planned pickup time as the primary value when nothing is resolved yet", () => {

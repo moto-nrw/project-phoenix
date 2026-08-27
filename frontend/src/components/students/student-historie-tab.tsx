@@ -77,7 +77,7 @@ function formatDateLabel(isoDate: string): string {
 
 function formatTime(isoString: string): string {
   const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return "—";
+  if (Number.isNaN(date.getTime())) return "–";
   return date.toLocaleTimeString("de-DE", {
     timeZone: "Europe/Berlin",
     hour: "2-digit",
@@ -86,7 +86,7 @@ function formatTime(isoString: string): string {
 }
 
 function formatDuration(minutes: number | null | undefined): string {
-  if (typeof minutes !== "number" || minutes <= 0) return "—";
+  if (typeof minutes !== "number" || minutes <= 0) return "–";
   const hours = Math.floor(minutes / 60);
   const remaining = minutes % 60;
   if (hours === 0) return `${remaining} min`;
@@ -223,7 +223,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                 <div className="text-xs text-gray-500">
                   {day.attendance?.check_in_time
                     ? formatTime(day.attendance.check_in_time)
-                    : "—"}{" "}
+                    : "–"}{" "}
                   –{" "}
                   {day.attendance?.check_out_time
                     ? formatTime(day.attendance.check_out_time)
