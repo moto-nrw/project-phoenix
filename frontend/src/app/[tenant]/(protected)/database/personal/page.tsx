@@ -318,7 +318,6 @@ function TeachersPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Personal",
         description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
@@ -430,7 +429,6 @@ function TeachersPageContent() {
               icon={MOTO_CONCEPTS.staff.icon}
               tone={MOTO_CONCEPTS.staff.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

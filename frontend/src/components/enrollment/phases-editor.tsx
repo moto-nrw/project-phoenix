@@ -54,12 +54,12 @@ import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
+import { Alert } from "~/components/ui/alert";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -764,36 +764,33 @@ export function PhasesEditor() {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Seitenkopf: „Neue Anmeldephase“ ist eine Seitenaktion und sitzt
-          deshalb im Kopf, nicht neben den Kennzahlen. Der Kopf lebt hier und
-          nicht in page.tsx, weil die Aktion an den Editor-Zustand gebunden
-          ist (beim Bearbeiten oder Übertragen wird sie ausgeblendet). */}
-      <PageIntro
-        kicker="Anmeldungen"
-        title="Anmeldephasen"
-        description={
-          loading ? (
-            <Skeleton className="h-4 w-52" />
-          ) : (
-            `${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`
-          )
-        }
-        actions={
-          !editingId && !rolloverSource ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={startCreate}
-              className="inline-flex shrink-0 items-center justify-center gap-2"
-            >
-              <MotoConceptIcon concept="calendarPeriods" size={16} />
-              Neue Anmeldephase
-            </Button>
-          ) : undefined
-        }
-      >
+    <TenantPage
+      title="Anmeldephasen"
+      // Die Kopfkarte lebt hier und nicht in page.tsx, weil „Neue
+      // Anmeldephase“ an den Editor-Zustand gebunden ist (beim Bearbeiten
+      // oder Übertragen wird die Aktion ausgeblendet).
+      stats={`${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`}
+      statsLoading={loading}
+      actions={
+        !editingId && !rolloverSource ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={startCreate}
+            className="inline-flex shrink-0 items-center justify-center gap-2"
+          >
+            <MotoConceptIcon concept="calendarPeriods" size={16} />
+            Neue Anmeldephase
+          </Button>
+        ) : undefined
+      }
+    >
+      <DesktopOnlyNotice />
+      <div className="hidden space-y-4 lg:block">
+        {/* Speicher- und Aktivierungsfehler stehen über der Liste; sie dürfen
+            das gerade bearbeitete Formular nicht ersetzen. */}
+        {error ? <Alert type="error" message={error} /> : null}
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
@@ -811,58 +808,56 @@ export function PhasesEditor() {
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
         </div>
-      </PageIntro>
 
-      {error ? <Alert type="error" message={error} /> : null}
+        {!loading && !editingId && !rolloverSource ? (
+          <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
+        ) : null}
 
-      {!loading && !editingId && !rolloverSource ? (
-        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
-      ) : null}
+        {rolloverSource && (
+          <RolloverForm
+            source={rolloverSource}
+            onCancel={() => setRolloverSource(null)}
+            onSuccess={handleRolloverSuccess}
+          />
+        )}
 
-      {rolloverSource && (
-        <RolloverForm
-          source={rolloverSource}
-          onCancel={() => setRolloverSource(null)}
-          onSuccess={handleRolloverSuccess}
-        />
-      )}
+        {editingId && draft && (
+          <PhaseForm
+            draft={draft}
+            setDraft={setDraft}
+            periods={periods}
+            schemas={latestSchemas}
+            schemaSource={schemaSource}
+            setSchemaSource={setSchemaSource}
+            editing={editingId !== "new"}
+            saving={saving}
+            highlightFormSection={highlightFormSection}
+            gradeLevelMax={gradeLevelMax}
+            onSubmit={handleSave}
+            onCancel={cancelEdit}
+          />
+        )}
 
-      {editingId && draft && (
-        <PhaseForm
-          draft={draft}
-          setDraft={setDraft}
-          periods={periods}
-          schemas={latestSchemas}
-          schemaSource={schemaSource}
-          setSchemaSource={setSchemaSource}
-          editing={editingId !== "new"}
-          saving={saving}
-          highlightFormSection={highlightFormSection}
-          gradeLevelMax={gradeLevelMax}
-          onSubmit={handleSave}
-          onCancel={cancelEdit}
-        />
-      )}
-
-      {loading && !editingId && !rolloverSource ? (
-        <DataTable
-          columns={columns}
-          rows={[]}
-          isLoading
-          loadingRowCount={5}
-          getRowKey={(phase) => phase.id}
-        />
-      ) : phases.length === 0 && !editingId && !rolloverSource ? (
-        <EmptyPhasesState onCreate={startCreate} />
-      ) : phases.length > 0 && !editingId && !rolloverSource ? (
-        <DataTable
-          columns={columns}
-          rows={phases}
-          getRowKey={(phase) => phase.id}
-          defaultSortKey="service_period"
-          defaultSortDirection="desc"
-        />
-      ) : null}
+        {loading && !editingId && !rolloverSource ? (
+          <DataTable
+            columns={columns}
+            rows={[]}
+            isLoading
+            loadingRowCount={5}
+            getRowKey={(phase) => phase.id}
+          />
+        ) : phases.length === 0 && !editingId && !rolloverSource ? (
+          <EmptyPhasesState onCreate={startCreate} />
+        ) : phases.length > 0 && !editingId && !rolloverSource ? (
+          <DataTable
+            columns={columns}
+            rows={phases}
+            getRowKey={(phase) => phase.id}
+            defaultSortKey="service_period"
+            defaultSortDirection="desc"
+          />
+        ) : null}
+      </div>
 
       {deleteTarget && (
         <ConfirmDeleteModal
@@ -928,7 +923,7 @@ export function PhasesEditor() {
           error={impactError || deleteError}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

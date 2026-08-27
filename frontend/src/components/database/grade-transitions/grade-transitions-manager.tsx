@@ -4,6 +4,7 @@
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -473,7 +474,7 @@ export function GradeTransitionsManager({
 
   return (
     <div className="space-y-4">
-      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+      {loadError && <Alert type="error" message={loadError} />}
 
       {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,
           die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene

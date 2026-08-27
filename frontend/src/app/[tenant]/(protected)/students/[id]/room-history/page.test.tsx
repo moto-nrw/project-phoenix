@@ -205,7 +205,9 @@ describe("StudentRoomHistoryPage", () => {
   it("renders loading state initially", () => {
     mockFetch.mockResolvedValue(mockStudentResponse());
     render(<StudentRoomHistoryPage />);
-    expect(screen.getByTestId("room-history-skeleton")).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (aria-busy), nicht mehr aus
+    // einem eigenen Seiten-Skelett.
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 
   // ─── Student header ─────────────────────────────────────────────────────────

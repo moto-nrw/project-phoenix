@@ -196,7 +196,6 @@ export function StammdatenTab({
         <>
           <SectionCard
             collapsible
-            kicker="Stammdaten"
             title="Person"
             action={
               <EditAction
@@ -240,7 +239,6 @@ export function StammdatenTab({
 
           <SectionCard
             collapsible
-            kicker="Stammdaten"
             title="Kontakt"
             action={
               <EditAction
@@ -276,7 +274,6 @@ export function StammdatenTab({
 
           <SectionCard
             collapsible
-            kicker="Stammdaten"
             title="Arbeitsvertrag"
             action={
               <EditAction
@@ -346,7 +343,6 @@ export function StammdatenTab({
 
           <SectionCard
             collapsible
-            kicker="Stammdaten"
             title="Qualifikationen"
             description="Nachweise wie Erste-Hilfe-Kurs oder Schwimmschein, mit Ablaufdatum."
             action={
@@ -406,7 +402,6 @@ export function StammdatenTab({
       {canManagePayroll ? (
         <SectionCard
           collapsible
-          kicker="Abrechnung"
           title="Personalnummer"
           description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen. Lohnarten und DATEV-Mandantendaten werden zentral unter „Abrechnung“ gepflegt."
           actions={
@@ -551,7 +546,6 @@ function FinancialSection({ staffId }: { readonly staffId: string }) {
     <>
       <SectionCard
         collapsible
-        kicker="Vertraulich"
         title="Bank & Steuer"
         description="Jeder Abruf der gespeicherten Werte wird im Audit-Log protokolliert."
         action={

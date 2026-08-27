@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useSession } from "next-auth/react";
 
 import { EntryPointCard } from "~/components/help/guide-components";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   SkeletonRegion,
   CardGridSkeleton,
@@ -51,7 +51,7 @@ function ElternContent() {
   const canAnnounce = hasPermission(session, "admin:*");
 
   // Auth-loading joins the showSkeleton flag instead of an early return
-  // before the header, so the real PageIntro renders immediately and only the
+  // before the header, so the real page header renders immediately and only the
   // card grid skeletonizes.
   const showSkeleton = status === "loading";
 
@@ -97,42 +97,38 @@ function ElternContent() {
   const visibleCards = cards.filter((card) => card.show);
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte wie in der Eltern-App. Die Übersicht lädt selbst keine
-          Zahlen (Nachrichten und Konto-Anfragen liegen hinter eigenen
-          Seiten), deshalb steht in der Statuszeile der Berliner Kalendertag. */}
-      <PageIntro
-        title="Eltern"
-        description={formatStatusDate()}
-        className="mb-6"
-      />
-
-      <div className="min-h-[60vh]">
-        {showSkeleton ? (
-          <ElternCardsSkeleton />
-        ) : (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visibleCards.map((card) => (
-              <EntryPointCard
-                key={card.href}
-                href={tenantPath(card.href)}
-                title={card.title}
-                body={card.body}
-                concept={card.concept}
-                iconTone="blue"
-                points={card.points}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    // Die Übersicht lädt selbst keine Zahlen (Nachrichten und Konto-Anfragen
+    // liegen hinter eigenen Seiten), deshalb steht in der Statuszeile der
+    // Berliner Kalendertag.
+    <TenantPage
+      title="Eltern"
+      stats={formatStatusDate()}
+      statsLoading={showSkeleton}
+    >
+      {showSkeleton ? (
+        <ElternCardsSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {visibleCards.map((card) => (
+            <EntryPointCard
+              key={card.href}
+              href={tenantPath(card.href)}
+              title={card.title}
+              body={card.body}
+              concept={card.concept}
+              iconTone="blue"
+              points={card.points}
+            />
+          ))}
+        </div>
+      )}
+    </TenantPage>
   );
 }
 
 /**
  * Data-region skeleton: just the entry-point card grid. The real header
- * (PageIntro) renders immediately regardless of loading state — only this data-bound region
+ * (TenantPage) renders immediately regardless of loading state — only this data-bound region
  * skeletonizes while the session/settings load.
  */
 function ElternCardsSkeleton() {
@@ -147,16 +143,11 @@ export default function ElternPage() {
   return (
     <Suspense
       fallback={
-        // Auch im Suspense-Fallback steht die Kopfkarte schon da: Titel und
-        // Kicker sind statisch, nur das Kachelraster skelettiert.
-        <div className="w-full">
-          <PageIntro
-            title="Eltern"
-            description={formatStatusDate()}
-            className="mb-6"
-          />
+        // Auch im Suspense-Fallback steht die Kopfkarte schon da: der Titel
+        // ist statisch, nur das Kachelraster skelettiert.
+        <TenantPage title="Eltern" stats={formatStatusDate()}>
           <ElternCardsSkeleton />
-        </div>
+        </TenantPage>
       }
     >
       <ElternContent />

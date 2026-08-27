@@ -58,7 +58,7 @@ describe("RolloverReviewQueue", () => {
 
   it("renders items with localised review reason", async () => {
     mockListReview.mockResolvedValueOnce([makeItem()]);
-    render(<RolloverReviewQueue phaseID="77" phaseName="Schuljahr 2027" />);
+    render(<RolloverReviewQueue phaseID="77" />);
 
     await waitFor(() => {
       expect(screen.getByText(/Lina Beispiel/)).toBeInTheDocument();
@@ -68,8 +68,6 @@ describe("RolloverReviewQueue", () => {
       screen.getByText(/Klassenstufe über der Höchstgrenze/),
     ).toBeInTheDocument();
     expect(screen.getByText(/anna@example\.com/)).toBeInTheDocument();
-    // Header carries the phase name when supplied.
-    expect(screen.getByText(/Schuljahr 2027/)).toBeInTheDocument();
   });
 
   it("falls back to the raw review reason when no label exists", async () => {

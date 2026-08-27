@@ -267,7 +267,9 @@ describe("/staff — Berechtigungs-Split", () => {
 
     expect(screen.getByText(/Wählen Sie eine Person/)).toBeInTheDocument();
     expect(getDocumentDirectory).toHaveBeenCalled();
-    expect(screen.getByText("2")).toBeInTheDocument();
+    // Die Zahl stand früher als Zähler-Badge im Kopf; sie steht jetzt in der
+    // Statuszeile der Kopfkarte.
+    expect(screen.getByText("2 Personen mit Unterlagen")).toBeInTheDocument();
   });
 
   it("behandelt admin:* als Vollzugriff statt als Dokumentenrolle", () => {
@@ -298,7 +300,7 @@ describe("/staff — Berechtigungs-Split", () => {
 
     render(<StaffPage />);
 
-    expect(screen.getByText("Zeitkonten")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Zeitkonten" })).toBeInTheDocument();
   });
 
   it("fragt die Zeitkonten auch mit Berechtigung erst beim Umschalten ab", () => {

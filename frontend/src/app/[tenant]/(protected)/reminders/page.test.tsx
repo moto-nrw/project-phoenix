@@ -109,9 +109,8 @@ describe("RemindersPage", () => {
 
   it("shows a loading indicator before the first data arrives", () => {
     set({ reminders: [], count: 0, isLoading: true });
-    render(<RemindersPage />);
-    expect(
-      screen.getByLabelText("Erinnerungen werden geladen…"),
-    ).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).
+    const { container } = render(<RemindersPage />);
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 });

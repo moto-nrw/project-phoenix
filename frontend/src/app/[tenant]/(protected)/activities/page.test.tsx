@@ -347,9 +347,11 @@ describe("ActivitiesPage", () => {
       mutate: mockMutate,
     } as never);
 
-    render(<ActivitiesPage />);
+    const { container } = render(<ActivitiesPage />);
 
-    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage) statt aus einem
+    // eigenen Seitenskelett.
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",
@@ -365,9 +367,9 @@ describe("ActivitiesPage", () => {
       mutate: mockMutate,
     } as never);
 
-    render(<ActivitiesPage />);
+    const { container } = render(<ActivitiesPage />);
 
-    expect(screen.getByTestId("activities-skeleton")).toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(
       document.documentElement.style.getPropertyValue(
         "--moto-floating-fab-offset",

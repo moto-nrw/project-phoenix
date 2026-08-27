@@ -3,16 +3,9 @@
 import { WarningCircleIcon } from "@phosphor-icons/react";
 import {
   SkeletonRegion,
-  PageHeaderSkeleton,
   CardGridSkeleton,
 } from "~/components/ui/page-skeletons";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
-import type {
-  ActiveFilter,
-  FilterConfig,
-} from "~/components/ui/page-header/types";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -31,12 +24,6 @@ interface EmptyRoomsViewProps {
   readonly onClaimed: () => void;
   readonly cachedActiveGroups: MinimalActiveGroup[];
   readonly currentStaffId: string | undefined;
-  readonly searchTerm: string;
-  readonly setSearchTerm: (term: string) => void;
-  readonly setGroupFilter: (filter: string) => void;
-  readonly setSelectedYear: (year: string) => void;
-  readonly filterConfigs: FilterConfig[];
-  readonly activeFilters: ActiveFilter[];
 }
 
 interface SchulhofNotSupervisingViewProps {
@@ -53,29 +40,35 @@ interface ReleaseSupervisionModalProps {
   readonly onConfirm: () => void;
 }
 
-// withHeader is false when the real PageHeaderWithSearch chrome is already
-// on screen (e.g. re-loading only the student grid) — showing a second
-// header skeleton underneath it would duplicate the page's own chrome.
+// withHeader is false when the page's own Kopfkarte is already on screen
+// (e.g. re-loading only the student grid) — a second header underneath it
+// would duplicate the page's chrome.
 export function ActiveSupervisionLoadingView({
   withHeader = true,
 }: Readonly<{ withHeader?: boolean }> = {}) {
+  const grid = (
+    <CardGridSkeleton
+      cards={6}
+      rowsPerCard={2}
+      className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
+    />
+  );
+
+  if (!withHeader) {
+    return (
+      <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
+        {grid}
+      </SkeletonRegion>
+    );
+  }
+
+  // Der Titel ist statisch, die Kopfkarte steht also sofort; nur Statuszeile
+  // und Karten darunter skelettieren.
   return (
     <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
-      {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
-          sofort; nur die Karten darunter skelettieren. */}
-      {withHeader && (
-        <PageIntro
-          title="Aktuelle Aufsicht"
-          description={<Skeleton className="h-4 w-48" />}
-          className="mb-6"
-        />
-      )}
-      {withHeader && <PageHeaderSkeleton actions={1} />}
-      <CardGridSkeleton
-        cards={6}
-        rowsPerCard={2}
-        className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3"
-      />
+      <TenantPage title="Aktuelle Aufsicht" statsLoading>
+        {grid}
+      </TenantPage>
     </SkeletonRegion>
   );
 }
@@ -88,37 +81,29 @@ export function NoActiveSupervisionAccessView() {
   });
 
   return (
-    <div className="w-full">
-      <PageIntro
-        title="Aktuelle Aufsicht"
-        description="Keine Aufsicht aktiv"
-        className="mb-6"
-      />
-
-      <EmptyState
-        icon={<MotoConceptIcon concept="rooms" size={48} />}
-        title="Keine aktive Raum-Aufsicht"
-        description={`Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
+    <TenantPage
+      title="Aktuelle Aufsicht"
+      stats="Keine Aufsicht aktiv"
+      empty={{
+        icon: <MotoConceptIcon concept="rooms" size={48} />,
+        title: "Keine aktive Raum-Aufsicht",
+        description: `Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
           nfcEnabled ? "an einem Terminal" : "in der Web-App"
-        }, um Live-Raumdaten einzusehen.`}
-      />
-    </div>
+        }, um Live-Raumdaten einzusehen.`,
+      }}
+    />
   );
 }
 
+// Suche und Filter stehen in der Kopfkarte der Seite; diese Ansicht trägt
+// nur noch die freien Räume und den Leerzustand.
 export function EmptyRoomsView({
   onClaimed,
   cachedActiveGroups,
   currentStaffId,
-  searchTerm,
-  setSearchTerm,
-  setGroupFilter,
-  setSelectedYear,
-  filterConfigs,
-  activeFilters,
 }: EmptyRoomsViewProps) {
   return (
-    <div className="w-full">
+    <>
       <UnclaimedRooms
         onClaimed={onClaimed}
         activeGroups={
@@ -127,30 +112,12 @@ export function EmptyRoomsView({
         currentStaffId={currentStaffId}
       />
 
-      <PageHeaderWithSearch
-        // Der Titel steht in der Kopfkarte der Seite.
-        embedded
-        title=""
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Name suchen…",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setGroupFilter("all");
-          setSelectedYear("all");
-        }}
-      />
-
       <EmptyState
         icon={<MotoConceptIcon concept="rooms" size={48} />}
         title="Keine aktive Raum-Aufsicht"
         description="Sie beaufsichtigen aktuell keinen Raum."
       />
-    </div>
+    </>
   );
 }
 

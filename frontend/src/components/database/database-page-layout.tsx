@@ -3,13 +3,11 @@
 import type { ReactNode } from "react";
 import { MasterDetailSkeleton } from "./master-detail-skeleton";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 
-/** Kopfkarte der Seite (PageIntro). Titel und Kicker sind statisch, deshalb
- *  rendert die Karte auch im Ladezustand sofort. */
+/** Kopfkarte der Seite. Der Titel ist statisch, deshalb rendert die Karte auch
+ *  im Ladezustand sofort. */
 interface DatabasePageIntro {
-  /** Name der Sidebar-Gruppe, in der Regel "Datenverwaltung". */
-  kicker?: string;
   title: string;
   description?: ReactNode;
   /** Seitenaktionen, zum Beispiel DatabaseCreateAction oder OverflowMenu. */
@@ -34,10 +32,10 @@ interface DatabasePageLayoutProps {
 }
 
 /**
- * Shared layout wrapper for database management pages.
- * Handles loading states, responsive layout, and mobile back button.
- *
- * Extracted to eliminate code duplication across database pages.
+ * Adapter der Datenverwaltungs-Seiten auf das gemeinsame Seitengerüst
+ * (`ui/TenantPage`). Er hält nur noch die Besonderheit dieser Seiten fest:
+ * das Master-Detail-Skelett als Ladezustand. Kopfkarte, Abstände, Zurück-Knopf
+ * und Reihenfolge kommen aus dem Gerüst.
  */
 export function DatabasePageLayout({
   loading,
@@ -45,7 +43,7 @@ export function DatabasePageLayout({
   intro,
   search,
   children,
-  className = "w-full",
+  className,
 }: Readonly<DatabasePageLayoutProps>) {
   const isLoading = sessionLoading || loading;
 
@@ -53,21 +51,26 @@ export function DatabasePageLayout({
     return <MasterDetailSkeleton />;
   }
 
+  // Ohne Kopfkarte gibt es kein Gerüst, das den Zurück-Knopf trägt — die
+  // Seite braucht ihn auf dem Telefon trotzdem.
+  if (!intro) {
+    return (
+      <div className={className ?? "w-full"}>
+        <MobileBackButton />
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div className={className}>
-      <MobileBackButton />
-      {intro && (
-        <PageIntro
-          kicker={intro.kicker}
-          title={intro.title}
-          description={intro.description}
-          actions={intro.actions}
-          className="mb-6"
-        >
-          {!isLoading && search ? search : null}
-        </PageIntro>
-      )}
+    <TenantPage
+      title={intro.title}
+      stats={intro.description}
+      actions={intro.actions}
+      searchSlot={!isLoading && search ? search : undefined}
+      back
+    >
       {isLoading ? <MasterDetailSkeleton intro={false} /> : children}
-    </div>
+    </TenantPage>
   );
 }

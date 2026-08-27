@@ -3,16 +3,14 @@ import { describe, expect, it } from "vitest";
 import { PageIntro } from "./page-intro";
 
 describe("PageIntro", () => {
-  it("rendert Kicker, h1-Titel, Text und Aktionen in einer Karte", () => {
+  it("rendert h1-Titel, Text und Aktionen in einer Karte", () => {
     render(
       <PageIntro
-        kicker="Elternportal"
         title="Guten Tag, Sabine"
         description="Das Wichtigste auf einen Blick."
         actions={<button type="button">Aktion</button>}
       />,
     );
-    expect(screen.getByText("Elternportal")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 1, name: "Guten Tag, Sabine" }),
     ).toBeInTheDocument();

@@ -13,7 +13,7 @@ import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleto
  * flight — the name/status/menu are all data-bound, so they stay skeletons
  * until `staff` loads.
  */
-export function StaffHeaderSkeleton() {
+function StaffHeaderSkeleton() {
   return (
     // Spiegelt die Kopfkarte (PageIntro) des geladenen Zustands: dieselbe
     // moto-content-surface-Karte mit Avatar, Kicker, Titel und Aktionen.

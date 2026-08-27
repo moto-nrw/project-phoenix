@@ -54,11 +54,11 @@ const PRIMARY_ROW_MIN_H = "min-h-9";
 const CONTEXT_ROW_MIN_H = "min-h-8";
 
 interface PlanningContextBarProps {
-  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Sichtbar auf allen
-   *  Breakpoints, in der Optik der PageIntro-Kopfkarte. */
-  readonly title: string;
-  /** Blauer Overline über dem Titel, z. B. der Bereich "Planung". */
-  readonly kicker?: string;
+  /** Optionaler Titel der Leiste. Auf Seiten mit `TenantPage` bleibt er leer:
+   *  den Seitentitel traegt die Kopfkarte darueber, und zwei <h1> auf einer
+   *  Seite waeren eine falsche Dokumentgliederung. Der Zeitraum gehoert dann
+   *  in `dateLabel`. */
+  readonly title?: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
@@ -83,7 +83,6 @@ interface PlanningContextBarProps {
 
 export function PlanningContextBar({
   title,
-  kicker,
   onPrevious,
   onNext,
   previousLabel = "Zurück",
@@ -101,21 +100,15 @@ export function PlanningContextBar({
     <div
       className={`moto-content-surface flex flex-col gap-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className ?? ""}`}
     >
-      {/* Titelblock in der Optik der PageIntro-Kopfkarte: Kicker und Titel
-          sichtbar auf allen Breakpoints, damit die Planungsseiten denselben
-          Kopf haben wie jede andere Tenant-Seite. */}
-      <div className="min-w-0">
-        {kicker && (
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {kicker}
-          </p>
-        )}
-        <h1
-          className={`truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl ${kicker ? "mt-1" : ""}`}
-        >
-          {title}
-        </h1>
-      </div>
+      {/* Ohne Titel rendert die Leiste keinen Titelblock: den Seitentitel
+          traegt dann die Kopfkarte (`TenantPage`) darueber. */}
+      {title && (
+        <div className="min-w-0">
+          <h1 className="truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
+            {title}
+          </h1>
+        </div>
+      )}
       <div
         className={`flex flex-wrap items-center gap-2 sm:gap-3 ${PRIMARY_ROW_MIN_H}`}
       >

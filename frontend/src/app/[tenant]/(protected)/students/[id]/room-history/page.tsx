@@ -23,9 +23,9 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
-import { PageIntro } from "~/components/ui/page-intro";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -760,7 +760,7 @@ function HistoryTable({
 
 export default function StudentRoomHistoryPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<RoomHistorySkeleton />}>
       <StudentRoomHistoryPageContent />
     </Suspense>
   );
@@ -893,27 +893,6 @@ function StudentRoomHistoryPageContent() {
     };
   }, [fetchStudent, fetchHistory]);
 
-  if (loading) {
-    return <RoomHistorySkeleton />;
-  }
-
-  if (errorCode !== null && errorCode !== "feature_disabled") {
-    return (
-      <div className="w-full">
-        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
-        <BackButton referrer={referrer} />
-        <PageIntro
-          className="mb-6"
-          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
-          kicker="Anwesenheitsprotokoll"
-          title={student?.name ?? "Anwesenheitsprotokoll"}
-          description={ROOM_HISTORY_DESCRIPTION}
-        />
-        <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-      </div>
-    );
-  }
-
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
@@ -929,68 +908,69 @@ function StudentRoomHistoryPageContent() {
         .filter(Boolean)
         .join(" · ")
     : "";
+  // „feature_disabled" ist kein Fehlerzustand der Seite, sondern ein Hinweis
+  // über dem Inhalt; alle anderen Codes ersetzen den Inhalt.
+  const errorMessage =
+    errorCode !== null && errorCode !== "feature_disabled"
+      ? ERROR_MESSAGES[errorCode]
+      : null;
+  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
+  // den Reiter, aus dem diese Unterseite geöffnet wurde.
+  const backReferrer =
+    errorMessage !== null
+      ? referrer
+      : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
-    <div className="w-full">
+    <>
       {/* Back button (mobile only). tab=historie returns to the originating tab
           on the detail page (this sub-page lives under Historie, issue #1501);
           from= still drives the detail page's own back button to the list. */}
-      <BackButton
-        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
-      />
+      <BackButton referrer={backReferrer} />
 
-      {student && (
-        // Der Entitätskopf ist die Kopfkarte der Seite.
-        <PageIntro
-          className="mb-6"
-          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
-          kicker="Anwesenheitsprotokoll"
-          title={displayName}
-          description={studentMeta || ROOM_HISTORY_DESCRIPTION}
-        />
-      )}
-
-      {/* Feature disabled banner */}
-      {errorCode === "feature_disabled" && (
-        <div className="mb-6">
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
+      <TenantPage
+        leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+        title={displayName || "Anwesenheitsprotokoll"}
+        stats={studentMeta || ROOM_HISTORY_DESCRIPTION}
+        statsLoading={loading}
+        loading={loading}
+        error={errorMessage}
+      >
+        {/* Feature disabled banner */}
+        {errorCode === "feature_disabled" && (
           <Alert type="warning" message={ERROR_MESSAGES.feature_disabled} />
-        </div>
-      )}
+        )}
 
-      {history && (
-        <>
-          {exportError && (
-            <div className="mb-4">
-              <Alert type="error" message={exportError} />
-            </div>
-          )}
-          {/* Charts */}
-          <div className="mb-6">
+        {history && (
+          <>
+            {exportError && <Alert type="error" message={exportError} />}
+
             <HistoryCharts days={history.days} />
-          </div>
 
-          {/* History table; die Exporte stehen in ihrer Titelzeile statt in
-              einer eigenen Button-Zeile darüber. */}
-          <HistoryTable
-            days={history.days}
-            caps={history.caps}
-            actions={EXPORT_FORMATS.map((format) => (
-              <Button
-                key={format}
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={exporting !== null}
-                onClick={() => void downloadExport(format)}
-              >
-                {exporting === format
-                  ? "Wird exportiert…"
-                  : `${format.toUpperCase()} exportieren`}
-              </Button>
-            ))}
-          />
-        </>
-      )}
-    </div>
+            {/* History table; die Exporte stehen in ihrer Titelzeile statt in
+                einer eigenen Button-Zeile darüber. */}
+            <HistoryTable
+              days={history.days}
+              caps={history.caps}
+              actions={EXPORT_FORMATS.map((format) => (
+                <Button
+                  key={format}
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={exporting !== null}
+                  onClick={() => void downloadExport(format)}
+                >
+                  {exporting === format
+                    ? "Wird exportiert…"
+                    : `${format.toUpperCase()} exportieren`}
+                </Button>
+              ))}
+            />
+          </>
+        )}
+      </TenantPage>
+    </>
   );
 }

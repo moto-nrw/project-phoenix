@@ -10,26 +10,51 @@ This rule reinforces the "Reuse Existing Components" sections in `CLAUDE.md` and
 
 ## Source of truth
 
-| Concern | Location |
-|---|---|
-| UI components | `frontend/src/components/ui/` |
-| Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
-| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
+| Concern                          | Location                                                                    |
+| -------------------------------- | --------------------------------------------------------------------------- |
+| UI components                    | `frontend/src/components/ui/`                                               |
+| Header / list-page kit           | `frontend/src/components/ui/page-header/`                                   |
+| Semantic brand colors            | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in     |
 
 Imports are always by direct file path: `import { Button } from "~/components/ui/button"`. There is no `ui/index.ts` barrel — import every component from its own file.
+
+## Page scaffolding — one shell, no per-page layout
+
+**RULE: Every page under `frontend/src/app/[tenant]/(protected)` renders `TenantPage` (`~/components/ui/tenant-page`) as its root. A page supplies data, never layout.** The only exemptions are `/dashboard`, `/profile` and `/emergency`.
+
+`TenantPage` fixes the order of the parts so no page can decide it again:
+
+```
+Kopfkarte:  Titel  ..................................  Aktionen
+            Statuszeile (echte Zahlen der Seite)
+            Suche + Filter
+Reiter:     horizontale Seitenreiter
+Inhalt:     Karten im 24-px-Rhythmus
+```
+
+What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second `<main>`, a hand-written `<h1>`, a separate action row above or below the head, a row that only carries a counter or a single select, and a bespoke loading/empty/error branch. Those live in the scaffold.
+
+**No mini-heading above the title.** The blue uppercase kicker is gone from the tenant portal: it meant six different things at once (sidebar area, entity type, a repeat of the title, wizard step, a date, a status), so it taught the reader nothing. Where the user is comes from the breadcrumbs and the sidebar. `SectionCard`'s `kicker` prop survives for the parents portal only.
+
+**Status line, not explanation.** The line under the title carries figures the page already loads — „116 Kinder · 107 zuhause · 9 krank", „29.07.2026 bis 27.08.2026 · 22 Betreuungstage". Use `TenantPageStats` for value/label pairs and `statsLoading` for the skeleton. An explanatory sentence in the head is a rule violation, not a nicety (`moto-einfache-sprache`, rule 8).
+
+**One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card, `SegmentedControl` only for a value choice (Monat/Woche, mode). Never a fourth variant.
+
+The full conversion spec, including what to do when a page's head lives in a view component, is `frontend/src/components/ui/TENANT-PAGE-SPEC.md`.
 
 ## Study these first — canonical reference screens
 
 Prose cannot transfer taste, density, spacing judgment, or restraint. Examples can. **Before building or changing any UI, open the relevant file(s) below and match their structure, density, spacing, color use, component choice, and restraint.** These are the bar for "looks like the rest of the app."
 
-| Pattern | File | Why it's canonical |
-|---|---|---|
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
-| Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
-| Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
-| Card primitive | `frontend/src/components/ui/info-card.tsx` | the canonical card surface |
-| Table primitive | `frontend/src/components/ui/data-table.tsx` | the canonical table |
+| Pattern           | File                                                           | Why it's canonical                                                                                                                                          |
+| ----------------- | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx`         | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational                                                                                |
+| Detail page       | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx`    | `ui/Tabs` + `detail-modal-components` field layout                                                                                                          |
+| Dense dashboard   | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative (big file; study sections, don't read top-to-bottom) |
+| Page scaffold     | `frontend/src/components/ui/tenant-page.tsx`                   | the root every tenant page renders                                                                                                                          |
+| Card primitive    | `frontend/src/components/ui/info-card.tsx`                     | the canonical card surface                                                                                                                                  |
+| Table primitive   | `frontend/src/components/ui/data-table.tsx`                    | the canonical table                                                                                                                                         |
 
 Keep this list current: if a reference is deleted or substantially rewritten, replace it with the new canonical example.
 
@@ -58,36 +83,36 @@ An unexplained bespoke component is a review failure, not a style preference.
 
 ## Need X → use Y (do not hand-roll)
 
-| You need… | Use | Import from |
-|---|---|---|
-| Button / CTA | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button` |
-| Text input | `Input` | `~/components/ui/input` |
-| Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
-| Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
-| Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
-| Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
-| Delete confirmation | `ConfirmDeleteModal` | `~/components/ui/confirm-delete-modal` |
-| Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
-| Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline) | `~/components/ui/tabs` |
-| Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
-| Data / list table | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
-| Info / stat card | `InfoCard`, `InfoItem` | `~/components/ui/info-card` |
-| Detail-panel fields | `DataField`, `InfoSection`, `DataGrid`, `InfoText` | `~/components/ui/detail-modal-components` |
-| Select dropdown (form value) | `CustomSelect`, `ListboxDropdown` (keyboard/ARIA listbox) | `~/components/ui/custom-select`, `~/components/ui/listbox-dropdown` |
-| Date / range picker | `DatePicker`, date-range picker | `~/components/ui/date-picker`, `~/components/ui/date-range-picker` |
-| Loading / skeleton | `Loading`, `Skeleton` | `~/components/ui/loading`, `~/components/ui/skeleton` |
-| Avatar | `Avatar` | `~/components/ui/avatar` |
-| Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
-| Semantic status pill (fixed tone set) | `StatusBadge` — tinted pill + dot, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes) | `~/components/ui/status-badge` |
-| Data-driven status pill (raw hex) | `StatusDotBadge` | `~/components/ui/status-dot-badge` |
-| Empty / no-results state | `EmptyState` — optional icon, title, description, action slot | `~/components/ui/empty-state` |
-| Back navigation | `BackButton`, `MobileBackButton` | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
-| Overlay / side panel | `Drawer`, slide-over | `~/components/ui/drawer`, `~/components/ui/slide-over` |
-| API error message text | `getApiErrorMessage` | `~/lib/api-error-message` |
-| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
-| Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
-| Kebab / overflow action menu | `OverflowMenu` | `~/components/ui/page-header/OverflowMenu` |
-| Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
+| You need…                                                                                        | Use                                                                                                                                                                                                                                                                                     | Import from                                                         |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Button / CTA                                                                                     | `Button` — variants `primary` `secondary` `outline` `outline_danger` `danger` `success` `ghost`; sizes `sm` `base` `lg` `xl` (page-level), `md` (modal-footer / in-form action height, `px-4 py-2 text-sm`) + `compact` `icon` (flat dense chrome). Pass `type="button"` outside forms. | `~/components/ui/button`                                            |
+| Text input                                                                                       | `Input`                                                                                                                                                                                                                                                                                 | `~/components/ui/input`                                             |
+| Checkbox                                                                                         | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row                                                                                                                                                                                              | `~/components/ui/checkbox`                                          |
+| Inline alert / banner                                                                            | `Alert` (`type`, `message`)                                                                                                                                                                                                                                                             | `~/components/ui/alert`                                             |
+| Modal dialog                                                                                     | `Modal`, `ConfirmationModal`                                                                                                                                                                                                                                                            | `~/components/ui/modal`                                             |
+| Form inside a modal                                                                              | `FormModal`                                                                                                                                                                                                                                                                             | `~/components/ui/form-modal`                                        |
+| Delete confirmation                                                                              | `ConfirmDeleteModal`                                                                                                                                                                                                                                                                    | `~/components/ui/confirm-delete-modal`                              |
+| Multi-step wizard                                                                                | `WizardStepper`                                                                                                                                                                                                                                                                         | `~/components/ui/wizard-stepper`                                    |
+| Tabs (switching CONTENT panels)                                                                  | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill) or `"line"` (underline)                                                                                                                                                                                   | `~/components/ui/tabs`                                              |
+| Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars                                                                                                                                                        | `~/components/ui/segmented-control`                                 |
+| Data / list table                                                                                | `DataTable`, `DataTableStatusBadge`                                                                                                                                                                                                                                                     | `~/components/ui/data-table`                                        |
+| Info / stat card                                                                                 | `InfoCard`, `InfoItem`                                                                                                                                                                                                                                                                  | `~/components/ui/info-card`                                         |
+| Detail-panel fields                                                                              | `DataField`, `InfoSection`, `DataGrid`, `InfoText`                                                                                                                                                                                                                                      | `~/components/ui/detail-modal-components`                           |
+| Select dropdown (form value)                                                                     | `CustomSelect`, `ListboxDropdown` (keyboard/ARIA listbox)                                                                                                                                                                                                                               | `~/components/ui/custom-select`, `~/components/ui/listbox-dropdown` |
+| Date / range picker                                                                              | `DatePicker`, date-range picker                                                                                                                                                                                                                                                         | `~/components/ui/date-picker`, `~/components/ui/date-range-picker`  |
+| Loading / skeleton                                                                               | `Loading`, `Skeleton`                                                                                                                                                                                                                                                                   | `~/components/ui/loading`, `~/components/ui/skeleton`               |
+| Avatar                                                                                           | `Avatar`                                                                                                                                                                                                                                                                                | `~/components/ui/avatar`                                            |
+| Location / presence badge                                                                        | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge`                                                                                                                                                                                                                                | `~/components/ui/location-badge`, etc.                              |
+| Semantic status pill (fixed tone set)                                                            | `StatusBadge` — tinted pill + dot, `tone` = `blue` `green` `orange` `red` `gray` (brand hexes)                                                                                                                                                                                          | `~/components/ui/status-badge`                                      |
+| Data-driven status pill (raw hex)                                                                | `StatusDotBadge`                                                                                                                                                                                                                                                                        | `~/components/ui/status-dot-badge`                                  |
+| Empty / no-results state                                                                         | `EmptyState` — optional icon, title, description, action slot                                                                                                                                                                                                                           | `~/components/ui/empty-state`                                       |
+| Back navigation                                                                                  | `BackButton`, `MobileBackButton`                                                                                                                                                                                                                                                        | `~/components/ui/back-button`, `~/components/ui/mobile-back-button` |
+| Overlay / side panel                                                                             | `Drawer`, slide-over                                                                                                                                                                                                                                                                    | `~/components/ui/drawer`, `~/components/ui/slide-over`              |
+| API error message text                                                                           | `getApiErrorMessage`                                                                                                                                                                                                                                                                    | `~/lib/api-error-message`                                           |
+| List/search page header                                                                          | `PageHeaderWithSearch`                                                                                                                                                                                                                                                                  | `~/components/ui/page-header/PageHeaderWithSearch`                  |
+| Header nav tabs (sliding indicator, mobile dropdown)                                             | `NavigationTabs`                                                                                                                                                                                                                                                                        | `~/components/ui/page-header/NavigationTabs`                        |
+| Kebab / overflow action menu                                                                     | `OverflowMenu`                                                                                                                                                                                                                                                                          | `~/components/ui/page-header/OverflowMenu`                          |
+| Filter toggle button                                                                             | `FilterButton`                                                                                                                                                                                                                                                                          | `~/components/ui/page-header/FilterButton`                          |
 
 If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
@@ -105,19 +130,19 @@ If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
 
 NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) for a brand-semantic purpose; the Tailwind hues differ from the brand. Prefer the kit component that already encodes the color, then a `moto-*` utility (`bg-moto-green`, `text-moto-red-strong`), then `LOCATION_COLORS` / `MOTO_COLOR_PALETTE` in a `style` prop. Do NOT hardcode the raw hex in an arbitrary-value class: when the palette moves, a literal stays behind and silently drifts out of sync with the token beside it.
 
-| Semantic | Hex | `LOCATION_COLORS` key |
-|---|---|---|
-| Brand green (primary) | `#83CD2D` | `GROUP_ROOM` |
-| Brand blue | `#5080D8` | `OTHER_ROOM` |
-| Neutral gray (Zuhause) | `#6B7280` | `HOME` |
-| Orange (Schulhof) | `#F78C10` | `SCHOOLYARD` |
-| Magenta (Unterwegs) | `#D946EF` | `TRANSIT` |
-| Red (Krank / Fehler) | `#DC2626` | `SICK` / `DANGER` |
-| Amber (Warnung) | `#EAB308` | `WARNING` |
-| Purple (Entschuldigt) | `#7C3AED` | `EXCUSED` |
-| Cyan (Klassenfahrt) | `#0891B2` | `CLASS_TRIP` |
-| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL` |
-| Stone (Unbekannt) | `#78716C` | `UNKNOWN` |
+| Semantic                 | Hex       | `LOCATION_COLORS` key |
+| ------------------------ | --------- | --------------------- |
+| Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
+| Brand blue               | `#5080D8` | `OTHER_ROOM`          |
+| Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
+| Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
+| Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
+| Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |
+| Amber (Warnung)          | `#EAB308` | `WARNING`             |
+| Purple (Entschuldigt)    | `#7C3AED` | `EXCUSED`             |
+| Cyan (Klassenfahrt)      | `#0891B2` | `CLASS_TRIP`          |
+| Navy (Kommt heute nicht) | `#365D83` | `NOT_ARRIVAL`         |
+| Stone (Unbekannt)        | `#78716C` | `UNKNOWN`             |
 
 `SICK` and `DANGER` are the same hex on purpose — one names the child status,
 the other the error semantic. `WARNING` is the amber "needs attention but is
@@ -161,11 +186,11 @@ The UI skills live in `frontend/.claude/skills/` and load only when an agent wor
 
 The three places where following the vendored skill literally produces wrong output here (two of them fail `pnpm run check`):
 
-| Skill says | Here instead |
-|---|---|
-| `better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces. |
-| `better-colors`: express colors as OKLCH tokens | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
-| `better-writing`: title case vs sentence case, English phrasing | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
+| Skill says                                                                  | Here instead                                                                                                                                                                                                     |
+| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `better-ui/surfaces.md`: prefer a `box-shadow` ring over a border for depth | Keep the canonical card surface: `.moto-content-surface` / `rounded-2xl border border-gray-200 bg-white shadow-sm`. Do not strip borders off kit surfaces.                                                       |
+| `better-colors`: express colors as OKLCH tokens                             | Brand semantics come from `LOCATION_COLORS` hex only. New chromatic Tailwind utilities trip the `ui-kit/no-generic-brand-colors` ratchet. Convert notation only in an explicit, approved color-system migration. |
+| `better-writing`: title case vs sentence case, English phrasing             | All user-facing copy is German, with Umlauten. Take the structural advice (name the action in the label, errors next to the field, one clear action per empty state); match the wording of neighbouring screens. |
 
 On motion, `ui-skills` is stricter than `better-ui/animations.md` and wins: no animation unless it was asked for, compositor properties only.
 
@@ -189,6 +214,8 @@ Code can be correct and the UI still feel wrong (spacing, density, decoration). 
 
 Apply before marking any UI work complete (and reviewers: before approving):
 
+- [ ] Tenant page renders `TenantPage` as its root; no own `max-w`/`mx-auto`/root padding/`<h1>`/action row
+- [ ] No mini-heading (kicker) above a page title; status line carries real figures, not an explanation
 - [ ] Reuses kit components; any new component is justified in the PR description
 - [ ] Colors come from `LOCATION_COLORS` / kit components — no generic Tailwind hues
 - [ ] Radius, spacing, and density match the canonical screens (card = `rounded-2xl border border-gray-200 bg-white shadow-sm`)

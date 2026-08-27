@@ -11,9 +11,7 @@ import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-reques
 import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absence-request-list";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -367,20 +365,6 @@ export default function AnfragenPage() {
     setView(nextView);
   };
 
-  if (!isReady) {
-    return (
-      <div className="w-full space-y-6">
-        <PageIntro
-          title="Anfragen"
-          description={<Skeleton className="h-4 w-40" />}
-        />
-        <SkeletonRegion label="Anfragen werden geladen…">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      </div>
-    );
-  }
-
   const staffActive = activeTab === "mitarbeitende";
 
   const viewSwitcher = (
@@ -395,72 +379,70 @@ export default function AnfragenPage() {
     />
   );
 
-  // Ohne Reiter trüge die Reiterzeile nur den Umschalter — eine Zeile mit
-  // einem einzigen Element direkt unter der Kopfkarte. Er wandert dann in die
-  // Titelzeile der Kopfkarte.
+  // Ohne Reiter trägt die Reiterleiste nur einen einzigen Eintrag; dann
+  // bleibt sie weg.
   const hasTabs = visibleTabs.length > 1;
 
   return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Titel und Erklärtext in EINER Karte,
-          auf allen Breakpoints. Reiter, Suche, Filter und der
-          Ansichts-Umschalter stehen IN dieser Karte, damit sie nicht als
-          zweite Zeile darunter liegen; title="" blendet die dort doppelte
-          Titelzeile aus. */}
-      <PageIntro
-        title="Anfragen"
-        description={
-          listCount.count === null ? (
-            <Skeleton className="h-4 w-40" />
-          ) : (
-            `${listCount.count}${listCount.hasMore ? "+" : ""} ${view === "open" ? "offen" : "entschieden"}`
-          )
-        }
-        actions={hasTabs ? undefined : viewSwitcher}
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          tabs={
-            hasTabs
-              ? {
-                  items: visibleTabs,
-                  activeTab,
-                  // Der Suchbegriff des einen Reiters passt nie zum anderen
-                  // (Kind gegen Teammitglied), also beim Wechsel leeren.
-                  onTabChange: (tabId) => {
-                    setSelectedTab(tabId as AnfragenTabId);
-                    setSearchTerm("");
-                  },
-                }
+    <TenantPage
+      title="Anfragen"
+      stats={
+        listCount.count === null
+          ? null
+          : `${listCount.count}${listCount.hasMore ? "+" : ""} ${view === "open" ? "offen" : "entschieden"}`
+      }
+      statsLoading={!isReady || listCount.count === null}
+      // Offen gegen Historie ist eine Wertauswahl über derselben Liste, kein
+      // eigener Seitenbereich; sie sitzt deshalb als Aktion in der Titelzeile.
+      actions={isReady ? viewSwitcher : undefined}
+      search={
+        isReady
+          ? {
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: staffActive
+                ? "Teammitglied suchen…"
+                : "Kind suchen…",
+            }
+          : undefined
+      }
+      filters={
+        !isReady
+          ? undefined
+          : staffActive
+            ? staffFilterConfigs
+            : filterConfigs.length > 0
+              ? filterConfigs
               : undefined
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: staffActive
-              ? "Teammitglied suchen..."
-              : "Kind suchen...",
-          }}
-          filters={
-            staffActive
-              ? staffFilterConfigs
-              : filterConfigs.length > 0
-                ? filterConfigs
-                : undefined
-          }
-          activeFilters={staffActive ? staffActiveFilters : activeFilters}
-          onClearAllFilters={clearAllFilters}
-          filterVariant="quiet"
-          activeFilterDisplay="count"
-          // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
-          // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
-          // jeder Breite dort — `actionButton` wandert auf Mobil in die
-          // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
-          tabsRowAction={hasTabs ? viewSwitcher : undefined}
-        />
-      </PageIntro>
-      {staffActive ? (
+      }
+      activeFilters={
+        isReady ? (staffActive ? staffActiveFilters : activeFilters) : undefined
+      }
+      onClearAllFilters={clearAllFilters}
+      tabs={
+        isReady && hasTabs
+          ? {
+              value: activeTab,
+              // Der Suchbegriff des einen Reiters passt nie zum anderen (Kind
+              // gegen Teammitglied), also beim Wechsel leeren.
+              onChange: (tabId) => {
+                setSelectedTab(tabId as AnfragenTabId);
+                setSearchTerm("");
+              },
+              items: visibleTabs.map((tab) => ({
+                value: tab.id,
+                label: tab.label,
+              })),
+              label: "Herkunft der Anfragen",
+            }
+          : undefined
+      }
+    >
+      {!isReady ? (
+        <SkeletonRegion label="Anfragen werden geladen…">
+          <ListSkeleton rows={4} avatar={false} />
+        </SkeletonRegion>
+      ) : staffActive ? (
         <MitarbeitendeTab
           view={view}
           filters={staffFilters}
@@ -473,7 +455,7 @@ export default function AnfragenPage() {
           onCountChange={handleParentCount}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

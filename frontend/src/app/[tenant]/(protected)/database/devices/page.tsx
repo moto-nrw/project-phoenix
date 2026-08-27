@@ -349,7 +349,6 @@ function DevicesPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Geräte",
         description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
         actions: (
@@ -421,7 +420,6 @@ function DevicesPageContent() {
               icon={MOTO_CONCEPTS.devices.icon}
               tone={MOTO_CONCEPTS.devices.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

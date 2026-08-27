@@ -92,7 +92,33 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import { CalendarPeriodsEditor } from "./calendar-periods-editor";
+import { TenantPage } from "~/components/ui/tenant-page";
+import {
+  CalendarPeriodsActions,
+  CalendarPeriodsEditor,
+  useCalendarPeriods,
+} from "./calendar-periods-editor";
+
+/**
+ * Der Kopf (Titel, Statuszeile, Anlegen-Aktionen) liegt seit dem
+ * Gerüst-Umbau in der Seite, der Inhaltsblock im Editor. Dieser Host stellt
+ * dieselbe Zusammensetzung her wie calendar-periods/page.tsx, damit die Tests
+ * weiter das prüfen, was die Seite wirklich rendert.
+ */
+function CalendarPeriodsHost() {
+  const state = useCalendarPeriods();
+
+  return (
+    <TenantPage
+      title="Kalenderzeiträume"
+      stats={state.statusLine}
+      statsLoading={state.loading}
+      actions={<CalendarPeriodsActions state={state} />}
+    >
+      <CalendarPeriodsEditor state={state} />
+    </TenantPage>
+  );
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -153,7 +179,7 @@ describe("CalendarPeriodsEditor", () => {
   it("shows the mobile type separately without truncating the period range", async () => {
     mockListPeriods.mockResolvedValue([makePeriod({ periodType: "holiday" })]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     const mobileType = (await screen.findAllByText("Ferien")).find(
       (element) => element.tagName === "P",
@@ -172,7 +198,7 @@ describe("CalendarPeriodsEditor", () => {
       makePeriod({ name: "Sommerferienbetreuung" }),
     ]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     // Ohne Umbruch an beliebiger Stelle zieht ein langes Wort die
     // Namensspalte über die Tabellenbreite hinaus (320px, #2033).
@@ -190,7 +216,7 @@ describe("CalendarPeriodsEditor", () => {
   it("allows header actions to wrap within a constrained content column", async () => {
     mockListPeriods.mockResolvedValue([makePeriod()]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     const createPeriodButton = await screen.findByRole("button", {
       name: "Zeitraum anlegen",
@@ -212,7 +238,7 @@ describe("CalendarPeriodsEditor", () => {
       .mockResolvedValueOnce([makePeriod()])
       .mockReturnValueOnce(refresh.promise);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     expect(screen.getByTestId("calendar-period-modal")).toBeInTheDocument();
@@ -246,7 +272,7 @@ describe("CalendarPeriodsEditor", () => {
       .mockResolvedValueOnce([makePhase()])
       .mockResolvedValueOnce([makePhase({ calendar_period_id: "5" })]);
 
-    render(<CalendarPeriodsEditor />);
+    render(<CalendarPeriodsHost />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.click(screen.getByRole("button", { name: "modal-toggle-phase" }));

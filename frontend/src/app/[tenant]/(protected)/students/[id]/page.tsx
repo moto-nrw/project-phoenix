@@ -10,7 +10,6 @@ import {
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
 import { hasPermission } from "~/lib/auth-utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -37,7 +36,10 @@ import {
   normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import {
-  StudentDetailHeader,
+  StudentHeaderAvatar,
+  StudentHeaderLocation,
+  StudentHeaderStats,
+  studentHeaderTitle,
   SupervisorsCard,
   PersonalInfoReadOnly,
   StudentHistorySection,
@@ -51,6 +53,7 @@ import {
   type AggregatedRequestFilters,
 } from "~/components/students/aggregated-request-list";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -233,33 +236,42 @@ function studentTabs(
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
-// Shared classes for every tab panel. forceMount (below) keeps inactive panels
-// mounted. This is deliberate, not just pre-tabs parity: the panel children
+// Shared classes for every tab panel. Every panel stays mounted; the inactive
+// ones are hidden via CSS (`data-[state=inactive]:hidden` → display:none, which
+// also removes them from the a11y tree). This is deliberate: the panel children
 // (CareScheduleManager, StudentGuardianManager) fetch on mount and do NOT cache,
-// so the lazy alternative — letting Radix unmount inactive panels — would
-// re-fire those network calls on every tab revisit. forceMount loads each once
-// and keeps every section reachable for deep links. Tradeoff, accepted on
-// purpose: every section fetches up front on page open (no lazy-per-tab win),
-// but that matches the pre-tabs behaviour where all sections rendered together,
-// so it is not a regression. It disables Radix's own
-// `hidden` attribute, so `data-[state=inactive]:hidden` does the hiding via CSS
-// (display:none — also removes inactive panels from the a11y tree).
+// so unmounting inactive panels would re-fire those network calls on every tab
+// revisit. Mounting all of them loads each once and keeps every section
+// reachable for deep links. Tradeoff, accepted on purpose: every section fetches
+// up front on page open (no lazy-per-tab win), but that matches the pre-tabs
+// behaviour where all sections rendered together, so it is not a regression.
 const TAB_CONTENT_CLASS =
-  "mt-4 focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden sm:mt-6";
+  "focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden";
 
-function StudentTabsList({ tabs }: Readonly<{ tabs: StudentTabId[] }>) {
+/**
+ * Ein Reiterinhalt der Kindakte. Die Reiterleiste selbst liefert `TenantPage`,
+ * damit die Seite dieselbe Bauart hat wie jede andere Tenant-Seite.
+ */
+function StudentTabPanel({
+  value,
+  activeTab,
+  className = TAB_CONTENT_CLASS,
+  children,
+}: Readonly<{
+  value: StudentTabId;
+  activeTab: StudentTabId;
+  className?: string;
+  children?: React.ReactNode;
+}>) {
+  const active = value === activeTab;
   return (
-    <div className="overflow-x-auto border-b border-gray-200">
-      {/* border-b-0 here: the wrapper above already draws the full-width rail,
-          so the line variant's own border-b would stack a second 1px line under
-          the labels. Matches the detail-panel precedent (database/detail-panel.tsx). */}
-      <TabsList variant="line" className="w-max justify-start border-b-0">
-        {tabs.map((tab) => (
-          <TabsTrigger key={tab} value={tab}>
-            {TAB_LABELS[tab]}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+    <div
+      role="tabpanel"
+      aria-label={TAB_LABELS[value]}
+      data-state={active ? "active" : "inactive"}
+      className={className}
+    >
+      {children}
     </div>
   );
 }
@@ -723,11 +735,11 @@ function StudentDetailPageContent() {
   // Show error state
   if (error || !student) {
     return (
-      <div className="w-full">
+      <>
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
-        <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-      </div>
+        <TenantPage title="Kindakte" error={error ?? "Kind nicht gefunden"} />
+      </>
     );
   }
 
@@ -1115,35 +1127,78 @@ function StudentDetailPageContent() {
 
   return (
     <>
-      <div className="w-full">
-        <BackButton referrer={referrer} />
+      {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
+      <BackButton referrer={referrer} />
 
-        <StudentDetailHeader
-          student={student}
-          myGroups={myGroups}
-          myGroupRooms={myGroupRooms}
-          mySupervisedRooms={mySupervisedRooms}
-          todayPickupPlannedTime={todayPickup.time}
-          todayPickupActualTime={student.actual_pickup_time}
-          todayPickupNote={todayPickup.note}
-          isPickupException={todayPickup.isException}
-          todayArrivalPlannedTime={todayArrival.time}
-          todayArrivalActualTime={student.actual_arrival_time}
-          isArrivalException={todayArrival.isException}
-          todayArrivalNote={todayArrival.note}
-          isArrivalAbsent={todayArrival.isAbsent}
-          sickReason={currentSickReason}
-        />
-
+      {/* Der Entitätskopf IST die Kopfkarte der Seite: Foto, Name, Statuszeile
+          mit Klasse, Gruppe und den Zeiten des heutigen Tages, der aktuelle
+          Aufenthaltsort als Aktion und die Schnellaktionen darunter. */}
+      <TenantPage
+        leading={<StudentHeaderAvatar student={student} />}
+        title={studentHeaderTitle(student)}
+        stats={
+          <StudentHeaderStats
+            student={student}
+            todayPickupPlannedTime={todayPickup.time}
+            todayPickupActualTime={student.actual_pickup_time}
+            todayPickupNote={todayPickup.note}
+            isPickupException={todayPickup.isException}
+            todayArrivalPlannedTime={todayArrival.time}
+            todayArrivalActualTime={student.actual_arrival_time}
+            isArrivalException={todayArrival.isException}
+            todayArrivalNote={todayArrival.note}
+            isArrivalAbsent={todayArrival.isAbsent}
+            sickReason={currentSickReason}
+          />
+        }
+        actions={
+          <StudentHeaderLocation
+            student={student}
+            myGroups={myGroups}
+            myGroupRooms={myGroupRooms}
+            mySupervisedRooms={mySupervisedRooms}
+            todayArrivalPlannedTime={todayArrival.time}
+            isArrivalException={todayArrival.isException}
+            todayArrivalNote={todayArrival.note}
+            isArrivalAbsent={todayArrival.isAbsent}
+          />
+        }
+        searchSlot={
+          <StudentQuickActions
+            student={student}
+            showCheckout={showCheckout}
+            showCheckin={showCheckin}
+            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+            onCheckoutClick={() => setShowConfirmCheckout(true)}
+            onCheckinClick={() => setShowConfirmCheckin(true)}
+            onSickClick={handleSickClick}
+            sickLoading={sickLoading}
+            isQuickExcused={isQuickExcused}
+            onExcusedClick={handleExcusedClick}
+            excusedLoading={excusedLoading}
+            onClassTripClick={() => setPlannedStatusModal("class_trip")}
+            plannedStatusLoading={plannedStatusLoading}
+          />
+        }
+        tabs={{
+          value: activeTab,
+          onChange: handleTabChange,
+          items: visibleTabs.map((tab) => ({
+            value: tab,
+            label: TAB_LABELS[tab],
+          })),
+          label: "Bereiche der Kindakte",
+        }}
+      >
         {careWithdrawalLoadFailed ? (
-          <div className="mt-4">
+          <div>
             <Alert
               type="error"
               message="Die offene Abmeldung konnte nicht geladen werden."
             />
           </div>
         ) : careWithdrawal ? (
-          <div className="mt-4">
+          <div>
             <Alert
               type="warning"
               message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
@@ -1178,11 +1233,8 @@ function StudentDetailPageContent() {
             student={student}
             studentId={studentId}
             hasWriteAccess={hasWriteAccess}
-            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
-            showCheckout={showCheckout}
-            showCheckin={showCheckin}
             activeTab={activeTab}
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
@@ -1192,19 +1244,10 @@ function StudentDetailPageContent() {
             onDeleteStatusDay={handleDeletePlannedStatus}
             onVisibleDateRangeChange={ensureStatusDayRange}
             showPersonalInfoModal={showPersonalInfoModal}
-            onCheckoutClick={() => setShowConfirmCheckout(true)}
-            onCheckinClick={() => setShowConfirmCheckin(true)}
             onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
             onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
             onSavePersonal={handleSavePersonal}
             onRefreshData={refreshDataAndHistory}
-            onSickClick={handleSickClick}
-            sickLoading={sickLoading}
-            isQuickExcused={isQuickExcused}
-            onExcusedClick={handleExcusedClick}
-            excusedLoading={excusedLoading}
-            onClassTripClick={() => setPlannedStatusModal("class_trip")}
-            plannedStatusLoading={plannedStatusLoading}
           />
         ) : (
           <LimitedAccessView
@@ -1213,25 +1256,12 @@ function StudentDetailPageContent() {
             attendanceLogEnabled={attendanceLogEnabled}
             feedbackEnabled={feedbackEnabled}
             supervisors={supervisors}
-            showCheckout={showCheckout}
-            showCheckin={showCheckin}
-            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
             activeTab={activeTab}
             tabs={visibleTabs}
             canViewEnrollments={canViewEnrollments}
-            onTabChange={handleTabChange}
-            onCheckoutClick={() => setShowConfirmCheckout(true)}
-            onCheckinClick={() => setShowConfirmCheckin(true)}
-            onSickClick={handleSickClick}
-            sickLoading={sickLoading}
-            isQuickExcused={isQuickExcused}
-            onExcusedClick={handleExcusedClick}
-            excusedLoading={excusedLoading}
-            onClassTripClick={() => setPlannedStatusModal("class_trip")}
-            plannedStatusLoading={plannedStatusLoading}
           />
         )}
-      </div>
+      </TenantPage>
 
       {/* Checkout Confirmation Modal */}
       <ConfirmationModal
@@ -1404,10 +1434,10 @@ function StudentDetailPageContent() {
  * Die Kacheln für An-/Abmelden, Krank, Entschuldigt und weitere Statusaktionen.
  *
  * Bewusst große Touch-Ziele: die Reihe wird im Alltag am Tablet bedient, nicht
- * mit der Maus. Sie steht deshalb nicht als OverflowMenu im Entitätskopf,
- * sondern als benannter Abschnitt, damit keine freischwebende Kachelreihe
- * zwischen Kopf und Reitern hängt. Beide Ansichten (eingeschränkt und voll)
- * teilen sich diesen Block, statt ihn doppelt zu pflegen.
+ * mit der Maus. Sie steht deshalb nicht als OverflowMenu in der Titelzeile,
+ * sondern als Reihe im Fuß der Kopfkarte, damit keine freischwebende
+ * Kachelreihe zwischen Kopf und Reitern hängt. Beide Ansichten (eingeschränkt
+ * und voll) teilen sich diesen Block, statt ihn doppelt zu pflegen.
  */
 function StudentQuickActions({
   student,
@@ -1441,40 +1471,36 @@ function StudentQuickActions({
   if (!showCheckout && !showCheckin && !hasAbsenceWriteAccess) return null;
 
   return (
-    <SectionCard title="Schnellaktionen" className="mb-4 sm:mb-6">
-      <div className="flex gap-3 sm:gap-4">
-        {showCheckout && (
-          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-        )}
-        {showCheckin && (
-          <StudentCheckinSection onCheckinClick={onCheckinClick} />
-        )}
-        {hasAbsenceWriteAccess && (
-          <StudentSickReportSection
-            isSick={student.sick ?? false}
-            sickSince={student.sick_since}
-            onToggle={onSickClick}
-            isLoading={sickLoading}
-          />
-        )}
-        {hasAbsenceWriteAccess && (
-          <StudentExcusedReportSection
-            isExcused={isQuickExcused}
-            excusedSince={isQuickExcused ? student.excused_since : undefined}
-            onToggle={onExcusedClick}
-            isLoading={excusedLoading}
-          />
-        )}
-        {hasAbsenceWriteAccess && (
-          <StudentStatusActionsMenu
-            isClassTrip={student.class_trip ?? false}
-            classTripSince={student.class_trip_since}
-            onPlanClassTrip={onClassTripClick}
-            isLoading={plannedStatusLoading}
-          />
-        )}
-      </div>
-    </SectionCard>
+    <div className="flex gap-3 sm:gap-4" aria-label="Schnellaktionen">
+      {showCheckout && (
+        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
+      {hasAbsenceWriteAccess && (
+        <StudentSickReportSection
+          isSick={student.sick ?? false}
+          sickSince={student.sick_since}
+          onToggle={onSickClick}
+          isLoading={sickLoading}
+        />
+      )}
+      {hasAbsenceWriteAccess && (
+        <StudentExcusedReportSection
+          isExcused={isQuickExcused}
+          excusedSince={isQuickExcused ? student.excused_since : undefined}
+          onToggle={onExcusedClick}
+          isLoading={excusedLoading}
+        />
+      )}
+      {hasAbsenceWriteAccess && (
+        <StudentStatusActionsMenu
+          isClassTrip={student.class_trip ?? false}
+          classTripSince={student.class_trip_since}
+          onPlanClassTrip={onClassTripClick}
+          isLoading={plannedStatusLoading}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1488,25 +1514,9 @@ interface LimitedAccessViewProps {
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
-  showCheckout: boolean;
-  showCheckin: boolean;
-  /** Absence actions are gated separately from read access: a school without
-   *  feste Gruppen lets staff report absences for children whose record they
-   *  may only see redacted (#2232). */
-  hasAbsenceWriteAccess: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
-  onTabChange: (tab: string) => void;
-  onCheckoutClick: () => void;
-  onCheckinClick: () => void;
-  onSickClick: () => void;
-  sickLoading: boolean;
-  isQuickExcused: boolean;
-  onExcusedClick: () => void;
-  excusedLoading: boolean;
-  onClassTripClick: () => void;
-  plannedStatusLoading: boolean;
 }
 
 function LimitedAccessView({
@@ -1515,22 +1525,9 @@ function LimitedAccessView({
   attendanceLogEnabled,
   feedbackEnabled,
   supervisors,
-  showCheckout,
-  showCheckin,
-  hasAbsenceWriteAccess,
   activeTab,
   tabs,
   canViewEnrollments,
-  onTabChange,
-  onCheckoutClick,
-  onCheckinClick,
-  onSickClick,
-  sickLoading,
-  isQuickExcused,
-  onExcusedClick,
-  excusedLoading,
-  onClassTripClick,
-  plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
@@ -1553,86 +1550,66 @@ function LimitedAccessView({
   }, [activeTab]);
   return (
     <>
-      <StudentQuickActions
-        student={student}
-        showCheckout={showCheckout}
-        showCheckin={showCheckin}
-        hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-        onCheckoutClick={onCheckoutClick}
-        onCheckinClick={onCheckinClick}
-        onSickClick={onSickClick}
-        sickLoading={sickLoading}
-        isQuickExcused={isQuickExcused}
-        onExcusedClick={onExcusedClick}
-        excusedLoading={excusedLoading}
-        onClassTripClick={onClassTripClick}
-        plannedStatusLoading={plannedStatusLoading}
-      />
+      <StudentTabPanel
+        value="stammdaten"
+        activeTab={activeTab}
+        className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
+      >
+        <SupervisorsCard supervisors={supervisors} studentName={student.name} />
+        <PersonalInfoReadOnly student={student} />
+      </StudentTabPanel>
 
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={tabs} />
+      <StudentTabPanel
+        value="erziehungsberechtigte"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentGuardianManager studentId={student.id} readOnly={true} />
+      </StudentTabPanel>
 
-        <TabsContent
-          value="stammdaten"
-          forceMount
-          className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
-        >
-          <SupervisorsCard
-            supervisors={supervisors}
-            studentName={student.name}
-          />
-          <PersonalInfoReadOnly student={student} />
-        </TabsContent>
-
-        <TabsContent
-          value="erziehungsberechtigte"
-          forceMount
+      {canViewEnrollments ? (
+        <StudentTabPanel
+          value="anmeldungen"
+          activeTab={activeTab}
           className={TAB_CONTENT_CLASS}
         >
-          <StudentGuardianManager studentId={student.id} readOnly={true} />
-        </TabsContent>
+          <StudentEnrollmentsTab studentId={student.id} />
+        </StudentTabPanel>
+      ) : null}
 
-        {canViewEnrollments ? (
-          <TabsContent
-            value="anmeldungen"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            <StudentEnrollmentsTab studentId={student.id} />
-          </TabsContent>
-        ) : null}
+      {tabs.includes("aenderungsprotokoll") && (
+        <StudentTabPanel
+          value="aenderungsprotokoll"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {protocolTabSeen && (
+            <SectionCard
+              title="Änderungsprotokoll"
+              description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+            >
+              <AggregatedRequestList
+                view="history"
+                filters={changeProtocolFilters}
+              />
+            </SectionCard>
+          )}
+        </StudentTabPanel>
+      )}
 
-        {tabs.includes("aenderungsprotokoll") && (
-          <TabsContent
-            value="aenderungsprotokoll"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            {protocolTabSeen && (
-              <SectionCard
-                kicker="Kinderkartei"
-                title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
-              >
-                <AggregatedRequestList
-                  view="history"
-                  filters={changeProtocolFilters}
-                />
-              </SectionCard>
-            )}
-          </TabsContent>
-        )}
-
-        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
-          <StudentHistorySection
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            readOnly={true}
-            onNavigate={(path) => historyRouter.push(path)}
-          />
-        </TabsContent>
-      </Tabs>
+      <StudentTabPanel
+        value="historie"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentHistorySection
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          readOnly={true}
+          onNavigate={(path) => historyRouter.push(path)}
+        />
+      </StudentTabPanel>
     </>
   );
 }
@@ -1645,12 +1622,8 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
-  /** See LimitedAccessViewProps.hasAbsenceWriteAccess (#2232). */
-  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
-  showCheckout: boolean;
-  showCheckin: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
@@ -1660,30 +1633,18 @@ interface FullAccessViewProps {
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
   onVisibleDateRangeChange: (from: string, to: string) => void;
   showPersonalInfoModal: boolean;
-  onCheckoutClick: () => void;
-  onCheckinClick: () => void;
   onOpenPersonalInfoModal: () => void;
   onClosePersonalInfoModal: () => void;
   onSavePersonal: (student: ExtendedStudent) => Promise<void>;
   onRefreshData: () => void;
-  onSickClick: () => void;
-  sickLoading: boolean;
-  isQuickExcused: boolean;
-  onExcusedClick: () => void;
-  excusedLoading: boolean;
-  onClassTripClick: () => void;
-  plannedStatusLoading: boolean;
 }
 
 function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
-  hasAbsenceWriteAccess,
   attendanceLogEnabled,
   feedbackEnabled,
-  showCheckout,
-  showCheckin,
   activeTab,
   tabs,
   canViewEnrollments,
@@ -1693,19 +1654,10 @@ function FullAccessView({
   onDeleteStatusDay,
   onVisibleDateRangeChange,
   showPersonalInfoModal,
-  onCheckoutClick,
-  onCheckinClick,
   onOpenPersonalInfoModal,
   onClosePersonalInfoModal,
   onSavePersonal,
   onRefreshData,
-  onSickClick,
-  sickLoading,
-  isQuickExcused,
-  onExcusedClick,
-  excusedLoading,
-  onClassTripClick,
-  plannedStatusLoading,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
@@ -1754,146 +1706,133 @@ function FullAccessView({
   }, [activeTab]);
   return (
     <>
-      <StudentQuickActions
-        student={student}
-        showCheckout={showCheckout}
-        showCheckin={showCheckin}
-        hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-        onCheckoutClick={onCheckoutClick}
-        onCheckinClick={onCheckinClick}
-        onSickClick={onSickClick}
-        sickLoading={sickLoading}
-        isQuickExcused={isQuickExcused}
-        onExcusedClick={onExcusedClick}
-        excusedLoading={excusedLoading}
-        onClassTripClick={onClassTripClick}
-        plannedStatusLoading={plannedStatusLoading}
-      />
+      <StudentTabPanel
+        value="stammdaten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <PersonalInfoReadOnly
+          student={student}
+          enrollmentExtraGroups={enrollmentExtraGroups}
+          showEditButton={hasWriteAccess}
+          onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
+        />
+      </StudentTabPanel>
 
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={tabs} />
-
-        <TabsContent
-          value="stammdaten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <PersonalInfoReadOnly
-            student={student}
-            enrollmentExtraGroups={enrollmentExtraGroups}
-            showEditButton={hasWriteAccess}
-            onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
-          />
-        </TabsContent>
-
-        <TabsContent
-          value="nachrichten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          {studentId && messagesTabSeen && (
-            <ParentMessagesCard
-              studentId={studentId}
-              studentName={student?.name}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent
-          value="erziehungsberechtigte"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <StudentGuardianManager
+      <StudentTabPanel
+        value="nachrichten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {studentId && messagesTabSeen && (
+          <ParentMessagesCard
             studentId={studentId}
-            readOnly={!hasWriteAccess}
-            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+            studentName={student?.name}
           />
-        </TabsContent>
+        )}
+      </StudentTabPanel>
 
-        {canViewCarePlan ? (
-          <TabsContent
-            value="betreuungsplan"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            {/* forceMounted for deep-linking; `active` gates the SWR read so it
+      <StudentTabPanel
+        value="erziehungsberechtigte"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentGuardianManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+        />
+      </StudentTabPanel>
+
+      {canViewCarePlan ? (
+        <StudentTabPanel
+          value="betreuungsplan"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {/* forceMounted for deep-linking; `active` gates the SWR read so it
                 only fires when the tab is actually open. Only rendered with
                 schedules:read, so the timetable fetch never 403s. */}
-            <CarePlanView
-              studentId={studentId}
-              statusDays={statusDays}
-              isSick={student.sick}
-              isExcused={student.excused}
-              onEditSchedule={() => onTabChange("betreuungszeiten")}
-              onVisibleDateRangeChange={onVisibleDateRangeChange}
-              active={activeTab === "betreuungsplan"}
-            />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent
-          value="betreuungszeiten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <CareScheduleManager
+          <CarePlanView
             studentId={studentId}
-            readOnly={!hasWriteAccess}
-            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+            statusDays={statusDays}
             isSick={student.sick}
             isExcused={student.excused}
-            statusDays={statusDays}
-            onDeleteStatusDay={onDeleteStatusDay}
+            onEditSchedule={() => onTabChange("betreuungszeiten")}
             onVisibleDateRangeChange={onVisibleDateRangeChange}
+            active={activeTab === "betreuungsplan"}
           />
-        </TabsContent>
+        </StudentTabPanel>
+      ) : null}
 
-        {canViewEnrollments ? (
-          <TabsContent
-            value="anmeldungen"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            <StudentEnrollmentsTab studentId={studentId} />
-          </TabsContent>
-        ) : null}
+      <StudentTabPanel
+        value="betreuungszeiten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <CareScheduleManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+          isSick={student.sick}
+          isExcused={student.excused}
+          statusDays={statusDays}
+          onDeleteStatusDay={onDeleteStatusDay}
+          onVisibleDateRangeChange={onVisibleDateRangeChange}
+        />
+      </StudentTabPanel>
 
-        <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
-          {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
-        </TabsContent>
+      {canViewEnrollments ? (
+        <StudentTabPanel
+          value="anmeldungen"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentEnrollmentsTab studentId={studentId} />
+        </StudentTabPanel>
+      ) : null}
 
-        {tabs.includes("aenderungsprotokoll") && (
-          <TabsContent
-            value="aenderungsprotokoll"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            {protocolTabSeen && (
-              <SectionCard
-                kicker="Kinderkartei"
-                title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
-              >
-                <AggregatedRequestList
-                  view="history"
-                  filters={changeProtocolFilters}
-                />
-              </SectionCard>
-            )}
-          </TabsContent>
-        )}
+      <StudentTabPanel
+        value="dokumente"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+      </StudentTabPanel>
 
-        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
-          <StudentHistorySection
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            canViewChangeHistory={hasWriteAccess}
-            onNavigate={(path) => historyRouter.push(path)}
-          />
-        </TabsContent>
-      </Tabs>
+      {tabs.includes("aenderungsprotokoll") && (
+        <StudentTabPanel
+          value="aenderungsprotokoll"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {protocolTabSeen && (
+            <SectionCard
+              title="Änderungsprotokoll"
+              description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+            >
+              <AggregatedRequestList
+                view="history"
+                filters={changeProtocolFilters}
+              />
+            </SectionCard>
+          )}
+        </StudentTabPanel>
+      )}
+
+      <StudentTabPanel
+        value="historie"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentHistorySection
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          canViewChangeHistory={hasWriteAccess}
+          onNavigate={(path) => historyRouter.push(path)}
+        />
+      </StudentTabPanel>
 
       {hasWriteAccess && (
         <PersonalInfoFormModal

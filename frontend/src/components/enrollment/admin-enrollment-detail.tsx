@@ -53,9 +53,8 @@ import {
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
@@ -216,14 +215,25 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
   if (loading) {
     return (
-      <SkeletonRegion label="Anmeldung wird geladen">
-        <DetailSkeleton sections={3} fieldsPerSection={4} />
-      </SkeletonRegion>
+      <TenantPage
+        title="Anmeldung"
+        back
+        backHref={tenantPath("/admin/enrollments")}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        statsLoading
+        loading
+      />
     );
   }
   if (!data) {
     return (
-      <Alert type="error" message={error ?? "Anmeldung nicht gefunden."} />
+      <TenantPage
+        title="Anmeldung"
+        back
+        backHref={tenantPath("/admin/enrollments")}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        error={error ?? "Anmeldung nicht gefunden."}
+      />
     );
   }
 
@@ -273,14 +283,14 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     .join(" · ");
 
   return (
-    <div className="space-y-5">
-      {/* Entitätskopf der Seite: eine Kopfkarte, kein zweiter Kopf im Inhalt. */}
-      <PageIntro
-        kicker="Anmeldung"
-        title={`${data.guardian_first_name} ${data.guardian_last_name}`}
-        description={statusLine}
-        leading={<ConceptIconTile concept="enrollments" variant="page" />}
-      />
+    <TenantPage
+      title={`${data.guardian_first_name} ${data.guardian_last_name}`}
+      back
+      backHref={tenantPath("/admin/enrollments")}
+      backLabel="Zurück zur Anmeldungs-Übersicht"
+      stats={statusLine}
+      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+    >
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
@@ -402,7 +412,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           void load();
         }}
       />
-    </div>
+    </TenantPage>
   );
 }
 
@@ -670,7 +680,6 @@ function ReviewSidebar({
       {/* Der Erklärtext stand vorher als eigener Block über der Karte und
           gehört als description in ihren Kopf. */}
       <SectionCard
-        kicker="Prüfung"
         title="Status der Anmeldung"
         description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
       >

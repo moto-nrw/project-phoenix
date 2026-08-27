@@ -117,6 +117,7 @@ describe("AnfragenPage", () => {
     expect(
       screen.getByLabelText("Anfragen werden geladen…"),
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("aggregated-list")).toBeNull();
   });
 
   // Der Zugriff hängt an der geteilten Regel, nicht an einer zweiten
@@ -155,7 +156,7 @@ describe("AnfragenPage", () => {
 
     // PageHeaderWithSearch rendert das Suchfeld doppelt (mobil + Desktop);
     // beide tragen denselben Zustand.
-    const [input] = screen.getAllByPlaceholderText("Kind suchen...");
+    const [input] = screen.getAllByPlaceholderText("Kind suchen…");
     fireEvent.change(input!, { target: { value: "Emma" } });
 
     expect(listProbe().filters.search).toBe("Emma");
@@ -174,10 +175,10 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    expect(screen.queryByText("Direkt-Korrekturen")).toBeNull();
+    expect(screen.queryAllByText("Direkt-Korrekturen")).toHaveLength(0);
 
     umschalten("Historie");
-    fireEvent.click(screen.getByText("Direkt-Korrekturen"));
+    fireEvent.click(screen.getAllByText("Direkt-Korrekturen")[0]!);
     expect(listProbe().filters.types).toEqual(["direct_correction"]);
 
     // Zurück in der Arbeitsliste dürfen Korrekturen nie auftauchen, auch
@@ -214,7 +215,7 @@ describe("AnfragenPage", () => {
   it("bietet die Anfrageart Anmeldung nur mit config:manage an", () => {
     render(<AnfragenPage />);
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    expect(screen.queryByText("Anmeldung")).toBeNull();
+    expect(screen.queryAllByText("Anmeldung")).toHaveLength(0);
   });
 
   it("bietet offene Abmeldungen als eigene Aufgabenart an", () => {
@@ -224,12 +225,12 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    fireEvent.click(screen.getByText("Abmeldungen"));
+    fireEvent.click(screen.getAllByText("Abmeldungen")[0]!);
     expect(listProbe().filters.types).toEqual(["care_withdrawal"]);
 
     umschalten("Historie");
     expect(listProbe().filters.types).toEqual([]);
-    expect(screen.queryByText("Abmeldungen")).toBeNull();
+    expect(screen.queryAllByText("Abmeldungen")).toHaveLength(0);
   });
 
   it("zeigt einer Person mit nur config:manage ausschließlich die Anmeldungen", () => {
@@ -244,8 +245,8 @@ describe("AnfragenPage", () => {
     expect(probe.filters.includeEnrollment).toBe(true);
 
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    expect(screen.getByText("Anmeldung")).toBeInTheDocument();
-    expect(screen.queryByText("Stammdaten")).toBeNull();
+    expect(screen.getAllByText("Anmeldung")[0]).toBeInTheDocument();
+    expect(screen.queryAllByText("Stammdaten")).toHaveLength(0);
   });
 
   it("zeigt einer Person mit users:absence die Liste ohne Art-Filter", () => {
@@ -258,7 +259,7 @@ describe("AnfragenPage", () => {
     // Die Liste selbst erscheint — das Backend engt sie serverseitig auf die
     // Entschuldigungen ein (#2232). Der Art-Filter wäre drei tote Optionen.
     expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
-    expect(screen.queryByText("Anfrageart")).toBeNull();
+    expect(screen.queryAllByText("Anfrageart")).toHaveLength(0);
   });
 
   // Reiter-Sichtbarkeit nach Berechtigung (#2429): der Mitarbeitende-Reiter
@@ -266,7 +267,7 @@ describe("AnfragenPage", () => {
   it("versteckt den Mitarbeitende-Reiter ohne vacation:approve", () => {
     render(<AnfragenPage />);
 
-    expect(screen.queryByRole("button", { name: "Mitarbeitende" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Mitarbeitende" })).toBeNull();
     expect(screen.queryByTestId("absence-list")).toBeNull();
   });
 
@@ -280,7 +281,7 @@ describe("AnfragenPage", () => {
     // Eltern-Reiter ist voreingestellt aktiv.
     expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Mitarbeitende" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Mitarbeitende" }));
 
     expect(absenceProbe().view).toBe("open");
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
@@ -291,13 +292,13 @@ describe("AnfragenPage", () => {
 
     render(<AnfragenPage />);
 
-    const [input] = screen.getAllByPlaceholderText("Teammitglied suchen...");
+    const [input] = screen.getAllByPlaceholderText("Teammitglied suchen…");
     fireEvent.change(input!, { target: { value: "Mira" } });
     expect(absenceProbe().filters.search).toBe("Mira");
 
     // Der Art-Filter der Kopfzeile reicht die gewählte Abwesenheitsart durch.
     fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
-    fireEvent.click(screen.getByRole("button", { name: "Fortbildung" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Fortbildung" })[0]!);
     expect(absenceProbe().filters.types).toEqual(["training"]);
   });
 
@@ -317,7 +318,7 @@ describe("AnfragenPage", () => {
 
     expect(screen.getByTestId("absence-list")).toBeInTheDocument();
     // Nur ein sichtbarer Reiter → keine Reiterleiste, kein Eltern-Inhalt.
-    expect(screen.queryByRole("button", { name: "Eltern" })).toBeNull();
+    expect(screen.queryByRole("tab", { name: "Eltern" })).toBeNull();
     expect(screen.queryByTestId("aggregated-list")).toBeNull();
   });
 
@@ -330,7 +331,7 @@ describe("AnfragenPage", () => {
     render(<AnfragenPage />);
 
     expect(
-      screen.getByRole("button", { name: "Mitarbeitende" }),
+      screen.getByRole("tab", { name: "Mitarbeitende" }),
     ).toBeInTheDocument();
     expect(screen.getByTestId("aggregated-list")).toBeInTheDocument();
   });

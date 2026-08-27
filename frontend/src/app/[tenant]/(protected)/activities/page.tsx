@@ -2,11 +2,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
-import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -33,7 +30,6 @@ import {
   MOBILE_CREATE_FAB_MEDIA_QUERY,
   useFloatingFabOffset,
 } from "~/lib/hooks/use-floating-fab-offset";
-import { ActivitiesSkeleton } from "./page-skeleton";
 import { redirect } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -294,162 +290,133 @@ function ActivitiesPageContent() {
     return filters;
   }, [searchTerm, categoryFilter, myActivitiesFilter, categories]);
 
-  // Session loading is gated explicitly via status; the data clause covers
-  // the render tick between "authenticated" and SWR starting its first fetch
-  // (isLoading is still false there but no data exists yet). Unauthenticated
-  // visits redirect via the required-session guard, and expired/tokenless
-  // sessions redirect via the effect above, so this cannot show the skeleton
-  // indefinitely.
-  if (showSkeleton) {
-    return <ActivitiesSkeleton />;
-  }
+  const hasFilters =
+    searchTerm !== "" || categoryFilter !== "all" || myActivitiesFilter;
+  const stats = hasFilters
+    ? `${filteredActivities.length} von ${activities.length} Aktivitäten · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`
+    : `${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`;
 
   return (
     <>
-      <div className="w-full">
-        {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. Die
-            Primäraktion steht hier; mobil bleibt zusätzlich der schwebende
-            Knopf unten rechts. */}
-        <PageIntro
-          title="Aktivitäten"
-          description={`${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`}
-          className="mb-6"
-          actions={
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              className="gap-2"
-              onClick={() => setIsQuickCreateOpen(true)}
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Aktivität erstellen
-            </Button>
-          }
-        >
-          <div className="relative z-30">
-            <PageHeaderWithSearch
-              embedded
-              title=""
-              badge={{
-                icon: <MotoConceptIcon concept="activities" size={20} />,
-                count: filteredActivities.length,
-                label: "Aktivitäten",
-              }}
-              search={{
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Aktivität suchen…",
-              }}
-              filters={filters}
-              activeFilters={activeFilters}
-              onClearAllFilters={() => {
-                setSearchTerm("");
-                setCategoryFilter("all");
-                setMyActivitiesFilter(false);
-              }}
-            />
-          </div>
-        </PageIntro>
+      <TenantPage
+        title="Aktivitäten"
+        stats={stats}
+        statsLoading={showSkeleton}
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-2"
+            onClick={() => setIsQuickCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Aktivität erstellen
+          </Button>
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Aktivität suchen…",
+        }}
+        filters={filters}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setSearchTerm("");
+          setCategoryFilter("all");
+          setMyActivitiesFilter(false);
+        }}
+        loading={showSkeleton}
+        error={error}
+        empty={
+          !showSkeleton && !error && filteredActivities.length === 0
+            ? {
+                icon: <MotoConceptIcon concept="activities" size={48} />,
+                title: hasFilters
+                  ? "Keine Aktivitäten gefunden"
+                  : "Keine Aktivitäten vorhanden",
+                description: hasFilters
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Es wurden noch keine Aktivitäten erstellt.",
+              }
+            : null
+        }
+      >
+        <div className="space-y-3">
+          {filteredActivities.map((activity, index) => {
+            const handleClick = () => handleSelectActivity(activity);
+            return (
+              <button
+                type="button"
+                key={activity.id}
+                onClick={handleClick}
+                className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                style={{
+                  animationName: "fadeInUp",
+                  animationDuration: "0.5s",
+                  animationTimingFunction: "ease-out",
+                  animationFillMode: "forwards",
+                  animationDelay: `${index * 0.05}s`,
+                  opacity: 0,
+                }}
+              >
+                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
 
-        {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
-        <button
-          type="button"
-          onClick={() => setIsQuickCreateOpen(true)}
-          className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
-          aria-label="Aktivität erstellen"
-        >
-          <Plus
-            className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
-            strokeWidth={2.5}
-            aria-hidden="true"
-          />
-        </button>
+                <div className="relative flex items-center justify-between p-5">
+                  {/* Left content */}
+                  <div className="min-w-0 flex-1">
+                    {/* Activity Name */}
+                    <h3 className="inline-block origin-left text-lg font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
+                      {activity.name}
+                    </h3>
 
-        {error && (
-          <div className="mb-6">
-            <Alert type="error" message={error} />
-          </div>
-        )}
-
-        {/* Activity List - Modern Design */}
-        {filteredActivities.length > 0 ? (
-          <div className="space-y-3">
-            {filteredActivities.map((activity, index) => {
-              const handleClick = () => handleSelectActivity(activity);
-              return (
-                <button
-                  type="button"
-                  key={activity.id}
-                  onClick={handleClick}
-                  className="moto-content-surface moto-hover-elevated group relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
-                  style={{
-                    animationName: "fadeInUp",
-                    animationDuration: "0.5s",
-                    animationTimingFunction: "ease-out",
-                    animationFillMode: "forwards",
-                    animationDelay: `${index * 0.05}s`,
-                    opacity: 0,
-                  }}
-                >
-                  <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
-
-                  <div className="relative flex items-center justify-between p-5">
-                    {/* Left content */}
-                    <div className="min-w-0 flex-1">
-                      {/* Activity Name */}
-                      <h3 className="inline-block origin-left text-lg font-semibold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
-                        {activity.name}
-                      </h3>
-
-                      {/* Meta info row */}
-                      <div className="mt-1 flex items-center gap-4">
-                        {/* Creator info */}
-                        <p className="text-sm text-gray-500">
-                          <span className="text-gray-400">Erstellt von:</span>{" "}
-                          {formatSupervisorList(activity.supervisors)}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Right content - Edit button (available for all users) */}
-                    <div className="ml-4 flex items-center gap-3">
-                      {/* Desktop hint */}
-                      <span className="hidden text-xs text-gray-400 transition-colors group-hover:text-gray-600 lg:block">
-                        Bearbeiten
-                      </span>
-
-                      {/* Edit icon indicator (visual only - parent button handles click) */}
-                      <span className="relative" aria-hidden="true">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:group-hover:bg-gray-200">
-                          <Pencil
-                            className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
-                            aria-hidden="true"
-                          />
-                        </div>
-                      </span>
+                    {/* Meta info row */}
+                    <div className="mt-1 flex items-center gap-4">
+                      {/* Creator info */}
+                      <p className="text-sm text-gray-500">
+                        <span className="text-gray-400">Erstellt von:</span>{" "}
+                        {formatSupervisorList(activity.supervisors)}
+                      </p>
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<MotoConceptIcon concept="activities" size={48} />}
-            title={
-              searchTerm || categoryFilter !== "all"
-                ? "Keine Aktivitäten gefunden"
-                : "Keine Aktivitäten vorhanden"
-            }
-            description={
-              searchTerm || categoryFilter !== "all"
-                ? "Versuchen Sie andere Suchkriterien oder Filter."
-                : "Es wurden noch keine Aktivitäten erstellt."
-            }
-          />
-        )}
-      </div>
+
+                  {/* Right content - Edit button (available for all users) */}
+                  <div className="ml-4 flex items-center gap-3">
+                    {/* Desktop hint */}
+                    <span className="hidden text-xs text-gray-400 transition-colors group-hover:text-gray-600 lg:block">
+                      Bearbeiten
+                    </span>
+
+                    {/* Edit icon indicator (visual only - parent button handles click) */}
+                    <span className="relative" aria-hidden="true">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 transition-colors duration-300 md:group-hover:bg-gray-200">
+                        <Pencil
+                          className="h-5 w-5 text-gray-600 transition-colors duration-300 md:group-hover:text-gray-900"
+                          aria-hidden="true"
+                        />
+                      </div>
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </TenantPage>
+
+      {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
+      <button
+        type="button"
+        onClick={() => setIsQuickCreateOpen(true)}
+        className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
+        aria-label="Aktivität erstellen"
+      >
+        <Plus
+          className="relative h-6 w-6 transition-transform duration-150 group-active:rotate-90"
+          strokeWidth={2.5}
+          aria-hidden="true"
+        />
+      </button>
 
       {/* Activity Management Modal */}
       {selectedActivity && (

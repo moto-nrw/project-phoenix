@@ -11,12 +11,11 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Input } from "~/components/ui/input";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -210,6 +209,29 @@ export default function AbsencesPage() {
   )
     ? groupFilter
     : "all";
+  // Filter der Kopfkarte: dieselbe Bauart wie auf jeder anderen Tenant-Seite.
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "status",
+        label: "Status",
+        type: "dropdown",
+        value: statusFilter,
+        onChange: (value) => setStatusFilter(value as string),
+        options: [...STATUS_FILTER_OPTIONS],
+      },
+      {
+        id: "group",
+        label: "Gruppe",
+        type: "dropdown",
+        value: effectiveGroupFilter,
+        onChange: (value) => setGroupFilter(value as string),
+        options: groupOptions,
+      },
+    ],
+    [effectiveGroupFilter, groupOptions, statusFilter],
+  );
+
   const hasActiveFilters =
     deferredQuery.trim() !== "" ||
     statusFilter !== "all" ||
@@ -253,49 +275,26 @@ export default function AbsencesPage() {
     );
 
   return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum
-          rechts im Kopf, Such- und Filterzeile darunter in derselben Karte. */}
-      <PageIntro
-        title="Abwesenheiten"
-        description={statusLine}
-        actions={
-          <DateRangePicker
-            value={range}
-            onChange={setRange}
-            presets={rangePresets(todayIso)}
-            fromMin={minDate}
-            toMax={maxDate}
-            className="w-full sm:w-auto"
-          />
-        }
-      >
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-          <Input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Nach Kind oder Klasse suchen…"
-            aria-label="Nach Kind oder Klasse suchen"
-            className="w-full sm:w-64"
-          />
-          <CustomSelect
-            value={statusFilter}
-            options={STATUS_FILTER_OPTIONS}
-            onChange={setStatusFilter}
-            ariaLabel="Nach Status filtern"
-            className="w-full sm:w-44"
-          />
-          <CustomSelect
-            value={effectiveGroupFilter}
-            options={groupOptions}
-            onChange={setGroupFilter}
-            ariaLabel="Nach Gruppe filtern"
-            className="w-full sm:w-52"
-          />
-        </div>
-      </PageIntro>
-
+    <TenantPage
+      title="Abwesenheiten"
+      stats={statusLine}
+      actions={
+        <DateRangePicker
+          value={range}
+          onChange={setRange}
+          presets={rangePresets(todayIso)}
+          fromMin={minDate}
+          toMax={maxDate}
+          className="w-full sm:w-auto"
+        />
+      }
+      search={{
+        value: query,
+        onChange: setQuery,
+        placeholder: "Nach Kind oder Klasse suchen…",
+      }}
+      filters={filterConfigs}
+    >
       <SectionCard title="Eingetragene Abwesenheitstage" bodyClassName="">
         {error !== null && (
           <div
@@ -352,6 +351,6 @@ export default function AbsencesPage() {
           </div>
         )}
       </SectionCard>
-    </div>
+    </TenantPage>
   );
 }

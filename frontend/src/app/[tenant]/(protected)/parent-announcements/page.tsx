@@ -15,9 +15,7 @@ import {
   Undo2,
 } from "lucide-react";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   FilterConfig,
@@ -40,7 +38,6 @@ import { DatePicker } from "~/components/ui/date-picker";
 import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
-import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -298,15 +295,6 @@ function ParentAnnouncementsContent() {
     [list],
   );
 
-  const kindItems = useMemo(
-    () =>
-      KIND_ITEMS.map((item) => ({
-        ...item,
-        label: `${item.label} (${kindCounts[item.value]})`,
-      })),
-    [kindCounts],
-  );
-
   const copy = KIND_COPY[kind];
 
   // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste:
@@ -330,25 +318,6 @@ function ParentAnnouncementsContent() {
 
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
-      {
-        // Der Umschalter Mitteilungen/Umfragen steuert die Liste darunter und
-        // sitzt deshalb in der Such- und Filterzeile, nicht in einer eigenen,
-        // fast leeren Zeile.
-        id: "kind",
-        label: "Art",
-        type: "custom",
-        value: kind,
-        onChange: () => undefined,
-        options: [],
-        render: (
-          <SegmentedControl
-            items={kindItems}
-            value={kind}
-            onChange={setKind}
-            ariaLabel="Mitteilungen oder Umfragen"
-          />
-        ),
-      },
       {
         id: "status",
         label: "Status",
@@ -376,7 +345,7 @@ function ParentAnnouncementsContent() {
         ],
       },
     ],
-    [statusFilter, kind, kindItems],
+    [statusFilter],
   );
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -618,73 +587,55 @@ function ParentAnnouncementsContent() {
   }
 
   return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
-          Primäraktion in EINER Karte, auf allen Breakpoints. */}
-      <PageIntro
-        kicker="Eltern"
-        title={copy.title}
-        description={
-          isLoading && !announcements ? (
-            <Skeleton className="h-4 w-52" />
-          ) : (
-            kindSummary
-          )
-        }
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={openCreate}
-            aria-label={copy.ariaLabel}
-            className="gap-1.5"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            {copy.action}
-          </Button>
-        }
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon:
-              kind === "poll" ? (
-                <ListChecks className="h-5 w-5 text-gray-600" aria-hidden />
-              ) : (
-                <Megaphone className="h-5 w-5 text-gray-600" aria-hidden />
-              ),
-            count: filtered.length,
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Titel suchen…",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setStatusFilter("all");
-          }}
-        />
-      </PageIntro>
-
+    <TenantPage
+      title={copy.title}
+      stats={kindSummary}
+      statsLoading={isLoading && !announcements}
+      actions={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={openCreate}
+          aria-label={copy.ariaLabel}
+          className="gap-1.5"
+        >
+          <Plus className="h-4 w-4" aria-hidden />
+          {copy.action}
+        </Button>
+      }
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Titel suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setStatusFilter("all");
+      }}
+      // Mitteilungen und Umfragen sind zwei Listen derselben Seite, also
+      // Seitenreiter — nicht ein Filter in der Suchzeile.
+      tabs={{
+        value: kind,
+        onChange: (value) => setKind(value as AnnouncementKind),
+        items: KIND_ITEMS.map((item) => ({
+          value: item.value,
+          label: item.label,
+          badge: kindCounts[item.value],
+        })),
+        label: "Mitteilungen oder Umfragen",
+      }}
+    >
       {loadError && (
-        <div>
-          <Alert
-            type="error"
-            message="Elternmitteilungen konnten nicht geladen werden."
-          />
-        </div>
+        <Alert
+          type="error"
+          message="Elternmitteilungen konnten nicht geladen werden."
+        />
       )}
 
-      {reminderNotice && (
-        <div>
-          <Alert type="success" message={reminderNotice} />
-        </div>
-      )}
+      {reminderNotice && <Alert type="success" message={reminderNotice} />}
 
       {isLoading ? (
         <>
@@ -884,7 +835,7 @@ function ParentAnnouncementsContent() {
           error={deleteError}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

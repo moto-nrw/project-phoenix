@@ -335,7 +335,6 @@ function ActivitiesPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Aktivitäten",
         description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
@@ -402,7 +401,6 @@ function ActivitiesPageContent() {
               icon={MOTO_CONCEPTS.activities.icon}
               tone={MOTO_CONCEPTS.activities.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

@@ -3,12 +3,9 @@
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -98,146 +95,124 @@ function MessagesInboxContent() {
   ).length;
   const inboxSummary = `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
 
-  return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
-          Primäraktion in EINER Karte, auf allen Breakpoints. */}
-      <PageIntro
-        kicker="Eltern"
-        title="Nachrichten"
-        description={
-          showSkeleton ? <Skeleton className="h-4 w-52" /> : inboxSummary
-        }
-        actions={
-          messagingEnabled ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setComposeOpen(true)}
-            >
-              Neue Nachricht
-            </Button>
-          ) : undefined
-        }
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={
-            showSkeleton
-              ? undefined
-              : {
-                  icon: (
-                    <MotoConceptIcon concept="parentConversations" size={20} />
-                  ),
-                  count: filteredThreads.length,
-                }
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Person oder Kind suchen…",
-          }}
-          // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
-          // fast leeren Zeile darunter.
-          filters={[
-            {
-              id: "unread",
-              type: "dropdown",
-              label: "Nachrichten filtern",
-              value: onlyUnread ? "unread" : "all",
-              onChange: (next) => setOnlyUnread(next === "unread"),
-              options: [
-                { value: "all", label: "Alle Nachrichten" },
-                { value: "unread", label: "Nur ungelesen" },
-              ],
-            },
-          ]}
-        />
-      </PageIntro>
+  const composeButton = messagingEnabled ? (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={() => setComposeOpen(true)}
+    >
+      Neue Nachricht
+    </Button>
+  ) : undefined;
 
+  // Der Fehler ersetzt den Inhalt nur, wenn nichts anzuzeigen ist. Liegt noch
+  // eine (möglicherweise veraltete) Liste vor, bleibt sie stehen und der
+  // Hinweis steht darüber.
+  const hasThreads = filteredThreads.length > 0;
+  const loadFailed = Boolean(error);
+  // Fehler- und Leerzustand ersetzen den Inhalt des Gerüsts. Solange das
+  // Verfassen-Fenster offen ist, muss der Inhalt gerendert werden, denn dort
+  // hängt das Fenster.
+  const bodyReplaced = !showSkeleton && !hasThreads && !composeOpen;
+
+  return (
+    <TenantPage
+      title="Nachrichten"
+      stats={inboxSummary}
+      statsLoading={showSkeleton}
+      actions={composeButton}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Person oder Kind suchen…",
+      }}
+      filters={[
+        {
+          id: "unread",
+          type: "dropdown",
+          label: "Nachrichten filtern",
+          value: onlyUnread ? "unread" : "all",
+          onChange: (next) => setOnlyUnread(next === "unread"),
+          options: [
+            { value: "all", label: "Alle Nachrichten" },
+            { value: "unread", label: "Nur ungelesen" },
+          ],
+        },
+      ]}
+      error={
+        bodyReplaced && loadFailed
+          ? "Nachrichten konnten nicht geladen werden."
+          : null
+      }
+      empty={
+        bodyReplaced && !loadFailed
+          ? {
+              icon: <MotoConceptIcon concept="parentConversations" size={48} />,
+              title: "Noch keine Nachrichten",
+              description: messagingEnabled
+                ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
+                : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet.",
+              action: composeButton,
+            }
+          : null
+      }
+    >
       {showSkeleton ? (
         <MessagesSkeleton />
       ) : (
         <>
-          {error && (
-            <div>
-              <Alert
-                type="error"
-                message="Nachrichten konnten nicht geladen werden."
-              />
-            </div>
+          {loadFailed && (
+            <Alert
+              type="error"
+              message="Nachrichten konnten nicht geladen werden."
+            />
           )}
 
-          {filteredThreads.length === 0 ? (
-            <EmptyState
-              icon={<MotoConceptIcon concept="parentConversations" size={48} />}
-              title="Noch keine Nachrichten"
-              description={
-                messagingEnabled
-                  ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
-                  : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet."
-              }
-              action={
-                messagingEnabled ? (
-                  <Button
-                    type="button"
-                    variant="primary"
-                    size="md"
-                    onClick={() => setComposeOpen(true)}
-                  >
-                    Neue Nachricht
-                  </Button>
-                ) : undefined
-              }
-            />
-          ) : (
-            <ul className="space-y-3">
-              {filteredThreads.map((thread) => {
-                const navigate = () =>
-                  router.push(`/messages/${thread.thread_id}`);
+          <ul className="space-y-3">
+            {filteredThreads.map((thread) => {
+              const navigate = () =>
+                router.push(`/messages/${thread.thread_id}`);
 
-                return (
-                  <li key={thread.thread_id}>
-                    <button
-                      type="button"
-                      onClick={navigate}
-                      className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                            <h3 className="truncate text-base font-semibold text-gray-900">
-                              {thread.guardian_name}
-                            </h3>
-                            <span className="truncate text-sm text-gray-500">
-                              {relationshipLabel(thread.relationship_type)} von{" "}
-                              {thread.student_name}
-                            </span>
-                            <UnreadBadge count={thread.unread_count} />
-                          </div>
-                          {thread.last_message_body && (
-                            <p className="mt-1 truncate text-sm text-gray-600">
-                              {thread.last_sender_kind === "staff" && (
-                                <span className="text-gray-500">Sie: </span>
-                              )}
-                              {thread.last_message_body}
-                            </p>
-                          )}
-                        </div>
-                        {thread.last_message_at && (
-                          <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                            {formatChatDateTime(thread.last_message_at)}
+              return (
+                <li key={thread.thread_id}>
+                  <button
+                    type="button"
+                    onClick={navigate}
+                    className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                          <h3 className="truncate text-base font-semibold text-gray-900">
+                            {thread.guardian_name}
+                          </h3>
+                          <span className="truncate text-sm text-gray-500">
+                            {relationshipLabel(thread.relationship_type)} von{" "}
+                            {thread.student_name}
                           </span>
+                          <UnreadBadge count={thread.unread_count} />
+                        </div>
+                        {thread.last_message_body && (
+                          <p className="mt-1 truncate text-sm text-gray-600">
+                            {thread.last_sender_kind === "staff" && (
+                              <span className="text-gray-500">Sie: </span>
+                            )}
+                            {thread.last_message_body}
+                          </p>
                         )}
                       </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+                      {thread.last_message_at && (
+                        <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                          {formatChatDateTime(thread.last_message_at)}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         </>
       )}
 
@@ -247,7 +222,7 @@ function MessagesInboxContent() {
           onOpened={(thread) => router.push(`/messages/${thread.thread_id}`)}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

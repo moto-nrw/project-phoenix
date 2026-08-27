@@ -8,6 +8,7 @@ import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
@@ -193,60 +194,51 @@ function TeamThreadContent() {
   // zu sagen, was los ist.
   const showSkeleton = !thread && isLoading && !loadError && !chatDisabled;
 
+  // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
+  // Unterhaltung und wer sie sehen kann.
+  const statusLine = `${messages.length} ${
+    messages.length === 1 ? "Nachricht" : "Nachrichten"
+  } · nur Sie beide sehen sie`;
+
   if (!showSkeleton && !thread) {
-    return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/team-chat" />
-        {chatDisabled ? (
-          <EmptyState
-            icon={<MessagesSquare size={48} className="text-gray-400" />}
-            title="Der Team-Chat ist ausgeschaltet"
-            description="Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten."
-          />
-        ) : (
-          <Alert
-            type="error"
-            message={
-              loadError
-                ? "Der Verlauf konnte nicht geladen werden."
-                : "Diese Unterhaltung gibt es nicht."
-            }
-          />
-        )}
-      </div>
+    return chatDisabled ? (
+      <TenantPage
+        title="Team-Chat"
+        empty={{
+          icon: <MessagesSquare size={48} className="text-gray-400" />,
+          title: "Der Team-Chat ist ausgeschaltet",
+          description:
+            "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten.",
+        }}
+      />
+    ) : (
+      <TenantPage
+        title="Unterhaltung"
+        error={
+          loadError
+            ? "Der Verlauf konnte nicht geladen werden."
+            : "Diese Unterhaltung gibt es nicht."
+        }
+      />
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+    <TenantPage
+      title={thread?.counterpart_name ?? "Unterhaltung"}
+      stats={statusLine}
+      statsLoading={showSkeleton}
     >
       <BackButton referrer="/team-chat" />
 
-      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-        {showSkeleton ? (
-          <TeamThreadSkeleton />
-        ) : (
-          <>
-            {/* Kopf der Unterhaltung in PageIntro-Optik (Kicker, Titel,
-                Unterzeile). Eine zweite Kopfkarte darüber ist hier nicht
-                möglich: die Chat-Karte ist an das Sichtfenster gekoppelt und
-                trägt den Kopf selbst. */}
-            <div className="mb-4 min-w-0">
-              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                Team-Chat
-              </p>
-              <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
-                {thread?.counterpart_name}
-              </h1>
-              {/* Statuszeile unter dem Titel: die Zahl der geladenen
-                  Nachrichten dieser Unterhaltung. */}
-              <p className="mt-1 text-sm leading-6 text-gray-600">
-                {`${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"} · nur Sie beide sehen sie`}
-              </p>
-            </div>
-
+      <div
+        ref={containerRef}
+        className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+      >
+        <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+          {showSkeleton ? (
+            <TeamThreadSkeleton />
+          ) : (
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
@@ -283,39 +275,39 @@ function TeamThreadContent() {
                 />
               )}
             </div>
-          </>
-        )}
-
-        {sendError && (
-          <div className="mt-3">
-            <Alert type="error" message={sendError} />
-          </div>
-        )}
-
-        <div className="mt-4">
-          {readOnlyThread ? (
-            <Alert
-              type="info"
-              message="Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den Verlauf lesen, aber nicht mehr schreiben."
-            />
-          ) : chatEnabled ? (
-            <MessageComposer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void handleSend()}
-              sending={isSending}
-              disabled={showSkeleton}
-              placeholder="Nachricht schreiben…"
-            />
-          ) : (
-            <Alert
-              type="info"
-              message="Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben."
-            />
           )}
+
+          {sendError && (
+            <div className="mt-3">
+              <Alert type="error" message={sendError} />
+            </div>
+          )}
+
+          <div className="mt-4">
+            {readOnlyThread ? (
+              <Alert
+                type="info"
+                message="Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den Verlauf lesen, aber nicht mehr schreiben."
+              />
+            ) : chatEnabled ? (
+              <MessageComposer
+                value={draft}
+                onChange={setDraft}
+                onSend={() => void handleSend()}
+                sending={isSending}
+                disabled={showSkeleton}
+                placeholder="Nachricht schreiben…"
+              />
+            ) : (
+              <Alert
+                type="info"
+                message="Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben."
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </TenantPage>
   );
 }
 

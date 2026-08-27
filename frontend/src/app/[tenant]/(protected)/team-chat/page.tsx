@@ -3,12 +3,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -118,73 +115,92 @@ function TeamChatInboxContent() {
     ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
     : "Team-Chat ist nicht eingeschaltet";
 
-  return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
-          Primäraktion in EINER Karte, auf allen Breakpoints. */}
-      <PageIntro
-        title="Team-Chat"
-        description={
-          showSkeleton ? <Skeleton className="h-4 w-52" /> : chatSummary
-        }
-        actions={
-          chatEnabled ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setComposeOpen(true)}
-            >
-              Neue Nachricht
-            </Button>
-          ) : undefined
-        }
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={
-            showSkeleton
-              ? undefined
-              : {
-                  icon: <MessagesSquare size={20} />,
-                  count: filteredThreads.length,
-                }
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Person suchen…",
-          }}
-          // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
-          // fast leeren Zeile darunter.
-          filters={
-            chatEnabled
-              ? [
-                  {
-                    id: "unread",
-                    type: "dropdown",
-                    label: "Unterhaltungen filtern",
-                    value: onlyUnread ? "unread" : "all",
-                    onChange: (next) => setOnlyUnread(next === "unread"),
-                    options: [
-                      { value: "all", label: "Alle Unterhaltungen" },
-                      { value: "unread", label: "Nur ungelesen" },
-                    ],
-                  },
-                ]
-              : undefined
-          }
-        />
-      </PageIntro>
+  const composeButton = (
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={() => setComposeOpen(true)}
+    >
+      Neue Nachricht
+    </Button>
+  );
 
-      {!chatEnabled ? (
-        <EmptyState
-          icon={<MessagesSquare size={48} className="text-gray-400" />}
-          title="Der Team-Chat ist ausgeschaltet"
-          description="Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten."
-        />
-      ) : showSkeleton ? (
+  // Fehler- und Leerzustand ersetzen den Inhalt des Gerüsts. Solange das
+  // Verfassen-Fenster offen ist, muss der Inhalt gerendert werden, denn dort
+  // hängt das Fenster.
+  const hasThreads = filteredThreads.length > 0;
+  const bodyReplaced = !showSkeleton && !hasThreads && !composeOpen;
+  const emptyState = (() => {
+    if (!bodyReplaced) return null;
+    if (!chatEnabled) {
+      return {
+        icon: <MessagesSquare size={48} className="text-gray-400" />,
+        title: "Der Team-Chat ist ausgeschaltet",
+        description:
+          "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an Ihre Leitung, wenn Sie ihn nutzen möchten.",
+      };
+    }
+    if (loadFailed) {
+      // Fehler OHNE Daten: eine leere Liste danebenzustellen behauptet „Sie
+      // haben keine Nachrichten“, obwohl in Wahrheit niemand nachsehen konnte.
+      return {
+        icon: <MessagesSquare size={48} className="text-gray-400" />,
+        title: "Das hat leider nicht geklappt",
+        description:
+          "Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+        action: (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => void mutate()}
+          >
+            Erneut versuchen
+          </Button>
+        ),
+      };
+    }
+    return {
+      icon: <MessagesSquare size={48} className="text-gray-400" />,
+      title: "Noch keine Nachrichten",
+      description:
+        "Hier stehen Ihre Unterhaltungen mit dem Team. Sie schreiben nur an Personen Ihrer Schule. Eltern sehen davon nichts.",
+      action: composeButton,
+    };
+  })();
+
+  return (
+    <TenantPage
+      title="Team-Chat"
+      stats={chatSummary}
+      statsLoading={showSkeleton}
+      actions={chatEnabled ? composeButton : undefined}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Person suchen…",
+      }}
+      filters={
+        chatEnabled
+          ? [
+              {
+                id: "unread",
+                type: "dropdown",
+                label: "Unterhaltungen filtern",
+                value: onlyUnread ? "unread" : "all",
+                onChange: (next) => setOnlyUnread(next === "unread"),
+                options: [
+                  { value: "all", label: "Alle Unterhaltungen" },
+                  { value: "unread", label: "Nur ungelesen" },
+                ],
+              },
+            ]
+          : undefined
+      }
+      empty={emptyState}
+    >
+      {showSkeleton ? (
         <TeamChatSkeleton />
       ) : (
         <>
@@ -192,92 +208,47 @@ function TeamChatInboxContent() {
             // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
             // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
             // sein muss.
-            <div>
-              <Alert
-                type="error"
-                message="Die Unterhaltungen konnten nicht geladen werden."
-              />
-            </div>
+            <Alert
+              type="error"
+              message="Die Unterhaltungen konnten nicht geladen werden."
+            />
           )}
 
-          {loadFailed && nothingToShow ? (
-            // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
-            // danebenzustellen behauptet "Sie haben keine Nachrichten",
-            // obwohl in Wahrheit niemand nachsehen konnte, und das ist die
-            // auffälligere der beiden Aussagen.
-            <EmptyState
-              icon={<MessagesSquare size={48} className="text-gray-400" />}
-              title="Das hat leider nicht geklappt"
-              description="Die Unterhaltungen konnten nicht geladen werden. Bitte versuchen Sie es noch einmal."
-              action={
-                <Button
+          <ul className="space-y-3">
+            {filteredThreads.map((thread) => (
+              <li key={thread.thread_id}>
+                <button
                   type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => void mutate()}
+                  onClick={() => router.push(`/team-chat/${thread.thread_id}`)}
+                  className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
                 >
-                  Erneut versuchen
-                </Button>
-              }
-            />
-          ) : filteredThreads.length === 0 ? (
-            <EmptyState
-              icon={<MessagesSquare size={48} className="text-gray-400" />}
-              title="Noch keine Nachrichten"
-              description="Hier stehen Ihre Unterhaltungen mit dem Team. Sie schreiben nur an Personen Ihrer Schule. Eltern sehen davon nichts."
-              action={
-                <Button
-                  type="button"
-                  variant="primary"
-                  size="md"
-                  onClick={() => setComposeOpen(true)}
-                >
-                  Neue Nachricht
-                </Button>
-              }
-            />
-          ) : (
-            <ul className="space-y-3">
-              {filteredThreads.map((thread) => (
-                <li key={thread.thread_id}>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      router.push(`/team-chat/${thread.thread_id}`)
-                    }
-                    className="moto-content-surface moto-hover-elevated block w-full cursor-pointer rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none sm:p-5"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                          <h3 className="truncate text-base font-semibold text-gray-900">
-                            {thread.counterpart_name}
-                          </h3>
-                          <UnreadBadge
-                            count={thread.unread_count}
-                            tone="staff"
-                          />
-                        </div>
-                        {thread.last_message_body && (
-                          <p className="mt-1 truncate text-sm text-gray-600">
-                            {thread.last_message_mine && (
-                              <span className="text-gray-500">Sie: </span>
-                            )}
-                            {thread.last_message_body}
-                          </p>
-                        )}
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                        <h3 className="truncate text-base font-semibold text-gray-900">
+                          {thread.counterpart_name}
+                        </h3>
+                        <UnreadBadge count={thread.unread_count} tone="staff" />
                       </div>
-                      {thread.last_message_at && (
-                        <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
-                          {formatChatDateTime(thread.last_message_at)}
-                        </span>
+                      {thread.last_message_body && (
+                        <p className="mt-1 truncate text-sm text-gray-600">
+                          {thread.last_message_mine && (
+                            <span className="text-gray-500">Sie: </span>
+                          )}
+                          {thread.last_message_body}
+                        </p>
                       )}
                     </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
+                    {thread.last_message_at && (
+                      <span className="flex-shrink-0 text-xs whitespace-nowrap text-gray-400">
+                        {formatChatDateTime(thread.last_message_at)}
+                      </span>
+                    )}
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
         </>
       )}
 
@@ -287,7 +258,7 @@ function TeamChatInboxContent() {
           onOpened={(threadId) => router.push(`/team-chat/${threadId}`)}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

@@ -13,9 +13,6 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
 import {
   SkeletonRegion,
   PageHeaderSkeleton,
@@ -26,6 +23,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
@@ -435,14 +433,15 @@ function SubstitutionPageContent() {
 
   if (openCareGroupMode) {
     return (
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        {/* Kein Erklärabsatz unter einer Überschrift, sondern ein Leerzustand. */}
-        <EmptyState
-          icon={<MotoConceptIcon concept="staff" size={48} />}
-          title="Gruppenzugriff nicht verfügbar"
-          description="Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen Gruppen“ kann in den Einstellungen geändert werden."
-        />
-      </div>
+      <TenantPage
+        title="Gruppenzugriff"
+        empty={{
+          icon: <MotoConceptIcon concept="staff" size={48} />,
+          title: "Gruppenzugriff nicht verfügbar",
+          description:
+            "Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen Gruppen“ kann in den Einstellungen geändert werden.",
+        }}
+      />
     );
   }
 
@@ -583,101 +582,85 @@ function SubstitutionPageContent() {
     </>
   );
 
+  // Statuszeile: die beiden Zugriffsarten, die die Seite darunter auflistet.
+  // Die Zahl der Fachkräfte steht als Zähler im Seitenkopf, weil sie sich mit
+  // Suche und Filter ändert.
+  const statusLine = `${transfers.length} ${
+    transfers.length === 1 ? "Tagesübergabe" : "Tagesübergaben"
+  } · ${longTermAccess.length} ${
+    longTermAccess.length === 1
+      ? "längerfristiger Zugriff"
+      : "längerfristige Zugriffe"
+  }`;
+
   return (
     <>
-      <div className="w-full">
-        {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
-        <PageIntro
-          title="Gruppenzugriff"
-          description={
-            // Statuszeile: verfügbare Fachkräfte und aktive Vertretungen aus
-            // den beiden Listen, die die Seite ohnehin lädt.
-            isLoading ? (
-              <Skeleton className="h-4 w-56" />
-            ) : (
-              `${teachers.length} ${teachers.length === 1 ? "Fachkraft" : "Fachkräfte"} · ${activeSubstitutions.length} ${
-                activeSubstitutions.length === 1
-                  ? "Vertretung aktiv"
-                  : "Vertretungen aktiv"
-              }`
-            )
-          }
-          className="mb-6"
-        >
-          <PageHeaderWithSearch
-            embedded
-            title=""
-            badge={{
-              icon: <MotoConceptIcon concept="staff" size={20} />,
-              count: filteredTeachers.length,
-              label: "Fachkräfte",
-            }}
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Fachkraft suchen…",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            onClearAllFilters={() => {
-              setSearchTerm("");
-              setStatusFilter("all");
-            }}
-          />
-        </PageIntro>
-
-        {loadError && (
-          <div className="mb-6">
-            <Alert type="error" message={loadError} />
-          </div>
-        )}
-
-        {/* Die Anzahl steht bereits im Zähler des Seitenkopfs, deshalb hier
-            eine schlichte Überschrift ohne Zählpille. */}
-        <div className="mb-6">
+      <TenantPage
+        title="Gruppenzugriff"
+        stats={statusLine}
+        statsLoading={isLoading}
+        badge={{
+          icon: <MotoConceptIcon concept="staff" size={20} />,
+          count: filteredTeachers.length,
+          label: "Fachkräfte",
+        }}
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Fachkraft suchen…",
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setSearchTerm("");
+          setStatusFilter("all");
+        }}
+        error={loadError}
+      >
+        {/* Die Trefferzahl steht bereits als Zähler im Seitenkopf, deshalb
+            hier eine schlichte Überschrift ohne Zählpille. */}
+        <div>
           <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4">
             Verfügbare pädagogische Fachkräfte
           </h2>
           {renderTeacherList()}
         </div>
 
-        <div className="space-y-6">
-          <section>
-            <SectionHeading
-              icon={<Clock className="h-5 w-5" />}
-              title="Tagesübergaben"
-              count={transfers.length}
-              hint="(enden heute 23:59)"
-            />
-            {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
-                steht bereits in der Überschrift. */}
-            {renderAccessSection(
-              transfers,
-              "Keine aktiven Tagesübergaben",
-              () => null,
-            )}
-          </section>
+        <section>
+          <SectionHeading
+            icon={<Clock className="h-5 w-5" />}
+            title="Tagesübergaben"
+            count={transfers.length}
+            hint="(enden heute 23:59)"
+          />
+          {/* Kein Enddatum: alle Zeilen dieses Abschnitts enden heute, das
+              steht bereits in der Überschrift. */}
+          {renderAccessSection(
+            transfers,
+            "Keine aktiven Tagesübergaben",
+            () => null,
+          )}
+        </section>
 
-          <section>
-            <SectionHeading
-              icon={<MotoConceptIcon concept="calendar" size={20} />}
-              title="Längerfristige Zugriffe"
-              count={longTermAccess.length}
-              hint="(mehrtägig)"
-            />
-            {renderAccessSection(
-              longTermAccess,
-              "Keine aktiven längerfristigen Zugriffe",
-              (substitution) =>
-                `bis ${substitution.endDate.toLocaleDateString("de-DE", {
-                  timeZone: "Europe/Berlin",
-                  day: "2-digit",
-                  month: "2-digit",
-                })}`,
-            )}
-          </section>
-        </div>
-      </div>
+        <section>
+          <SectionHeading
+            icon={<MotoConceptIcon concept="calendar" size={20} />}
+            title="Längerfristige Zugriffe"
+            count={longTermAccess.length}
+            hint="(mehrtägig)"
+          />
+          {renderAccessSection(
+            longTermAccess,
+            "Keine aktiven längerfristigen Zugriffe",
+            (substitution) =>
+              `bis ${substitution.endDate.toLocaleDateString("de-DE", {
+                timeZone: "Europe/Berlin",
+                day: "2-digit",
+                month: "2-digit",
+              })}`,
+          )}
+        </section>
+      </TenantPage>
 
       <Modal
         isOpen={showPopup}
@@ -745,7 +728,7 @@ function SubstitutionPageContent() {
             </Tabs>
 
             {durationPreset === CUSTOM_DURATION ? (
-              <div className="mt-3 max-w-40">
+              <div className="mt-3 w-40">
                 <Input
                   id="substitution-days-input"
                   name="substitution-days-input"

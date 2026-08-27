@@ -6,12 +6,10 @@ import {
   GradeTransitionsManager,
   type TransitionPermissions,
 } from "~/components/database/grade-transitions/grade-transitions-manager";
-import { BackButton } from "~/components/ui/back-button";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { hasPermission } from "~/lib/auth-utils";
 
 export default function GradeTransitionsPage() {
@@ -58,16 +56,12 @@ export default function GradeTransitionsPage() {
   })();
 
   return (
-    <div className="w-full">
-      <BackButton referrer="/database" />
-
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Jahrgangswechsel"
-        description={statusLine ?? <Skeleton className="h-4 w-56" />}
-        className="mb-6"
-      />
-
+    <TenantPage
+      title="Jahrgangswechsel"
+      stats={statusLine}
+      statsLoading={statusLine === null}
+      back
+    >
       <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
 
       <div className="hidden lg:block">
@@ -84,6 +78,6 @@ export default function GradeTransitionsPage() {
           <ForbiddenPage message="Sie verfügen nicht über die notwendigen Berechtigungen, um Jahrgangswechsel anzusehen." />
         )}
       </div>
-    </div>
+    </TenantPage>
   );
 }

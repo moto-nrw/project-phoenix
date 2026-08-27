@@ -16,7 +16,7 @@ function ListRowSkeleton() {
   );
 }
 
-// Mirrors the PageIntro head card every database page opens with: kicker,
+// Mirrors the PageIntro head card every database page opens with:
 // title and description line inside one moto-content-surface card.
 function PageIntroSkeleton() {
   return (

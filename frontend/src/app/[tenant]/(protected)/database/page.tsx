@@ -6,12 +6,12 @@ import { useSession } from "next-auth/react";
 const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
-import { DatabaseIndexSkeleton } from "./page-skeleton";
+import { DatabaseCardGridSkeleton } from "./page-skeleton";
 import { formatCount } from "~/lib/format-utils";
 
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -225,94 +225,92 @@ function DatabaseContent() {
     redirect("/");
   }
 
-  if (countsLoading && data === undefined) {
-    return <DatabaseIndexSkeleton />;
-  }
-
+  const showSkeleton = countsLoading && data === undefined;
   const statusLine = buildDatabaseStatusLine(counts);
 
   return (
-    <div className="w-full">
-      <PageIntro
-        title="Datenverwaltung"
-        description={statusLine}
-        className="mb-6"
-      />
+    <TenantPage
+      title="Datenverwaltung"
+      stats={statusLine}
+      statsLoading={showSkeleton}
+    >
+      {showSkeleton ? (
+        <DatabaseCardGridSkeleton />
+      ) : (
+        <div className="min-h-[60vh]">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {baseDataSections.map((section) => {
+              if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
+                return null;
+              }
 
-      {/* Data Sections Grid */}
-      <div className="min-h-[60vh]">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {baseDataSections.map((section) => {
-            if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
-              return null;
-            }
+              // Check permissions for this section
+              const permissionKey = (section.permissionKey ??
+                `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
+              if (!permissions?.[permissionKey]) {
+                return null;
+              }
 
-            // Check permissions for this section
-            const permissionKey = (section.permissionKey ??
-              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
-            if (!permissions?.[permissionKey]) {
-              return null;
-            }
+              const countKey =
+                section.id === "permissions" ? "permissionCount" : section.id;
+              const count = counts[countKey as keyof typeof counts] ?? 0;
+              const entryLabel = count === 1 ? "Eintrag" : "Einträge";
+              const countText =
+                section.badge ??
+                (countsLoading ? "Lädt…" : `${count} ${entryLabel}`);
+              const badgeLoading = section.badge === undefined && countsLoading;
+              const concept = MOTO_CONCEPTS[section.concept];
 
-            const countKey =
-              section.id === "permissions" ? "permissionCount" : section.id;
-            const count = counts[countKey as keyof typeof counts] ?? 0;
-            const entryLabel = count === 1 ? "Eintrag" : "Einträge";
-            const countText =
-              section.badge ??
-              (countsLoading ? "Lädt…" : `${count} ${entryLabel}`);
-            const badgeLoading = section.badge === undefined && countsLoading;
-            const concept = MOTO_CONCEPTS[section.concept];
+              return (
+                <Link
+                  key={section.id}
+                  href={tenantPath(section.href)}
+                  className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
+                >
+                  <div className="relative p-4 sm:p-6">
+                    <div className="mb-4 flex items-start justify-between">
+                      <div data-testid={`database-section-icon-${section.id}`}>
+                        <MotoDuotoneIcon
+                          icon={concept.icon}
+                          tone={concept.tone}
+                          size={36}
+                        />
+                      </div>
+                      <span
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
+                          badgeLoading
+                            ? "animate-pulse bg-gray-200 text-gray-400"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {countText}
+                      </span>
+                    </div>
 
-            return (
-              <Link
-                key={section.id}
-                href={tenantPath(section.href)}
-                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
-              >
-                <div className="relative p-4 sm:p-6">
-                  <div className="mb-4 flex items-start justify-between">
-                    <div data-testid={`database-section-icon-${section.id}`}>
-                      <MotoDuotoneIcon
-                        icon={concept.icon}
-                        tone={concept.tone}
-                        size={36}
+                    <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                      {section.title}
+                    </h3>
+                    <p className="mb-4 line-clamp-2 text-sm text-gray-600">
+                      {section.description}
+                    </p>
+
+                    <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
+                      <span className="text-sm font-medium">
+                        {section.cta ?? "Verwalten"}
+                      </span>
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
                       />
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                        badgeLoading
-                          ? "animate-pulse bg-gray-200 text-gray-400"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {countText}
-                    </span>
                   </div>
-
-                  <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
-                    {section.title}
-                  </h3>
-                  <p className="mb-4 line-clamp-2 text-sm text-gray-600">
-                    {section.description}
-                  </p>
-
-                  <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
-                    <span className="text-sm font-medium">
-                      {section.cta ?? "Verwalten"}
-                    </span>
-                    <ChevronRight
-                      aria-hidden="true"
-                      className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
-                    />
-                  </div>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </TenantPage>
   );
 }
 

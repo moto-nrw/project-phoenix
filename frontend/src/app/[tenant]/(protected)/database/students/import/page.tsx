@@ -8,9 +8,8 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
-import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -476,62 +475,34 @@ export default function StudentImportPage() {
 
   if (status === "loading") {
     return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/database/students" />
-
-        <PageIntro
-          kicker="Datenverwaltung"
-          title="Kinder importieren"
-          description={statusLine}
-        />
-
+      <TenantPage title="Kinder importieren" stats={statusLine} back>
         <SkeletonRegion label="Kinder-Import wird geladen…">
           <FormSkeleton fields={2} />
         </SkeletonRegion>
-      </div>
+      </TenantPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/database/students" />
-
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Kinder importieren"
-        description={statusLine}
-      />
-
+    <TenantPage title="Kinder importieren" stats={statusLine} back>
       {/* Info Section */}
-      <section className="border-moto-blue/20 bg-moto-blue-soft rounded-2xl border p-5">
-        <div className="flex items-center gap-3">
-          <span className="text-moto-blue flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white">
-            <Info className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <h2 className="text-base font-semibold text-gray-900">
-            Import-Anleitung
-          </h2>
-        </div>
-        <div className="mt-4">
-          <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-            <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-            <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
-            <li>
-              Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
-              oder TT.MM.JJ
-            </li>
-            <li>
-              Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
-              Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
-            </li>
-            <li>Speichern Sie die ausgefüllte Datei</li>
-            <li>
-              Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-            </li>
-            <li>Bestätigen Sie den Import</li>
-          </ul>
-        </div>
-      </section>
+      <SectionCard title="Import-Anleitung" icon={Info}>
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
+          <li>
+            Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
+            oder TT.MM.JJ
+          </li>
+          <li>
+            Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+            Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
+          </li>
+          <li>Speichern Sie die ausgefüllte Datei</li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
@@ -551,11 +522,7 @@ export default function StudentImportPage() {
       )}
 
       {/* Download Template Button */}
-      <SectionCard
-        kicker="Schritt 1"
-        title="Vorlage herunterladen"
-        icon={Download}
-      >
+      <SectionCard title="Vorlage herunterladen" icon={Download}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -608,11 +575,7 @@ export default function StudentImportPage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        kicker="Schritt 2"
-        title="Was soll der Import tun?"
-        icon={RefreshCw}
-      >
+      <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>
         <SegmentedControl
           items={IMPORT_MODE_ITEMS}
           value={mode}
@@ -655,11 +618,7 @@ export default function StudentImportPage() {
           />
 
           {/* Data List */}
-          <SectionCard
-            kicker="Schritt 4"
-            title="Datenvorschau"
-            icon={ListChecks}
-          >
+          <SectionCard title="Datenvorschau" icon={ListChecks}>
             <div className="space-y-2">
               {previewData.map((student, idx) => (
                 <StudentRowCard
@@ -710,6 +669,6 @@ export default function StudentImportPage() {
           </div>
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }

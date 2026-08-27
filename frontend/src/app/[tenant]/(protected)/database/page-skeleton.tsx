@@ -23,28 +23,36 @@ function DatabaseCardSkeleton() {
 
 // Content-shaped placeholder for the /database index page — mirrors the real
 // card grid (DatabaseContent) so there is no layout shift once data arrives.
-export function DatabaseIndexSkeleton() {
+// Ohne Kopfkarte: im Seitengerüst steht sie bereits über dem Inhalt.
+export function DatabaseCardGridSkeleton() {
   return (
     <div
       role="status"
       aria-busy="true"
       aria-label="Datenverwaltung wird geladen"
       data-testid="database-index-skeleton"
-      className="w-full"
+      className="min-h-[60vh]"
     >
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {Array.from({ length: 8 }, (_, i) => (
+          <DatabaseCardSkeleton key={i} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Route-Ladezustand (loading.tsx): dort gibt es noch kein Seitengerüst,
+// deshalb bringt dieses Skelett die Kopfkarte selbst mit.
+export function DatabaseIndexSkeleton() {
+  return (
+    <div className="w-full space-y-6">
       {/* Titel ist statisch, die Statuszeile kommt mit den Zahlen. */}
       <PageIntro
         title="Datenverwaltung"
         description={<Skeleton className="h-4 w-48" />}
-        className="mb-6"
       />
-      <div className="min-h-[60vh]">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 8 }, (_, i) => (
-            <DatabaseCardSkeleton key={i} />
-          ))}
-        </div>
-      </div>
+      <DatabaseCardGridSkeleton />
     </div>
   );
 }

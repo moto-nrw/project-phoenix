@@ -4,11 +4,8 @@ import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { QRCodeSVG } from "qrcode.react";
 import { Copy, Check } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
@@ -237,20 +234,16 @@ function InfoDisplaysPageContent() {
       : []),
   ];
 
+  const total = displays?.length ?? 0;
+  const active = (displays ?? []).filter((d) => d.isActive).length;
+  const listLoading = permissionLoading || isLoading;
+
   return (
-    <div className="w-full">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App; die
-          Primäraktion steht in ihrer Titelzeile. */}
-      <PageIntro
+    <>
+      <TenantPage
         title="Info-Displays"
-        description={
-          permissionLoading || isLoading ? (
-            <Skeleton className="h-4 w-32" />
-          ) : (
-            `${displays?.length ?? 0} ${(displays?.length ?? 0) === 1 ? "Display" : "Displays"}`
-          )
-        }
-        className="mb-6"
+        stats={`${total} ${total === 1 ? "Display" : "Displays"} Â· ${active} aktiv`}
+        statsLoading={listLoading}
         actions={
           canManage ? (
             <Button
@@ -265,49 +258,29 @@ function InfoDisplaysPageContent() {
             </Button>
           ) : undefined
         }
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Display suchenâ¦",
+        }}
+        error={loadError || null}
+        loading={listLoading}
       >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
-            count: displays?.length ?? 0,
-          }}
-          search={{
-            value: searchQuery,
-            onChange: setSearchQuery,
-            placeholder: "Display suchen…",
-          }}
-        />
-      </PageIntro>
-
-      <div className="space-y-6">
-        {(error || loadError) && (
-          <Alert type="error" message={error || loadError} />
-        )}
+        {error && <Alert type="error" message={error} />}
 
         <DataTable
           columns={columns}
           rows={filtered}
           getRowKey={(row) => row.id}
-          isLoading={permissionLoading || isLoading}
           defaultSortKey="name"
           emptyState={
-            loadError ? (
-              // A failed load must never masquerade as "no displays yet".
-              <EmptyState
-                title="Displays konnten nicht geladen werden"
-                description="Bitte laden Sie die Seite neu oder versuchen Sie es später erneut."
-              />
-            ) : (
-              <EmptyState
-                title="Noch keine Info-Displays"
-                description="Erstellen Sie ein Display und öffnen Sie den Link im Browser des Fernsehers oder Smartboards."
-              />
-            )
+            <EmptyState
+              title="Noch keine Info-Displays"
+              description="Erstellen Sie ein Display und Ã¶ffnen Sie den Link im Browser des Fernsehers oder Smartboards."
+            />
           }
         />
-      </div>
+      </TenantPage>
 
       {/* Create / rename modal */}
       <FormModal
@@ -391,7 +364,7 @@ function InfoDisplaysPageContent() {
           error={deleteError}
         />
       )}
-    </div>
+    </>
   );
 }
 

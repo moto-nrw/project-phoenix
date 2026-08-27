@@ -630,11 +630,46 @@ const noRounded3xl = makeClassStringRule({
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md). The baseline in scripts/oxlint-plugin-ui-kit.mjs is shrink-only.",
 });
 
+// ui-kit/no-tenant-kicker — die blaue Mini-Überschrift über einer Überschrift
+// ist im Tenant-Portal abgeschafft (sie trug sechs verschiedene Bedeutungen im
+// selben Slot). Kein Baseline-Eintrag: der Bestand ist in derselben PR auf
+// null gebracht. Eltern-, Schul- und Operator-Portal sind nicht Teil dieser
+// Umstellung und bekommen ihren eigenen Durchgang.
+const OTHER_PORTALS_RE =
+  /(^|\/)(components\/parent|app\/parents|components\/school|app\/school|components\/class-day|components\/operator|app\/operator)\//;
+
+const noTenantKicker = {
+  meta: {
+    docs: {
+      description:
+        "Disallow the blue mini-heading (kicker) outside the parents portal.",
+    },
+    messages: {
+      kicker:
+        "Keine Mini-Überschrift über dem Titel. Wo man ist, sagen Brotkrumen und Seitenleiste (siehe .claude/rules/frontend-ui-kit.md, Abschnitt Page scaffolding).",
+    },
+  },
+  create(context) {
+    const filename = context.filename ?? context.getFilename?.() ?? "";
+    if (OTHER_PORTALS_RE.test(filename.replace(/\\/g, "/"))) return {};
+    if (/\.(test|stories)\.[jt]sx?$/.test(filename)) return {};
+
+    return {
+      JSXAttribute(node) {
+        if (node.name?.name === "kicker") {
+          context.report({ node, messageId: "kicker" });
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-rounded-3xl": noRounded3xl,
+    "no-tenant-kicker": noTenantKicker,
   },
 };

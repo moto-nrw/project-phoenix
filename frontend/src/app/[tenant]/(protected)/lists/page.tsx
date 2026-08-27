@@ -27,16 +27,14 @@ import {
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
-import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -2078,41 +2076,36 @@ export default function SlotListsPage() {
     selectedOption?.label ??
     "";
   return (
-    <div className="w-full">
-      {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
-      <BackButton referrer="/database/exports" />
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: das Datum der
-          Liste steht rechts im Kopf, damit die Karte nie nur den Titel
-          trägt. */}
-      <PageIntro
-        kicker="Planung"
-        title="Tageslisten"
-        description={
-          // Statuszeile: der gewählte Tag und die geplanten Kinder aus den
-          // Zählern der geladenen Liste.
-          isLoading || !result ? (
-            <Skeleton className="h-4 w-56" />
-          ) : (
-            `${formatStatusDate(dateISO)} · ${result.counters.planned} Kinder geplant`
-          )
-        }
-        className="mb-6"
-        actions={
-          <div className="flex w-full items-center gap-2 sm:w-auto">
-            <span className="text-sm font-medium text-gray-700">Datum</span>
-            <DatePicker
-              value={parseISODate(dateISO)}
-              onChange={pickDate}
-              placeholder="Datum"
-              hideClearButton
-              minDate={pickerMinDate}
-              maxDate={pickerMaxDate}
-              className="min-w-0 flex-1 sm:flex-none"
-            />
-          </div>
-        }
-      />
-
+    <TenantPage
+      title="Tageslisten"
+      // Erreichbar über Datenverwaltung → Exporte, kein eigener Eintrag in
+      // der Seitenleiste.
+      back
+      backHref="/database/exports"
+      backLabel="Zurück zu den Exporten"
+      // Statuszeile: der gewählte Tag und die geplanten Kinder aus den
+      // Zählern der geladenen Liste.
+      stats={
+        result
+          ? `${formatStatusDate(dateISO)} · ${result.counters.planned} Kinder geplant`
+          : null
+      }
+      statsLoading={isLoading || !result}
+      actions={
+        <div className="flex w-full items-center gap-2 sm:w-auto">
+          <span className="text-sm font-medium text-gray-700">Datum</span>
+          <DatePicker
+            value={parseISODate(dateISO)}
+            onChange={pickDate}
+            placeholder="Datum"
+            hideClearButton
+            minDate={pickerMinDate}
+            maxDate={pickerMaxDate}
+            className="min-w-0 flex-1 sm:flex-none"
+          />
+        </div>
+      }
+    >
       {/* Selection: source + date + data mode */}
       <section
         aria-label="Listenauswahl"
@@ -2318,10 +2311,14 @@ export default function SlotListsPage() {
             <span className="text-sm font-medium text-gray-700">
               Datenbasis
             </span>
-            <Tabs
+            <SegmentedControl
+              ariaLabel="Datenbasis"
               value={source}
-              onValueChange={(v) => {
-                const nextSource = v as SlotListSource;
+              items={SOURCES.map((s) => ({
+                value: s,
+                label: SLOT_LIST_SOURCE_LABELS[s],
+              }))}
+              onChange={(nextSource) => {
                 setSource(nextSource);
                 setSelectedGroupIds(null);
                 setSelectedClasses(null);
@@ -2346,15 +2343,7 @@ export default function SlotListsPage() {
                   selectedClasses: null,
                 });
               }}
-            >
-              <TabsList variant="default">
-                {SOURCES.map((s) => (
-                  <TabsTrigger key={s} value={s}>
-                    {SLOT_LIST_SOURCE_LABELS[s]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+            />
           </div>
           {result ? (
             <p className="text-xs leading-5 text-gray-500 sm:ml-auto sm:max-w-[18rem] sm:text-right">
@@ -2364,17 +2353,12 @@ export default function SlotListsPage() {
         </div>
       </section>
 
-      {error ? (
-        <div className="mt-4">
-          <Alert type="error" message={error} />
-        </div>
-      ) : null}
+      {error ? <Alert type="error" message={error} /> : null}
 
       {/* Preview + export: die Exporte stehen in der Titelzeile der Karte,
           nicht in einer eigenen Button-Zeile. */}
       <SectionCard
         title="Vorschau und Export"
-        className="mt-4"
         actions={
           <>
             <Button
@@ -2479,6 +2463,6 @@ export default function SlotListsPage() {
           )}
         </div>
       </SectionCard>
-    </div>
+    </TenantPage>
   );
 }

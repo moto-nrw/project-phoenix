@@ -14,9 +14,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
@@ -86,7 +84,7 @@ function TransitAssignmentCard({
       onClick={onOpen}
       aria-haspopup="dialog"
       aria-controls="room-detail-panel"
-      className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
+      className="group moto-content-surface moto-hover-elevated flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
     >
       <SectionHeader
         className="min-w-0 flex-1"
@@ -508,56 +506,28 @@ function RoomsPageContent() {
   })();
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. Das
-          Exportmenü zieht mit in die Kopfkarte, damit es auch mobil erreichbar
-          bleibt (ohne Titel rendert PageHeaderWithSearch keinen Kebab). */}
-      <PageIntro
-        title="Räume"
-        description={
-          showSkeleton ? <Skeleton className="h-4 w-40" /> : roomSummary
-        }
-        className="mb-6"
-        actions={<OverflowMenu items={overflowItems} />}
-      >
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={
-            showSkeleton
-              ? undefined
-              : {
-                  icon: <MotoConceptIcon concept="rooms" size={20} />,
-                  count: filteredRooms.length,
-                  label: "Räume",
-                }
-          }
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Raum suchen…",
-          }}
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setBuildingFilter("all");
-            setOccupiedFilter("all");
-          }}
-        />
-      </PageIntro>
-
-      {error && (
-        <div className="mb-4">
-          <Alert type="error" message={error} />
-        </div>
-      )}
-
-      {exportError && (
-        <div className="mb-4">
-          <Alert type="error" message={exportError} />
-        </div>
-      )}
+    <TenantPage
+      title="Räume"
+      stats={roomSummary}
+      statsLoading={showSkeleton}
+      // Das Exportmenü ist eine Aktion der Seite und sitzt deshalb im Kopf,
+      // damit es auch mobil erreichbar bleibt.
+      actions={<OverflowMenu items={overflowItems} />}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Raum suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setBuildingFilter("all");
+        setOccupiedFilter("all");
+      }}
+      error={error}
+    >
+      {exportError && <Alert type="error" message={exportError} />}
 
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-2xl, min-h-[180px],
@@ -727,7 +697,7 @@ function RoomsPageContent() {
       )}
 
       <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
-    </div>
+    </TenantPage>
   );
 }
 

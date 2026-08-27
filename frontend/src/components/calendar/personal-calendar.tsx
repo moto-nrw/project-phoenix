@@ -28,13 +28,10 @@ export type CalendarViewMode = "day" | "week" | "month";
 
 interface PersonalCalendarProps {
   /**
-   * Seitenname. Er wandert in die PlanningContextBar, die ihn wie auf den
-   * übrigen Planungsflächen auf allen Breakpoints sichtbar als Seitentitel
-   * führt.
+   * Seitenname für die Kopfleiste. Seiten, die den Kalender in `TenantPage`
+   * einhängen, lassen ihn weg: den Titel trägt dort die Kopfkarte.
    */
-  readonly title: string;
-  /** Blauer Overline über dem Titel, z. B. "Termine". */
-  readonly kicker?: string;
+  readonly title?: string;
   /** Erklärzeile, erscheint in der Kontextzeile der Kopfleiste. */
   readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
@@ -395,7 +392,6 @@ function nextLabel(viewMode: CalendarViewMode): string {
 
 export function PersonalCalendar({
   title,
-  kicker,
   subtitle,
   events,
   referenceDate: rawReferenceDate,
@@ -472,7 +468,6 @@ export function PersonalCalendar({
     <div className="w-full space-y-6">
       <PlanningContextBar
         title={title}
-        kicker={kicker}
         onPrevious={() =>
           handleDateChange(shiftDate(referenceDate, viewMode, -1))
         }

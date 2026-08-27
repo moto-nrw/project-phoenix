@@ -4,21 +4,21 @@
 
 **Project Phoenix** - GDPR-compliant NFC/RFID student attendance and room management system (internal codename; the public product name is "moto").
 
-| Component | Technology |
-|-----------|------------|
-| Backend | Go 1.25+, Chi router, BUN ORM |
-| Frontend | Next.js 16+, React 19+, Tailwind 4+ |
-| Database | PostgreSQL 17+ (15 domain schemas, SSL, RLS) |
-| Auth | JWT via `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY` (currently 15m / 168h), MFA, three isolated portals |
+| Component | Technology                                                                                                |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| Backend   | Go 1.25+, Chi router, BUN ORM                                                                             |
+| Frontend  | Next.js 16+, React 19+, Tailwind 4+                                                                       |
+| Database  | PostgreSQL 17+ (15 domain schemas, SSL, RLS)                                                              |
+| Auth      | JWT via `AUTH_JWT_EXPIRY` / `AUTH_JWT_REFRESH_EXPIRY` (currently 15m / 168h), MFA, three isolated portals |
 
 ## Ecosystem
 
 Project Phoenix is part of a three-repo system. All repos live side-by-side (`../`):
 
-| Repo | Role | Relationship |
-|------|------|-------------|
-| **PyrePortal** (`../PyrePortal/`) | Raspberry Pi kiosk app (Tauri + React) | Consumes `/api/iot/*` endpoints with device API key + staff PIN auth |
-| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer | Runs the PyrePortal kiosk on Pi 5 hardware (the Phoenix backend itself runs on the server, never on the Pi) |
+| Repo                                    | Role                                   | Relationship                                                                                                |
+| --------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **PyrePortal** (`../PyrePortal/`)       | Raspberry Pi kiosk app (Tauri + React) | Consumes `/api/iot/*` endpoints with device API key + staff PIN auth                                        |
+| **moto-balenaOS** (`../moto-balenaOS/`) | Balena OS deployment layer             | Runs the PyrePortal kiosk on Pi 5 hardware (the Phoenix backend itself runs on the server, never on the Pi) |
 
 **If you change IoT endpoints, error messages, or auth headers**: PyrePortal will break silently. Backend error strings are hardcoded in `PyrePortal/src/services/api.ts` and mapped to German UI text. Coordinate changes across repos. PRs target `development` in all repos except moto-balenaOS (`main`).
 
@@ -46,13 +46,13 @@ Platform Operator (moto)
 
 ### Scoping Mechanisms
 
-| Layer | How |
-|-------|-----|
-| **JWT** | Claims include `tenant_id`, `org_id`, `scope` ("" = tenant, "org" = organization, "platform" = operator, "parent" = guardian) |
-| **Context** | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` propagate tenant through request lifecycle |
-| **Database** | `TenantTxMiddleware` sets PostgreSQL `LOCAL ROLE` + RLS config per request; auto-rollback on 5xx |
-| **Models** | `base.TenantModel` (embeds `TenantID int64`) + `TenantScoped` interface on all tenant-aware entities |
-| **Repositories** | `base.GetDB(ctx, db)` picks up tenant transaction; `base.EnsureTenantID(ctx, entity)` auto-populates tenant_id |
+| Layer            | How                                                                                                                           |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| **JWT**          | Claims include `tenant_id`, `org_id`, `scope` ("" = tenant, "org" = organization, "platform" = operator, "parent" = guardian) |
+| **Context**      | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` propagate tenant through request lifecycle                         |
+| **Database**     | `TenantTxMiddleware` sets PostgreSQL `LOCAL ROLE` + RLS config per request; auto-rollback on 5xx                              |
+| **Models**       | `base.TenantModel` (embeds `TenantID int64`) + `TenantScoped` interface on all tenant-aware entities                          |
+| **Repositories** | `base.GetDB(ctx, db)` picks up tenant transaction; `base.EnsureTenantID(ctx, entity)` auto-populates tenant_id                |
 
 ### Frontend Routing
 
@@ -66,14 +66,15 @@ Platform Operator (moto)
 
 Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicated `basePath`. Operator/parents cookies are host-only; the tenant cookie is domain-scoped on purpose (shared across tenant subdomains so tenant switching works). The proxy redirects cross-host paths back to their canonical subdomain.
 
-| Portal | Host | Cookie | basePath | JWT scope | Backend login |
-|---|---|---|---|---|---|
-| Tenant (staff) | `{slug}.{TENANT_DOMAIN}` | `{TENANT_DOMAIN, dots→dashes}.session-token` scoped to `.{TENANT_DOMAIN}` (localhost: `authjs.session-token`, host-only) | `/api/auth` | `""` (or `"org"`) | `POST /auth/login` |
-| Operator | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only) | `/api/operator/auth` | `"platform"` | `POST /operator/auth/login` |
-| Parents | `{NEXT_PUBLIC_PARENTS_HOSTNAME}` | `parent.session-token` (host-only) | `/api/parent/auth` | `"parent"` | `POST /parent/auth/login` |
-| School ("moto schule") | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}` | `school.session-token` (host-only, SameSite=Strict) | `/api/school/auth` | `"school"` | `POST /school/auth/login` |
+| Portal                 | Host                              | Cookie                                                                                                                   | basePath             | JWT scope         | Backend login               |
+| ---------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | -------------------- | ----------------- | --------------------------- |
+| Tenant (staff)         | `{slug}.{TENANT_DOMAIN}`          | `{TENANT_DOMAIN, dots→dashes}.session-token` scoped to `.{TENANT_DOMAIN}` (localhost: `authjs.session-token`, host-only) | `/api/auth`          | `""` (or `"org"`) | `POST /auth/login`          |
+| Operator               | `{NEXT_PUBLIC_OPERATOR_HOSTNAME}` | `operator.session-token` (host-only)                                                                                     | `/api/operator/auth` | `"platform"`      | `POST /operator/auth/login` |
+| Parents                | `{NEXT_PUBLIC_PARENTS_HOSTNAME}`  | `parent.session-token` (host-only)                                                                                       | `/api/parent/auth`   | `"parent"`        | `POST /parent/auth/login`   |
+| School ("moto schule") | `{NEXT_PUBLIC_SCHOOL_HOSTNAME}`   | `school.session-token` (host-only, SameSite=Strict)                                                                      | `/api/school/auth`   | `"school"`        | `POST /school/auth/login`   |
 
 **Login policy** (enforced in `services/auth/auth_login*.go`):
+
 - Tenant login refuses guardian-only accounts (returns `ErrParentMustUseParentPortal` → 403) and school-portal-only accounts (`ErrMustUseSchoolPortal` → 403, #2207). Dual-role accounts (e.g. teacher AND guardian, or Lehrkraft AND Betreuungskraft at the same school) pass through unchanged.
 - Parents login requires guardian role on at least one tenant mapping (`ErrAccountNoGuardianRole` → 403).
 - `auth/jwt/TenantMiddleware` rejects `scope=parent` tokens with 401 (defense-in-depth on top of cookie isolation).
@@ -86,16 +87,16 @@ Each portal runs as its own NextAuth (v5) instance with its own cookie + dedicat
 
 ### Key Env Vars
 
-| Var | Purpose |
-|-----|---------|
-| `TENANT_DOMAIN` | Base domain for subdomain extraction (e.g., `localhost`, `moto-app.de`) |
-| `NEXT_PUBLIC_TENANT_DOMAIN` | Client-side tenant domain |
-| `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`) |
-| `NEXT_PUBLIC_PARENTS_HOSTNAME` | Parents subdomain (e.g., `parents.localhost:3000`) |
-| `NEXT_PUBLIC_SCHOOL_HOSTNAME` | School subdomain (e.g., `schule.localhost:3000`) |
-| `FRONTEND_URL` | Backend-side staff/admin URL (used in admin notification emails) |
-| `PARENTS_URL` | Backend-side parents-portal URL (used in every parent-facing email link). Required — the server refuses to start without it; must be `https://` in production. |
-| `SCHOOL_URL` | Backend-side school-portal URL (Lehrkraft invitation email links). Required — the server refuses to start without it; must be `https://` in production. |
+| Var                             | Purpose                                                                                                                                                        |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `TENANT_DOMAIN`                 | Base domain for subdomain extraction (e.g., `localhost`, `moto-app.de`)                                                                                        |
+| `NEXT_PUBLIC_TENANT_DOMAIN`     | Client-side tenant domain                                                                                                                                      |
+| `NEXT_PUBLIC_OPERATOR_HOSTNAME` | Operator subdomain (e.g., `operator.localhost:3000`)                                                                                                           |
+| `NEXT_PUBLIC_PARENTS_HOSTNAME`  | Parents subdomain (e.g., `parents.localhost:3000`)                                                                                                             |
+| `NEXT_PUBLIC_SCHOOL_HOSTNAME`   | School subdomain (e.g., `schule.localhost:3000`)                                                                                                               |
+| `FRONTEND_URL`                  | Backend-side staff/admin URL (used in admin notification emails)                                                                                               |
+| `PARENTS_URL`                   | Backend-side parents-portal URL (used in every parent-facing email link). Required — the server refuses to start without it; must be `https://` in production. |
+| `SCHOOL_URL`                    | Backend-side school-portal URL (Lehrkraft invitation email links). Required — the server refuses to start without it; must be `https://` in production.        |
 
 ### Reserved Slugs
 
@@ -117,55 +118,66 @@ Layer discipline, repository generics, model conventions, and the CI ratchet tes
 
 ### 0. Frontend: Reuse the UI Kit (MANDATORY)
 
-Build all new UI from `frontend/src/components/ui/`; brand colors come only from `LOCATION_COLORS` in `frontend/src/lib/location-helper.ts` — never generic Tailwind hues. Full component map, hex table, and design checklist: `.claude/rules/frontend-ui-kit.md`.
+Build all new UI from `frontend/src/components/ui/`; brand colors come only from `LOCATION_COLORS` in `frontend/src/lib/location-helper.ts` — never generic Tailwind hues. **Every tenant page renders `ui/TenantPage` as its root** (exemptions: `/dashboard`, `/profile`, `/emergency`) — the scaffold owns the head card, status line, search/filter row, page tabs and the loading/empty/error states, so a page file carries no `max-w`, no root padding, no own `<h1>` and no separate action row. There is no mini-heading above a page title. Full component map, hex table, scaffold rules and design checklist: `.claude/rules/frontend-ui-kit.md`; conversion spec: `frontend/src/components/ui/TENANT-PAGE-SPEC.md`.
 
 ### 0b. Verständlichkeit: Build for the Worst Plausible Reading (MANDATORY)
 
 **RULE: Every user-visible change (tenant portal, parents portal, kiosk, e-mails, help guide) runs the Verständlichkeit checklist before it is done, and the PR description records the result.** What can be misunderstood will be misunderstood: read-only blocks must not look clickable, functions with a precondition state it in the product, and two headings sharing a word stem need a visible boundary. Binding text standard: the `moto-einfache-sprache` skill. Checklist, negative patterns from the school feedback, and the fix hierarchy: `.claude/rules/verstaendlichkeit.md`.
 
 ### 1. BUN ORM: Quote Aliases (MANDATORY)
+
 ```go
 ModelTableExpr(`education.groups AS "group"`)   // CORRECT — quoted
 ModelTableExpr(`education.groups AS group`)     // WRONG — runtime error
 ```
 
 ### 2. Frontend: Zero Warnings Policy
+
 ```bash
 pnpm run check  # MUST PASS before committing
 ```
 
 ### 3. Type Mapping: int64 → string
+
 Backend `int64` IDs become frontend `string`. Use `data.id.toString()` and `snake_case → camelCase` mapping helpers in `lib/{domain}-helpers.ts`.
 
 ### 4. PRs Target `development`
+
 ```bash
 gh pr create --base development  # NEVER target main unless explicitly asked
 ```
 
 ### 5. Student Location: Use `active.visits`
+
 Real-time student location comes from `active.visits` + `active.attendance`. Scheduled statuses (sick / excused / class trip) live in `active.student_status_days`.
 
 ### 6. Next.js 16: Async Params
+
 ```typescript
-const { id } = await context.params;  // MUST await
+const { id } = await context.params; // MUST await
 ```
 
 ### 7. Backend Logging: slog Only
+
 Use injected `*slog.Logger` with key-value pairs. Never logrus/log.Printf. GDPR: no student names at Info level.
 
 ### 8. Devbox Environment
+
 ```bash
 devbox search <tool>     # Find packages
 devbox add <tool>@latest # Add to devbox.json — never rely on global installs
 ```
 
 ### 9. Migrations and RLS: No Bypass Needed
+
 CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **superuser**; the HTTP server connects as the least-privilege `phoenix_auth` role (`PHOENIX_AUTH_PASSWORD` required). PostgreSQL superusers always bypass Row Level Security, even with `FORCE ROW LEVEL SECURITY` enabled. This means:
+
 - **Data migrations (UPDATE/INSERT/DELETE) do NOT need to disable RLS** — the superuser connection sees all rows across all tenants automatically
 - **Never add `ALTER TABLE ... DISABLE/ENABLE ROW LEVEL SECURITY`** in migration code — it's unnecessary and can cause test failures
 - **Migration version numbers must be unique** — `MigrationRegistry` is a `SafeMigrationMap` that panics at init on a duplicate version, so the binary won't start until the collision is fixed
 
 ### 10. Time Modeling: Match the Type to the Business Meaning
+
 - **Actual instant** (created_at, checked_in_at): `TIMESTAMPTZ` ↔ `time.Time`, API ISO timestamp
 - **Calendar date** (attendance day, birthday): `DATE` ↔ `timezone.Date` — NEVER `time.Time` — API `YYYY-MM-DD`
 - **Clock time without date** (template start/end): `TIME WITHOUT TIME ZONE`, normalized via `timezone.WallClock()`, API `HH:MM`
@@ -174,7 +186,7 @@ bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land 
 
 ### 11. Shifts vs. Timetable — One Recurrence Engine (#1888/#1889)
 
-A **shift** (`schedule.staff_shifts`) is the outer planned presence of a staff member; a **timetable block** (`activities.groups` template → `schedule.activity_instances`) is a task *within* that presence. Nothing is double-counted and neither side writes into the other (#1873).
+A **shift** (`schedule.staff_shifts`) is the outer planned presence of a staff member; a **timetable block** (`activities.groups` template → `schedule.activity_instances`) is a task _within_ that presence. Nothing is double-counted and neither side writes into the other (#1873).
 
 Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bound to a calendar period), which **materializes concrete `staff_shifts` rows upfront** — never a read-time projection, so every reader (time tracking, auto-checkout, coverage, weekly summaries) keeps seeing only concrete rows. The series REUSES the shared timetable primitives (`schedule.CalendarPeriod`, `week_pattern` 0/1/2, `ShouldMaterializeWeekPattern`, the cap-`valid_until`/successor/`series_root_id` split shape). **NEVER build a second recurrence engine or a parallel template model.** Deviations: a "Nur diese Woche" edit sets `staff_shifts.detached` (re-plans skip the row), a single-occurrence delete records a `staff_shift_series_exceptions` row; splits re-point both to the successor. Materialization and re-plans never touch rows with `date <= today`.
 
@@ -182,25 +194,26 @@ Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bou
 
 **RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it.
 
-| Task | Command |
-|------|---------|
-| Start all services | `docker compose up -d` |
-| Rebuild backend (go.mod / Dockerfile changes; air hot-reloads plain Go edits) | `docker compose build server && docker compose up -d server` |
-| Run migrations | `docker compose run server go run . migrate` |
-| Reset DB | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
-| View logs | `docker compose logs -f server` |
-| Quality check (frontend) | `cd frontend && pnpm run check` |
-| Run backend tests (self-initializing; clones GC'd next run) | `cd backend && go test ./...` |
-| Full backend run incl. immediate clone sweep (gotestsum) | `scripts/test-backend.sh` |
-| Fast unit-only backend run (skips all DB tests) | `cd backend && go test -short ./...` |
-| Test only what changed vs a base ref (backend + frontend) | `scripts/test-changed.sh [origin/development]` |
-| Generate docs | `docker compose run server go run . gendoc --routes` |
+| Task                                                                          | Command                                                                                                                 |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Start all services                                                            | `docker compose up -d`                                                                                                  |
+| Rebuild backend (go.mod / Dockerfile changes; air hot-reloads plain Go edits) | `docker compose build server && docker compose up -d server`                                                            |
+| Run migrations                                                                | `docker compose run server go run . migrate`                                                                            |
+| Reset DB                                                                      | `docker compose run server go run . migrate reset` (then seed — see `docs/getting-started.md` for the credential flags) |
+| View logs                                                                     | `docker compose logs -f server`                                                                                         |
+| Quality check (frontend)                                                      | `cd frontend && pnpm run check`                                                                                         |
+| Run backend tests (self-initializing; clones GC'd next run)                   | `cd backend && go test ./...`                                                                                           |
+| Full backend run incl. immediate clone sweep (gotestsum)                      | `scripts/test-backend.sh`                                                                                               |
+| Fast unit-only backend run (skips all DB tests)                               | `cd backend && go test -short ./...`                                                                                    |
+| Test only what changed vs a base ref (backend + frontend)                     | `scripts/test-changed.sh [origin/development]`                                                                          |
+| Generate docs                                                                 | `docker compose run server go run . gendoc --routes`                                                                    |
 
 **Seeder is DEV-ONLY**: it creates fake test data and must NEVER run on staging or production. Production infrastructure (system rooms, categories, activities) must be created via data migrations or admin UI — never via the seeder.
 
 **Hermetic tests are MANDATORY** for all new backend tests (no hardcoded IDs, fixtures + cleanup, `TestHermeticTestPatterns` CI gate) — see `backend/CLAUDE.md` for the fixture catalog and rules.
 
 ### Test Database (port 5433) — self-initializing (ADR 0004)
+
 `go test ./...` owns the whole test-DB lifecycle: it starts `postgres-test` if
 needed, builds the template for the current migrations hash
 (`phoenix_test_<hash>` — parallel worktrees on different branches get one
@@ -208,6 +221,7 @@ template each), and clones one run-stamped database per package.
 `scripts/test-backend.sh` is the comfort wrapper (gotestsum + sweep at the
 end); naked `go test` runs leave their clones to the next run's generation GC.
 Manual container control, if ever needed:
+
 ```bash
 docker compose --profile test up -d postgres-test        # Start (isolated network)
 docker compose --profile test down                        # Stop (plain `down` won't work)
@@ -220,17 +234,20 @@ cd backend && go run ./internal/testdb/cmd/sweep          # Drop leftover clones
 
 ```typescript
 // FORBIDDEN — silent fallback
-const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
+const hostname =
+  process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME ?? "operator.localhost:3000";
 
 // FORBIDDEN — optional with default in env schema
-NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().optional().default("operator.localhost:3000")
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string()
+  .optional()
+  .default("operator.localhost:3000");
 
 // CORRECT — fail fast with a clear error
 const hostname = process.env.NEXT_PUBLIC_OPERATOR_HOSTNAME;
 if (!hostname) throw new Error("NEXT_PUBLIC_OPERATOR_HOSTNAME is not set");
 
 // CORRECT — required in env schema, no default
-NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1)
+NEXT_PUBLIC_OPERATOR_HOSTNAME: z.string().min(1);
 ```
 
 Applies to: all `process.env` reads (proxy, server, client), all Zod schemas in `env.js`, all docker-compose environment blocks (`${VAR}`, never `${VAR:-default}`). **Exception**: only `NODE_ENV` and `LOG_LEVEL` may have defaults. Document correct values in `.env.example`; if a var is required in `env.js`, it also needs `ARG`+`ENV` in `frontend/Dockerfile.prod` and `build-args` in `.github/workflows/build.yml` (the Docker build runs env validation, so CI catches missing args). This policy is enforced in code (`frontend/src/proxy.ts`, `frontend/src/lib/env-validation.js`), not aspirational.
@@ -246,16 +263,17 @@ Deployed environments (staging, production) use **SOPS-encrypted env files** tra
 4. Server runs:      deploy-remote.sh (pull → backup DB → migrate → start → healthcheck, rollback on failure)
 ```
 
-| File | Purpose |
-|------|---------|
-| `environments/{staging,production}.sops.env` | Encrypted env vars (keys plaintext, values encrypted — CI validates key sync without decrypting) |
-| `environments/{staging,production}.compose.yml` | Docker Compose for deployed envs (images from GHCR, pinned to commit SHA) |
-| `.sops.yaml` / `scripts/sops-setup.sh` | SOPS config + one-time age key setup |
-| `scripts/env-check.sh` | Key-sync validation across all env files (CI `env-sync-check` job blocks PRs on drift; lefthook pre-commit guards staged `.sops.env` changes) |
-| `scripts/deploy-remote.sh` | Runs on server: pull, backup, migrate, rollback. Exit codes: `0` ok, `1` aborted pre-migration, `10` rollback succeeded, `11` rollback FAILED (critical) |
+| File                                            | Purpose                                                                                                                                                  |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `environments/{staging,production}.sops.env`    | Encrypted env vars (keys plaintext, values encrypted — CI validates key sync without decrypting)                                                         |
+| `environments/{staging,production}.compose.yml` | Docker Compose for deployed envs (images from GHCR, pinned to commit SHA)                                                                                |
+| `.sops.yaml` / `scripts/sops-setup.sh`          | SOPS config + one-time age key setup                                                                                                                     |
+| `scripts/env-check.sh`                          | Key-sync validation across all env files (CI `env-sync-check` job blocks PRs on drift; lefthook pre-commit guards staged `.sops.env` changes)            |
+| `scripts/deploy-remote.sh`                      | Runs on server: pull, backup, migrate, rollback. Exit codes: `0` ok, `1` aborted pre-migration, `10` rollback succeeded, `11` rollback FAILED (critical) |
 
 Key rules:
-1. **Edit only with the SOPS CLI** (`sops environments/staging.sops.env`) — never hand-edit encrypted values. Share the age private key via 1Password/Signal, never Slack/email. CI uses the same key as the `SOPS_AGE_KEY` GitHub secret (plus `STAGING_SSH_*` / `PRODUCTION_SSH_*` deploy secrets; deploy-failure emails go to the `DEPLOY_NOTIFY_EMAILS` repository *variable*).
+
+1. **Edit only with the SOPS CLI** (`sops environments/staging.sops.env`) — never hand-edit encrypted values. Share the age private key via 1Password/Signal, never Slack/email. CI uses the same key as the `SOPS_AGE_KEY` GitHub secret (plus `STAGING_SSH_*` / `PRODUCTION_SSH_*` deploy secrets; deploy-failure emails go to the `DEPLOY_NOTIFY_EMAILS` repository _variable_).
 2. **Both `.sops.env` files must have identical keys**, and `.env.example` must stay in sync (minus the dev-only vars whitelisted in `env-check.sh`: `COMPOSE_BAKE`, `DB_DEBUG`, `TEST_DB_*`, Docker build flags, host-port overrides) — `env-check.sh` enforces this.
 3. **Shared `.env` on the server** — all services load the same `.env` via `env_file:`; use the compose `environment:` block for per-service overrides (e.g. `PORT: 3000` for frontend vs backend's `PORT=8080`).
 4. Server layout: `~/{staging,production}/` (`.env`, `docker-compose.yml`, `.deploy-state`) + `~/backups/{env}/` (pg_dump retention: 3 staging, 7 production).

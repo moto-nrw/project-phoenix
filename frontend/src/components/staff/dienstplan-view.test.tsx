@@ -455,7 +455,12 @@ describe("DienstplanView", () => {
       // formatWeekLabel und lautet damit wie in Vertretung und Betreuungsplan
       // "KW 38 · 14.09.–18.09.2026"; die Zeitzonen-Aussage dieses Tests bleibt
       // unverändert.
-      const label = screen.getByText(/KW 38 ·/);
+      // Der Zeitraum steht seit der Kopfkarten-Umstellung zweimal: in der
+      // Statuszeile der Kopfkarte und als Datum in der Zeitnavigation. Beide
+      // müssen dieselbe Woche nennen.
+      const labels = screen.getAllByText(/KW 38 ·/);
+      expect(labels.length).toBeGreaterThanOrEqual(2);
+      const label = labels[labels.length - 1]!;
       expect(label).toHaveTextContent(/^KW 38 · 14\.09\./);
       expect(label).toHaveTextContent(/–18\.09\./);
       expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(

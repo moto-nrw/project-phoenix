@@ -18,9 +18,8 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   DAY_LOG_STATUS_COLORS,
   DAY_LOG_STATUS_ORDER,
@@ -445,45 +444,48 @@ export default function DayLogPage() {
   const selectedDate = parseISODate(dateISO);
 
   // Statuszeile unter dem Titel: gewählter Tag und die Zahl der Kinder aus dem
-  // geladenen Protokoll. Während des Ladens hält ein Skeleton die Zeile.
-  const statusLine = loading ? (
-    <Skeleton className="h-4 w-48" />
-  ) : data ? (
-    `${formatStatusDate(dateISO)} · ${data.counters.total} Kinder`
-  ) : (
-    formatStatusDate(dateISO)
-  );
+  // geladenen Protokoll.
+  const statusLine = data
+    ? `${formatStatusDate(dateISO)} · ${data.counters.total} Kinder`
+    : formatStatusDate(dateISO);
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Tagesdatum
-          und Exporte stehen rechts im Kopf, damit die Karte nie nur den Titel
-          trägt. */}
-      <PageIntro
-        title="Tagesauswertung"
-        description={statusLine}
-        className="mb-6"
-        actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
-                w-44 trigger, field-aligned popover panel. Once the sweep
-                lands, switch to ISODatePicker + controlSize="md". */}
-            <DatePicker
-              value={selectedDate}
-              onChange={(date) => {
-                if (date) setDateISO(toISODate(date));
-              }}
-              minDate={minDate}
-              maxDate={maxDate}
-              calendarLayout="popover"
-              hideClearButton
-              className="w-full sm:w-44"
-            />
-            <div className="flex flex-wrap gap-2">{exportButtons()}</div>
-          </div>
-        }
-      />
-
+    <TenantPage
+      title="Tagesauswertung"
+      stats={statusLine}
+      statsLoading={loading}
+      loading={loading}
+      empty={
+        errorCode !== null
+          ? {
+              title:
+                errorCode === "feature_disabled"
+                  ? "Anwesenheitsprotokoll deaktiviert"
+                  : "Tagesauswertung nicht verfügbar",
+              description: ERROR_MESSAGES[errorCode],
+            }
+          : null
+      }
+      actions={
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
+              w-44 trigger, field-aligned popover panel. Once the sweep
+              lands, switch to ISODatePicker + controlSize="md". */}
+          <DatePicker
+            value={selectedDate}
+            onChange={(date) => {
+              if (date) setDateISO(toISODate(date));
+            }}
+            minDate={minDate}
+            maxDate={maxDate}
+            calendarLayout="popover"
+            hideClearButton
+            className="w-full sm:w-44"
+          />
+          <div className="flex flex-wrap gap-2">{exportButtons()}</div>
+        </div>
+      }
+    >
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Datum und Exporte trägt die
           Kopfkarte darüber, hier stehen nur Zahlen und Gruppen. */}
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
@@ -493,27 +495,7 @@ export default function DayLogPage() {
           </div>
         )}
 
-        {loading && (
-          <div className="grid gap-3 lg:grid-cols-2">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
-        )}
-
-        {!loading && errorCode !== null && (
-          <EmptyState
-            title={
-              errorCode === "feature_disabled"
-                ? "Anwesenheitsprotokoll deaktiviert"
-                : "Tagesauswertung nicht verfügbar"
-            }
-            description={ERROR_MESSAGES[errorCode]}
-          />
-        )}
-
-        {!loading && errorCode === null && data && (
+        {data && (
           <>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
               <Stat label="Kinder gesamt" value={data.counters.total} />
@@ -577,6 +559,6 @@ export default function DayLogPage() {
           </>
         )}
       </Modal>
-    </div>
+    </TenantPage>
   );
 }

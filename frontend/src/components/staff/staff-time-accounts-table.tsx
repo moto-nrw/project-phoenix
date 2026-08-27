@@ -210,7 +210,10 @@ export function StaffTimeAccountsTable({
 
   // Der Hinweis zum Monatsabschluss gehört in den Kartenkopf, nicht als
   // eigener Absatz zwischen Kopf und Tabelle.
+  // Der angezeigte Monat steht am Anfang des Kartentexts, direkt neben den
+  // Monatspfeilen — ohne Mini-Überschrift über dem Titel.
   const description =
+    `${formatOverviewMonth(year, month)} · ` +
     "Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und Urlaub sind mit dem Tagessoll gutgeschrieben." +
     (monthClose !== null && !monthClose.closed && !monthIsOver
       ? " Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des Folgemonats."
@@ -218,7 +221,6 @@ export function StaffTimeAccountsTable({
 
   return (
     <SectionCard
-      kicker={formatOverviewMonth(year, month)}
       title="Zeitkonten"
       titleClassName="text-sm"
       headingLevel={3}

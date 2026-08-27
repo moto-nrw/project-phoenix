@@ -2,10 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { EnrollmentFormEditor } from "~/components/enrollment/enrollment-form-editor";
-import { Skeleton } from "~/components/ui/skeleton";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 export default function EnrollmentFormPage() {
@@ -22,26 +20,18 @@ export default function EnrollmentFormPage() {
       : `1 Basisformular · ${templateCount} ${templateCount === 1 ? "Vorlage" : "Vorlagen"}`;
 
   return (
-    <div className="w-full space-y-6">
-      <PageIntro
-        kicker="Anmeldungen"
-        title="Anmeldeformulare"
-        description={statusLine ?? <Skeleton className="h-4 w-52" />}
-      />
-      {isReady ? (
-        <>
-          <DesktopOnlyNotice />
-          <div className="hidden lg:block">
-            <EnrollmentFormEditor
-              onTemplateCountChange={handleTemplateCountChange}
-            />
-          </div>
-        </>
-      ) : (
-        <SkeletonRegion label="Anmeldeformular wird geladen">
-          <FormSkeleton fields={6} />
-        </SkeletonRegion>
-      )}
-    </div>
+    <TenantPage
+      title="Anmeldeformulare"
+      stats={statusLine}
+      statsLoading={statusLine === null}
+      loading={!isReady}
+    >
+      <DesktopOnlyNotice />
+      <div className="hidden lg:block">
+        <EnrollmentFormEditor
+          onTemplateCountChange={handleTemplateCountChange}
+        />
+      </div>
+    </TenantPage>
   );
 }

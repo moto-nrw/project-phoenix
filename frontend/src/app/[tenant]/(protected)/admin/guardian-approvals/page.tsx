@@ -6,9 +6,7 @@ import GuardianApprovalQueue, {
   type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -64,33 +62,16 @@ export default function GuardianApprovalsPage() {
       : { status: "ready", mode: inviteMode };
 
   return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
-          Karte, auf allen Breakpoints. Die Seite hat weder Suche noch Filter,
-          deshalb entfällt PageHeaderWithSearch ganz. */}
-      <PageIntro
-        kicker="Eltern"
-        title="Konto-Anfragen"
-        description={
-          pendingCount === null ? (
-            <Skeleton className="h-4 w-32" />
-          ) : (
-            `${pendingCount} offen`
-          )
-        }
+    <TenantPage
+      title="Konto-Anfragen"
+      stats={pendingCount === null ? null : `${pendingCount} offen`}
+      statsLoading={pendingCount === null}
+      loading={!isReady}
+    >
+      <GuardianApprovalQueue
+        inviteModeState={inviteModeState}
+        onCountChange={setPendingCount}
       />
-      <div>
-        {isReady ? (
-          <GuardianApprovalQueue
-            inviteModeState={inviteModeState}
-            onCountChange={setPendingCount}
-          />
-        ) : (
-          <SkeletonRegion label="Konto-Anfragen werden geladen">
-            <ListSkeleton rows={5} />
-          </SkeletonRegion>
-        )}
-      </div>
-    </div>
+    </TenantPage>
   );
 }

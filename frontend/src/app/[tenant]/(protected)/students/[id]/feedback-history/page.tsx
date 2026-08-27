@@ -2,17 +2,15 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Alert } from "~/components/ui/alert";
-import { EmptyState } from "~/components/ui/empty-state";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
-import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import { PageIntro } from "~/components/ui/page-intro";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { FeedbackHistorySkeleton } from "./page-skeleton";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
@@ -228,10 +226,6 @@ function StudentFeedbackHistoryPageContent() {
     });
   };
 
-  if (loading) {
-    return <FeedbackHistorySkeleton />;
-  }
-
   // Statuszeile: Klasse, Gruppe und die Zahl der Einträge im gewählten
   // Zeitraum, alles aus den Daten, die die Seite ohnehin geladen hat.
   const studentMeta = student
@@ -243,284 +237,269 @@ function StudentFeedbackHistoryPageContent() {
         .filter(Boolean)
         .join(" · ")
     : "";
-
-  if (error || !student) {
-    return (
-      <div className="w-full">
-        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
-        <BackButton referrer={referrer} />
-        <PageIntro
-          className="mb-6"
-          leading={<ConceptIconTile concept="feedback" variant="page" />}
-          kicker="Feedbackhistorie"
-          title={student?.name ?? "Feedbackhistorie"}
-          description={FEEDBACK_HISTORY_DESCRIPTION}
-        />
-        <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-      </div>
-    );
-  }
+  const errorMessage = loading
+    ? null
+    : (error ?? (student ? null : "Kind nicht gefunden"));
+  // Im Fehlerfall führt der Rückweg auf die Liste, sonst auf die Kindakte in
+  // den Reiter, aus dem diese Unterseite geöffnet wurde.
+  const backReferrer =
+    errorMessage !== null
+      ? referrer
+      : `/students/${studentId}?from=${referrer}&tab=historie`;
 
   return (
-    <div className="w-full">
+    <>
       {/* tab=historie returns to the originating tab on the detail page
           (this sub-page lives under Historie, issue #1501); from= still drives
           the detail page's own back button to the list. */}
-      <BackButton
-        referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
-      />
+      <BackButton referrer={backReferrer} />
 
-      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
-      <PageIntro
-        className="mb-6"
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. Der Zeitraum ist eine
+          Wertauswahl und steht deshalb als Aktion in der Titelzeile. */}
+      <TenantPage
         leading={<ConceptIconTile concept="feedback" variant="page" />}
-        kicker="Feedbackhistorie"
-        title={student.name}
-        description={studentMeta || FEEDBACK_HISTORY_DESCRIPTION}
-      />
-
-      {/* Zeitraum ist ein Wert, kein Inhaltsreiter, also SegmentedControl. */}
-      <div className="mb-6">
-        <SegmentedControl
-          items={timeRangeOptions}
-          value={timeRange}
-          onChange={setTimeRange}
-          ariaLabel="Zeitraum wählen"
-        />
-      </div>
-
-      {/* Main visual card */}
-      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-        <div className="p-4 sm:p-6 md:p-8">
-          <ConceptSectionHeader
-            className="mb-4"
-            title="Feedback-Übersicht"
-            concept="feedback"
+        title={student?.name ?? "Feedbackhistorie"}
+        stats={studentMeta || FEEDBACK_HISTORY_DESCRIPTION}
+        statsLoading={loading}
+        loading={loading}
+        error={errorMessage}
+        empty={
+          !loading && errorMessage === null && totalFeedback === 0
+            ? {
+                title: "Kein Feedback für den ausgewählten Zeitraum vorhanden.",
+                description: "Wählen Sie einen anderen Zeitraum.",
+              }
+            : null
+        }
+        actions={
+          <SegmentedControl
+            items={timeRangeOptions}
+            value={timeRange}
+            onChange={setTimeRange}
+            ariaLabel="Zeitraum wählen"
           />
-
-          {totalFeedback === 0 ? (
-            <EmptyState
-              title="Kein Feedback für den ausgewählten Zeitraum verfügbar."
-              description="Wählen Sie einen anderen Zeitraum."
-            />
-          ) : (
-            <>
-              {/* Proportion bar */}
-              <div className="mt-4 flex h-3 overflow-hidden rounded-full">
-                {positiveFeedbackCount > 0 && (
-                  <div
-                    className="transition-[width] duration-300"
-                    style={{
-                      backgroundColor: feedbackToneColors.positive,
-                      width: `${(positiveFeedbackCount / totalFeedback) * 100}%`,
-                    }}
-                  />
-                )}
-                {neutralFeedbackCount > 0 && (
-                  <div
-                    className="transition-[width] duration-300"
-                    style={{
-                      backgroundColor: feedbackToneColors.neutral,
-                      width: `${(neutralFeedbackCount / totalFeedback) * 100}%`,
-                    }}
-                  />
-                )}
-                {negativeFeedbackCount > 0 && (
-                  <div
-                    className="transition-[width] duration-300"
-                    style={{
-                      backgroundColor: feedbackToneColors.negative,
-                      width: `${(negativeFeedbackCount / totalFeedback) * 100}%`,
-                    }}
-                  />
-                )}
-              </div>
-
-              {/* Inline stats */}
-              <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: feedbackToneColors.positive }}
-                  />
-                  <span className="font-medium text-gray-900">
-                    {positiveFeedbackCount}
-                  </span>
-                  <span className="text-gray-500">Positiv</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: feedbackToneColors.neutral }}
-                  />
-                  <span className="font-medium text-gray-900">
-                    {neutralFeedbackCount}
-                  </span>
-                  <span className="text-gray-500">Neutral</span>
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span
-                    className="inline-block h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: feedbackToneColors.negative }}
-                  />
-                  <span className="font-medium text-gray-900">
-                    {negativeFeedbackCount}
-                  </span>
-                  <span className="text-gray-500">Negativ</span>
-                </span>
-              </div>
-
-              {/* Stacked bar chart */}
-              {chartData.length > 1 && (
-                <div className="mt-6">
-                  <ChartContainer
-                    config={feedbackChartConfig}
-                    className="!aspect-auto h-[180px] w-full sm:h-[220px]"
-                  >
-                    <BarChart
-                      accessibilityLayer
-                      data={chartData}
-                      margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
-                      barCategoryGap={chartData.length > 14 ? 1 : 4}
-                    >
-                      <CartesianGrid vertical={false} />
-                      <XAxis
-                        dataKey="day"
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={8}
-                        fontSize={11}
-                        interval={
-                          chartData.length > 14
-                            ? Math.floor(chartData.length / 7)
-                            : 0
-                        }
-                      />
-                      <YAxis
-                        tickLine={false}
-                        axisLine={false}
-                        tickMargin={4}
-                        fontSize={11}
-                        allowDecimals={false}
-                      />
-                      <ChartTooltip
-                        content={
-                          <ChartTooltipContent
-                            labelFormatter={(
-                              _value: unknown,
-                              payload: ReadonlyArray<{
-                                payload?: { label?: string };
-                              }>,
-                            ) => payload[0]?.payload?.label ?? ""}
-                          />
-                        }
-                      />
-                      <ChartLegend content={<ChartLegendContent />} />
-                      <Bar
-                        dataKey="negative"
-                        stackId="fb"
-                        fill="var(--color-negative)"
-                        radius={[0, 0, 4, 4]}
-                      />
-                      <Bar
-                        dataKey="neutral"
-                        stackId="fb"
-                        fill="var(--color-neutral)"
-                        radius={[0, 0, 0, 0]}
-                      />
-                      <Bar
-                        dataKey="positive"
-                        stackId="fb"
-                        fill="var(--color-positive)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                    </BarChart>
-                  </ChartContainer>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Expandable detail list */}
-        {totalFeedback > 0 && (
+        }
+      >
+        <SectionCard
+          title="Feedback-Übersicht"
+          leading={<ConceptIconTile concept="feedback" variant="section" />}
+        >
           <>
-            <button
-              type="button"
-              onClick={() => setShowDetails((prev) => !prev)}
-              className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-            >
-              {showDetails ? (
-                <>
-                  Einträge ausblenden
-                  <ChevronUp className="h-4 w-4" />
-                </>
-              ) : (
-                <>
-                  Alle Einträge anzeigen ({totalFeedback})
-                  <ChevronDown className="h-4 w-4" />
-                </>
+            {/* Proportion bar */}
+            <div className="mt-4 flex h-3 overflow-hidden rounded-full">
+              {positiveFeedbackCount > 0 && (
+                <div
+                  className="transition-[width] duration-300"
+                  style={{
+                    backgroundColor: feedbackToneColors.positive,
+                    width: `${(positiveFeedbackCount / totalFeedback) * 100}%`,
+                  }}
+                />
               )}
-            </button>
+              {neutralFeedbackCount > 0 && (
+                <div
+                  className="transition-[width] duration-300"
+                  style={{
+                    backgroundColor: feedbackToneColors.neutral,
+                    width: `${(neutralFeedbackCount / totalFeedback) * 100}%`,
+                  }}
+                />
+              )}
+              {negativeFeedbackCount > 0 && (
+                <div
+                  className="transition-[width] duration-300"
+                  style={{
+                    backgroundColor: feedbackToneColors.negative,
+                    width: `${(negativeFeedbackCount / totalFeedback) * 100}%`,
+                  }}
+                />
+              )}
+            </div>
 
-            {showDetails && (
-              <div className="border-t border-gray-100">
-                {sortedDates.map((dateString) => {
-                  const feedbackForDate =
-                    groupedFeedbackHistory[dateString] ?? [];
-                  const dateObj = new Date(
-                    feedbackForDate[0]?.timestamp ?? dateString,
-                  );
+            {/* Inline stats */}
+            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: feedbackToneColors.positive }}
+                />
+                <span className="font-medium text-gray-900">
+                  {positiveFeedbackCount}
+                </span>
+                <span className="text-gray-500">Positiv</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: feedbackToneColors.neutral }}
+                />
+                <span className="font-medium text-gray-900">
+                  {neutralFeedbackCount}
+                </span>
+                <span className="text-gray-500">Neutral</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ backgroundColor: feedbackToneColors.negative }}
+                />
+                <span className="font-medium text-gray-900">
+                  {negativeFeedbackCount}
+                </span>
+                <span className="text-gray-500">Negativ</span>
+              </span>
+            </div>
 
-                  return (
-                    <div key={dateString}>
-                      <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
-                        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                          {dateObj.toLocaleDateString("de-DE", {
-                            timeZone: "Europe/Berlin",
-                            weekday: "long",
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </h3>
-                      </div>
-                      <div className="divide-y divide-gray-50 px-4 sm:px-6">
-                        {feedbackForDate.map((feedback) => (
-                          <div
-                            key={feedback.id}
-                            className="flex items-center gap-3 py-2.5"
-                            data-testid={`feedback-indicator-${feedback.feedback_type}`}
-                          >
-                            <span
-                              className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                              style={{
-                                backgroundColor:
-                                  feedbackToneColors[feedback.feedback_type],
-                              }}
-                            />
-                            <span className="text-sm text-gray-900">
-                              {feedbackTypeLabels[feedback.feedback_type]}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {formatTime(feedback.timestamp)}
-                            </span>
-                            {feedback.is_mensa_feedback && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
-                                Mensa
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+            {/* Stacked bar chart */}
+            {chartData.length > 1 && (
+              <div className="mt-6">
+                <ChartContainer
+                  config={feedbackChartConfig}
+                  className="!aspect-auto h-[180px] w-full sm:h-[220px]"
+                >
+                  <BarChart
+                    accessibilityLayer
+                    data={chartData}
+                    margin={{ top: 4, right: 4, bottom: 0, left: -24 }}
+                    barCategoryGap={chartData.length > 14 ? 1 : 4}
+                  >
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="day"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                      fontSize={11}
+                      interval={
+                        chartData.length > 14
+                          ? Math.floor(chartData.length / 7)
+                          : 0
+                      }
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={4}
+                      fontSize={11}
+                      allowDecimals={false}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent
+                          labelFormatter={(
+                            _value: unknown,
+                            payload: ReadonlyArray<{
+                              payload?: { label?: string };
+                            }>,
+                          ) => payload[0]?.payload?.label ?? ""}
+                        />
+                      }
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar
+                      dataKey="negative"
+                      stackId="fb"
+                      fill="var(--color-negative)"
+                      radius={[0, 0, 4, 4]}
+                    />
+                    <Bar
+                      dataKey="neutral"
+                      stackId="fb"
+                      fill="var(--color-neutral)"
+                      radius={[0, 0, 0, 0]}
+                    />
+                    <Bar
+                      dataKey="positive"
+                      stackId="fb"
+                      fill="var(--color-positive)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ChartContainer>
               </div>
             )}
           </>
-        )}
-      </div>
-    </div>
+
+          {/* Expandable detail list; sie läuft randlos bis zur Kartenkante. */}
+          {totalFeedback > 0 && (
+            <div className="-mx-5 mt-4 -mb-5">
+              <button
+                type="button"
+                onClick={() => setShowDetails((prev) => !prev)}
+                className="flex w-full items-center justify-center gap-2 border-t border-gray-100 px-4 py-3 text-sm font-medium text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+              >
+                {showDetails ? (
+                  <>
+                    Einträge ausblenden
+                    <ChevronUp className="h-4 w-4" />
+                  </>
+                ) : (
+                  <>
+                    Alle Einträge anzeigen ({totalFeedback})
+                    <ChevronDown className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+
+              {showDetails && (
+                <div className="border-t border-gray-100">
+                  {sortedDates.map((dateString) => {
+                    const feedbackForDate =
+                      groupedFeedbackHistory[dateString] ?? [];
+                    const dateObj = new Date(
+                      feedbackForDate[0]?.timestamp ?? dateString,
+                    );
+
+                    return (
+                      <div key={dateString}>
+                        <div className="border-b border-gray-50 bg-gray-50/50 px-4 py-2 sm:px-6">
+                          <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                            {dateObj.toLocaleDateString("de-DE", {
+                              timeZone: "Europe/Berlin",
+                              weekday: "long",
+                              day: "numeric",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </h3>
+                        </div>
+                        <div className="divide-y divide-gray-50 px-4 sm:px-6">
+                          {feedbackForDate.map((feedback) => (
+                            <div
+                              key={feedback.id}
+                              className="flex items-center gap-3 py-2.5"
+                              data-testid={`feedback-indicator-${feedback.feedback_type}`}
+                            >
+                              <span
+                                className="inline-block h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                                style={{
+                                  backgroundColor:
+                                    feedbackToneColors[feedback.feedback_type],
+                                }}
+                              />
+                              <span className="text-sm text-gray-900">
+                                {feedbackTypeLabels[feedback.feedback_type]}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {formatTime(feedback.timestamp)}
+                              </span>
+                              {feedback.is_mensa_feedback && (
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+                                  Mensa
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </SectionCard>
+      </TenantPage>
+    </>
   );
 }

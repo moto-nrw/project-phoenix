@@ -302,22 +302,62 @@ interface StudentHeaderProps {
   sickReason?: string;
 }
 
-export function StudentDetailHeader({
+/**
+ * Foto des Kindes links vom Namen (das `leading` der Kopfkarte).
+ *
+ * Das Foto ist eine Einstellung je Schule. Ist sie aus, entfällt der ganze
+ * Platz inklusive der Initialen, damit diese Schulen denselben Kopf sehen wie
+ * vor der Funktion.
+ */
+export function StudentHeaderAvatar({
+  student,
+}: Readonly<{ student: ExtendedStudent }>) {
+  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  if (!photosEnabled) return null;
+
+  const fullName =
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+    student.name ||
+    "Kind";
+
+  // xl entspricht dem optischen Gewicht der Seitenüberschrift.
+  return (
+    <Avatar imageUrl={student.photo_url ?? null} name={fullName} size="xl" />
+  );
+}
+
+/** Der Name des Kindes als Titel der Kopfkarte. */
+export function studentHeaderTitle(student: ExtendedStudent): string {
+  return (
+    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
+    student.name ||
+    "Kind"
+  );
+}
+
+/** Aktueller Aufenthaltsort, rechts in der Titelzeile der Kopfkarte. */
+export function StudentHeaderLocation({
   student,
   myGroups,
   myGroupRooms,
   mySupervisedRooms,
-  todayPickupPlannedTime,
-  todayPickupActualTime,
-  todayPickupNote,
-  isPickupException,
   todayArrivalPlannedTime,
-  todayArrivalActualTime,
   isArrivalException,
   isArrivalAbsent,
   todayArrivalNote,
-  sickReason,
-}: Readonly<StudentHeaderProps>) {
+}: Readonly<
+  Pick<
+    StudentHeaderProps,
+    | "student"
+    | "myGroups"
+    | "myGroupRooms"
+    | "mySupervisedRooms"
+    | "todayArrivalPlannedTime"
+    | "isArrivalException"
+    | "isArrivalAbsent"
+    | "todayArrivalNote"
+  >
+>) {
   // Spread the student so any field LocationBadge consumes (current_room_color,
   // future room-derived attributes, etc.) propagates without maintaining a
   // parallel whitelist here. Only the not_arrival_* fields are computed locally.
@@ -335,130 +375,172 @@ export function StudentDetailHeader({
       badgePlanning.notArrivalReason ?? todayArrivalNote ?? null,
   };
 
-  const fullName =
-    `${student.first_name ?? ""} ${student.second_name ?? ""}`.trim() ||
-    student.name ||
-    "Kind";
+  return (
+    <LocationBadge
+      student={badgeStudent}
+      displayMode="contextAware"
+      userGroups={myGroups}
+      groupRooms={myGroupRooms}
+      supervisedRooms={mySupervisedRooms}
+      variant="modern"
+      size="md"
+      showLocationSince={true}
+    />
+  );
+}
 
-  // Photo feature is per-tenant. When disabled the entire avatar slot is
-  // suppressed (including the initials fallback) so opt-out schools see
-  // the same header layout they had before the feature shipped.
-  const { enabled: photosEnabled } = useStudentPhotosEnabled();
+/**
+ * Statuszeile der Kopfkarte: Klasse und Gruppe des Kindes und die Zeiten des
+ * heutigen Tages. Alles steht schon im geladenen Datensatz.
+ *
+ * Bewusst nur `span`-Elemente: die Zeile steht im Beschreibungsabsatz der
+ * Kopfkarte.
+ */
+export function StudentHeaderStats({
+  student,
+  todayPickupPlannedTime,
+  todayPickupActualTime,
+  todayPickupNote,
+  isPickupException,
+  todayArrivalPlannedTime,
+  todayArrivalActualTime,
+  isArrivalException,
+  isArrivalAbsent,
+  todayArrivalNote,
+  sickReason,
+}: Readonly<
+  Omit<StudentHeaderProps, "myGroups" | "myGroupRooms" | "mySupervisedRooms">
+>) {
+  // Variant B: a sick/excused child without a completed pickup should not
+  // accrue overdue pickup urgency, even if they already checked in before the
+  // absence flag was set. Once pickup is recorded, the actual resolved times
+  // can render normally.
+  const absence = getStudentAbsence({
+    sick: student.sick,
+    classTrip: student.class_trip,
+    excused: student.excused,
+  });
+  const dayPlanningNotComingLabel = getDayPlanningNotComingLabel(student);
+  const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
 
   return (
-    // Der Entitätskopf IST die Kopfkarte der Seite (PageIntro): Foto als
-    // leading, „Kind“ als Kicker, Name als Titel, Gruppe als Unterzeile,
-    // Aufenthaltsort als Aktion, die Zeiten des heutigen Tages darunter.
+    <span className="block">
+      {student.group_name || student.school_class ? (
+        <span className="inline-flex flex-wrap items-center gap-2">
+          {student.school_class ? (
+            <span className="truncate">Klasse {student.school_class}</span>
+          ) : null}
+          {student.school_class && student.group_name ? (
+            <span aria-hidden="true">·</span>
+          ) : null}
+          {student.group_name ? (
+            <span className="inline-flex items-center gap-2">
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.groups.icon}
+                tone={MOTO_CONCEPTS.groups.tone}
+                size={18}
+              />
+              <span className="truncate">{student.group_name}</span>
+            </span>
+          ) : null}
+        </span>
+      ) : (
+        <span>Keine Klasse und keine Gruppe hinterlegt</span>
+      )}
+
+      {notComingLabel && !todayPickupActualTime ? (
+        <span
+          data-testid="today-absence-row"
+          className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+        >
+          <ClockIcon className="h-4 w-4 text-gray-400" />
+          <span className="font-medium text-gray-900">
+            {`Kommt heute nicht (${notComingLabel}${
+              student.sick && sickReason ? `: ${sickReason}` : ""
+            })`}
+          </span>
+        </span>
+      ) : (
+        <>
+          <TodayTimeStatusInlineRow
+            kind="arrival"
+            label="Heutige Ankunft"
+            plannedTime={todayArrivalPlannedTime}
+            actualTime={todayArrivalActualTime}
+            isException={isArrivalException}
+            note={isArrivalAbsent ? undefined : todayArrivalNote}
+            isAbsent={isArrivalAbsent}
+            absentReason={todayArrivalNote}
+          />
+          <TodayTimeStatusInlineRow
+            kind="pickup"
+            label="Heutige Abholung"
+            plannedTime={todayPickupPlannedTime}
+            actualTime={todayPickupActualTime}
+            isException={isPickupException}
+            note={todayPickupNote}
+          />
+        </>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Der Entitätskopf der Kindakte als eigenständige Kopfkarte.
+ *
+ * Die Kindakte selbst setzt diese Teile in `TenantPage` zusammen; diese
+ * Komponente bleibt für Ansichten, die nur den Kopf brauchen.
+ */
+export function StudentDetailHeader({
+  student,
+  myGroups,
+  myGroupRooms,
+  mySupervisedRooms,
+  todayPickupPlannedTime,
+  todayPickupActualTime,
+  todayPickupNote,
+  isPickupException,
+  todayArrivalPlannedTime,
+  todayArrivalActualTime,
+  isArrivalException,
+  isArrivalAbsent,
+  todayArrivalNote,
+  sickReason,
+}: Readonly<StudentHeaderProps>) {
+  return (
     <PageIntro
       className="mb-6"
-      leading={
-        photosEnabled ? (
-          // Header avatar: image when consent + photo are present, brand
-          // gradient initials otherwise. xl size mirrors the detail page's
-          // h1 visual weight.
-          <Avatar
-            imageUrl={student.photo_url ?? null}
-            name={fullName}
-            size="xl"
-          />
-        ) : undefined
-      }
-      kicker="Kind"
-      title={`${student.first_name ?? ""} ${student.second_name ?? ""}`.trim()}
+      leading={<StudentHeaderAvatar student={student} />}
+      title={studentHeaderTitle(student)}
       description={
-        // Statuszeile unter dem Titel: Klasse und Gruppe des Kindes, beides
-        // steht schon im geladenen Datensatz. Fehlt beides, sagt die Zeile
-        // genau das, statt zu verschwinden.
-        student.group_name || student.school_class ? (
-          <span className="inline-flex flex-wrap items-center gap-2">
-            {student.school_class ? (
-              <span className="truncate">Klasse {student.school_class}</span>
-            ) : null}
-            {student.school_class && student.group_name ? (
-              <span aria-hidden="true">·</span>
-            ) : null}
-            {student.group_name ? (
-              <span className="inline-flex items-center gap-2">
-                <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
-                  size={18}
-                />
-                <span className="truncate">{student.group_name}</span>
-              </span>
-            ) : null}
-          </span>
-        ) : (
-          "Keine Klasse und keine Gruppe hinterlegt"
-        )
-      }
-      actions={
-        <LocationBadge
-          student={badgeStudent}
-          displayMode="contextAware"
-          userGroups={myGroups}
-          groupRooms={myGroupRooms}
-          supervisedRooms={mySupervisedRooms}
-          variant="modern"
-          size="md"
-          showLocationSince={true}
+        <StudentHeaderStats
+          student={student}
+          todayPickupPlannedTime={todayPickupPlannedTime}
+          todayPickupActualTime={todayPickupActualTime}
+          todayPickupNote={todayPickupNote}
+          isPickupException={isPickupException}
+          todayArrivalPlannedTime={todayArrivalPlannedTime}
+          todayArrivalActualTime={todayArrivalActualTime}
+          isArrivalException={isArrivalException}
+          isArrivalAbsent={isArrivalAbsent}
+          todayArrivalNote={todayArrivalNote}
+          sickReason={sickReason}
         />
       }
-    >
-      <div className="min-w-0">
-        {(() => {
-          // Variant B: a sick/excused child without a completed pickup
-          // should not accrue overdue pickup urgency, even if they already
-          // checked in before the absence flag was set. Once pickup is
-          // recorded, the actual resolved times can render normally.
-          const absence = getStudentAbsence({
-            sick: student.sick,
-            classTrip: student.class_trip,
-            excused: student.excused,
-          });
-          const dayPlanningNotComingLabel =
-            getDayPlanningNotComingLabel(student);
-          const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
-          if (notComingLabel && !todayPickupActualTime) {
-            const reasonSuffix =
-              student.sick && sickReason ? `: ${sickReason}` : "";
-            return (
-              <div
-                data-testid="today-absence-row"
-                className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
-              >
-                <ClockIcon className="h-4 w-4 text-gray-400" />
-                <span className="font-medium text-gray-900">
-                  {`Kommt heute nicht (${notComingLabel}${reasonSuffix})`}
-                </span>
-              </div>
-            );
-          }
-          return (
-            <>
-              <TodayTimeStatusInlineRow
-                kind="arrival"
-                label="Heutige Ankunft"
-                plannedTime={todayArrivalPlannedTime}
-                actualTime={todayArrivalActualTime}
-                isException={isArrivalException}
-                note={isArrivalAbsent ? undefined : todayArrivalNote}
-                isAbsent={isArrivalAbsent}
-                absentReason={todayArrivalNote}
-              />
-              <TodayTimeStatusInlineRow
-                kind="pickup"
-                label="Heutige Abholung"
-                plannedTime={todayPickupPlannedTime}
-                actualTime={todayPickupActualTime}
-                isException={isPickupException}
-                note={todayPickupNote}
-              />
-            </>
-          );
-        })()}
-      </div>
-    </PageIntro>
+      actions={
+        <StudentHeaderLocation
+          student={student}
+          myGroups={myGroups}
+          myGroupRooms={myGroupRooms}
+          mySupervisedRooms={mySupervisedRooms}
+          todayArrivalPlannedTime={todayArrivalPlannedTime}
+          isArrivalException={isArrivalException}
+          isArrivalAbsent={isArrivalAbsent}
+          todayArrivalNote={todayArrivalNote}
+        />
+      }
+    />
   );
 }
 
@@ -506,7 +588,7 @@ function TodayTimeStatusInlineRow({
 
   if (isAbsent) {
     return (
-      <div
+      <span
         data-testid={`today-time-row-${kind}`}
         className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
       >
@@ -518,7 +600,7 @@ function TodayTimeStatusInlineRow({
             <span className="ml-1 text-gray-500">({absentReason})</span>
           )}
         </span>
-      </div>
+      </span>
     );
   }
 
@@ -532,7 +614,7 @@ function TodayTimeStatusInlineRow({
   const showPlannedHint = Boolean(plannedTime && actualTime);
 
   return (
-    <div
+    <span
       data-testid={`today-time-row-${kind}`}
       className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
     >
@@ -566,7 +648,7 @@ function TodayTimeStatusInlineRow({
           />
         )}
       </span>
-    </div>
+    </span>
   );
 }
 

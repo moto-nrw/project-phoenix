@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
@@ -16,12 +15,8 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Avatar } from "~/components/ui/avatar";
-import { BackButton } from "~/components/ui/back-button";
-import { EmptyState } from "~/components/ui/empty-state";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -36,82 +31,7 @@ import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
-import { StaffDetailSkeleton, StaffHeaderSkeleton } from "./page-skeleton";
-
-// ─── Labels & constants ──────────────────────────────────────────────────────
-
-// ─── Rich Header ─────────────────────────────────────────────────────────────
-
-function StaffHeader({
-  staff,
-  menu,
-}: {
-  readonly staff: Staff;
-  readonly menu: React.ReactNode;
-}) {
-  const locationStatus = getStaffLocationStatus(staff);
-  const displayType = getStaffDisplayType(staff);
-  const employmentLabel = staff.employmentType
-    ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
-    : null;
-
-  const position = staff.specialization ?? (displayType || null);
-  const subtitleParts = [position, employmentLabel].filter(Boolean);
-  const metaParts = [
-    staff.email,
-    staff.hasRfid ? "RFID zugewiesen" : null,
-  ].filter(Boolean);
-
-  return (
-    // Der Entitätskopf IST die Kopfkarte der Seite: Avatar als leading,
-    // „Mitarbeiter“ als Kicker, Name als Titel, Status und Kebab als Aktionen.
-    <PageIntro
-      className="mb-6"
-      leading={
-        // Kit avatar: initials fallback in the brand-green tint. The name is
-        // rendered right next to it, so the avatar is decorative.
-        <Avatar
-          name={`${staff.firstName} ${staff.lastName}`}
-          size="lg"
-          decorative
-        />
-      }
-      kicker="Mitarbeiter"
-      title={`${staff.firstName} ${staff.lastName}`}
-      description={
-        subtitleParts.length > 0 || metaParts.length > 0 ? (
-          <>
-            {subtitleParts.length > 0 && (
-              <span className="block truncate font-medium text-gray-600">
-                {subtitleParts.join(" · ")}
-              </span>
-            )}
-            {metaParts.length > 0 && (
-              <span className="mt-1 block truncate text-xs text-gray-400">
-                {metaParts.join(" · ")}
-              </span>
-            )}
-          </>
-        ) : undefined
-      }
-      actions={
-        <>
-          {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
-              Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
-              (LOCATION_COLORS über getStaffLocationStatus), deshalb
-              StatusDotBadge und nicht StatusBadge. */}
-          {!staff.isLimitedProfile ? (
-            <StatusDotBadge
-              label={locationStatus.label}
-              color={locationStatus.customBgColor}
-            />
-          ) : null}
-          {menu}
-        </>
-      }
-    />
-  );
-}
+import { StaffDetailSkeleton } from "./page-skeleton";
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
@@ -166,6 +86,12 @@ export default function StaffDetailContent() {
     isValidISODate(requestedDate)
       ? requestedDate
       : undefined;
+
+  // Vom Benutzer gewählter Reiter. Solange niemand gewechselt hat, entscheidet
+  // die Berechtigung bzw. der Deep-Link — das kann erst gelten, wenn die
+  // Sitzung aufgelöst ist, deshalb wird der Vorgabewert bei jedem Rendern neu
+  // bestimmt statt einmalig im useState-Initialwert eingefroren.
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
 
   const {
     data: staff,
@@ -227,13 +153,17 @@ export default function StaffDetailContent() {
 
   if (!isLoading && (error || !staff)) {
     return (
-      <div className="w-full">
-        <BackButton referrer="/staff" />
-        <EmptyState
-          title="Mitarbeiter konnte nicht geladen werden."
-          description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
-        />
-      </div>
+      <TenantPage
+        title="Mitarbeiter"
+        back
+        backHref="/staff"
+        backLabel="Zurück zu den Mitarbeitenden"
+        empty={{
+          title: "Mitarbeiter konnte nicht geladen werden.",
+          description:
+            "Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr.",
+        }}
+      />
     );
   }
 
@@ -249,154 +179,164 @@ export default function StaffDetailContent() {
     { label: "Löschen", onClick: noop, disabled: true, destructive: true },
   ];
 
+  const locationStatus = staff ? getStaffLocationStatus(staff) : null;
+  const displayType = staff ? getStaffDisplayType(staff) : "";
+  const employmentLabel = staff?.employmentType
+    ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
+    : null;
+  // Statuszeile der Kopfkarte: echte Angaben zur Person, keine Erklärzeile.
+  const statusLine = staff
+    ? [
+        staff.specialization ?? (displayType || null),
+        employmentLabel,
+        staff.email,
+        staff.hasRfid ? "RFID zugewiesen" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
+  // Seitenreiter: berechtigungsgesteuert, nicht datengesteuert. Die Flags
+  // kommen aus der Sitzung, die hier bereits aufgelöst ist — die Reiterleiste
+  // steht also sofort, auch während `staff` noch lädt.
+  const tabItems: TenantPageTab[] = [
+    ...(canViewTimeTracking
+      ? [
+          { value: "uebersicht", label: "Übersicht" },
+          { value: "zeiterfassung", label: "Zeiterfassung" },
+        ]
+      : []),
+    ...(canEdit
+      ? [{ value: "arbeitszeitmodell", label: "Arbeitszeitmodell" }]
+      : []),
+    ...(canManageAbsences
+      ? [
+          {
+            value: "abwesenheiten",
+            label: "Abwesenheiten",
+            badge: pendingCount,
+          },
+        ]
+      : []),
+    ...(canViewStammdaten
+      ? [{ value: "stammdaten", label: "Stammdaten" }]
+      : []),
+    ...(canViewDocuments ? [{ value: "dokumente", label: "Dokumente" }] : []),
+    ...(canViewKlassen ? [{ value: "klassen", label: "Klassen" }] : []),
+  ];
+
+  const defaultTab =
+    requestedTab === "dokumente" && canViewDocuments
+      ? "dokumente"
+      : requestedTab === "zeiterfassung" && canViewTimeTracking
+        ? "zeiterfassung"
+        : canViewTimeTracking
+          ? "uebersicht"
+          : canViewStammdaten
+            ? "stammdaten"
+            : canViewDocuments
+              ? "dokumente"
+              : "abwesenheiten";
+  const activeTab = selectedTab ?? defaultTab;
+
   return (
-    <div className="w-full">
-      {/* Mobiler Rückweg zur Mitarbeiterliste; auf dem Desktop übernimmt das
-          die Breadcrumb der Kopfzeile (BackButton ist md:hidden). */}
-      <BackButton referrer="/staff" />
-
-      {/* Rich Header with kebab trigger. Name/status are data-bound (they
-          come from `staff`), so this stays a skeleton until the fetch
-          resolves — the tab bar right below doesn't need to wait. */}
+    <TenantPage
+      // Der Entitätskopf IST die Kopfkarte: Avatar links, Name als Titel,
+      // Statuszeile darunter, Status und Kebab als Aktionen.
+      title={staff ? `${staff.firstName} ${staff.lastName}` : "Mitarbeiter"}
+      stats={statusLine}
+      statsLoading={!staff}
+      // Rückweg ist die Mitarbeiterliste, nicht die Datenverwaltung.
+      back
+      backHref="/staff"
+      backLabel="Zurück zu den Mitarbeitenden"
+      leading={
+        staff ? (
+          // Kit-Avatar mit Initialen; der Name steht direkt daneben, das Bild
+          // ist also rein schmückend.
+          <Avatar
+            name={`${staff.firstName} ${staff.lastName}`}
+            size="lg"
+            decorative
+          />
+        ) : undefined
+      }
+      actions={
+        <>
+          {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
+              Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
+              (LOCATION_COLORS über getStaffLocationStatus), deshalb
+              StatusDotBadge und nicht StatusBadge. */}
+          {staff && !staff.isLimitedProfile && locationStatus ? (
+            <StatusDotBadge
+              label={locationStatus.label}
+              color={locationStatus.customBgColor}
+            />
+          ) : null}
+          <OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />
+        </>
+      }
+      tabs={{
+        value: activeTab,
+        onChange: setSelectedTab,
+        items: tabItems,
+        label: "Bereiche der Personalakte",
+      }}
+    >
       {staff ? (
-        <StaffHeader
-          staff={staff}
-          menu={<OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />}
-        />
+        <>
+          {activeTab === "uebersicht" && canViewTimeTracking && (
+            <UebersichtTab staffId={staffId} />
+          )}
+
+          {activeTab === "zeiterfassung" && canViewTimeTracking && (
+            <ZeiterfassungTab
+              staffId={staffId}
+              initialDate={initialTimeTrackingDate}
+            />
+          )}
+
+          {activeTab === "arbeitszeitmodell" && canEdit && (
+            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+          )}
+
+          {activeTab === "abwesenheiten" && canManageAbsences && (
+            <AbwesenheitenTab
+              staffId={staffId}
+              canEdit={canEdit}
+              canManageSickReports={canManageTimeTracking}
+              staff={staff}
+            />
+          )}
+
+          {activeTab === "stammdaten" && canViewStammdaten && (
+            <StammdatenTab
+              staffId={staffId}
+              canManagePayroll={canManageTimeTracking}
+              canManagePayrollSettings={canManagePayrollSettings}
+              canViewSections={canViewStammdatenSections}
+              canEditSections={canEditStammdaten}
+              canViewFinancial={canViewFinancial}
+            />
+          )}
+
+          {activeTab === "dokumente" && canViewDocuments && (
+            <DokumenteTab staffId={staffId} />
+          )}
+
+          {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
+              Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
+              Ersetzen mit users:manage — beides erzwingt das Backend. */}
+          {activeTab === "klassen" && canViewKlassen && (
+            <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
+          )}
+        </>
       ) : (
-        <StaffHeaderSkeleton />
+        // Der Inhalt des aktiven Reiters braucht die geladene Person (der
+        // Abwesenheiten-Reiter bekommt sie direkt als Prop), er skelettiert
+        // deshalb als Ganzes statt pro Reiter.
+        <DetailSkeleton sections={2} fieldsPerSection={4} />
       )}
-
-      {/* Tabs — permission-gated, not data-gated: the canView/canEdit/canManage
-          flags all derive from the session, which is already resolved here,
-          so the real tab bar renders immediately even while `staff` is
-          still loading. */}
-      <Tabs
-        defaultValue={
-          requestedTab === "dokumente" && canViewDocuments
-            ? "dokumente"
-            : requestedTab === "zeiterfassung" && canViewTimeTracking
-              ? "zeiterfassung"
-              : canViewTimeTracking
-                ? "uebersicht"
-                : canViewStammdaten
-                  ? "stammdaten"
-                  : canViewDocuments
-                    ? "dokumente"
-                    : "abwesenheiten"
-        }
-        className="w-full"
-      >
-        <TabsList
-          variant="line"
-          className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
-        >
-          {canViewTimeTracking ? (
-            <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-          ) : null}
-          {canViewTimeTracking ? (
-            <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
-          ) : null}
-          {canEdit ? (
-            <TabsTrigger value="arbeitszeitmodell">
-              Arbeitszeitmodell
-            </TabsTrigger>
-          ) : null}
-          {canManageAbsences ? (
-            <TabsTrigger value="abwesenheiten">
-              <span className="inline-flex items-center gap-1.5">
-                Abwesenheiten
-                {pendingCount > 0 && (
-                  <StatusBadge
-                    tone="red"
-                    label={pendingCount > 99 ? "99+" : String(pendingCount)}
-                  />
-                )}
-              </span>
-            </TabsTrigger>
-          ) : null}
-          {canViewStammdaten ? (
-            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
-          ) : null}
-          {canViewDocuments ? (
-            <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
-          ) : null}
-          {canViewKlassen ? (
-            <TabsTrigger value="klassen">Klassen</TabsTrigger>
-          ) : null}
-        </TabsList>
-
-        {staff ? (
-          <>
-            {canViewTimeTracking ? (
-              <TabsPrimitive.Content value="uebersicht">
-                <UebersichtTab staffId={staffId} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewTimeTracking ? (
-              <TabsPrimitive.Content value="zeiterfassung">
-                <ZeiterfassungTab
-                  staffId={staffId}
-                  initialDate={initialTimeTrackingDate}
-                />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canEdit ? (
-              <TabsPrimitive.Content value="arbeitszeitmodell">
-                <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canManageAbsences ? (
-              <TabsPrimitive.Content value="abwesenheiten">
-                <AbwesenheitenTab
-                  staffId={staffId}
-                  canEdit={canEdit}
-                  canManageSickReports={canManageTimeTracking}
-                  staff={staff}
-                />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewStammdaten ? (
-              <TabsPrimitive.Content value="stammdaten">
-                <StammdatenTab
-                  staffId={staffId}
-                  canManagePayroll={canManageTimeTracking}
-                  canManagePayrollSettings={canManagePayrollSettings}
-                  canViewSections={canViewStammdatenSections}
-                  canEditSections={canEditStammdaten}
-                  canViewFinancial={canViewFinancial}
-                />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewDocuments ? (
-              <TabsPrimitive.Content value="dokumente">
-                <DokumenteTab staffId={staffId} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
-                Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
-                Ersetzen mit users:manage — beides erzwingt das Backend. */}
-            {canViewKlassen ? (
-              <TabsPrimitive.Content value="klassen">
-                <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
-              </TabsPrimitive.Content>
-            ) : null}
-          </>
-        ) : (
-          // The active tab's content needs the fetched `staff` (e.g.
-          // AbwesenheitenTab takes it as a prop directly), so it skeletonizes
-          // as a unit instead of rendering per-tab while data is missing.
-          <div className="mt-6">
-            <DetailSkeleton sections={2} fieldsPerSection={4} />
-          </div>
-        )}
-      </Tabs>
-    </div>
+    </TenantPage>
   );
 }

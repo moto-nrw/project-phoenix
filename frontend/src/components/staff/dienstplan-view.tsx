@@ -22,6 +22,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -388,11 +389,69 @@ function DienstplanContent() {
     );
   }
 
+  // Statuszeile der Kopfkarte: der angezeigte Zeitraum und die Zahlen, die
+  // die Fläche ohnehin geladen hat. In der Halbjahres-Sicht steht die
+  // Wochenzahl nicht, weil dort keine einzelne Woche zu sehen ist.
+  const statusLine = [
+    weekLabel,
+    view === "woche"
+      ? `${allShifts.length} ${allShifts.length === 1 ? "Dienst" : "Dienste"}`
+      : null,
+    `${sortedStaff.length} ${sortedStaff.length === 1 ? "Person" : "Personen"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="w-full space-y-6">
+    <TenantPage
+      title="Dienstplan"
+      stats={statusLine}
+      statsLoading={showSkeleton || scheduleLoading}
+      actions={
+        // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
+        // zweizeilig um. EIN Button je Aktion mit ausgeblendetem Label statt
+        // zweier Breakpoint-Varianten — das `aria-label` hält sie für
+        // Screenreader und Tests unter demselben Namen auffindbar.
+        <>
+          {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
+              Exportseite, weil der Export immer die Woche meint, die gerade
+              auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
+          {canExportPlan && (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              aria-label="Dienstplan drucken oder exportieren"
+              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+              onClick={() => setExportOpen(true)}
+            >
+              <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+              <span className="hidden whitespace-nowrap sm:inline">
+                Drucken
+              </span>
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            aria-label="Schichtarten verwalten"
+            className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
+            onClick={() => setManageOpen(true)}
+            disabled={Boolean(shiftTypesError)}
+          >
+            <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
+            <span className="hidden whitespace-nowrap sm:inline">
+              Schichtarten verwalten
+            </span>
+          </Button>
+        </>
+      }
+    >
+      {/* Die Zeitnavigation der Planungsflächen steht als erster Inhaltsblock
+          unter der Kopfkarte, nicht als zweiter Seitenkopf. Ohne `title`:
+          den Seitentitel trägt die Kopfkarte darüber. */}
       <PlanningContextBar
-        title="Dienstplan"
-        kicker="Planung"
         onPrevious={() => goToWeek(-7)}
         onNext={() => goToWeek(7)}
         previousLabel="Vorherige Woche"
@@ -413,48 +472,6 @@ function DienstplanContent() {
               </TabsList>
             </Tabs>
           ) : undefined
-        }
-        actions={
-          // Unter sm nur die Symbole: der volle Text brach in der Kopfzeile
-          // zweizeilig um und schob zusammen mit dem Ansichtsumschalter die
-          // ganze Zeile aus dem Viewport. EIN Button je Aktion mit
-          // ausgeblendetem Label statt zweier Breakpoint-Varianten — das
-          // `aria-label` hält sie für Screenreader und Tests unter demselben
-          // Namen auffindbar.
-          <>
-            {/* Drucken/Exportieren (#2079): sitzt hier statt auf der zentralen
-                Exportseite, weil der Export immer die Woche meint, die gerade
-                auf dem Bildschirm steht. Die Exportseite verlinkt hierher. */}
-            {canExportPlan && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                aria-label="Dienstplan drucken oder exportieren"
-                className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-                onClick={() => setExportOpen(true)}
-              >
-                <Printer className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-                <span className="hidden whitespace-nowrap sm:inline">
-                  Drucken
-                </span>
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              aria-label="Schichtarten verwalten"
-              className="max-sm:h-8 max-sm:w-8 max-sm:justify-center max-sm:p-0"
-              onClick={() => setManageOpen(true)}
-              disabled={Boolean(shiftTypesError)}
-            >
-              <Settings2 className="h-4 w-4 shrink-0 sm:mr-1.5" aria-hidden />
-              <span className="hidden whitespace-nowrap sm:inline">
-                Schichtarten verwalten
-              </span>
-            </Button>
-          </>
         }
       >
         {/* Zeitraum-Anzeige (#1946): gleicher Switcher wie im Betreuungsplan,
@@ -558,7 +575,7 @@ function DienstplanContent() {
           }}
         />
       )}
-    </div>
+    </TenantPage>
   );
 }
 

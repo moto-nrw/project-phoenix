@@ -16,7 +16,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -42,6 +42,8 @@ import { TransitStudentsSection } from "~/components/rooms/transit-students-sect
 import {
   SCHULHOF_ROOM_NAME,
   SCHULHOF_TAB_ID,
+  roomsOutsideSchulhofStatus,
+  supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
 import { useSupervisionDashboard } from "~/components/active-supervisions/use-supervision-dashboard";
 import { useTimetableRoster } from "~/components/active-supervisions/use-timetable-roster";
@@ -51,7 +53,6 @@ import { useTimetableActions } from "~/components/active-supervisions/use-timeta
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
-import { SupervisionHeader } from "~/components/active-supervisions/supervision-header";
 
 // Re-exported for its unit tests; the implementation lives with the other
 // active-supervisions helpers.
@@ -232,9 +233,64 @@ function MeinRaumPageContent() {
   const supervisionName = isSchulhofTabSelected
     ? SCHULHOF_ROOM_NAME
     : (currentRoom?.name ?? currentRoom?.room_name ?? null);
+  // Die Zahl kommt aus derselben Quelle wie früher der Zähler im Kopf: der
+  // gemeldeten Belegung der Aufsicht, ersatzweise den geladenen Kindern.
+  const supervisionCount = isSchulhofTabSelected
+    ? (schulhofStatus?.studentCount ?? students.length)
+    : (currentRoom?.student_count ?? students.length);
   const supervisionSummary = supervisionName
-    ? `${supervisionName} · ${students.length} ${students.length === 1 ? "Kind" : "Kinder"}`
+    ? `${supervisionName} · ${supervisionCount} ${supervisionCount === 1 ? "Kind" : "Kinder"}`
     : "Keine Aufsicht aktiv";
+
+  // Reiterleiste der einzelnen Aufsichten. Am Desktop wechselt die
+  // Seitenleiste die Aufsicht, deshalb stehen die Reiter nur darunter.
+  const roomsOutsideStatus = roomsOutsideSchulhofStatus(allRooms, {
+    schulhofTabEnabled: dashboard.schulhofTabEnabled,
+    statusActiveGroupId: schulhofStatus?.activeGroupId,
+  });
+  const totalSupervisions =
+    roomsOutsideStatus.length + (schulhofTabAvailable ? 1 : 0);
+  const supervisionTabs =
+    totalSupervisions >= 2 && !isDesktop
+      ? {
+          value: isSchulhofTabSelected
+            ? SCHULHOF_TAB_ID
+            : (currentRoom?.id ?? ""),
+          onChange: handleTabChange,
+          items: [
+            // Reguläre Aufsichten, einschließlich einer parallelen
+            // Schulhof-Gruppe, die der feste Reiter nicht abbildet.
+            ...roomsOutsideStatus.map((room) => ({
+              value: room.id,
+              label: supervisionTabLabel(
+                room,
+                dashboard.sessionInfoByActiveGroup.get(room.id) ?? null,
+              ),
+            })),
+            // Fester Schulhof-Reiter, nur mit spontaner Aufsicht (#2161).
+            ...(schulhofTabAvailable
+              ? [{ value: SCHULHOF_TAB_ID, label: SCHULHOF_ROOM_NAME }]
+              : []),
+          ],
+          label: "Meine Aufsichten",
+        }
+      : undefined;
+
+  // Die Aufsicht abgeben kann nur, wer den Schulhof gerade beaufsichtigt; im
+  // Leerzustand steht dort stattdessen „Beaufsichtigen".
+  const releaseAction =
+    isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
+      <Button
+        type="button"
+        variant="outline_danger"
+        size="md"
+        onClick={() => schulhof.setShowReleaseModal(true)}
+        className="gap-2"
+      >
+        <LogOut className="h-4 w-4" aria-hidden="true" />
+        Aufsicht abgeben
+      </Button>
+    ) : undefined;
 
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
@@ -248,7 +304,7 @@ function MeinRaumPageContent() {
     />
   ) : null;
   const reopenBanner = reopen.reopenableInstanceId ? (
-    <div className="mb-4">
+    <div>
       <Alert
         type="success"
         message="Aktivität wurde beendet. Die Rücknahme ist fünf Minuten lang möglich."
@@ -274,31 +330,33 @@ function MeinRaumPageContent() {
     plannedNow.length === 0
   ) {
     return (
-      <div className="w-full">
-        {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
-            einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
-        <PageIntro
-          title="Aktuelle Aufsicht"
-          description={supervisionSummary}
-          className="mb-6"
-        />
+      <TenantPage
+        title="Aktuelle Aufsicht"
+        stats={supervisionSummary}
+        search={{
+          value: filters.searchTerm,
+          onChange: filters.setSearchTerm,
+          placeholder: "Name suchen…",
+        }}
+        filters={filters.filterConfigs}
+        activeFilters={filters.activeFilters}
+        onClearAllFilters={() => {
+          filters.setSearchTerm("");
+          filters.setGroupFilter("all");
+          filters.setSelectedYear("all");
+        }}
+      >
         {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
           onClaimed={refresh}
           cachedActiveGroups={dashboard.cachedActiveGroups}
           currentStaffId={currentStaffId}
-          searchTerm={filters.searchTerm}
-          setSearchTerm={filters.setSearchTerm}
-          setGroupFilter={filters.setGroupFilter}
-          setSelectedYear={filters.setSelectedYear}
-          filterConfigs={filters.filterConfigs}
-          activeFilters={filters.activeFilters}
         />
         {/* The day review must survive the empty state: after the last block
             ends, supervisors land exactly here (#2335). */}
         <PastBlocksSection />
-      </div>
+      </TenantPage>
     );
   }
 
@@ -356,14 +414,20 @@ function MeinRaumPageContent() {
   };
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
-          einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
-      <PageIntro
-        title="Aktuelle Aufsicht"
-        description={supervisionSummary}
-        className="mb-6"
-      />
+    <TenantPage
+      title="Aktuelle Aufsicht"
+      stats={supervisionSummary}
+      actions={releaseAction}
+      search={{
+        value: filters.searchTerm,
+        onChange: filters.setSearchTerm,
+        placeholder: "Name suchen…",
+      }}
+      filters={filters.filterConfigs}
+      activeFilters={filters.activeFilters}
+      onClearAllFilters={filters.clearAllFilters}
+      tabs={supervisionTabs}
+    >
       {reopenBanner}
       <ConfirmationModal
         isOpen={actions.showCompleteConfirmation}
@@ -418,54 +482,6 @@ function MeinRaumPageContent() {
 
       {spontaneousStartBanner}
 
-      <SupervisionHeader
-        isDesktop={isDesktop}
-        allRooms={allRooms}
-        currentRoom={currentRoom}
-        isSchulhofTabSelected={isSchulhofTabSelected}
-        schulhofTabEnabled={dashboard.schulhofTabEnabled}
-        schulhofTabAvailable={schulhofTabAvailable}
-        schulhofStatus={schulhofStatus}
-        sessionInfoByActiveGroup={dashboard.sessionInfoByActiveGroup}
-        searchTerm={filters.searchTerm}
-        onSearchChange={filters.setSearchTerm}
-        filterConfigs={filters.filterConfigs}
-        activeFilters={filters.activeFilters}
-        onClearAllFilters={filters.clearAllFilters}
-        onTabChange={handleTabChange}
-        actionButton={
-          // Only show release button when user IS supervising Schulhof
-          // "Beaufsichtigen" button is shown in the empty state instead (no duplicate)
-          isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="md"
-              onClick={() => schulhof.setShowReleaseModal(true)}
-              aria-label="Aufsicht abgeben"
-              className="gap-2"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-              Aufsicht abgeben
-            </Button>
-          ) : undefined
-        }
-        mobileActionButton={
-          // Only show release button when user IS supervising Schulhof
-          isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <Button
-              type="button"
-              variant="outline_danger"
-              size="icon"
-              onClick={() => schulhof.setShowReleaseModal(true)}
-              aria-label="Aufsicht abgeben"
-            >
-              <LogOut className="h-4 w-4" aria-hidden="true" />
-            </Button>
-          ) : undefined
-        }
-      />
-
       {/* Schulhof Release Supervision Modal */}
       <ReleaseSupervisionModal
         isOpen={schulhof.showReleaseModal}
@@ -476,12 +492,8 @@ function MeinRaumPageContent() {
         isConfirmLoading={schulhof.isReleasingSupervision}
       />
 
-      {/* Mobile Error Display */}
-      {error && (
-        <div className="mb-4 md:hidden">
-          <Alert type="error" message={error} />
-        </div>
-      )}
+      {/* Fehler der Seite: auf jeder Breite sichtbar, nicht nur mobil. */}
+      {error && <Alert type="error" message={error} />}
 
       {/* Schulhof Not Supervising View - matches suggestions page empty state style */}
       {isSchulhofTabSelected &&
@@ -499,14 +511,12 @@ function MeinRaumPageContent() {
 
       {currentRoom &&
       (!isSchulhofTabSelected || schulhofStatus?.isUserSupervising) ? (
-        <div className="mb-4">
-          <Suspense fallback={null}>
-            <TransitStudentsSection
-              fromReferrer="/active-supervisions"
-              collapsible
-            />
-          </Suspense>
-        </div>
+        <Suspense fallback={null}>
+          <TransitStudentsSection
+            fromReferrer="/active-supervisions"
+            collapsible
+          />
+        </Suspense>
       ) : null}
 
       {/* Student Grid - Mobile Optimized */}
@@ -515,7 +525,7 @@ function MeinRaumPageContent() {
 
       {/* Read-only end-of-day review of finished and expired blocks (#2335) */}
       <PastBlocksSection />
-    </div>
+    </TenantPage>
   );
 }
 

@@ -2,7 +2,7 @@
 
 import { Suspense, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession } from "next-auth/react";
 
@@ -23,7 +23,7 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
@@ -49,6 +49,8 @@ import {
 } from "~/lib/personal-calendar-api";
 import { useSWRAuth } from "~/lib/swr";
 import { getWeekRange } from "~/lib/timetable-helpers";
+
+type CalendarTab = "meine" | "schule";
 
 type RecurrenceFrequency = "none" | "daily" | "weekly" | "monthly" | "yearly";
 
@@ -302,6 +304,7 @@ export default function StaffCalendarPage() {
   // Focal date defaults to today; the calendar component derives the week
   // range for week view, so today shows the current week / month / day
   // correctly (not the start of the week or the wrong month at boundaries).
+  const [activeTab, setActiveTab] = useState<CalendarTab>("meine");
   const [referenceDate, setReferenceDate] = useState(() => new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [formOpen, setFormOpen] = useState(false);
@@ -647,16 +650,8 @@ export default function StaffCalendarPage() {
 
   const personalCalendar = (
     <PersonalCalendar
-      title="Mein Kalender"
-      // Statuszeile statt Erklärsatz: die Zahl der Termine im sichtbaren
-      // Zeitraum, aus denselben Daten, die das Raster zeigt.
-      subtitle={
-        isLoading || calendarError
-          ? undefined
-          : `${data?.events.length ?? 0} ${
-              (data?.events.length ?? 0) === 1 ? "Termin" : "Termine"
-            } im Zeitraum`
-      }
+      // Titel und Statuszeile trägt die Kopfkarte der Seite; die
+      // PlanningContextBar bleibt reine Zeitnavigation.
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
       events={calendarError ? [] : (data?.events ?? [])}
@@ -670,7 +665,6 @@ export default function StaffCalendarPage() {
       }
       onDateChange={setReferenceDate}
       onViewModeChange={setViewMode}
-      onCreate={canManageCalendar ? handleCreate : undefined}
       onShowOverview={handleShowOverview}
       onRespond={handleRespond}
       respondingRecipientId={respondingRecipientId}
@@ -682,23 +676,54 @@ export default function StaffCalendarPage() {
     />
   );
 
+  // Statuszeile: die Zahl der Termine im sichtbaren Zeitraum. Den Zeitraum
+  // selbst führt die Bedienzeile der Zeitnavigation als `dateLabel`, er steht
+  // deshalb nicht ein zweites Mal in der Kopfkarte.
+  const eventCount = data?.events.length ?? 0;
+  const statusLine =
+    isLoading || calendarError
+      ? undefined
+      : `${eventCount} ${eventCount === 1 ? "Termin" : "Termine"}`;
+
   return (
-    <div className="w-full">
-      {showSchoolPlanTab ? (
-        <Tabs defaultValue="meine">
-          <TabsList variant="line" className="mb-4">
-            <TabsTrigger value="meine">Meine Termine</TabsTrigger>
-            <TabsTrigger value="schule">Betreuungsplan</TabsTrigger>
-          </TabsList>
-          <TabsContent value="meine">{personalCalendar}</TabsContent>
-          <TabsContent value="schule">
-            {/* BetreuungsplanView liest Search-Params (d/view/block) und
-                braucht deshalb eine Suspense-Grenze. */}
-            <Suspense fallback={null}>
-              <SchoolPlanReadView />
-            </Suspense>
-          </TabsContent>
-        </Tabs>
+    <TenantPage
+      title="Mein Kalender"
+      stats={activeTab === "meine" ? statusLine : undefined}
+      statsLoading={activeTab === "meine" && isLoading}
+      actions={
+        canManageCalendar && activeTab === "meine" ? (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={handleCreate}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Termin
+          </Button>
+        ) : undefined
+      }
+      tabs={
+        showSchoolPlanTab
+          ? {
+              value: activeTab,
+              onChange: (next) => setActiveTab(next as CalendarTab),
+              items: [
+                { value: "meine", label: "Meine Termine" },
+                { value: "schule", label: "Betreuungsplan" },
+              ],
+              label: "Kalenderbereiche",
+            }
+          : undefined
+      }
+    >
+      {showSchoolPlanTab && activeTab === "schule" ? (
+        // BetreuungsplanView liest Search-Params (d/view/block) und
+        // braucht deshalb eine Suspense-Grenze.
+        <Suspense fallback={null}>
+          <SchoolPlanReadView />
+        </Suspense>
       ) : (
         personalCalendar
       )}
@@ -1161,6 +1186,6 @@ export default function StaffCalendarPage() {
           </div>
         ) : null}
       </Modal>
-    </div>
+    </TenantPage>
   );
 }

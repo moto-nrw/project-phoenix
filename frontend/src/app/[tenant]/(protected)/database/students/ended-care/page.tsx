@@ -15,16 +15,12 @@ import { useEffect, useMemo, useState } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { Input } from "~/components/ui/input";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { formatCount } from "~/lib/format-utils";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
@@ -175,94 +171,44 @@ export default function EndedCarePage() {
   // Statuszeile des Seitenkopfs aus der bereits geladenen Seite.
   const statusLine = [
     `${formatCount(total)} ${total === 1 ? "Kind" : "Kinder"}`,
+    total > 0 ? `${firstOnPage} bis ${lastOnPage} auf dieser Seite` : null,
     debouncedSearch ? `gefiltert nach „${debouncedSearch}“` : null,
     totalPages > 1 ? `Seite ${page} von ${totalPages}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
 
-  if (status === "loading") {
-    return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/database/students" />
-
-        {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
-        <PageIntro
-          kicker="Datenverwaltung"
-          title="Beendete Betreuungen"
-          description={<Skeleton className="h-4 w-40" />}
-        />
-
-        <SkeletonRegion label="Beendete Betreuungen werden geladen">
-          <TableSkeleton rows={6} columns={5} />
-        </SkeletonRegion>
-      </div>
-    );
-  }
-
-  if (!canManage) {
-    return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/database/students" />
-        <ForbiddenPage message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“." />
-      </div>
-    );
-  }
+  const contentEmpty = status !== "loading" && !canManage;
 
   return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/database/students" />
-
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Beendete Betreuungen"
-        description={
-          isLoading && data === undefined ? (
-            <Skeleton className="h-4 w-40" />
-          ) : (
-            statusLine
-          )
-        }
-        actions={
-          <div className="w-full lg:w-64">
-            <Input
-              value={search}
-              placeholder="Name oder Klasse suchen…"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
-        }
-      >
-        <p className="mb-3 text-sm text-gray-600">{ENDED_CARE_DESCRIPTION}</p>
-        <div className="grid grid-cols-2 gap-2 sm:max-w-md">
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {total}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              {debouncedSearch ? "Treffer" : "Kinder gesamt"}
-            </span>
-          </div>
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {total === 0 ? "0" : `${firstOnPage}-${lastOnPage}`}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              Auf dieser Seite
-            </span>
-          </div>
-        </div>
-
-        {loadError ? (
-          <div className="mt-4">
-            <Alert
-              type="error"
-              message="Die beendeten Betreuungen konnten nicht geladen werden."
-            />
-          </div>
-        ) : null}
-
-        <div className="mt-4">
+    <TenantPage
+      title="Beendete Betreuungen"
+      stats={statusLine}
+      statsLoading={status === "loading" || (isLoading && data === undefined)}
+      search={
+        canManage
+          ? {
+              value: search,
+              onChange: setSearch,
+              placeholder: "Name oder Klasse suchen…",
+            }
+          : undefined
+      }
+      loading={status === "loading"}
+      error={
+        canManage && loadError
+          ? "Die beendeten Betreuungen konnten nicht geladen werden."
+          : null
+      }
+      back
+    >
+      {contentEmpty ? (
+        <ForbiddenPage message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“." />
+      ) : (
+        <SectionCard
+          title="Kinder ohne Betreuung"
+          description={ENDED_CARE_DESCRIPTION}
+        >
           <DataTable
             rows={entries}
             columns={columns}
@@ -285,40 +231,40 @@ export default function EndedCarePage() {
               />
             }
           />
-        </div>
 
-        {totalPages > 1 ? (
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
-            <p className="text-sm text-gray-600">
-              Seite {page} von {totalPages}
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                aria-label="Vorherige Seite"
-                disabled={page <= 1}
-                onClick={() => setPage((current) => Math.max(1, current - 1))}
-              >
-                Zurück
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                disabled={page >= totalPages}
-                aria-label="Nächste Seite"
-                onClick={() =>
-                  setPage((current) => Math.min(totalPages, current + 1))
-                }
-              >
-                Weiter
-              </Button>
+          {totalPages > 1 ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
+              <p className="text-sm text-gray-600">
+                Seite {page} von {totalPages}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  aria-label="Vorherige Seite"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Zurück
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  disabled={page >= totalPages}
+                  aria-label="Nächste Seite"
+                  onClick={() =>
+                    setPage((current) => Math.min(totalPages, current + 1))
+                  }
+                >
+                  Weiter
+                </Button>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </PageIntro>
+          ) : null}
+        </SectionCard>
+      )}
 
       {resumeTarget ? (
         <CareResumeModal
@@ -352,6 +298,6 @@ export default function EndedCarePage() {
           }}
         />
       ) : null}
-    </div>
+    </TenantPage>
   );
 }

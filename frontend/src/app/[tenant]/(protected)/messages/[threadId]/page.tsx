@@ -9,6 +9,7 @@ import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
@@ -252,75 +253,60 @@ function MessageThreadContent() {
   // loading window via `snapshotUnavailable`.
   const showSkeleton = !thread && isLoading;
 
+  // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
+  // Nachrichten.
+  const statusLine = thread
+    ? `${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
+        messagesLoading
+          ? "Nachrichten werden geladen"
+          : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`
+      }`
+    : null;
+
   if (!showSkeleton && !thread) {
     return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/messages" />
-        <Alert
-          type="error"
-          message={
-            loadError
-              ? "Nachrichtenverlauf konnte nicht geladen werden."
-              : "Unterhaltung nicht gefunden."
-          }
-        />
-      </div>
+      <TenantPage
+        title="Unterhaltung"
+        error={
+          loadError
+            ? "Nachrichtenverlauf konnte nicht geladen werden."
+            : "Unterhaltung nicht gefunden."
+        }
+      />
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+    <TenantPage
+      title={thread?.guardian_name ?? "Unterhaltung"}
+      stats={statusLine}
+      statsLoading={showSkeleton}
+      actions={
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() =>
+            thread &&
+            router.push(`/students/${thread.student_id}?from=/messages`)
+          }
+          className="flex-shrink-0"
+        >
+          <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
+          Zum Kinderprofil
+        </Button>
+      }
     >
       <BackButton referrer="/messages" />
 
-      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-        {showSkeleton ? (
-          <ThreadSkeleton />
-        ) : (
-          <>
-            <div className="mb-4 flex items-start justify-between gap-3">
-              {/* Kopf der Unterhaltung in PageIntro-Optik (Kicker, Titel,
-                  Unterzeile). Eine zweite Kopfkarte darüber ist hier nicht
-                  möglich: die Chat-Karte ist an das Sichtfenster gekoppelt
-                  (useChatViewportLock) und trägt den Kopf selbst. */}
-              <div className="min-w-0">
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Nachrichten
-                </p>
-                <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
-                  {thread?.guardian_name}
-                </h1>
-                {/* Statuszeile unter dem Titel: Beziehung, Kind und die Zahl
-                    der geladenen Nachrichten. */}
-                <p className="mt-1 truncate text-sm leading-6 text-gray-600">
-                  {thread ? relationshipLabel(thread.relationship_type) : ""}{" "}
-                  von {thread?.student_name} ·{" "}
-                  {messagesLoading
-                    ? "Nachrichten werden geladen"
-                    : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() =>
-                  thread &&
-                  router.push(`/students/${thread.student_id}?from=/messages`)
-                }
-                className="flex-shrink-0"
-              >
-                <MotoConceptIcon
-                  concept="children"
-                  size={18}
-                  className="mr-1.5"
-                />
-                Zum Kinderprofil
-              </Button>
-            </div>
-
+      <div
+        ref={containerRef}
+        className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+      >
+        <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+          {showSkeleton ? (
+            <ThreadSkeleton />
+          ) : (
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
@@ -377,34 +363,34 @@ function MessageThreadContent() {
                 />
               )}
             </div>
-          </>
-        )}
-
-        {sendError && (
-          <div className="mt-3">
-            <Alert type="error" message={sendError} />
-          </div>
-        )}
-
-        <div className="mt-4">
-          {messagingEnabled ? (
-            <MessageComposer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void handleSend()}
-              sending={isSending}
-              disabled={snapshotUnavailable}
-              placeholder="Nachricht an die Eltern schreiben…"
-            />
-          ) : (
-            <Alert
-              type="info"
-              message="Die Eltern-Nachrichten sind für diese Schule ausgeschaltet. Sie können den Verlauf weiterhin lesen, aber nicht antworten."
-            />
           )}
+
+          {sendError && (
+            <div className="mt-3">
+              <Alert type="error" message={sendError} />
+            </div>
+          )}
+
+          <div className="mt-4">
+            {messagingEnabled ? (
+              <MessageComposer
+                value={draft}
+                onChange={setDraft}
+                onSend={() => void handleSend()}
+                sending={isSending}
+                disabled={snapshotUnavailable}
+                placeholder="Nachricht an die Eltern schreiben…"
+              />
+            ) : (
+              <Alert
+                type="info"
+                message="Die Eltern-Nachrichten sind für diese Schule ausgeschaltet. Sie können den Verlauf weiterhin lesen, aber nicht antworten."
+              />
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </TenantPage>
   );
 }
 

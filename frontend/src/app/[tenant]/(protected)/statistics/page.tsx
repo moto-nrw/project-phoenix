@@ -21,12 +21,9 @@ import {
   DateRangePicker,
 } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
-import { MultiSelect } from "~/components/ui/multi-select";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { SegmentedControl } from "~/components/ui/segmented-control";
-import { PageIntro } from "~/components/ui/page-intro";
+import type { FilterConfig } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { StatCard } from "~/components/ui/stat-card";
 import {
   berlinTodayISO,
@@ -78,7 +75,6 @@ function addDays(d: Date, days: number): Date {
 
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
-  const isMobile = useIsMobile();
   const todayISO = berlinTodayISO();
   const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [range, setRange] = useState<DateRange | undefined>(() => ({
@@ -102,6 +98,25 @@ export default function StatisticsPage() {
         .map((group) => ({ value: group.group_id, label: group.name }))
         .sort((a, b) => a.label.localeCompare(b.label, "de")),
     [availableGroups],
+  );
+
+  // Der Gruppenfilter gehört in die Filterzeile der Kopfkarte, nicht neben die
+  // Exporte: dieselbe Bauart wie auf jeder anderen Tenant-Seite.
+  const filterConfigs: FilterConfig[] = useMemo(
+    () => [
+      {
+        id: "groups",
+        label: "Gruppen",
+        type: "dropdown",
+        multiSelect: true,
+        value: groupIds,
+        onChange: (value) => setGroupIds(value as string[]),
+        options: [...groupOptions],
+        emptyLabel: "Alle Gruppen",
+        summaryLabel: (count) => `${count} Gruppen`,
+      },
+    ],
+    [groupIds, groupOptions],
   );
 
   const fromISO = range?.from ? toISODate(range.from) : null;
@@ -437,53 +452,57 @@ export default function StatisticsPage() {
   }[view];
 
   // Statuszeile unter dem Titel: echter Zeitraum, gezählte Betreuungstage und
-  // Kinder aus dem geladenen Bericht. Während des Ladens hält ein Skeleton die
-  // Zeile, damit der Kopf nie ohne Status dasteht.
-  const statusLine = loading ? (
-    <Skeleton className="h-4 w-48" />
-  ) : data ? (
-    `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`
-  ) : (
-    formatStatusDate(todayISO)
-  );
+  // Kinder aus dem geladenen Bericht.
+  // Die Zahl der Kinder haengt am Gruppenfilter und steht deshalb als
+  // Plakette in der Filterzeile, nicht in der Statuszeile.
+  const statusLine = data
+    ? `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage`
+    : formatStatusDate(todayISO);
 
   return (
-    <div className="w-full space-y-6">
-      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum,
-          Gruppenfilter und Exporte stehen rechts im Kopf, damit die Karte nie
-          nur den Titel trägt. */}
-      <PageIntro
-        title="Statistik"
-        description={statusLine}
-        actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <DateRangePicker
-              value={range}
-              onChange={(next) => {
-                if (next?.from && next?.to) setRange(next);
-              }}
-              presets={presets}
-              toMax={today}
-              className="w-full sm:w-auto"
-              triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
-            />
-            <MultiSelect
-              value={groupIds}
-              options={groupOptions}
-              onChange={setGroupIds}
-              ariaLabel="Gruppen filtern"
-              placeholder="Alle Gruppen"
-              summaryLabel={(n) => `${n} Gruppen`}
-              className="w-full sm:w-44"
-            />
-            <div className="flex flex-wrap gap-2 sm:justify-end">
-              {exportButtons("attendance")}
-            </div>
+    <TenantPage
+      title="Statistik"
+      stats={statusLine}
+      statsLoading={loading}
+      loading={loading}
+      filters={filterConfigs}
+      badge={
+        data ? { count: data.totals.student_count, label: "Kinder" } : undefined
+      }
+      empty={
+        errorCode !== null
+          ? {
+              title: "Statistik nicht verfügbar",
+              description: ERROR_MESSAGES[errorCode],
+            }
+          : null
+      }
+      tabs={{
+        value: view,
+        onChange: (next) => setView(next as StatisticsView),
+        items: VIEW_ITEMS,
+        label: "Bereich wählen",
+      }}
+      actions={
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+          <DateRangePicker
+            value={range}
+            onChange={(next) => {
+              if (next?.from && next?.to) setRange(next);
+            }}
+            presets={presets}
+            toMax={today}
+            className="w-full sm:w-auto"
+            triggerClassName="w-full justify-center sm:w-auto sm:justify-start"
+          />
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {exportButtons("attendance")}
           </div>
-        }
-      />
+        </div>
+      }
+    >
       {/* Inhaltskarte ohne eigenen Kopf: Titel, Zeitraum, Filter und Exporte
-          trägt die Kopfkarte darüber, hier führt der Umschalter die Karte an. */}
+          trägt die Kopfkarte darüber, die Reiter stehen darüber. */}
       <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
         <div className="space-y-4">
           {exportError && (
@@ -492,22 +511,7 @@ export default function StatisticsPage() {
             </div>
           )}
 
-          {loading && (
-            <div className="space-y-3">
-              <Skeleton className="h-16 w-full" />
-              <Skeleton className="h-40 w-full" />
-              <Skeleton className="h-40 w-full" />
-            </div>
-          )}
-
-          {!loading && errorCode !== null && (
-            <EmptyState
-              title="Statistik nicht verfügbar"
-              description={ERROR_MESSAGES[errorCode]}
-            />
-          )}
-
-          {!loading && errorCode === null && data && (
+          {data && (
             <>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                 <StatCard
@@ -549,24 +553,12 @@ export default function StatisticsPage() {
                   tone={data.totals.unexplained_days > 0 ? "red" : undefined}
                 />
               </div>
-              {/* Umschalter und Zeitraum-Hinweis teilen sich eine Zeile.
-                Mobile fills the line, desktop keeps the compact joined chip. */}
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <SegmentedControl
-                  items={VIEW_ITEMS}
-                  value={view}
-                  onChange={setView}
-                  variant="joined"
-                  fullWidth={isMobile}
-                  ariaLabel="Bereich wählen"
-                />
-                <p className="text-xs leading-5 text-gray-500 sm:text-right">
-                  {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-                  {data.excluded_days.public_holidays} Feiertage,{" "}
-                  {data.excluded_days.closing_days} Schließtage,{" "}
-                  {data.excluded_days.holiday_periods} Ferientage
-                </p>
-              </div>
+              <p className="text-xs leading-5 text-gray-500">
+                {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+                {data.excluded_days.public_holidays} Feiertage,{" "}
+                {data.excluded_days.closing_days} Schließtage,{" "}
+                {data.excluded_days.holiday_periods} Ferientage
+              </p>
 
               {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist
                 ihre description, die Exporte stehen in ihrer Titelzeile. */}
@@ -651,6 +643,6 @@ export default function StatisticsPage() {
           )}
         </div>
       </section>
-    </div>
+    </TenantPage>
   );
 }

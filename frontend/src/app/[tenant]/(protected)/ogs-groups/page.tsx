@@ -14,12 +14,9 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
@@ -850,19 +847,16 @@ function OGSGroupPageContent() {
   // If user doesn't have access, show empty state
   if (!showSkeleton && !hasAccess) {
     return (
-      <div className="w-full">
-        <PageIntro
-          title="Meine Gruppe"
-          description="Keine Gruppe zugeordnet"
-          className="mb-6"
-        />
-
-        <EmptyState
-          icon={<MotoConceptIcon concept="groups" size={48} />}
-          title="Keine OGS-Gruppe zugeordnet"
-          description="Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden."
-        />
-      </div>
+      <TenantPage
+        title="Meine Gruppe"
+        stats="Keine Gruppe zugeordnet"
+        empty={{
+          icon: <MotoConceptIcon concept="groups" size={48} />,
+          title: "Keine OGS-Gruppe zugeordnet",
+          description:
+            "Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden.",
+        }}
+      />
     );
   }
 
@@ -1042,120 +1036,101 @@ function OGSGroupPageContent() {
 
   return (
     <>
-      <div className="w-full">
-        {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
-            Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
-            Aktionen nur noch der Vertretungshinweis und das Kebab-Menü. */}
-        <PageIntro
-          title="Meine Gruppe"
-          description={
-            // Statuszeile aus den bereits geladenen Gruppendaten:
-            // Gruppenname und Anwesenheit.
-            showSkeleton ? (
-              <Skeleton className="h-4 w-48" />
-            ) : (
-              [
-                currentGroup?.name,
-                currentGroup?.student_count !== undefined
-                  ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ") || "Keine Gruppe zugeordnet"
-            )
-          }
-          className="mb-6"
-          actions={
-            <>
-              {currentGroup?.viaSubstitution ? (
-                <div className="flex items-center gap-2">
-                  <MotoConceptIcon concept="substitution" size={18} />
-                  <span className="text-sm font-medium text-gray-900">
-                    In Vertretung
-                  </span>
-                </div>
-              ) : null}
-              {overflowItems.length > 0 ? (
-                <OverflowMenu
-                  items={overflowItems}
-                  ariaLabel="Weitere Aktionen"
+      {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
+          Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
+          Aktionen der An- und Abmelde-Modus, der Vertretungshinweis und das
+          Kebab-Menü. */}
+      <TenantPage
+        title="Meine Gruppe"
+        stats={
+          // Statuszeile aus den bereits geladenen Gruppendaten:
+          // Gruppenname und Anwesenheit.
+          [
+            currentGroup?.name,
+            currentGroup?.student_count !== undefined
+              ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Keine Gruppe zugeordnet"
+        }
+        statsLoading={showSkeleton}
+        actions={
+          <>
+            {/* Der An- und Abmelde-Modus ist ab 1024px eine Kopfaktion;
+                darunter tragen ihn die Leiste am unteren Rand (Phone) und
+                der schwebende Knopf (Tablet). */}
+            {isBinaryMode ? (
+              <div className="hidden lg:block">
+                <SchoolCheckinFab
+                  variant="inline"
+                  isActive={schoolCheckin.isActive}
+                  onToggle={schoolCheckin.toggleActive}
+                  successCount={schoolCheckin.successCount}
+                  pendingCount={schoolCheckin.pendingIds.size}
                 />
-              ) : null}
-            </>
-          }
-        >
-          {/* Page header, scrolls with the rest of the page (no sticky).
-              Active filters surface as a count badge on the filter pill (no
-              separate chips row); der mobile Gruppen-Umschalter bleibt hier. */}
-          <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
-            <PageHeaderWithSearch
-              // Der Titel steht in der Kopfkarte darüber.
-              embedded
-              title=""
-              primaryAction={
-                isBinaryMode ? (
-                  <SchoolCheckinFab
-                    variant="inline"
-                    isActive={schoolCheckin.isActive}
-                    onToggle={schoolCheckin.toggleActive}
-                    successCount={schoolCheckin.successCount}
-                    pendingCount={schoolCheckin.pendingIds.size}
-                  />
-                ) : undefined
+              </div>
+            ) : null}
+            {currentGroup?.viaSubstitution ? (
+              <div className="flex items-center gap-2">
+                <MotoConceptIcon concept="substitution" size={18} />
+                <span className="text-sm font-medium text-gray-900">
+                  In Vertretung
+                </span>
+              </div>
+            ) : null}
+            {overflowItems.length > 0 ? (
+              <OverflowMenu
+                items={overflowItems}
+                ariaLabel="Weitere Aktionen"
+              />
+            ) : null}
+          </>
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Name suchen…",
+        }}
+        filters={filterConfigs}
+        activeFilters={activeFilters}
+        onClearAllFilters={() => {
+          setSearchTerm("");
+          setAttendanceFilter("all");
+          setSortMode("default");
+        }}
+        // Der Gruppenwechsel steht am Desktop in der Seitenleiste; auf
+        // schmalen Geräten tragen ihn die Seitenreiter.
+        tabs={
+          allGroups.length > 1 && !isDesktop
+            ? {
+                value: currentGroup?.id ?? "",
+                onChange: (tabId) => {
+                  const group = allGroups.find((g) => g.id === tabId);
+                  if (group) {
+                    localStorage.setItem("sidebar-last-group", tabId);
+                    localStorage.setItem("sidebar-last-group-name", group.name);
+                    switchToGroup(tabId);
+                  }
+                },
+                items: allGroups.map((group) => ({
+                  value: group.id,
+                  label: formatGroupLabelWithAttendance(group),
+                })),
+                label: "Meine Gruppen",
               }
-              activeFilterDisplay="count"
-              tabs={
-                allGroups.length > 1 && !isDesktop
-                  ? {
-                      items: allGroups.map((group) => ({
-                        id: group.id,
-                        label: formatGroupLabelWithAttendance(group),
-                      })),
-                      activeTab: currentGroup?.id ?? "",
-                      onTabChange: (tabId) => {
-                        const group = allGroups.find((g) => g.id === tabId);
-                        if (group) {
-                          localStorage.setItem("sidebar-last-group", tabId);
-                          localStorage.setItem(
-                            "sidebar-last-group-name",
-                            group.name,
-                          );
-                          switchToGroup(tabId);
-                        }
-                      },
-                    }
-                  : undefined
-              }
-              search={{
-                value: searchTerm,
-                onChange: setSearchTerm,
-                placeholder: "Name suchen…",
-              }}
-              filters={filterConfigs}
-              activeFilters={activeFilters}
-              onClearAllFilters={() => {
-                setSearchTerm("");
-                setAttendanceFilter("all");
-                setSortMode("default");
-              }}
-            />
-          </div>
-        </PageIntro>
-
-        {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
-            hat sonst keinen Hinweis, warum die Liste leer bleibt. */}
-        {error && (
-          <div className="mb-4">
-            <Alert type="error" message={error} />
-          </div>
-        )}
-
+            : undefined
+        }
+        // Ladefehler stehen über der Liste, auf jeder Breite: der Desktop hat
+        // sonst keinen Hinweis, warum die Liste leer bleibt.
+        error={error}
+      >
         {/* Mobile (<md) check-in mode trigger: inline pill at the top of
             the card list when OFF; switches to a sticky bottom bar above
             the mobile nav when ON. Tablet keeps the floating FAB and
             desktop the header inline pill, both rendered below. */}
         {isBinaryMode && (
-          <div className="mb-3 md:hidden">
+          <div className="md:hidden">
             <SchoolCheckinModeMobile
               isActive={schoolCheckin.isActive}
               onToggle={schoolCheckin.toggleActive}
@@ -1179,7 +1154,7 @@ function OGSGroupPageContent() {
         <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
           {renderStudentContent()}
         </div>
-      </div>
+      </TenantPage>
 
       {/* Tablet (md..lg) check-in mode trigger — floating FAB. Mobile
           renders the inline pill / sticky bar combo above; desktop

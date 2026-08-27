@@ -329,7 +329,6 @@ function RolesPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Rollen",
         description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
         actions: (
@@ -408,7 +407,6 @@ function RolesPageContent() {
               icon={MOTO_CONCEPTS.roles.icon}
               tone={MOTO_CONCEPTS.roles.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

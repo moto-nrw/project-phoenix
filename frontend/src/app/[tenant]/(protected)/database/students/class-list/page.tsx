@@ -17,15 +17,14 @@ import { useSession } from "next-auth/react";
 import { Upload } from "lucide-react";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import type { FilterConfig } from "~/components/ui/page-header/types";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { formatCount } from "~/lib/format-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
@@ -257,12 +256,33 @@ export default function ClassListEntriesPage() {
 
   const classCount = classOptions.length;
   // Statuszeile des Seitenkopfs aus den bereits geladenen Zeilen.
+  const studentCount = students?.length ?? 0;
   const statusLine = [
     `${formatCount(allRows.length)} ${allRows.length === 1 ? "Kind" : "Kinder"}`,
+    `${formatCount(studentCount)} in moto angelegt`,
+    `${formatCount(entryRows.length)} ohne Betreuung`,
     `${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}`,
     `${formatCount(duplicateCount)} mögliche ${duplicateCount === 1 ? "Dublette" : "Dubletten"}`,
   ].join(" · ");
-  const studentCount = students?.length ?? 0;
+
+  // Klassenfilter der Kopfkarte: dieselbe Bauart wie auf jeder anderen
+  // Tenant-Seite.
+  const filterConfigs: FilterConfig[] = [
+    {
+      id: "school-class",
+      label: "Klasse",
+      type: "dropdown",
+      value: classFilter,
+      onChange: (value) => setClassFilter(value as string),
+      options: [
+        { value: "all", label: "Alle Klassen" },
+        ...classOptions.map((option) => ({
+          value: option.key,
+          label: option.display,
+        })),
+      ],
+    },
+  ];
 
   const closeModal = () => {
     setModal(null);
@@ -472,102 +492,37 @@ export default function ClassListEntriesPage() {
   ];
 
   return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/database/students" />
-
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Klassenliste"
-        description={
-          isLoading && entries === undefined ? (
-            <Skeleton className="h-4 w-64" />
-          ) : (
-            statusLine
-          )
-        }
-        actions={
-          // Der Klassenfilter steht in der Titelzeile der Karte, damit er
-          // nicht als eigene, fast leere Zeile über der Tabelle liegt.
+    <TenantPage
+      title="Klassenliste"
+      stats={statusLine}
+      statsLoading={isLoading && entries === undefined}
+      filters={filterConfigs}
+      actions={
+        canCreate ? (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="w-48">
-              <CustomSelect
-                id="class-list-filter"
-                ariaLabel="Klasse filtern"
-                value={classFilter}
-                options={[
-                  { value: "all", label: "Alle Klassen" },
-                  ...classOptions.map((option) => ({
-                    value: option.key,
-                    label: option.display,
-                  })),
-                ]}
-                onChange={setClassFilter}
-              />
-            </div>
-            {canCreate ? (
-              <>
-                <Link
-                  href="/database/students/class-list/import"
-                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  <Upload className="h-4 w-4" aria-hidden="true" />
-                  Sammelimport
-                </Link>
-                <DatabaseCreateAction
-                  label="Eintrag"
-                  ariaLabel="Klassenlisteneintrag anlegen"
-                  onClick={openCreate}
-                />
-              </>
-            ) : null}
+            <Link
+              href="/database/students/class-list/import"
+              className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              Sammelimport
+            </Link>
+            <DatabaseCreateAction
+              label="Eintrag"
+              ariaLabel="Klassenlisteneintrag anlegen"
+              onClick={openCreate}
+            />
           </div>
-        }
+        ) : undefined
+      }
+      back
+    >
+      <SectionCard
+        title="Kinder im Klassenverband"
+        description="Reguläre Kinder werden in der Kinder-Datenbank gepflegt. Hier kommen nur Kinder ohne OGS-Betreuung dazu."
       >
-        <div className="grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {allRows.length}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              Kinder gesamt
-            </span>
-          </div>
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {studentCount}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              In moto angelegt
-            </span>
-          </div>
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {entryRows.length}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              Ohne Betreuung
-            </span>
-          </div>
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {classCount}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              Klassen
-            </span>
-          </div>
-          <div className="rounded-xl bg-gray-50 px-3 py-2">
-            <span className="block text-sm font-semibold text-gray-900">
-              {duplicateCount}
-            </span>
-            <span className="block text-[11px] font-medium text-gray-500">
-              Mögliche Dubletten
-            </span>
-          </div>
-        </div>
-
         {loadError ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert
               type="error"
               message="Die Klassenlisteneinträge konnten nicht geladen werden."
@@ -576,7 +531,7 @@ export default function ClassListEntriesPage() {
         ) : null}
 
         {studentsError ? (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert
               type="error"
               message="Die regulär angelegten Kinder konnten nicht vollständig geladen werden. Die Liste ist unvollständig, bitte laden Sie die Seite neu."
@@ -584,44 +539,42 @@ export default function ClassListEntriesPage() {
           </div>
         ) : null}
 
-        <div className="mt-4">
-          <DataTable
-            columns={columns}
-            rows={rows}
-            getRowKey={(row) =>
-              row.kind === "student"
-                ? `student-${row.student.id}`
-                : `entry-${row.entry.id}`
-            }
-            isLoading={isLoading && entries === undefined}
-            defaultSortKey="schoolClass"
-            pageSize={50}
-            paginationResetKey={classFilter}
-            emptyState={
-              <EmptyState
-                title={
-                  classFilter === "all"
-                    ? "Noch keine Kinder erfasst"
-                    : "Keine Kinder in dieser Klasse"
-                }
-                description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
-                action={
-                  canCreate ? (
-                    <Button
-                      type="button"
-                      variant="primary"
-                      size="md"
-                      onClick={openCreate}
-                    >
-                      Eintrag anlegen
-                    </Button>
-                  ) : undefined
-                }
-              />
-            }
-          />
-        </div>
-      </PageIntro>
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) =>
+            row.kind === "student"
+              ? `student-${row.student.id}`
+              : `entry-${row.entry.id}`
+          }
+          isLoading={isLoading && entries === undefined}
+          defaultSortKey="schoolClass"
+          pageSize={50}
+          paginationResetKey={classFilter}
+          emptyState={
+            <EmptyState
+              title={
+                classFilter === "all"
+                  ? "Noch keine Kinder erfasst"
+                  : "Keine Kinder in dieser Klasse"
+              }
+              description="Legen Sie Kinder ohne OGS-Betreuung mit Name und Klasse an, damit Klassenlisten den vollständigen Klassenverband zeigen."
+              action={
+                canCreate ? (
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={openCreate}
+                  >
+                    Eintrag anlegen
+                  </Button>
+                ) : undefined
+              }
+            />
+          }
+        />
+      </SectionCard>
 
       <Modal
         isOpen={modal?.kind === "create" || modal?.kind === "edit"}
@@ -808,6 +761,6 @@ export default function ClassListEntriesPage() {
           </div>
         ) : null}
       </ConfirmationModal>
-    </div>
+    </TenantPage>
   );
 }

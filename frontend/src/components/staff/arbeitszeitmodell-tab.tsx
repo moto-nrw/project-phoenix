@@ -172,7 +172,6 @@ export function ArbeitszeitmodellTab({
   return (
     <div className="space-y-5">
       <SectionCard
-        kicker="Aktuelles Modell"
         title={
           schedule.mode === "template" && schedule.model
             ? schedule.model.name

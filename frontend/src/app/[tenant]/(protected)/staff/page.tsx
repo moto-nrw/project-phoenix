@@ -6,13 +6,11 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
-import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type {
@@ -47,7 +45,6 @@ import {
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { StaffTimeExportModal } from "~/components/staff/staff-time-export-modal";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSWRConfig } from "swr";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
@@ -72,90 +69,83 @@ function DocumentDirectory({
     entry.name.toLocaleLowerCase("de-DE").includes(normalizedSearch),
   );
 
-  return (
-    // Eingebettet steht das Verzeichnis schon im Seitenrahmen; nur der eigene
-    // Zweig trägt die Kopfkarte.
-    <div className="w-full">
-      {!embedded && (
-        // Die Suchzeile steht IN der Kopfkarte, damit die Karte nie nur den
-        // Titel trägt und nicht zwei fast leere Zeilen übereinander liegen.
-        <PageIntro
-          title="Mitarbeiter"
-          description={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
-          className="mb-6"
-        >
-          <PageHeaderWithSearch
-            // Der Titel steht in der Kopfkarte darüber.
-            embedded
-            title=""
-            search={{
-              value: search,
-              onChange: setSearch,
-              placeholder: "Person suchen…",
-            }}
+  const card = (
+    // Der Erklärtext ist die description der Karte, die die Personenliste
+    // trägt. Eingebettet steht der Titel „Personalunterlagen" schon auf dem
+    // Reiter, dort benennt die Karte ihren Inhalt (kein doppelter Titel).
+    <SectionCard
+      title={embedded ? "Personen" : "Personalunterlagen"}
+      description="Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen."
+    >
+      {embedded && (
+        <div className="mb-4">
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Person suchen…"
+            className="w-full"
           />
-        </PageIntro>
+        </div>
       )}
-      {/* Der Erklärtext ist die description der Karte, die die Personenliste
-          trägt. Eingebettet steht der Titel „Personalunterlagen“ schon auf dem
-          Reiter, dort benennt die Karte ihren Inhalt (kein doppelter Titel). */}
-      <SectionCard
-        title={embedded ? "Personen" : "Personalunterlagen"}
-        description="Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen."
-      >
-        {embedded && (
-          <div className="mb-4">
-            <Input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Person suchen…"
-              className="w-full"
+      {error ? (
+        <Alert
+          type="error"
+          message="Das Personalverzeichnis konnte nicht geladen werden."
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="compact"
+              onClick={onRetry}
+            >
+              Erneut versuchen
+            </Button>
+          }
+        />
+      ) : (
+        <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
+          {filteredEntries.map((entry) => (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+              className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+            >
+              {entry.name}
+              <span aria-hidden="true" className="text-gray-400">
+                ›
+              </span>
+            </button>
+          ))}
+          {filteredEntries.length === 0 ? (
+            <EmptyState
+              variant="compact"
+              className="px-4 py-6"
+              title="Keine Personen gefunden."
+              description="Passen Sie die Suche an."
             />
-          </div>
-        )}
-        {error ? (
-          <Alert
-            type="error"
-            message="Das Personalverzeichnis konnte nicht geladen werden."
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                onClick={onRetry}
-              >
-                Erneut versuchen
-              </Button>
-            }
-          />
-        ) : (
-          <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
-            {filteredEntries.map((entry) => (
-              <button
-                key={entry.id}
-                type="button"
-                onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-                className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-              >
-                {entry.name}
-                <span aria-hidden="true" className="text-gray-400">
-                  ›
-                </span>
-              </button>
-            ))}
-            {filteredEntries.length === 0 ? (
-              <EmptyState
-                variant="compact"
-                className="px-4 py-6"
-                title="Keine Personen gefunden."
-                description="Passen Sie die Suche an."
-              />
-            ) : null}
-          </div>
-        )}
-      </SectionCard>
-    </div>
+          ) : null}
+        </div>
+      )}
+    </SectionCard>
+  );
+
+  // Eingebettet steht das Verzeichnis schon im Seitengerüst des Reiters.
+  if (embedded) return card;
+
+  return (
+    <TenantPage
+      title="Mitarbeiter"
+      stats={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
+      search={{
+        value: search,
+        onChange: setSearch,
+        placeholder: "Person suchen…",
+      }}
+    >
+      {card}
+    </TenantPage>
   );
 }
 
@@ -591,6 +581,12 @@ function StaffPageContent() {
   // Statuszeile unter dem Seitentitel: nur aus den Daten, die die Seite
   // ohnehin lädt (Personalliste bzw. Zeitkonten-Tabelle).
   const staffSummary = (() => {
+    // Die Zeile beschreibt, was gerade zu sehen ist: in den Personalunterlagen
+    // also die Zahl der Personen mit Unterlagen, nicht die Personalliste.
+    if (view === "documents") {
+      const count = documentDirectory?.length ?? 0;
+      return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
+    }
     if (canReadUsers) {
       // Dieselben Zustände wie die Badges auf den Karten: "Abwesend" ist der
       // Standard für "nicht eingestempelt", gemeldete Arten (Krank, Urlaub …)
@@ -642,88 +638,86 @@ function StaffPageContent() {
     }
   }
 
+  // Seitenreiter: Status (Karten), Zeitkonten (Tabelle), Änderungsprotokoll
+  // und Personalunterlagen beantworten verschiedene Fragen. Nur mit
+  // time_tracking:manage gibt es überhaupt etwas zu wechseln.
+  const tabItems = [
+    ...(canReadUsers ? [{ value: "status", label: "Status" }] : []),
+    { value: "accounts", label: "Zeitkonten" },
+    { value: "audit", label: "Änderungsprotokoll" },
+    ...(canAccessDocuments
+      ? [{ value: "documents", label: "Personalunterlagen" }]
+      : []),
+  ];
+
   return (
-    <div className="w-full">
-      {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel und Erklärtext in
-          einer Karte, auf allen Breakpoints sichtbar. */}
-      {/* Der Verweis auf die Anfragen (#2433) steht in der Kopfkarte, nicht als
-          eigene Zeile zwischen Suchzeile und Einrichtungs-Übersicht. */}
-      <PageIntro
-        title="Mitarbeiter"
-        description={
-          showSkeleton ? <Skeleton className="h-4 w-64" /> : staffSummary
-        }
-        className="mb-6"
-      >
-        {!showSkeleton && canReviewAbsences ? (
-          <Link
-            href={tenantPath("/anfragen")}
-            className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-3 transition-colors hover:bg-gray-50"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">
-                Anträge von Mitarbeitenden
-              </p>
-              <p className="text-sm text-gray-600">
-                Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <NotificationBadge
-                count={pendingAbsences.length}
-                tone="staff"
-                ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
-              />
-              <CaretRightIcon
-                size={18}
-                className="text-gray-400"
-                aria-hidden="true"
-              />
-            </div>
-          </Link>
-        ) : undefined}
-        {/* title="" versteckt die frühere Titelzeile; die Karte trägt den
-            Titel. Die Suchzeile steht IN der Karte, damit sie nicht als
-            zweite, fast leere Zeile darunter liegt. */}
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={
-            showSkeleton
-              ? undefined
-              : {
-                  icon: <MotoConceptIcon concept="staff" size={20} />,
-                  count:
-                    view === "accounts"
-                      ? accountRows.length
-                      : view === "documents"
-                        ? (documentDirectory?.length ?? 0)
-                        : filteredStaff.length,
-                }
-          }
-          search={
-            // Im Änderungsprotokoll filtert die Komponente selbst; ein
-            // wirkungsloses Suchfeld wäre irreführend.
-            view === "audit" || view === "documents"
-              ? undefined
-              : {
-                  value: searchTerm,
-                  onChange: setSearchTerm,
-                  placeholder: "Name suchen…",
-                }
-          }
-          filters={filterConfigs}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setLocationFilter("all");
-            setEmploymentFilter("all");
-            setSaldoPreset("all");
-            setCustomSaldoHours("");
-            setShowCustomSaldo(false);
-          }}
-        />
-      </PageIntro>
+    <TenantPage
+      title="Mitarbeiter"
+      stats={staffSummary}
+      statsLoading={showSkeleton}
+      search={
+        // Im Änderungsprotokoll und in den Personalunterlagen filtern die
+        // Ansichten selbst; ein wirkungsloses Suchfeld wäre irreführend.
+        view === "audit" || view === "documents"
+          ? undefined
+          : {
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: "Name suchen…",
+            }
+      }
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={() => {
+        setSearchTerm("");
+        setLocationFilter("all");
+        setEmploymentFilter("all");
+        setSaldoPreset("all");
+        setCustomSaldoHours("");
+        setShowCustomSaldo(false);
+      }}
+      tabs={
+        canManageTimeTracking
+          ? {
+              value: view,
+              onChange: (value) =>
+                setSelectedView(
+                  value as "status" | "accounts" | "audit" | "documents",
+                ),
+              items: tabItems,
+            }
+          : undefined
+      }
+    >
+      {/* Verweis auf die Anfragen (#2433): Urlaub, Krank und Fortbildung
+          werden dort entschieden, nicht hier. */}
+      {!showSkeleton && canReviewAbsences && (
+        <Link
+          href={tenantPath("/anfragen")}
+          className="flex items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-colors hover:bg-gray-50"
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-gray-900">
+              Anträge von Mitarbeitenden
+            </p>
+            <p className="text-sm text-gray-600">
+              Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <NotificationBadge
+              count={pendingAbsences.length}
+              tone="staff"
+              ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
+            />
+            <CaretRightIcon
+              size={18}
+              className="text-gray-400"
+              aria-hidden="true"
+            />
+          </div>
+        </Link>
+      )}
 
       {showSkeleton ? (
         <StaffCardsSkeleton />
@@ -731,34 +725,6 @@ function StaffPageContent() {
         <>
           {/* Sektion 2: Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
           {canReadUsers && <SchoolOverviewSection />}
-
-          {/* Sektion 3: Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
-              beantworten verschiedene Fragen; der Umschalter erscheint nur mit
-              time_tracking:manage. */}
-          {canManageTimeTracking && (
-            <Tabs
-              value={view}
-              onValueChange={(value) =>
-                setSelectedView(
-                  value as "status" | "accounts" | "audit" | "documents",
-                )
-              }
-              className="mb-4"
-            >
-              <TabsList variant="line">
-                {canReadUsers && (
-                  <TabsTrigger value="status">Status</TabsTrigger>
-                )}
-                <TabsTrigger value="accounts">Zeitkonten</TabsTrigger>
-                <TabsTrigger value="audit">Änderungsprotokoll</TabsTrigger>
-                {canAccessDocuments && (
-                  <TabsTrigger value="documents">
-                    Personalunterlagen
-                  </TabsTrigger>
-                )}
-              </TabsList>
-            </Tabs>
-          )}
 
           {/* Änderungsprotokoll (#1417): cross-MA audit feed, eigene Filter in der
               Komponente. Nur mit time_tracking:manage erreichbar (Tab-Gate oben). */}
@@ -859,11 +825,7 @@ function StaffPageContent() {
           />
 
           {/* Error Display */}
-          {view === "status" && error && (
-            <div className="mb-4">
-              <Alert type="error" message={error} />
-            </div>
-          )}
+          {view === "status" && error && <Alert type="error" message={error} />}
 
           {/* Staff Grid */}
           {view === "status" &&
@@ -1023,7 +985,7 @@ function StaffPageContent() {
             ))}
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }
 

@@ -170,7 +170,6 @@ function PermissionsPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Berechtigungen",
         description: loading ? <Skeleton className="h-4 w-56" /> : statusLine,
       }}
@@ -223,7 +222,6 @@ function PermissionsPageContent() {
               icon={MOTO_CONCEPTS.permissions.icon}
               tone={MOTO_CONCEPTS.permissions.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

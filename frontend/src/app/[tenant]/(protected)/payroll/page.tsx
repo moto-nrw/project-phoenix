@@ -5,13 +5,8 @@ import useSWR from "swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
-import {
-  SkeletonRegion,
-  CardSkeleton,
-  TableSkeleton,
-} from "~/components/ui/page-skeletons";
-import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import {
   duplicateLohnartNumbers,
@@ -36,19 +31,6 @@ const UNIT_OPTIONS = [
   { value: "stunden", label: "Stunden" },
   { value: "tage", label: "Tage" },
 ];
-
-/** Data-region-only skeleton: header/chrome renders immediately, only this swaps in. */
-function PayrollDataSkeleton() {
-  return (
-    <SkeletonRegion label="Abrechnung wird geladen">
-      <div className="space-y-5">
-        <CardSkeleton rows={3} />
-        <TableSkeleton rows={4} columns={3} />
-        <CardSkeleton rows={2} />
-      </div>
-    </SkeletonRegion>
-  );
-}
 
 export default function PayrollPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
@@ -98,45 +80,42 @@ export default function PayrollPage() {
 
   const duplicates = status ? duplicateLohnartNumbers(status) : [];
 
+  // Statuszeile: die Zahlen, die die Seite ohnehin laedt.
+  const statusLine = status
+    ? `${status.configuredCategories} von ${status.totalCategories} Lohnarten zugeordnet · DATEV-Mandant ${
+        status.lodasHeaderComplete ? "vollständig" : "unvollständig"
+      } · ${status.staffWithoutPersonnelNumber} von ${status.staffTotal} ohne Personalnummer`
+    : null;
+
   return (
-    // Volle Inhaltsbreite und Abstände wie auf den übrigen Seiten: die eigene
-    // zentrierte max-w-4xl-Spalte mit extra px/py ließ die Abrechnung schmaler
-    // und tiefer beginnen als jede andere Seite. Der Titel steht auf dem
-    // Desktop in der Breadcrumb, die Kopfkarte trägt ihn auf jeder Breite.
-    <div className="w-full">
-      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
-      <PageIntro
-        kicker="Planung"
-        title="Abrechnung"
-        description="Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren DATEV-Export (LODAS und Lohn und Gehalt)."
-        className="mb-6"
-      />
-      {showSkeleton ? (
-        <PayrollDataSkeleton />
-      ) : error ? (
-        <Alert
-          type="error"
-          message="Die Abrechnungs-Konfiguration konnte nicht geladen werden."
-        />
-      ) : (
-        status && (
-          <div className="space-y-5">
-            <ReadinessCard status={status} />
+    <TenantPage
+      title="Abrechnung"
+      stats={statusLine}
+      statsLoading={showSkeleton}
+      loading={showSkeleton}
+      error={
+        error
+          ? "Die Abrechnungs-Konfiguration konnte nicht geladen werden."
+          : null
+      }
+    >
+      {status && (
+        <div className="space-y-6">
+          <ReadinessCard status={status} />
 
-            {saveError && <Alert type="error" message={saveError} />}
-            {duplicates.length > 0 && (
-              <Alert
-                type="warning"
-                message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden, bitte prüfen.`}
-              />
-            )}
+          {saveError && <Alert type="error" message={saveError} />}
+          {duplicates.length > 0 && (
+            <Alert
+              type="warning"
+              message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden, bitte prüfen.`}
+            />
+          )}
 
-            <LohnartenCard status={status} onSave={save} />
-            <DatevCard status={status} onSave={save} />
-          </div>
-        )
+          <LohnartenCard status={status} onSave={save} />
+          <DatevCard status={status} onSave={save} />
+        </div>
       )}
-    </div>
+    </TenantPage>
   );
 }
 

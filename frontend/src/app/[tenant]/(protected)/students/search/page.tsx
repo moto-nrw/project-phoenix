@@ -18,9 +18,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { BadgeDisplay } from "~/components/ui/page-header/BadgeDisplay";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -110,7 +109,6 @@ import {
   trackingFilterChipLabel,
   type TrackingFilter,
 } from "./tracking-filter";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 
 /**
@@ -2764,27 +2762,15 @@ function SearchPageContent() {
   // with required: true, unauthenticated users are auto-redirected to login.
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel, Erklärtext und
-          das Aktionsmenü, auf allen Breakpoints sichtbar. */}
-      <PageIntro
+    <>
+      {/* Kopfkarte wie auf jeder Tenant-Seite: Titel, Statuszeile, Aktionen,
+          darunter Suche und Filter. */}
+      <TenantPage
         title="Alle Kinder"
-        description={
-          hasFetchedOnce && !isDateTransition ? (
-            studentSummary
-          ) : (
-            <Skeleton className="h-4 w-56" />
-          )
-        }
-        className="mb-6"
+        stats={studentSummary}
+        statsLoading={!hasFetchedOnce || isDateTransition}
         actions={
           <>
-            {/* Der Zähler sitzt in der Titelzeile, damit unter der Suchzeile
-                keine Zeile bleibt, die nur ihn trägt. */}
-            <BadgeDisplay
-              count={filteredStudents.length}
-              icon={<MotoConceptIcon concept="children" size={20} />}
-            />
             <OverflowMenu
               items={[
                 {
@@ -2806,452 +2792,477 @@ function SearchPageContent() {
             />
           </>
         }
+        searchSlot={
+          // Adapter: diese Filterzeile braucht Bauteile, die TenantPage nicht
+          // durchreicht (primaryAction, filterSections, desktopFiltersFrom),
+          // deshalb konfiguriert die Seite PageHeaderWithSearch selbst.
+          //
+          // Der Kopf scrollt mit (nicht klebend). Aktive Filter erscheinen als
+          // Zahl auf der Filterschaltfläche. Der An-/Abmelde-Einstieg liegt auf
+          // Mobil und Tablet in einem schwebenden Knopf am unteren Rand, auf
+          // dem Desktop hier in der Zeile (primaryAction).
+          <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
+            <PageHeaderWithSearch
+              // Der Titel steht in der Kopfkarte darüber.
+              embedded
+              title=""
+              // Der Zähler ändert sich mit der Filterung und gehört deshalb in
+              // die Filterzeile, nicht in die Titelzeile.
+              badge={{
+                count: filteredStudents.length,
+                icon: <MotoConceptIcon concept="children" size={20} />,
+              }}
+              primaryAction={
+                checkinModeAvailable && !schoolCheckin.isActive ? (
+                  <SchoolCheckinFab
+                    variant="inline"
+                    isActive={schoolCheckin.isActive}
+                    onToggle={schoolCheckin.toggleActive}
+                    successCount={
+                      schoolCheckin.selectionActive
+                        ? selectedStudentsForBulk.length
+                        : schoolCheckin.successCount
+                    }
+                    pendingCount={schoolCheckin.pendingIds.size}
+                    disabled={schoolCheckin.isBulkRunning}
+                  />
+                ) : undefined
+              }
+              // 6 filters overflow the inline desktop row at iPad-class
+              // viewports. Switch to the mobile sheet pattern up to xl
+              // (1280px). Matches Stripe / Airbnb / Slack pattern for
+              // filter-heavy pages.
+              desktopFiltersFrom="xl"
+              search={{
+                value: searchTerm,
+                onChange: setSearchTerm,
+                placeholder: "Name suchen…",
+              }}
+              filters={filterConfigs}
+              activeFilters={activeFilters}
+              activeFilterDisplay="count"
+              filterVariant="quiet"
+              filterSections={filterSections}
+              onClearAllFilters={clearAllFilters}
+            />
+          </div>
+        }
       >
-        {/* Page header scrolls with the rest of the page (no sticky).
-            Active filters surface as a count badge on the filter pill. The
-            check-in/out trigger lives in a floating FAB rendered at the
-            bottom of this component on mobile/tablet, or inline in the
-            header on desktop via primaryAction. */}
-        <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
-          <PageHeaderWithSearch
-            // Der Titel steht in der Kopfkarte darüber.
-            embedded
-            title=""
-            primaryAction={
-              checkinModeAvailable && !schoolCheckin.isActive ? (
-                <SchoolCheckinFab
-                  variant="inline"
-                  isActive={schoolCheckin.isActive}
-                  onToggle={schoolCheckin.toggleActive}
-                  successCount={
-                    schoolCheckin.selectionActive
-                      ? selectedStudentsForBulk.length
-                      : schoolCheckin.successCount
-                  }
-                  pendingCount={schoolCheckin.pendingIds.size}
-                  disabled={schoolCheckin.isBulkRunning}
-                />
-              ) : undefined
-            }
-            // 6 filters overflow the inline desktop row at iPad-class
-            // viewports. Switch to the mobile sheet pattern up to xl
-            // (1280px). Matches Stripe / Airbnb / Slack pattern for
-            // filter-heavy pages.
-            desktopFiltersFrom="xl"
-            search={{
-              value: searchTerm,
-              onChange: setSearchTerm,
-              placeholder: "Name suchen…",
-            }}
-            filters={filterConfigs}
-            activeFilters={activeFilters}
-            activeFilterDisplay="count"
-            filterVariant="quiet"
-            filterSections={filterSections}
-            onClearAllFilters={clearAllFilters}
-          />
-        </div>
-      </PageIntro>
-
-      {/* Planning-date context banner (#1939). The day chooser itself lives in
+        <div>
+          {/* Planning-date context banner (#1939). The day chooser itself lives in
           the filter panel, in the "Anwesenheit" section right above the
           Kommt/Kommt-nicht filter it scopes. This banner only appears for a
           non-today date so nobody mistakes a plan view for live presence. */}
-      {!isToday && (
-        <div className="mb-3">
-          <Alert
-            type="info"
-            message={`Geplante Anwesenheit für ${formatDate(selectedDate, true)}; aktuelle Aufenthaltsorte bleiben ausgeblendet.`}
-            action={
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
-                onClick={() => updateSelectedDate(todayIso)}
-              >
-                Zurück zu heute
-              </Button>
-            }
-          />
-        </div>
-      )}
+          {!isToday && (
+            <div className="mb-3">
+              <Alert
+                type="info"
+                message={`Geplante Anwesenheit für ${formatDate(selectedDate, true)}; aktuelle Aufenthaltsorte bleiben ausgeblendet.`}
+                action={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="compact"
+                    onClick={() => updateSelectedDate(todayIso)}
+                  >
+                    Zurück zu heute
+                  </Button>
+                }
+              />
+            </div>
+          )}
 
-      {/* Incomplete-result notice (#2218 review). The page walk stops at
+          {/* Incomplete-result notice (#2218 review). The page walk stops at
           MAX_STUDENT_SEARCH_PAGES, and the badge, the grouping headers and the
           export all describe the rows it loaded. Without this the school would
           read a truncated list as the complete one, so the shortfall is named
           here instead of only in the log. */}
-      {truncatedTotal !== null && (
-        <div className="mb-3">
-          <Alert
-            type="warning"
-            message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
-          />
-        </div>
-      )}
+          {truncatedTotal !== null && (
+            <div className="mb-3">
+              <Alert
+                type="warning"
+                message={`Es werden nur die ersten ${students.length} von ${truncatedTotal} Kindern geladen. Anzahl, Gruppierung und Export beziehen sich allein auf diese Kinder; bitte die Filter enger setzen.`}
+              />
+            </div>
+          )}
 
-      {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
+          {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
           hat sonst keinen Hinweis, warum die Liste leer bleibt. */}
-      {errorMessage && (
-        <div className="mb-4">
-          <Alert type="error" message={errorMessage} />
-        </div>
-      )}
+          {errorMessage && (
+            <div className="mb-4">
+              <Alert type="error" message={errorMessage} />
+            </div>
+          )}
 
-      {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
+          {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
           Check-in toggles TODAY's attendance, so it hides on other dates. */}
-      {checkinModeAvailable && (
-        <div className="mb-3 md:hidden">
-          <SchoolCheckinModeMobile
-            isActive={schoolCheckin.isActive}
-            onToggle={schoolCheckin.toggleActive}
-            successCount={schoolCheckin.successCount}
-            pendingCount={schoolCheckin.pendingIds.size}
-            selectionActive={schoolCheckin.selectionActive}
-            onSelectionActiveChange={schoolCheckin.setSelectionActive}
-            selectedCount={selectedStudentsForBulk.length}
-            onClearSelection={schoolCheckin.clearSelection}
-            onBulkAction={handleBulkAction}
-            runningAction={runningBulkAction}
-            disabled={schoolCheckin.isBulkRunning}
-          />
-        </div>
-      )}
+          {checkinModeAvailable && (
+            <div className="mb-3 md:hidden">
+              <SchoolCheckinModeMobile
+                isActive={schoolCheckin.isActive}
+                onToggle={schoolCheckin.toggleActive}
+                successCount={schoolCheckin.successCount}
+                pendingCount={schoolCheckin.pendingIds.size}
+                selectionActive={schoolCheckin.selectionActive}
+                onSelectionActiveChange={schoolCheckin.setSelectionActive}
+                selectedCount={selectedStudentsForBulk.length}
+                onClearSelection={schoolCheckin.clearSelection}
+                onBulkAction={handleBulkAction}
+                runningAction={runningBulkAction}
+                disabled={schoolCheckin.isBulkRunning}
+              />
+            </div>
+          )}
 
-      {/* Sub-mode bar of the active check-in mode (#2359): switch between
+          {/* Sub-mode bar of the active check-in mode (#2359): switch between
           immediate taps (door operation, default) and the selection mode
           with its bulk Anmelden/Abmelden actions. */}
-      {checkinModeAvailable && schoolCheckin.isActive && (
-        <SchoolCheckinSelectionBar
-          selectionActive={schoolCheckin.selectionActive}
-          onSelectionActiveChange={schoolCheckin.setSelectionActive}
-          selectedCount={selectedStudentsForBulk.length}
-          onClearSelection={schoolCheckin.clearSelection}
-          onBulkAction={handleBulkAction}
-          onFinish={schoolCheckin.toggleActive}
-          isRunning={schoolCheckin.isBulkRunning}
-          runningAction={runningBulkAction}
-        />
-      )}
+          {checkinModeAvailable && schoolCheckin.isActive && (
+            <SchoolCheckinSelectionBar
+              selectionActive={schoolCheckin.selectionActive}
+              onSelectionActiveChange={schoolCheckin.setSelectionActive}
+              selectedCount={selectedStudentsForBulk.length}
+              onClearSelection={schoolCheckin.clearSelection}
+              onBulkAction={handleBulkAction}
+              onFinish={schoolCheckin.toggleActive}
+              isRunning={schoolCheckin.isBulkRunning}
+              runningAction={runningBulkAction}
+            />
+          )}
 
-      {/* Student Grid. Bottom padding reserves room for the mobile sticky
+          {/* Student Grid. Bottom padding reserves room for the mobile sticky
           bar / tablet floating FAB; desktop has neither. */}
-      <div
-        className={
-          checkinModeAvailable
-            ? schoolCheckin.isActive && schoolCheckin.selectionActive
-              ? "pb-32 md:pb-24 lg:pb-0"
-              : "pb-24 lg:pb-0"
-            : undefined
-        }
-      >
-        {(() => {
-          // Fix P2: Show loading while the session is still resolving, while
-          // the first fetch is in progress (not yet hasFetchedOnce), or while
-          // a date switch is in flight — keepPreviousData still holds the
-          // previous day's rows, so show the skeleton instead of presenting
-          // them under the newly selected date (#1939). Handle a fetch error
-          // FIRST, though: when the new date's request fails, keepPreviousData
-          // keeps the stale response so isDateTransition stays true — without
-          // this guard the page would show the skeleton indefinitely instead of
-          // the error and its recovery guidance (#1939).
-          if (
-            isInitializing ||
-            isAuthError ||
-            (!errorMessage &&
-              ((isSearching && !hasFetchedOnce) || isDateTransition))
-          ) {
-            return <StudentCardGridSkeleton />;
-          }
-          if (errorMessage) {
-            return (
-              <EmptyState
-                icon={
-                  <AlertTriangle
-                    className="text-moto-red h-12 w-12"
-                    aria-hidden="true"
-                  />
-                }
-                // Fix P3: Use errorType instead of substring matching
-                title={
-                  errorType === "permission" ? "Keine Berechtigung" : "Fehler"
-                }
-                description={errorMessage}
-              />
-            );
-          }
-          // Fix P2: Only show empty state if we've fetched at least once
-          if (filteredStudents.length === 0 && hasFetchedOnce) {
-            return (
-              <EmptyState
-                icon={
-                  <Search
-                    className="h-12 w-12 text-gray-400"
-                    aria-hidden="true"
-                  />
-                }
-                title="Keine Kinder gefunden"
-                description="Passen Sie Ihre Suchkriterien an."
-              />
-            );
-          }
-          // Preserve the URL-rehydrating filters in the back-link so stepping
-          // from the search page → child → back returns to the same operational
-          // view. Free-text search intentionally remains transient.
-          const buildFromParam = (() => {
-            const qs = new URLSearchParams();
-            if (effectiveRoomId) {
-              qs.set("room_id", effectiveRoomId);
-              if (selectedRoomName) qs.set("room_name", selectedRoomName);
+          <div
+            className={
+              checkinModeAvailable
+                ? schoolCheckin.isActive && schoolCheckin.selectionActive
+                  ? "pb-32 md:pb-24 lg:pb-0"
+                  : "pb-24 lg:pb-0"
+                : undefined
             }
-            if (selectedGroupIds.length > 0)
-              qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
-            if (selectedSchoolClasses.length > 0)
-              qs.set(
-                "school_class",
-                encodeMultiValueParam(selectedSchoolClasses),
-              );
-            if (selectedYears.length > 0)
-              qs.set("year", encodeMultiValueParam(selectedYears));
-            if (effectiveAttendanceFilter !== "all")
-              qs.set("status", effectiveAttendanceFilter);
-            if (busFilter !== "all") qs.set("bus", busFilter);
-            if (effectivePhotoConsentFilter !== "all")
-              qs.set("photo_consent", effectivePhotoConsentFilter);
-            if (pickupStatusFilter !== "all")
-              qs.set("pickup_status", pickupStatusFilter);
-            if (dayStatusFilter !== "all")
-              qs.set("day_status", dayStatusFilter);
-            if (!isToday) qs.set("date", selectedDate);
-            if (pickupTimeFilter !== "all")
-              qs.set("pickup_time", pickupTimeFilter);
-            if (arrivalTimeFilter !== "all")
-              qs.set("arrival_time", arrivalTimeFilter);
-            if (effectiveTrackingFilter !== "all")
-              qs.set("tracking", effectiveTrackingFilter);
-            if (sortMode !== "name") qs.set("sort", sortMode);
-            if (effectiveGroupMode !== "none")
-              qs.set("view", effectiveGroupMode);
-            if (qs.size === 0) return "/students/search";
-            return encodeURIComponent(`/students/search?${qs.toString()}`);
-          })();
-          const renderStudentCard = (student: Student) => {
-            const checkinState = deriveCheckinState(student.current_location);
-            const studentIdStr = student.id.toString();
-            // Detailed-mode students sitting in a room get a confirmation
-            // step; everyone else toggles straight away (#2220).
-            const roomToConfirm = checkoutConfirmationRoom(
-              student.current_location,
-            );
-            return (
-              <StudentCard
-                key={student.id}
-                studentId={student.id}
-                firstName={student.first_name}
-                lastName={student.second_name}
-                photoUrl={student.photo_url ?? null}
-                onClick={() =>
-                  router.push(`/students/${student.id}?from=${buildFromParam}`)
+          >
+            {(() => {
+              // Fix P2: Show loading while the session is still resolving, while
+              // the first fetch is in progress (not yet hasFetchedOnce), or while
+              // a date switch is in flight — keepPreviousData still holds the
+              // previous day's rows, so show the skeleton instead of presenting
+              // them under the newly selected date (#1939). Handle a fetch error
+              // FIRST, though: when the new date's request fails, keepPreviousData
+              // keeps the stale response so isDateTransition stays true — without
+              // this guard the page would show the skeleton indefinitely instead of
+              // the error and its recovery guidance (#1939).
+              if (
+                isInitializing ||
+                isAuthError ||
+                (!errorMessage &&
+                  ((isSearching && !hasFetchedOnce) || isDateTransition))
+              ) {
+                return <StudentCardGridSkeleton />;
+              }
+              if (errorMessage) {
+                return (
+                  <EmptyState
+                    icon={
+                      <AlertTriangle
+                        className="text-moto-red h-12 w-12"
+                        aria-hidden="true"
+                      />
+                    }
+                    // Fix P3: Use errorType instead of substring matching
+                    title={
+                      errorType === "permission"
+                        ? "Keine Berechtigung"
+                        : "Fehler"
+                    }
+                    description={errorMessage}
+                  />
+                );
+              }
+              // Fix P2: Only show empty state if we've fetched at least once
+              if (filteredStudents.length === 0 && hasFetchedOnce) {
+                return (
+                  <EmptyState
+                    icon={
+                      <Search
+                        className="h-12 w-12 text-gray-400"
+                        aria-hidden="true"
+                      />
+                    }
+                    title="Keine Kinder gefunden"
+                    description="Passen Sie Ihre Suchkriterien an."
+                  />
+                );
+              }
+              // Preserve the URL-rehydrating filters in the back-link so stepping
+              // from the search page → child → back returns to the same operational
+              // view. Free-text search intentionally remains transient.
+              const buildFromParam = (() => {
+                const qs = new URLSearchParams();
+                if (effectiveRoomId) {
+                  qs.set("room_id", effectiveRoomId);
+                  if (selectedRoomName) qs.set("room_name", selectedRoomName);
                 }
-                checkinMode={checkinModeAvailable && schoolCheckin.isActive}
-                checkinState={checkinState}
-                checkinSelectMode={schoolCheckin.selectionActive}
-                isCheckinSelected={schoolCheckin.selectedIds.has(studentIdStr)}
-                isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
-                onCheckinClick={() => {
-                  // Selection sub-mode (#2359): a tap only marks the child;
-                  // nothing is written until the bar's bulk action runs.
-                  if (schoolCheckin.selectionActive) {
-                    schoolCheckin.toggleSelected(studentIdStr);
-                    return;
-                  }
-                  if (roomToConfirm) {
-                    setPendingRoomCheckout({
-                      studentId: studentIdStr,
-                      studentName:
-                        `${student.first_name} ${student.second_name}`.trim(),
-                      room: roomToConfirm,
-                    });
-                    return;
-                  }
-                  void schoolCheckin.toggle(studentIdStr, checkinState);
-                }}
-                locationBadge={
-                  isToday ? (
-                    <StudentPresenceBadge
-                      student={(() => {
-                        const badgePlanning =
-                          getStudentPresenceBadgePlanning(student);
-                        return {
-                          ...student,
-                          not_arrival_today: badgePlanning.notArrivalToday,
-                          not_arrival_reason: badgePlanning.notArrivalReason,
-                        };
-                      })()}
-                      displayMode="contextAware"
-                      userGroups={myGroups}
-                      groupRooms={myGroupRooms}
-                      supervisedRooms={mySupervisedRooms}
-                      variant="modern"
-                      size="md"
-                    />
-                  ) : (
-                    // Non-today dates show the planned expectation, never the
-                    // live location (#1939). When the caller lacks full access
-                    // the backend skips day-planning enrichment and omits
-                    // day_planning_status; render an unknown state rather than
-                    // asserting "Kommt nicht" for a result that was never
-                    // calculated or disclosed.
-                    <DataTableStatusBadge
-                      active={student.day_planning_status === "comes_today"}
-                      unknown={student.day_planning_status === undefined}
-                      activeLabel="Kommt"
-                      inactiveLabel="Kommt nicht"
-                      unknownLabel="Keine Angabe"
-                    />
-                  )
-                }
-                extraContent={
-                  <>
-                    <StudentInfoRow icon={<SchoolClassIcon />}>
-                      {student.school_class || "—"}
-                    </StudentInfoRow>
-                    <StudentInfoRow icon={<GroupIcon />}>
-                      Gruppe: {student.group_name || "—"}
-                    </StudentInfoRow>
-                    {student.has_full_access !== false && (
-                      <StudentInfoRow icon={<DepartureModeIcon />} wrap>
-                        Heimweg: {dailyDepartureLabelForStudent(student)}
-                      </StudentInfoRow>
+                if (selectedGroupIds.length > 0)
+                  qs.set("group_id", encodeMultiValueParam(selectedGroupIds));
+                if (selectedSchoolClasses.length > 0)
+                  qs.set(
+                    "school_class",
+                    encodeMultiValueParam(selectedSchoolClasses),
+                  );
+                if (selectedYears.length > 0)
+                  qs.set("year", encodeMultiValueParam(selectedYears));
+                if (effectiveAttendanceFilter !== "all")
+                  qs.set("status", effectiveAttendanceFilter);
+                if (busFilter !== "all") qs.set("bus", busFilter);
+                if (effectivePhotoConsentFilter !== "all")
+                  qs.set("photo_consent", effectivePhotoConsentFilter);
+                if (pickupStatusFilter !== "all")
+                  qs.set("pickup_status", pickupStatusFilter);
+                if (dayStatusFilter !== "all")
+                  qs.set("day_status", dayStatusFilter);
+                if (!isToday) qs.set("date", selectedDate);
+                if (pickupTimeFilter !== "all")
+                  qs.set("pickup_time", pickupTimeFilter);
+                if (arrivalTimeFilter !== "all")
+                  qs.set("arrival_time", arrivalTimeFilter);
+                if (effectiveTrackingFilter !== "all")
+                  qs.set("tracking", effectiveTrackingFilter);
+                if (sortMode !== "name") qs.set("sort", sortMode);
+                if (effectiveGroupMode !== "none")
+                  qs.set("view", effectiveGroupMode);
+                if (qs.size === 0) return "/students/search";
+                return encodeURIComponent(`/students/search?${qs.toString()}`);
+              })();
+              const renderStudentCard = (student: Student) => {
+                const checkinState = deriveCheckinState(
+                  student.current_location,
+                );
+                const studentIdStr = student.id.toString();
+                // Detailed-mode students sitting in a room get a confirmation
+                // step; everyone else toggles straight away (#2220).
+                const roomToConfirm = checkoutConfirmationRoom(
+                  student.current_location,
+                );
+                return (
+                  <StudentCard
+                    key={student.id}
+                    studentId={student.id}
+                    firstName={student.first_name}
+                    lastName={student.second_name}
+                    photoUrl={student.photo_url ?? null}
+                    onClick={() =>
+                      router.push(
+                        `/students/${student.id}?from=${buildFromParam}`,
+                      )
+                    }
+                    checkinMode={checkinModeAvailable && schoolCheckin.isActive}
+                    checkinState={checkinState}
+                    checkinSelectMode={schoolCheckin.selectionActive}
+                    isCheckinSelected={schoolCheckin.selectedIds.has(
+                      studentIdStr,
                     )}
-                    {student.has_full_access !== false &&
-                      student.pending_excused_note !== undefined && (
-                        <StudentPendingExcusedRow
-                          note={student.pending_excused_note}
-                        />
-                      )}
-                    {student.has_full_access !== false &&
-                      (() => {
-                        const absence = getStudentAbsence({
-                          sick: student.sick,
-                          classTrip: student.class_trip,
-                          excused: student.excused,
+                    isCheckinPending={schoolCheckin.pendingIds.has(
+                      studentIdStr,
+                    )}
+                    onCheckinClick={() => {
+                      // Selection sub-mode (#2359): a tap only marks the child;
+                      // nothing is written until the bar's bulk action runs.
+                      if (schoolCheckin.selectionActive) {
+                        schoolCheckin.toggleSelected(studentIdStr);
+                        return;
+                      }
+                      if (roomToConfirm) {
+                        setPendingRoomCheckout({
+                          studentId: studentIdStr,
+                          studentName:
+                            `${student.first_name} ${student.second_name}`.trim(),
+                          room: roomToConfirm,
                         });
-                        const absenceWording = isToday
-                          ? undefined
-                          : "Kommt nicht";
-                        // Absence rows fill the arrival slot; a neutral
-                        // "Gehzeit: —" row (deliberately without the planned
-                        // time, so no overdue styling can fire for a child
-                        // who is not coming) keeps absent and present cards
-                        // at the same four-row height.
-                        const absencePickupRow = (
-                          <PickupTimeRow
-                            isException={false}
-                            now={planningNow}
-                          />
-                        );
-                        if (absence && !student.actual_pickup_time) {
-                          return (
-                            <>
-                              <StudentAbsenceRow
-                                label={absence.label}
-                                wording={absenceWording}
-                              />
-                              {absencePickupRow}
-                            </>
-                          );
-                        }
-                        const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student, {
-                            ignoreCurrentAttendance: !isToday,
-                          });
-                        if (
-                          dayPlanningNotComingLabel &&
-                          !student.actual_pickup_time
-                        ) {
-                          return (
-                            <>
-                              <StudentAbsenceRow
-                                label={dayPlanningNotComingLabel}
-                                wording={absenceWording}
-                              />
-                              {absencePickupRow}
-                            </>
-                          );
-                        }
-                        return (
-                          <>
-                            <ArrivalTimeRow
-                              arrivalTime={student.arrival_time}
-                              actualTime={student.actual_arrival_time}
-                              isException={
-                                student.arrival_is_exception ?? false
-                              }
-                              isAbsent={
-                                (student.arrival_is_exception ?? false) &&
-                                !student.arrival_time
-                              }
-                              notes={student.arrival_notes}
-                              now={planningNow}
-                              absentWording={absenceWording}
+                        return;
+                      }
+                      void schoolCheckin.toggle(studentIdStr, checkinState);
+                    }}
+                    locationBadge={
+                      isToday ? (
+                        <StudentPresenceBadge
+                          student={(() => {
+                            const badgePlanning =
+                              getStudentPresenceBadgePlanning(student);
+                            return {
+                              ...student,
+                              not_arrival_today: badgePlanning.notArrivalToday,
+                              not_arrival_reason:
+                                badgePlanning.notArrivalReason,
+                            };
+                          })()}
+                          displayMode="contextAware"
+                          userGroups={myGroups}
+                          groupRooms={myGroupRooms}
+                          supervisedRooms={mySupervisedRooms}
+                          variant="modern"
+                          size="md"
+                        />
+                      ) : (
+                        // Non-today dates show the planned expectation, never the
+                        // live location (#1939). When the caller lacks full access
+                        // the backend skips day-planning enrichment and omits
+                        // day_planning_status; render an unknown state rather than
+                        // asserting "Kommt nicht" for a result that was never
+                        // calculated or disclosed.
+                        <DataTableStatusBadge
+                          active={student.day_planning_status === "comes_today"}
+                          unknown={student.day_planning_status === undefined}
+                          activeLabel="Kommt"
+                          inactiveLabel="Kommt nicht"
+                          unknownLabel="Keine Angabe"
+                        />
+                      )
+                    }
+                    extraContent={
+                      <>
+                        <StudentInfoRow icon={<SchoolClassIcon />}>
+                          {student.school_class || "—"}
+                        </StudentInfoRow>
+                        <StudentInfoRow icon={<GroupIcon />}>
+                          Gruppe: {student.group_name || "—"}
+                        </StudentInfoRow>
+                        {student.has_full_access !== false && (
+                          <StudentInfoRow icon={<DepartureModeIcon />} wrap>
+                            Heimweg: {dailyDepartureLabelForStudent(student)}
+                          </StudentInfoRow>
+                        )}
+                        {student.has_full_access !== false &&
+                          student.pending_excused_note !== undefined && (
+                            <StudentPendingExcusedRow
+                              note={student.pending_excused_note}
                             />
-                            <PickupTimeRow
-                              pickupTime={student.pickup_time ?? undefined}
-                              actualTime={student.actual_pickup_time}
-                              isException={student.pickup_is_exception ?? false}
-                              notes={student.pickup_notes}
-                              now={planningNow}
-                            />
-                          </>
-                        );
-                      })()}
-                  </>
-                }
-                trackingIndicators={
-                  isToday &&
-                  trackingData?.labels?.length &&
-                  student.has_full_access !== false ? (
-                    <TrackingIndicators
-                      labels={trackingData.labels}
-                      results={trackingData.results[student.id] ?? []}
-                    />
-                  ) : undefined
-                }
-              />
-            );
-          };
+                          )}
+                        {student.has_full_access !== false &&
+                          (() => {
+                            const absence = getStudentAbsence({
+                              sick: student.sick,
+                              classTrip: student.class_trip,
+                              excused: student.excused,
+                            });
+                            const absenceWording = isToday
+                              ? undefined
+                              : "Kommt nicht";
+                            // Absence rows fill the arrival slot; a neutral
+                            // "Gehzeit: —" row (deliberately without the planned
+                            // time, so no overdue styling can fire for a child
+                            // who is not coming) keeps absent and present cards
+                            // at the same four-row height.
+                            const absencePickupRow = (
+                              <PickupTimeRow
+                                isException={false}
+                                now={planningNow}
+                              />
+                            );
+                            if (absence && !student.actual_pickup_time) {
+                              return (
+                                <>
+                                  <StudentAbsenceRow
+                                    label={absence.label}
+                                    wording={absenceWording}
+                                  />
+                                  {absencePickupRow}
+                                </>
+                              );
+                            }
+                            const dayPlanningNotComingLabel =
+                              getDayPlanningNotComingLabel(student, {
+                                ignoreCurrentAttendance: !isToday,
+                              });
+                            if (
+                              dayPlanningNotComingLabel &&
+                              !student.actual_pickup_time
+                            ) {
+                              return (
+                                <>
+                                  <StudentAbsenceRow
+                                    label={dayPlanningNotComingLabel}
+                                    wording={absenceWording}
+                                  />
+                                  {absencePickupRow}
+                                </>
+                              );
+                            }
+                            return (
+                              <>
+                                <ArrivalTimeRow
+                                  arrivalTime={student.arrival_time}
+                                  actualTime={student.actual_arrival_time}
+                                  isException={
+                                    student.arrival_is_exception ?? false
+                                  }
+                                  isAbsent={
+                                    (student.arrival_is_exception ?? false) &&
+                                    !student.arrival_time
+                                  }
+                                  notes={student.arrival_notes}
+                                  now={planningNow}
+                                  absentWording={absenceWording}
+                                />
+                                <PickupTimeRow
+                                  pickupTime={student.pickup_time ?? undefined}
+                                  actualTime={student.actual_pickup_time}
+                                  isException={
+                                    student.pickup_is_exception ?? false
+                                  }
+                                  notes={student.pickup_notes}
+                                  now={planningNow}
+                                />
+                              </>
+                            );
+                          })()}
+                      </>
+                    }
+                    trackingIndicators={
+                      isToday &&
+                      trackingData?.labels?.length &&
+                      student.has_full_access !== false ? (
+                        <TrackingIndicators
+                          labels={trackingData.labels}
+                          results={trackingData.results[student.id] ?? []}
+                        />
+                      ) : undefined
+                    }
+                  />
+                );
+              };
 
-          if (effectiveGroupMode !== "none") {
-            return (
-              <div className="space-y-6">
-                {groupedStudents.map((group) => (
-                  <section key={group.key} data-testid="student-group">
-                    <div className="mb-3 flex items-center gap-3">
-                      <h2 className="text-sm font-semibold text-gray-900">
-                        {group.label}
-                      </h2>
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                        {group.items.length}
-                      </span>
-                      <div className="h-px min-w-8 flex-1 bg-gray-200" />
-                    </div>
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-                      {group.items.map(renderStudentCard)}
-                    </div>
-                  </section>
-                ))}
-              </div>
-            );
-          }
+              if (effectiveGroupMode !== "none") {
+                return (
+                  <div className="space-y-6">
+                    {groupedStudents.map((group) => (
+                      <section key={group.key} data-testid="student-group">
+                        <div className="mb-3 flex items-center gap-3">
+                          <h2 className="text-sm font-semibold text-gray-900">
+                            {group.label}
+                          </h2>
+                          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                            {group.items.length}
+                          </span>
+                          <div className="h-px min-w-8 flex-1 bg-gray-200" />
+                        </div>
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                          {group.items.map(renderStudentCard)}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                );
+              }
 
-          return (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
-              {sortedStudents.map(renderStudentCard)}
-            </div>
-          );
-        })()}
-      </div>
+              return (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                  {sortedStudents.map(renderStudentCard)}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </TenantPage>
 
       {/* Tablet (md..xl) check-in mode trigger, floating FAB. Tablet
           range is bumped to `xl` here to stay aligned with the header's
@@ -3414,7 +3425,7 @@ function SearchPageContent() {
           onClose={() => setIsExportOpen(false)}
         />
       )}
-    </div>
+    </>
   );
 }
 

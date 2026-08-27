@@ -5,10 +5,8 @@ import {
   AdminEnrollmentsList,
   type AdminEnrollmentsSummary,
 } from "~/components/enrollment/admin-enrollments-list";
-import { Skeleton } from "~/components/ui/skeleton";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 
@@ -33,25 +31,17 @@ export default function AdminEnrollmentsPage() {
     : null;
 
   return (
-    <div className="w-full space-y-6">
-      <PageIntro
-        kicker="Anmeldungen"
-        title="Überblick"
-        description={statusLine ?? <Skeleton className="h-4 w-56" />}
-      />
-      {isReady ? (
-        <>
-          <DesktopOnlyNotice />
-          <PhaseExpiryWarnings />
-          <div className="hidden lg:block">
-            <AdminEnrollmentsList onSummaryChange={handleSummaryChange} />
-          </div>
-        </>
-      ) : (
-        <SkeletonRegion label="Anmeldungen werden geladen">
-          <ListSkeleton rows={6} avatar={false} />
-        </SkeletonRegion>
-      )}
-    </div>
+    <TenantPage
+      title="Überblick"
+      stats={statusLine}
+      statsLoading={statusLine === null}
+      loading={!isReady}
+    >
+      <DesktopOnlyNotice />
+      <PhaseExpiryWarnings />
+      <div className="hidden lg:block">
+        <AdminEnrollmentsList onSummaryChange={handleSummaryChange} />
+      </div>
+    </TenantPage>
   );
 }

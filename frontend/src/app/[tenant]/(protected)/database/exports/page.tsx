@@ -22,9 +22,8 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
-import { BackButton } from "~/components/ui/back-button";
 import { InfoCard } from "~/components/ui/info-card";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
@@ -169,24 +168,14 @@ export default function DatabaseExportsPage() {
   };
 
   return (
-    <div className="w-full">
-      <BackButton referrer="/database" />
-
-      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Exporte"
-        description={statusLine}
-        className="mb-6"
-      >
+    <TenantPage title="Exporte" stats={statusLine} back>
+      <div className="min-h-[60vh] space-y-6">
         <p className="text-sm text-gray-600">
           Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig
           sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere
           personenbezogene Unterlage.
         </p>
-      </PageIntro>
 
-      <div className="min-h-[60vh] space-y-6">
         <ExportSection title="Kinderlisten">
           {STUDENT_EXPORT_PRESETS.map((preset) => (
             <InfoCard
@@ -409,7 +398,7 @@ export default function DatabaseExportsPage() {
         isOpen={staffBirthdayModalOpen}
         onClose={() => setStaffBirthdayModalOpen(false)}
       />
-    </div>
+    </TenantPage>
   );
 }
 

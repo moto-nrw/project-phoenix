@@ -4,7 +4,6 @@ import { SectionCard } from "~/components/ui/section-card";
 /**
  * Kopfkarte einer Seite, die einen Erklärtext oder Seitenaktionen trägt.
  *
- * Entspricht dem Kopf der Eltern-App (`ParentPageHeader`): blauer Kicker,
  * Titel, Erklärtext und Aktionen in EINER Kartenzeile. Ein Erklärtext steht
  * damit nie frei zwischen Seitenkopf und Inhalt, und Aktionen bekommen keine
  * eigene, sonst leere Zeile. Seiten ohne Erklärtext und ohne Seitenaktionen
@@ -14,7 +13,6 @@ import { SectionCard } from "~/components/ui/section-card";
  * Startseiten mit Begrüßung als Titel.
  */
 export function PageIntro({
-  kicker,
   title,
   description,
   actions,
@@ -23,7 +21,6 @@ export function PageIntro({
   className,
   children,
 }: Readonly<{
-  kicker?: string;
   title: string;
   description?: ReactNode;
   /** Aktionen in der Titelzeile, rechts. */
@@ -37,7 +34,6 @@ export function PageIntro({
 }>) {
   return (
     <SectionCard
-      kicker={kicker}
       title={title}
       description={description}
       actions={actions}

@@ -5,6 +5,7 @@ import {
   waitFor,
   cleanup,
   act,
+  within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StudentDetailPage from "./page";
@@ -134,16 +135,15 @@ vi.mock("~/components/ui/modal", () => ({
 
 // Mock student detail components
 vi.mock("~/components/students/student-detail-components", () => ({
-  StudentDetailHeader: ({
-    student,
-  }: {
-    student: { name: string; school_class: string };
-  }) => (
-    <div data-testid="student-header">
-      <h1 data-testid="student-name">{student.name}</h1>
-      <span data-testid="student-class">{student.school_class}</span>
-    </div>
+  // Der Entitätskopf ist seit dem Gerüstumbau in seine Teile zerlegt: die
+  // Seite setzt Foto, Titel, Statuszeile und Aufenthaltsort in TenantPage
+  // zusammen.
+  StudentHeaderAvatar: () => <div data-testid="student-header" />,
+  studentHeaderTitle: (student: { name: string }) => student.name,
+  StudentHeaderStats: ({ student }: { student: { school_class: string } }) => (
+    <span data-testid="student-class">{student.school_class}</span>
   ),
+  StudentHeaderLocation: () => <span data-testid="student-location" />,
   SupervisorsCard: ({
     supervisors,
     studentName,
@@ -709,9 +709,10 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("student-header")).toBeInTheDocument();
-      expect(screen.getByTestId("student-name")).toHaveTextContent(
-        "Max Mustermann",
-      );
+      // Der Name ist der Titel der Kopfkarte.
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Max Mustermann" }),
+      ).toBeInTheDocument();
     });
 
     it("renders full access personal info section", () => {
@@ -1082,7 +1083,14 @@ describe("StudentDetailPage", () => {
 
       const confirmButton = await screen.findByTestId("modal-confirm");
       expect(confirmButton).toBeEnabled();
-      expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+      // Im Dialog steht keine Raum- oder Geräteauswahl. Innerhalb des Dialogs
+      // geprüft: die Reiterleiste des Seitengerüsts rendert unter sm selbst
+      // eine Auswahlliste.
+      expect(
+        within(screen.getByTestId("modal-kind-anmelden")).queryByRole(
+          "combobox",
+        ),
+      ).not.toBeInTheDocument();
 
       await act(async () => {
         fireEvent.click(confirmButton);
@@ -1861,13 +1869,10 @@ describe("StudentDetailPage", () => {
       refreshData: mockRefreshData,
     };
 
-    // Radix activates a tab on pointer-down (mouseDown is the legacy fallback).
-    // Fire both, mirroring the precedent in ui/tabs.test.tsx, so these tests
-    // don't hinge on a single internal Radix event path and survive a bump.
+    // Die Reiter des Seitengerüsts sind einfache Schaltflächen und schalten
+    // auf click (kein Radix, das auf pointerDown reagiert).
     const selectTab = (name: string) => {
-      const tab = screen.getByRole("tab", { name });
-      fireEvent.pointerDown(tab, { button: 0, pointerType: "mouse" });
-      fireEvent.mouseDown(tab, { button: 0 });
+      fireEvent.click(screen.getByRole("tab", { name }));
     };
 
     it("renders all section tabs in the full access view", () => {

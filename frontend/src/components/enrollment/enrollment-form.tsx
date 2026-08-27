@@ -1456,7 +1456,6 @@ export function EnrollmentForm({
         <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <SectionHeading
-              kicker={tr("sections.guardianKicker")}
               title={tr("sections.guardianTitle")}
               description={tr("sections.guardianDescription")}
             />
@@ -1581,7 +1580,6 @@ export function EnrollmentForm({
         schema?.fields.some((f) => !f.applies_to_child) && (
           <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
             <SectionHeading
-              kicker={tr("sections.extraKicker")}
               title={tr("sections.extraTitle")}
               description={tr("sections.extraDescription")}
             />
@@ -1611,11 +1609,6 @@ export function EnrollmentForm({
       <section className="moto-content-surface space-y-5 rounded-xl border p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <SectionHeading
-            kicker={tr(
-              restrictToOfferings
-                ? "sections.offeringsOnlyKicker"
-                : "sections.childrenKicker",
-            )}
             title={tr(
               restrictToOfferings
                 ? "sections.offeringsOnlyTitle"
@@ -2249,7 +2242,6 @@ export function EnrollmentForm({
       {legalBlocks.length > 0 && !restrictToOfferings && (
         <section className="moto-content-surface space-y-4 rounded-xl border p-4 shadow-sm sm:p-5">
           <SectionHeading
-            kicker={tr("sections.consentKicker")}
             title={tr("sections.consentTitle")}
             description={tr("sections.consentDescription")}
           />
@@ -3122,20 +3114,15 @@ function SchoolClassSelect({
 }
 
 function SectionHeading({
-  kicker,
   title,
   description,
 }: {
-  readonly kicker: string;
   readonly title: string;
   readonly description: string;
 }) {
   return (
     <div>
-      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-        {kicker}
-      </p>
-      <h2 className="mt-1 text-lg font-semibold text-gray-900">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
     </div>
   );

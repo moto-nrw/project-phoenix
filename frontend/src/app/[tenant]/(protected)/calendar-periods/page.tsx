@@ -1,10 +1,12 @@
 "use client";
 
-import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
+import {
+  CalendarPeriodsActions,
+  CalendarPeriodsEditor,
+  useCalendarPeriods,
+} from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 /**
@@ -21,34 +23,33 @@ import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 export default function CalendarPeriodsPage() {
   const { isReady } = useRequireAdmin();
 
+  // Solange die Rechteprüfung läuft, steht hier das Seitengerüst mit seinem
+  // Ladezustand; die Zeiträume werden erst danach abgerufen.
+  if (!isReady) {
+    return <TenantPage title="Kalenderzeiträume" loading testId="loading" />;
+  }
+
+  return <CalendarPeriodsPageContent />;
+}
+
+/**
+ * Der Kopf gehört der Seite: Titel, Statuszeile und die beiden
+ * Anlegen-Aktionen. Leer- und Fehlerzustand bleiben in den beiden
+ * Inhaltsblöcken, damit die Schließtage auch dann erreichbar sind, wenn die
+ * Zeiträume leer sind oder nicht geladen werden konnten.
+ */
+function CalendarPeriodsPageContent() {
+  const state = useCalendarPeriods();
+
   return (
-    <div className="w-full space-y-6">
-      {/* Titel, Erklärtext und Seitenaktionen trägt die Kopfkarte des
-          Editors (PageIntro), Schließtage die eigene Abschnittskarte. Im
-          Ladezustand steht dieselbe Kopfkarte schon da, nur ohne die
-          Aktionen, die an den Modal-Zuständen des Editors hängen. */}
-      {isReady ? (
-        <>
-          <CalendarPeriodsEditor />
-          <ClosingDaysEditor />
-        </>
-      ) : (
-        <>
-          <PageIntro
-            kicker="Planung"
-            title="Kalenderzeiträume"
-            description={<Skeleton className="h-4 w-56" />}
-          />
-          <SkeletonRegion
-            label="Kalenderzeiträume werden geladen"
-            testId="loading"
-            className="w-full space-y-6"
-          >
-            <TableSkeleton rows={5} columns={3} />
-            <TableSkeleton rows={4} columns={3} />
-          </SkeletonRegion>
-        </>
-      )}
-    </div>
+    <TenantPage
+      title="Kalenderzeiträume"
+      stats={state.statusLine}
+      statsLoading={state.loading}
+      actions={<CalendarPeriodsActions state={state} />}
+    >
+      <CalendarPeriodsEditor state={state} />
+      <ClosingDaysEditor />
+    </TenantPage>
   );
 }

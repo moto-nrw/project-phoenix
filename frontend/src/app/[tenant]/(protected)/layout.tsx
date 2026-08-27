@@ -21,13 +21,13 @@ export default function ProtectedLayout({
         <GroupAttendanceCountProvider>
           <ShellNavIntlProvider>
             <AppShell>{children}</AppShell>
+            {/* Layout-level on purpose: the install promotion targets staff on
+                phones and tablets, and most of them never reach the admin-only
+                dashboard. Inside the provider, because the hint is localized. */}
+            <PwaInstallHint />
           </ShellNavIntlProvider>
         </GroupAttendanceCountProvider>
         <AnnouncementModal />
-        {/* Layout-level on purpose: the install promotion targets staff on
-            phones and tablets, and most of them never reach the admin-only
-            dashboard. */}
-        <PwaInstallHint />
       </BreadcrumbProvider>
     </TeacherShellProvider>
   );

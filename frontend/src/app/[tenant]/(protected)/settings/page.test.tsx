@@ -14,22 +14,19 @@ vi.mock("next-auth/react", () => ({
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
   redirect: (url: string) => mockRedirect(url),
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+// Die Statuszeile zählt die vom Standard abweichenden Einstellungen.
+const mockUseSettingsSchema = vi.fn(() => ({ data: null }));
+vi.mock("~/lib/hooks/use-settings-schema", () => ({
+  useSettingsSchema: () => mockUseSettingsSchema(),
 }));
 
 // Mock useSettingsTabs — returns null by default (no access)
 const mockUseSettingsTabs = vi.fn();
 vi.mock("~/components/settings/settings-page", () => ({
   useSettingsTabs: () => mockUseSettingsTabs(),
-}));
-
-vi.mock("~/components/shared/settings-layout", () => ({
-  SettingsLayout: ({ tabs }: { tabs: { id: string; label: string }[] }) => (
-    <div data-testid="settings-layout">
-      {tabs.map((t) => (
-        <span key={t.id}>{t.label}</span>
-      ))}
-    </div>
-  ),
 }));
 
 describe("SettingsPage", () => {
@@ -54,11 +51,10 @@ describe("SettingsPage", () => {
   it("should show loading when session is loading", () => {
     mockUseSession.mockReturnValue({ data: null, status: "loading" });
 
-    render(<SettingsPage />);
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).
+    const { container } = render(<SettingsPage />);
 
-    expect(
-      screen.getByLabelText("Einstellungen werden geladen…"),
-    ).toBeInTheDocument();
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 
   it("should redirect when unauthenticated", () => {
@@ -81,7 +77,7 @@ describe("SettingsPage", () => {
     });
   });
 
-  it("should render settings layout when tabs are available", async () => {
+  it("should render the settings tabs when they are available", async () => {
     mockUseSettingsTabs.mockReturnValue({
       tabs: [
         { id: "settings-operations", label: "Betrieb", icon: "settings" },
@@ -93,9 +89,11 @@ describe("SettingsPage", () => {
     render(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("settings-layout")).toBeInTheDocument();
-      expect(screen.getByText("Betrieb")).toBeInTheDocument();
-      expect(screen.getByText("Datenschutz")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Betrieb" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("tab", { name: "Datenschutz" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Tab content")).toBeInTheDocument();
     });
   });
 });

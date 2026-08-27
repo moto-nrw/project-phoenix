@@ -2,11 +2,9 @@
 
 import { use } from "react";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
-import { Skeleton } from "~/components/ui/skeleton";
-import { BackButton } from "~/components/ui/back-button";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface PageProps {
   readonly params: Promise<{ tenant: string; id: string }>;
@@ -19,25 +17,21 @@ interface PageProps {
 export default function RolloverReviewPage({ params }: PageProps) {
   const { id } = use(params);
   const { isReady } = useRequireAdmin();
+  const tenantPath = useTenantAwarePath();
 
-  return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/enrollment-phases" />
-      {/* Titel und Erklärtext trägt die Kopfkarte der Prüfliste (PageIntro). */}
-      {isReady ? (
-        <RolloverReviewQueue phaseID={id} />
-      ) : (
-        <>
-          <PageIntro
-            kicker="Anmeldungen"
-            title="Prüfliste"
-            description={<Skeleton className="h-4 w-44" />}
-          />
-          <SkeletonRegion label="Prüfliste wird geladen">
-            <ListSkeleton rows={5} avatar={false} />
-          </SkeletonRegion>
-        </>
-      )}
-    </div>
-  );
+  // Titel, Statuszeile und Zurück-Knopf trägt die Prüfliste selbst.
+  if (!isReady) {
+    return (
+      <TenantPage
+        title="Prüfliste"
+        back
+        backHref={tenantPath("/enrollment-phases")}
+        backLabel="Zurück zu den Anmeldephasen"
+        statsLoading
+        loading
+      />
+    );
+  }
+
+  return <RolloverReviewQueue phaseID={id} />;
 }

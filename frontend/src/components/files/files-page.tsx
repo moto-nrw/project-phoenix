@@ -24,14 +24,13 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
-import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
-import { formatDate, formatStatusDate } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
@@ -50,12 +49,12 @@ import { FolderModal } from "./folder-modal";
 
 const logger = createLogger({ component: "FilesPage" });
 
-/** Statuszeile unter dem Titel: gezählte Ordner und Dateien der Ablage. */
+/** Statuszeile unter dem Titel: gezählte Dateien und Ordner der Ablage. */
 function filesStatusLine(folders: readonly FileFolder[]): string {
   const fileCount = folders.reduce((sum, folder) => sum + folder.fileCount, 0);
-  return `${folders.length} Ordner · ${fileCount} ${
-    fileCount === 1 ? "Datei" : "Dateien"
-  }`;
+  return `${fileCount} ${fileCount === 1 ? "Datei" : "Dateien"} · ${
+    folders.length
+  } ${folders.length === 1 ? "Ordner" : "Ordner"}`;
 }
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
@@ -143,22 +142,6 @@ export function FilesPage() {
     }
   };
 
-  if (error) {
-    return (
-      <div className="w-full">
-        <PageIntro
-          title="Dateien"
-          description={formatStatusDate()}
-          className="mb-6"
-        />
-        <Alert
-          type="error"
-          message="Die Dateiablage konnte nicht geladen werden."
-        />
-      </div>
-    );
-  }
-
   const canManage = overview?.canManage ?? false;
   const canUpload = overview?.canUpload ?? false;
 
@@ -213,19 +196,24 @@ export function FilesPage() {
   );
 
   return (
-    <div className="w-full">
-      {/* Kopfkarte: Titel, Erklärtext und die Primäraktion in einer Zeile,
-          statt Seitenkopf plus frei stehendem Erklärabsatz darunter. */}
-      <PageIntro
+    <>
+      <TenantPage
         title="Dateien"
-        description={
-          isLoading ? (
-            <Skeleton className="h-4 w-40" />
-          ) : (
-            filesStatusLine(folders)
-          )
+        stats={filesStatusLine(folders)}
+        statsLoading={isLoading}
+        loading={isLoading}
+        error={error ? "Die Dateiablage konnte nicht geladen werden." : null}
+        empty={
+          !isLoading && !error && folders.length === 0
+            ? {
+                icon: <FolderOpen className="h-12 w-12" aria-hidden="true" />,
+                title: "Noch keine Ordner",
+                description: canManage
+                  ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
+                  : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier.",
+              }
+            : null
         }
-        className="mb-4"
         actions={
           canManage ? (
             <Button
@@ -238,30 +226,8 @@ export function FilesPage() {
             </Button>
           ) : undefined
         }
-      />
-
-      <div className="flex min-h-[28rem] flex-col gap-4">
-        {isLoading ? (
-          <div className="moto-content-surface flex-1 rounded-2xl border p-5 shadow-sm">
-            <div className="space-y-3">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-2/3" />
-            </div>
-          </div>
-        ) : folders.length === 0 ? (
-          <div className="moto-content-surface flex flex-1 items-center justify-center rounded-2xl border p-5 shadow-sm">
-            <EmptyState
-              icon={<FolderOpen className="h-12 w-12" aria-hidden="true" />}
-              title="Noch keine Ordner"
-              description={
-                canManage
-                  ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
-                  : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier."
-              }
-            />
-          </div>
-        ) : (
+      >
+        <div className="flex min-h-[28rem] flex-col gap-4">
           <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
             {/* Folder list: a panel on desktop, a select on small screens */}
             <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
@@ -326,8 +292,8 @@ export function FilesPage() {
               </section>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      </TenantPage>
 
       <FolderModal
         isOpen={folderModal.open}
@@ -355,7 +321,7 @@ export function FilesPage() {
         loading={deletingFolder}
         error={deleteFolderError}
       />
-    </div>
+    </>
   );
 }
 

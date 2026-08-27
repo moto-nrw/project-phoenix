@@ -19,8 +19,7 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
-import { PageIntro } from "~/components/ui/page-intro";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   Drawer,
   DrawerClose,
@@ -3842,33 +3841,28 @@ function TimeTrackingContent() {
     return <TimeTrackingPageSkeleton />;
   }
 
-  return (
-    <div className="w-full">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
-          Karte, auf allen Breakpoints. Die Seite hat weder Suche noch Filter,
-          deshalb entfällt die Suchkopfzeile ganz. */}
-      <PageIntro
-        title="Zeiterfassung"
-        description={
-          // Statuszeile aus denselben server-gerechneten Zahlen wie die
-          // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält ein
-          // Skeleton die Zeile.
-          ownMetrics.week === null ||
-          ownMetrics.accountBalanceMinutes === null ? (
-            <Skeleton className="h-4 w-56" />
-          ) : (
-            `Diese Woche ${formatDuration(ownMetrics.week.ist)} von ${formatDuration(
-              ownMetrics.week.soll,
-            )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes)}`
-          )
-        }
-        className="mb-6"
-      />
+  // Statuszeile aus denselben server-gerechneten Zahlen wie die
+  // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält das
+  // Gerüst ein Skelett an der Stelle.
+  const metricsPending =
+    ownMetrics.week === null || ownMetrics.accountBalanceMinutes === null;
 
+  return (
+    <TenantPage
+      title="Zeiterfassung"
+      statsLoading={metricsPending}
+      stats={
+        metricsPending
+          ? undefined
+          : `Diese Woche ${formatDuration(ownMetrics.week!.ist)} von ${formatDuration(
+              ownMetrics.week!.soll,
+            )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes!)}`
+      }
+    >
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
           50/50 nebeneinander. Drunter eine Placeholder-Section für den
           Urlaubs-Workflow (kommt in eigenem Chat). */}
-      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
         <ClockInCard
           currentSession={currentSession ?? null}
           breaks={currentBreaks}
@@ -3889,13 +3883,9 @@ function TimeTrackingContent() {
 
       {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
           #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
-      <div className="mb-6">
-        <BetreuungsplanHeuteCard />
-      </div>
+      <BetreuungsplanHeuteCard />
 
-      <div className="mb-6">
-        <LeaveRequestsCard />
-      </div>
+      <LeaveRequestsCard />
 
       {/* Zeiterfassung — gleiche Struktur wie auf /staff/[id], damit es
           zwischen Admin-Sicht und MA-Sicht keinen Drift gibt. Die externe
@@ -4051,7 +4041,7 @@ function TimeTrackingContent() {
           />
         </div>
       </Modal>
-    </div>
+    </TenantPage>
   );
 }
 
@@ -4059,28 +4049,22 @@ function TimeTrackingContent() {
 
 function TimeTrackingPageSkeleton() {
   return (
-    <div className="w-full">
-      {/* Kicker und Titel sind statisch, also rendert die echte Kopfkarte
-          sofort; nur die Datenbereiche skeletonisieren. */}
-      <PageIntro
-        title="Zeiterfassung"
-        description={<Skeleton className="h-4 w-56" />}
-        className="mb-6"
-      />
+    // Gerüst und Titel stehen sofort, nur die Datenbereiche skeletonisieren.
+    // Bewusst der seitenspezifische Aufbau statt der generischen Balken des
+    // Gerüsts: die Seite besteht aus vier verschieden hohen Blöcken.
+    <TenantPage title="Zeiterfassung" statsLoading>
       <SkeletonRegion label="Zeiterfassung wird geladen">
-        <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
-          <CardSkeleton rows={4} />
-          <CardSkeleton rows={4} />
-        </div>
-        <div className="mb-6">
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6">
+            <CardSkeleton rows={4} />
+            <CardSkeleton rows={4} />
+          </div>
           <CardSkeleton rows={2} />
-        </div>
-        <div className="mb-6">
           <CardSkeleton rows={2} />
+          <TableSkeleton rows={7} columns={5} />
         </div>
-        <TableSkeleton rows={7} columns={5} />
       </SkeletonRegion>
-    </div>
+    </TenantPage>
   );
 }
 

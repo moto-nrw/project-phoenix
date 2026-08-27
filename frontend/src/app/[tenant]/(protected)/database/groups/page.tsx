@@ -261,7 +261,6 @@ function GroupsPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Gruppen",
         description: loading ? <Skeleton className="h-4 w-40" /> : statusLine,
         actions: (
@@ -325,7 +324,6 @@ function GroupsPageContent() {
               icon={MOTO_CONCEPTS.groups.icon}
               tone={MOTO_CONCEPTS.groups.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

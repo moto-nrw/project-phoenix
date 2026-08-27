@@ -81,13 +81,11 @@ const DEFAULT_DESCRIPTION = <Skeleton className="h-4 w-56" />;
 export function StudentCardPageSkeleton({
   label,
   testId,
-  kicker,
   title,
   description = DEFAULT_DESCRIPTION,
 }: Readonly<{
   label: string;
   testId: string;
-  kicker?: string;
   title: string;
   /** Statuszeile unter dem Titel; ohne Angabe ein Skelett-Balken. */
   description?: ReactNode;
@@ -101,12 +99,7 @@ export function StudentCardPageSkeleton({
       className="w-full"
     >
       {/* Die Suchzeile steht IN der Kopfkarte, wie im geladenen Zustand. */}
-      <PageIntro
-        kicker={kicker}
-        title={title}
-        description={description}
-        className="mb-6"
-      >
+      <PageIntro title={title} description={description} className="mb-6">
         <PageHeaderSkeleton actions={1} />
       </PageIntro>
       <StudentCardGrid count={6} />

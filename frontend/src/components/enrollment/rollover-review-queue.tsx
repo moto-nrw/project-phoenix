@@ -7,13 +7,11 @@ import {
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { PageIntro } from "~/components/ui/page-intro";
-import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
-import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPage } from "~/components/ui/tenant-page";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
 
@@ -24,13 +22,13 @@ const REVIEW_REASON_LABELS: Record<string, string> = {
 
 interface Props {
   readonly phaseID: string;
-  readonly phaseName?: string;
 }
 
 const REVIEW_QUEUE_DESCRIPTION =
   "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
 
-export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
+export function RolloverReviewQueue({ phaseID }: Props) {
+  const tenantPath = useTenantAwarePath();
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,44 +97,46 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
   };
 
   if (loading) {
-    // Die Kopfkarte ist statisch und steht deshalb schon während des Ladens.
+    // Der Titel ist statisch und steht deshalb schon während des Ladens.
     return (
-      <div className="space-y-4">
-        <PageIntro
-          kicker={phaseName ?? "Anmeldungen"}
-          title="Prüfliste"
-          description={<Skeleton className="h-4 w-44" />}
-        />
-        <SkeletonRegion label="Prüfliste wird geladen">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      </div>
+      <TenantPage
+        title="Prüfliste"
+        back
+        backHref={tenantPath("/enrollment-phases")}
+        backLabel="Zurück zu den Anmeldephasen"
+        statsLoading
+        loading
+      />
     );
   }
 
   return (
-    <div className="space-y-4">
-      {/* Kopfkarte der Seite: der Erklärtext steht nicht mehr frei unter dem
-          Seitentitel, sondern trägt ihn selbst. */}
-      <PageIntro
-        kicker={phaseName ?? "Anmeldungen"}
-        title="Prüfliste"
-        description={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
-      >
-        <p className="text-sm text-gray-600">{REVIEW_QUEUE_DESCRIPTION}</p>
-      </PageIntro>
+    <TenantPage
+      title="Prüfliste"
+      back
+      backHref={tenantPath("/enrollment-phases")}
+      backLabel="Zurück zu den Anmeldephasen"
+      stats={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
+      empty={
+        // Die Fehlermeldung einer Entscheidung bleibt sichtbar; ist die Liste
+        // ohne Fehler leer, ersetzt der Leerzustand den Inhalt.
+        items.length === 0 && error === null
+          ? {
+              title: "Keine offenen Einträge",
+              description:
+                "Alle Anmeldungen wurden entweder übernommen oder bereits entschieden.",
+            }
+          : null
+      }
+    >
+      <p className="text-sm leading-6 text-gray-600">
+        {REVIEW_QUEUE_DESCRIPTION}
+      </p>
 
       {error ? <Alert type="error" message={error} /> : null}
       {info ? <Alert type="success" message={info} /> : null}
 
-      {items.length === 0 ? (
-        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-          <EmptyState
-            title="Keine offenen Einträge"
-            description="Alle Anmeldungen wurden entweder übernommen oder bereits entschieden."
-          />
-        </div>
-      ) : (
+      {items.length === 0 ? null : (
         <ul className="space-y-3">
           {items.map((item) => {
             const reasonLabel =
@@ -239,6 +239,6 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
           })}
         </ul>
       )}
-    </div>
+    </TenantPage>
   );
 }

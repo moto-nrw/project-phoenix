@@ -356,7 +356,6 @@ function RoomsPageContent() {
       sessionLoading={status === "loading"}
       className="flex w-full flex-col"
       intro={{
-        kicker: "Datenverwaltung",
         title: "Räume",
         description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
@@ -429,7 +428,6 @@ function RoomsPageContent() {
               icon={MOTO_CONCEPTS.rooms.icon}
               tone={MOTO_CONCEPTS.rooms.tone}
               size={48}
-              className="mx-auto"
             />
           }
           title={

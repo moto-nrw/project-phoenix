@@ -5,10 +5,7 @@ import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
-import {
-  SCHOOL_PRIMARY_NAV,
-  SCHOOL_SECONDARY_NAV,
-} from "./school-nav-items";
+import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
 
 const ITEM =
   "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full px-4 py-2.5 transition-colors duration-200";

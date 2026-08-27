@@ -21,16 +21,16 @@ import {
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
-import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Textarea } from "~/components/ui/textarea";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { changedEnrollmentChangeRequestLabels } from "~/lib/enrollment-change-request-diff";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -123,17 +123,25 @@ export function AdminEnrollmentChangeRequestDetail({
 
   if (loading) {
     return (
-      <SkeletonRegion label="Änderungsanfrage wird geladen">
-        <DetailSkeleton sections={2} fieldsPerSection={4} />
-      </SkeletonRegion>
+      <TenantPage
+        title="Änderungsanfrage"
+        back
+        backHref={tenantPath("/admin/enrollments")}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        statsLoading
+        loading
+      />
     );
   }
 
   if (!data) {
     return (
-      <Alert
-        type="error"
-        message={error ?? "Änderungsanfrage nicht gefunden."}
+      <TenantPage
+        title="Änderungsanfrage"
+        back
+        backHref={tenantPath("/admin/enrollments")}
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        error={error ?? "Änderungsanfrage nicht gefunden."}
       />
     );
   }
@@ -144,32 +152,51 @@ export function AdminEnrollmentChangeRequestDetail({
     ? tenantPath(`/admin/enrollments/${encodeURIComponent(request.id)}`)
     : tenantPath("/admin/enrollments");
 
+  // Statuszeile des Seitenkopfs: die Zahlen der geladenen Anfrage.
+  const changeCount = changedEnrollmentChangeRequestLabels({
+    baseSnapshot: data.base_snapshot,
+    proposedSnapshot: data.proposed_snapshot,
+    diff: data.diff,
+  }).length;
+  const statusLine = [
+    request
+      ? `${request.guardian_first_name} ${request.guardian_last_name}`
+      : null,
+    request
+      ? `${request.children.length} ${request.children.length === 1 ? "Kind" : "Kinder"}`
+      : null,
+    `${changeCount} ${changeCount === 1 ? "Änderung" : "Änderungen"}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
-    <div className="space-y-5">
-      {/* Entitätskopf der Seite: eine Kopfkarte, kein zweiter Kopf im Inhalt. */}
-      <PageIntro
-        kicker="Anmeldungen"
-        title={
-          data.origin === "admin" ? "OGS-Korrektur" : "Änderungsanfrage prüfen"
-        }
-        description={
-          data.origin === "admin"
-            ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
-            : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."
-        }
-        leading={<ConceptIconTile concept="enrollments" variant="page" />}
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <ChangeRequestStatusBadge status={data.status} />
-            <span className="text-xs text-gray-500">
-              {formatChatDateTime(data.created_at)}
-            </span>
-          </div>
-        }
-      />
+    <TenantPage
+      title={
+        data.origin === "admin" ? "OGS-Korrektur" : "Änderungsanfrage prüfen"
+      }
+      back
+      backHref={tenantPath("/admin/enrollments")}
+      backLabel="Zurück zur Anmeldungs-Übersicht"
+      stats={statusLine}
+      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <ChangeRequestStatusBadge status={data.status} />
+          <span className="text-xs text-gray-500">
+            {formatChatDateTime(data.created_at)}
+          </span>
+        </div>
+      }
+    >
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-5 p-5 sm:p-6">
+            <p className="text-sm leading-6 text-gray-600">
+              {data.origin === "admin"
+                ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
+                : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
+            </p>
             {error ? <Alert type="error" message={error} /> : null}
             {info ? <Alert type="success" message={info} /> : null}
 
@@ -302,7 +329,7 @@ export function AdminEnrollmentChangeRequestDetail({
           </aside>
         </div>
       </section>
-    </div>
+    </TenantPage>
   );
 }
 

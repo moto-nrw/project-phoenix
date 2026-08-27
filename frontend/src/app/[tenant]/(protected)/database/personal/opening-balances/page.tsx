@@ -12,7 +12,7 @@ import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
 import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
+
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -24,7 +24,7 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
-import { PageIntro } from "~/components/ui/page-intro";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
@@ -482,21 +482,12 @@ export default function OpeningBalanceImportPage() {
 
   if (status === "loading") {
     return (
-      <div className="w-full space-y-6">
-        <BackButton referrer="/database/personal" />
-
-        {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
-        <PageIntro
-          kicker="Datenverwaltung"
-          title="Eröffnungssalden"
-          description={statusLine}
-        />
-
+      <TenantPage title="Eröffnungssalden" stats={statusLine} back>
         <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
           <FormSkeleton fields={4} />
           <TableSkeleton rows={5} columns={4} />
         </SkeletonRegion>
-      </div>
+      </TenantPage>
     );
   }
 
@@ -516,17 +507,8 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <div className="w-full space-y-6">
-      <BackButton referrer="/database/personal" />
-
-      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
-      <PageIntro
-        kicker="Datenverwaltung"
-        title="Eröffnungssalden"
-        description={statusLine}
-      >
-        <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
-      </PageIntro>
+    <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+      <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
 
       {error && (
         <div className="relative">
@@ -546,7 +528,6 @@ export default function OpeningBalanceImportPage() {
 
       {/* Schritt 1: Vorlage */}
       <SectionCard
-        kicker="Schritt 1"
         title="Vorlage herunterladen"
         description="Spalten: Personalnummer (optional), Vorname, Nachname, Stundensaldo, Jahresanspruch, Vorjahresübertrag, Resturlaub. Eine leere Zelle lässt die jeweilige Seite unangetastet."
         icon={Download}
@@ -584,7 +565,6 @@ export default function OpeningBalanceImportPage() {
 
       {/* Schritt 2: Stichtag und Begründung */}
       <SectionCard
-        kicker="Schritt 2"
         title="Stichtag und Begründung"
         description="Beides gilt für die ganze Datei und wird an jeder Buchung protokolliert."
         icon={CalendarDays}
@@ -661,11 +641,7 @@ export default function OpeningBalanceImportPage() {
 
       {/* Schritt 4: Vorschau */}
       {showPreview && previewResult && (
-        <SectionCard
-          kicker="Schritt 4"
-          title="Vorschau prüfen"
-          icon={ListChecks}
-        >
+        <SectionCard title="Vorschau prüfen" icon={ListChecks}>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={previewResult.TotalRows} />
             <StatTile label="Übernehmbar" value={importable} />
@@ -753,6 +729,6 @@ export default function OpeningBalanceImportPage() {
           </Button>
         </div>
       )}
-    </div>
+    </TenantPage>
   );
 }

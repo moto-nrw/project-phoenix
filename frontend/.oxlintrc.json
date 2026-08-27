@@ -1,12 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": [
-    "react",
-    "nextjs",
-    "jsx-a11y",
-    "import",
-    "promise"
-  ],
+  "plugins": ["react", "nextjs", "jsx-a11y", "import", "promise"],
   "jsPlugins": [
     "./scripts/oxlint-plugin-date-safety.mjs",
     "./scripts/oxlint-plugin-logging-safety.mjs",
@@ -23,6 +17,7 @@
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",
     "ui-kit/no-rounded-3xl": "error",
+    "ui-kit/no-tenant-kicker": "error",
     "react/react-in-jsx-scope": "off",
     "no-unsafe-type-assertion": "off",
     "import/no-unassigned-import": "off",
@@ -40,10 +35,5 @@
     "jsx-a11y/no-redundant-roles": "off",
     "no-underscore-dangle": "off"
   },
-  "ignorePatterns": [
-    "node_modules",
-    ".next",
-    "out",
-    "storybook-static"
-  ]
+  "ignorePatterns": ["node_modules", ".next", "out", "storybook-static"]
 }
