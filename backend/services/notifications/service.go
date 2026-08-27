@@ -267,6 +267,11 @@ func validate(event Event) error {
 		strings.Contains(event.DeepLink, `\`)) {
 		return errors.New("deep link must be an app-relative path")
 	}
+	if event.SchoolDeepLink != "" && (!strings.HasPrefix(event.SchoolDeepLink, "/") ||
+		strings.HasPrefix(event.SchoolDeepLink, "//") ||
+		strings.Contains(event.SchoolDeepLink, `\`)) {
+		return errors.New("school deep link must be an app-relative path")
+	}
 	switch event.Priority {
 	case "", PriorityLow, PriorityNormal, PriorityHigh:
 	default:

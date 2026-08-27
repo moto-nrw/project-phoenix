@@ -139,6 +139,24 @@ func TestStaffMessageAlsoRoutesToSchoolPortal(t *testing.T) {
 	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
 }
 
+func TestTestNotificationAlsoRoutesToSchoolPortal(t *testing.T) {
+	t.Parallel()
+
+	bc := testpkg.NewRecordingBroadcaster()
+	svc := notifications.NewService(settingsWithWindow("00:00", "00:00"), nil,
+		notifications.NewSSEChannel(bc))
+	event := staffEvent(testTenantID, 11)
+	event.Type = notifications.TypeTest
+
+	require.NoError(t, dispatch(t, func(ctx context.Context) error {
+		return svc.Notify(ctx, event)
+	}))
+
+	calls := bc.CallsByMethod("school")
+	require.Len(t, calls, 1)
+	assert.Equal(t, []int64{11}, calls[0].AccountIDs)
+}
+
 // TestStaffAccountIDsAreSnapshotted pins that the recipient list survives the
 // after-commit boundary unchanged. Delivery runs after Notify returns, so a
 // caller reusing its slice would otherwise redirect a notification.

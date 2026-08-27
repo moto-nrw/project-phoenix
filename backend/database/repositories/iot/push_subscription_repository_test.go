@@ -375,6 +375,20 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		assert.True(t, hasSubscriptionEndpoint(subs, staffEndpoint))
 	})
 
+	t.Run("same endpoint can be registered in both staff portals", func(t *testing.T) {
+		sharedEndpoint := endpoint + "/shared-portals"
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, sharedEndpoint)))
+		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalSchool, sharedEndpoint)))
+
+		staffSubs, err := repo.FindForStaffAccounts(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(staffSubs, sharedEndpoint))
+
+		schoolSubs, err := repo.FindForSchoolAccounts(ctx, []int64{account.ID})
+		require.NoError(t, err)
+		assert.True(t, hasSubscriptionEndpoint(schoolSubs, sharedEndpoint))
+	})
+
 	t.Run("expired cleanup preserves a refreshed subscription", func(t *testing.T) {
 		raceEndpoint := endpoint + "/refresh-race"
 		require.NoError(t, repo.Upsert(ctx, newSubscription(t, account.ID, iotModels.PushPortalStaff, raceEndpoint)))

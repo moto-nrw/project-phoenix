@@ -141,6 +141,27 @@ func TestPostMessageAndReadBack(t *testing.T) {
 	assert.Equal(t, "Anna Mustermann", detail.Messages[0].SenderName)
 }
 
+func TestPostMessageRefreshesSchoolPortalWithoutNotificationConsent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc.Broadcaster = broadcaster
+	anna, ben := twoColleagues(t, db)
+
+	thread, err := svc.OpenThread(asAccount(t, anna), ben)
+	require.NoError(t, err)
+	_, err = svc.PostMessage(asAccount(t, anna), thread.ThreadID, "Neue Nachricht")
+	require.NoError(t, err)
+
+	staffCalls := broadcaster.CallsByMethod("staff")
+	schoolCalls := broadcaster.CallsByMethod("school")
+	require.Len(t, staffCalls, 1)
+	require.Len(t, schoolCalls, 1)
+	assert.ElementsMatch(t, []int64{anna, ben}, schoolCalls[0].AccountIDs)
+	assert.Equal(t, staffCalls[0].Event, schoolCalls[0].Event)
+}
+
 func TestUnreadCountLifecycle(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

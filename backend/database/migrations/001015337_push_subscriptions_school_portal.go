@@ -42,7 +42,10 @@ func pushSubscriptionsSchoolPortalUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE iot.push_subscriptions
 			DROP CONSTRAINT IF EXISTS chk_push_subscriptions_portal,
 			ADD CONSTRAINT chk_push_subscriptions_portal
-				CHECK (portal IN ('staff', 'parent', 'school'))
+				CHECK (portal IN ('staff', 'parent', 'school')),
+			DROP CONSTRAINT IF EXISTS uq_push_subscriptions_tenant_endpoint,
+			ADD CONSTRAINT uq_push_subscriptions_tenant_portal_endpoint
+				UNIQUE (tenant_id, portal, endpoint)
 	`)
 	if err != nil {
 		return fmt.Errorf("widening push subscription portal check: %w", err)
@@ -58,7 +61,10 @@ func pushSubscriptionsSchoolPortalDown(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE iot.push_subscriptions
 			DROP CONSTRAINT IF EXISTS chk_push_subscriptions_portal,
 			ADD CONSTRAINT chk_push_subscriptions_portal
-				CHECK (portal IN ('staff', 'parent'))
+				CHECK (portal IN ('staff', 'parent')),
+			DROP CONSTRAINT IF EXISTS uq_push_subscriptions_tenant_portal_endpoint,
+			ADD CONSTRAINT uq_push_subscriptions_tenant_endpoint
+				UNIQUE (tenant_id, endpoint)
 	`)
 	if err != nil {
 		return fmt.Errorf("restoring push subscription portal check: %w", err)

@@ -66,7 +66,9 @@ func NewPushSubscriptionRepository(db *bun.DB) iot.PushSubscriptionRepository {
 	return &PushSubscriptionRepository{Repository: repo}
 }
 
-// Upsert inserts or refreshes a subscription keyed by (tenant_id, endpoint).
+// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
+// endpoint), so a browser can be registered independently in both staff
+// portals.
 // A re-subscribe from the same browser rotates keys and may switch accounts
 // (different user logs in on the same device) — both are overwritten.
 func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSubscription) error {
@@ -74,9 +76,8 @@ func (r *PushSubscriptionRepository) Upsert(ctx context.Context, sub *iot.PushSu
 	_, err := base.GetDB(ctx, r.DB).NewInsert().
 		Model(sub).
 		ModelTableExpr(tablePushSubscriptions).
-		On("CONFLICT (tenant_id, endpoint) DO UPDATE").
+		On("CONFLICT (tenant_id, portal, endpoint) DO UPDATE").
 		Set("account_id = EXCLUDED.account_id").
-		Set("portal = EXCLUDED.portal").
 		Set("p256dh = EXCLUDED.p256dh").
 		Set("auth = EXCLUDED.auth").
 		Set("user_agent = EXCLUDED.user_agent").

@@ -221,7 +221,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 		}
 		staffSubs = resolved
 		for _, event := range staffEvents {
-			if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+			if isSchoolPortalEvent(event.Type) {
 				resolved, err := c.repo.FindForSchoolAccounts(txCtx, recipients)
 				if err != nil {
 					return err
@@ -250,7 +250,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 		targets := make([]*iot.PushSubscription, 0, len(event.Audience.StaffAccountIDs))
 		for _, accountID := range event.Audience.StaffAccountIDs {
 			targets = append(targets, staffByAccount[accountID]...)
-			if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+			if isSchoolPortalEvent(event.Type) {
 				targets = append(targets, schoolByAccount[accountID]...)
 			}
 		}
@@ -355,8 +355,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		if err != nil {
 			return nil, err
 		}
-		def, ok := GetType(event.Type)
-		if !ok || !OfferedInPortal(def, PortalSchool) {
+		if !isSchoolPortalEvent(event.Type) {
 			return staffSubs, nil
 		}
 		schoolSubs, err := c.repo.FindForSchoolAccounts(ctx, staffAccountIDs(audience))
@@ -373,6 +372,17 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 	default:
 		return nil, fmt.Errorf("unknown audience scope %q", audience.Scope)
 	}
+}
+
+// isSchoolPortalEvent keeps the school transport aligned with the catalogue.
+// TypeTest is deliberately included: the settings page uses it to verify that
+// the currently signed-in school portal can receive both SSE and Web Push.
+func isSchoolPortalEvent(eventType string) bool {
+	if eventType == TypeTest {
+		return true
+	}
+	def, ok := GetType(eventType)
+	return ok && OfferedInPortal(def, PortalSchool)
 }
 
 // sendAll pushes the payload to every subscription. Per-subscription errors

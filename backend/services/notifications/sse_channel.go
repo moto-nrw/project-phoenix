@@ -105,7 +105,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		if err := c.broadcaster.BroadcastToStaffAccounts(event.Audience.TenantID, accountIDs, sseEvent); err != nil {
 			return err
 		}
-		if def, ok := GetType(event.Type); ok && OfferedInPortal(def, PortalSchool) {
+		if isSchoolPortalEvent(event.Type) {
 			return c.broadcaster.BroadcastToSchoolAccounts(event.Audience.TenantID, accountIDs, sseEvent)
 		}
 		return nil
