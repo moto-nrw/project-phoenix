@@ -57,7 +57,7 @@ export function createChromeIntentUrl(url: URL): string {
     url.host,
     url.pathname,
     url.search,
-    encodeURIComponent(url.hash),
+    url.hash,
     "#Intent;scheme=",
     scheme,
     ";package=com.android.chrome;S.browser_fallback_url=",
