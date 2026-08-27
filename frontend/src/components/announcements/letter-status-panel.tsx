@@ -242,9 +242,13 @@ export function LetterStatusPanel({
               aria-hidden
             />
             <span>
-              Hier fehlt keine E-Mail, hier fehlen Daten. Tragen Sie die
-              E-Mail-Adresse oder den Portal-Zugang bei der Bezugsperson ein.
-              Senden Sie den Brief danach noch einmal.
+              {s.without_email > 0 && s.without_portal > 0
+                ? "Bei manchen Bezugspersonen fehlen E-Mail-Adresse oder Portalzugang."
+                : s.without_email > 0
+                  ? "Bei manchen Bezugspersonen fehlt die E-Mail-Adresse."
+                  : "Bei manchen Bezugspersonen fehlt der Portalzugang."}{" "}
+              Tragen Sie die fehlenden Daten bei der Bezugsperson ein. Senden
+              Sie den Brief danach noch einmal.
             </span>
           </p>
         )}
