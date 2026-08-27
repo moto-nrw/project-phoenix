@@ -62,6 +62,32 @@ func paymentBody(t *testing.T, ctx *testContext, method, path string, body any, 
 	return rr.Code, rr.Body.String()
 }
 
+// setPayer assigns (or clears) a child's payer as a verified staff member
+// holding guardians:financial. The payer route runs the same active-student
+// and staff check as every relationship write, so the bare permission on an
+// account without a staff record is not enough (review round 10).
+func setPayer(t *testing.T, ctx *testContext, studentID int64, guardianID *int64) (int, string) {
+	t.Helper()
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Payer", "Setter")
+	claims := guardianStaffClaims(account.ID, permissions.UsersRead, permissions.GuardiansFinancial)
+	var body map[string]any
+	if guardianID == nil {
+		body = map[string]any{"guardian_id": nil}
+	} else {
+		body = map[string]any{"guardian_id": fmt.Sprintf("%d", *guardianID)}
+	}
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut,
+		fmt.Sprintf("/students/%d/payer", studentID), body, bearer(t, claims))
+	rr := testutil.ExecuteRequest(ctx.resource.Router(), req)
+	return rr.Code, rr.Body.String()
+}
+
+func requirePayerSet(t *testing.T, ctx *testContext, studentID int64, guardianID *int64) {
+	t.Helper()
+	code, body := setPayer(t, ctx, studentID, guardianID)
+	require.Equal(t, http.StatusOK, code, body)
+}
+
 // countAccessLogs counts data-access rows of one resource type in this test's
 // tenant. Every payment read must produce exactly one.
 func countAccessLogs(t *testing.T, ctx *testContext, resourceType string) int {
@@ -122,9 +148,7 @@ func TestRemoveGuardian_PayerNeedsFinancialPermission(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Payer", "Unlink", "1a")
 	payer := linkGuardian(t, ctx, student.ID, "payer-unlink")
 	other := linkGuardian(t, ctx, student.ID, "payer-unlink-other")
-	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
-		fmt.Sprintf("/students/%d/payer", student.ID),
-		map[string]any{"guardian_id": fmt.Sprintf("%d", payer.ID)}, financialPerm))
+	requirePayerSet(t, ctx, student.ID, &payer.ID)
 
 	unlink := func(claims jwt.AppClaims, guardianID int64) (int, string) {
 		req := testutil.NewAuthenticatedRequest(t, http.MethodDelete,
@@ -231,18 +255,13 @@ func TestStudentPayer_OnlyOnePerChild(t *testing.T) {
 	mother := linkGuardian(t, ctx, student.ID, "payer-mother")
 	father := linkGuardian(t, ctx, student.ID, "payer-father")
 
-	payerPath := fmt.Sprintf("/students/%d/payer", student.ID)
-
-	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut, payerPath,
-		map[string]any{"guardian_id": fmt.Sprintf("%d", mother.ID)}, financialPerm))
+	requirePayerSet(t, ctx, student.ID, &mother.ID)
 	assertPayer(t, ctx, student.ID, &mother.ID)
 
-	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut, payerPath,
-		map[string]any{"guardian_id": fmt.Sprintf("%d", father.ID)}, financialPerm))
+	requirePayerSet(t, ctx, student.ID, &father.ID)
 	assertPayer(t, ctx, student.ID, &father.ID)
 
-	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut, payerPath,
-		map[string]any{"guardian_id": nil}, financialPerm))
+	requirePayerSet(t, ctx, student.ID, nil)
 	assertPayer(t, ctx, student.ID, nil)
 }
 
@@ -276,10 +295,44 @@ func TestStudentPayer_RejectsGuardianOfAnotherChild(t *testing.T) {
 	other := testpkg.CreateTestStudent(t, ctx.db, "Payer", "Other", "1b")
 	stranger := linkGuardian(t, ctx, other.ID, "payer-stranger")
 
-	code, body := paymentBody(t, ctx, http.MethodPut, fmt.Sprintf("/students/%d/payer", student.ID),
-		map[string]any{"guardian_id": fmt.Sprintf("%d", stranger.ID)}, financialPerm)
+	code, body := setPayer(t, ctx, student.ID, &stranger.ID)
 	assert.Equal(t, http.StatusBadRequest, code)
 	assert.Contains(t, body, "nicht als erziehungsberechtigt eingetragen")
+}
+
+// TestStudentPayer_RequiresStudentWriteAccess pins that guardians:financial
+// alone does not unlock payer changes: the caller must also pass the
+// active-student and verified-staff check every relationship write runs, so
+// a financial permission on an account without a staff record, or a
+// graduated child, both stay untouchable.
+func TestStudentPayer_RequiresStudentWriteAccess(t *testing.T) {
+	t.Parallel()
+
+	ctx := paymentContext(t)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Payer", "Guarded", "1a")
+	guardian := linkGuardian(t, ctx, student.ID, "payer-guarded")
+	payerPath := fmt.Sprintf("/students/%d/payer", student.ID)
+	body := map[string]any{"guardian_id": fmt.Sprintf("%d", guardian.ID)}
+
+	// An account with the permission but no staff record is not verified staff.
+	noStaff := testpkg.CreateTestAccount(t, ctx.db, "payer-no-staff")
+	req := testutil.NewAuthenticatedRequest(t, http.MethodPut, payerPath, body,
+		bearer(t, guardianStaffClaims(noStaff.ID, permissions.UsersRead, permissions.GuardiansFinancial)))
+	rr := testutil.ExecuteRequest(ctx.resource.Router(), req)
+	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	assertPayer(t, ctx, student.ID, nil)
+
+	// Verified staff with the permission may assign the payer.
+	requirePayerSet(t, ctx, student.ID, &guardian.ID)
+	assertPayer(t, ctx, student.ID, &guardian.ID)
+
+	// A graduated child is immutable, even for an admin holding everything.
+	_, err := ctx.db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", users.StudentStatusAlumnus).Where("id = ?", student.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	code := paymentRequest(t, ctx, http.MethodPut, payerPath, map[string]any{"guardian_id": nil}, "admin:*")
+	require.Equal(t, http.StatusForbidden, code)
+	assertPayer(t, ctx, student.ID, &guardian.ID)
 }
 
 // TestStudentPayer_SiblingsShareOneMaintainedIBAN is the sibling requirement
@@ -303,9 +356,7 @@ func TestStudentPayer_SiblingsShareOneMaintainedIBAN(t *testing.T) {
 	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
 		fmt.Sprintf("/%d/payment", parent.ID), map[string]any{"iban": testIBAN}, financialPerm))
 	for _, studentID := range []int64{older.ID, younger.ID} {
-		require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
-			fmt.Sprintf("/students/%d/payer", studentID),
-			map[string]any{"guardian_id": fmt.Sprintf("%d", parent.ID)}, financialPerm))
+		requirePayerSet(t, ctx, studentID, &parent.ID)
 	}
 
 	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-siblings")
@@ -381,9 +432,7 @@ func TestPaymentExport_RendersFileAndIsAuditedSeparately(t *testing.T) {
 	guardian := linkGuardian(t, ctx, student.ID, "export-child")
 	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
 		fmt.Sprintf("/%d/payment", guardian.ID), map[string]any{"iban": testIBAN}, financialPerm))
-	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
-		fmt.Sprintf("/students/%d/payer", student.ID),
-		map[string]any{"guardian_id": fmt.Sprintf("%d", guardian.ID)}, financialPerm))
+	requirePayerSet(t, ctx, student.ID, &guardian.ID)
 
 	claims := withPerms(testutil.DefaultTestClaims(), financialPerm)
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/payment-overview/export",

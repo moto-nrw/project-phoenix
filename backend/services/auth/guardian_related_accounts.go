@@ -104,6 +104,11 @@ type RevokeAccessRequest struct {
 	// ByParent is true for parents-portal removals. Parents may not remove the
 	// primary guardian; staff may remove anyone.
 	ByParent bool
+	// MayClearPayer says whether the actor holds guardians:financial. Unlinking
+	// the child's payer clears the payer mark (#2608); without the permission
+	// the removal is refused with ErrCannotRemovePayerGuardian and the link
+	// stays. The parents portal never sets this.
+	MayClearPayer bool
 }
 
 // InviteToStudent resolves an email against existing data and either links an
@@ -858,6 +863,11 @@ func (s *guardianInvitationService) revokeAccess(ctx context.Context, req Revoke
 	}
 	if req.ByParent && link.IsPrimary {
 		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePrimaryGuardian}
+	}
+	// Checked under the student lock taken by RevokeAccess, so a payer
+	// assigned concurrently cannot slip past.
+	if link.IsPayer && !req.MayClearPayer {
+		return &AuthError{Op: opGuardianRevokeAccess, Err: ErrCannotRemovePayerGuardian}
 	}
 	deleteLink := true
 	if req.ByParent {

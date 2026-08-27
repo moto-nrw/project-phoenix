@@ -238,6 +238,29 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
 }
 
+// TestDeleteGuardian_WithoutFinancialRepoRefuses pins that a service wired
+// without the financial-data repository fails the delete with a clear error
+// instead of dereferencing nil (review round 10).
+func TestDeleteGuardian_WithoutFinancialRepoRefuses(t *testing.T) {
+	t.Parallel()
+
+	svc := &GuardianService{GuardianServiceDependencies: GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
+		lockFn: func(_ context.Context, _ int64) error { return nil },
+	}}}
+	for name, run := range map[string]func() error{
+		"DeleteGuardian":          func() error { return svc.DeleteGuardian(context.Background(), 1, 1) },
+		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(context.Background(), 1, []int64{1}, 1) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.NotPanics(t, func() {
+				err := run()
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "guardian financial repository is not wired")
+			})
+		})
+	}
+}
+
 func TestDeleteGuardianWithLinks_LoadLinksError(t *testing.T) {
 	t.Parallel()
 

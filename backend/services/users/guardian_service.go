@@ -327,6 +327,9 @@ func (s *GuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64,
 // the guardian delete cascades to its financial-data row. The caller holds the
 // guardian profile lock and runs in the surrounding tenant transaction.
 func (s *GuardianService) auditGuardianFinancialDataDeletion(ctx context.Context, guardianProfileID, changedByAccountID int64) error {
+	if s.GuardianFinancialRepo == nil {
+		return fmt.Errorf("guardian financial repository is not wired; refusing unaudited deletion")
+	}
 	data, err := s.GuardianFinancialRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return err

@@ -245,6 +245,13 @@ func (rs *Resource) setStudentPayer(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
+	// guardians:financial says the caller may see bank data; whether they may
+	// change this child's guardians is the same active-student and verified
+	// staff check every relationship write runs.
+	if canModify, err := rs.canModifyStudent(r.Context(), studentID); !canModify {
+		common.RenderError(w, r, common.ErrorForbidden(err))
+		return
+	}
 
 	var guardianID *int64
 	if req.GuardianID != nil && strings.TrimSpace(*req.GuardianID) != "" {
