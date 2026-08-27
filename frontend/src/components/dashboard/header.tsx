@@ -300,7 +300,9 @@ export function Header() {
                     ? "Profileinstellungen"
                     : mode === "parent"
                       ? tParentNav("settings")
-                      : undefined
+                      : mode === "school"
+                        ? "Einstellungen"
+                        : undefined
                 }
                 onClose={() => setIsProfileMenuOpen(false)}
                 onLogout={() => setIsLogoutModalOpen(true)}

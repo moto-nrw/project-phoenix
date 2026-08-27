@@ -249,15 +249,18 @@ export function SchoolShellProvider({
             error: err instanceof Error ? err.message : String(err),
           });
         }
+        // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
+        // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
+        // Gerät fände ein Abo ohne Zuordnung vor.
+        await unsubscribePushSilently("school");
         clearSessionCache();
         await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
       },
       mode: "school" as const,
       homeUrl: schoolPath("/school"),
-      // Kein eigener Profil-/Einstellungsbereich im Schul-Portal (v1) —
-      // das Avatar-Menü bietet nur "Abmelden" (wie das Elternportal vor
-      // #1671).
-      profileUrl: null,
+      // Einstellungen (#2208): Benachrichtigungen und Geräte, wie im
+      // Elternportal seit #1671.
+      profileUrl: schoolPath("/school/einstellungen"),
     };
   }, [session, sessionStatus]);
 

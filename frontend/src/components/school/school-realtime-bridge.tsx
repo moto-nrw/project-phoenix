@@ -27,15 +27,18 @@ export function SchoolRealtimeBridge() {
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
     if (event.type === "notification") {
-      const deepLink = event.data?.deep_link;
+      // The backend names the school destination itself (school_deep_link);
+      // the mapper only covers producers that do not yet.
+      const schoolLink =
+        event.data?.school_deep_link ??
+        (typeof event.data?.deep_link === "string"
+          ? schoolTeamChatDeepLink(event.data.deep_link)
+          : undefined);
       dispatchPhoenixNotification(
-        typeof deepLink === "string"
+        typeof schoolLink === "string"
           ? {
               ...event,
-              data: {
-                ...event.data,
-                deep_link: schoolPath(schoolTeamChatDeepLink(deepLink)),
-              },
+              data: { ...event.data, deep_link: schoolPath(schoolLink) },
             }
           : event,
       );
