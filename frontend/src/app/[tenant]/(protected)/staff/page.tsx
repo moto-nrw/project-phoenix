@@ -608,7 +608,37 @@ function StaffPageContent() {
     <div className="w-full">
       {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel und Erklärtext in
           einer Karte, auf allen Breakpoints sichtbar. */}
-      <PageIntro title="Mitarbeiter" className="mb-6" />
+      {/* Der Verweis auf die Anfragen (#2433) steht in der Kopfkarte, nicht als
+          eigene Zeile zwischen Suchzeile und Einrichtungs-Übersicht. */}
+      <PageIntro title="Mitarbeiter" className="mb-6">
+        {!showSkeleton && canReviewAbsences ? (
+          <Link
+            href={tenantPath("/anfragen")}
+            className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-3 transition-colors hover:bg-gray-50"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-900">
+                Anträge von Mitarbeitenden
+              </p>
+              <p className="text-sm text-gray-600">
+                Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <NotificationBadge
+                count={pendingAbsences.length}
+                tone="staff"
+                ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
+              />
+              <CaretRightIcon
+                size={18}
+                className="text-gray-400"
+                aria-hidden="true"
+              />
+            </div>
+          </Link>
+        ) : undefined}
+      </PageIntro>
       {/* title="" versteckt die frühere Titelzeile; die Karte oben trägt den
           Titel jetzt auf allen Breakpoints. */}
       <PageHeaderWithSearch
@@ -653,37 +683,6 @@ function StaffPageContent() {
         <StaffCardsSkeleton />
       ) : (
         <>
-          {/* Sektion 1: Verweis auf das Anfragen-Modul (#2433). Die frühere
-              Inbox stand hier; entschieden wird jetzt zentral unter Anfragen,
-              der Zähler zeigt weiter, ob Arbeit wartet. */}
-          {canReviewAbsences && (
-            <Link
-              href={tenantPath("/anfragen")}
-              className="moto-content-surface mb-6 flex items-center justify-between gap-3 rounded-2xl border p-4 shadow-sm transition-colors hover:bg-gray-50/60 sm:p-5"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gray-900">
-                  Anträge von Mitarbeitenden
-                </p>
-                <p className="text-sm text-gray-600">
-                  Urlaub, Krank und Fortbildung entscheiden Sie unter Anfragen.
-                </p>
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <NotificationBadge
-                  count={pendingAbsences.length}
-                  tone="staff"
-                  ariaLabel={`${pendingAbsences.length} ${pendingAbsences.length === 1 ? "offener Antrag" : "offene Anträge"}`}
-                />
-                <CaretRightIcon
-                  size={18}
-                  className="text-gray-400"
-                  aria-hidden="true"
-                />
-              </div>
-            </Link>
-          )}
-
           {/* Sektion 2: Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
           {canReadUsers && <SchoolOverviewSection />}
 

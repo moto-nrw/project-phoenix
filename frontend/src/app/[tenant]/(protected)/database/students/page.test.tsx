@@ -85,16 +85,24 @@ vi.mock("~/components/database/database-page-layout", () => ({
     children,
     loading,
     intro,
+    search,
   }: {
     children: React.ReactNode;
     loading: boolean;
-    intro?: { title: string; actions?: React.ReactNode };
+    intro?: {
+      title: string;
+      description?: React.ReactNode;
+      actions?: React.ReactNode;
+    };
+    search?: React.ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
       {intro ? (
         <div data-testid="page-intro">
           <h1>{intro.title}</h1>
+          {intro.description}
           {intro.actions}
+          {search}
         </div>
       ) : null}
       {children}

@@ -46,12 +46,15 @@ vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     intro,
+    search,
   }: {
     children: ReactNode;
     intro?: { title: string; actions?: ReactNode };
+    search?: ReactNode;
   }) => (
     <div>
       {intro?.actions}
+      {search}
       {children}
     </div>
   ),

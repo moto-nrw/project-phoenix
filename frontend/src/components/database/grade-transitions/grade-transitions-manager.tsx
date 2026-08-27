@@ -4,6 +4,7 @@
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -446,47 +447,43 @@ export function GradeTransitionsManager({
 
   return (
     <div className="space-y-4">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Jahrgangswechsel
-            </h2>
-            <p className="text-sm text-gray-600">
-              Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge
-              zum Schuljahreswechsel.
-            </p>
-          </div>
-          {permissions.canCreate && (
+      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
+
+      {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,
+          die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene
+          Zeile nur für den Knopf. */}
+      <SectionCard
+        title="Angelegte Jahrgangswechsel"
+        description="Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge zum Schuljahreswechsel."
+        actions={
+          permissions.canCreate ? (
             <Button type="button" size="md" onClick={() => openEditorFor(null)}>
               Neuer Jahrgangswechsel
             </Button>
-          )}
-        </div>
-      </div>
-
-      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-
-      <DataTable
-        columns={columns}
-        rows={transitions ?? []}
-        getRowKey={(t: GradeTransition) => t.id}
-        isLoading={transitions === null && !loadError}
-        defaultSortKey="createdAt"
-        defaultSortDirection="desc"
-        emptyState={
-          <div className="py-8 text-center text-sm text-gray-500">
-            <p className="font-medium text-gray-700">
-              Noch kein Jahrgangswechsel angelegt.
-            </p>
-            <p className="mt-1">
-              Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
-              vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
-              anpassen.
-            </p>
-          </div>
+          ) : undefined
         }
-      />
+      >
+        <DataTable
+          columns={columns}
+          rows={transitions ?? []}
+          getRowKey={(t: GradeTransition) => t.id}
+          isLoading={transitions === null && !loadError}
+          defaultSortKey="createdAt"
+          defaultSortDirection="desc"
+          emptyState={
+            <div className="py-8 text-center text-sm text-gray-500">
+              <p className="font-medium text-gray-700">
+                Noch kein Jahrgangswechsel angelegt.
+              </p>
+              <p className="mt-1">
+                Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
+                vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
+                anpassen.
+              </p>
+            </div>
+          }
+        />
+      </SectionCard>
 
       {editorOpen && (
         <TransitionEditor

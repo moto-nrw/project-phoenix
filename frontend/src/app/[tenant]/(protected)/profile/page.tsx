@@ -136,61 +136,60 @@ function ProfileContent() {
     redirect("/");
   }
 
+  // Das Profilbild sitzt in der Kopfkarte, damit darunter keine eigene, sonst
+  // leere Zeile nur für den Avatar steht.
+  const avatarLeading = (
+    <div className="group relative shrink-0">
+      <div className="bg-moto-green-soft text-moto-green-strong relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-full">
+        {profile?.avatar ? (
+          <Image
+            src={profile.avatar}
+            alt="Profile"
+            fill
+            className="object-cover"
+            sizes="64px"
+            priority
+            unoptimized
+          />
+        ) : (
+          <span className="text-xl font-bold">
+            {getInitials(`${formData.firstName} ${formData.lastName}`.trim())}
+          </span>
+        )}
+      </div>
+      <label
+        htmlFor="avatar-upload"
+        aria-label="Profilbild ändern"
+        className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+      >
+        <Camera className="h-5 w-5 text-white" />
+      </label>
+      <input
+        id="avatar-upload"
+        type="file"
+        accept="image/*"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleAvatarChange(file);
+        }}
+        className="hidden"
+      />
+      <button
+        type="button"
+        aria-label="Profilbild ändern"
+        onClick={() => document.getElementById("avatar-upload")?.click()}
+        className="absolute -right-1 -bottom-1 flex h-7 w-7 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
+      >
+        <Camera className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="w-full">
-      <PageIntro title="Profil" className="mb-6" />
+      <PageIntro title="Profil" className="mb-6" leading={avatarLeading} />
 
       <div className="max-w-3xl space-y-6 pb-8">
-        {/* Avatar Section */}
-        <div className="flex flex-col items-center pt-4">
-          <div className="group relative">
-            <div className="bg-moto-green-soft text-moto-green-strong relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full">
-              {profile?.avatar ? (
-                <Image
-                  src={profile.avatar}
-                  alt="Profile"
-                  fill
-                  className="object-cover"
-                  sizes="112px"
-                  priority
-                  unoptimized
-                />
-              ) : (
-                <span className="text-3xl font-bold">
-                  {getInitials(
-                    `${formData.firstName} ${formData.lastName}`.trim(),
-                  )}
-                </span>
-              )}
-            </div>
-            <label
-              htmlFor="avatar-upload"
-              aria-label="Profilbild ändern"
-              className="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
-            >
-              <Camera className="h-7 w-7 text-white" />
-            </label>
-            <input
-              id="avatar-upload"
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleAvatarChange(file);
-              }}
-              className="hidden"
-            />
-            <button
-              type="button"
-              aria-label="Profilbild ändern"
-              onClick={() => document.getElementById("avatar-upload")?.click()}
-              className="absolute -right-1 -bottom-1 flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:text-gray-900"
-            >
-              <Camera className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
         {/* Profile Data */}
         <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center justify-between">

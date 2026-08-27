@@ -92,10 +92,12 @@ function DesktopSettingsTabs({
   tabs,
   activeTab,
   onTabChange,
+  className = "",
 }: {
   readonly tabs: Tab[];
   readonly activeTab: string;
   readonly onTabChange: (id: string) => void;
+  readonly className?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
@@ -139,9 +141,9 @@ function DesktopSettingsTabs({
   }, [activeTab]);
 
   return (
-    <div className="relative mb-6">
+    <div className={`relative ${className}`}>
       {canScrollLeft && (
-        <div className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r from-gray-50 to-transparent" />
+        <div className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r from-white to-transparent" />
       )}
       <div ref={scrollRef} className="scrollbar-hidden overflow-x-auto">
         <Tabs value={activeTab} onValueChange={onTabChange}>
@@ -161,7 +163,7 @@ function DesktopSettingsTabs({
         </Tabs>
       </div>
       {canScrollRight && (
-        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-gray-50 to-transparent" />
+        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-white to-transparent" />
       )}
     </div>
   );
@@ -215,16 +217,19 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. In der
           mobilen Detailansicht trägt der Zurück-Kopf den Reiternamen, dort
           wäre die Kopfkarte ein zweiter Kopf. */}
+      {/* Auf dem Desktop tragen Kopfkarte und Reiterleiste EINE Zeile
+          zusammen, statt zwei fast leere Zeilen zu stapeln. */}
       {!(isMobile && activeTab !== null) && (
-        <PageIntro title="Einstellungen" className="mb-6" />
-      )}
-
-      {!isMobile && (
-        <DesktopSettingsTabs
-          tabs={tabs}
-          activeTab={activeTab ?? tabs[0]?.id ?? ""}
-          onTabChange={setActiveTab}
-        />
+        <PageIntro title="Einstellungen" className="mb-6">
+          {!isMobile && (
+            <DesktopSettingsTabs
+              tabs={tabs}
+              activeTab={activeTab ?? tabs[0]?.id ?? ""}
+              onTabChange={setActiveTab}
+              className="mt-3 -mb-2"
+            />
+          )}
+        </PageIntro>
       )}
 
       {isMobile && (

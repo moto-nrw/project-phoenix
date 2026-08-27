@@ -2395,14 +2395,18 @@ export default function SlotListsPage() {
           </>
         }
       >
-        <div className="min-w-0 space-y-3 border-b border-gray-100 pb-4">
-          {/* Standard filters that narrow the list (offering / group / class) */}
-          {filterConfigs.length > 0 ? (
-            <DesktopFilters filters={filterConfigs} />
-          ) : null}
-          {hiddenActiveFilters.length > 0 ? (
-            <ActiveFilterChips filters={hiddenActiveFilters} />
-          ) : null}
+        {/* Filter und Zähler teilen sich eine Zeile, statt zwei fast leere
+            Zeilen übereinander zu stapeln. */}
+        <div className="flex min-w-0 flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            {/* Standard filters that narrow the list (offering / group / class) */}
+            {filterConfigs.length > 0 ? (
+              <DesktopFilters filters={filterConfigs} />
+            ) : null}
+            {hiddenActiveFilters.length > 0 ? (
+              <ActiveFilterChips filters={hiddenActiveFilters} />
+            ) : null}
+          </div>
           {result && !isLoading ? (
             <CounterChips counters={result.counters} source={source} />
           ) : null}

@@ -326,8 +326,7 @@ function ActivitiesPageContent() {
           />
         ),
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -353,8 +352,8 @@ function ActivitiesPageContent() {
             setCategoryFilter("all");
           }}
         />
-      </div>
-
+      }
+    >
       {error && (
         <div className="mb-6">
           <Alert type="error" message={error} />

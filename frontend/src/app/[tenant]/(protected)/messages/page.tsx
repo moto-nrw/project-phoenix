@@ -7,7 +7,6 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -130,23 +129,22 @@ function MessagesInboxContent() {
           onChange: setSearchTerm,
           placeholder: "Person oder Kind suchen…",
         }}
+        // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
+        // fast leeren Zeile darunter.
+        filters={[
+          {
+            id: "unread",
+            type: "dropdown",
+            label: "Nachrichten filtern",
+            value: onlyUnread ? "unread" : "all",
+            onChange: (next) => setOnlyUnread(next === "unread"),
+            options: [
+              { value: "all", label: "Alle Nachrichten" },
+              { value: "unread", label: "Nur ungelesen" },
+            ],
+          },
+        ]}
       />
-
-      {/* A single dropdown that filters on selection: same control and
-          behaviour on desktop and mobile, no separate apply step. Die
-          Primäraktion sitzt in der Kopfkarte, nicht in dieser Zeile. */}
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <CustomSelect
-          ariaLabel="Nachrichten filtern"
-          value={onlyUnread ? "unread" : "all"}
-          onChange={(next) => setOnlyUnread(next === "unread")}
-          triggerClassName="moto-content-surface h-10 w-48 hover:border-gray-300"
-          options={[
-            { value: "all", label: "Alle Nachrichten" },
-            { value: "unread", label: "Nur ungelesen" },
-          ]}
-        />
-      </div>
 
       {showSkeleton ? (
         <MessagesSkeleton />

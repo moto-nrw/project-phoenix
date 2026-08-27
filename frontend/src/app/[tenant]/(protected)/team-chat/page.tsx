@@ -7,7 +7,6 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
@@ -144,22 +143,26 @@ function TeamChatInboxContent() {
           onChange: setSearchTerm,
           placeholder: "Person suchen…",
         }}
+        // Der Umschalter steht neben dem Suchfeld, nicht in einer eigenen,
+        // fast leeren Zeile darunter.
+        filters={
+          chatEnabled
+            ? [
+                {
+                  id: "unread",
+                  type: "dropdown",
+                  label: "Unterhaltungen filtern",
+                  value: onlyUnread ? "unread" : "all",
+                  onChange: (next) => setOnlyUnread(next === "unread"),
+                  options: [
+                    { value: "all", label: "Alle Unterhaltungen" },
+                    { value: "unread", label: "Nur ungelesen" },
+                  ],
+                },
+              ]
+            : undefined
+        }
       />
-
-      {chatEnabled && (
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <CustomSelect
-            ariaLabel="Unterhaltungen filtern"
-            value={onlyUnread ? "unread" : "all"}
-            onChange={(next) => setOnlyUnread(next === "unread")}
-            triggerClassName="moto-content-surface h-10 w-48 hover:border-gray-300"
-            options={[
-              { value: "all", label: "Alle Unterhaltungen" },
-              { value: "unread", label: "Nur ungelesen" },
-            ]}
-          />
-        </div>
-      )}
 
       {!chatEnabled ? (
         <EmptyState

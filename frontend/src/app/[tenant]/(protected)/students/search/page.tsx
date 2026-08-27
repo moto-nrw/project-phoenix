@@ -20,6 +20,7 @@ import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { BadgeDisplay } from "~/components/ui/page-header/BadgeDisplay";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -2730,25 +2731,33 @@ function SearchPageContent() {
         title="Alle Kinder"
         className="mb-6"
         actions={
-          <OverflowMenu
-            items={[
-              {
-                // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-                // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-                // ohnehin nach einem Kind sucht.
-                label: "Abwesenheiten",
-                icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-                onClick: () => router.push("/absences"),
-              },
-              {
-                label: "Exportieren",
-                icon: <Download className="h-4 w-4" aria-hidden />,
-                onClick: () => setIsExportOpen(true),
-                badge: filteredStudents.length,
-              },
-            ]}
-            ariaLabel="Weitere Aktionen"
-          />
+          <>
+            {/* Der Zähler sitzt in der Titelzeile, damit unter der Suchzeile
+                keine Zeile bleibt, die nur ihn trägt. */}
+            <BadgeDisplay
+              count={filteredStudents.length}
+              icon={<MotoConceptIcon concept="children" size={20} />}
+            />
+            <OverflowMenu
+              items={[
+                {
+                  // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                  // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                  // ohnehin nach einem Kind sucht.
+                  label: "Abwesenheiten",
+                  icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                  onClick: () => router.push("/absences"),
+                },
+                {
+                  label: "Exportieren",
+                  icon: <Download className="h-4 w-4" aria-hidden />,
+                  onClick: () => setIsExportOpen(true),
+                  badge: filteredStudents.length,
+                },
+              ]}
+              ariaLabel="Weitere Aktionen"
+            />
+          </>
         }
       />
       {/* Page header scrolls with the rest of the page (no sticky).
@@ -2760,10 +2769,6 @@ function SearchPageContent() {
         <PageHeaderWithSearch
           // Der Titel steht in der Kopfkarte darüber.
           title=""
-          badge={{
-            icon: <MotoConceptIcon concept="children" size={20} />,
-            count: filteredStudents.length,
-          }}
           primaryAction={
             checkinModeAvailable && !schoolCheckin.isActive ? (
               <SchoolCheckinFab

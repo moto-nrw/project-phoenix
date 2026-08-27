@@ -534,15 +534,9 @@ export default function StatisticsPage() {
                 tone={data.totals.unexplained_days > 0 ? "red" : undefined}
               />
             </div>
-            <p className="mt-2 text-xs leading-5 text-gray-500">
-              {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-              {data.excluded_days.public_holidays} Feiertage,{" "}
-              {data.excluded_days.closing_days} Schließtage,{" "}
-              {data.excluded_days.holiday_periods} Ferientage
-            </p>
-
-            {/* Mobile fills the line, desktop keeps the compact joined chip. */}
-            <div className="mt-5">
+            {/* Umschalter und Zeitraum-Hinweis teilen sich eine Zeile.
+                Mobile fills the line, desktop keeps the compact joined chip. */}
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <SegmentedControl
                 items={VIEW_ITEMS}
                 value={view}
@@ -551,6 +545,12 @@ export default function StatisticsPage() {
                 fullWidth={isMobile}
                 ariaLabel="Bereich wählen"
               />
+              <p className="text-xs leading-5 text-gray-500 sm:text-right">
+                {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+                {data.excluded_days.public_holidays} Feiertage,{" "}
+                {data.excluded_days.closing_days} Schließtage,{" "}
+                {data.excluded_days.holiday_periods} Ferientage
+              </p>
             </div>
 
             {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist

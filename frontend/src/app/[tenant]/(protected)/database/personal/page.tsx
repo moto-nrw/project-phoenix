@@ -342,8 +342,7 @@ function TeachersPageContent() {
           </div>
         ),
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -368,8 +367,8 @@ function TeachersPageContent() {
             setSearchTerm("");
           }}
         />
-      </div>
-
+      }
+    >
       <RoleGuard variant="adminOnly">
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />

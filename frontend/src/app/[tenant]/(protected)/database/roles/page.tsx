@@ -325,8 +325,7 @@ function RolesPageContent() {
           />
         ),
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -351,8 +350,8 @@ function RolesPageContent() {
             setSearchTerm("");
           }}
         />
-      </div>
-
+      }
+    >
       {error && (
         <div className="mb-6">
           <Alert type="error" message={error} />

@@ -370,17 +370,25 @@ export default function AnfragenPage() {
     />
   );
 
+  // Ohne Reiter trüge die Reiterzeile nur den Umschalter — eine Zeile mit
+  // einem einzigen Element direkt unter der Kopfkarte. Er wandert dann in die
+  // Titelzeile der Kopfkarte.
+  const hasTabs = visibleTabs.length > 1;
+
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
           Karte, auf allen Breakpoints. Reiter, Suche, Filter und der
           Ansichts-Umschalter bleiben in PageHeaderWithSearch; title="" blendet
           dort nur die eigene (jetzt doppelte) Titelzeile aus. */}
-      <PageIntro title="Anfragen" />
+      <PageIntro
+        title="Anfragen"
+        actions={hasTabs ? undefined : viewSwitcher}
+      />
       <PageHeaderWithSearch
         title=""
         tabs={
-          visibleTabs.length > 1
+          hasTabs
             ? {
                 items: visibleTabs,
                 activeTab,
@@ -415,7 +423,7 @@ export default function AnfragenPage() {
         // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
         // jeder Breite dort — `actionButton` wandert auf Mobil in die
         // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
-        tabsRowAction={viewSwitcher}
+        tabsRowAction={hasTabs ? viewSwitcher : undefined}
       />
       {staffActive ? (
         <MitarbeitendeTab view={view} filters={staffFilters} />

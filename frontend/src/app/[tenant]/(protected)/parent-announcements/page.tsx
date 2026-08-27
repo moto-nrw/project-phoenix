@@ -316,6 +316,25 @@ function ParentAnnouncementsContent() {
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
       {
+        // Der Umschalter Mitteilungen/Umfragen steuert die Liste darunter und
+        // sitzt deshalb in der Such- und Filterzeile, nicht in einer eigenen,
+        // fast leeren Zeile.
+        id: "kind",
+        label: "Art",
+        type: "custom",
+        value: kind,
+        onChange: () => undefined,
+        options: [],
+        render: (
+          <SegmentedControl
+            items={kindItems}
+            value={kind}
+            onChange={setKind}
+            ariaLabel="Mitteilungen oder Umfragen"
+          />
+        ),
+      },
+      {
         id: "status",
         label: "Status",
         type: "grid",
@@ -342,7 +361,7 @@ function ParentAnnouncementsContent() {
         ],
       },
     ],
-    [statusFilter],
+    [statusFilter, kind, kindItems],
   );
 
   const activeFilters: ActiveFilter[] = useMemo(() => {
@@ -629,15 +648,6 @@ function ParentAnnouncementsContent() {
           setStatusFilter("all");
         }}
       />
-
-      <div>
-        <SegmentedControl
-          items={kindItems}
-          value={kind}
-          onChange={setKind}
-          ariaLabel="Mitteilungen oder Umfragen"
-        />
-      </div>
 
       {loadError && (
         <div>

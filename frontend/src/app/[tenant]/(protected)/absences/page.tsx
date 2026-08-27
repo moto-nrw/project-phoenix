@@ -284,6 +284,12 @@ export default function AbsencesPage() {
             ariaLabel="Nach Gruppe filtern"
             className="w-full sm:w-52"
           />
+          {entries && (
+            <span className="text-sm text-gray-500 sm:ml-auto">
+              {entries.length} {entries.length === 1 ? "Eintrag" : "Einträge"}{" "}
+              auf Seite {displayedPage}
+            </span>
+          )}
         </div>
 
         {error !== null && (
@@ -304,11 +310,6 @@ export default function AbsencesPage() {
               getRowKey={(row) => row.id}
               onRowClick={(row) =>
                 router.push(`/students/${row.student_id}?from=/absences`)
-              }
-              caption={
-                entries
-                  ? `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"} auf Seite ${displayedPage}`
-                  : undefined
               }
               emptyState={
                 <EmptyState

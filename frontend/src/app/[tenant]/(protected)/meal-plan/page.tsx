@@ -453,70 +453,70 @@ export default function MealPlanPage() {
           title="Wochenplan"
           description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
           actions={
-            canEdit ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={requestCopyPreviousWeek}
-                disabled={loading || saving || copyingPrev || loadError}
-                isLoading={copyingPrev}
-                loadingText="Übernehmen…"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Vorwoche übernehmen
-              </Button>
-            ) : undefined
-          }
-        >
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Week navigation */}
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Vorherige Woche"
-                onClick={() => attemptWeekChange(weekOffset - 1)}
-                disabled={loading || saving || copyingPrev}
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <div className="min-w-32 text-center">
-                <div className="text-sm font-semibold text-gray-900">
-                  KW {weekNumber}
-                  {isCurrentWeek ? (
-                    <span className="text-moto-green ml-1.5">
-                      · Diese Woche
-                    </span>
-                  ) : null}
+            <>
+              {/* Wochennavigation steht in der Titelzeile, damit die Karte
+                  nicht aus zwei fast leeren Zeilen besteht. */}
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Vorherige Woche"
+                  onClick={() => attemptWeekChange(weekOffset - 1)}
+                  disabled={loading || saving || copyingPrev}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="min-w-32 text-center">
+                  <div className="text-sm font-semibold text-gray-900">
+                    KW {weekNumber}
+                    {isCurrentWeek ? (
+                      <span className="text-moto-green ml-1.5">
+                        · Diese Woche
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="text-xs text-gray-500">{rangeLabel}</div>
                 </div>
-                <div className="text-xs text-gray-500">{rangeLabel}</div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Nächste Woche"
+                  onClick={() => attemptWeekChange(weekOffset + 1)}
+                  disabled={loading || saving || copyingPrev}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                {!isCurrentWeek && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    onClick={() => attemptWeekChange(0)}
+                    disabled={loading || saving || copyingPrev}
+                  >
+                    Heute
+                  </Button>
+                )}
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Nächste Woche"
-                onClick={() => attemptWeekChange(weekOffset + 1)}
-                disabled={loading || saving || copyingPrev}
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-              {!isCurrentWeek && (
+              {canEdit ? (
                 <Button
                   type="button"
                   variant="outline"
                   size="md"
-                  onClick={() => attemptWeekChange(0)}
-                  disabled={loading || saving || copyingPrev}
+                  onClick={requestCopyPreviousWeek}
+                  disabled={loading || saving || copyingPrev || loadError}
+                  isLoading={copyingPrev}
+                  loadingText="Übernehmen…"
                 >
-                  Heute
+                  <Copy className="mr-2 h-4 w-4" />
+                  Vorwoche übernehmen
                 </Button>
-              )}
-            </div>
-          </div>
-        </SectionCard>
+              ) : null}
+            </>
+          }
+        />
 
         {loading && !hasLoaded ? (
           <SkeletonRegion label="Essensplan wird geladen">

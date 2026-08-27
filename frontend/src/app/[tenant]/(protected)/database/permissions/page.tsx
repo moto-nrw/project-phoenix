@@ -156,9 +156,10 @@ function PermissionsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Berechtigungen",
+        description:
+          "Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern.",
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -182,16 +183,8 @@ function PermissionsPageContent() {
             setSearchTerm("");
           }}
         />
-      </div>
-
-      <div className="mb-4">
-        <Alert
-          type="info"
-          message="Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern."
-          announce="off"
-        />
-      </div>
-
+      }
+    >
       {error && (
         <div className="mb-6">
           <Alert type="error" message={error} />

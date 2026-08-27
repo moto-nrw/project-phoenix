@@ -472,22 +472,41 @@ export default function ClassListEntriesPage() {
         title="Klassenliste"
         description="Der vollständige Klassenverband: regulär angelegte Kinder und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung, Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über „Eintrag anlegen“ oder den Sammelimport ergänzt."
         actions={
-          canCreate ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/database/students/class-list/import"
-                className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              >
-                <Upload className="h-4 w-4" aria-hidden="true" />
-                Sammelimport
-              </Link>
-              <DatabaseCreateAction
-                label="Eintrag"
-                ariaLabel="Klassenlisteneintrag anlegen"
-                onClick={openCreate}
+          // Der Klassenfilter steht in der Titelzeile der Karte, damit er
+          // nicht als eigene, fast leere Zeile über der Tabelle liegt.
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-48">
+              <CustomSelect
+                id="class-list-filter"
+                ariaLabel="Klasse filtern"
+                value={classFilter}
+                options={[
+                  { value: "all", label: "Alle Klassen" },
+                  ...classOptions.map((option) => ({
+                    value: option.key,
+                    label: option.display,
+                  })),
+                ]}
+                onChange={setClassFilter}
               />
             </div>
-          ) : undefined
+            {canCreate ? (
+              <>
+                <Link
+                  href="/database/students/class-list/import"
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  Sammelimport
+                </Link>
+                <DatabaseCreateAction
+                  label="Eintrag"
+                  ariaLabel="Klassenlisteneintrag anlegen"
+                  onClick={openCreate}
+                />
+              </>
+            ) : null}
+          </div>
         }
       >
         <div className="grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
@@ -551,31 +570,7 @@ export default function ClassListEntriesPage() {
           </div>
         ) : null}
 
-        <div className="mt-4 flex items-center gap-2">
-          <span
-            id="class-list-filter-label"
-            className="text-sm font-medium text-gray-700"
-          >
-            Klasse
-          </span>
-          <div className="w-48">
-            <CustomSelect
-              id="class-list-filter"
-              ariaLabelledBy="class-list-filter-label"
-              value={classFilter}
-              options={[
-                { value: "all", label: "Alle Klassen" },
-                ...classOptions.map((option) => ({
-                  value: option.key,
-                  label: option.display,
-                })),
-              ]}
-              onChange={setClassFilter}
-            />
-          </div>
-        </div>
-
-        <div className="mt-3">
+        <div className="mt-4">
           <DataTable
             columns={columns}
             rows={rows}

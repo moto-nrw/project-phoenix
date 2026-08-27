@@ -990,7 +990,10 @@ function CareOfferingToolbar({
 }>) {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-4 lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+      {/* Kennzahlen, Phasenauswahl und Anlegen teilen sich auf dem Desktop
+          EINE Zeile; ohne Umbruch, damit darunter keine zweite, fast leere
+          Zeile entsteht. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="grid gap-2 sm:grid-cols-4">
           <CareOfferingMetric
             icon={<MotoConceptIcon concept="carePlan" size={16} />}
@@ -1015,25 +1018,19 @@ function CareOfferingToolbar({
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <label
-            className="flex items-center gap-2 text-sm"
-            htmlFor="care-offerings-phase"
-          >
-            <span className="font-medium text-gray-700">Anmeldephase</span>
-            <CustomSelect
-              id="care-offerings-phase"
-              ariaLabel="Anmeldephase"
-              value={selectedPhaseId}
-              onChange={onPhaseChange}
-              className="h-9 min-w-60"
-              options={phases.map((phase) => ({
-                value: phase.id,
-                label: `${phase.name} (${KIND_LABELS[phase.kind]})${
-                  !phase.is_active ? " (inaktiv)" : ""
-                }`,
-              }))}
-            />
-          </label>
+          <CustomSelect
+            id="care-offerings-phase"
+            ariaLabel="Anmeldephase"
+            value={selectedPhaseId}
+            onChange={onPhaseChange}
+            className="h-9 min-w-56"
+            options={phases.map((phase) => ({
+              value: phase.id,
+              label: `${phase.name} (${KIND_LABELS[phase.kind]})${
+                !phase.is_active ? " (inaktiv)" : ""
+              }`,
+            }))}
+          />
           {!focusMode ? (
             <Button
               type="button"

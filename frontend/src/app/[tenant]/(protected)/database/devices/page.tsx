@@ -359,8 +359,7 @@ function DevicesPageContent() {
           </div>
         ),
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -385,8 +384,8 @@ function DevicesPageContent() {
             setSearchTerm("");
           }}
         />
-      </div>
-
+      }
+    >
       {error && (
         <div className="mb-6">
           <Alert type="error" message={error} />

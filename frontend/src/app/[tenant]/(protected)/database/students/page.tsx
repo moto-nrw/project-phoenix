@@ -651,8 +651,7 @@ function StudentsPageContent() {
           </div>
         ),
       }}
-    >
-      <div className="mb-4">
+      search={
         <PageHeaderWithSearch
           title=""
           badge={{
@@ -678,8 +677,8 @@ function StudentsPageContent() {
             setGroupFilter("all");
           }}
         />
-      </div>
-
+      }
+    >
       {errorMessage ? (
         <div className="mb-4">
           <Alert type="error" message={errorMessage} />

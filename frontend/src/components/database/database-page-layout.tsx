@@ -23,6 +23,10 @@ interface DatabasePageLayoutProps {
   sessionLoading: boolean;
   /** Kopfkarte der Seite; entfällt nur bei Seiten ohne eigenen Kopf. */
   intro?: DatabasePageIntro;
+  /** Such- und Filterzeile der Liste. Sie steht im unteren Teil der Kopfkarte,
+   *  damit Kopfkarte und Suchzeile nicht als zwei fast leere Zeilen
+   *  übereinander liegen. */
+  search?: ReactNode;
   /** Page content to render when not loading */
   children: ReactNode;
   /** Optional className for the content wrapper */
@@ -39,6 +43,7 @@ export function DatabasePageLayout({
   loading,
   sessionLoading,
   intro,
+  search,
   children,
   className = "w-full",
 }: Readonly<DatabasePageLayoutProps>) {
@@ -58,7 +63,9 @@ export function DatabasePageLayout({
           description={intro.description}
           actions={intro.actions}
           className="mb-4"
-        />
+        >
+          {!isLoading && search ? search : null}
+        </PageIntro>
       )}
       {isLoading ? <MasterDetailSkeleton intro={false} /> : children}
     </div>
