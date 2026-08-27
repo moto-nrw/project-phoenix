@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	parentLetterDeliveryVersion     = "1.15.331"
+	parentLetterDeliveryVersion     = "1.15.336"
 	parentLetterDeliveryDescription = "Add Elternbrief delivery mode to parent announcements and a generic per-recipient e-mail delivery record"
 )
 
@@ -37,7 +37,7 @@ func init() {
 }
 
 func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.331: Adding Elternbrief delivery mode and per-recipient delivery records...")
+	fmt.Println("Migration 1.15.336: Adding Elternbrief delivery mode and per-recipient delivery records...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -235,7 +235,7 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentLetterDeliveryDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.331: Dropping Elternbrief delivery mode and delivery records...")
+	fmt.Println("Rolling back migration 1.15.336: Dropping Elternbrief delivery mode and delivery records...")
 
 	if _, err := db.NewRaw(`
 		DROP TABLE IF EXISTS platform.email_delivery CASCADE;
