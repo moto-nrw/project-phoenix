@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useSession } from "next-auth/react";
 import { schoolStaffMessagesApi } from "~/lib/school-staff-messages-api";
 import { isStaffMessagingDisabled } from "~/lib/staff-messages-api";
 import { useUnreadCount } from "./use-unread-count";
@@ -15,11 +16,13 @@ import { useUnreadCount } from "./use-unread-count";
  * `available` is null until the probe answered — the navigation renders the
  * entry only once it knows, so a switched-off school never sees it flash.
  *
- * No session hook and no localStorage cache here: the school shell renders
- * only behind SchoolAuthGuard (always authenticated, one school per session),
- * and a per-account cache would need the session just to build its key. The
- * count is cheap; it is simply fetched on mount, on the refresh event and on
- * focus.
+ * Both values are bound to the authenticated school session (school + account).
+ * SchoolShell stays mounted across a session change, so an unscoped state would
+ * keep showing the previous account's badge — and its availability — until a
+ * refresh lands, or forever if that refresh fails. The count is cached under
+ * the same scope, which is what makes useUnreadCount clear the badge the moment
+ * the scope changes; the probe is stamped with the scope it was measured for,
+ * so a reply from the previous session cannot revive it.
  */
 export interface SchoolTeamChatUnread {
   unreadCount: number;
@@ -27,25 +30,37 @@ export interface SchoolTeamChatUnread {
 }
 
 export function useSchoolTeamChatUnread(): SchoolTeamChatUnread {
-  const [available, setAvailable] = useState<boolean | null>(null);
+  const { data: session, status } = useSession();
+  const scope = `${session?.user.tenantId ?? ""}:${session?.user.id ?? ""}`;
+  const [probe, setProbe] = useState<{
+    scope: string;
+    available: boolean;
+  } | null>(null);
 
   const fetcher = useCallback(async () => {
     const count = await schoolStaffMessagesApi.fetchUnreadCount();
-    setAvailable(true);
+    setProbe({ scope, available: true });
     return count;
-  }, []);
-  const onError = useCallback((err: unknown) => {
-    if (isStaffMessagingDisabled(err)) setAvailable(false);
-  }, []);
+  }, [scope]);
+  const onError = useCallback(
+    (err: unknown) => {
+      if (isStaffMessagingDisabled(err)) setProbe({ scope, available: false });
+    },
+    [scope],
+  );
 
   const { unreadCount } = useUnreadCount({
-    enabled: true,
+    enabled: status === "authenticated",
     fetcher,
+    cacheKey: `school_team_chat_unread:${scope}`,
     eventNames: ["team-messages-unread-refresh"],
     eventDebounceMs: 500,
     refetchOnFocus: true,
     onError,
   });
 
-  return { unreadCount, available };
+  return {
+    unreadCount,
+    available: probe && probe.scope === scope ? probe.available : null,
+  };
 }
