@@ -176,6 +176,7 @@ function PermissionsPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (

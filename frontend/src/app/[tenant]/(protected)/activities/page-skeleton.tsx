@@ -36,6 +36,7 @@ export function ActivitiesSkeleton() {
         }
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           search={{
             value: "",

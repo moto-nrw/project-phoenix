@@ -267,6 +267,7 @@ function InfoDisplaysPageContent() {
         }
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: <MotoConceptIcon concept="infoDisplays" size={18} />,

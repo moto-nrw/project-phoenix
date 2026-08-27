@@ -342,6 +342,7 @@ function RolesPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (

@@ -141,6 +141,7 @@ function TeamChatInboxContent() {
         }
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={
             showSkeleton

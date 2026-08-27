@@ -86,6 +86,7 @@ function DocumentDirectory({
         >
           <PageHeaderWithSearch
             // Der Titel steht in der Kopfkarte darüber.
+            embedded
             title=""
             search={{
               value: search,
@@ -685,6 +686,7 @@ function StaffPageContent() {
             Titel. Die Suchzeile steht IN der Karte, damit sie nicht als
             zweite, fast leere Zeile darunter liegt. */}
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={
             showSkeleton

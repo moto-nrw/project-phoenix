@@ -362,6 +362,7 @@ function TeachersPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (

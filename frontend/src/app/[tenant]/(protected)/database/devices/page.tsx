@@ -371,6 +371,7 @@ function DevicesPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (

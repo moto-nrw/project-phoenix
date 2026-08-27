@@ -122,6 +122,7 @@ function MessagesInboxContent() {
         }
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={
             showSkeleton

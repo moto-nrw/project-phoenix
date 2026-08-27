@@ -274,6 +274,7 @@ function GroupsPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (

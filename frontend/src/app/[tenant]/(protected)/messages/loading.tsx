@@ -21,6 +21,7 @@ export default function MessagesLoading() {
         description={<Skeleton className="h-4 w-52" />}
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           search={{
             value: "",

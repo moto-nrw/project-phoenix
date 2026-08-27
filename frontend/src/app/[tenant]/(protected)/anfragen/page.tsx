@@ -419,6 +419,7 @@ export default function AnfragenPage() {
         actions={hasTabs ? undefined : viewSwitcher}
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           tabs={
             hasTabs

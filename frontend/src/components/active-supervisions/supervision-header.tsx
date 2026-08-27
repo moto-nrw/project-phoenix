@@ -78,6 +78,7 @@ export function SupervisionHeader({
     <PageHeaderWithSearch
       // Der Seitentitel steht in der Kopfkarte (PageIntro) darüber; hier
       // bleiben nur Reiterleiste, Suche, Filter und die Schulhof-Aktion.
+      embedded
       title=""
       badge={{
         icon: (

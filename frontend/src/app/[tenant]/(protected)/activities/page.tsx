@@ -329,6 +329,7 @@ function ActivitiesPageContent() {
         >
           <div className="relative z-30">
             <PageHeaderWithSearch
+              embedded
               title=""
               badge={{
                 icon: <MotoConceptIcon concept="activities" size={20} />,

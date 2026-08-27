@@ -605,6 +605,7 @@ function SubstitutionPageContent() {
           className="mb-6"
         >
           <PageHeaderWithSearch
+            embedded
             title=""
             badge={{
               icon: <MotoConceptIcon concept="staff" size={20} />,

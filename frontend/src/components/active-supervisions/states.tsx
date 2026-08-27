@@ -129,6 +129,7 @@ export function EmptyRoomsView({
 
       <PageHeaderWithSearch
         // Der Titel steht in der Kopfkarte der Seite.
+        embedded
         title=""
         search={{
           value: searchTerm,

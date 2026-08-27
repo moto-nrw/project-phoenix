@@ -646,6 +646,7 @@ function ParentAnnouncementsContent() {
         }
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon:

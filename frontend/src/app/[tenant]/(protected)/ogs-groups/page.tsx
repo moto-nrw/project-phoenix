@@ -1090,6 +1090,7 @@ function OGSGroupPageContent() {
           <div className="-mx-1 px-1 sm:mx-0 sm:px-0">
             <PageHeaderWithSearch
               // Der Titel steht in der Kopfkarte darüber.
+              embedded
               title=""
               primaryAction={
                 isBinaryMode ? (

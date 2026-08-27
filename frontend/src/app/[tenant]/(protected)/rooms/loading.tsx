@@ -16,6 +16,7 @@ export default function RoomsLoading() {
         className="mb-6"
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           search={{
             value: "",

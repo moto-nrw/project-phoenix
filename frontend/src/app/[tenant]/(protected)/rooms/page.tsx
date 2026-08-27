@@ -521,6 +521,7 @@ function RoomsPageContent() {
         actions={<OverflowMenu items={overflowItems} />}
       >
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={
             showSkeleton

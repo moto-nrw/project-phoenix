@@ -348,6 +348,7 @@ function ActivitiesPageContent() {
       }}
       search={
         <PageHeaderWithSearch
+          embedded
           title=""
           badge={{
             icon: (
