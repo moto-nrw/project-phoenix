@@ -1397,6 +1397,88 @@ function StudentDetailPageContent() {
 }
 
 // =============================================================================
+// SCHNELLAKTIONEN
+// =============================================================================
+
+/**
+ * Die Kacheln für An-/Abmelden, Krank, Entschuldigt und weitere Statusaktionen.
+ *
+ * Bewusst große Touch-Ziele: die Reihe wird im Alltag am Tablet bedient, nicht
+ * mit der Maus. Sie steht deshalb nicht als OverflowMenu im Entitätskopf,
+ * sondern als benannter Abschnitt, damit keine freischwebende Kachelreihe
+ * zwischen Kopf und Reitern hängt. Beide Ansichten (eingeschränkt und voll)
+ * teilen sich diesen Block, statt ihn doppelt zu pflegen.
+ */
+function StudentQuickActions({
+  student,
+  showCheckout,
+  showCheckin,
+  hasAbsenceWriteAccess,
+  onCheckoutClick,
+  onCheckinClick,
+  onSickClick,
+  sickLoading,
+  isQuickExcused,
+  onExcusedClick,
+  excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
+}: Readonly<{
+  student: ExtendedStudent;
+  showCheckout: boolean;
+  showCheckin: boolean;
+  hasAbsenceWriteAccess: boolean;
+  onCheckoutClick: () => void;
+  onCheckinClick: () => void;
+  onSickClick: () => void;
+  sickLoading: boolean;
+  isQuickExcused: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
+}>) {
+  if (!showCheckout && !showCheckin && !hasAbsenceWriteAccess) return null;
+
+  return (
+    <SectionCard title="Schnellaktionen" className="mb-4 sm:mb-6">
+      <div className="flex gap-3 sm:gap-4">
+        {showCheckout && (
+          <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+        )}
+        {showCheckin && (
+          <StudentCheckinSection onCheckinClick={onCheckinClick} />
+        )}
+        {hasAbsenceWriteAccess && (
+          <StudentSickReportSection
+            isSick={student.sick ?? false}
+            sickSince={student.sick_since}
+            onToggle={onSickClick}
+            isLoading={sickLoading}
+          />
+        )}
+        {hasAbsenceWriteAccess && (
+          <StudentExcusedReportSection
+            isExcused={isQuickExcused}
+            excusedSince={isQuickExcused ? student.excused_since : undefined}
+            onToggle={onExcusedClick}
+            isLoading={excusedLoading}
+          />
+        )}
+        {hasAbsenceWriteAccess && (
+          <StudentStatusActionsMenu
+            isClassTrip={student.class_trip ?? false}
+            classTripSince={student.class_trip_since}
+            onPlanClassTrip={onClassTripClick}
+            isLoading={plannedStatusLoading}
+          />
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
+// =============================================================================
 // LIMITED ACCESS VIEW
 // =============================================================================
 
@@ -1471,40 +1553,21 @@ function LimitedAccessView({
   }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
-        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-          {showCheckout && (
-            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-          )}
-          {showCheckin && (
-            <StudentCheckinSection onCheckinClick={onCheckinClick} />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentSickReportSection
-              isSick={student.sick ?? false}
-              sickSince={student.sick_since}
-              onToggle={onSickClick}
-              isLoading={sickLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentExcusedReportSection
-              isExcused={isQuickExcused}
-              excusedSince={isQuickExcused ? student.excused_since : undefined}
-              onToggle={onExcusedClick}
-              isLoading={excusedLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentStatusActionsMenu
-              isClassTrip={student.class_trip ?? false}
-              classTripSince={student.class_trip_since}
-              onPlanClassTrip={onClassTripClick}
-              isLoading={plannedStatusLoading}
-            />
-          )}
-        </div>
-      )}
+      <StudentQuickActions
+        student={student}
+        showCheckout={showCheckout}
+        showCheckin={showCheckin}
+        hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+        onCheckoutClick={onCheckoutClick}
+        onCheckinClick={onCheckinClick}
+        onSickClick={onSickClick}
+        sickLoading={sickLoading}
+        isQuickExcused={isQuickExcused}
+        onExcusedClick={onExcusedClick}
+        excusedLoading={excusedLoading}
+        onClassTripClick={onClassTripClick}
+        plannedStatusLoading={plannedStatusLoading}
+      />
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
         <StudentTabsList tabs={tabs} />
@@ -1691,40 +1754,21 @@ function FullAccessView({
   }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
-        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-          {showCheckout && (
-            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-          )}
-          {showCheckin && (
-            <StudentCheckinSection onCheckinClick={onCheckinClick} />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentSickReportSection
-              isSick={student.sick ?? false}
-              sickSince={student.sick_since}
-              onToggle={onSickClick}
-              isLoading={sickLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentExcusedReportSection
-              isExcused={isQuickExcused}
-              excusedSince={isQuickExcused ? student.excused_since : undefined}
-              onToggle={onExcusedClick}
-              isLoading={excusedLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentStatusActionsMenu
-              isClassTrip={student.class_trip ?? false}
-              classTripSince={student.class_trip_since}
-              onPlanClassTrip={onClassTripClick}
-              isLoading={plannedStatusLoading}
-            />
-          )}
-        </div>
-      )}
+      <StudentQuickActions
+        student={student}
+        showCheckout={showCheckout}
+        showCheckin={showCheckin}
+        hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+        onCheckoutClick={onCheckoutClick}
+        onCheckinClick={onCheckinClick}
+        onSickClick={onSickClick}
+        sickLoading={sickLoading}
+        isQuickExcused={isQuickExcused}
+        onExcusedClick={onExcusedClick}
+        excusedLoading={excusedLoading}
+        onClassTripClick={onClassTripClick}
+        plannedStatusLoading={plannedStatusLoading}
+      />
 
       <Tabs value={activeTab} onValueChange={onTabChange}>
         <StudentTabsList tabs={tabs} />

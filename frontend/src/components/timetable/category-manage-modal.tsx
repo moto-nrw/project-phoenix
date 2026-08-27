@@ -311,11 +311,23 @@ export function CategoryManageModal({
       >
         {view === "list" ? (
           <div className="space-y-4 text-sm">
-            <p className="text-gray-600">
-              Kategorien ordnen Termine und Aktivitäten ein, zum Beispiel
-              Essenszeiten, Lernzeit oder Freispiel. Sie gelten nur für diese
-              OGS.
-            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <p className="max-w-lg text-gray-600">
+                Kategorien ordnen Termine und Aktivitäten ein, zum Beispiel
+                Essenszeiten, Lernzeit oder Freispiel. Sie gelten nur für diese
+                OGS.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                className="shrink-0"
+                onClick={openCreate}
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                Neue Kategorie
+              </Button>
+            </div>
 
             {loadError ? (
               <Alert
@@ -385,18 +397,6 @@ export function CategoryManageModal({
                     </ul>
                   </div>
                 )}
-
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={openCreate}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Neue Kategorie
-                  </Button>
-                </div>
               </>
             )}
 

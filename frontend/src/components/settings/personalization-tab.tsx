@@ -9,6 +9,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { loginImageSrc } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
+import { SectionCard } from "~/components/ui/section-card";
 
 const logger = createLogger({ component: "PersonalizationTab" });
 
@@ -184,16 +185,15 @@ export function PersonalizationTab() {
 
   return (
     <div className="space-y-6">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
-        <h3 className="mb-1 text-base font-semibold text-gray-900">
-          Login-Seite
-        </h3>
-        <p className="mb-4 text-sm text-gray-500">
-          {canEdit
+      <SectionCard
+        headingLevel={3}
+        title="Login-Seite"
+        description={
+          canEdit
             ? "Laden Sie ein eigenes Bild hoch, das auf der Login-Seite Ihrer Einrichtung angezeigt wird."
-            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."}
-        </p>
-
+            : "Das aktuelle Bild wird auf der Login-Seite Ihrer Einrichtung angezeigt."
+        }
+      >
         {/* Current image preview */}
         {isLoading ? (
           <div className="flex h-[120px] items-center justify-center rounded-xl border border-gray-100 bg-gray-50">
@@ -294,7 +294,7 @@ export function PersonalizationTab() {
             </fieldset>
           </div>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }

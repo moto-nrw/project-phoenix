@@ -34,6 +34,8 @@ import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { Button } from "~/components/ui/button";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
@@ -1454,11 +1456,14 @@ function OverviewGuide({
         </p>
       </div>
 
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Nächste Schritte
-        </h3>
-        <div className="mt-4 space-y-3">
+      {/* Der Erklärtext stand als freier Absatz unter der Karte und ist jetzt
+          ihre description. */}
+      <SectionCard
+        title="Nächste Schritte"
+        description="Für eine neue Halbjahresanmeldung brauchen Sie oft keine eigene Formularvorlage. Anmeldephase und Betreuungsangebote steuern den eigentlichen Ablauf."
+        headingLevel={3}
+      >
+        <div className="space-y-3">
           <GuideStep
             icon={<MotoConceptIcon concept="permissions" size={18} />}
             title="Basisformular prüfen"
@@ -1475,13 +1480,7 @@ function OverviewGuide({
             done={assignedTemplateCount > 0}
           />
         </div>
-      </div>
-
-      <p className="text-sm leading-6 text-gray-500">
-        Für eine neue Halbjahresanmeldung brauchen Sie oft keine eigene
-        Formularvorlage. Anmeldephase und Betreuungsangebote steuern den
-        eigentlichen Ablauf.
-      </p>
+      </SectionCard>
     </div>
   );
 }
@@ -2404,11 +2403,13 @@ function LegalBlocksSection({
       !blocks.some(
         (block) => block.key === "data_processing" && block.enabled,
       ) ? (
-        <p className="border-moto-amber/30 bg-moto-amber/10 mt-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
-          Hinweis: Die Datenschutzinformation ist in dieser Vorlage deaktiviert.
-          Stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg
-          erhalten, zum Beispiel über den Elternbrief.
-        </p>
+        <div className="mt-3">
+          <Alert
+            type="warning"
+            announce="off"
+            message="Die Datenschutzinformation ist in dieser Vorlage deaktiviert. Stellen Sie sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, zum Beispiel über den Elternbrief."
+          />
+        </div>
       ) : null}
 
       <div className="mt-4 space-y-3">
@@ -3634,13 +3635,17 @@ function ConditionEditor({
 
   if (!canEnable && !condition) {
     return (
-      <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2 text-xs leading-5 text-gray-500">
-        Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder
-        Auswahlfrage gibt
-        {field.applies_to_child
-          ? "."
-          : " (oder dieses Feld pro Kind angezeigt wird)."}
-      </p>
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2">
+        <EmptyState
+          variant="compact"
+          title="Keine Sichtbarkeitsregel möglich"
+          description={`Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder Auswahlfrage gibt${
+            field.applies_to_child
+              ? "."
+              : " (oder dieses Feld pro Kind angezeigt wird)."
+          }`}
+        />
+      </div>
     );
   }
 

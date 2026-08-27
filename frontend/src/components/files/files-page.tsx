@@ -24,7 +24,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -49,6 +49,9 @@ import { cn } from "~/lib/utils";
 import { FolderModal } from "./folder-modal";
 
 const logger = createLogger({ component: "FilesPage" });
+
+const FILES_PAGE_DESCRIPTION =
+  "Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest. Unterlagen zu einem Kind oder zu einer Person liegen weiter beim Kind bzw. bei der Person.";
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -137,8 +140,12 @@ export function FilesPage() {
 
   if (error) {
     return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Dateien" />
+      <div className="w-full">
+        <PageIntro
+          title="Dateien"
+          description={FILES_PAGE_DESCRIPTION}
+          className="mb-4"
+        />
         <Alert
           type="error"
           message="Die Dateiablage konnte nicht geladen werden."
@@ -201,12 +208,14 @@ export function FilesPage() {
   );
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb;
-          PageHeaderWithSearch zeigt ihn mobil und trägt die Primäraktion. */}
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Kopfkarte: Titel, Erklärtext und die Primäraktion in einer Zeile,
+          statt Seitenkopf plus frei stehendem Erklärabsatz darunter. */}
+      <PageIntro
         title="Dateien"
-        actionButton={
+        description={FILES_PAGE_DESCRIPTION}
+        className="mb-4"
+        actions={
           canManage ? (
             <Button
               type="button"
@@ -219,13 +228,6 @@ export function FilesPage() {
           ) : undefined
         }
       />
-
-      <p className="mb-4 max-w-3xl text-sm leading-6 text-gray-600">
-        Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder
-        Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest.
-        Unterlagen zu einem Kind oder zu einer Person liegen weiter beim Kind
-        bzw. bei der Person.
-      </p>
 
       <div className="flex min-h-[28rem] flex-col gap-4">
         {isLoading ? (
@@ -612,9 +614,10 @@ function FolderFilesPanel({
           />
         </div>
       ) : (
-        <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-5 text-gray-600">
-          Nur zum Ansehen und Herunterladen. Dateien lädt die Leitung hoch.
-        </p>
+        <Alert
+          type="info"
+          message="Nur zum Ansehen und Herunterladen. Dateien lädt die Leitung hoch."
+        />
       )}
 
       <DataTable

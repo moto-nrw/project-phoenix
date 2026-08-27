@@ -493,13 +493,10 @@ export function StepPersonalKinder({
                 <Alert type="warning" message={offeringSourcesError} />
               ) : null}
               {form.sourceCareOfferingIds.length === 0 && (
-                <p className="text-xs text-gray-500">
-                  Mit Angeboten als Quelle übernimmt der Regeltermin die
-                  angemeldeten Kinder automatisch – auch bei späteren An- und
-                  Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die
-                  unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld
-                  „Regeltermin“).
-                </p>
+                <Alert
+                  type="info"
+                  message="Mit Angeboten als Quelle übernimmt der Regeltermin die angemeldeten Kinder automatisch, auch bei späteren An- und Abmeldungen. Ohne Quelle gilt weiterhin die Verknüpfung, die unter „Angebote“ beim jeweiligen Angebot gepflegt wird (Feld „Regeltermin“)."
+                />
               )}
               {/* Gate on the FORM selection, matching hasOfferingSource: a
                   stored source missing from the fetched list still hides the
@@ -511,7 +508,9 @@ export function StepPersonalKinder({
                     <legend className="text-xs font-semibold text-gray-700">
                       Kinder eingrenzen
                     </legend>
-                    <p className="text-xs text-gray-500">
+                    {/* Erklärtext gehört direkt unter die Legend, Legend und
+                        Text bilden einen Kopf. */}
+                    <p className="mt-1 text-xs leading-5 text-gray-500">
                       Sie können die Kinder nach Jahrgang oder nach einzelnen
                       Klassen eingrenzen. Beides zusammen geht nicht.
                     </p>
@@ -663,13 +662,12 @@ export function StepPersonalKinder({
 
           {form.targetGroupType !== "none" &&
             form.targetGroupType !== "angebot" && (
-              <p className="mt-2 text-xs leading-5 text-gray-600">
-                Die Kinderliste wird bei der Planung aus allen ausgewählten
-                Zielgruppen gebildet. Überschneidungen werden automatisch
-                entfernt, spätere Gruppenwechsel werden bei einer Neuplanung
-                berücksichtigt. Mit der Schaltfläche darunter kannst du die
-                aktuell passenden Kinder zusätzlich fest auswählen.
-              </p>
+              <div className="mt-2">
+                <Alert
+                  type="info"
+                  message="Die Kinderliste wird bei der Planung aus allen ausgewählten Zielgruppen gebildet. Überschneidungen werden automatisch entfernt, spätere Gruppenwechsel werden bei einer Neuplanung berücksichtigt. Mit der Schaltfläche darunter können Sie die aktuell passenden Kinder zusätzlich fest auswählen."
+                />
+              </div>
             )}
           {targetCohort.label && !loadingStudents && !studentLoadError ? (
             <Button

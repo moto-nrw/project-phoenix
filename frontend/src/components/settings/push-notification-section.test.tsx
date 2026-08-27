@@ -274,8 +274,10 @@ describe("PushNotificationSection", () => {
     const testButton = await screen.findByRole("button", {
       name: "Testbenachrichtigung senden",
     });
-    expect(testButton).toHaveClass("h-8", "text-xs", "bg-transparent");
-    expect(testButton).not.toHaveClass("ring-1", "shadow-md");
+    // Die Testaktion steht jetzt als zweite Kartenkopf-Aktion neben
+    // "Ausschalten" und trägt daher die Kartenkopf-Höhe (size="md").
+    expect(testButton).toHaveClass("rounded-lg", "px-4", "py-2", "text-sm");
+    expect(testButton).not.toHaveClass("h-8", "text-xs", "shadow-md");
 
     rerender(<PushNotificationSection portal="parent" />);
     await waitFor(() =>

@@ -2347,9 +2347,9 @@ function CareOfferingForm({
         <legend className="px-1 text-xs font-medium text-gray-700">
           Pflichtauswahl
         </legend>
-        <p className="mb-3 text-xs leading-5 text-gray-500">
+        <p className="mt-1 mb-3 text-sm leading-6 text-gray-600">
           Angebote mit demselben Gruppennamen werden bei der Anmeldung gemeinsam
-          geprüft. Verwende für eine Gruppe überall dieselbe Regel.
+          geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">

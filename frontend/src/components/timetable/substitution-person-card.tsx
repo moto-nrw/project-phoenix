@@ -304,7 +304,11 @@ function PersonScope(props: PersonCardProps) {
           ? "Welche Termine soll die Ersatzperson übernehmen?"
           : "Welche Termine sollen geändert werden?"}
       </legend>
-      <p className="text-xs text-gray-500">Wählen Sie vor dem Speichern.</p>
+      {/* Der Hinweis gehört direkt unter die Legend, Legend und Text bilden
+          einen Kopf. */}
+      <p className="mt-1 text-xs leading-5 text-gray-500">
+        Wählen Sie vor dem Speichern.
+      </p>
       <ScopeChoices {...props} />
       {person.scope === "selected" && (
         <AppointmentList {...props} staffId={row.staffId} />

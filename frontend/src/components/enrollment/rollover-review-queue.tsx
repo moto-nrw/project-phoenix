@@ -11,6 +11,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
@@ -103,20 +104,13 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
 
   return (
     <div className="space-y-4">
-      <header>
-        {phaseName ? (
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            {phaseName}
-          </p>
-        ) : null}
-        <p className="mt-1 text-sm text-gray-600">
-          Kinder, die nicht automatisch übernommen werden konnten, meist weil
-          ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen
-          Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer
-          Klassenstufe), aus der nächsten Phase entfernen oder vorerst
-          zurückstellen.
-        </p>
-      </header>
+      {/* Kopfkarte der Seite: der Erklärtext steht nicht mehr frei unter dem
+          Seitentitel, sondern trägt ihn selbst. */}
+      <PageIntro
+        kicker={phaseName}
+        title="Prüfliste"
+        description="Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen."
+      />
 
       {error ? <Alert type="error" message={error} /> : null}
       {info ? <Alert type="success" message={info} /> : null}
@@ -140,8 +134,10 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                 key={item.child_id}
                 className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
               >
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div>
+                {/* Titel links, Entscheidungen rechts: die drei Aktionen
+                    hatten vorher eine eigene Zeile am Fuß des Eintrags. */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
                     <h3 className="text-base font-semibold text-gray-900">
                       {item.first_name} {item.last_name}
                     </h3>
@@ -149,12 +145,41 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                       {item.guardian_first_name} {item.guardian_last_name} ·{" "}
                       {item.guardian_email}
                     </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Vorgemerkt: Klasse {item.target_grade_level ?? "—"}
+                      {item.source_grade_level && (
+                        <> (vorher: Klasse {item.source_grade_level})</>
+                      )}
+                    </p>
                   </div>
-                  <div className="text-xs text-gray-500">
-                    Vorgemerkt: Klasse {item.target_grade_level ?? "—"}
-                    {item.source_grade_level && (
-                      <> (vorher: Klasse {item.source_grade_level})</>
-                    )}
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="success"
+                      onClick={() => void decide(item, "keep")}
+                      disabled={busy}
+                    >
+                      Behalten
+                    </Button>
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="outline_danger"
+                      onClick={() => void decide(item, "drop")}
+                      disabled={busy}
+                    >
+                      Abschließen
+                    </Button>
+                    <Button
+                      type="button"
+                      size="md"
+                      variant="outline"
+                      onClick={() => void decide(item, "defer")}
+                      disabled={busy}
+                    >
+                      Zurückstellen
+                    </Button>
                   </div>
                 </div>
 
@@ -192,36 +217,6 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                     className="w-24"
                     disabled={busy}
                   />
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="md"
-                    variant="success"
-                    onClick={() => void decide(item, "keep")}
-                    disabled={busy}
-                  >
-                    Behalten
-                  </Button>
-                  <Button
-                    type="button"
-                    size="md"
-                    variant="outline_danger"
-                    onClick={() => void decide(item, "drop")}
-                    disabled={busy}
-                  >
-                    Abschließen
-                  </Button>
-                  <Button
-                    type="button"
-                    size="md"
-                    variant="outline"
-                    onClick={() => void decide(item, "defer")}
-                    disabled={busy}
-                  >
-                    Zurückstellen
-                  </Button>
                 </div>
               </li>
             );

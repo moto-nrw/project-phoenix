@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
@@ -25,6 +26,8 @@ import {
   ConceptPageHeader,
   ConceptSectionHeader,
 } from "~/components/ui/concept-section-header";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { SectionCard } from "~/components/ui/section-card";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -480,28 +483,26 @@ function DayCard({
 function HistoryTable({
   days,
   caps,
+  actions,
 }: {
   readonly days: AttendanceHistoryDay[];
   readonly caps: { attendanceDays: number; roomDetailDays: number };
+  /** Exporte des Protokolls, stehen in der Titelzeile der Karte. */
+  readonly actions?: ReactNode;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
   const todayKey = todayISO();
 
   return (
-    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
-      <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
-        <ConceptSectionHeader
-          title="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
-            <>
-              Letzte {caps.attendanceDays} Tage · Raumdetails für{" "}
-              {caps.roomDetailDays} Tage
-            </>
-          }
-        />
-      </div>
-
+    // bodyClassName hebt die Kartenpolsterung wieder auf: die Tabelle bringt
+    // ihre eigene Zellpolsterung mit und läuft randlos bis zur Kartenkante.
+    <SectionCard
+      title="Anwesenheitsprotokoll"
+      description={`Letzte ${caps.attendanceDays} Tage · Raumdetails für ${caps.roomDetailDays} Tage`}
+      leading={<ConceptIconTile concept="changeHistory" variant="section" />}
+      actions={actions}
+      bodyClassName="mt-4 -mx-5 -mb-5"
+    >
       {days.length === 0 ? (
         <EmptyState
           title="Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar."
@@ -749,7 +750,7 @@ function HistoryTable({
           </div>
         </>
       )}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -946,13 +947,22 @@ function StudentRoomHistoryPageContent() {
               <Alert type="error" message={exportError} />
             </div>
           )}
-          <div className="mb-4 flex flex-wrap justify-end gap-2">
-            {EXPORT_FORMATS.map((format) => (
+          {/* Charts */}
+          <div className="mb-4 md:mb-6">
+            <HistoryCharts days={history.days} />
+          </div>
+
+          {/* History table; die Exporte stehen in ihrer Titelzeile statt in
+              einer eigenen Button-Zeile darüber. */}
+          <HistoryTable
+            days={history.days}
+            caps={history.caps}
+            actions={EXPORT_FORMATS.map((format) => (
               <Button
                 key={format}
                 type="button"
                 variant="outline"
-                size="compact"
+                size="md"
                 disabled={exporting !== null}
                 onClick={() => void downloadExport(format)}
               >
@@ -961,14 +971,7 @@ function StudentRoomHistoryPageContent() {
                   : `${format.toUpperCase()} exportieren`}
               </Button>
             ))}
-          </div>
-          {/* Charts */}
-          <div className="mb-4 md:mb-6">
-            <HistoryCharts days={history.days} />
-          </div>
-
-          {/* History table */}
-          <HistoryTable days={history.days} caps={history.caps} />
+          />
         </>
       )}
     </div>

@@ -52,6 +52,7 @@ import {
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { SectionCard } from "~/components/ui/section-card";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -293,19 +294,12 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
             <RequestExtraSection request={data} />
 
-            <section className="space-y-3">
-              <div>
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Kinder
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
-                  Angaben der Kinder
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Zusatzfragen und Stammdaten-Antworten werden pro Kind
-                  angezeigt.
-                </p>
-              </div>
+            <SectionCard
+              kicker="Kinder"
+              title="Angaben der Kinder"
+              description="Zusatzfragen und Stammdaten-Antworten werden pro Kind angezeigt."
+              bodyClassName="mt-4 space-y-3"
+            >
               {data.children.map((child) => (
                 <ChildInformationCard
                   key={child.id}
@@ -332,7 +326,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   }
                 />
               ))}
-            </section>
+            </SectionCard>
           </div>
 
           <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
@@ -567,7 +561,27 @@ function ChildInformationCard({
             ) : null}
           </div>
         </div>
-        <ChildStatusBadge status={child.status} />
+        {/* Aktionen des Kindes rechts im Kartenkopf statt als eigene
+            Buttonzeile im Karteninhalt. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {child.status === "approved" && child.created_student_id ? (
+            <>
+              <Link
+                href={studentHref}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                Kind &amp; Einladung verwalten
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </Link>
+              <AdminChildDataCorrection
+                requestId={requestId}
+                child={child}
+                onSaved={onDataCorrected}
+              />
+            </>
+          ) : null}
+          <ChildStatusBadge status={child.status} />
+        </div>
       </div>
       <div className="space-y-4 p-4">
         {child.status_reason ? (
@@ -582,22 +596,6 @@ function ChildInformationCard({
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
-        ) : null}
-        {child.status === "approved" && child.created_student_id ? (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={studentHref}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              Kind &amp; Einladung verwalten
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            <AdminChildDataCorrection
-              requestId={requestId}
-              child={child}
-              onSaved={onDataCorrected}
-            />
-          </div>
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -664,20 +662,13 @@ function ReviewSidebar({
 }>) {
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
-      <section>
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Prüfung
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Status der Anmeldung
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den
-          aktuellen Stand der Anmeldung.
-        </p>
-      </section>
-
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      {/* Der Erklärtext stand vorher als eigener Block über der Karte und
+          gehört als description in ihren Kopf. */}
+      <SectionCard
+        kicker="Prüfung"
+        title="Status der Anmeldung"
+        description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
+      >
         <div className="grid grid-cols-3 gap-2">
           <SidebarMetric label="Kinder" value={data.children.length} />
           <SidebarMetric label="Offen" value={childStats.open} />
@@ -730,7 +721,7 @@ function ReviewSidebar({
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
           Gesamte Anmeldung löschen
         </Button>
-      </section>
+      </SectionCard>
 
       {data.children.map((child) => {
         return (

@@ -18,6 +18,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -207,46 +208,53 @@ export function StaffTimeAccountsTable({
     [],
   );
 
+  // Der Hinweis zum Monatsabschluss gehört in den Kartenkopf, nicht als
+  // eigener Absatz zwischen Kopf und Tabelle.
+  const description =
+    "Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und Urlaub sind mit dem Tagessoll gutgeschrieben." +
+    (monthClose !== null && !monthClose.closed && !monthIsOver
+      ? " Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des Folgemonats."
+      : "");
+
   return (
-    <div className="space-y-3">
+    <SectionCard
+      kicker={formatOverviewMonth(year, month)}
+      title="Zeitkonten"
+      titleClassName="text-sm"
+      headingLevel={3}
+      description={description}
+      actions={
+        <>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onPrevMonth}
+            aria-label="Vorheriger Monat"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="ghost"
+            onClick={onNextMonth}
+            disabled={!canGoNextMonth}
+            aria-label="Nächster Monat"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          {monthClose?.closed && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
+              <Lock className="h-3 w-3" />
+              Abgeschlossen am {formatLocalizedDate(monthClose.closedAt, "de")}
+            </span>
+          )}
+        </>
+      }
+      bodyClassName="mt-4 space-y-3"
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={onPrevMonth}
-              aria-label="Vorheriger Monat"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <p className="text-sm font-semibold text-gray-800">
-              Zeitkonten — {formatOverviewMonth(year, month)}
-            </p>
-            <Button
-              type="button"
-              size="icon"
-              variant="ghost"
-              onClick={onNextMonth}
-              disabled={!canGoNextMonth}
-              aria-label="Nächster Monat"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-            {monthClose?.closed && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">
-                <Lock className="h-3 w-3" />
-                Abgeschlossen am{" "}
-                {formatLocalizedDate(monthClose.closedAt, "de")}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500">
-            Soll bis heute, Ist und Saldo aus dem Stundenkonto. Krankheit und
-            Urlaub sind mit dem Tagessoll gutgeschrieben.
-          </p>
-        </div>
         {/* Sichtbare Chip-Leiste statt ghost-Buttons: als ghost sahen die
             inaktiven Presets wie Fließtext aus und niemand erkannte sie als
             Filter. */}
@@ -341,14 +349,6 @@ export function StaffTimeAccountsTable({
           )}
         </div>
       </div>
-      {monthClose !== null && !monthClose.closed && !monthIsOver && (
-        <p className="text-xs text-gray-500">
-          Der Abschluss friert den Stand zum Monatsende ein. Für den laufenden
-          Monat gibt es diesen Stand noch nicht; abschließen geht ab dem 1. des
-          Folgemonats.
-        </p>
-      )}
-
       {monthCloseError && (
         <div className="flex flex-wrap items-center gap-2">
           <div className="min-w-64 flex-1">
@@ -414,6 +414,6 @@ export function StaffTimeAccountsTable({
           </div>
         }
       />
-    </div>
+    </SectionCard>
   );
 }

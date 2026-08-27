@@ -24,7 +24,7 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
@@ -489,14 +489,11 @@ export default function OpeningBalanceImportPage() {
     <div className="-mt-1.5 w-full space-y-5">
       <BackButton referrer="/database/personal" />
 
-      <PageHeaderWithSearch title="Eröffnungssalden" />
-
-      <p className="max-w-3xl text-sm leading-relaxed text-gray-600">
-        Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo,
-        Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag.
-        Aus dem Resturlaub errechnet moto die vor der Einführung genommenen
-        Urlaubstage. Pro Person ist nur eine Übernahme möglich.
-      </p>
+      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
+      <PageIntro
+        title="Eröffnungssalden"
+        description="Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo, Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich."
+      />
 
       {error && (
         <div className="relative">
@@ -518,19 +515,10 @@ export default function OpeningBalanceImportPage() {
       <SectionCard
         kicker="Schritt 1"
         title="Vorlage herunterladen"
+        description="Spalten: Personalnummer (optional), Vorname, Nachname, Stundensaldo, Jahresanspruch, Vorjahresübertrag, Resturlaub. Eine leere Zelle lässt die jeweilige Seite unangetastet."
         icon={Download}
       >
-        <p className="text-sm text-gray-600">
-          Spalten: <span className="font-medium">Personalnummer</span>{" "}
-          (optional), <span className="font-medium">Vorname</span>,{" "}
-          <span className="font-medium">Nachname</span>,{" "}
-          <span className="font-medium">Stundensaldo</span>,{" "}
-          <span className="font-medium">Jahresanspruch</span>,{" "}
-          <span className="font-medium">Vorjahresübertrag</span>,{" "}
-          <span className="font-medium">Resturlaub</span>. Eine leere Zelle
-          lässt die jeweilige Seite unangetastet.
-        </p>
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="sm:w-64">
             <label
               id="template-format-label"
@@ -674,7 +662,20 @@ export default function OpeningBalanceImportPage() {
 
       {/* Ergebnis */}
       {importResult && (
-        <SectionCard title="Import abgeschlossen" icon={CheckCircle2}>
+        <SectionCard
+          title="Import abgeschlossen"
+          icon={CheckCircle2}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={resetAll}
+            >
+              Weitere Datei importieren
+            </Button>
+          }
+        >
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={importResult.TotalRows} />
             <StatTile label="Übernommen" value={importResult.CreatedCount} />
@@ -693,16 +694,6 @@ export default function OpeningBalanceImportPage() {
               </div>
             </>
           )}
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={resetAll}
-            >
-              Weitere Datei importieren
-            </Button>
-          </div>
         </SectionCard>
       )}
 

@@ -7,6 +7,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   exportEmergencySnapshot,
   type EmergencySnapshotExportMode,
@@ -64,24 +65,27 @@ export default function EmergencyPage() {
       <div className="space-y-6">
         {error ? <Alert type="error" message={error} /> : null}
 
-        <section className="moto-content-surface rounded-2xl border p-4 text-center shadow-sm sm:p-6">
-          <div className="bg-moto-red/10 text-moto-red ring-moto-red/5 mx-auto flex h-14 w-14 items-center justify-center rounded-full ring-8 sm:h-16 sm:w-16">
-            <MotoConceptIcon
-              concept="emergency"
-              size={32}
-              className="h-7 w-7 sm:h-8 sm:w-8"
-            />
-          </div>
-
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-600">
-            Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält
-            Klasse, Ort oder Raum, Telefonnummern
-            {healthInfoOnList
+        {/* Erklärtexte als description der Karte, der Gesundheitshinweis als
+            Alert. Die beiden großen Aktionen bleiben große Touch-Ziele, stehen
+            aber in einer Zeile im Kartenkörper. */}
+        <SectionCard
+          title="Notfallliste"
+          description={`Druckbare Liste aller Kinder, die gerade anwesend sind. Sie enthält Klasse, Ort oder Raum, Telefonnummern${
+            healthInfoOnList
               ? ", Kontaktpersonen und die hinterlegten Gesundheitsinfos."
-              : " und Kontaktpersonen."}
-          </p>
-
-          <div className="mx-auto mt-6 grid max-w-2xl gap-3 sm:grid-cols-2">
+              : " und Kontaktpersonen."
+          } Die Liste wird beim Erstellen aus der aktuellen Anwesenheit erzeugt.`}
+          leading={
+            <span className="bg-moto-red/10 text-moto-red ring-moto-red/5 flex h-12 w-12 shrink-0 items-center justify-center rounded-full ring-8">
+              <MotoConceptIcon
+                concept="emergency"
+                size={28}
+                className="h-6 w-6"
+              />
+            </span>
+          }
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Button
               type="button"
               variant="primary"
@@ -107,18 +111,15 @@ export default function EmergencyPage() {
             </Button>
           </div>
 
-          <p className="mt-4 text-sm leading-6 text-gray-500">
-            Die Liste wird beim Erstellen aus der aktuellen Anwesenheit erzeugt.
-          </p>
-
           {healthInfoOnList ? (
-            <p className="mt-2 text-sm leading-6 text-gray-500">
-              Steht bei einem Kind &bdquo;Nicht hinterlegt&ldquo;, sind keine
-              Gesundheitsinfos eingetragen. Das heißt nicht, dass das Kind keine
-              Allergie hat.
-            </p>
+            <div className="mt-4">
+              <Alert
+                type="info"
+                message="Steht bei einem Kind „Nicht hinterlegt“, sind keine Gesundheitsinfos eingetragen. Das heißt nicht, dass das Kind keine Allergie hat."
+              />
+            </div>
           ) : null}
-        </section>
+        </SectionCard>
       </div>
     </div>
   );

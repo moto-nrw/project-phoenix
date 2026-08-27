@@ -541,8 +541,8 @@ export default function StatisticsPage() {
               {data.excluded_days.holiday_periods} Ferientage
             </p>
 
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-              {/* Mobile fills the line, desktop keeps the compact joined chip. */}
+            {/* Mobile fills the line, desktop keeps the compact joined chip. */}
+            <div className="mt-5">
               <SegmentedControl
                 items={VIEW_ITEMS}
                 value={view}
@@ -551,23 +551,23 @@ export default function StatisticsPage() {
                 fullWidth={isMobile}
                 ariaLabel="Bereich wählen"
               />
-              {view === "rooms" && !roomDataAllBeforeWindow && (
-                <div className="flex flex-wrap gap-2">
-                  {exportButtons("rooms")}
-                </div>
-              )}
             </div>
 
-            <div className="mt-3">
-              <div className="mb-3">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  {sectionHeading.title}
-                </h3>
-                <p className="text-xs leading-5 text-gray-500">
-                  {sectionHeading.hint}
-                </p>
-              </div>
-
+            {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist
+                ihre description, die Exporte stehen in ihrer Titelzeile. */}
+            <SectionCard
+              title={sectionHeading.title}
+              description={sectionHeading.hint}
+              headingLevel={3}
+              className="mt-4 shadow-none"
+              actions={
+                view === "rooms" && !roomDataAllBeforeWindow ? (
+                  <div className="flex flex-wrap gap-2">
+                    {exportButtons("rooms")}
+                  </div>
+                ) : undefined
+              }
+            >
               {view === "groups" && (
                 <DataTable
                   columns={groupColumns}
@@ -631,7 +631,7 @@ export default function StatisticsPage() {
                     />
                   </>
                 ))}
-            </div>
+            </SectionCard>
           </>
         )}
       </SectionCard>

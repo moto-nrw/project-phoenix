@@ -4,7 +4,6 @@ import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import {
@@ -86,13 +85,13 @@ export function DashboardSkeleton() {
       aria-busy="true"
       aria-label="Übersicht wird geladen"
       data-testid="dashboard-skeleton"
-      className="-mt-1.5 w-full"
+      className="w-full"
     >
-      {/* Der Kopf rendert sofort, nur die Datenregion skeletonisiert. */}
-      <PageHeaderWithSearch title="Home" />
-
-      <div className="mb-6 md:mb-8">
-        <Skeleton className="h-5 w-72 rounded-full" />
+      {/* Kopfkarte wie im geladenen Zustand (PageIntro): Kicker, Gruß, Text. */}
+      <div className="moto-content-surface mb-6 rounded-2xl border p-5 shadow-sm backdrop-blur-md md:mb-8">
+        <Skeleton className="h-3 w-20 rounded-full" />
+        <Skeleton className="mt-2 h-7 w-64 max-w-3/4 rounded-full" />
+        <Skeleton className="mt-2 h-4 w-72 max-w-full rounded-full" />
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4">

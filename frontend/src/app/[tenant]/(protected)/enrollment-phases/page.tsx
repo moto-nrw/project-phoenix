@@ -21,9 +21,13 @@ export default function EnrollmentPhasesPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Anmeldephasen" />
       {showSkeleton ? (
-        <PhasesEditorSkeleton />
+        <>
+          {/* Im geladenen Zustand trägt der Editor den Seitenkopf, weil die
+              Aktion „Neue Anmeldephase“ an seinen Zustand gebunden ist. */}
+          <PageHeaderWithSearch title="Anmeldephasen" />
+          <PhasesEditorSkeleton />
+        </>
       ) : (
         <>
           <DesktopOnlyNotice />

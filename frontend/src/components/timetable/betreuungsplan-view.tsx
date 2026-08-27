@@ -33,6 +33,7 @@ import { CalendarPeriodModal } from "~/components/timetable/calendar-period-moda
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
@@ -1394,31 +1395,28 @@ function TimetablesContent() {
       </PlanningContextBar>
 
       {showEmptyPeriodState ? (
-        <div className={`${timetableSurface} p-10 text-center`}>
-          <MotoConceptIcon
-            concept="closingDays"
-            size={42}
-            className="mx-auto"
+        <div className={`${timetableSurface} px-6`}>
+          <EmptyState
+            icon={<MotoConceptIcon concept="closingDays" size={42} />}
+            title="Noch kein Planungszeitraum"
+            description={
+              canManageSchedules
+                ? "Legen Sie einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
+                : "Es gibt noch keinen Planungszeitraum. Eine Person mit Administrationsrechten muss ihn zuerst anlegen."
+            }
+            action={
+              canManageSchedules ? (
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="md"
+                  onClick={openPeriodCreate}
+                >
+                  Planungszeitraum anlegen
+                </Button>
+              ) : undefined
+            }
           />
-          <h2 className="mt-4 text-base font-semibold text-gray-900">
-            Noch kein Planungszeitraum
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-            {canManageSchedules
-              ? "Lege einen Planungszeitraum an, um Angebote und Termine im Betreuungsplan zu planen."
-              : "Es gibt noch keinen Planungszeitraum. Ein Admin muss ihn zuerst anlegen."}
-          </p>
-          {canManageSchedules && (
-            <div className="mt-4 flex justify-center">
-              <Button
-                type="button"
-                variant="primary"
-                onClick={openPeriodCreate}
-              >
-                Planungszeitraum anlegen
-              </Button>
-            </div>
-          )}
         </div>
       ) : (
         <>

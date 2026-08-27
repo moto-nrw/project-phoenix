@@ -2,7 +2,7 @@
 
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
@@ -38,16 +38,15 @@ export default function RemindersPage() {
   const { reminders, count, error, isLoading, data } = useReminders();
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch title="Erinnerungen" />
+    <div className="w-full">
+      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
+      <PageIntro
+        title="Erinnerungen"
+        description="Abholungen und Aktivitäten, die anstehen oder überfällig sind."
+        className="mb-6"
+      />
 
       <div className="space-y-6">
-        <p className="text-sm text-gray-500">
-          Abholungen und Aktivitäten, die anstehen oder überfällig sind.
-        </p>
-
         {error && (
           <Alert
             type="error"

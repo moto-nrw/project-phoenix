@@ -15,6 +15,7 @@
 import { Archive, Palette, Users } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
@@ -126,6 +127,23 @@ export function TemplateCard({
               </span>
             ) : null}
           </div>
+          {canManage && (
+            <OverflowMenu
+              ariaLabel={`Aktionen für ${template.name}`}
+              triggerSize="sm"
+              items={[
+                {
+                  label: "Bearbeiten",
+                  onClick: () => onEdit(template),
+                },
+                {
+                  label: "Archivieren",
+                  icon: <Archive className="h-3.5 w-3.5" aria-hidden />,
+                  onClick: () => onArchive(template),
+                },
+              ]}
+            />
+          )}
         </div>
 
         <div className="flex gap-1">
@@ -209,26 +227,7 @@ export function TemplateCard({
       </div>
 
       {canManage && (
-        <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-2.5 pl-5">
-          <div className="flex items-center justify-between gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => onEdit(template)}
-            >
-              Bearbeiten
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              onClick={() => onArchive(template)}
-            >
-              <Archive className="h-3.5 w-3.5" aria-hidden />
-              Archivieren
-            </Button>
-          </div>
+        <div className="border-t border-gray-100 px-4 py-2.5 pl-5">
           <Button
             type="button"
             variant="primary"

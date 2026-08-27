@@ -39,6 +39,7 @@ import type {
   InstanceStatus,
 } from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -638,11 +639,12 @@ export function SubstitutionSlideOver({
                       Personal
                     </h3>
                     {plannedStaff.length === 0 ? (
-                      <p
-                        className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-                      >
-                        Für diesen Block war niemand geplant.
-                      </p>
+                      <div className={`${timetableMutedSurface} px-3 py-1`}>
+                        <EmptyState
+                          variant="compact"
+                          title="Für diesen Block war niemand geplant"
+                        />
+                      </div>
                     ) : (
                       <ul className="space-y-2">
                         {plannedStaff.map((row) => {
@@ -701,6 +703,17 @@ export function SubstitutionSlideOver({
                         <h4 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
                           Aktuelle Vertretung
                         </h4>
+                        {canEdit && (
+                          <p className="mt-1 text-[11px] leading-5 text-gray-500">
+                            „Entfernen“ löscht die Vertretung nur aus diesem
+                            Termin. Andere Termine bleiben unverändert.
+                            {substitutes.some(
+                              (row) => row.isAbsent && !row.isSickAbsence,
+                            ) &&
+                              projectedCoverage < plannedPositions &&
+                              " „Anwesend melden“ setzt die Vertretung in diesem Termin wieder ein."}
+                          </p>
+                        )}
                         <ul className="space-y-1">
                           {substitutes.map((row) => {
                             const removed = removedSubs.has(row.staffId);
@@ -808,22 +821,6 @@ export function SubstitutionSlideOver({
                             );
                           })}
                         </ul>
-                        {canEdit && (
-                          <p className="text-[11px] leading-5 text-gray-400">
-                            „Entfernen“ löscht die Vertretung nur aus diesem
-                            Termin. Andere Termine bleiben unverändert.
-                          </p>
-                        )}
-                        {canEdit &&
-                          substitutes.some(
-                            (row) => row.isAbsent && !row.isSickAbsence,
-                          ) &&
-                          projectedCoverage < plannedPositions && (
-                            <p className="text-[11px] leading-5 text-gray-400">
-                              „Anwesend melden“ setzt die Vertretung in diesem
-                              Termin wieder ein.
-                            </p>
-                          )}
                       </div>
                     )}
                   </section>
@@ -880,11 +877,11 @@ export function SubstitutionSlideOver({
                     <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                       Absage
                     </h3>
+                    <p className="text-xs leading-5 text-gray-500">
+                      Der Termin wird abgesagt. Abwesenheit, Ersatz und „bewusst
+                      unbesetzt“ sind dabei ohne Wirkung.
+                    </p>
                     <div className={`${timetableNestedSurface} space-y-2 p-3`}>
-                      <p className="text-xs text-gray-500">
-                        Der Termin wird abgesagt. Abwesenheit, Ersatz und
-                        „bewusst unbesetzt“ sind dabei ohne Wirkung.
-                      </p>
                       <Input
                         controlSize="compact"
                         value={cancelReason}

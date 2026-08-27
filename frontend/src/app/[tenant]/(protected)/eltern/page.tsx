@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { useSession } from "next-auth/react";
 
 import { EntryPointCard } from "~/components/help/guide-components";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import {
   SkeletonRegion,
   CardGridSkeleton,
@@ -50,8 +50,8 @@ function ElternContent() {
   const canAnnounce = hasPermission(session, "admin:*");
 
   // Auth-loading joins the showSkeleton flag instead of an early return
-  // before the header, so the real PageHeaderWithSearch and intro copy
-  // render immediately and only the card grid skeletonizes.
+  // before the header, so the real PageIntro renders immediately and only the
+  // card grid skeletonizes.
   const showSkeleton = status === "loading";
 
   const cards: readonly ElternCard[] = [
@@ -96,22 +96,17 @@ function ElternContent() {
   const visibleCards = cards.filter((card) => card.show);
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Eltern" />
+    <div className="w-full">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in
+          einer Karte, statt eines frei stehenden Absatzes darunter. */}
+      <PageIntro
+        kicker="Elternbereich"
+        title="Eltern"
+        description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
+        className="mb-6"
+      />
 
       <div className="min-h-[60vh]">
-        {/* Intro: carries the Anleitung/Help-Guide design language (kicker +
-            short lead) into the in-app overview. */}
-        <div className="mb-8 hidden max-w-2xl lg:block">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Elternbereich
-          </p>
-          <p className="mt-3 text-base leading-7 text-gray-600">
-            Alles rund um die Kommunikation mit den Eltern an einem Ort.
-            Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan.
-          </p>
-        </div>
-
         {showSkeleton ? (
           <ElternCardsSkeleton />
         ) : (
@@ -136,8 +131,7 @@ function ElternContent() {
 
 /**
  * Data-region skeleton: just the entry-point card grid. The real header
- * (PageHeaderWithSearch on mobile, intro copy on desktop) renders
- * immediately regardless of loading state — only this data-bound region
+ * (PageIntro) renders immediately regardless of loading state — only this data-bound region
  * skeletonizes while the session/settings load.
  */
 function ElternCardsSkeleton() {

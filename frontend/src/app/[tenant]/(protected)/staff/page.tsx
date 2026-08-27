@@ -9,6 +9,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -85,67 +86,65 @@ function DocumentDirectory({
           }}
         />
       )}
-      {embedded && (
-        <div className="mb-4">
-          <Input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Person suchen…"
-            className="w-full"
-          />
-        </div>
-      )}
-      {/* Eingebettet trägt schon der Reiter diesen Titel, dann entfällt die
-          Sektionsüberschrift (kein doppelter Titel). */}
-      {!embedded && (
-        <h2 className="text-base font-semibold text-gray-900">
-          Personalunterlagen
-        </h2>
-      )}
-      <p className="mt-1 mb-4 text-sm text-gray-600">
-        Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
-      </p>
-      {error ? (
-        <Alert
-          type="error"
-          message="Das Personalverzeichnis konnte nicht geladen werden."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="compact"
-              onClick={onRetry}
-            >
-              Erneut versuchen
-            </Button>
-          }
-        />
-      ) : (
-        <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
-          {filteredEntries.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-              className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
-            >
-              {entry.name}
-              <span aria-hidden="true" className="text-gray-400">
-                ›
-              </span>
-            </button>
-          ))}
-          {filteredEntries.length === 0 ? (
-            <EmptyState
-              variant="compact"
-              className="px-4 py-6"
-              title="Keine Personen gefunden."
-              description="Passen Sie die Suche an."
+      {/* Der Erklärtext ist die description der Karte, die die Personenliste
+          trägt. Eingebettet steht der Titel „Personalunterlagen“ schon auf dem
+          Reiter, dort benennt die Karte ihren Inhalt (kein doppelter Titel). */}
+      <SectionCard
+        title={embedded ? "Personen" : "Personalunterlagen"}
+        description="Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen."
+      >
+        {embedded && (
+          <div className="mb-4">
+            <Input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Person suchen…"
+              className="w-full"
             />
-          ) : null}
-        </div>
-      )}
+          </div>
+        )}
+        {error ? (
+          <Alert
+            type="error"
+            message="Das Personalverzeichnis konnte nicht geladen werden."
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={onRetry}
+              >
+                Erneut versuchen
+              </Button>
+            }
+          />
+        ) : (
+          <div className="divide-y divide-gray-100 overflow-hidden rounded-xl border border-gray-200">
+            {filteredEntries.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
+                className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
+              >
+                {entry.name}
+                <span aria-hidden="true" className="text-gray-400">
+                  ›
+                </span>
+              </button>
+            ))}
+            {filteredEntries.length === 0 ? (
+              <EmptyState
+                variant="compact"
+                className="px-4 py-6"
+                title="Keine Personen gefunden."
+                description="Passen Sie die Suche an."
+              />
+            ) : null}
+          </div>
+        )}
+      </SectionCard>
     </div>
   );
 }

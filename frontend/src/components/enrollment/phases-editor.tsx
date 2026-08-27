@@ -58,6 +58,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -769,7 +770,29 @@ export function PhasesEditor() {
         <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
       ) : null}
 
-      <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      {/* Seitenkopf: „Neue Anmeldephase“ ist eine Seitenaktion und sitzt
+          deshalb im Kopf, nicht neben den Kennzahlen. Der Kopf lebt hier und
+          nicht in page.tsx, weil die Aktion an den Editor-Zustand gebunden
+          ist (beim Bearbeiten oder Übertragen wird sie ausgeblendet). */}
+      <PageHeaderWithSearch
+        title="Anmeldephasen"
+        actionButton={
+          !editingId && !rolloverSource ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={startCreate}
+              className="inline-flex shrink-0 items-center justify-center gap-2"
+            >
+              <MotoConceptIcon concept="calendarPeriods" size={16} />
+              Neue Anmeldephase
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur">
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
@@ -787,18 +810,6 @@ export function PhasesEditor() {
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
         </div>
-        {!editingId && !rolloverSource && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={startCreate}
-            className="inline-flex shrink-0 items-center justify-center gap-2"
-          >
-            <MotoConceptIcon concept="calendarPeriods" size={16} />
-            Neue Anmeldephase
-          </Button>
-        )}
       </div>
 
       {rolloverSource && (
@@ -1372,10 +1383,10 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Anmeldefenster (optional)
         </legend>
-        <p className="mb-2 text-xs text-gray-500">
-          Lass beide Felder leer, wenn das Anmeldeformular jederzeit erreichbar
-          sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum eingereicht
-          werden.
+        <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
+          Lassen Sie beide Felder leer, wenn das Anmeldeformular jederzeit
+          erreichbar sein soll. Sonst kann die Anmeldung nur in diesem Zeitraum
+          eingereicht werden.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="block">
@@ -1688,7 +1699,7 @@ function PhaseForm(props: PhaseFormProps) {
         <legend className="px-1 text-xs font-medium text-gray-700">
           Konkrete Klassen
         </legend>
-        <p className="text-xs leading-5 text-gray-500">
+        <p className="mt-1 mb-2 text-sm leading-6 text-gray-600">
           Ab der 2. Klasse können Eltern die konkrete Klasse (z. B. 2a) aus
           dieser Liste wählen. Für die 1. Klasse wird weiterhin nur die
           Klassenstufe erfasst. Nur wirksam, wenn „Konkrete Klasse abfragen“ in

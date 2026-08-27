@@ -19,6 +19,7 @@ import {
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
+import { PageIntro } from "~/components/ui/page-intro";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -338,16 +339,15 @@ export function CalendarPeriodsEditor() {
     <div className="space-y-4">
       {error && <Alert type="error" message={error} />}
 
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="min-w-0 text-sm text-gray-600">
-            Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für
-            Anmeldung und Betreuungsplan.
-          </p>
-          {/* The page content can be narrower than the viewport beside the
-              persistent sidebar. Let actions wrap in that constrained space
-              instead of forcing the header surface wider than its container. */}
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+      {/* Kopfkarte der Seite: Titel, Erklärtext und die beiden Seitenaktionen
+          in einer Zeile, wie in der Eltern-App. Die Aktionen hängen an den
+          Modal-Zuständen dieses Editors und leben deshalb hier, nicht in
+          page.tsx. */}
+      <PageIntro
+        title="Kalenderzeiträume"
+        description="Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan."
+        actions={
+          <>
             <Button
               type="button"
               variant="primary"
@@ -368,9 +368,9 @@ export function CalendarPeriodsEditor() {
               <Plus className="h-4 w-4" aria-hidden="true" />
               Zeitraum anlegen
             </Button>
-          </div>
-        </div>
-      </section>
+          </>
+        }
+      />
 
       {!loading && periods.length === 0 ? (
         <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">

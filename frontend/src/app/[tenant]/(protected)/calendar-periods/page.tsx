@@ -2,7 +2,6 @@
 
 import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
@@ -22,17 +21,12 @@ export default function CalendarPeriodsPage() {
 
   return (
     <div className="-mt-1.5 w-full space-y-6">
-      {/* Der Kopf rendert immer sofort, nur die Datenregion skeletonisiert. */}
-      <PageHeaderWithSearch title="Kalenderzeiträume" />
+      {/* Titel, Erklärtext und Seitenaktionen trägt die Kopfkarte des
+          Editors (PageIntro), Schließtage die eigene Abschnittskarte. */}
       {isReady ? (
         <>
           <CalendarPeriodsEditor />
-          <section className="space-y-3">
-            <h2 className="text-base font-semibold text-gray-900">
-              Schließtage
-            </h2>
-            <ClosingDaysEditor />
-          </section>
+          <ClosingDaysEditor />
         </>
       ) : (
         <SkeletonRegion

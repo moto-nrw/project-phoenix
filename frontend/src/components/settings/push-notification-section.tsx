@@ -210,7 +210,29 @@ export function PushNotificationSection({
   if (state === "loading") return <PushNotificationSkeleton />;
   if (state === "disabled") return null;
 
-  const headerAction =
+  // Der Zustandstext gehört als Erklärung in den Kartenkopf, nicht als
+  // freier Absatz darunter. Hinweise, die einen Schritt außerhalb der App
+  // verlangen (Installation, blockierte Browser-Berechtigung), bleiben ein
+  // Alert mit der zugehörigen Aktion.
+  const headerSubtitle =
+    state === "unsupported" ? (
+      <p className="max-w-2xl text-sm leading-6 text-pretty">
+        {t("unsupportedBody")}
+      </p>
+    ) : state === "unsubscribed" ? (
+      <>
+        <p className="max-w-2xl text-sm leading-6 text-pretty">
+          {t("offBody")}
+        </p>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-pretty">
+          {t("permissionHint")}
+        </p>
+      </>
+    ) : state === "subscribed" ? (
+      <p className="max-w-2xl text-sm leading-6 text-pretty">{t("onBody")}</p>
+    ) : undefined;
+
+  const primaryAction =
     state === "unsubscribed" ? (
       <Button
         type="button"
@@ -245,16 +267,48 @@ export function PushNotificationSection({
       </Button>
     ) : null;
 
+  const testAction =
+    state === "subscribed" && portal === "tenant" ? (
+      <Button
+        type="button"
+        variant="surface"
+        size="md"
+        isLoading={testing}
+        loadingText={t("testing")}
+        disabled={busy}
+        onClick={() => void sendTest()}
+      >
+        {t("sendTest")}
+      </Button>
+    ) : null;
+
+  const headerActions =
+    primaryAction != null || testAction != null ? (
+      <>
+        {testAction}
+        {primaryAction}
+      </>
+    ) : null;
+
+  // Ohne Karteninhalt darf der Kopf keinen Abstand nach unten aufspannen.
+  const hasBody =
+    error != null ||
+    message != null ||
+    state === "needs-install-ios" ||
+    state === "needs-install-android" ||
+    state === "denied";
+
   return (
     <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
       <ConceptSectionHeader
-        className="mb-4"
+        className={hasBody ? "mb-4" : undefined}
         // Geschwisterkarten auf /profile und /parents/settings sind h3.
         level={3}
         title={t("title")}
         concept="notifications"
-        actions={headerAction}
-        actionsClassName="ms-auto"
+        subtitle={headerSubtitle}
+        actions={headerActions}
+        actionsClassName="ms-auto flex flex-wrap items-center gap-2"
       />
 
       {error && (
@@ -271,79 +325,34 @@ export function PushNotificationSection({
       {state === "needs-install-ios" && <PushInstallSteps compact />}
 
       {state === "needs-install-android" && (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-gray-800">
-              {setupT("installAndroidTitle")}
-            </p>
-            <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-              {installPromptReady
-                ? setupT("installAndroidIntro")
-                : setupT("installAndroidManual")}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {state === "unsupported" && (
-        <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-          {t("unsupportedBody")}
-        </p>
+        <Alert
+          type="info"
+          title={setupT("installAndroidTitle")}
+          message={
+            installPromptReady
+              ? setupT("installAndroidIntro")
+              : setupT("installAndroidManual")
+          }
+        />
       )}
 
       {state === "denied" && (
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <p className="text-sm font-medium text-gray-800">
-              {t("blockedTitle")}
-            </p>
-            <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-              {t("blockedBody")}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant="surface"
-            size="md"
-            disabled={busy}
-            onClick={() => void refresh()}
-          >
-            {t("checkAgain")}
-          </Button>
-        </div>
-      )}
-
-      {state === "unsubscribed" && (
-        <div className="space-y-1">
-          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-            {t("offBody")}
-          </p>
-          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-            {t("permissionHint")}
-          </p>
-        </div>
-      )}
-
-      {state === "subscribed" && (
-        <div>
-          <p className="max-w-2xl text-sm leading-6 text-pretty text-gray-600">
-            {t("onBody")}
-          </p>
-          {portal === "tenant" && (
+        <Alert
+          type="warning"
+          title={t("blockedTitle")}
+          message={t("blockedBody")}
+          action={
             <Button
               type="button"
-              variant="ghost"
-              size="compact"
-              className="-ms-2.5 mt-2"
-              isLoading={testing}
-              loadingText={t("testing")}
+              variant="surface"
+              size="md"
               disabled={busy}
-              onClick={() => void sendTest()}
+              onClick={() => void refresh()}
             >
-              {t("sendTest")}
+              {t("checkAgain")}
             </Button>
-          )}
-        </div>
+          }
+        />
       )}
     </div>
   );

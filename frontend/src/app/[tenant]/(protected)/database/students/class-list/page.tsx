@@ -470,7 +470,8 @@ export default function ClassListEntriesPage() {
       <SectionCard
         kicker="Klassenlisteneinträge"
         title="Der vollständige Klassenverband"
-        bodyClassName="mt-3"
+        description="Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung, Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über „Eintrag anlegen“ oder den Sammelimport ergänzt."
+        bodyClassName="mt-4"
         actions={
           canCreate ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -490,15 +491,7 @@ export default function ClassListEntriesPage() {
           ) : undefined
         }
       >
-        <p className="max-w-2xl text-sm leading-6 text-gray-600">
-          Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder und
-          Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung,
-          Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über{" "}
-          <span className="font-medium">Eintrag anlegen</span> oder den{" "}
-          <span className="font-medium">Sammelimport</span> ergänzt.
-        </p>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">
               {allRows.length}

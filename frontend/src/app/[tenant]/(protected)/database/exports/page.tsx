@@ -24,7 +24,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
 import { BackButton } from "~/components/ui/back-button";
 import { InfoCard } from "~/components/ui/info-card";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
@@ -157,15 +157,14 @@ export default function DatabaseExportsPage() {
     <div className="-mt-1.5 w-full">
       <BackButton referrer="/database" />
 
-      <PageHeaderWithSearch title="Exporte" />
+      {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
+      <PageIntro
+        title="Exporte"
+        description="Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere personenbezogene Unterlage."
+        className="mb-6"
+      />
 
       <div className="min-h-[60vh] space-y-6">
-        <p className="max-w-3xl text-sm text-gray-600">
-          Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die
-          Daten, die für die jeweilige Liste nötig sind. Bitte behandeln Sie die
-          erzeugten Dateien wie jede andere personenbezogene Unterlage.
-        </p>
-
         <ExportSection title="Kinderlisten">
           {STUDENT_EXPORT_PRESETS.map((preset) => (
             <InfoCard

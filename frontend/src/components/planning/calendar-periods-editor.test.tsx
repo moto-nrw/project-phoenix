@@ -200,9 +200,11 @@ describe("CalendarPeriodsEditor", () => {
       /Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis/,
     );
 
-    expect(actions).toHaveClass("sm:flex-wrap");
-    expect(actions).toHaveClass("sm:justify-end");
-    expect(description).toHaveClass("min-w-0");
+    // Seit der Umstellung auf die Kopfkarte (PageIntro/SectionCard) umbrechen
+    // die Aktionen auf jeder Breite, und der Textblock bleibt schrumpfbar.
+    expect(actions).toHaveClass("flex-wrap");
+    expect(actions).toHaveClass("shrink-0");
+    expect(description.closest(".min-w-0")).not.toBeNull();
   });
 
   it("keeps the modal mounted while the post-save refresh is in flight", async () => {

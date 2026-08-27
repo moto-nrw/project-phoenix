@@ -164,7 +164,9 @@ describe("/staff — Berechtigungs-Split", () => {
     expect(getAllStaff).not.toHaveBeenCalled();
     expect(swrKeys).not.toContain("staff-list");
     expect(getTimeAccounts).toHaveBeenCalledTimes(1);
-    expect(screen.getByText(/Zeitkonten —/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Zeitkonten" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByRole("tab", { name: "Status" }),
     ).not.toBeInTheDocument();

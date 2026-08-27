@@ -434,15 +434,12 @@ function SubstitutionPageContent() {
   if (openCareGroupMode) {
     return (
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <h2 className="text-base font-semibold text-gray-900">
-          Gruppenzugriff nicht verfügbar
-        </h2>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-          Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
-          berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
-          temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
-          Gruppen“ kann in den Einstellungen geändert werden.
-        </p>
+        {/* Kein Erklärabsatz unter einer Überschrift, sondern ein Leerzustand. */}
+        <EmptyState
+          icon={<MotoConceptIcon concept="staff" size={48} />}
+          title="Gruppenzugriff nicht verfügbar"
+          description="Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen Gruppen“ kann in den Einstellungen geändert werden."
+        />
       </div>
     );
   }

@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -2271,10 +2272,12 @@ export default function SlotListsPage() {
               </p>
             )}
             {cancelledSlotCount > 0 ? (
-              <p className="mt-2 text-xs leading-5 text-gray-500">
-                Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten
-                aufgenommen.
-              </p>
+              <div className="mt-2">
+                <Alert
+                  type="info"
+                  message="Abgesagte Angebote werden angezeigt, aber nicht in Tageslisten aufgenommen."
+                />
+              </div>
             ) : null}
           </div>
         ) : null}
@@ -2348,63 +2351,62 @@ export default function SlotListsPage() {
         </div>
       ) : null}
 
-      {/* Preview + export */}
-      <section
-        aria-label="Vorschau und Export"
-        className="moto-content-surface mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
+      {/* Preview + export: die Exporte stehen in der Titelzeile der Karte,
+          nicht in einer eigenen Button-Zeile. */}
+      <SectionCard
+        title="Vorschau und Export"
+        className="mt-4"
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              isLoading={isExporting}
+              loadingText="Erstelle PDF…"
+              disabled={isExporting || isLoading || !result}
+              onClick={() => void handleExport("pdf", "print")}
+              className="gap-2"
+            >
+              <Printer className="h-4 w-4" aria-hidden />
+              Drucken
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={isExporting || isLoading || !result}
+              onClick={() => void handleExport("pdf", "download")}
+              className="gap-2"
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              PDF herunterladen
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={isExporting || isLoading || !result}
+              onClick={() => void handleExport("xlsx", "download")}
+              className="gap-2"
+            >
+              <FileSpreadsheet className="h-4 w-4" aria-hidden />
+              Excel
+            </Button>
+          </>
+        }
       >
-        <div className="space-y-3 border-b border-gray-100 pb-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
-            <div className="min-w-0 space-y-3">
-              {/* Standard filters that narrow the list (offering / group / class) */}
-              {filterConfigs.length > 0 ? (
-                <DesktopFilters filters={filterConfigs} />
-              ) : null}
-              {hiddenActiveFilters.length > 0 ? (
-                <ActiveFilterChips filters={hiddenActiveFilters} />
-              ) : null}
-              {result && !isLoading ? (
-                <CounterChips counters={result.counters} source={source} />
-              ) : null}
-            </div>
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                isLoading={isExporting}
-                loadingText="Erstelle PDF…"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("pdf", "print")}
-                className="gap-2"
-              >
-                <Printer className="h-4 w-4" aria-hidden />
-                Drucken
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("pdf", "download")}
-                className="gap-2"
-              >
-                <Download className="h-4 w-4" aria-hidden />
-                PDF herunterladen
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={isExporting || isLoading || !result}
-                onClick={() => void handleExport("xlsx", "download")}
-                className="gap-2"
-              >
-                <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                Excel
-              </Button>
-            </div>
-          </div>
+        <div className="min-w-0 space-y-3 border-b border-gray-100 pb-4">
+          {/* Standard filters that narrow the list (offering / group / class) */}
+          {filterConfigs.length > 0 ? (
+            <DesktopFilters filters={filterConfigs} />
+          ) : null}
+          {hiddenActiveFilters.length > 0 ? (
+            <ActiveFilterChips filters={hiddenActiveFilters} />
+          ) : null}
+          {result && !isLoading ? (
+            <CounterChips counters={result.counters} source={source} />
+          ) : null}
         </div>
 
         <div className="mt-4">
@@ -2453,7 +2455,7 @@ export default function SlotListsPage() {
             />
           )}
         </div>
-      </section>
+      </SectionCard>
     </div>
   );
 }

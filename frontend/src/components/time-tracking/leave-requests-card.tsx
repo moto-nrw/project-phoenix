@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
@@ -184,14 +185,25 @@ export function LeaveRequestsCard() {
 
   return (
     <>
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Urlaub
-          </h2>
-          <span className="text-xs text-gray-400">{year}</span>
-        </div>
-
+      <SectionCard
+        title="Urlaub"
+        description="Urlaubsanträge stellen, Status verfolgen und stornieren."
+        actions={
+          <>
+            <span className="text-xs text-gray-400">{year}</span>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setModalOpen(true)}
+              disabled={loading}
+            >
+              Urlaub beantragen
+            </Button>
+          </>
+        }
+        bodyClassName="mt-5"
+      >
         <div
           className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
         >
@@ -233,22 +245,6 @@ export function LeaveRequestsCard() {
           />
         </div>
 
-        <div className="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-500">
-            Urlaubsanträge stellen, Status verfolgen und stornieren.
-          </p>
-          <Button
-            type="button"
-            variant="primary"
-            size="compact"
-            onClick={() => setModalOpen(true)}
-            disabled={loading}
-            className="!rounded-full"
-          >
-            Urlaub beantragen
-          </Button>
-        </div>
-
         {sortedQuestionedVacations.length > 0 && (
           <div className="mt-5 border-t border-gray-100 pt-5">
             <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -286,7 +282,7 @@ export function LeaveRequestsCard() {
             </ul>
           </div>
         )}
-      </div>
+      </SectionCard>
 
       <VacationRequestModal
         isOpen={modalOpen}

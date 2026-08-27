@@ -32,6 +32,7 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { fetchSettingsSchema } from "~/lib/settings-api";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
 import {
   CardGridSkeleton,
@@ -274,9 +275,12 @@ function ChangeRequestsOverview({
         </div>
       )}
       {!error && openCount === 0 ? (
-        <p className="mt-3 text-sm text-gray-500">
-          Aktuell wartet keine Änderungsanfrage auf Bearbeitung.
-        </p>
+        <EmptyState
+          variant="compact"
+          className="mt-3"
+          title="Keine offenen Änderungsanfragen"
+          description="Aktuell wartet keine Änderungsanfrage auf Bearbeitung."
+        />
       ) : null}
     </section>
   );
@@ -349,24 +353,21 @@ function EnrollmentPhaseOverview({
   if (phases.length === 0) {
     return (
       <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Überblick
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Noch keine Anmeldephase
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Legen Sie zuerst eine Anmeldephase an. Danach sehen Sie hier, welche
-          Phasen laufen und wie viele Anmeldungen eingegangen sind.
-        </p>
-        <ButtonLink
-          href="/enrollment-phases"
-          variant="primary"
-          size="md"
-          className="mt-4 inline-flex items-center justify-center gap-2"
-        >
-          Anmeldephase anlegen
-        </ButtonLink>
+        {/* Leerzustand als EmptyState statt als loser Textblock mit Button. */}
+        <EmptyState
+          title="Noch keine Anmeldephase"
+          description="Legen Sie zuerst eine Anmeldephase an. Danach sehen Sie hier, welche Phasen laufen und wie viele Anmeldungen eingegangen sind."
+          action={
+            <ButtonLink
+              href="/enrollment-phases"
+              variant="primary"
+              size="md"
+              className="inline-flex items-center justify-center gap-2"
+            >
+              Anmeldephase anlegen
+            </ButtonLink>
+          }
+        />
       </section>
     );
   }

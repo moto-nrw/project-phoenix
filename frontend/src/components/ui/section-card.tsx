@@ -42,7 +42,7 @@ export function SectionCard({
 }: Readonly<{
   kicker?: string;
   title: string;
-  description?: string;
+  description?: ReactNode;
   icon?: LucideIcon;
   /** Existing icon tile or other leading visual for non-Lucide icon systems. */
   leading?: ReactNode;

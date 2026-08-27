@@ -2030,7 +2030,11 @@ describe("PhasesEditor", () => {
     render(<PhasesEditor />);
 
     expect(await screen.findByText("Schuljahr 2026/27")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Neue Anmeldephase" }));
+    // Die Aktion liegt jetzt im Seitenkopf und rendert dort responsiv zweimal
+    // (mobile Kopfzeile und Desktop-Zeile).
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+    );
     fireEvent.change(inputByName("name"), {
       target: { value: "Sommerferien" },
     });

@@ -17,6 +17,7 @@ import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import {
   CardGridSkeleton,
   SkeletonRegion,
@@ -443,13 +444,29 @@ export default function MealPlanPage() {
           in der Kopf-Karte stand direkt unter derselben Breadcrumb. */}
       <PageHeaderWithSearch title="Essensplan" />
       <div className="space-y-6">
-        <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-          <p className="text-sm text-gray-500">
-            Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern
-            sehen den Plan im Elternportal.
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
+            kein frei stehender Absatz und keine Zeile nur aus Buttons. */}
+        <SectionCard
+          title="Wochenplan"
+          description="Pro Tag ein oder mehrere Gerichte mit optionalem Hinweis. Eltern sehen den Plan im Elternportal."
+          actions={
+            canEdit ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={requestCopyPreviousWeek}
+                disabled={loading || saving || copyingPrev || loadError}
+                isLoading={copyingPrev}
+                loadingText="Übernehmen…"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Vorwoche übernehmen
+              </Button>
+            ) : undefined
+          }
+        >
+          <div className="flex flex-wrap items-center gap-3">
             {/* Week navigation */}
             <div className="flex items-center gap-2">
               <Button
@@ -495,23 +512,8 @@ export default function MealPlanPage() {
                 </Button>
               )}
             </div>
-
-            {canEdit && (
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={requestCopyPreviousWeek}
-                disabled={loading || saving || copyingPrev || loadError}
-                isLoading={copyingPrev}
-                loadingText="Übernehmen…"
-              >
-                <Copy className="mr-2 h-4 w-4" />
-                Vorwoche übernehmen
-              </Button>
-            )}
           </div>
-        </section>
+        </SectionCard>
 
         {loading && !hasLoaded ? (
           <SkeletonRegion label="Essensplan wird geladen">

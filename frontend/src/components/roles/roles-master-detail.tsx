@@ -1,6 +1,7 @@
 "use client";
 
 import { Pencil } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
@@ -243,9 +244,10 @@ function RoleStammdatenTab({
       </InfoSection>
 
       {role.isSystem ? (
-        <p className="text-center text-xs text-gray-500">
-          System-Rollen können nicht bearbeitet oder gelöscht werden.
-        </p>
+        <Alert
+          type="info"
+          message="System-Rollen können nicht bearbeitet oder gelöscht werden."
+        />
       ) : null}
     </div>
   );

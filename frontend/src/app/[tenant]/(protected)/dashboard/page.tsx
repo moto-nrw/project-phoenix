@@ -34,7 +34,7 @@ import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
@@ -234,16 +234,16 @@ function DashboardContent() {
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch title="Home" />
-
-      {/* Begrüßung: kein zweiter Seitentitel, nur eine Zeile über der
-          Übersicht. */}
-      <p className="mb-6 text-sm text-gray-600 md:mb-8 md:text-base">
-        {greeting}, {firstName}! Hier ist die aktuelle Übersicht.
-      </p>
+    <div className="w-full">
+      {/* Begrüßung als Kopfkarte wie auf der Eltern-Startseite: der Gruß ist
+          der Titel, der Erklärtext hängt als description darunter. */}
+      <PageIntro
+        kicker="Übersicht"
+        title={`${greeting}, ${firstName}`}
+        description="Das Wichtigste für heute auf einen Blick."
+        prominent
+        className="mb-6 md:mb-8"
+      />
 
       {error && (
         <div className="mb-6">

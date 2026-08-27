@@ -17,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { closingDayService } from "~/lib/closing-day-api";
 import {
   type ClosingDay,
@@ -177,13 +178,12 @@ export function ClosingDaysEditor() {
     <div className="space-y-4">
       {error && <Alert type="error" message={error} />}
 
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-gray-600">
-            OGS-Schließtage (z. B. pädagogische Tage, Weihnachtswoche,
-            Sommerschließung). An diesen Tagen gilt Soll = 0 wie an gesetzlichen
-            Feiertagen.
-          </p>
+      {/* Erklärtext und „Schließtag anlegen“ sitzen im Kartenkopf, statt als
+          freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
+      <SectionCard
+        title="Schließtage"
+        description="OGS-Schließtage (z. B. pädagogische Tage, Weihnachtswoche, Sommerschließung). An diesen Tagen gilt Soll = 0 wie an gesetzlichen Feiertagen."
+        actions={
           <Button
             type="button"
             variant="primary"
@@ -194,11 +194,9 @@ export function ClosingDaysEditor() {
             <Plus className="h-4 w-4" aria-hidden="true" />
             Schließtag anlegen
           </Button>
-        </div>
-      </section>
-
-      {!loading && closingDays.length === 0 ? (
-        <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+        }
+      >
+        {!loading && closingDays.length === 0 ? (
           <EmptyState
             icon={
               <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
@@ -207,30 +205,18 @@ export function ClosingDaysEditor() {
             }
             title="Noch keine Schließtage"
             description="Hinterlegen Sie die Schließtage des Schuljahres, damit die Zeiterfassung an diesen Tagen kein Soll ansetzt."
-            action={
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                onClick={beginCreate}
-                className="gap-2"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                Schließtag anlegen
-              </Button>
-            }
           />
-        </section>
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={closingDays}
-          getRowKey={(day) => day.id}
-          defaultSortKey="range"
-          defaultSortDirection="asc"
-          isLoading={loading}
-        />
-      )}
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={closingDays}
+            getRowKey={(day) => day.id}
+            defaultSortKey="range"
+            defaultSortDirection="asc"
+            isLoading={loading}
+          />
+        )}
+      </SectionCard>
 
       <ClosingDayModal
         isOpen={modalOpen}

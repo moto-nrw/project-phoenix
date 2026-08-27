@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { Eye, EyeOff, Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { DataFieldSkeleton } from "~/components/ui/detail-modal-components";
@@ -409,12 +408,19 @@ export function StammdatenTab({
           collapsible
           kicker="Abrechnung"
           title="Personalnummer"
-          description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen."
-          action={
-            <EditAction
-              visible={!payrollLoading}
-              onClick={() => setOpenModal("payroll")}
-            />
+          description="Personalnummer aus dem Lohnsystem des Trägers. Ohne sie kann der spätere DATEV-Export diese Person keiner Abrechnung zuordnen. Lohnarten und DATEV-Mandantendaten werden zentral unter „Abrechnung“ gepflegt."
+          actions={
+            <>
+              {canManagePayrollSettings ? (
+                <ButtonLink href="/payroll" variant="ghost" size="compact">
+                  Abrechnung
+                </ButtonLink>
+              ) : null}
+              <EditAction
+                visible={!payrollLoading}
+                onClick={() => setOpenModal("payroll")}
+              />
+            </>
           }
         >
           <FieldGrid>
@@ -429,17 +435,6 @@ export function StammdatenTab({
               />
             )}
           </FieldGrid>
-          <p className="mt-4 text-xs text-gray-500">
-            Lohnarten und DATEV-Mandantendaten werden zentral unter{" "}
-            {canManagePayrollSettings ? (
-              <Link href="/payroll" className="text-[#5080D8] hover:underline">
-                Abrechnung
-              </Link>
-            ) : (
-              "Abrechnung"
-            )}{" "}
-            gepflegt.
-          </p>
         </SectionCard>
       ) : null}
 

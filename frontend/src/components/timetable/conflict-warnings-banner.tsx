@@ -227,22 +227,38 @@ export function ConflictWarningsBanner({
             </span>
           )}
         </p>
-        <Button
-          type="button"
-          variant="ghost"
-          size="compact"
-          onClick={() => setExpanded((v) => !v)}
-          aria-expanded={expanded}
-          aria-label={
-            expanded ? "Konfliktdetails verbergen" : "Konfliktdetails anzeigen"
-          }
-        >
-          Details
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {expanded && openCount > 1 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="compact"
+              onClick={onHideAll}
+              aria-label="Alle Konflikte ausblenden"
+            >
+              <EyeOff className="h-3.5 w-3.5" aria-hidden />
+              Alle ausblenden
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => setExpanded((v) => !v)}
+            aria-expanded={expanded}
+            aria-label={
+              expanded
+                ? "Konfliktdetails verbergen"
+                : "Konfliktdetails anzeigen"
+            }
+          >
+            Details
+            <ChevronDown
+              className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </Button>
+        </div>
       </div>
 
       {expanded && (
@@ -259,21 +275,6 @@ export function ConflictWarningsBanner({
               />
             ))}
           </ul>
-          {openCount > 1 && (
-            <div className="flex justify-end border-t border-gray-100 py-1.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={onHideAll}
-                aria-label="Alle Konflikte ausblenden"
-              >
-                <EyeOff className="h-3.5 w-3.5" aria-hidden />
-                Alle ausblenden
-              </Button>
-            </div>
-          )}
-
           {hiddenConflicts.length > 0 && (
             <div className="border-t border-gray-100 py-2">
               <button

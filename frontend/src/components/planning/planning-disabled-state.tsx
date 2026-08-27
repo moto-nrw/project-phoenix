@@ -1,4 +1,5 @@
 import { timetableSurface } from "~/components/timetable/timetable-style";
+import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 interface PlanningDisabledStateProps {
@@ -21,14 +22,12 @@ export function PlanningDisabledState({
       <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only">
         {pageTitle}
       </h1>
-      <div className={`${timetableSurface} p-10 text-center`}>
-        <MotoConceptIcon concept="closingDays" size={42} className="mx-auto" />
-        <h2 className="mt-4 text-base font-semibold text-gray-900">
-          {heading}
-        </h2>
-        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
-          {description}
-        </p>
+      <div className={timetableSurface}>
+        <EmptyState
+          icon={<MotoConceptIcon concept="closingDays" size={42} />}
+          title={heading}
+          description={description}
+        />
       </div>
     </div>
   );

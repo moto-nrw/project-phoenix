@@ -10,6 +10,7 @@ import { Lock } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
@@ -194,26 +195,34 @@ export function Monatskarte({
   })();
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Monatskarte {monthLabel(summary.year, summary.month)}
-        </h3>
-        {summary.isClosed && (
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="h-3 w-3 text-gray-500" aria-hidden />
-            <StatusBadge
-              tone="gray"
-              label={`Abgeschlossen${
-                summary.closedAt
-                  ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
-                  : ""
-              }`}
-            />
-          </span>
-        )}
-      </div>
-
+    <SectionCard
+      title={`Monatskarte ${monthLabel(summary.year, summary.month)}`}
+      titleClassName="text-sm"
+      headingLevel={3}
+      actions={
+        <>
+          {summary.isClosed && (
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="h-3 w-3 text-gray-500" aria-hidden />
+              <StatusBadge
+                tone="gray"
+                label={`Abgeschlossen${
+                  summary.closedAt
+                    ? ` am ${formatLocalizedDate(summary.closedAt, "de")}`
+                    : ""
+                }`}
+              />
+            </span>
+          )}
+          {summary.isClosed && onReopen && (
+            <Button type="button" size="md" variant="ghost" onClick={onReopen}>
+              Monat wieder öffnen…
+            </Button>
+          )}
+        </>
+      }
+      bodyClassName="mt-3"
+    >
       <div className="divide-y divide-gray-100">
         {!isPreAccountMonth && (
           <SummaryRow
@@ -347,39 +356,31 @@ export function Monatskarte({
         </div>
       )}
 
-      {summary.isClosed && onReopen && (
-        <div className="mt-3 flex justify-end">
-          <Button
-            type="button"
-            size="compact"
-            variant="ghost"
-            onClick={onReopen}
-          >
-            Monat wieder öffnen…
-          </Button>
+      {isPreAccountMonth && (
+        <div className="mt-3">
+          <Alert
+            type="info"
+            message={`Dieser Monat liegt vor dem Beginn des Stundenkontos${
+              accountStartDate
+                ? ` (${formatIsoDateGerman(accountStartDate)})`
+                : ""
+            } und wird eigenständig gerechnet. Der Saldo fließt nicht in das Stundenkonto ein.`}
+          />
         </div>
       )}
 
-      {isPreAccountMonth && (
-        <p className="mt-3 text-xs text-gray-500">
-          Dieser Monat liegt vor dem Beginn des Stundenkontos
-          {accountStartDate
-            ? ` (${formatIsoDateGerman(accountStartDate)})`
-            : ""}{" "}
-          und wird eigenständig gerechnet. Der Saldo fließt nicht in das
-          Stundenkonto ein.
-        </p>
-      )}
-
       {!isPreAccountMonth && accountStartsInFuture && (
-        <p className="mt-3 text-xs text-gray-500">
-          Das Stundenkonto beginnt
-          {accountStartDate
-            ? ` am ${formatIsoDateGerman(accountStartDate)}`
-            : " später in diesem Monat"}
-          . Bis dahin wird noch kein Stundenkonto-Stand geführt.
-        </p>
+        <div className="mt-3">
+          <Alert
+            type="info"
+            message={`Das Stundenkonto beginnt${
+              accountStartDate
+                ? ` am ${formatIsoDateGerman(accountStartDate)}`
+                : " später in diesem Monat"
+            }. Bis dahin wird noch kein Stundenkonto-Stand geführt.`}
+          />
+        </div>
       )}
-    </div>
+    </SectionCard>
   );
 }
