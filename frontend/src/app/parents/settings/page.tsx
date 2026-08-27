@@ -11,6 +11,7 @@
  * silently received nothing at all.
  */
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -18,9 +19,19 @@ import { PushNotificationSection } from "~/components/settings/push-notification
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { ParentSection } from "~/components/parent/shell/parent-section";
+import { SamsungChromeInstructions } from "~/components/tenant/pwa-install-hint";
+import { isStandaloneApp } from "~/lib/push-api";
+import { isSamsungInternet } from "~/lib/pwa-install-prompt";
 
 export default function ParentSettingsPage() {
   const t = useTranslations("parentSettings");
+  const [pageUrl, setPageUrl] = useState<URL | null>(null);
+
+  useEffect(() => {
+    if (isSamsungInternet(window.navigator) && !isStandaloneApp()) {
+      setPageUrl(new URL(window.location.href));
+    }
+  }, []);
 
   return (
     <ParentPage>
@@ -40,6 +51,15 @@ export default function ParentSettingsPage() {
         }
       />
 
+      {pageUrl && (
+        <ParentSection
+          title={t("appInstallTitle")}
+          description={t("appInstallDescription")}
+          concept="devices"
+        >
+          <SamsungChromeInstructions pageUrl={pageUrl} />
+        </ParentSection>
+      )}
       <NotificationPreferencesSection portal="parent" />
       <PushNotificationSection portal="parent" />
     </ParentPage>

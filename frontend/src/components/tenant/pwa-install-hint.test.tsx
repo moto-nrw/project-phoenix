@@ -5,11 +5,13 @@ import {
   isAndroidDevice,
   isIosDevice,
   isIosSafari,
+  isSamsungInternet,
   isStandaloneDisplay,
 } from "./pwa-install-hint";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
 import {
   canPromptInstall,
+  createChromeIntentUrl,
   recordVisit,
   resetInstallPromptForTests,
 } from "~/lib/pwa-install-prompt";
@@ -28,6 +30,8 @@ const IOS_WEBVIEW_UA =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 const ANDROID_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.6478.71 Mobile Safari/537.36";
+const SAMSUNG_INTERNET_UA =
+  "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/28.0 Chrome/130.0.0.0 Mobile Safari/537.36";
 const ANDROID_WEBVIEW_UA =
   "Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240705.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/126.0.6478.71 Mobile Safari/537.36";
 const ANDROID_WEBVIEW_WITHOUT_WV_UA =
@@ -127,6 +131,39 @@ describe("isAndroidDevice", () => {
   it("rejects iOS and desktop user agents", () => {
     expect(isAndroidDevice({ userAgent: IPHONE_UA } as Navigator)).toBe(false);
     expect(isAndroidDevice({ userAgent: DESKTOP_UA } as Navigator)).toBe(false);
+  });
+});
+
+describe("isSamsungInternet", () => {
+  it("detects Samsung Internet without classifying Chrome as Samsung", () => {
+    expect(
+      isSamsungInternet({ userAgent: SAMSUNG_INTERNET_UA } as Navigator),
+    ).toBe(true);
+    expect(isSamsungInternet({ userAgent: ANDROID_UA } as Navigator)).toBe(
+      false,
+    );
+  });
+});
+
+describe("createChromeIntentUrl", () => {
+  it("preserves the current page as Chrome target and browser fallback", () => {
+    const pageUrl = new URL(
+      "https://school-a.moto-app.de/profile?tab=push#notifications",
+    );
+
+    expect(createChromeIntentUrl(pageUrl)).toBe(
+      [
+        "intent://school-a.moto-app.de/profile?tab=push#notifications",
+        "#Intent;scheme=https;package=com.android.chrome;",
+        `S.browser_fallback_url=${encodeURIComponent(pageUrl.href)};end`,
+      ].join(""),
+    );
+  });
+
+  it("rejects non-web URLs", () => {
+    expect(() =>
+      createChromeIntentUrl(new URL("ftp://school-a.moto-app.de/profile")),
+    ).toThrow("Chrome intent URLs require an HTTP or HTTPS URL.");
   });
 });
 
@@ -307,6 +344,29 @@ describe("PwaInstallHint", () => {
     expect(
       screen.queryByText("Zum Startbildschirm hinzufügen"),
     ).not.toBeInTheDocument();
+  });
+
+  it("routes Samsung Internet users to Chrome instead of offering Samsung installation", () => {
+    stubNavigator({
+      userAgent: SAMSUNG_INTERNET_UA,
+      platform: "Linux armv81",
+    });
+    stubMatchMedia(false);
+    dispatchInstallPrompt();
+
+    render(<PwaInstallHint />);
+
+    expect(screen.getByText(/nicht über Samsung Internet/)).toBeInTheDocument();
+    const chromeLink = screen.getByRole("link", { name: "In Chrome öffnen" });
+    expect(chromeLink).toHaveAttribute(
+      "href",
+      expect.stringContaining("package=com.android.chrome"),
+    );
+    expect(screen.getByText(/school-a\.moto-app\.de/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "App installieren" }),
+    ).not.toBeInTheDocument();
+    expect(canPromptInstall()).toBe(false);
   });
 
   it("captures the one-tap install prompt on the protected parents host", () => {
