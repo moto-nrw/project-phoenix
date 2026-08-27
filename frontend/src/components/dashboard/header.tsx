@@ -57,6 +57,19 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
     return "Meine Aufsichten";
   }
+  // Der Verlauf einer Unterhaltung (/nachrichten/{id}) bleibt im Bereich
+  // "Nachrichten"; den Namen der Person trägt die Seite selbst.
+  if (
+    pathname === "/nachrichten" ||
+    pathname === "/school/nachrichten" ||
+    pathname.startsWith("/nachrichten/") ||
+    pathname.startsWith("/school/nachrichten/")
+  ) {
+    return "Nachrichten";
+  }
+  if (pathname === "/einstellungen" || pathname === "/school/einstellungen") {
+    return "Einstellungen";
+  }
   return null;
 }
 
