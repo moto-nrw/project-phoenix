@@ -4,10 +4,10 @@ import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 import { schoolStaffMessagesApi } from "~/lib/school-staff-messages-api";
+import { SCHOOL_MESSAGES_ROUTE } from "~/lib/school-team-chat-links";
 import { schoolPath } from "~/lib/school-url";
 
-/** Route of the school-portal inbox, before schoolPath rewrites it for the host. */
-export const SCHOOL_MESSAGES_ROUTE = "/school/nachrichten";
+export { SCHOOL_MESSAGES_ROUTE };
 
 /**
  * The school-portal binding of the shared Team-Chat surfaces (#2208). No

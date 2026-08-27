@@ -2,6 +2,9 @@
 
 import { useCallback } from "react";
 import { useSSE } from "~/lib/hooks/use-sse";
+import { dispatchPhoenixNotification } from "~/lib/notification-events";
+import { schoolTeamChatDeepLink } from "~/lib/school-team-chat-links";
+import { schoolPath } from "~/lib/school-url";
 import type { SSEEvent } from "~/lib/sse-types";
 
 /**
@@ -14,10 +17,30 @@ import type { SSEEvent } from "~/lib/sse-types";
  * Aktivität, auf die Posteingang und offene Unterhaltung lauschen. Die
  * Chat-Oberflächen sind in beiden Portalen dieselben Komponenten und
  * unterscheiden nicht, welche Verbindung sie geweckt hat.
+ *
+ * Ein `notification`-Ereignis (der persönliche Hinweis "Neue Nachricht aus
+ * dem Team") geht an den app-weiten NotificationBridge-Toast; sein Deep-Link
+ * ist für das OGS-Portal geschrieben und wird vorher auf den Posteingang des
+ * Schul-Hosts umgebogen.
  */
 export function SchoolRealtimeBridge() {
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
+    if (event.type === "notification") {
+      const deepLink = event.data?.deep_link;
+      dispatchPhoenixNotification(
+        typeof deepLink === "string"
+          ? {
+              ...event,
+              data: {
+                ...event.data,
+                deep_link: schoolPath(schoolTeamChatDeepLink(deepLink)),
+              },
+            }
+          : event,
+      );
+      return;
+    }
     if (event.type !== "staff_message") return;
     window.dispatchEvent(new CustomEvent("team-messages-unread-refresh"));
     window.dispatchEvent(
