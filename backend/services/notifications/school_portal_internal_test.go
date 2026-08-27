@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -97,6 +98,55 @@ func TestSchoolPushDeliveryIsLimitedToSupportedTypes(t *testing.T) {
 	})
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []*iot.PushSubscription{staffSub, schoolSub}, supported)
+}
+
+// One browser can be registered in both staff portals: the rows differ by
+// portal, the endpoint does not. Sending both would put the same message on
+// the same device twice, so the OGS row wins and the school row is dropped.
+func TestSchoolPushDoesNotDuplicateASharedEndpoint(t *testing.T) {
+	t.Parallel()
+
+	const sharedEndpoint = "https://fcm.googleapis.com/shared"
+	staffSub := testSub(1, 41, sharedEndpoint)
+	staffSub.AccountID = 42
+	schoolSub := testSub(2, 41, sharedEndpoint)
+	schoolSub.AccountID = 42
+	schoolSub.Portal = iot.PushPortalSchool
+	repo := &fakePushRepo{
+		staffAccounts:  map[int64][]*iot.PushSubscription{42: {staffSub}},
+		schoolAccounts: map[int64][]*iot.PushSubscription{42: {schoolSub}},
+	}
+	sender := &fakeSender{}
+	channel := testChannel(repo, sender)
+
+	resolved, err := channel.resolveEventSubscriptions(context.Background(), Event{
+		Type:     TypeStaffMessage,
+		Audience: Audience{Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*iot.PushSubscription{staffSub}, resolved,
+		"the shared endpoint is pushed to once, with the OGS deep link")
+
+	db, mock := mockTenantTx(t)
+	channel.db = db
+	require.NoError(t, channel.DeliverBatch(context.Background(), []Event{{
+		Type:           TypeStaffMessage,
+		Audience:       Audience{TenantID: 41, Scope: ScopeStaff, StaffAccountIDs: []int64{42}},
+		Priority:       PriorityNormal,
+		Title:          "Neue Nachricht aus dem Team",
+		DeepLink:       "/team-chat/7",
+		SchoolDeepLink: "/school/nachrichten/7",
+	}}))
+	require.Eventually(t, func() bool {
+		sender.mu.Lock()
+		defer sender.mu.Unlock()
+		return len(sender.sent) == 1
+	}, time.Second, 10*time.Millisecond)
+	sender.mu.Lock()
+	sent := len(sender.sent)
+	sender.mu.Unlock()
+	assert.Equal(t, 1, sent, "the batched path deduplicates the same endpoint too")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
 func deepLinkOf(t *testing.T, wire []byte) string {

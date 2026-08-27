@@ -254,6 +254,7 @@ func (c *webPushChannel) DeliverBatch(ctx context.Context, events []Event) error
 				targets = append(targets, schoolByAccount[accountID]...)
 			}
 		}
+		targets = dedupeSubscriptionsByEndpoint(targets)
 		if len(targets) == 0 {
 			continue
 		}
@@ -358,7 +359,7 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 		if err != nil {
 			return nil, err
 		}
-		return append(staffSubs, schoolSubs...), nil
+		return dedupeSubscriptionsByEndpoint(append(staffSubs, schoolSubs...)), nil
 	case ScopeGroup:
 		c.getLogger().Debug("web push does not support group scope, skipping",
 			"tenant_id", audience.TenantID,
@@ -368,6 +369,29 @@ func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Ev
 	default:
 		return nil, fmt.Errorf("unknown audience scope %q", audience.Scope)
 	}
+}
+
+// dedupeSubscriptionsByEndpoint keeps one subscription per push endpoint.
+// The same browser can be registered in the OGS portal and in moto schule
+// (#2208): the rows differ by portal, but the endpoint is the device the push
+// service delivers to, so sending both would show one person the same message
+// twice on one device. The first row wins and both callers list the staff
+// subscriptions first, so a device known to both portals receives the OGS
+// payload with its OGS deep link.
+func dedupeSubscriptionsByEndpoint(subs []*iot.PushSubscription) []*iot.PushSubscription {
+	seen := make(map[string]struct{}, len(subs))
+	deduped := make([]*iot.PushSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub == nil {
+			continue
+		}
+		if _, duplicate := seen[sub.Endpoint]; duplicate {
+			continue
+		}
+		seen[sub.Endpoint] = struct{}{}
+		deduped = append(deduped, sub)
+	}
+	return deduped
 }
 
 // isSchoolPortalEvent keeps the school transport aligned with the catalogue.
