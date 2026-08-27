@@ -305,6 +305,17 @@ func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
 			t.Errorf("guardian 3: reachability = %q, want no_portal despite the queued mail", row.Reachability)
 		}
 	}
+	for _, request := range outbox.requests {
+		if request.Payload[emailPayloadRecipient] != "opa@example.test" {
+			continue
+		}
+		if request.Payload[emailPayloadPortalURL] != "" {
+			t.Error("a guardian without portal access must not receive a portal link")
+		}
+		if got, _ := request.Payload[emailPayloadAckRequired].(bool); got {
+			t.Error("a guardian without portal access must not be asked to acknowledge")
+		}
+	}
 }
 
 // Two guardians of the same child often share one mailbox. One mail, two rows,
@@ -340,6 +351,34 @@ func TestPublishLetterSharedAddressSendsOnce(t *testing.T) {
 	if *first.OutboxID != *second.OutboxID {
 		t.Errorf("outbox ids %d and %d differ; both rows describe the same mail",
 			*first.OutboxID, *second.OutboxID)
+	}
+}
+
+func TestPublishLetterSharedAddressKeepsPortalPromptForAccessibleGuardian(t *testing.T) {
+	t.Parallel()
+
+	repo := &letterRepo{
+		announcement: letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudienceAllContacts),
+		recipients: []*usersModels.AnnouncementDeliveryRecipient{
+			contact(1, nil, "familie@example.test", false),
+			contact(2, acct(12), "familie@example.test", true),
+		},
+	}
+	outbox := &letterOutbox{}
+	svc := newLetterService(repo, outbox, &letterDeliveries{})
+
+	if _, err := svc.Publish(context.Background(), 42); err != nil {
+		t.Fatalf("Publish: %v", err)
+	}
+	if len(outbox.requests) != 1 {
+		t.Fatalf("queued %d mails, want 1 for a shared address", len(outbox.requests))
+	}
+	payload := outbox.requests[0].Payload
+	if payload[emailPayloadPortalURL] == "" {
+		t.Error("a shared address with portal access must receive the portal link")
+	}
+	if got, _ := payload[emailPayloadAckRequired].(bool); !got {
+		t.Error("a shared address with portal access must retain the acknowledgement prompt")
 	}
 }
 

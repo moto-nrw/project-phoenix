@@ -10,8 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
-// seedAnnouncementsStep creates demo announcements and one published parent
-// letter so the delivery-status matrix has realistic seed data.
+// seedAnnouncementsStep creates demo operator announcements.
 type seedAnnouncementsStep struct{}
 
 func (seedAnnouncementsStep) Name() string { return "Seeding announcements" }
@@ -49,13 +48,19 @@ func (seedAnnouncementsStep) Run(ctx context.Context, rt *Runtime) error {
 		}
 	}
 
-	rt.Client.BindAuth(rt.TenantAuth)
-	if err := seedParentLetter(rt); err != nil {
-		return err
-	}
-
 	fmt.Printf("  %d announcements created\n", len(announcements))
 	return nil
+}
+
+// seedParentLetterStep runs after parentEnrollmentSeedStep so its portal-only
+// audience resolves the demo guardians and the delivery matrix is populated.
+type seedParentLetterStep struct{}
+
+func (seedParentLetterStep) Name() string { return "Seeding parent letter" }
+
+func (seedParentLetterStep) Run(_ context.Context, rt *Runtime) error {
+	rt.Client.BindAuth(rt.TenantAuth)
+	return seedParentLetter(rt)
 }
 
 func seedParentLetter(rt *Runtime) error {

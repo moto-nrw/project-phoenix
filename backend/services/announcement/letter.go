@@ -15,8 +15,8 @@ import (
 )
 
 // letterIntro is the opening line of an Elternbrief mail. The body follows it,
-// then the acknowledgement notice — see templates/email/announcement-published.html.
-const letterIntro = "die folgende Mitteilung erreicht Sie als Elternbrief. Den vollständigen Text finden Sie unten und jederzeit im Eltern-Portal."
+// then the acknowledgement notice for recipients who can use the parent portal.
+const letterIntro = "die folgende Mitteilung ist ein Elternbrief. Den vollständigen Text finden Sie unten."
 
 // needsDeliveryTracking reports whether publishing this announcement must go
 // through the tracked path: an Elternbrief (its recipient matrix is the whole
@@ -192,6 +192,14 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 	}
 
 	byAddress := make(map[string]*int64, len(recipients))
+	portalAccessByAddress := make(map[string]bool, len(recipients))
+	for _, r := range recipients {
+		if !canQueueLetterMail(r, a) || r.reachability == platformModels.ReachabilityExcluded {
+			continue
+		}
+		address := strings.ToLower(strings.TrimSpace(r.src.Email))
+		portalAccessByAddress[address] = portalAccessByAddress[address] || r.src.HasPortalAccess
+	}
 	queued := 0
 	for _, r := range recipients {
 		if !canQueueLetterMail(r, a) || r.reachability == platformModels.ReachabilityExcluded {
@@ -202,6 +210,10 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 			r.outboxID = existing
 			continue
 		}
+		recipientPortalURL := ""
+		if portalAccessByAddress[address] {
+			recipientPortalURL = portalURL
+		}
 		row, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
@@ -210,13 +222,13 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 				emailPayloadLastName:    r.src.LastName,
 				emailPayloadTitle:       a.Title,
 				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   portalURL,
+				emailPayloadPortalURL:   recipientPortalURL,
 				emailPayloadLogoURL:     logoURL,
 				emailPayloadMotoLogoURL: motoLogoURL,
 				emailPayloadKicker:      kicker,
 				emailPayloadIntro:       intro,
 				emailPayloadBody:        body,
-				emailPayloadAckRequired: a.RequiresAcknowledgement,
+				emailPayloadAckRequired: a.RequiresAcknowledgement && portalAccessByAddress[address],
 			},
 			RelatedEntityType: relatedEntityTypeAnnouncement,
 			RelatedEntityID:   a.ID,
@@ -481,6 +493,13 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 
 	resent := 0
 	byAddress := make(map[string]*platformModels.EmailOutbox)
+	portalAccessByAddress := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if row.RecipientEmail != nil && row.Reachability == platformModels.ReachabilityOK {
+			address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
+			portalAccessByAddress[address] = true
+		}
+	}
 	for _, row := range rows {
 		if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
 			continue
@@ -495,6 +514,10 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
 		outboxRow, ok := byAddress[address]
 		if !ok {
+			recipientPortalURL := ""
+			if portalAccessByAddress[address] {
+				recipientPortalURL = portalURL
+			}
 			outboxRow, err = s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 				Kind: platformModels.EmailKindParentAnnouncement,
 				Payload: map[string]any{
@@ -503,13 +526,13 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 					emailPayloadLastName:    row.LastName,
 					emailPayloadTitle:       a.Title,
 					emailPayloadSchoolName:  schoolName,
-					emailPayloadPortalURL:   portalURL,
+					emailPayloadPortalURL:   recipientPortalURL,
 					emailPayloadLogoURL:     logoURL,
 					emailPayloadMotoLogoURL: motoLogoURL,
 					emailPayloadKicker:      kicker,
 					emailPayloadIntro:       intro,
 					emailPayloadBody:        body,
-					emailPayloadAckRequired: a.RequiresAcknowledgement,
+					emailPayloadAckRequired: a.RequiresAcknowledgement && portalAccessByAddress[address],
 				},
 				RelatedEntityType: relatedEntityTypeAnnouncement,
 				RelatedEntityID:   a.ID,
