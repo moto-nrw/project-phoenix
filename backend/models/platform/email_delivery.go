@@ -88,6 +88,11 @@ type EmailDeliveryRepository interface {
 	// AttachOutbox links an already-written delivery row to the outbox row that
 	// was queued for it.
 	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
+
+	// ClaimFailedDelivery atomically reserves a failed delivery for retry by
+	// clearing its old outbox link. Exactly one concurrent request can claim a
+	// row; the caller attaches its newly queued outbox row before committing.
+	ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error)
 }
 
 // EmailDeliveryStatus is one recipient joined with the mail's outbox state — the

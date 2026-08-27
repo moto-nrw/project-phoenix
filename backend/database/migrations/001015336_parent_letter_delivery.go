@@ -198,6 +198,9 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
+		ALTER TABLE platform.email_delivery ENABLE ROW LEVEL SECURITY;
+		ALTER TABLE platform.email_delivery FORCE ROW LEVEL SECURITY;
+
 		DO $$
 		BEGIN
 			IF NOT EXISTS (

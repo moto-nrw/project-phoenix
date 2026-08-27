@@ -86,6 +86,32 @@ func (r *EmailDeliveryRepository) AttachOutbox(ctx context.Context, tenantID, de
 	return nil
 }
 
+// ClaimFailedDelivery reserves a failed delivery for a retry in the current
+// tenant transaction. Clearing the old outbox link makes the conditional update
+// a compare-and-swap: a concurrent request blocks on this row, then observes
+// the newly attached pending outbox row and cannot enqueue a duplicate retry.
+func (r *EmailDeliveryRepository) ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
+	result, err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE platform.email_delivery AS "email_delivery"
+		SET outbox_id = NULL,
+			updated_at = NOW()
+		FROM platform.email_outbox AS "outbox"
+		WHERE "email_delivery".tenant_id = ?
+			AND "email_delivery".id = ?
+			AND "email_delivery".outbox_id = "outbox".id
+			AND "outbox".status = 'failed'`,
+		tenantID, deliveryID,
+	).Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("failed to claim failed email delivery: %w", err)
+	}
+	claimed, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to inspect failed email delivery claim: %w", err)
+	}
+	return claimed == 1, nil
+}
+
 // ListForEntity returns the recipients joined with the outbox state of their
 // mail.
 //

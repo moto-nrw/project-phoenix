@@ -482,10 +482,16 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
 			continue
 		}
+		claimed, err := s.deliveries.ClaimFailedDelivery(ctx, tenantID, row.DeliveryID)
+		if err != nil {
+			return 0, fmt.Errorf("announcement: claim failed e-mail for resend: %w", err)
+		}
+		if !claimed {
+			continue
+		}
 		address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
 		outboxRow, ok := byAddress[address]
 		if !ok {
-			var err error
 			outboxRow, err = s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
 				Kind: platformModels.EmailKindParentAnnouncement,
 				Payload: map[string]any{

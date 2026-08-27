@@ -87,6 +87,7 @@ type letterDeliveries struct {
 	replaced int
 	deleted  int
 	attached map[int64]int64
+	claims   map[int64]bool
 }
 
 func (d *letterDeliveries) ReplaceForEntity(_ context.Context, _ int64, _ string, _ int64, rows []*platformModels.EmailDelivery) error {
@@ -112,6 +113,13 @@ func (d *letterDeliveries) AttachOutbox(_ context.Context, _ int64, deliveryID, 
 	}
 	d.attached[deliveryID] = outboxID
 	return nil
+}
+
+func (d *letterDeliveries) ClaimFailedDelivery(_ context.Context, _ int64, deliveryID int64) (bool, error) {
+	if d.claims == nil {
+		return true, nil
+	}
+	return d.claims[deliveryID], nil
 }
 
 func contact(profileID int64, accountID *int64, email string, portal bool) *usersModels.AnnouncementDeliveryRecipient {
@@ -675,6 +683,29 @@ func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
 	}
 	if deliveries.attached[1] != deliveries.attached[2] {
 		t.Errorf("shared address attached to different outbox rows: %v", deliveries.attached)
+	}
+}
+
+func TestResendFailedEmailsSkipsDeliveryClaimedByConcurrentRequest(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	address := "familie@example.test"
+	deliveries := &letterDeliveries{
+		list:   []*platformModels.EmailDeliveryStatus{{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed"}},
+		claims: map[int64]bool{1: false},
+	}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 0 || len(outbox.requests) != 0 {
+		t.Fatalf("queued %d e-mails in %d request(s), want none", count, len(outbox.requests))
 	}
 }
 

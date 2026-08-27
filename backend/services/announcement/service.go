@@ -45,6 +45,7 @@ type DeliveryRecorder interface {
 	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
 	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]*platformModels.EmailDeliveryStatus, error)
 	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
+	ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error)
 }
 
 const (

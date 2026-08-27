@@ -1081,9 +1081,9 @@ function AnnouncementFormModal({
         isPollForm && deadline ? endOfBerlinDayISO(deadline) : null,
       options: isPollForm ? options : undefined,
       delivery_mode: isLetterForm ? "letter" : "standard",
-      // Only meaningful when a mail actually goes out. Sending the wide audience
-      // without send_email is rejected by the backend, so guard it here too.
-      email_audience: isLetterForm || sendEmail ? emailAudience : "portal_only",
+      // A broad e-mail audience belongs only to letters; standard announcements
+      // always retain the existing portal-only delivery scope.
+      email_audience: isLetterForm ? emailAudience : "portal_only",
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -1466,7 +1466,11 @@ function AnnouncementFormModal({
                     Wer erhält die E-Mail?
                   </p>
                   <SegmentedControl
-                    items={EMAIL_AUDIENCE_ITEMS}
+                    items={
+                      isLetterForm
+                        ? EMAIL_AUDIENCE_ITEMS
+                        : EMAIL_AUDIENCE_ITEMS.slice(0, 1)
+                    }
                     value={emailAudience}
                     onChange={setEmailAudience}
                     ariaLabel="E-Mail-Empfänger"
@@ -1493,7 +1497,7 @@ function AnnouncementFormModal({
               setStudentNames((prev) => ({ ...prev, [id]: name }))
             }
             kindLabel={isPollForm ? "diese Umfrage" : "diese Mitteilung"}
-            allowPendingEnrollment={!isPollForm}
+            allowPendingEnrollment={!isPollForm && !isLetterForm}
           />
         )}
 

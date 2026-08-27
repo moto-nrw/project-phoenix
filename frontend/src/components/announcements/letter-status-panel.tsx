@@ -238,8 +238,7 @@ export function LetterStatusPanel({
         {(s.without_email > 0 || s.without_portal > 0) && (
           <p className="mt-3 flex items-start gap-2 text-xs text-gray-600">
             <AlertTriangle
-              className="mt-0.5 h-3.5 w-3.5 shrink-0"
-              style={{ color: "#F78C10" }}
+              className="text-moto-amber mt-0.5 h-3.5 w-3.5 shrink-0"
               aria-hidden
             />
             <span>
