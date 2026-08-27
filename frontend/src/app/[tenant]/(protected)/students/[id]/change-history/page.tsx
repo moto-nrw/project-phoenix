@@ -172,6 +172,12 @@ function StudentChangeHistoryPageContent() {
       <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
+        <PageIntro
+          className="mb-6"
+          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+          kicker="Änderungsverlauf"
+          title={student?.name ?? "Änderungsverlauf"}
+        />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
       </div>
     );

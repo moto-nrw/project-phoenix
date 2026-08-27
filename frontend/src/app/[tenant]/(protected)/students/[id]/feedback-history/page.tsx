@@ -233,6 +233,12 @@ function StudentFeedbackHistoryPageContent() {
       <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
+        <PageIntro
+          className="mb-6"
+          leading={<ConceptIconTile concept="feedback" variant="page" />}
+          kicker="Feedbackhistorie"
+          title={student?.name ?? "Feedbackhistorie"}
+        />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
       </div>
     );

@@ -127,10 +127,12 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
       {info ? <Alert type="success" message={info} /> : null}
 
       {items.length === 0 ? (
-        <EmptyState
-          title="Keine offenen Einträge"
-          description="Alle Anmeldungen wurden entweder übernommen oder bereits entschieden."
-        />
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+          <EmptyState
+            title="Keine offenen Einträge"
+            description="Alle Anmeldungen wurden entweder übernommen oder bereits entschieden."
+          />
+        </div>
       ) : (
         <ul className="space-y-3">
           {items.map((item) => {

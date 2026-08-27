@@ -898,6 +898,12 @@ function StudentRoomHistoryPageContent() {
       <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
+        <PageIntro
+          className="mb-6"
+          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+          kicker="Anwesenheitsprotokoll"
+          title={student?.name ?? "Anwesenheitsprotokoll"}
+        />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
       </div>
     );
