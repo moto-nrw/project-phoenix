@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
-import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
+import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
 import {
@@ -28,9 +28,12 @@ const ICON =
  * bereits beim ersten Paint aus, ohne Hydrationssprung. Abmelden sitzt im
  * Profil-Menü der geteilten Kopfzeile, das auf jeder Breite erreichbar ist.
  */
-export function SchoolSidebar() {
+export function SchoolSidebar({
+  teamChat,
+}: {
+  readonly teamChat: SchoolTeamChatUnread;
+}) {
   const pathname = usePathname();
-  const teamChat = useSchoolTeamChatUnread();
 
   const renderItem = (item: SchoolNavItem) => {
     // Der Team-Chat ist standardmäßig aus; der Eintrag erscheint erst, wenn

@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { SchoolBottomNav } from "./school-bottom-nav";
 
+const teamChat = { unreadCount: 0, available: false } as const;
+
 const mockPathname = vi.hoisted(() => ({ value: "/" }));
 
 vi.mock("next/navigation", () => ({
@@ -20,7 +22,7 @@ describe("SchoolBottomNav", () => {
   // aria-label.
   it("beschriftet das aktive Ziel und benennt die uebrigen fuer Screenreader", () => {
     mockPathname.value = "/";
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByText("Klassenansicht")).toBeInTheDocument();
     expect(screen.queryByText("Meine Aufsichten")).not.toBeInTheDocument();
@@ -34,14 +36,14 @@ describe("SchoolBottomNav", () => {
 
   it("verschiebt die Beschriftung mit dem aktiven Ziel", () => {
     mockPathname.value = "/aufsichten";
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
     expect(screen.queryByText("Klassenansicht")).not.toBeInTheDocument();
   });
 
   it("verschwindet ab der Sidebar-Breite", () => {
-    render(<SchoolBottomNav />);
+    render(<SchoolBottomNav teamChat={teamChat} />);
 
     expect(screen.getByRole("navigation")).toHaveClass("lg:hidden");
   });

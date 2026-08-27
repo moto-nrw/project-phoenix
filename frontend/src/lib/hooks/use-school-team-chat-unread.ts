@@ -21,10 +21,12 @@ import { useUnreadCount } from "./use-unread-count";
  * count is cheap; it is simply fetched on mount, on the refresh event and on
  * focus.
  */
-export function useSchoolTeamChatUnread(): {
+export interface SchoolTeamChatUnread {
   unreadCount: number;
   available: boolean | null;
-} {
+}
+
+export function useSchoolTeamChatUnread(): SchoolTeamChatUnread {
   const [available, setAvailable] = useState<boolean | null>(null);
 
   const fetcher = useCallback(async () => {

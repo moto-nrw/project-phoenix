@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
-import { useSchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
+import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
 import { SCHOOL_PRIMARY_NAV, SCHOOL_SECONDARY_NAV } from "./school-nav-items";
@@ -30,9 +30,12 @@ const SCHOOL_MOBILE_NAV = [...SCHOOL_PRIMARY_NAV, ...SCHOOL_SECONDARY_NAV];
  * Ziele. Ab 1024 px übernimmt die Seitennavigation; CSS blendet diese Leiste
  * dort schon beim ersten Paint aus.
  */
-export function SchoolBottomNav() {
+export function SchoolBottomNav({
+  teamChat,
+}: {
+  readonly teamChat: SchoolTeamChatUnread;
+}) {
   const pathname = usePathname();
-  const teamChat = useSchoolTeamChatUnread();
 
   return (
     <nav
