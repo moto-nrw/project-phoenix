@@ -1382,7 +1382,7 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
 
 		// ACT
-		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1)
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, true)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1404,12 +1404,67 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		assert.Equal(t, 1, count, "removing a payer relationship must be audited")
 	})
 
+	t.Run("refuses to unlink the payer without the financial permission", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "payer-keep")
+		student := testpkg.CreateTestStudent(t, db, "KeepPayer", "Student", "6c")
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+		require.NoError(t, service.SetStudentPayer(ctx, student.ID, &guardian.ID, 1))
+
+		// ACT
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+
+		// ASSERT
+		require.ErrorIs(t, err, users.ErrPayerRemovalRequiresFinancial)
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		require.Len(t, guardians, 1, "the relationship must survive the refusal")
+		assert.True(t, guardians[0].Relationship.IsPayer, "the payer mark must survive the refusal")
+
+		count, err := db.NewSelect().
+			Model((*auditModels.GuardianFinancialChange)(nil)).
+			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
+			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
+			Where(`"guardian_financial_change".student_id = ?`, student.ID).
+			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".new_value = ?`, "false").
+			Count(ctx)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count, "a refused unlink must not leave a payer-removed audit row")
+	})
+
+	t.Run("unlinks a guardian who is not the payer without the financial permission", func(t *testing.T) {
+		// ARRANGE
+		guardian := testpkg.CreateTestGuardianProfile(t, db, "not-payer")
+		student := testpkg.CreateTestStudent(t, db, "NotPayer", "Student", "6d")
+		_, err := service.LinkGuardianToStudent(ctx, users.StudentGuardianCreateRequest{
+			StudentID:         student.ID,
+			GuardianProfileID: guardian.ID,
+			RelationshipType:  "parent",
+		})
+		require.NoError(t, err)
+
+		// ACT
+		err = service.RemoveGuardianFromStudent(ctx, student.ID, guardian.ID, 1, false)
+
+		// ASSERT
+		require.NoError(t, err)
+		guardians, err := service.GetStudentGuardians(ctx, student.ID)
+		require.NoError(t, err)
+		assert.Empty(t, guardians)
+	})
+
 	t.Run("returns error when relationship not found", func(t *testing.T) {
 		// ARRANGE
 		student := testpkg.CreateTestStudent(t, db, "NoRel", "Student", "6b")
 
 		// ACT
-		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999, 1)
+		err := service.RemoveGuardianFromStudent(ctx, student.ID, 99999999, 1, true)
 
 		// ASSERT
 		require.Error(t, err)

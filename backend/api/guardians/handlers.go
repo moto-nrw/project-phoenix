@@ -1351,9 +1351,16 @@ func (rs *Resource) removeGuardianFromStudent(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	// Unlinking the child's payer clears the payer mark, which belongs to
+	// guardians:financial (#2608); the service refuses it for everyone else.
+	mayClearPayer := authorize.HasPermission(permissions.GuardiansFinancial, jwt.PermissionsFromCtx(r.Context()))
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID, accountID)
+		return rs.GuardianService.RemoveGuardianFromStudent(ctx, studentID, guardianID, accountID, mayClearPayer)
 	}); err != nil {
+		if errors.Is(err, guardianSvc.ErrPayerRemovalRequiresFinancial) {
+			common.RenderError(w, r, common.ErrorForbidden(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

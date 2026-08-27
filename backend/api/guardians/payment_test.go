@@ -9,6 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -103,6 +105,53 @@ func TestGuardianPayment_RequiresFinancialPermission(t *testing.T) {
 			assert.Equal(t, http.StatusForbidden, code, "users:update must not unlock the bank surface")
 		})
 	}
+}
+
+// TestRemoveGuardian_PayerNeedsFinancialPermission closes the side door the
+// permission split would otherwise leave open: the plain users:update unlink
+// clears the payer mark on its way out, so for the child's payer it must
+// demand guardians:financial like every other payer change. A guardian who
+// is not the payer still unlinks with users:update alone.
+func TestRemoveGuardian_PayerNeedsFinancialPermission(t *testing.T) {
+	t.Parallel()
+
+	ctx := paymentContext(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, ctx.db, "Payer", "Unlinker")
+	directoryClaims := guardianStaffClaims(account.ID, permissions.UsersUpdate, permissions.UsersRead)
+	financialClaims := guardianStaffClaims(account.ID, permissions.UsersUpdate, permissions.UsersRead, permissions.GuardiansFinancial)
+	student := testpkg.CreateTestStudent(t, ctx.db, "Payer", "Unlink", "1a")
+	payer := linkGuardian(t, ctx, student.ID, "payer-unlink")
+	other := linkGuardian(t, ctx, student.ID, "payer-unlink-other")
+	require.Equal(t, http.StatusOK, paymentRequest(t, ctx, http.MethodPut,
+		fmt.Sprintf("/students/%d/payer", student.ID),
+		map[string]any{"guardian_id": fmt.Sprintf("%d", payer.ID)}, financialPerm))
+
+	unlink := func(claims jwt.AppClaims, guardianID int64) (int, string) {
+		req := testutil.NewAuthenticatedRequest(t, http.MethodDelete,
+			fmt.Sprintf("/students/%d/guardians/%d", student.ID, guardianID), nil, bearer(t, claims))
+		rr := testutil.ExecuteRequest(ctx.resource.Router(), req)
+		return rr.Code, rr.Body.String()
+	}
+
+	code, body := unlink(directoryClaims, payer.ID)
+	require.Equal(t, http.StatusForbidden, code, body)
+	assert.Contains(t, body, "Zahler", "the refusal must say why the person cannot be removed")
+
+	linked, err := ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	require.Len(t, linked, 2, "a refused unlink must leave both relationships in place")
+	for _, gwr := range linked {
+		assert.Equal(t, gwr.Profile.ID == payer.ID, gwr.Relationship.IsPayer, "the payer mark must be untouched")
+	}
+
+	code, body = unlink(directoryClaims, other.ID)
+	require.Equal(t, http.StatusOK, code, "a guardian who is not the payer unlinks with users:update alone: %s", body)
+	code, body = unlink(financialClaims, payer.ID)
+	require.Equal(t, http.StatusOK, code, "with guardians:financial the payer unlinks: %s", body)
+
+	linked, err = ctx.services.Guardian.GetStudentGuardians(testpkg.Ctx(t), student.ID)
+	require.NoError(t, err)
+	assert.Empty(t, linked)
 }
 
 // TestGuardianPayment_MaskedByDefaultRevealOnDemand is the core contract: the
@@ -259,7 +308,8 @@ func TestStudentPayer_SiblingsShareOneMaintainedIBAN(t *testing.T) {
 			map[string]any{"guardian_id": fmt.Sprintf("%d", parent.ID)}, financialPerm))
 	}
 
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), 1, "test")
+	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-siblings")
+	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 
 	seen := 0
@@ -283,7 +333,8 @@ func TestPaymentOverview_ListsChildrenWithoutAPayer(t *testing.T) {
 	unassigned := testpkg.CreateTestStudent(t, ctx.db, "Overview", "Unassigned", "2a")
 	linkGuardian(t, ctx, unassigned.ID, "overview-unassigned")
 
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), 1, "test")
+	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-unassigned-actor")
+	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 
 	var found *usersSvc.GuardianPaymentRow
@@ -311,7 +362,8 @@ func TestPaymentOverview_ExcludesSoftDeletedStudents(t *testing.T) {
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 
-	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), 1, "test")
+	actor := testpkg.CreateTestAccount(t, ctx.db, "overview-deleted-actor")
+	rows, err := ctx.services.Guardian.ListPaymentOverview(testpkg.Ctx(t), actor.ID, "test")
 	require.NoError(t, err)
 	for _, row := range rows {
 		assert.NotEqual(t, student.ID, row.StudentID)

@@ -1031,8 +1031,14 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 	return nil
 }
 
-// RemoveGuardianFromStudent removes a guardian from a student
-func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64) error {
+// RemoveGuardianFromStudent removes a guardian from a student.
+//
+// mayClearPayer says whether the caller holds guardians:financial. Unlinking
+// the child's payer clears the payer mark, which is a financial decision; a
+// caller without that permission gets ErrPayerRemovalRequiresFinancial and the
+// relationship stays intact. The check runs under the student lock so a payer
+// assigned concurrently cannot slip past it.
+func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
@@ -1048,6 +1054,9 @@ func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, student
 	for _, rel := range relationships {
 		if rel.GuardianProfileID == guardianProfileID {
 			if rel.IsPayer {
+				if !mayClearPayer {
+					return ErrPayerRemovalRequiresFinancial
+				}
 				if err := s.recordPayerChange(ctx, rel.GuardianProfileID, rel.StudentID, changedByAccountID, "true", "false"); err != nil {
 					return err
 				}
