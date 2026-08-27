@@ -20,7 +20,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var autoEndNow = time.Date(2026, 4, 20, 15, 15, 0, 0, time.Local)
+var autoEndNow = time.Date(2026, 4, 20, 15, 15, 0, 0, timezone.Berlin)
 
 func TestAutoEnd_UsesAtomicManualCompletionPath(t *testing.T) {
 	t.Parallel()

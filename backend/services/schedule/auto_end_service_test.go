@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +15,7 @@ import (
 func TestAutoEnd_RunForTenant_CompletesOnlyDueActivePlannedInstances(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 20, 14, 15, 0, 0, time.Local)
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, timezone.Berlin)
 	duePastGrace := autoStartInstance(101, schedule.InstanceStatusActive, 13, 0, 13, 45)
 	dueAfterGrace := autoStartInstance(102, schedule.InstanceStatusActive, 13, 0, 14, 0)
 	notDue := autoStartInstance(103, schedule.InstanceStatusActive, 13, 0, 14, 1)
@@ -44,7 +45,7 @@ func TestAutoEnd_RunForTenant_CompletesOnlyDueActivePlannedInstances(t *testing.
 func TestAutoEnd_RunForTenant_UsesZeroGrace(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 20, 14, 0, 0, 0, time.Local)
+	now := time.Date(2026, 4, 20, 14, 0, 0, 0, timezone.Berlin)
 	completer := &autoEndCompleter{}
 	svc := NewAutoEndService(&autoStartInstanceRepo{instances: []*schedule.ActivityInstance{
 		autoStartInstance(201, schedule.InstanceStatusActive, 13, 0, 14, 0),
@@ -77,7 +78,7 @@ func TestAutoEnd_RunForTenant_UsesBerlinBoundaryForUTCInstant(t *testing.T) {
 func TestAutoEnd_RunForTenant_TreatsConcurrentCompletionAsIdempotent(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 20, 14, 15, 0, 0, time.Local)
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, timezone.Berlin)
 	completer := &autoEndCompleter{errorsByID: map[int64]error{
 		301: fmt.Errorf("manual completion won: %w", ErrInvalidInstanceTransition),
 	}}
@@ -100,7 +101,7 @@ func TestAutoEnd_RunForTenant_TreatsConcurrentCompletionAsIdempotent(t *testing.
 func TestAutoEnd_RunForTenant_DoesNotHideCorruptActiveInstance(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, 4, 20, 14, 15, 0, 0, time.Local)
+	now := time.Date(2026, 4, 20, 14, 15, 0, 0, timezone.Berlin)
 	completer := &autoEndCompleter{errorsByID: map[int64]error{
 		401: fmt.Errorf("active group is already closed: %w", ErrInvalidInstanceTransition),
 	}}
