@@ -276,6 +276,39 @@ func marshalPushPayload(event Event) ([]byte, error) {
 	return payload, nil
 }
 
+// schoolPushPayload renders the school-portal variant of the payload: the
+// same display-safe fields with the school host's deep link. A notification
+// without a place in moto schule opens the portal root.
+func schoolPushPayload(event Event) ([]byte, error) {
+	school := event
+	school.DeepLink = event.SchoolDeepLink
+	if school.DeepLink == "" {
+		school.DeepLink = "/school"
+	}
+	return marshalPushPayload(school)
+}
+
+// payloadForSubscription picks the portal-specific wire payload. Staff and
+// parent devices get the payload as marshalled; school devices (#2208) get
+// the school variant, rendered once per send batch.
+type portalPayloads struct {
+	event  Event
+	base   []byte
+	school []byte
+	err    error
+	once   sync.Once
+}
+
+func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, error) {
+	if sub.Portal != iot.PushPortalSchool {
+		return p.base, nil
+	}
+	p.once.Do(func() {
+		p.school, p.err = schoolPushPayload(p.event)
+	})
+	return p.school, p.err
+}
+
 // resolveSubscriptions maps the audience scope to registered devices.
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
@@ -312,9 +345,19 @@ func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audi
 // never abort the loop; 404/410 responses prune the dead subscription.
 func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
+	payloads := &portalPayloads{event: event, base: payload}
 	var wg sync.WaitGroup
 
 	for _, sub := range subs {
+		wire, err := payloads.forSubscription(sub)
+		if err != nil {
+			c.getLogger().Error("skipping web push with unusable school payload",
+				"notification_type", event.Type,
+				"tenant_id", event.Audience.TenantID,
+				"error", err.Error(),
+			)
+			continue
+		}
 		select {
 		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
@@ -326,7 +369,7 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 		go func() {
 			defer wg.Done()
 			defer func() { <-c.sendSlots }()
-			c.sendOne(ctx, event, payload, sub, ttl, urgency)
+			c.sendOne(ctx, event, wire, sub, ttl, urgency)
 		}()
 	}
 	wg.Wait()
@@ -334,11 +377,19 @@ func (c *webPushChannel) sendAll(ctx context.Context, event Event, payload []byt
 
 func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, payload []byte, subs []*iot.PushSubscription) error {
 	ttl, urgency := pushOptionsForPriority(event.Priority)
+	payloads := &portalPayloads{event: event, base: payload}
 	var wg sync.WaitGroup
 	var resultsMu sync.Mutex
 	var errs []error
 	succeeded := false
 	for _, sub := range subs {
+		wire, wireErr := payloads.forSubscription(sub)
+		if wireErr != nil {
+			resultsMu.Lock()
+			errs = append(errs, wireErr)
+			resultsMu.Unlock()
+			continue
+		}
 		select {
 		case c.sendSlots <- struct{}{}:
 		case <-ctx.Done():
@@ -356,7 +407,7 @@ func (c *webPushChannel) sendAllSynchronously(ctx context.Context, event Event, 
 		go func(sub *iot.PushSubscription) {
 			defer wg.Done()
 			defer func() { <-c.sendSlots }()
-			if err := c.sendOneSynchronously(ctx, event, payload, sub, ttl, urgency); err != nil {
+			if err := c.sendOneSynchronously(ctx, event, wire, sub, ttl, urgency); err != nil {
 				resultsMu.Lock()
 				errs = append(errs, err)
 				resultsMu.Unlock()

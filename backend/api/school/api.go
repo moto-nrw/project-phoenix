@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/render"
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/api/notifications"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -39,6 +40,7 @@ type Resource struct {
 	ClassDay        *classdayAPI.Resource
 	Timetable       *timetableAPI.Resource
 	StaffMessaging  *staffMessagingAPI.Resource
+	Notifications   *notificationsAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
 
@@ -49,6 +51,7 @@ func NewResource(
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
 	staffMessaging *staffMessagingAPI.Resource,
+	notifications *notificationsAPI.Resource,
 ) *Resource {
 	return &Resource{
 		AuthService:    auth,
@@ -56,6 +59,7 @@ func NewResource(
 		ClassDay:       classDay,
 		Timetable:      timetable,
 		StaffMessaging: staffMessaging,
+		Notifications:  notifications,
 	}
 }
 
@@ -136,6 +140,13 @@ func (rs *Resource) Router() chi.Router {
 	// same conversation from their respective portals.
 	if rs.StaffMessaging != nil {
 		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter())
+	}
+
+	// Own notification decisions and devices (#2208): the same handlers as
+	// /api/notifications, narrowed to the school catalogue and recording
+	// devices with portal "school".
+	if rs.Notifications != nil {
+		r.Mount("/notifications", rs.Notifications.SchoolRouter())
 	}
 
 	return r

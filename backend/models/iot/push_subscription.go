@@ -16,6 +16,8 @@ import (
 const (
 	PushPortalStaff  = "staff"
 	PushPortalParent = "parent"
+	// PushPortalSchool marks a device registered through "moto schule" (#2208).
+	PushPortalSchool = "school"
 )
 
 var trustedPushServiceHosts = map[string]struct{}{
@@ -75,8 +77,8 @@ func (s *PushSubscription) Validate() error {
 	if s.AccountID <= 0 {
 		return errors.New("account_id is required")
 	}
-	if s.Portal != PushPortalStaff && s.Portal != PushPortalParent {
-		return errors.New("portal must be 'staff' or 'parent'")
+	if s.Portal != PushPortalStaff && s.Portal != PushPortalParent && s.Portal != PushPortalSchool {
+		return errors.New("portal must be 'staff', 'parent' or 'school'")
 	}
 	if strings.TrimSpace(s.Endpoint) == "" {
 		return errors.New("endpoint is required")
@@ -116,6 +118,9 @@ type PushSubscriptionRepository interface {
 	// reserve this for account-wide session revocation, not a single-device
 	// logout.
 	DeleteParentByAccountID(ctx context.Context, accountID int64) error
+	// DeleteSchoolByAccountID removes every school-portal subscription for an
+	// account across tenants (#2208). Admin transaction required.
+	DeleteSchoolByAccountID(ctx context.Context, accountID int64) error
 	// DeleteByTokenFamilyID removes subscriptions registered by one
 	// refresh-token family, any portal, across tenants. Callers must use an
 	// admin transaction. An empty family ID is a no-op so pre-binding rows
@@ -129,6 +134,9 @@ type PushSubscriptionRepository interface {
 	// were never bound to a token family. tenantID > 0 limits the delete to
 	// that school. Callers must use an admin transaction.
 	DeleteParentUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
+	// DeleteSchoolUnboundByAccount is DeleteStaffUnboundByAccount for
+	// school-portal subscriptions (#2208).
+	DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error
 	// DeleteOrphanedSubscriptions removes push rows whose token family is gone
 	// or whose account has no live session left for that portal. Unbound
 	// parent rows stay if any parent session exists on the account.

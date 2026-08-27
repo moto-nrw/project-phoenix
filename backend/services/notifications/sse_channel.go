@@ -76,6 +76,7 @@ func (c *sseChannel) Deliver(ctx context.Context, event Event) error {
 		Title:            &event.Title,
 		Body:             &event.Body,
 		DeepLink:         &event.DeepLink,
+		SchoolDeepLink:   optionalString(event.SchoolDeepLink),
 		Priority:         &event.Priority,
 		NotificationType: &event.Type,
 		NotificationData: maps.Clone(event.Data),
@@ -141,4 +142,12 @@ func (c *sseChannel) permittedGuardians(ctx context.Context, audience Audience) 
 			strconv.FormatInt(audience.TenantID, 10), err)
 	}
 	return permitted, nil
+}
+
+// optionalString maps "" to nil so the SSE payload omits the field.
+func optionalString(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
 }

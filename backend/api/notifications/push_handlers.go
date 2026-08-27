@@ -49,13 +49,19 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	err := rs.PushService.Subscribe(r.Context(), int64(claims.ID), notificationsService.PushSubscriptionInput{
+	input := notificationsService.PushSubscriptionInput{
 		Endpoint:      req.Endpoint,
 		P256dh:        req.Keys.P256dh,
 		Auth:          req.Keys.Auth,
 		UserAgent:     r.UserAgent(),
 		TokenFamilyID: claims.FamilyID,
-	})
+	}
+	var err error
+	if requestPortal(r) == notificationsService.PortalSchool {
+		err = rs.PushService.SubscribeSchool(r.Context(), int64(claims.ID), input)
+	} else {
+		err = rs.PushService.Subscribe(r.Context(), int64(claims.ID), input)
+	}
 	switch {
 	case errors.Is(err, notificationsService.ErrWebPushNotConfigured):
 		common.RenderError(w, r, common.ErrorConflict(err))

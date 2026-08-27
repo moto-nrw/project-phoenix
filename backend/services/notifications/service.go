@@ -110,7 +110,11 @@ type Event struct {
 	Title    string
 	Body     string
 	DeepLink string // app-relative path ("/reminders"); never an absolute URL
-	Data     map[string]string
+	// SchoolDeepLink is the same destination on the school portal (#2208),
+	// as an app-relative /school/... path. Empty means "this notification has
+	// no place in moto schule"; a school device then opens the portal root.
+	SchoolDeepLink string
+	Data           map[string]string
 }
 
 // ErrDisabled is returned by Notify when notifications.dispatch_enabled is

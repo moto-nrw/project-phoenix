@@ -39,6 +39,11 @@ type PushSubscriptionService interface {
 	PublicKey() (string, error)
 	// Subscribe registers (or refreshes) a staff device for the current tenant.
 	Subscribe(ctx context.Context, accountID int64, input PushSubscriptionInput) error
+	// SubscribeSchool registers a device of the school portal (#2208). Same
+	// tenant transaction contract as Subscribe; the row carries portal
+	// "school" so pushes get the school host's deep link and a school logout
+	// revokes only these devices.
+	SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error
 	// Unsubscribe removes a staff device registration for the current tenant.
 	Unsubscribe(ctx context.Context, accountID int64, endpoint string) error
 	// SubscribeParent registers a guardian device for every school the account
@@ -97,6 +102,17 @@ func (s *pushSubscriptionService) Subscribe(ctx context.Context, accountID int64
 		return ErrWebPushNotConfigured
 	}
 	sub, err := s.buildSubscription(accountID, iot.PushPortalStaff, input)
+	if err != nil {
+		return err
+	}
+	return s.repo.Upsert(ctx, sub)
+}
+
+func (s *pushSubscriptionService) SubscribeSchool(ctx context.Context, accountID int64, input PushSubscriptionInput) error {
+	if !s.vapid.Configured() {
+		return ErrWebPushNotConfigured
+	}
+	sub, err := s.buildSubscription(accountID, iot.PushPortalSchool, input)
 	if err != nil {
 		return err
 	}

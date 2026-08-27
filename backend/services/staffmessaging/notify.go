@@ -127,7 +127,10 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		Title:    "Neue Nachricht aus dem Team",
 		Body:     "Jemand aus dem Team hat Ihnen geschrieben.",
 		DeepLink: fmt.Sprintf("/team-chat/%d", thread.ID),
-		Priority: notifications.PriorityNormal,
+		// The same conversation in "moto schule" (#2208); the school host
+		// strips the /school prefix itself.
+		SchoolDeepLink: fmt.Sprintf("/school/nachrichten/%d", thread.ID),
+		Priority:       notifications.PriorityNormal,
 		Audience: notifications.Audience{
 			TenantID:        thread.TenantID,
 			Scope:           notifications.ScopeStaff,

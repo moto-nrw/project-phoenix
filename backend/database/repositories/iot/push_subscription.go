@@ -162,6 +162,13 @@ func (r *PushSubscriptionRepository) DeleteStaffByAccountID(ctx context.Context,
 	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalStaff, "delete staff push subscriptions")
 }
 
+// DeleteSchoolByAccountID removes every school-portal subscription for an
+// account across tenants (#2208). Same admin-transaction contract as the
+// staff variant.
+func (r *PushSubscriptionRepository) DeleteSchoolByAccountID(ctx context.Context, accountID int64) error {
+	return r.deleteByAccountPortal(ctx, accountID, iot.PushPortalSchool, "delete school push subscriptions")
+}
+
 // DeleteParentByAccountID removes every parent-portal subscription for an
 // account across tenants. The caller must supply an admin transaction.
 func (r *PushSubscriptionRepository) DeleteParentByAccountID(ctx context.Context, accountID int64) error {
@@ -205,6 +212,12 @@ func (r *PushSubscriptionRepository) DeleteStaffUnboundByAccount(ctx context.Con
 	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalStaff, "delete unbound staff push subscriptions")
 }
 
+// DeleteSchoolUnboundByAccount removes school-portal subscriptions that have
+// no token family (#2208). Admin transaction required.
+func (r *PushSubscriptionRepository) DeleteSchoolUnboundByAccount(ctx context.Context, accountID, tenantID int64) error {
+	return r.deleteUnboundByAccount(ctx, accountID, tenantID, iot.PushPortalSchool, "delete unbound school push subscriptions")
+}
+
 // DeleteParentUnboundByAccount removes parent-portal subscriptions that have
 // no token family. The caller must supply an admin transaction. A positive
 // tenantID limits the delete to that school.
@@ -243,10 +256,16 @@ func (r *PushSubscriptionRepository) DeleteOrphanedSubscriptions(ctx context.Con
 						AND "token".tenant_id = "push_subscription".tenant_id
 						AND "token".portal_scope IN (?, ?, ?, ?, ?)
 					)
+					OR (
+						"push_subscription".portal = ?
+						AND "token".tenant_id = "push_subscription".tenant_id
+						AND "token".portal_scope IN (?, ?, ?)
+					)
 				)
 		)`, iot.PushPortalParent, authModels.PortalScopeParent, authModels.PortalScopeUnknown, "",
 			iot.PushPortalStaff, authModels.PortalScopeTenant, authModels.PortalScopeOrg,
-			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
+			authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "",
+			iot.PushPortalSchool, authModels.PortalScopeSchool, authModels.PortalScopeUnknown, "").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "delete orphaned unbound push subscriptions", Err: err}
@@ -277,13 +296,16 @@ func (r *PushSubscriptionRepository) deleteUnboundByAccount(ctx context.Context,
 // delivery-time authorization check, not a convenience filter: a subscription
 // must stop receiving pushes the moment the account is deactivated or its
 // mapping to this school ends, and that has to hold for every finder equally.
-func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*iot.PushSubscription) *bun.SelectQuery {
+func (r *PushSubscriptionRepository) staffSubscriptionQuery(ctx context.Context, subs *[]*iot.PushSubscription, portals ...string) *bun.SelectQuery {
+	if len(portals) == 0 {
+		portals = []string{iot.PushPortalStaff}
+	}
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(subs).
 		ModelTableExpr(tablePushSubscriptions+` AS "push_subscription"`).
 		Join(activeAccountJoin).
 		Join(activeAccountTenantJoin).
-		Where(pushPortalFilter, iot.PushPortalStaff).
+		Where(`"push_subscription".portal IN (?)`, bun.List(portals)).
 		Where(`"account".active = ?`, true).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
 		Where(nonGuardianRoleFilter, authModels.BaseRoleGuardian)
@@ -312,8 +334,11 @@ func (r *PushSubscriptionRepository) FindForStaffAccounts(ctx context.Context, a
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
+	// Personal notifications reach every portal the person uses: a Lehrkraft
+	// registered through "moto schule" (#2208) gets them there, with the
+	// school deep link chosen at send time.
 	var subs []*iot.PushSubscription
-	query := r.staffSubscriptionQuery(ctx, &subs).
+	query := r.staffSubscriptionQuery(ctx, &subs, iot.PushPortalStaff, iot.PushPortalSchool).
 		Where(`"push_subscription".account_id IN (?)`, bun.List(accountIDs))
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff account push subscriptions", Err: err}
