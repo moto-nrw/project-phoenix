@@ -244,34 +244,34 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	}
 	channel := testChannel(repo, &fakeSender{})
 
-	got, err := channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeTenant})
+	got, err := channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeTenant}})
 	require.NoError(t, err)
 	assert.Equal(t, staff, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeAdmin})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeAdmin}})
 	require.NoError(t, err)
 	assert.Equal(t, admins, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGuardian, GuardianAccountID: 99})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeGuardian, GuardianAccountID: 99}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 
 	// A child-scoped audience carries the child into the device lookup, which is
 	// where parent_portal.access is answered for the transaction that sends.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
 		StudentIDs:         []int64{55},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 	assert.Equal(t, []int64{55}, repo.guardiansStudentIDs,
@@ -280,32 +280,32 @@ func TestWebPushResolveSubscriptionsScopes(t *testing.T) {
 	// Access to that child revoked since the producer picked its audience: the
 	// account keeps its devices and its consent, and still gets nothing.
 	repo.hiddenStudentID = 55
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
 		StudentIDs:         []int64{55},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
 	// An event that is not about one child stays unscoped.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{
 		TenantID:           41,
 		Scope:              ScopeGuardian,
 		GuardianAccountIDs: []int64{99},
-	})
+	}})
 	require.NoError(t, err)
 	assert.Equal(t, []*iot.PushSubscription{guardian}, got)
 	assert.Empty(t, repo.guardiansStudentIDs)
 	repo.hiddenStudentID = 0
 
 	// Group scope is deliberately unsupported: no error, no recipients.
-	got, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"})
+	got, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: ScopeGroup, ActiveGroupID: "g1"}})
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
-	_, err = channel.resolveSubscriptions(context.Background(), Audience{TenantID: 41, Scope: "bogus"})
+	_, err = channel.resolveEventSubscriptions(context.Background(), Event{Audience: Audience{TenantID: 41, Scope: "bogus"}})
 	require.Error(t, err)
 }
 

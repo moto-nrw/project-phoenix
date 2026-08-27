@@ -330,10 +330,6 @@ func (p *portalPayloads) forSubscription(sub *iot.PushSubscription) ([]byte, err
 // ScopeGroup is deliberately unsupported: unlike SSE there is no persisted
 // device-to-group membership, and no producer targets groups with
 // push-worthy events yet. Documented follow-up in docs/notifications.md.
-func (c *webPushChannel) resolveSubscriptions(ctx context.Context, audience Audience) ([]*iot.PushSubscription, error) {
-	return c.resolveEventSubscriptions(ctx, Event{Audience: audience})
-}
-
 func (c *webPushChannel) resolveEventSubscriptions(ctx context.Context, event Event) ([]*iot.PushSubscription, error) {
 	audience := event.Audience
 	switch audience.Scope {
