@@ -15,6 +15,7 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
@@ -228,8 +229,7 @@ function OGSGroupPageContent() {
     Record<string, { in_group_room: boolean; current_room_id?: string }>
   >({});
 
-  // State for mobile/desktop detection
-  const [isMobile, setIsMobile] = useState(false);
+  // State for desktop detection (die Gruppenreiter gibt es nur unterhalb lg)
   const [isDesktop, setIsDesktop] = useState(false);
 
   // State for pickup times (part of the aggregated live response)
@@ -594,15 +594,14 @@ function OGSGroupPageContent() {
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for ogs-students-* keys automatically.
 
-  // Handle mobile detection
+  // Handle desktop detection
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
+    const checkViewport = () => {
       setIsDesktop(window.innerWidth >= 1024);
     };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
+    checkViewport();
+    window.addEventListener("resize", checkViewport);
+    return () => window.removeEventListener("resize", checkViewport);
   }, []);
 
   // Function to switch between groups (by ID — stable across re-sorts).
@@ -851,20 +850,11 @@ function OGSGroupPageContent() {
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch title="Meine Gruppe" />
 
-        <div className="flex min-h-[60vh] items-center justify-center px-4">
-          <div className="flex max-w-md flex-col items-center gap-6 text-center">
-            <MotoConceptIcon concept="groups" size={48} />
-            <div className="space-y-2">
-              <h3 className="text-lg font-medium text-gray-900">
-                Keine OGS-Gruppe zugeordnet
-              </h3>
-              <p className="text-gray-600">
-                Du bist keiner OGS-Gruppe als Leiter:in zugeordnet. Wende dich
-                an deine Verwaltung, um einer Gruppe zugewiesen zu werden.
-              </p>
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          icon={<MotoConceptIcon concept="groups" size={48} />}
+          title="Keine OGS-Gruppe zugeordnet"
+          description="Sie sind keiner OGS-Gruppe als Leitung zugeordnet. Wenden Sie sich an Ihre Verwaltung, um einer Gruppe zugewiesen zu werden."
+        />
       </div>
     );
   }
@@ -914,24 +904,16 @@ function OGSGroupPageContent() {
     }
     if (students.length === 0) {
       return (
-        <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-          <div className="flex max-w-md flex-col items-center gap-4 text-center">
-            <MotoConceptIcon concept="children" size={48} />
-            <div className="space-y-1">
-              <h3 className="text-lg font-medium text-gray-900">
-                Keine Kinder in {currentGroup?.name ?? "dieser Gruppe"}
-              </h3>
-              <p className="text-sm text-gray-500">
-                Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt.
-              </p>
-              {allGroups.length > 1 && (
-                <p className="mt-1 text-sm text-gray-500">
-                  Versuchen Sie eine andere Gruppe auszuwählen.
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
+        <EmptyState
+          className="mt-8"
+          icon={<MotoConceptIcon concept="children" size={48} />}
+          title={`Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`}
+          description={
+            allGroups.length > 1
+              ? "Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt. Wählen Sie eine andere Gruppe."
+              : "Es wurden noch keine Kinder zu dieser OGS-Gruppe hinzugefügt."
+          }
+        />
       );
     }
     if (sortedStudents.length > 0) {
@@ -1081,19 +1063,24 @@ function OGSGroupPageContent() {
 
   return (
     <>
-      <div className="w-full">
-        {/* Page header — scrolls with the rest of the page (no sticky).
+      <div className="-mt-1.5 w-full">
+        {/* Page header, scrolls with the rest of the page (no sticky).
             Active filters surface as a count badge on the filter pill (no
             separate chips row), and the kebab menu carries the rare
             "Gruppe übergeben" action. */}
         <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
           <PageHeaderWithSearch
-            title={
-              isMobile && allGroups.length === 1
-                ? currentGroup
-                  ? formatGroupLabelWithAttendance(currentGroup)
-                  : "Meine Gruppe"
-                : "" // No title when multiple groups (tabs show group names) or on desktop
+            title="Meine Gruppe"
+            // Der Titel bleibt konstant; die Anwesenheit der gewählten Gruppe
+            // steht als Zähler daneben (früher im mobilen Titeltext).
+            badge={
+              currentGroup?.student_count !== undefined
+                ? {
+                    icon: <MotoConceptIcon concept="children" size={20} />,
+                    count: currentGroup.present_count ?? 0,
+                    label: `von ${currentGroup.student_count} da`,
+                  }
+                : undefined
             }
             actionButton={renderSubstitutionBadge("desktop")}
             mobileActionButton={renderSubstitutionBadge("mobile")}
@@ -1135,7 +1122,7 @@ function OGSGroupPageContent() {
             search={{
               value: searchTerm,
               onChange: setSearchTerm,
-              placeholder: "Name suchen...",
+              placeholder: "Name suchen…",
             }}
             filters={filterConfigs}
             activeFilters={activeFilters}
@@ -1147,15 +1134,15 @@ function OGSGroupPageContent() {
           />
         </div>
 
-        {/* Mobile Error Display — outside the sticky stack so it doesn't
-            push everything down on small screens. */}
+        {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
+            hat sonst keinen Hinweis, warum die Liste leer bleibt. */}
         {error && (
-          <div className="mb-4 md:hidden">
+          <div className="mb-4">
             <Alert type="error" message={error} />
           </div>
         )}
 
-        {/* Mobile (<md) check-in mode trigger — inline pill at the top of
+        {/* Mobile (<md) check-in mode trigger: inline pill at the top of
             the card list when OFF; switches to a sticky bottom bar above
             the mobile nav when ON. Tablet keeps the floating FAB and
             desktop the header inline pill, both rendered below. */}

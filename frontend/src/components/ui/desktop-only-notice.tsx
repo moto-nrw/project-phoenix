@@ -13,7 +13,7 @@ interface DesktopOnlyNoticeProps {
 
 export function DesktopOnlyNotice({
   title = "Bitte am Computer öffnen",
-  description = "Die Anmeldungsverwaltung ist für die Arbeit am Computer optimiert. Bitte öffne diese Seite auf einem Laptop oder Desktop-Rechner.",
+  description = "Diese Seite ist für die Arbeit am Computer optimiert. Bitte öffnen Sie sie auf einem Laptop oder Desktop-Rechner.",
 }: DesktopOnlyNoticeProps) {
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center px-6 text-center lg:hidden">

@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { AdminEnrollmentChangeRequestDetail } from "~/components/enrollment/admin-enrollment-change-requests";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { canReviewEnrollmentChangeRequests } from "~/lib/change-request-access";
@@ -30,7 +30,7 @@ export default function AdminEnrollmentChangeRequestDetailPage({
 
   return (
     <div className="w-full">
-      <MobileBackButton />
+      <BackButton referrer="/admin/enrollments" />
       <AdminEnrollmentChangeRequestDetail changeRequestId={id} />
     </div>
   );

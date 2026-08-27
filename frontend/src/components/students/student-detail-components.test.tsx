@@ -177,7 +177,7 @@ describe("StudentDetailHeader", () => {
     expect(screen.queryByText("Gruppe 1")).not.toBeInTheDocument();
   });
 
-  it("does not reserve desktop header margins on narrow screens", () => {
+  it("rendert den Entitätskopf ohne seitlichen Einzug", () => {
     const { container } = render(
       <StudentDetailHeader
         student={mockStudent}
@@ -187,13 +187,13 @@ describe("StudentDetailHeader", () => {
       />,
     );
 
+    // Der Kopf steht bündig wie auf der Mitarbeiter-Detailseite: kein
+    // Einzug, auf keiner Breite.
     const identitySlot = container.querySelector(".flex.flex-1.items-center");
-    expect(identitySlot).toHaveClass("ml-0", "sm:ml-6");
-    expect(identitySlot).not.toHaveClass("ml-6");
+    expect(identitySlot?.className).not.toMatch(/\bml-/);
 
     const badgeSlot = container.querySelector(".flex-shrink-0.pb-3");
-    expect(badgeSlot).toHaveClass("mr-0", "sm:mr-4");
-    expect(badgeSlot).not.toHaveClass("mr-4");
+    expect(badgeSlot?.className).not.toMatch(/\bmr-/);
   });
 
   // ---------------------------------------------------------------------------

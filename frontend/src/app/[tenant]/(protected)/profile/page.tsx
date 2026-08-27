@@ -9,11 +9,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { updateProfile, uploadAvatar } from "~/lib/profile-api";
 import type { ProfileUpdateRequest } from "~/lib/profile-helpers";
-import {
-  SkeletonRegion,
-  PageHeaderSkeleton,
-  DetailSkeleton,
-} from "~/components/ui/page-skeletons";
+import { SkeletonRegion, DetailSkeleton } from "~/components/ui/page-skeletons";
 import { useProfile } from "~/lib/profile-context";
 import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
@@ -29,11 +25,15 @@ import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
+// Der Kopf gehört nicht in den Skeleton: PageHeaderWithSearch rendert sofort,
+// nur die Datenregion darunter skeletonisiert.
 const profileLoadingFallback = (
-  <SkeletonRegion label="Profil wird geladen…">
-    <PageHeaderSkeleton search={false} />
-    <DetailSkeleton sections={3} fieldsPerSection={3} />
-  </SkeletonRegion>
+  <div className="-mt-1.5 w-full">
+    <PageHeaderWithSearch title="Profil" />
+    <SkeletonRegion label="Profil wird geladen…">
+      <DetailSkeleton sections={3} fieldsPerSection={3} />
+    </SkeletonRegion>
+  </div>
 );
 
 function ProfileContent() {
@@ -140,7 +140,7 @@ function ProfileContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Profil" />
 
-      <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
+      <div className="max-w-3xl space-y-6 pb-8">
         {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
           <div className="group relative">
@@ -192,7 +192,7 @@ function ProfileContent() {
         </div>
 
         {/* Profile Data */}
-        <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="text-base font-semibold text-gray-900">
               Persönliche Daten
@@ -256,7 +256,7 @@ function ProfileContent() {
                   variant="primary"
                   size="md"
                   isLoading={isSaving}
-                  loadingText="Speichern..."
+                  loadingText="Speichern…"
                   onClick={() => void handleSaveProfile()}
                 >
                   Speichern
@@ -288,7 +288,7 @@ function ProfileContent() {
         </div>
 
         {/* Security Section */}
-        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 backdrop-blur-sm md:p-6">
+        <div className="moto-content-surface flex items-center justify-between rounded-2xl border p-4 shadow-sm sm:p-6">
           <h3 className="text-base font-semibold text-gray-900">Passwort</h3>
           <Button
             type="button"
@@ -300,12 +300,12 @@ function ProfileContent() {
           </Button>
         </div>
 
-        {/* Trusted Devices Section — personal device management.
+        {/* Trusted Devices Section: personal device management.
             Mirrors the Operator profile page (app/operator/settings/page.tsx). */}
         {/* "Was" before "wo": pick the topics first, then the device. */}
         <NotificationPreferencesSection />
-        {/* Persönliche Geburtstagsanzeige (#1542) — steht bei den anderen
-            Sichtbarkeits-/Benachrichtigungsentscheidungen des eigenen Kontos. */}
+        {/* Persönliche Geburtstagsanzeige (#1542): steht bei den anderen
+            Sichtbarkeits- und Benachrichtigungsentscheidungen des eigenen Kontos. */}
         <BirthdayVisibilitySection />
         <PushNotificationSection />
         <PasskeySettingsSection />

@@ -9,7 +9,6 @@ import {
   SkeletonRegion,
   CardGridSkeleton,
 } from "~/components/ui/page-skeletons";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { hasPermission, hasRole } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
@@ -27,7 +26,6 @@ interface ElternCard {
 
 function ElternContent() {
   const { data: session, status } = useSession({ required: true });
-  const isMobile = useIsMobile();
   // Card links must carry the tenant segment in path routing mode (e.g.
   // /school-a/messages); bare hrefs would leave the tenant path entirely.
   const tenantPath = useTenantAwarePath();
@@ -98,14 +96,14 @@ function ElternContent() {
   const visibleCards = cards.filter((card) => card.show);
 
   return (
-    <div className="w-full">
-      {isMobile && <PageHeaderWithSearch title="Eltern" />}
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch title="Eltern" />
 
       <div className="min-h-[60vh]">
-        {/* Intro — carries the Anleitung/Help-Guide design language (green
-            eyebrow + short lead) into the in-app overview. */}
+        {/* Intro: carries the Anleitung/Help-Guide design language (kicker +
+            short lead) into the in-app overview. */}
         <div className="mb-8 hidden max-w-2xl lg:block">
-          <p className="text-moto-green-strong text-sm font-bold tracking-[0.08em] uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Elternbereich
           </p>
           <p className="mt-3 text-base leading-7 text-gray-600">

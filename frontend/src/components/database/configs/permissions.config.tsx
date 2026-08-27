@@ -197,7 +197,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
   list: {
     title: "Berechtigungen verwalten",
     description: "Systemweite Berechtigungen definieren und prüfen",
-    searchPlaceholder: "Berechtigungen durchsuchen...",
+    searchPlaceholder: "Berechtigungen durchsuchen…",
 
     searchStrategy: "frontend",
     searchableFields: ["name", "description", "resource", "action"],

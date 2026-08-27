@@ -117,9 +117,9 @@ export const groupsConfig = defineEntityConfig<Group>({
                 return [];
               }
             },
-            placeholder: "Gruppenleitung auswählen...",
+            placeholder: "Gruppenleitung auswählen…",
             helperText:
-              "Wählen Sie eine oder mehrere Gruppenleiter/innen für diese Gruppe aus",
+              "Wählen Sie eine oder mehrere Gruppenleitungen für diese Gruppe aus",
           },
         ],
       },
@@ -154,7 +154,7 @@ export const groupsConfig = defineEntityConfig<Group>({
         },
         {
           label: (group: Group) =>
-            `${group.supervisors?.length ?? 0} Gruppenleiter/in${(group.supervisors?.length ?? 0) === 1 ? "" : "nen"}`,
+            `${group.supervisors?.length ?? 0} Gruppenleitung${(group.supervisors?.length ?? 0) === 1 ? "" : "en"}`,
           color: "bg-indigo-400/80",
           showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
         },
@@ -214,7 +214,7 @@ export const groupsConfig = defineEntityConfig<Group>({
   list: {
     title: "Gruppe auswählen",
     description: "Verwalte Gruppen und deren Zuordnungen",
-    searchPlaceholder: "Gruppe suchen...",
+    searchPlaceholder: "Gruppe suchen…",
 
     // Frontend search configuration (loads all data at once)
     searchStrategy: "frontend",
@@ -235,8 +235,8 @@ export const groupsConfig = defineEntityConfig<Group>({
       subtitle: (group: Group) => {
         const supervisorCount = group.supervisors?.length ?? 0;
         if (supervisorCount === 0) return "Keine Gruppenleitung";
-        const suffix = supervisorCount === 1 ? "" : "nen";
-        return `${supervisorCount} Gruppenleiter/in${suffix}`;
+        const suffix = supervisorCount === 1 ? "" : "en";
+        return `${supervisorCount} Gruppenleitung${suffix}`;
       },
       description: (group: Group) => {
         const parts = [];

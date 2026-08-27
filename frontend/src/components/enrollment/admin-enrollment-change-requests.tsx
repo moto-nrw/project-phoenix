@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  ArrowLeft,
   ArrowRight,
   Check,
   Mail,
@@ -25,6 +23,12 @@ import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Textarea } from "~/components/ui/textarea";
+import { formatChatDateTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "AdminEnrollmentChangeRequests" });
 
@@ -116,14 +120,19 @@ export function AdminEnrollmentChangeRequestDetail({
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Wird geladen...</p>;
+    return (
+      <SkeletonRegion label="Änderungsanfrage wird geladen">
+        <DetailSkeleton sections={2} fieldsPerSection={4} />
+      </SkeletonRegion>
+    );
   }
 
   if (!data) {
     return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error ?? "Änderungsanfrage nicht gefunden."}
-      </div>
+      <Alert
+        type="error"
+        message={error ?? "Änderungsanfrage nicht gefunden."}
+      />
     );
   }
 
@@ -136,26 +145,16 @@ export function AdminEnrollmentChangeRequestDetail({
   return (
     <div className="space-y-5">
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Link
-            href={tenantPath("/anfragen")}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zu den Anfragen
-          </Link>
-        </div>
-
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-5 p-5 sm:p-6">
             <header>
               <div className="flex flex-wrap items-center gap-2">
                 <ChangeRequestStatusBadge status={data.status} />
                 <span className="text-xs text-gray-500">
-                  {formatDateTime(data.created_at)}
+                  {formatChatDateTime(data.created_at)}
                 </span>
               </div>
-              <h1 className="mt-3 text-xl font-semibold text-gray-900">
+              <h1 className="mt-3 text-2xl font-bold text-gray-900 sm:text-3xl">
                 {data.origin === "admin"
                   ? "OGS-Korrektur"
                   : "Änderungsanfrage prüfen"}
@@ -163,20 +162,12 @@ export function AdminEnrollmentChangeRequestDetail({
               <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
                 {data.origin === "admin"
                   ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
-                  : "Vergleiche die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
+                  : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
               </p>
             </header>
 
-            {error ? (
-              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-                {error}
-              </div>
-            ) : null}
-            {info ? (
-              <div className="border-moto-green/20 bg-moto-green/10 text-moto-green-strong rounded-lg border p-3 text-sm">
-                {info}
-              </div>
-            ) : null}
+            {error ? <Alert type="error" message={error} /> : null}
+            {info ? <Alert type="success" message={info} /> : null}
 
             <ChangeSummary request={data} />
             {data.origin === "parent" ? <MessageThread request={data} /> : null}
@@ -185,7 +176,7 @@ export function AdminEnrollmentChangeRequestDetail({
           <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="space-y-4 lg:sticky lg:top-6">
               <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                   Anmeldung
                 </p>
                 {request ? (
@@ -211,85 +202,89 @@ export function AdminEnrollmentChangeRequestDetail({
                     Anmeldung #{data.request_id}
                   </p>
                 )}
-                <Link
+                <ButtonLink
                   href={enrollmentHref}
-                  className="mt-4 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  variant="outline"
+                  size="md"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2"
                 >
                   Anmeldung öffnen
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                </Link>
+                </ButtonLink>
               </section>
 
               {data.origin === "parent" ? (
                 <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                     Rückfrage
                   </p>
-                  <label className="mt-3 block">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Nachricht an Eltern
-                    </span>
-                    <textarea
+                  <div className="mt-3">
+                    <Textarea
+                      id="change-request-question"
+                      label="Nachricht an Eltern"
                       value={question}
                       onChange={(event) => setQuestion(event.target.value)}
                       rows={4}
                       disabled={!canReview || busy !== null}
-                      className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none disabled:bg-gray-50"
                     />
-                  </label>
-                  <button
+                  </div>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="md"
                     onClick={() => void handleQuestion()}
                     disabled={!canReview || busy !== null || !question.trim()}
-                    className="mt-3 inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                    className="mt-3 inline-flex w-full items-center justify-center gap-2"
                   >
                     <MotoConceptIcon concept="parentConversations" size={16} />
-                    {busy === "question" ? "Sendet..." : "Rückfrage senden"}
-                  </button>
+                    {busy === "question" ? "Sendet…" : "Rückfrage senden"}
+                  </Button>
                 </section>
               ) : null}
 
               {data.origin === "parent" ? (
                 <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-                  <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                     Entscheidung
                   </p>
-                  <label className="mt-3 block">
-                    <span className="text-sm font-semibold text-gray-700">
-                      Begründung
-                    </span>
-                    <textarea
+                  <div className="mt-3">
+                    <Textarea
+                      id="change-request-review-note"
+                      label="Begründung"
                       value={reviewNote}
                       onChange={(event) => setReviewNote(event.target.value)}
                       rows={4}
                       disabled={!canReview || busy !== null}
                       placeholder="Kurz begründen, warum die Änderung übernommen oder abgelehnt wird."
-                      className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none disabled:bg-gray-50"
                     />
-                  </label>
+                  </div>
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="md"
                       onClick={() => void handleReview(true)}
                       disabled={
                         !canReview || busy !== null || !reviewNote.trim()
                       }
-                      className="hover:border-moto-green/60 hover:bg-moto-green/10 hover:text-moto-green-strong inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
-                      {busy === "approve" ? "Speichert..." : "Freigeben"}
-                    </button>
-                    <button
+                      {busy === "approve" ? "Speichert…" : "Freigeben"}
+                    </Button>
+                    <Button
                       type="button"
+                      variant="outline_danger"
+                      size="md"
                       onClick={() => void handleReview(false)}
                       disabled={
                         !canReview || busy !== null || !reviewNote.trim()
                       }
-                      className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 inline-flex h-9 items-center justify-center gap-2 rounded-lg border bg-white px-3 text-sm font-semibold shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                      className="inline-flex items-center justify-center gap-2"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />
-                      {busy === "reject" ? "Speichert..." : "Ablehnen"}
-                    </button>
+                      {busy === "reject" ? "Speichert…" : "Ablehnen"}
+                    </Button>
                   </div>
                   {!canReview ? (
                     <p className="mt-3 text-xs leading-5 text-gray-500">
@@ -313,7 +308,7 @@ function ChangeSummary({
   readonly request: AdminEnrollmentChangeRequest;
 }) {
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
       <div>
         <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Änderungen
@@ -356,7 +351,7 @@ function MessageThread({
   const messages = request.messages ?? [];
 
   return (
-    <section className="moto-content-surface space-y-4 rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface space-y-4 rounded-2xl border p-4 shadow-sm sm:p-6">
       <div>
         <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Verlauf
@@ -366,7 +361,11 @@ function MessageThread({
         </h2>
       </div>
       {messages.length === 0 ? (
-        <p className="text-sm text-gray-600">Noch keine Nachrichten.</p>
+        <EmptyState
+          variant="compact"
+          title="Noch keine Nachrichten"
+          description="Sobald eine Rückfrage gestellt oder beantwortet wird, erscheint sie hier."
+        />
       ) : (
         <ol className="space-y-3">
           {messages.map((message) => (
@@ -376,7 +375,7 @@ function MessageThread({
             >
               <p className="text-xs font-semibold text-gray-500">
                 {messageAuthorLabel(message.author_type)} ·{" "}
-                {formatDateTime(message.created_at)}
+                {formatChatDateTime(message.created_at)}
               </p>
               <p className="mt-1 text-sm leading-6 whitespace-pre-wrap text-gray-700">
                 {message.body}
@@ -426,17 +425,6 @@ function ChangeRequestStatusBadge({
       tone={ENROLLMENT_CHANGE_REQUEST_STATUS_META[status].tone}
     />
   );
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 function messageAuthorLabel(authorType: string): string {

@@ -20,9 +20,6 @@
 // no-test-modifications rule.
 
 const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/active-supervisions/page.tsx",
-  "src/app/[tenant]/(protected)/activities/page.tsx",
-  "src/app/[tenant]/(protected)/dashboard/page.tsx",
   "src/app/[tenant]/(protected)/database/activities/page.tsx",
   "src/app/[tenant]/(protected)/database/devices/page.tsx",
   "src/app/[tenant]/(protected)/database/groups/page.tsx",
@@ -34,7 +31,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/[tenant]/(protected)/database/students/import/page.tsx",
   "src/app/[tenant]/(protected)/database/students/page.tsx",
   "src/app/[tenant]/(protected)/ogs-groups/page.tsx",
-  "src/app/[tenant]/(protected)/rooms/page.tsx",
   "src/app/[tenant]/(protected)/staff/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/page.tsx",
@@ -60,7 +56,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
   "src/app/operator/schools/page.tsx",
   "src/app/operator/settings/page.tsx",
   "src/app/page.tsx",
-  "src/components/active-supervisions/states.tsx",
   "src/components/active/unclaimed-rooms.tsx",
   "src/components/activities/activity-management-modal.tsx",
   "src/components/activities/quick-create-modal.tsx",
@@ -150,9 +145,6 @@ const GENERIC_BRAND_COLOR_BASELINE_FILES = new Set([
 ]);
 
 const GENERIC_BRAND_COLOR_BASELINE = parseMatchBaseline(`
-src/app/[tenant]/(protected)/active-supervisions/page.tsx|bg-red-100:2 bg-red-50:2 border-red-200:2 from-blue-50/80 text-red-600:2 to-cyan-100/80
-src/app/[tenant]/(protected)/activities/page.tsx|bg-red-50 border-red-200 text-red-800
-src/app/[tenant]/(protected)/dashboard/page.tsx|bg-red-50 border-red-200 from-amber-50/80 from-blue-50/80 from-emerald-50/80 from-emerald-500 from-green-50/80 from-indigo-50/80 from-indigo-500 from-orange-50/80 from-orange-500 from-purple-50/80:2 from-purple-500 from-red-50/80 from-yellow-400 from-yellow-50/80 ring-amber-200/60 ring-blue-200/60 ring-emerald-200/60 ring-green-200/60 ring-indigo-200/60 ring-indigo-500:2 ring-orange-200/60 ring-purple-200/60:2 ring-red-200/60 ring-yellow-200/60 text-red-800 to-blue-100/80 to-cyan-100/80 to-green-100/80 to-green-600 to-indigo-600 to-lime-100/80 to-orange-100/80 to-orange-600 to-purple-600 to-rose-100/80 to-violet-100/80:2 to-yellow-100/80:2 to-yellow-500
 src/app/[tenant]/(protected)/database/activities/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
 src/app/[tenant]/(protected)/database/devices/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
 src/app/[tenant]/(protected)/database/groups/page.tsx|bg-red-50 bg-red-600 bg-red-700 border-red-200 text-red-800
@@ -164,7 +156,6 @@ src/app/[tenant]/(protected)/database/rooms/page.tsx|bg-red-50 bg-red-600 bg-red
 src/app/[tenant]/(protected)/database/students/import/page.tsx|bg-blue-50/30 border-blue-100 text-blue-600:2 text-red-600 text-red-800
 src/app/[tenant]/(protected)/database/students/page.tsx|bg-red-100 bg-red-50:2 bg-red-600 bg-red-700 border-red-200:2 text-red-700 text-red-800
 src/app/[tenant]/(protected)/ogs-groups/page.tsx|bg-orange-50:2 border-orange-200:2 from-amber-50/80 from-blue-50/80 from-emerald-50/80 from-fuchsia-50/80 from-red-50/80 text-orange-600:2 text-orange-900 to-cyan-100/80 to-green-100/80 to-pink-100/80 to-rose-100/80 to-yellow-100/80
-src/app/[tenant]/(protected)/rooms/page.tsx|text-blue-400
 src/app/[tenant]/(protected)/staff/page.tsx|bg-red-50 bg-red-500 border-red-200 text-red-800
 src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx|bg-blue-100 bg-blue-200 bg-green-500:3 bg-red-500:3 bg-yellow-400:3 text-blue-800
 src/app/[tenant]/(protected)/students/[id]/page.tsx|bg-blue-100 bg-blue-200 text-amber-600 text-blue-800
@@ -190,7 +181,6 @@ src/app/operator/provisioning/soft-delete-shared.tsx|bg-amber-50 bg-green-100 bg
 src/app/operator/schools/page.tsx|bg-red-100 bg-red-200 text-red-700
 src/app/operator/settings/page.tsx|bg-red-50 text-red-700
 src/app/page.tsx|bg-red-50 border-red-200 text-red-700
-src/components/active-supervisions/states.tsx|bg-red-50/50 bg-red-600 bg-red-700 border-red-100 text-red-500
 src/components/active/unclaimed-rooms.tsx|bg-amber-100 bg-amber-50/80 bg-red-50 border-amber-200 border-red-200 text-amber-600 text-red-700
 src/components/activities/activity-management-modal.tsx|border-red-200/30 from-red-50/60 text-red-600:2 text-red-700 to-rose-50/60
 src/components/activities/quick-create-modal.tsx|from-blue-100/10 ring-red-400 text-red-600:3 to-indigo-100/10
@@ -292,10 +282,6 @@ const OVERLAY_BASELINE_FILES = new Set([
 ]);
 
 const ROUNDED_3XL_BASELINE_FILES = new Set([
-  "src/app/[tenant]/(protected)/dashboard/page-skeleton.tsx",
-  "src/app/[tenant]/(protected)/dashboard/page.tsx",
-  "src/app/[tenant]/(protected)/rooms/page-skeleton.tsx",
-  "src/app/[tenant]/(protected)/rooms/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/change-history/page.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page-skeleton.tsx",
   "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
@@ -330,9 +316,6 @@ const OVERLAY_BASELINE = new Map([
 ]);
 
 const ROUNDED_3XL_BASELINE = new Map([
-  ["src/app/[tenant]/(protected)/dashboard/page-skeleton.tsx", 2],
-  ["src/app/[tenant]/(protected)/dashboard/page.tsx", 10],
-  ["src/app/[tenant]/(protected)/rooms/page-skeleton.tsx", 2],
   ["src/app/[tenant]/(protected)/students/[id]/change-history/page.tsx", 1],
   [
     "src/app/[tenant]/(protected)/students/[id]/feedback-history/page-skeleton.tsx",

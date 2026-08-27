@@ -11,6 +11,7 @@ import {
   useGroupedItems,
   type Grouper,
 } from "~/components/database/use-grouped-items";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -348,7 +349,7 @@ function RoomsPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Räume" : ""}
+          title="Räume"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -363,7 +364,7 @@ function RoomsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Räume suchen...",
+            placeholder: "Räume suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -391,8 +392,8 @@ function RoomsPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 
@@ -446,7 +447,7 @@ function RoomsPageContent() {
           title="Raum löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie den Raum{" "}

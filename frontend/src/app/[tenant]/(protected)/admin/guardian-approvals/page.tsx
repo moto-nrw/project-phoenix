@@ -45,13 +45,6 @@ export default function GuardianApprovalsPage() {
     getSettingValue(settingsSchema, "guardians.parent_invite_mode"),
   );
 
-  if (!isReady)
-    return (
-      <SkeletonRegion label="Konto-Anfragen werden geladen">
-        <ListSkeleton rows={5} />
-      </SkeletonRegion>
-    );
-
   const inviteModeState: GuardianInviteModeState = isSettingsLoading
     ? { status: "loading" }
     : settingsError != null ||
@@ -68,7 +61,13 @@ export default function GuardianApprovalsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Konto-Anfragen" />
       <div className="mt-4">
-        <GuardianApprovalQueue inviteModeState={inviteModeState} />
+        {isReady ? (
+          <GuardianApprovalQueue inviteModeState={inviteModeState} />
+        ) : (
+          <SkeletonRegion label="Konto-Anfragen werden geladen">
+            <ListSkeleton rows={5} />
+          </SkeletonRegion>
+        )}
       </div>
     </div>
   );

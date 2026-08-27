@@ -32,6 +32,9 @@ import type { MotoDuotoneTone } from "~/lib/location-helper";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
@@ -57,7 +60,7 @@ const StatCard: React.FC<StatCardProps> = ({
   href,
 }) => {
   const cardContent = (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div className="relative p-4 md:p-6">
         <div className="mb-3 flex items-start justify-between">
           <div className="p-0.5">
@@ -72,7 +75,7 @@ const StatCard: React.FC<StatCardProps> = ({
             {title}
           </p>
           <p className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {loading ? "..." : value}
+            {loading ? "…" : value}
           </p>
           {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
         </div>
@@ -84,7 +87,7 @@ const StatCard: React.FC<StatCardProps> = ({
     return (
       <Link
         href={href}
-        className="focus-visible:ring-moto-blue group block rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -111,7 +114,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
   linkText,
 }) => {
   const cardContent = (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
+    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-sm">
       <div className="relative p-4 md:p-6">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -150,7 +153,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
     return (
       <Link
         href={href}
-        className="focus-visible:ring-moto-blue group block h-full rounded-3xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+        className="focus-visible:ring-moto-blue group block h-full rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
       >
         {cardContent}
       </Link>
@@ -231,23 +234,20 @@ function DashboardContent() {
   const canReadPhaseExpiryWarnings = hasEffectiveAdminScope(session);
 
   return (
-    <div className="w-full">
-      {/* Greeting Section */}
-      <div className="mb-6 md:mb-8">
-        <div className="ml-6">
-          <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
-            {greeting}, {firstName}!
-          </h1>
-          <p className="mt-2 text-sm text-gray-600 md:text-base">
-            Hier ist die aktuelle Übersicht
-          </p>
-        </div>
-      </div>
+    <div className="-mt-1.5 w-full">
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
+      <PageHeaderWithSearch title="Home" />
 
-      {/* Error Message */}
+      {/* Begrüßung: kein zweiter Seitentitel, nur eine Zeile über der
+          Übersicht. */}
+      <p className="mb-6 text-sm text-gray-600 md:mb-8 md:text-base">
+        {greeting}, {firstName}! Hier ist die aktuelle Übersicht.
+      </p>
+
       {error && (
-        <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-6 rounded-2xl border p-4 text-sm">
-          {error}
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 
@@ -391,9 +391,10 @@ function DashboardContent() {
               const activities = dashboardData?.recentActivity;
               if (!activities || activities.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine aktuellen Bewegungen
-                  </p>
+                  <EmptyState
+                    className="py-8"
+                    title="Keine aktuellen Bewegungen"
+                  />
                 );
               }
               return (
@@ -476,9 +477,10 @@ function DashboardContent() {
               const activities = dashboardData?.currentActivities;
               if (!activities || activities.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine laufenden Aktivitäten
-                  </p>
+                  <EmptyState
+                    className="py-8"
+                    title="Keine laufenden Aktivitäten"
+                  />
                 );
               }
               return (
@@ -537,9 +539,7 @@ function DashboardContent() {
               const groups = dashboardData?.activeGroupsSummary;
               if (!groups || groups.length === 0) {
                 return (
-                  <p className="py-8 text-center text-sm text-gray-500">
-                    Keine aktiven Gruppen
-                  </p>
+                  <EmptyState className="py-8" title="Keine aktiven Gruppen" />
                 );
               }
               return (

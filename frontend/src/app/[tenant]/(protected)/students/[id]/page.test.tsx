@@ -678,7 +678,7 @@ describe("StudentDetailPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    it("navigates back when back button is clicked in error state", async () => {
+    it("rendert im Fehlerfall den Rückweg zur Herkunftsliste", async () => {
       mockUseStudentData.mockReturnValue({
         student: null,
         loading: false,
@@ -695,10 +695,12 @@ describe("StudentDetailPage", () => {
 
       render(<StudentDetailPage />);
 
-      const backButton = screen.getByRole("button", { name: /zurück/i });
-      fireEvent.click(backButton);
-
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
+      // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
+      // BackButton mit dem Referrer der Herkunftsliste.
+      expect(screen.getByTestId("back-button")).toHaveAttribute(
+        "data-referrer",
+        "/students/search",
+      );
     });
   });
 

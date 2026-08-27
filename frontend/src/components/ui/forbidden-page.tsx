@@ -7,14 +7,14 @@ interface ForbiddenPageProps {
 
 export function ForbiddenPage({
   title = "Kein Zugriff",
-  message = "Du verfügst nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
+  message = "Sie verfügen nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
 }: ForbiddenPageProps) {
   return (
     <div className="mx-auto max-w-2xl">
-      <div className="rounded-2xl border border-red-200/50 bg-red-50/50 p-6">
+      <div className="border-moto-red/20 bg-moto-red-soft rounded-2xl border p-6">
         <div className="flex items-start gap-3">
           <svg
-            className="mt-0.5 h-5 w-5 flex-shrink-0 text-red-600"
+            className="text-moto-red mt-0.5 h-5 w-5 flex-shrink-0"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -27,8 +27,8 @@ export function ForbiddenPage({
             />
           </svg>
           <div>
-            <h3 className="font-semibold text-red-900">{title}</h3>
-            <p className="mt-1 text-sm text-red-700">{message}</p>
+            <h3 className="text-moto-red-strong font-semibold">{title}</h3>
+            <p className="text-moto-red-strong mt-1 text-sm">{message}</p>
           </div>
         </div>
       </div>

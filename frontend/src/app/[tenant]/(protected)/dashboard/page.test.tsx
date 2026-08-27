@@ -698,9 +698,9 @@ describe("StatCard component behavior", () => {
 
     render(<DashboardPage />);
 
-    // During loading, stat cards should show "..." for values
+    // During loading, stat cards should show "…" for values
     await waitFor(() => {
-      const dots = screen.getAllByText("...");
+      const dots = screen.getAllByText("…");
       expect(dots.length).toBeGreaterThan(0);
     });
   });

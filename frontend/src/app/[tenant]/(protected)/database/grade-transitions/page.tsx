@@ -6,8 +6,11 @@ import {
   GradeTransitionsManager,
   type TransitionPermissions,
 } from "~/components/database/grade-transitions/grade-transitions-manager";
+import { BackButton } from "~/components/ui/back-button";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { hasPermission } from "~/lib/auth-utils";
 
 export default function GradeTransitionsPage() {
@@ -28,15 +31,21 @@ export default function GradeTransitionsPage() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <DesktopOnlyNotice />
+      <BackButton referrer="/database" />
+
+      <PageHeaderWithSearch title="Jahrgangswechsel" />
+
+      <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
+
       <div className="hidden lg:block">
-        <PageHeaderWithSearch title="Jahrgangswechsel" />
-        {status === "loading" ? null : canRead ? (
+        {status === "loading" ? (
+          <SkeletonRegion label="Jahrgangswechsel wird geladen">
+            <ListSkeleton rows={6} />
+          </SkeletonRegion>
+        ) : canRead ? (
           <GradeTransitionsManager permissions={permissions} />
         ) : (
-          <p className="text-sm text-gray-600">
-            Sie haben keine Berechtigung, Jahrgangswechsel anzusehen.
-          </p>
+          <ForbiddenPage message="Sie verfügen nicht über die notwendigen Berechtigungen, um Jahrgangswechsel anzusehen." />
         )}
       </div>
     </div>

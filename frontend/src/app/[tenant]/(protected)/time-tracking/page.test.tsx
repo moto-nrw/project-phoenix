@@ -1265,7 +1265,9 @@ describe("TimeTrackingPage", () => {
     it("shows loading indicator in weekly total when history is loading", () => {
       setupDefaultMocks({ historyLoading: true });
       render(<TimeTrackingPage />);
-      expect(screen.getByText("...")).toBeInTheDocument();
+      expect(
+        screen.getByLabelText("Einträge werden geladen…"),
+      ).toBeInTheDocument();
     });
 
     it("shows Kein Eintrag for past days without session", () => {
@@ -2274,7 +2276,7 @@ describe("TimeTrackingPage", () => {
 
         // Fill in the notes field (required for save)
         const notesArea = screen.queryByPlaceholderText(
-          "Oder eigenen Grund eingeben...",
+          "Oder eigenen Grund eingeben…",
         );
         if (notesArea) {
           fireEvent.change(notesArea, {
@@ -2426,7 +2428,7 @@ describe("TimeTrackingPage", () => {
       await openEditModal(makePastSession());
       fireEvent.click(screen.getByText("Vergessen auszustempeln"));
       const textarea = screen.getByPlaceholderText(
-        "Oder eigenen Grund eingeben...",
+        "Oder eigenen Grund eingeben…",
       );
       expect((textarea as HTMLTextAreaElement).value).toBe(
         "Vergessen auszustempeln",
@@ -2436,7 +2438,7 @@ describe("TimeTrackingPage", () => {
     it("typing in notes textarea updates the value", async () => {
       await openEditModal(makePastSession());
       const textarea = screen.getByPlaceholderText(
-        "Oder eigenen Grund eingeben...",
+        "Oder eigenen Grund eingeben…",
       );
       fireEvent.change(textarea, { target: { value: "Custom reason" } });
       expect((textarea as HTMLTextAreaElement).value).toBe("Custom reason");
@@ -2891,7 +2893,7 @@ describe("TimeTrackingPage", () => {
 
       await waitFor(() => {
         const noteArea = screen.getByPlaceholderText(
-          "z.B. Arzttermin, Schulung ...",
+          "z. B. Arzttermin, Schulung …",
         );
         expect((noteArea as HTMLTextAreaElement).value).toBe("Some note");
       });
@@ -3558,7 +3560,7 @@ describe("TimeTrackingPage", () => {
     it("allows note input", () => {
       openAbsenceModal();
       const noteArea = screen.getByPlaceholderText(
-        "z.B. Arzttermin, Schulung ...",
+        "z. B. Arzttermin, Schulung …",
       );
       fireEvent.change(noteArea, { target: { value: "Arzttermin" } });
       expect((noteArea as HTMLTextAreaElement).value).toBe("Arzttermin");

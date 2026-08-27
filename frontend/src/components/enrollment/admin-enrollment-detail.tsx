@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
-  ArrowLeft,
   CalendarClock,
   Check,
   ClipboardList,
@@ -53,6 +52,8 @@ import {
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
@@ -211,13 +212,15 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Wird geladen...</p>;
+    return (
+      <SkeletonRegion label="Anmeldung wird geladen">
+        <DetailSkeleton sections={3} fieldsPerSection={4} />
+      </SkeletonRegion>
+    );
   }
   if (!data) {
     return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error ?? "Anmeldung nicht gefunden."}
-      </div>
+      <Alert type="error" message={error ?? "Anmeldung nicht gefunden."} />
     );
   }
 
@@ -246,7 +249,6 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
   const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
   // The restore action shows whenever at least one child is withdrawn —
   // exactly the backend's restore precondition. Individual child withdraws
@@ -260,40 +262,23 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   return (
     <div className="space-y-5">
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Link
-            href={phaseHref}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zur Anmeldephase
-          </Link>
-        </div>
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-5 sm:p-6">
+          <div className="space-y-6 p-4 sm:p-6">
             <header>
               <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                 Anmeldung prüfen
               </p>
-              <h1 className="mt-1 text-xl font-semibold text-gray-900">
+              <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
                 {data.guardian_first_name} {data.guardian_last_name}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                Prüfe die Angaben der Anmeldung, bevor du eine Entscheidung
-                speicherst. Die Entscheidung wird pro Kind gesetzt.
+                Prüfen Sie die Angaben der Anmeldung, bevor Sie eine
+                Entscheidung speichern. Die Entscheidung wird pro Kind gesetzt.
               </p>
             </header>
 
-            {error && (
-              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-                {error}
-              </div>
-            )}
-            {info && (
-              <div className="border-moto-green/20 bg-moto-green/10 text-moto-green-strong rounded-lg border p-3 text-sm">
-                {info}
-              </div>
-            )}
+            {error ? <Alert type="error" message={error} /> : null}
+            {info ? <Alert type="success" message={info} /> : null}
 
             {data.late_invite_email_mismatch === true &&
               data.late_invite_guardian_email && (
@@ -350,7 +335,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             </section>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
             <ReviewSidebar
               childStats={childStats}
               data={data}
@@ -436,7 +421,7 @@ function EnrollmentSummary({
           <MotoConceptIcon concept="parents" size={16} />
         </span>
         <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Erziehungsberechtigte Person
           </p>
           <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -464,7 +449,7 @@ function EnrollmentSummary({
 
       {data.additional_guardians && data.additional_guardians.length > 0 && (
         <div className="mt-4 space-y-3">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
             Weitere erziehungsberechtigte Personen
           </p>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
@@ -680,7 +665,7 @@ function ReviewSidebar({
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
       <section>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Prüfung
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
@@ -828,31 +813,33 @@ function DecisionPanel({
         </div>
       </div>
 
-      <label className="mt-4 block">
-        <span className="text-xs font-medium text-gray-700">Begründung</span>
-        <textarea
+      <div className="mt-4">
+        <Textarea
+          id={`decision-reason-${child.id}`}
+          label="Begründung"
           value={reason}
           onChange={(event) => onReasonChange(event.target.value)}
           rows={2}
           placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht"
-          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
-      </label>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {actions.map((action) => {
           const isCurrent = child.status === action.status;
           return (
-            <button
+            <Button
               key={action.status}
               type="button"
+              size="md"
+              variant={getDecisionButtonVariant(action.tone)}
               disabled={busy || isCurrent}
               onClick={() => onDecide(action.status)}
-              className={getDecisionButtonClass(action.tone)}
+              className="inline-flex items-center justify-center gap-2"
             >
               {getDecisionIcon(action.status)}
-              {busy ? "Speichert..." : action.label}
-            </button>
+              {busy ? "Speichert…" : action.label}
+            </Button>
           );
         })}
       </div>
@@ -860,19 +847,13 @@ function DecisionPanel({
   );
 }
 
-function getDecisionButtonClass(tone: ActionDef["tone"]): string {
-  const base =
-    "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
-  if (tone === "success") {
-    return `${base} border border-gray-200 bg-white text-gray-700 hover:border-moto-green/60 hover:bg-moto-green/10 hover:text-moto-green-strong`;
-  }
-  if (tone === "danger") {
-    return `${base} border border-moto-red/20 bg-white text-moto-red-strong hover:bg-moto-red/10`;
-  }
-  if (tone === "primary") {
-    return `${base} border border-gray-900 bg-gray-900 text-white hover:bg-gray-700`;
-  }
-  return `${base} border border-gray-200 bg-white text-gray-700 hover:bg-gray-50`;
+function getDecisionButtonVariant(
+  tone: ActionDef["tone"],
+): "success" | "outline_danger" | "primary" | "outline" {
+  if (tone === "success") return "success";
+  if (tone === "danger") return "outline_danger";
+  if (tone === "primary") return "primary";
+  return "outline";
 }
 
 function getDecisionIcon(status: DecisionStatus): React.ReactNode {
@@ -960,7 +941,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Zusätzliche Angaben
       </h2>
@@ -1557,7 +1538,7 @@ export function ChildOfferingAdjustment({
             </h4>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
-                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden - eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
+                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
                 : "Angebote können für dieses bestätigte Kind korrigiert werden."}
             </p>
           </div>
@@ -1565,14 +1546,16 @@ export function ChildOfferingAdjustment({
               family's real bookings with whatever the empty editor holds
               (#2185), so the entry point disappears until the data is back. */}
           {child.offerings_unavailable ? null : (
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={() => void openEditor()}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="inline-flex items-center justify-center gap-2"
             >
               <Pencil className="h-4 w-4" aria-hidden />
               Bearbeiten
-            </button>
+            </Button>
           )}
         </div>
       ) : null}
@@ -1623,14 +1606,7 @@ export function ChildOfferingAdjustment({
                   </p>
                 </div>
                 <div className="space-y-4 p-4">
-                  {error ? (
-                    <div
-                      role="alert"
-                      className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
-                    >
-                      {error}
-                    </div>
-                  ) : null}
+                  {error ? <Alert type="error" message={error} /> : null}
                   {loading ? (
                     <p className="text-sm text-gray-500">
                       Angebote werden geladen…
@@ -1750,37 +1726,34 @@ export function ChildOfferingAdjustment({
                     </div>
                   )}
 
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-700">
-                      Begründung
-                    </span>
-                    <textarea
-                      name="offering-adjustment-reason"
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      rows={3}
-                      autoComplete="off"
-                      placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    />
-                  </label>
+                  <Textarea
+                    name="offering-adjustment-reason"
+                    label="Begründung"
+                    value={reason}
+                    onChange={(event) => setReason(event.target.value)}
+                    rows={3}
+                    autoComplete="off"
+                    placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
+                  />
                 </div>
                 <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="md"
                     onClick={() => setOpen(false)}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
                   >
                     Abbrechen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="primary"
+                    size="md"
                     onClick={() => void handleSave()}
                     disabled={saving || loading || !catalogLoaded}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {saving ? "Speichert…" : "Speichern"}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>,

@@ -20,7 +20,6 @@ import {
   FileText,
   Inbox,
   Search,
-  type LucideIcon,
   X,
 } from "lucide-react";
 import {
@@ -57,6 +56,9 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   useCareOfferingsEnabled,
@@ -470,7 +472,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       {
         key: "submitted",
         header: "Eingegangen",
-        render: (row) => formatDateTime(row.submitted_at),
+        render: (row) => formatChatDateTime(row.submitted_at),
         sortValue: (row) => new Date(row.submitted_at).getTime(),
       },
       {
@@ -533,7 +535,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
     return (
       <SkeletonRegion label="Anmeldungen werden geladen">
         <div className="space-y-4">
-          <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md sm:p-6">
+          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
             <Skeleton className="h-3 w-28 rounded" />
             <Skeleton className="mt-2 h-6 w-64 rounded" />
             <Skeleton className="mt-2 h-4 w-48 rounded" />
@@ -550,29 +552,27 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   }
 
   if (error) {
-    return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error}
-      </div>
-    );
+    return <Alert type="error" message={error} />;
   }
 
   if (!phase) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-6 shadow-sm backdrop-blur-md">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Anmeldephase
         </p>
-        <h1 className="mt-1 text-xl font-semibold text-gray-900">
+        <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
           Anmeldephase nicht gefunden
         </h1>
-        <Link
+        <ButtonLink
           href={overviewHref}
-          className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          variant="outline"
+          size="md"
+          className="mt-4 inline-flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           Zurück zum Überblick
-        </Link>
+        </ButtonLink>
       </section>
     );
   }
@@ -580,29 +580,20 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
   return (
     <div className="space-y-4">
       <section className="moto-content-surface rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Link
-            href={overviewHref}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zum Überblick
-          </Link>
-        </div>
-        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex flex-col gap-5 p-4 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Anmeldephase
             </p>
             <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold text-gray-900">
+              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
                 {phase.name}
               </h1>
               <DataTableStatusBadge active={phase.is_active} />
             </div>
             <p className="mt-2 text-sm text-gray-600">
-              {formatPhaseDate(phase.service_start_date)} bis{" "}
-              {formatPhaseDate(phase.service_end_date)}
+              {formatDate(phase.service_start_date)} bis{" "}
+              {formatDate(phase.service_end_date)}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -613,50 +604,66 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               exportingFormat={exportingFormat}
               onExport={(format) => void handleExport(format)}
             />
-            <a
+            <ButtonLink
               href={`/enroll/${encodeURIComponent(phase.id)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              variant="primary"
+              size="md"
+              className="inline-flex items-center justify-center gap-2"
             >
               Elternansicht öffnen
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </a>
+            </ButtonLink>
             {phaseUrl ? (
               <PublicLinkCopyButton
                 url={phaseUrl}
                 componentId={`AdminEnrollmentPhaseDetail:${phaseId}`}
               />
             ) : null}
-            <Link
+            <ButtonLink
               href="/enrollment-phases"
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              variant="outline"
+              size="md"
+              className="inline-flex items-center justify-center"
             >
               Phase bearbeiten
-            </Link>
+            </ButtonLink>
           </div>
         </div>
 
-        <div className="grid gap-3 px-5 pb-5 sm:px-6 sm:pb-6 md:grid-cols-4">
-          <StatCard icon={Inbox} label="Eingänge" value={stats.total} />
-          <StatCard icon={Clock} label="Offen" value={stats.open} />
-          <StatCard icon={Check} label="Bestätigt" value={stats.approved} />
-          <StatCard icon={X} label="Abgelehnt" value={stats.rejected} />
+        <div className="grid gap-3 px-4 pb-4 sm:px-6 sm:pb-6 md:grid-cols-4">
+          <EnrollmentStatTile
+            icon={Inbox}
+            label="Eingänge"
+            value={stats.total}
+          />
+          <EnrollmentStatTile icon={Clock} label="Offen" value={stats.open} />
+          <EnrollmentStatTile
+            icon={Check}
+            label="Bestätigt"
+            value={stats.approved}
+          />
+          <EnrollmentStatTile
+            icon={X}
+            label="Abgelehnt"
+            value={stats.rejected}
+          />
         </div>
       </section>
 
       <section className="moto-content-surface relative z-20 overflow-visible rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4">
           <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Eingänge
             </p>
             <h2 className="mt-1 text-base font-semibold text-gray-900">
               Anmeldungen prüfen und auswerten
             </h2>
             <p className="mt-1 text-sm text-gray-600">
-              Filtere Kinder nach Status, Angebot, Zielklasse oder Anzahl der
-              Betreuungstage. Der Auswertungsexport übernimmt die aktuellen
+              Filtern Sie Kinder nach Status, Angebot, Zielklasse oder Anzahl
+              der Betreuungstage. Der Auswertungsexport übernimmt die aktuellen
               Filter.
             </p>
           </div>
@@ -802,11 +809,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
         onExport={(format) => void handleClassRosterExport(format)}
       />
 
-      {reportError ? (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {reportError}
-        </div>
-      ) : null}
+      {reportError ? <Alert type="error" message={reportError} /> : null}
 
       <ReportStats
         report={report}
@@ -951,16 +954,16 @@ function ReportStats({
   return (
     <section className="relative z-10 space-y-2">
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-[repeat(7,minmax(0,1fr))_minmax(15rem,1.2fr)]">
-        <ReportStatCard
+        <EnrollmentStatTile
           label="Kinder"
-          value={loading ? "..." : String(totals?.children ?? 0)}
+          value={loading ? "…" : String(totals?.children ?? 0)}
         />
         {DAY_COUNT_OPTIONS.map((count) => (
-          <ReportStatCard
+          <EnrollmentStatTile
             key={count}
             label={formatDayCountLabel(count)}
             value={
-              loading ? "..." : String(totals?.by_day_count[String(count)] ?? 0)
+              loading ? "…" : String(totals?.by_day_count[String(count)] ?? 0)
             }
           />
         ))}
@@ -987,11 +990,11 @@ function DeploymentPlanningStats({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Einsatzplanung
         </p>
         <p className="text-sm font-medium text-gray-900">
-          {loading ? "..." : `${report?.totals.children ?? 0} Kinder`}
+          {loading ? "…" : `${report?.totals.children ?? 0} Kinder`}
         </p>
       </div>
       <div className="mt-3 grid gap-2 md:grid-cols-5">
@@ -1005,7 +1008,7 @@ function DeploymentPlanningStats({
             </p>
             <div className="mt-2 flex flex-col gap-1">
               {loading ? (
-                <p className="text-sm font-semibold text-gray-900">...</p>
+                <p className="text-sm font-semibold text-gray-900">…</p>
               ) : (
                 pickupTimes.map((time) => (
                   <div
@@ -1024,23 +1027,6 @@ function DeploymentPlanningStats({
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ReportStatCard({
-  label,
-  value,
-}: Readonly<{
-  label: string;
-  value: string;
-}>) {
-  return (
-    <div className="moto-content-surface rounded-xl border px-3 py-2 shadow-sm backdrop-blur-md">
-      <p className="truncate text-xs font-medium text-gray-500">{label}</p>
-      <p className="mt-1 text-lg leading-none font-semibold text-gray-900">
-        {value}
-      </p>
     </div>
   );
 }
@@ -1104,7 +1090,7 @@ function ReportExportCard({
         <span className="truncate">
           {exportingFormat === null
             ? "Auswertung exportieren"
-            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+            : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
         </span>
         <ChevronDown
           className={`h-4 w-4 shrink-0 text-gray-400 transition-transform ${
@@ -1255,23 +1241,25 @@ function ExportMenuButton({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={() => setOpen((value) => !value)}
         disabled={disabled || exportingFormat !== null}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex items-center justify-center gap-2"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
         {exportingFormat === null
           ? label
-          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}...`}
+          : `Exportiere ${REPORT_EXPORT_LABELS[exportingFormat]}…`}
         <ChevronDown
           className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`}
           aria-hidden="true"
         />
-      </button>
+      </Button>
 
       {open ? (
         <div
@@ -1339,24 +1327,6 @@ function calculateRequestStats(
   return { total, open, approved, rejected };
 }
 
-function formatPhaseDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function PhaseChildActions({
   row,
   href,
@@ -1373,30 +1343,34 @@ function PhaseChildActions({
     <div className="flex flex-wrap justify-end gap-2">
       {!terminal ? (
         <>
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             disabled={busy}
             onClick={(event) => {
               event.stopPropagation();
               onDecide("approved");
             }}
-            className="hover:border-moto-green/50 hover:bg-moto-green/10 hover:text-moto-green-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5"
           >
             <Check className="text-moto-green h-3.5 w-3.5" aria-hidden="true" />
-            {busy ? "Speichert..." : "Bestätigen"}
-          </button>
-          <button
+            {busy ? "Speichert…" : "Bestätigen"}
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             disabled={busy}
             onClick={(event) => {
               event.stopPropagation();
               onDecide("rejected");
             }}
-            className="hover:border-moto-red/40 hover:bg-moto-red/10 hover:text-moto-red-strong inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center justify-center gap-1.5"
           >
             <X className="text-moto-red h-3.5 w-3.5" aria-hidden="true" />
             Ablehnen
-          </button>
+          </Button>
         </>
       ) : null}
       <Link
@@ -1407,34 +1381,6 @@ function PhaseChildActions({
         Anmeldung ansehen
         <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
       </Link>
-    </div>
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  value: number;
-}>) {
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-      <div className="flex items-center gap-3">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-50 text-gray-500 shadow-sm">
-          <Icon className="h-4 w-4" aria-hidden="true" />
-        </span>
-        <span>
-          <span className="block text-lg font-semibold text-gray-900">
-            {value}
-          </span>
-          <span className="block text-xs font-medium text-gray-500">
-            {label}
-          </span>
-        </span>
-      </div>
     </div>
   );
 }

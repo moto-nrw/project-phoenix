@@ -25,13 +25,16 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
+import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DatePicker } from "~/components/ui/date-picker";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -2072,15 +2075,19 @@ export default function SlotListsPage() {
     selectedOption?.label ??
     "";
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="-mt-1.5 w-full">
       {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
       <BackButton referrer="/database/exports" />
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
+      <PageHeaderWithSearch title="Tageslisten" />
+
       {/* Selection: source + date + data mode */}
       <section
         aria-label="Listenauswahl"
-        className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+        className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
       >
-        <p className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        <p className="text-moto-blue mb-2 text-xs font-semibold tracking-wide uppercase">
           Quelle
         </p>
         <div className="grid auto-rows-fr grid-cols-2 gap-2.5 lg:grid-cols-3">
@@ -2185,7 +2192,7 @@ export default function SlotListsPage() {
         {isManualSlotSelection ? (
           <div className="mt-3 border-t border-gray-100 pt-3">
             <div className="mb-2 grid min-h-7 grid-cols-[auto_1fr_auto] items-center gap-2">
-              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                 Enthaltene Angebote
               </span>
               <span className="min-w-0 truncate text-xs text-gray-500">
@@ -2336,15 +2343,15 @@ export default function SlotListsPage() {
       </section>
 
       {error ? (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mt-4 rounded-xl border p-3 text-sm">
-          {error}
+        <div className="mt-4">
+          <Alert type="error" message={error} />
         </div>
       ) : null}
 
       {/* Preview + export */}
       <section
         aria-label="Vorschau und Export"
-        className="moto-content-surface mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5"
+        className="moto-content-surface mt-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-6"
       >
         <div className="space-y-3 border-b border-gray-100 pb-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
@@ -2364,7 +2371,7 @@ export default function SlotListsPage() {
               <Button
                 type="button"
                 variant="primary"
-                size="sm"
+                size="md"
                 isLoading={isExporting}
                 loadingText="Erstelle PDF…"
                 disabled={isExporting || isLoading || !result}
@@ -2377,7 +2384,7 @@ export default function SlotListsPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="md"
                 disabled={isExporting || isLoading || !result}
                 onClick={() => void handleExport("pdf", "download")}
                 className="gap-2"
@@ -2388,13 +2395,13 @@ export default function SlotListsPage() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="md"
                 disabled={isExporting || isLoading || !result}
                 onClick={() => void handleExport("xlsx", "download")}
                 className="gap-2"
               >
                 <FileSpreadsheet className="h-4 w-4" aria-hidden />
-                XLSX
+                Excel
               </Button>
             </div>
           </div>
@@ -2431,18 +2438,22 @@ export default function SlotListsPage() {
               isLoading={isLoading}
               pageSize={PREVIEW_PAGE_SIZE}
               emptyState={
-                <div className="py-8 text-center text-gray-500">
-                  {isPickupBased
-                    ? "Keine Kinder mit passender Abholzeit an diesem Tag."
-                    : listKind
-                      ? `Keine Kinder für „${selectedListLabel}“ an diesem Tag.`
-                      : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wähle oben ein oder mehrere Angebote.`}
-                </div>
+                <EmptyState
+                  className="py-8"
+                  title="Keine Kinder in dieser Liste"
+                  description={
+                    isPickupBased
+                      ? "Keine Kinder mit passender Abholzeit an diesem Tag."
+                      : listKind
+                        ? `Keine Kinder für „${selectedListLabel}“ an diesem Tag.`
+                        : `Keine Kinder für „${selectedListLabel}“ an diesem Tag. Wählen Sie oben ein oder mehrere Angebote.`
+                  }
+                />
               }
             />
           )}
         </div>
       </section>
-    </main>
+    </div>
   );
 }

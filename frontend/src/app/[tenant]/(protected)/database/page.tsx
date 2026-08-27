@@ -8,7 +8,6 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import useSWR from "swr";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -185,7 +184,6 @@ const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
 function DatabaseContent() {
   const { data: session } = useSession();
-  const isMobile = useIsMobile();
   const nfcEnabled = useNFCEnabled();
   const tenantPath = useTenantAwarePath();
   const { data, isLoading: countsLoading } = useSWR(
@@ -211,9 +209,8 @@ function DatabaseContent() {
   }
 
   return (
-    <div className="w-full">
-      {/* Header - Show on mobile */}
-      {isMobile && <PageHeaderWithSearch title="Datenverwaltung" />}
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch title="Datenverwaltung" />
 
       {/* Data Sections Grid */}
       <div className="min-h-[60vh]">
@@ -236,7 +233,7 @@ function DatabaseContent() {
             const entryLabel = count === 1 ? "Eintrag" : "Einträge";
             const countText =
               section.badge ??
-              (countsLoading ? "Lade..." : `${count} ${entryLabel}`);
+              (countsLoading ? "Lädt…" : `${count} ${entryLabel}`);
             const badgeLoading = section.badge === undefined && countsLoading;
             const concept = MOTO_CONCEPTS[section.concept];
 
@@ -244,11 +241,9 @@ function DatabaseContent() {
               <Link
                 key={section.id}
                 href={tenantPath(section.href)}
-                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
               >
-                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
-
-                <div className="relative p-6">
+                <div className="relative p-4 sm:p-6">
                   <div className="mb-4 flex items-start justify-between">
                     <div data-testid={`database-section-icon-${section.id}`}>
                       <MotoDuotoneIcon

@@ -263,7 +263,7 @@ function MeinRaumPageContent() {
     plannedNow.length === 0
   ) {
     return (
-      <div className="w-full">
+      <div className="-mt-1.5 w-full">
         {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
@@ -338,7 +338,7 @@ function MeinRaumPageContent() {
   };
 
   return (
-    <div className="w-full">
+    <div className="-mt-1.5 w-full">
       {reopenBanner}
       <ConfirmationModal
         isOpen={actions.showCompleteConfirmation}
@@ -412,28 +412,31 @@ function MeinRaumPageContent() {
           // Only show release button when user IS supervising Schulhof
           // "Beaufsichtigen" button is shown in the empty state instead (no duplicate)
           isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <button
+            <Button
               type="button"
+              variant="outline_danger"
+              size="md"
               onClick={() => schulhof.setShowReleaseModal(true)}
-              className="flex h-10 items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 text-red-600 transition-colors hover:bg-red-100"
               aria-label="Aufsicht abgeben"
+              className="gap-2"
             >
-              <LogOut className="h-5 w-5" aria-hidden="true" />
-              <span className="text-sm font-medium">Aufsicht abgeben</span>
-            </button>
+              <LogOut className="h-4 w-4" aria-hidden="true" />
+              Aufsicht abgeben
+            </Button>
           ) : undefined
         }
         mobileActionButton={
           // Only show release button when user IS supervising Schulhof
           isSchulhofTabSelected && schulhofStatus?.isUserSupervising ? (
-            <button
+            <Button
               type="button"
+              variant="outline_danger"
+              size="icon"
               onClick={() => schulhof.setShowReleaseModal(true)}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-red-200 bg-red-50 text-red-600 transition-colors hover:bg-red-100"
               aria-label="Aufsicht abgeben"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </Button>
           ) : undefined
         }
       />

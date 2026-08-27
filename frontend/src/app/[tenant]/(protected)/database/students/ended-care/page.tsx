@@ -1,12 +1,12 @@
 "use client";
 
 // Beendete Betreuungen (#2487): jedes Kind, dessen Betreuung regulär zu Ende
-// gegangen ist — von Hand beendet, durch ein Anmeldungsende oder später über
+// gegangen ist: von Hand beendet, durch ein Anmeldungsende oder später über
 // den geführten Abschluss. Jahrgangs-Abgänge stehen weiterhin ausschließlich
 // in der Abgänge-Ansicht des Jahrgangswechsels.
 //
 // Die Ansicht ist geschützt wie die endgültige Löschung: nur wer Kinder
-// löschen darf, sieht sie — und nur dort stehen Austrittsgrund und Freitext.
+// löschen darf, sieht sie, und nur dort stehen Austrittsgrund und Freitext.
 //
 // Design follows the Anmeldungen/Planung surface language: calm content
 // section, uppercase kicker, gray-50 stats, no colored dashboards.
@@ -20,8 +20,10 @@ import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { Input } from "~/components/ui/input";
-import { Loading } from "~/components/ui/loading";
+import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -32,7 +34,6 @@ import {
   type EndedCareEntry,
 } from "~/lib/care-exit-api";
 import { formatDate } from "~/lib/date-helpers";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useDebounce } from "~/lib/use-debounce";
 
@@ -167,17 +168,21 @@ export default function EndedCarePage() {
   ];
 
   if (status === "loading") {
-    return <Loading />;
+    return (
+      <SkeletonRegion
+        label="Beendete Betreuungen werden geladen"
+        className="w-full space-y-4"
+      >
+        <TableSkeleton rows={6} columns={5} />
+      </SkeletonRegion>
+    );
   }
 
   if (!canManage) {
     return (
       <div className="w-full space-y-4">
         <BackButton referrer="/database/students" />
-        <Alert
-          type="info"
-          message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“."
-        />
+        <ForbiddenPage message="Diese Ansicht ist nur für Personen mit der Berechtigung „Benutzer löschen“." />
       </div>
     );
   }
@@ -186,24 +191,12 @@ export default function EndedCarePage() {
     <div className="w-full space-y-4">
       <BackButton referrer="/database/students" />
 
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p
-              className="text-xs font-semibold tracking-wide uppercase"
-              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-            >
-              Beendete Betreuungen
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Kinder, die nicht mehr in der OGS sind
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner
-              normalen Liste mehr und in keinem Export. Abgänge aus dem
-              Jahrgangswechsel stehen weiterhin dort.
-            </p>
-          </div>
+      <SectionCard
+        kicker="Beendete Betreuungen"
+        title="Kinder, die nicht mehr in der OGS sind"
+        description="Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner normalen Liste mehr und in keinem Export. Abgänge aus dem Jahrgangswechsel stehen weiterhin dort."
+        bodyClassName="mt-4"
+        actions={
           <div className="w-full lg:w-64">
             <Input
               value={search}
@@ -211,9 +204,9 @@ export default function EndedCarePage() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-        </div>
-
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-md">
+        }
+      >
+        <div className="grid grid-cols-2 gap-2 sm:max-w-md">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">
               {total}
@@ -242,30 +235,28 @@ export default function EndedCarePage() {
         ) : null}
 
         <div className="mt-4">
-          {isLoading ? (
-            <Loading />
-          ) : entries.length === 0 ? (
-            <EmptyState
-              title={
-                debouncedSearch
-                  ? "Kein Kind gefunden"
-                  : "Noch keine beendeten Betreuungen"
-              }
-              description={
-                debouncedSearch
-                  ? "Versuchen Sie einen anderen Namen oder eine andere Klasse."
-                  : "Hier stehen Kinder, deren Betreuung beendet wurde."
-              }
-            />
-          ) : (
-            <DataTable
-              rows={entries}
-              columns={columns}
-              getRowKey={(entry) => entry.studentId}
-              defaultSortKey="lastCareDay"
-              defaultSortDirection="desc"
-            />
-          )}
+          <DataTable
+            rows={entries}
+            columns={columns}
+            getRowKey={(entry) => entry.studentId}
+            isLoading={isLoading && data === undefined}
+            defaultSortKey="lastCareDay"
+            defaultSortDirection="desc"
+            emptyState={
+              <EmptyState
+                title={
+                  debouncedSearch
+                    ? "Kein Kind gefunden"
+                    : "Noch keine beendeten Betreuungen"
+                }
+                description={
+                  debouncedSearch
+                    ? "Versuchen Sie einen anderen Namen oder eine andere Klasse."
+                    : "Hier stehen Kinder, deren Betreuung beendet wurde."
+                }
+              />
+            }
+          />
         </div>
 
         {totalPages > 1 ? (
@@ -299,7 +290,7 @@ export default function EndedCarePage() {
             </div>
           </div>
         ) : null}
-      </section>
+      </SectionCard>
 
       {resumeTarget ? (
         <CareResumeModal

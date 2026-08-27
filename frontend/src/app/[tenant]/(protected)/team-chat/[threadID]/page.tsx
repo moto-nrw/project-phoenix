@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR from "swr";
-import { ArrowLeft, MessagesSquare } from "lucide-react";
+import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
@@ -13,7 +13,6 @@ import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
-import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type StaffMessage,
   fetchStaffThread,
@@ -56,7 +55,7 @@ function TeamThreadContent() {
     {
       revalidateOnFocus: false,
       // "Die Schule hat den Chat ausgeschaltet" ist kein transienter Fehler:
-      // SWR wuerde ihn sonst mit Backoff endlos wiederholen, und weil
+      // SWR würde ihn sonst mit Backoff endlos wiederholen, und weil
       // isLoading als (!data && isValidating) definiert ist, bliebe die Seite
       // dauerhaft im Skelett stehen statt den Aus-Zustand zu zeigen.
       shouldRetryOnError: (err: unknown) => !isStaffMessagingDisabled(err),
@@ -68,12 +67,12 @@ function TeamThreadContent() {
     },
   );
 
-  // Die Schule kann den Chat abschalten, WAEHREND diese Seite offen steht. Dann
-  // laedt der Verlauf laengst, nur das Senden faellt in den 403. Ohne diesen
+  // Die Schule kann den Chat abschalten, WÄHREND diese Seite offen steht. Dann
+  // lädt der Verlauf längst, nur das Senden fällt in den 403. Ohne diesen
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
   // denselben Fehler.
   const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
-  // Das Gegenueber hat die Schule verlassen, waehrend diese Seite offen stand.
+  // Das Gegenüber hat die Schule verlassen, während diese Seite offen stand.
   // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
   const [counterpartGone, setCounterpartGone] = useState(false);
 
@@ -95,7 +94,7 @@ function TeamThreadContent() {
   const chatDisabled =
     !flagSaysEnabled || disabledByBackend || disabledWhileOpen;
   const threadLoadFailed = Boolean(loadError) && !disabledByBackend;
-  // Getrennt vom Aus-Zustand: der Chat laeuft, nur DIESE Unterhaltung ist zu.
+  // Getrennt vom Aus-Zustand: der Chat läuft, nur DIESE Unterhaltung ist zu.
   const readOnlyThread = !chatDisabled && counterpartGone;
 
   const [draft, setDraft] = useState("");
@@ -121,8 +120,8 @@ function TeamThreadContent() {
     marksRead: true,
     refetchOnFocus: true,
     // Diese Seite schiebt den Lesecursor vor. Ein eigener Send aus einem
-    // anderen Tab darf sie deshalb nicht wecken - sonst markiert sie als
-    // gelesen, was das Gegenueber in der Zwischenzeit geschrieben hat.
+    // anderen Tab darf sie deshalb nicht wecken, sonst markiert sie als
+    // gelesen, was das Gegenüber in der Zwischenzeit geschrieben hat.
     ignoreOwnSource: myAccountId || null,
   });
 
@@ -189,7 +188,7 @@ function TeamThreadContent() {
     Boolean(thread) && !isLoading,
   );
 
-  // Ein Fehler beendet das Skelett. Ohne das `!loadError` haelt jede laufende
+  // Ein Fehler beendet das Skelett. Ohne das `!loadError` hält jede laufende
   // SWR-Wiederholung isLoading wahr und die Seite zeigt ewig Platzhalter statt
   // zu sagen, was los ist.
   const showSkeleton = !thread && isLoading && !loadError && !chatDisabled;
@@ -197,7 +196,7 @@ function TeamThreadContent() {
   if (!showSkeleton && !thread) {
     return (
       <div className="-mt-1.5 w-full">
-        <TeamChatBackNav />
+        <BackButton referrer="/team-chat" />
         {chatDisabled ? (
           <EmptyState
             icon={<MessagesSquare size={48} className="text-gray-400" />}
@@ -223,7 +222,7 @@ function TeamThreadContent() {
       ref={containerRef}
       className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
-      <TeamChatBackNav />
+      <BackButton referrer="/team-chat" />
 
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         {showSkeleton ? (
@@ -269,9 +268,10 @@ function TeamThreadContent() {
                   message="Der Verlauf konnte nicht geladen werden."
                 />
               ) : (
-                <p className="py-6 text-center text-sm text-gray-500">
-                  Noch keine Nachrichten. Schreiben Sie die erste.
-                </p>
+                <EmptyState
+                  title="Noch keine Nachrichten"
+                  description="Schreiben Sie die erste Nachricht in dieser Unterhaltung."
+                />
               )}
             </div>
           </>
@@ -285,10 +285,10 @@ function TeamThreadContent() {
 
         <div className="mt-4">
           {readOnlyThread ? (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den
-              Verlauf lesen, aber nicht mehr schreiben.
-            </p>
+            <Alert
+              type="info"
+              message="Diese Person gehört nicht mehr zu Ihrer Schule. Sie können den Verlauf lesen, aber nicht mehr schreiben."
+            />
           ) : chatEnabled ? (
             <MessageComposer
               value={draft}
@@ -296,36 +296,17 @@ function TeamThreadContent() {
               onSend={() => void handleSend()}
               sending={isSending}
               disabled={showSkeleton}
-              placeholder="Nachricht schreiben..."
+              placeholder="Nachricht schreiben…"
             />
           ) : (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben.
-            </p>
+            <Alert
+              type="info"
+              message="Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben."
+            />
           )}
         </div>
       </div>
     </div>
-  );
-}
-
-// Back navigation, in ONE place (it renders in both the not-found and the
-// loaded branches). Mobile uses the kit BackButton (md:hidden); desktop gets an
-// inline link because the kit has no desktop back component and this screen has
-// no breadcrumb. The two are responsive-exclusive.
-function TeamChatBackNav() {
-  const router = useTenantRouter();
-  return (
-    <>
-      <BackButton referrer="/team-chat" />
-      <button
-        type="button"
-        onClick={() => router.push("/team-chat")}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
-      >
-        <ArrowLeft className="h-4 w-4" /> Zurück zum Team-Chat
-      </button>
-    </>
   );
 }
 

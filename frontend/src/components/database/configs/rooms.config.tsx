@@ -168,7 +168,7 @@ export const roomsConfig = defineEntityConfig<Room>({
   list: {
     title: "Raum auswählen",
     description: "Verwalte Räume und deren Eigenschaften",
-    searchPlaceholder: "Raum suchen...",
+    searchPlaceholder: "Raum suchen…",
 
     // No filters needed for ~20 rooms - search is sufficient
 

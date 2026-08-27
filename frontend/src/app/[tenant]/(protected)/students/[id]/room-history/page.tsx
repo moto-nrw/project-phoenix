@@ -17,9 +17,9 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
 import {
   ConceptPageHeader,
@@ -340,7 +340,7 @@ function DayCard({
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
+        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
       >
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-xs font-medium text-gray-600">
@@ -359,7 +359,7 @@ function DayCard({
               </span>
             )}
             {!day.attendance && statusLabel && (
-              <span className="ml-2 text-xs font-medium text-amber-700">
+              <span className="text-moto-amber-strong ml-2 text-xs font-medium">
                 {statusLabel}
               </span>
             )}
@@ -372,7 +372,7 @@ function DayCard({
             </span>
           )}
           {!day.attendance && (
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
               {statusLabel || "Keine Daten"}
             </span>
           )}
@@ -419,7 +419,7 @@ function DayCard({
                   key={`${day.date}-${entry.status}`}
                   className="flex items-center justify-between text-xs"
                 >
-                  <span className="font-medium text-amber-800">
+                  <span className="text-moto-amber-strong font-medium">
                     {entry.label}
                   </span>
                   <span className="text-gray-500">
@@ -503,11 +503,10 @@ function HistoryTable({
       </div>
 
       {days.length === 0 ? (
-        <div className="px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">
-            Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar.
-          </p>
-        </div>
+        <EmptyState
+          title="Keine Anwesenheitsdaten für den ausgewählten Zeitraum verfügbar."
+          description="Sobald das Kind erfasst wird, erscheinen die Tage hier."
+        />
       ) : (
         <>
           {/* Desktop table */}
@@ -544,7 +543,7 @@ function HistoryTable({
                         tabIndex={0}
                         aria-expanded={isExpanded}
                         aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
-                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
+                        className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-moto-blue-soft/60" : ""}`}
                       >
                         <td className="px-6 py-3">
                           <div className="flex items-center gap-2">
@@ -555,7 +554,7 @@ function HistoryTable({
                               {formatDate(day.date)}
                             </span>
                             {statusLabel && (
-                              <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">
+                              <span className="bg-moto-amber-soft text-moto-amber-strong rounded-full px-2 py-0.5 text-xs font-medium">
                                 {statusLabel}
                               </span>
                             )}
@@ -652,7 +651,7 @@ function HistoryTable({
                                 key={`${day.date}-${entry.status}`}
                                 className="bg-gray-50/70 text-xs"
                               >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
                                   {entry.label}
                                 </td>
                                 <td className="px-6 py-2 text-gray-500 tabular-nums">
@@ -683,7 +682,7 @@ function HistoryTable({
                                 key={`${day.date}-${entry.status}`}
                                 className="bg-gray-50/70 text-xs"
                               >
-                                <td className="py-2 pr-6 pl-12 font-medium text-amber-800">
+                                <td className="text-moto-amber-strong py-2 pr-6 pl-12 font-medium">
                                   {entry.label}
                                 </td>
                                 <td className="px-6 py-2 text-gray-500 tabular-nums">
@@ -765,7 +764,6 @@ export default function StudentRoomHistoryPage() {
 }
 
 function StudentRoomHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -898,21 +896,11 @@ function StudentRoomHistoryPageContent() {
 
   if (errorCode !== null && errorCode !== "feature_disabled") {
     return (
-      <>
+      <div className="-mt-1.5 w-full">
+        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <Button
-            type="button"
-            onClick={() => router.push(referrer)}
-            variant="secondary"
-            size="md"
-            className="mt-4"
-          >
-            Zurück
-          </Button>
-        </div>
-      </>
+        <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
+      </div>
     );
   }
 
@@ -921,7 +909,7 @@ function StudentRoomHistoryPageContent() {
     : "";
 
   return (
-    <div className="w-full">
+    <div className="-mt-1.5 w-full">
       {/* Back button (mobile only). tab=historie returns to the originating tab
           on the detail page (this sub-page lives under Historie, issue #1501);
           from= still drives the detail page's own back button to the list. */}
@@ -931,7 +919,7 @@ function StudentRoomHistoryPageContent() {
 
       {student && (
         <ConceptPageHeader
-          className="mb-6 ml-6"
+          className="mb-6"
           title={displayName}
           eyebrow="Anwesenheitsprotokoll"
           concept="changeHistory"
@@ -946,8 +934,8 @@ function StudentRoomHistoryPageContent() {
 
       {/* Feature disabled banner */}
       {errorCode === "feature_disabled" && (
-        <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 md:mb-6">
-          {ERROR_MESSAGES.feature_disabled}
+        <div className="mb-4 md:mb-6">
+          <Alert type="warning" message={ERROR_MESSAGES.feature_disabled} />
         </div>
       )}
 

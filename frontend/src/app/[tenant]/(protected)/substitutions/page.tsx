@@ -28,7 +28,6 @@ import { useToast } from "~/contexts/ToastContext";
 import { groupService } from "~/lib/api";
 import type { Group } from "~/lib/api";
 import { formatDate, toISODate } from "~/lib/date-helpers";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type {
@@ -113,7 +112,7 @@ function MetaLine({ parts }: Readonly<{ parts: (string | null)[] }>) {
 /** Gemeinsame Listenfläche: eine weiße Karte mit Trennlinien statt einzelner Karten. */
 function ListSurface({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border">
+    <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
       {children}
     </ul>
   );
@@ -135,9 +134,7 @@ function SectionHeading({
       <span className="text-gray-500" aria-hidden="true">
         {icon}
       </span>
-      <h2 className="text-base font-semibold text-gray-900 md:text-lg">
-        {title}
-      </h2>
+      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
       <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-gray-100 px-2 text-xs font-semibold text-gray-700 tabular-nums">
         {count}
       </span>
@@ -203,7 +200,6 @@ function SubstitutionPageContent() {
 
   // Der Seitenkopf trägt den Titel nur im Telefonformat; auf breiten Schirmen
   // steht er bereits in der Kopfleiste der Anwendung.
-  const isMobile = useMediaQuery(BELOW_MD);
 
   const { success: showSuccessToast } = useToast();
 
@@ -437,11 +433,11 @@ function SubstitutionPageContent() {
 
   if (openCareGroupMode) {
     return (
-      <div className="moto-content-surface mx-auto mt-8 max-w-lg rounded-2xl border p-6 text-center shadow-sm">
-        <h2 className="text-lg font-semibold text-gray-900">
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <h2 className="text-base font-semibold text-gray-900">
           Gruppenzugriff nicht verfügbar
         </h2>
-        <p className="mt-2 text-sm text-gray-600">
+        <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
           Diese Schule arbeitet mit offener Betreuung ohne feste Gruppen. Alle
           berechtigten Mitarbeitenden arbeiten mit allen Kindern, daher ist kein
           temporärer Gruppenzugriff nötig. Die Einstellung „Arbeit mit festen
@@ -468,7 +464,7 @@ function SubstitutionPageContent() {
         <EmptyState
           icon={<MotoConceptIcon concept="staff" size={48} />}
           title="Keine Fachkräfte gefunden"
-          description="Versuche deine Suchkriterien anzupassen."
+          description="Passen Sie Ihre Suchkriterien an."
         />
       );
     }
@@ -592,7 +588,7 @@ function SubstitutionPageContent() {
     <>
       <div className="-mt-1.5 w-full">
         <PageHeaderWithSearch
-          title={isMobile ? "Gruppenzugriff" : ""}
+          title="Gruppenzugriff"
           badge={{
             icon: <MotoConceptIcon concept="staff" size={20} />,
             count: filteredTeachers.length,
@@ -601,7 +597,7 @@ function SubstitutionPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Fachkraft suchen...",
+            placeholder: "Fachkraft suchen…",
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
@@ -620,7 +616,7 @@ function SubstitutionPageContent() {
         {/* Die Anzahl steht bereits im Zähler des Seitenkopfs, deshalb hier
             eine schlichte Überschrift ohne Zählpille. */}
         <div className="mb-6">
-          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4 md:text-lg">
+          <h2 className="mb-3 text-base font-semibold text-gray-900 md:mb-4">
             Verfügbare pädagogische Fachkräfte
           </h2>
           {renderTeacherList()}
@@ -697,9 +693,9 @@ function SubstitutionPageContent() {
               ariaLabelledBy="substitution-group-select-label"
               value={selectedGroupId}
               onChange={setSelectedGroupId}
-              placeholder="Gruppe auswählen..."
+              placeholder="Gruppe auswählen…"
               options={[
-                { value: "", label: "Gruppe auswählen..." },
+                { value: "", label: "Gruppe auswählen…" },
                 ...groups.map((group) => ({
                   value: group.id,
                   label: group.name,
@@ -781,7 +777,7 @@ function SubstitutionPageContent() {
               <Alert type="error" message={mutationError} />
             ) : null}
             <p className="text-sm text-gray-600">
-              Möchtest du den Zugriff wirklich beenden? Die Person sieht die
+              Möchten Sie den Zugriff wirklich beenden? Die Person sieht die
               Kinder der Gruppe danach nicht mehr.
             </p>
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">

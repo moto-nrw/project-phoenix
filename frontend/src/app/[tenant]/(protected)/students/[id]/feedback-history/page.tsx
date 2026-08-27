@@ -2,14 +2,14 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useSession } from "next-auth/react";
 import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
-import { Button } from "~/components/ui/button";
 import {
   ConceptPageHeader,
   ConceptSectionHeader,
@@ -52,12 +52,12 @@ const feedbackToneColors = {
 } satisfies Record<FeedbackEntry["feedback_type"], string>;
 
 const timeRangeOptions = [
-  { key: "all", label: "Alle" },
-  { key: "today", label: "Heute" },
-  { key: "week", label: "Diese Woche" },
-  { key: "7days", label: "Letzte 7 Tage" },
-  { key: "month", label: "Diesen Monat" },
-];
+  { value: "all", label: "Alle" },
+  { value: "today", label: "Heute" },
+  { value: "week", label: "Diese Woche" },
+  { value: "7days", label: "Letzte 7 Tage" },
+  { value: "month", label: "Diesen Monat" },
+] as const;
 
 const DAY_NAMES = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
@@ -78,7 +78,6 @@ export default function StudentFeedbackHistoryPage() {
 }
 
 function StudentFeedbackHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -89,7 +88,8 @@ function StudentFeedbackHistoryPageContent() {
   const [feedbackHistory, setFeedbackHistory] = useState<FeedbackEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [timeRange, setTimeRange] = useState<string>("7days");
+  const [timeRange, setTimeRange] =
+    useState<(typeof timeRangeOptions)[number]["value"]>("7days");
   const [showDetails, setShowDetails] = useState(false);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
@@ -231,23 +231,16 @@ function StudentFeedbackHistoryPageContent() {
 
   if (error || !student) {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center">
+      <div className="-mt-1.5 w-full">
+        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
+        <BackButton referrer={referrer} />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-        <Button
-          type="button"
-          onClick={() => router.push(referrer)}
-          variant="secondary"
-          size="md"
-          className="mt-4"
-        >
-          Zurück
-        </Button>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="-mt-1.5 w-full">
       {/* tab=historie returns to the originating tab on the detail page
           (this sub-page lives under Historie, issue #1501); from= still drives
           the detail page's own back button to the list. */}
@@ -256,29 +249,21 @@ function StudentFeedbackHistoryPageContent() {
       />
 
       <ConceptPageHeader
-        className="mb-6 ml-6"
+        className="mb-6"
         title={student.name}
         eyebrow="Feedbackhistorie"
         concept="feedback"
         subtitle={`${student.school_class} · Gruppe: ${student.group_name}`}
       />
 
-      {/* Filter pills — compact, no card wrapper */}
-      <div className="mb-6 flex flex-wrap gap-2">
-        {timeRangeOptions.map((option) => (
-          <button
-            type="button"
-            key={option.key}
-            className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              timeRange === option.key
-                ? "bg-gray-900 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-            }`}
-            onClick={() => setTimeRange(option.key)}
-          >
-            {option.label}
-          </button>
-        ))}
+      {/* Zeitraum ist ein Wert, kein Inhaltsreiter, also SegmentedControl. */}
+      <div className="mb-6">
+        <SegmentedControl
+          items={timeRangeOptions}
+          value={timeRange}
+          onChange={setTimeRange}
+          ariaLabel="Zeitraum wählen"
+        />
       </div>
 
       {/* Main visual card */}
@@ -291,9 +276,10 @@ function StudentFeedbackHistoryPageContent() {
           />
 
           {totalFeedback === 0 ? (
-            <p className="py-8 text-center text-sm text-gray-400">
-              Kein Feedback für den ausgewählten Zeitraum verfügbar.
-            </p>
+            <EmptyState
+              title="Kein Feedback für den ausgewählten Zeitraum verfügbar."
+              description="Wählen Sie einen anderen Zeitraum."
+            />
           ) : (
             <>
               {/* Proportion bar */}

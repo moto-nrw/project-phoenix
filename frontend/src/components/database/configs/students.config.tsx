@@ -20,7 +20,7 @@ const PrivacyConsentSection = dynamic(
     ),
   {
     ssr: false,
-    loading: () => <div className="text-sm text-gray-500">Lade...</div>,
+    loading: () => <div className="text-sm text-gray-500">Lädt…</div>,
   },
 );
 
@@ -388,7 +388,7 @@ export const studentsConfig = defineEntityConfig<Student>({
   list: {
     title: "Kinder auswählen",
     description: "Verwalte Kinderdaten und Gruppenzuweisungen",
-    searchPlaceholder: "Kinder suchen...",
+    searchPlaceholder: "Kinder suchen…",
 
     // Frontend search configuration (loads all data at once)
     searchStrategy: "frontend",

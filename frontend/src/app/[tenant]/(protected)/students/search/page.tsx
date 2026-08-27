@@ -8,18 +8,14 @@ import {
   useMemo,
   useCallback,
 } from "react";
-import {
-  AlertTriangle,
-  CalendarRange,
-  Download,
-  Search,
-  Users,
-} from "lucide-react";
+import { AlertTriangle, CalendarRange, Download, Search } from "lucide-react";
 // SSE is handled globally by TenantAuthWrapper - real-time updates work automatically
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
@@ -1850,13 +1846,13 @@ function SearchPageContent() {
     if (rawMessage.includes("403")) {
       return [
         "permission",
-        "Du hast keine Berechtigung, Kinderdaten anzuzeigen. Bitte wende dich an einen Administrator.",
+        "Sie haben keine Berechtigung, Kinderdaten anzuzeigen. Bitte wenden Sie sich an einen Administrator.",
       ];
     }
     if (rawMessage.includes("401")) {
       return [
         "session",
-        "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+        "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
       ];
     }
     return ["generic", "Fehler beim Laden der Kinderdaten."];
@@ -2735,9 +2731,7 @@ function SearchPageContent() {
         <PageHeaderWithSearch
           title="Alle Kinder"
           badge={{
-            icon: (
-              <Users className="h-5 w-5 text-gray-600" aria-hidden="true" />
-            ),
+            icon: <MotoConceptIcon concept="children" size={20} />,
             count: filteredStudents.length,
           }}
           primaryAction={
@@ -2764,7 +2758,7 @@ function SearchPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Name suchen...",
+            placeholder: "Name suchen…",
           }}
           filters={filterConfigs}
           activeFilters={activeFilters}
@@ -2796,16 +2790,21 @@ function SearchPageContent() {
           Kommt/Kommt-nicht filter it scopes. This banner only appears for a
           non-today date so nobody mistakes a plan view for live presence. */}
       {!isToday && (
-        <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
-          Geplante Anwesenheit für {formatDate(selectedDate, true)}; aktuelle
-          Aufenthaltsorte bleiben ausgeblendet.{" "}
-          <button
-            type="button"
-            onClick={() => updateSelectedDate(todayIso)}
-            className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700"
-          >
-            Zurück zu heute
-          </button>
+        <div className="mb-3">
+          <Alert
+            type="info"
+            message={`Geplante Anwesenheit für ${formatDate(selectedDate, true)}; aktuelle Aufenthaltsorte bleiben ausgeblendet.`}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => updateSelectedDate(todayIso)}
+              >
+                Zurück zu heute
+              </Button>
+            }
+          />
         </div>
       )}
 
@@ -2823,10 +2822,10 @@ function SearchPageContent() {
         </div>
       )}
 
-      {/* Mobile Error Display, outside the sticky stack so it doesn't
-          push everything down on small screens. */}
+      {/* Ladefehler stehen über der Liste, auf jeder Breite: der Desktop
+          hat sonst keinen Hinweis, warum die Liste leer bleibt. */}
       {errorMessage && (
-        <div className="mb-4 md:hidden">
+        <div className="mb-4">
           <Alert type="error" message={errorMessage} />
         </div>
       )}
@@ -2898,44 +2897,34 @@ function SearchPageContent() {
           }
           if (errorMessage) {
             return (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
+              <EmptyState
+                icon={
                   <AlertTriangle
                     className="text-moto-red h-12 w-12"
                     aria-hidden="true"
                   />
-                  <div>
-                    {/* Fix P3: Use errorType instead of substring matching */}
-                    <h3 className="text-lg font-medium text-gray-900">
-                      {errorType === "permission"
-                        ? "Keine Berechtigung"
-                        : "Fehler"}
-                    </h3>
-                    <p className="text-gray-600">{errorMessage}</p>
-                  </div>
-                </div>
-              </div>
+                }
+                // Fix P3: Use errorType instead of substring matching
+                title={
+                  errorType === "permission" ? "Keine Berechtigung" : "Fehler"
+                }
+                description={errorMessage}
+              />
             );
           }
           // Fix P2: Only show empty state if we've fetched at least once
           if (filteredStudents.length === 0 && hasFetchedOnce) {
             return (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
+              <EmptyState
+                icon={
                   <Search
                     className="h-12 w-12 text-gray-400"
                     aria-hidden="true"
                   />
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Keine Kinder gefunden
-                    </h3>
-                    <p className="text-gray-600">
-                      Versuche deine Suchkriterien anzupassen.
-                    </p>
-                  </div>
-                </div>
-              </div>
+                }
+                title="Keine Kinder gefunden"
+                description="Passen Sie Ihre Suchkriterien an."
+              />
             );
           }
           // Preserve the URL-rehydrating filters in the back-link so stepping

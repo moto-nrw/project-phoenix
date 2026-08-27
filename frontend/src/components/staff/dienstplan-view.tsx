@@ -20,6 +20,7 @@ import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -277,23 +278,20 @@ function DienstplanContent() {
   // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
   // Hinweis statt eines Rasters zeigen. Kein Artwork, kein Marketing-Ton.
   const noStaffEmptyState = (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <p className="text-sm font-semibold text-gray-900">
-        Noch keine Mitarbeitenden angelegt
-      </p>
-      <p className="max-w-md text-sm leading-relaxed text-gray-600">
-        Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im
-        Dienstplan.
-      </p>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
-        onClick={() => router.push("/staff")}
-      >
-        Zu den Mitarbeitenden
-      </Button>
-    </div>
+    <EmptyState
+      title="Noch keine Mitarbeitenden angelegt"
+      description="Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im Dienstplan."
+      action={
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => router.push("/staff")}
+        >
+          Zu den Mitarbeitenden
+        </Button>
+      }
+    />
   );
 
   // Inhaltsbereich als Zustandskaskade, damit die PlanningContextBar (oben)
@@ -311,13 +309,9 @@ function DienstplanContent() {
             type="error"
             message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
           />
-          <button
-            type="button"
-            onClick={retryLoad}
-            className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-          >
+          <Button type="button" variant="outline" size="md" onClick={retryLoad}>
             Erneut laden
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -395,7 +389,7 @@ function DienstplanContent() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4">
       <PlanningContextBar
         title="Dienstplan"
         onPrevious={() => goToWeek(-7)}

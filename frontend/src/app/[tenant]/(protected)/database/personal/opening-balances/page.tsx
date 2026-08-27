@@ -1,6 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  Download,
+  ListChecks,
+  X,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
@@ -17,6 +24,8 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
 import { useToast } from "~/contexts/ToastContext";
@@ -29,7 +38,7 @@ const logger = createLogger({ component: "OpeningBalanceImportPage" });
 
 // Wire-Format des generischen Imports (PascalCase, siehe
 // services/import/import_service.go). Zeilen ohne Befund tauchen NICHT in
-// `Errors` auf — nur fehlerhafte und mit Hinweisen versehene Zeilen.
+// `Errors` auf, nur fehlerhafte und mit Hinweisen versehene Zeilen.
 interface ImportValidationError {
   field: string;
   message: string;
@@ -89,7 +98,7 @@ function rowStatusFor(errors: readonly ImportValidationError[]): RowStatus {
   return "ok";
 }
 
-/** Leere Zellen bedeuten „diese Seite überspringen", nicht „Null". */
+/** Leere Zellen bedeuten „diese Seite überspringen“, nicht „Null“. */
 function cellValue(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
   return trimmed === "" ? "–" : trimmed;
@@ -188,7 +197,7 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
               {row.messages.map((message) => (
                 <li
                   key={message}
-                  className={`text-xs ${row.status === "error" ? "text-[#9F1F1E]" : "text-[#8A5600]"}`}
+                  className={`text-xs ${row.status === "error" ? "text-moto-red-strong" : "text-moto-orange-strong"}`}
                 >
                   {message}
                 </li>
@@ -376,7 +385,7 @@ export default function OpeningBalanceImportPage() {
     [paramsComplete, resetPreview, runPreview],
   );
 
-  // Stichtag und Begründung gehen in jede Buchung ein — eine Vorschau, die
+  // Stichtag und Begründung gehen in jede Buchung ein: eine Vorschau, die
   // mit anderen Werten gerechnet wurde, darf nicht bestätigt werden.
   const invalidatePreview = useCallback(() => {
     previewRequestVersion.current++;
@@ -453,7 +462,7 @@ export default function OpeningBalanceImportPage() {
     return (
       <SkeletonRegion
         label="Eröffnungssalden-Import wird geladen"
-        className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8"
+        className="-mt-1.5 w-full space-y-5"
       >
         <FormSkeleton fields={4} />
         <TableSkeleton rows={5} columns={4} />
@@ -477,56 +486,41 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+    <div className="-mt-1.5 w-full space-y-5">
       <BackButton referrer="/database/personal" />
 
-      <header>
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-          Datenverwaltung
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-          Eröffnungssalden importieren
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600">
-          Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo,
-          Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum
-          Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung
-          genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich.
-        </p>
-      </header>
+      <PageHeaderWithSearch title="Eröffnungssalden" />
+
+      <p className="max-w-3xl text-sm leading-relaxed text-gray-600">
+        Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo,
+        Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag.
+        Aus dem Resturlaub errechnet moto die vor der Einführung genommenen
+        Urlaubstage. Pro Person ist nur eine Übernahme möglich.
+      </p>
 
       {error && (
         <div className="relative">
           <Alert type="error" message={error} />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
         </div>
       )}
 
-      {/* Schritt 1 — Vorlage */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Schritt 1: Vorlage herunterladen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
+      {/* Schritt 1: Vorlage */}
+      <SectionCard
+        kicker="Schritt 1"
+        title="Vorlage herunterladen"
+        icon={Download}
+      >
+        <p className="text-sm text-gray-600">
           Spalten: <span className="font-medium">Personalnummer</span>{" "}
           (optional), <span className="font-medium">Vorname</span>,{" "}
           <span className="font-medium">Nachname</span>,{" "}
@@ -560,24 +554,21 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="outline"
             size="md"
-            className="h-9"
             onClick={() => void handleDownloadTemplate()}
           >
             Vorlage herunterladen
           </Button>
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Schritt 2 — Stichtag und Begründung */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Schritt 2: Stichtag und Begründung
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Beides gilt für die ganze Datei und wird an jeder Buchung
-          protokolliert.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {/* Schritt 2: Stichtag und Begründung */}
+      <SectionCard
+        kicker="Schritt 2"
+        title="Stichtag und Begründung"
+        description="Beides gilt für die ganze Datei und wird an jeder Buchung protokolliert."
+        icon={CalendarDays}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
           <ISODatePicker
             id="opening-balance-effective-date"
             label="Stichtag"
@@ -603,9 +594,9 @@ export default function OpeningBalanceImportPage() {
             }}
           />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Schritt 3 — Datei */}
+      {/* Schritt 3: Datei */}
       <UploadSection
         title="Schritt 3: Datei hochladen"
         isDragging={isDragging}
@@ -639,7 +630,6 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="outline"
             size="md"
-            className="h-9"
             disabled={!paramsComplete || isLoading}
             onClick={() => void runPreview(uploadedFile)}
           >
@@ -648,13 +638,14 @@ export default function OpeningBalanceImportPage() {
         </section>
       )}
 
-      {/* Schritt 4 — Vorschau */}
+      {/* Schritt 4: Vorschau */}
       {showPreview && previewResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Schritt 4: Vorschau prüfen
-          </h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <SectionCard
+          kicker="Schritt 4"
+          title="Vorschau prüfen"
+          icon={ListChecks}
+        >
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={previewResult.TotalRows} />
             <StatTile label="Übernehmbar" value={importable} />
             <StatTile label="Hinweise" value={previewResult.WarningCount} />
@@ -678,16 +669,13 @@ export default function OpeningBalanceImportPage() {
               ))
             )}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {/* Ergebnis */}
       {importResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Import abgeschlossen
-          </h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <SectionCard title="Import abgeschlossen" icon={CheckCircle2}>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={importResult.TotalRows} />
             <StatTile label="Übernommen" value={importResult.CreatedCount} />
             <StatTile label="Hinweise" value={importResult.WarningCount} />
@@ -710,13 +698,12 @@ export default function OpeningBalanceImportPage() {
               type="button"
               variant="outline"
               size="md"
-              className="h-9"
               onClick={resetAll}
             >
               Weitere Datei importieren
             </Button>
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {showPreview && previewRows.length > 0 && (
@@ -725,7 +712,7 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="outline"
             size="md"
-            className="h-9 flex-1"
+            className="flex-1"
             onClick={resetAll}
           >
             Abbrechen
@@ -734,7 +721,7 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="success"
             size="md"
-            className="h-9 flex-1"
+            className="flex-1"
             disabled={importable === 0 || isImporting}
             onClick={() => void handleImport()}
           >
@@ -742,6 +729,6 @@ export default function OpeningBalanceImportPage() {
           </Button>
         </div>
       )}
-    </main>
+    </div>
   );
 }

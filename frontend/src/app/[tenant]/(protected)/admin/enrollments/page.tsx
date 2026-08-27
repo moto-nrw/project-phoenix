@@ -9,21 +9,23 @@ import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnin
 
 export default function AdminEnrollmentsPage() {
   const { isReady } = useRequireAdmin();
-  if (!isReady)
-    return (
-      <SkeletonRegion label="Anmeldungen werden geladen">
-        <ListSkeleton rows={6} avatar={false} />
-      </SkeletonRegion>
-    );
 
   return (
     <div className="-mt-1.5 w-full">
-      <DesktopOnlyNotice />
-      <PhaseExpiryWarnings className="mt-4" />
-      <div className="hidden lg:block">
-        <PageHeaderWithSearch title="Überblick" />
-        <AdminEnrollmentsList />
-      </div>
+      <PageHeaderWithSearch title="Überblick" />
+      {isReady ? (
+        <>
+          <DesktopOnlyNotice />
+          <PhaseExpiryWarnings className="mt-4" />
+          <div className="hidden lg:block">
+            <AdminEnrollmentsList />
+          </div>
+        </>
+      ) : (
+        <SkeletonRegion label="Anmeldungen werden geladen" className="mt-4">
+          <ListSkeleton rows={6} avatar={false} />
+        </SkeletonRegion>
+      )}
     </div>
   );
 }

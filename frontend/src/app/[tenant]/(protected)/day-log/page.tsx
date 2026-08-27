@@ -1,7 +1,7 @@
 "use client";
 
 // Tagesauswertung (#1456): per group and calendar day, every child with one
-// day verdict — Anwesend / Krank / Klassenfahrt / Entschuldigt / Nicht
+// day verdict: Anwesend / Krank / Klassenfahrt / Entschuldigt / Nicht
 // eingeplant / Abwesend. Read-only evaluation of what NFC/web check-in and
 // sick notes already record; gated by gdpr.attendance_log_enabled.
 //
@@ -18,6 +18,8 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
@@ -170,14 +172,16 @@ function GroupCard({
             {c.present} von {c.total} Kindern anwesend
           </p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onOpen}
-          className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="shrink-0 gap-2 bg-white"
         >
           Details
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2">
         {DAY_LOG_STATUS_ORDER.map((status) => (
@@ -352,7 +356,7 @@ export default function DayLogPage() {
   // shows it instead of forcing the attachment download) and print from there.
   const printPdf = useCallback(
     async (groupId?: string) => {
-      // The tab must open synchronously inside the click gesture — popup
+      // The tab must open synchronously inside the click gesture; popup
       // blockers discard windows opened after an await. Navigate it to the
       // blob URL once the PDF arrives; close it again if the export fails.
       // (window.open with the "noopener" feature returns null, so the opener
@@ -375,7 +379,7 @@ export default function DayLogPage() {
         if (tab) {
           tab.location.href = url;
         } else {
-          // Popup blocked even in the gesture — last resort, may be blocked
+          // Popup blocked even in the gesture; last resort, may be blocked
           // too, but the blob URL stays valid for a manual retry.
           window.open(url, "_blank");
         }
@@ -441,21 +445,15 @@ export default function DayLogPage() {
   const selectedDate = parseISODate(dateISO);
 
   return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Tagesauswertung
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anwesenheit pro Gruppe
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Wer war anwesend, krank, entschuldigt oder fehlt ohne Meldung –
-              für heute.
-            </p>
-          </div>
+    <div className="-mt-1.5 w-full">
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
+      <PageHeaderWithSearch title="Tagesauswertung" />
+
+      <SectionCard
+        title="Anwesenheit pro Gruppe"
+        description="Wer war anwesend, krank, entschuldigt oder fehlt ohne Meldung, für heute."
+        action={
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
                 w-44 trigger, field-aligned popover panel. Once the sweep
@@ -473,16 +471,16 @@ export default function DayLogPage() {
             />
             <div className="flex flex-wrap gap-2">{exportButtons()}</div>
           </div>
-        </div>
-
+        }
+      >
         {exportError && (
-          <div className="mt-4">
+          <div className="mb-4">
             <Alert type="error" message={exportError} />
           </div>
         )}
 
         {loading && (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          <div className="grid gap-3 lg:grid-cols-2">
             <Skeleton className="h-40 w-full" />
             <Skeleton className="h-40 w-full" />
             <Skeleton className="h-40 w-full" />
@@ -492,7 +490,6 @@ export default function DayLogPage() {
 
         {!loading && errorCode !== null && (
           <EmptyState
-            className="mt-4"
             title={
               errorCode === "feature_disabled"
                 ? "Anwesenheitsprotokoll deaktiviert"
@@ -504,7 +501,7 @@ export default function DayLogPage() {
 
         {!loading && errorCode === null && data && (
           <>
-            <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-7">
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-7">
               <Stat label="Kinder gesamt" value={data.counters.total} />
               {DAY_LOG_STATUS_ORDER.map((status) => (
                 <Stat
@@ -535,7 +532,7 @@ export default function DayLogPage() {
             )}
           </>
         )}
-      </section>
+      </SectionCard>
 
       <Modal
         isOpen={openGroup !== null}

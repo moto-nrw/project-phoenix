@@ -20,6 +20,8 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
 import { Alert } from "~/components/ui/alert";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -183,14 +185,14 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="moto-content-surface space-y-5 rounded-2xl border p-6 shadow-sm backdrop-blur-md"
+      className="moto-content-surface space-y-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
     >
       <header className="border-b border-gray-100 pb-4">
         <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
           Anschlussphase
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Anschlussphase für „{source.name}" erstellen
+          Anschlussphase für „{source.name}“ erstellen
         </h2>
         <p className="mt-1 text-sm text-gray-600">
           Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue
@@ -199,11 +201,7 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
         </p>
       </header>
 
-      {error && (
-        <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-          {error}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
 
       {loadingPreview ? (
         <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
@@ -250,30 +248,16 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
-        <label className="block">
-          <span className="block text-xs font-semibold text-gray-700">
-            Name der neuen Phase
-          </span>
-          <input
-            id="rollover-name"
-            type="text"
-            required
-            value={draft.name}
-            onChange={(e) => update("name", e.target.value)}
-            aria-invalid={nameError !== null}
-            aria-describedby={nameError ? "rollover-name-error" : undefined}
-            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              nameError !== null
-                ? "border-moto-red focus:border-moto-red focus:ring-moto-red"
-                : "border-gray-200"
-            }`}
-          />
-          {nameError !== null && (
-            <p id="rollover-name-error" className="text-moto-red mt-1 text-xs">
-              {nameError}
-            </p>
-          )}
-        </label>
+        <Input
+          id="rollover-name"
+          label="Name der neuen Phase"
+          type="text"
+          controlSize="compact"
+          required
+          value={draft.name}
+          onChange={(e) => update("name", e.target.value)}
+          error={nameError ?? undefined}
+        />
         <label
           className="block"
           htmlFor="rollover-kind"
@@ -419,21 +403,18 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
       </div>
 
       <div className="flex justify-end gap-2 pt-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
           disabled={submitting}
         >
           Abbrechen
-        </button>
-        <button
-          type="submit"
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-          disabled={submitting}
-        >
-          {submitting ? "Wird erstellt..." : "Anschlussphase erstellen"}
-        </button>
+        </Button>
+        <Button type="submit" variant="primary" size="md" disabled={submitting}>
+          {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
+        </Button>
       </div>
     </form>
   );

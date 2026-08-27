@@ -88,9 +88,7 @@ describe("RolloverReviewQueue", () => {
     render(<RolloverReviewQueue phaseID="77" />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(/Aktuell keine offenen Einträge in der Prüfliste/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeInTheDocument();
     });
   });
 
@@ -119,9 +117,7 @@ describe("RolloverReviewQueue", () => {
 
     // Empty state surfaces after the reload returns [].
     await waitFor(() => {
-      expect(
-        screen.getByText(/Aktuell keine offenen Einträge in der Prüfliste/),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Keine offenen Einträge/)).toBeInTheDocument();
     });
   });
 

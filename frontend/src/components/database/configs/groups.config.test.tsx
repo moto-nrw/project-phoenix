@@ -134,7 +134,7 @@ describe("groupsConfig", () => {
     expect(supervisorBadge).toBeDefined();
     expect(
       (supervisorBadge!.label as (entity: Group) => string)(mockGroup),
-    ).toBe("2 Gruppenleiter/innen");
+    ).toBe("2 Gruppenleitungen");
   });
 
   it("maps request data correctly", () => {
@@ -166,7 +166,7 @@ describe("groupsConfig", () => {
     };
 
     const subtitle = groupsConfig.list.item.subtitle?.(mockGroup);
-    expect(subtitle).toBe("1 Gruppenleiter/in");
+    expect(subtitle).toBe("1 Gruppenleitung");
   });
 
   it("displays no supervisor message in list", () => {

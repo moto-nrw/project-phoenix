@@ -30,6 +30,8 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Modal, ConfirmationModal } from "~/components/ui/modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -196,7 +198,7 @@ function linkError(raw: string): string | null {
     }
     return null;
   } catch {
-    return "Bitte einen vollständigen Link angeben (z. B. https://...).";
+    return "Bitte einen vollständigen Link angeben (z. B. https://…).";
   }
 }
 
@@ -591,7 +593,7 @@ function ParentAnnouncementsContent() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Titel suchen...",
+          placeholder: "Titel suchen…",
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
@@ -624,18 +626,17 @@ function ParentAnnouncementsContent() {
       </div>
 
       {loadError && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red-strong mb-4 rounded-lg border p-4 text-sm">
-          Elternmitteilungen konnten nicht geladen werden.
+        <div className="mb-4">
+          <Alert
+            type="error"
+            message="Elternmitteilungen konnten nicht geladen werden."
+          />
         </div>
       )}
 
       {reminderNotice && (
-        // Opaque tints, not alpha on the brand green: the page background is a
-        // dotted pattern, and a translucent banner lets the dots show through,
-        // which reads as a rendering glitch. The hexes are #83CD2D composited
-        // over white at 10% (fill) and 40% (border).
-        <div className="mb-4 rounded-lg border border-[#CDEBAB] bg-[#F3FAEA] p-4 text-sm text-[#4d7719]">
-          {reminderNotice}
+        <div className="mb-4">
+          <Alert type="success" message={reminderNotice} />
         </div>
       )}
 
@@ -665,21 +666,17 @@ function ParentAnnouncementsContent() {
           </div>
         </>
       ) : filtered.length === 0 ? (
-        <div className="py-12 text-center">
-          <div className="flex flex-col items-center gap-4">
-            {kind === "poll" ? (
-              <ListChecks className="h-12 w-12 text-gray-400" aria-hidden />
+        <EmptyState
+          icon={
+            kind === "poll" ? (
+              <ListChecks className="h-12 w-12" aria-hidden />
             ) : (
-              <Megaphone className="h-12 w-12 text-gray-400" aria-hidden />
-            )}
-            <div>
-              <h3 className="text-lg font-medium text-gray-900">
-                {copy.emptyTitle}
-              </h3>
-              <p className="text-gray-600">{copy.emptyBody}</p>
-            </div>
-          </div>
-        </div>
+              <Megaphone className="h-12 w-12" aria-hidden />
+            )
+          }
+          title={copy.emptyTitle}
+          description={copy.emptyBody}
+        />
       ) : (
         <>
           {/* Mobile: card list (the DataTable would only scroll sideways). */}
@@ -738,7 +735,7 @@ function ParentAnnouncementsContent() {
           onReminded={(count) => {
             setReminderNotice(
               count === 0
-                ? "Alle erreichten Kinder haben bereits geantwortet — es wurde niemand erinnert."
+                ? "Alle erreichten Kinder haben bereits geantwortet, es wurde niemand erinnert."
                 : `${count} ${count === 1 ? "Elternteil wurde" : "Eltern wurden"} an die offene Umfrage erinnert.`,
             );
             setDetailFor(null);
@@ -983,7 +980,7 @@ function AnnouncementFormModal({
       }
       if (deadline && expiresAt && deadline > expiresAt) {
         setFormError(
-          "Die Antwortfrist darf nicht nach dem Ablaufdatum liegen — sonst können Eltern nicht mehr antworten.",
+          "Die Antwortfrist darf nicht nach dem Ablaufdatum liegen, sonst können Eltern nicht mehr antworten.",
         );
         return false;
       }
@@ -1099,7 +1096,7 @@ function AnnouncementFormModal({
           size="md"
           onClick={() => void handleSubmit(false)}
           isLoading={submitting === "draft"}
-          loadingText="Wird gespeichert..."
+          loadingText="Wird gespeichert…"
           disabled={submitting === "publish"}
         >
           Als Entwurf speichern
@@ -1109,7 +1106,7 @@ function AnnouncementFormModal({
           size="md"
           onClick={() => void handleSubmit(true)}
           isLoading={submitting === "publish"}
-          loadingText="Wird veröffentlicht..."
+          loadingText="Wird veröffentlicht…"
           disabled={submitting === "draft"}
           className="gap-1.5"
         >
@@ -1170,7 +1167,7 @@ function AnnouncementFormModal({
                   onChange={(e) => setBody(e.target.value)}
                   rows={5}
                   maxLength={4000}
-                  placeholder="Inhalt der Mitteilung... Links im Text werden für Eltern klickbar."
+                  placeholder="Inhalt der Mitteilung… Links im Text werden für Eltern klickbar."
                   className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
                 />
               </div>
@@ -1181,7 +1178,7 @@ function AnnouncementFormModal({
                 type="url"
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://..."
+                placeholder="https://…"
               />
             </section>
 
@@ -1214,7 +1211,7 @@ function AnnouncementFormModal({
                           type="button"
                           onClick={() => removeOptionAt(index)}
                           aria-label={`Antwort ${index + 1} entfernen`}
-                          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/20 bg-white text-[#CC2626] shadow-sm transition-colors hover:bg-[#FF3130]/10 focus-visible:ring-2 focus-visible:ring-[#FF3130]/30 focus-visible:outline-none"
+                          className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
                         >
                           <Trash2 className="h-4 w-4" aria-hidden />
                         </button>
@@ -1589,7 +1586,7 @@ function TargetingStep({
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine Klassen"
                 searchable
-                searchPlaceholder="Klasse suchen..."
+                searchPlaceholder="Klasse suchen…"
               />
             </div>
             <div>
@@ -1602,7 +1599,7 @@ function TargetingStep({
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine Gruppen"
                 searchable
-                searchPlaceholder="Gruppe suchen..."
+                searchPlaceholder="Gruppe suchen…"
               />
             </div>
             <div>
@@ -1618,7 +1615,7 @@ function TargetingStep({
                 emptyLabel="Keine ausgewählt"
                 unavailableLabel="Keine AGs"
                 searchable
-                searchPlaceholder="AG suchen..."
+                searchPlaceholder="AG suchen…"
               />
             </div>
           </div>
@@ -1650,13 +1647,13 @@ function TargetingStep({
               controlSize="compact"
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
-              placeholder="Kind suchen (mind. 2 Zeichen)..."
+              placeholder="Kind suchen (mind. 2 Zeichen)…"
             />
             {debouncedSearch.length >= 2 && (
               <div className="mt-2 max-h-40 overflow-y-auto rounded-lg border border-gray-200">
                 {studentsLoading ? (
                   <p className="px-3 py-2 text-sm text-gray-500">
-                    Wird gesucht...
+                    Wird gesucht…
                   </p>
                 ) : (studentResults?.length ?? 0) === 0 ? (
                   <p className="px-3 py-2 text-sm text-gray-500">
@@ -1915,7 +1912,7 @@ function RecipientList({
           controlSize="compact"
           value={nameFilter}
           onChange={(e) => onNameFilter(e.target.value)}
-          placeholder="Name suchen..."
+          placeholder="Name suchen…"
         />
       )}
       {filtered.length === 0 ? (
@@ -2047,7 +2044,7 @@ function PollResultsPanel({
         Auswertung
       </h4>
 
-      {error && <p className="mb-2 text-sm text-[#CC2626]">{error}</p>}
+      {error && <p className="text-moto-red-strong mb-2 text-sm">{error}</p>}
 
       {results === null || children === null ? (
         error ? null : (
@@ -2132,7 +2129,7 @@ function PollResultsPanel({
                       )}
                     </span>
                     {child.answer_labels.length > 0 ? (
-                      <span className="shrink-0 text-xs font-medium text-[#4d7719]">
+                      <span className="text-moto-green-strong shrink-0 text-xs font-medium">
                         {child.answer_labels.join(", ")}
                       </span>
                     ) : child.can_answer ? (
@@ -2157,7 +2154,7 @@ function PollResultsPanel({
               size="md"
               onClick={() => void handleRemind()}
               isLoading={reminding}
-              loadingText="Wird gesendet..."
+              loadingText="Wird gesendet…"
               className="mt-4 gap-1.5"
             >
               <BellRing className="size-4" aria-hidden />
@@ -2328,7 +2325,7 @@ function DetailModal({
               {isPublished ? "Statistik" : "Aktuelle Reichweite"}
             </h4>
             {error ? (
-              <p className="text-sm text-[#CC2626]">{error}</p>
+              <p className="text-moto-red-strong text-sm">{error}</p>
             ) : stats === null || recipients === null ? (
               <SkeletonRegion label="Statistik wird geladen…">
                 <ListSkeleton rows={4} avatar={false} />

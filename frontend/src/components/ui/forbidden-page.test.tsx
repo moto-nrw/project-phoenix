@@ -10,7 +10,7 @@ describe("ForbiddenPage", () => {
     expect(screen.getByText("Kein Zugriff")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Du verfügst nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
+        "Sie verfügen nicht über die notwendigen Berechtigungen, um diese Seite aufzurufen.",
       ),
     ).toBeInTheDocument();
   });
@@ -36,6 +36,6 @@ describe("ForbiddenPage", () => {
 
     const svg = container.querySelector("svg");
     expect(svg).toBeInTheDocument();
-    expect(svg).toHaveClass("text-red-600");
+    expect(svg).toHaveClass("text-moto-red");
   });
 });

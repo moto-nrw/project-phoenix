@@ -15,6 +15,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
   CardGridSkeleton,
@@ -521,19 +522,22 @@ export default function MealPlanPage() {
             />
           </SkeletonRegion>
         ) : loadError ? (
-          <section className="moto-content-surface flex flex-col items-center gap-4 rounded-2xl border p-8 text-center shadow-sm">
-            <p className="text-sm text-gray-500">
-              Essensplan konnte nicht geladen werden.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void load()}
-              disabled={loading}
-            >
-              Erneut versuchen
-            </Button>
+          <section className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+            <EmptyState
+              title="Essensplan konnte nicht geladen werden"
+              description="Bitte versuchen Sie es erneut."
+              action={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  onClick={() => void load()}
+                  disabled={loading}
+                >
+                  Erneut versuchen
+                </Button>
+              }
+            />
           </section>
         ) : (
           <div
@@ -709,7 +713,7 @@ export default function MealPlanPage() {
         >
           <p className="text-sm text-gray-600">
             {deleteTarget
-              ? `„${drafts[deleteTarget.date]?.[deleteTarget.idx]?.dish.trim() || "Dieses Gericht"}" wird aus dem Plan entfernt. Die Änderung wird mit „Speichern" übernommen.`
+              ? `„${drafts[deleteTarget.date]?.[deleteTarget.idx]?.dish.trim() || "Dieses Gericht"}“ wird aus dem Plan entfernt. Die Änderung wird mit „Speichern“ übernommen.`
               : ""}
           </p>
         </ConfirmationModal>
@@ -724,8 +728,8 @@ export default function MealPlanPage() {
           confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-600">
-            Du hast Änderungen in dieser Woche, die noch nicht gespeichert sind.
-            Beim Wochenwechsel gehen sie verloren.
+            Sie haben Änderungen in dieser Woche, die noch nicht gespeichert
+            sind. Beim Wochenwechsel gehen sie verloren.
           </p>
         </ConfirmationModal>
 
@@ -739,8 +743,8 @@ export default function MealPlanPage() {
           confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-600">
-            Du hast Änderungen, die noch nicht gespeichert sind. Beim Verlassen
-            der Seite gehen sie verloren.
+            Sie haben Änderungen, die noch nicht gespeichert sind. Beim
+            Verlassen der Seite gehen sie verloren.
           </p>
         </ConfirmationModal>
 
@@ -757,7 +761,7 @@ export default function MealPlanPage() {
         >
           <p className="text-sm text-gray-600">
             Die aktuelle Woche wird mit dem Plan der Vorwoche überschrieben. Die
-            Änderung wird erst mit „Speichern" übernommen.
+            Änderung wird erst mit „Speichern“ übernommen.
           </p>
         </ConfirmationModal>
       </div>

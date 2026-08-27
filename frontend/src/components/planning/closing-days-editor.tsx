@@ -12,7 +12,9 @@ import { Plus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { ClosingDayModal } from "~/components/planning/closing-day-modal";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { closingDayService } from "~/lib/closing-day-api";
@@ -173,15 +175,7 @@ export function ClosingDaysEditor() {
 
   return (
     <div className="space-y-4">
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
+      {error && <Alert type="error" message={error} />}
 
       <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -204,27 +198,28 @@ export function ClosingDaysEditor() {
       </section>
 
       {!loading && closingDays.length === 0 ? (
-        <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="closingDays" size={28} />
-          </div>
-          <h2 className="mt-4 text-base font-semibold text-gray-900">
-            Noch keine Schließtage
-          </h2>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-            Hinterlege die Schließtage des Schuljahres, damit die Zeiterfassung
-            an diesen Tagen kein Soll ansetzt.
-          </p>
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={beginCreate}
-            className="mt-5 gap-2"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Schließtag anlegen
-          </Button>
+        <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+          <EmptyState
+            icon={
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+                <MotoConceptIcon concept="closingDays" size={28} />
+              </span>
+            }
+            title="Noch keine Schließtage"
+            description="Hinterlegen Sie die Schließtage des Schuljahres, damit die Zeiterfassung an diesen Tagen kein Soll ansetzt."
+            action={
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={beginCreate}
+                className="gap-2"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                Schließtag anlegen
+              </Button>
+            }
+          />
         </section>
       ) : (
         <DataTable
@@ -255,7 +250,7 @@ export function ClosingDaysEditor() {
       >
         {deleting && (
           <p>
-            Soll der Schließtag &quot;{deleting.reason}&quot; (
+            Soll der Schließtag „{deleting.reason}“ (
             {formatClosingDayRange(deleting)}) wirklich gelöscht werden? Das
             Soll dieser Tage wird danach wieder regulär berechnet.
           </p>

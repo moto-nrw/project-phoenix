@@ -17,6 +17,7 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -362,7 +363,7 @@ function StudentsPageContent() {
     }) => {
       await createClassListEntry(input);
       toastSuccess(
-        "Klassenlisteneintrag angelegt — zu finden im Menü oben rechts unter Klassenliste",
+        "Klassenlisteneintrag angelegt, zu finden im Menü oben rechts unter Klassenliste",
       );
     },
     [toastSuccess],
@@ -495,7 +496,7 @@ function StudentsPageContent() {
   const canUpdateStudents = hasPermission(session, "users:update");
 
   // Kopfzeilen-Aktionen des Detailbereichs. "Betreuung beenden" steht neben
-  // "Löschen", weil beides dieselbe Berechtigung braucht — aber ein regulärer
+  // "Löschen", weil beides dieselbe Berechtigung braucht, aber ein regulärer
   // Austritt löscht nichts, deshalb ist er kein roter Knopf (#2487).
   const detailActions =
     selectedStudent && canDeleteStudents ? (
@@ -569,7 +570,7 @@ function StudentsPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Kinder" : ""}
+          title="Kinder"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -584,7 +585,7 @@ function StudentsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Kinder suchen...",
+            placeholder: "Kinder suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -602,7 +603,7 @@ function StudentsPageContent() {
                     label: "Jahrgangswechsel",
                     icon: <GraduationCap className="h-4 w-4" aria-hidden />,
                     href: "/database/grade-transitions",
-                    // Navigation only — OverflowMenu verlangt onClick auch bei href.
+                    // Navigation only: OverflowMenu verlangt onClick auch bei href.
                     onClick: () => undefined,
                   },
                 ]
@@ -675,8 +676,8 @@ function StudentsPageContent() {
       </div>
 
       {errorMessage ? (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{errorMessage}</p>
+        <div className="mb-4">
+          <Alert type="error" message={errorMessage} />
         </div>
       ) : null}
 

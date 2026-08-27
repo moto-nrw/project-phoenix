@@ -1,5 +1,6 @@
 "use client";
 
+import { BackButton } from "~/components/ui/back-button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleton";
 
@@ -46,6 +47,8 @@ export function StaffDetailSkeleton() {
       data-testid="staff-detail-skeleton"
       className="-mt-1.5 w-full"
     >
+      <BackButton referrer="/staff" />
+
       <StaffHeaderSkeleton />
 
       <div className="mb-6 flex gap-6 border-b border-gray-200 pb-px">

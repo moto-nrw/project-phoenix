@@ -389,7 +389,7 @@ describe("/staff — Berechtigungs-Split", () => {
       screen.getByText("Das Personalverzeichnis konnte nicht geladen werden."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Keine Mitarbeiter/innen gefunden."),
+      screen.queryByText("Keine Personen gefunden."),
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));

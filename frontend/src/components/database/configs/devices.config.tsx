@@ -240,7 +240,7 @@ export const devicesConfig = defineEntityConfig<Device>({
   list: {
     title: "Gerät auswählen",
     description: "Verwalte IoT-Geräte und deren Status",
-    searchPlaceholder: "Geräte suchen...",
+    searchPlaceholder: "Geräte suchen…",
 
     searchStrategy: "frontend",
     searchableFields: ["device_id", "device_type", "name"],

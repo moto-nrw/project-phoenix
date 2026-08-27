@@ -15,8 +15,12 @@ export function PlanningDisabledState({
   testId,
 }: PlanningDisabledStateProps) {
   return (
-    <div className="flex flex-col gap-4" data-testid={testId}>
-      <h1 className="text-lg font-semibold text-gray-900">{pageTitle}</h1>
+    <div className="w-full space-y-4" data-testid={testId}>
+      {/* Gleiche Titelbehandlung wie in der PlanningContextBar: mobil sichtbar,
+          ab md trägt die App-Kopfzeile den Seitennamen. */}
+      <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only">
+        {pageTitle}
+      </h1>
       <div className={`${timetableSurface} p-10 text-center`}>
         <MotoConceptIcon concept="closingDays" size={42} className="mx-auto" />
         <h2 className="mt-4 text-base font-semibold text-gray-900">

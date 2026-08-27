@@ -1559,7 +1559,7 @@ describe("Schulhof permanent tab functionality", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("Übernimm die Aufsicht, um Kinder zu sehen."),
+        screen.getByText("Übernehmen Sie die Aufsicht, um Kinder zu sehen."),
       ).toBeInTheDocument();
     });
   });

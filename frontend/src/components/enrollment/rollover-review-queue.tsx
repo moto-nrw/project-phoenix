@@ -7,6 +7,11 @@ import {
   type ReviewQueueItem,
 } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Input } from "~/components/ui/input";
+import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
 
@@ -89,17 +94,23 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Prüfliste wird geladen...</p>;
+    return (
+      <SkeletonRegion label="Prüfliste wird geladen">
+        <ListSkeleton rows={4} avatar={false} />
+      </SkeletonRegion>
+    );
   }
 
   return (
     <div className="space-y-4">
       <header>
-        <h2 className="text-xl font-semibold text-gray-900">
-          Prüfliste {phaseName ? `– ${phaseName}` : null}
-        </h2>
+        {phaseName ? (
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+            {phaseName}
+          </p>
+        ) : null}
         <p className="mt-1 text-sm text-gray-600">
-          Kinder, die nicht automatisch übernommen werden konnten — meist weil
+          Kinder, die nicht automatisch übernommen werden konnten, meist weil
           ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen
           Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer
           Klassenstufe), aus der nächsten Phase entfernen oder vorerst
@@ -107,22 +118,14 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
         </p>
       </header>
 
-      {error && (
-        <div className="border-moto-red/30 bg-moto-red/5 text-moto-red-strong rounded-lg border p-3 text-sm">
-          {error}
-        </div>
-      )}
-      {info && (
-        <div className="border-moto-green/30 bg-moto-green/5 text-moto-green-vivid rounded-lg border p-3 text-sm">
-          {info}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
+      {info ? <Alert type="success" message={info} /> : null}
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          Aktuell keine offenen Einträge in der Prüfliste. Alle Anmeldungen
-          wurden entweder übernommen oder bereits entschieden.
-        </div>
+        <EmptyState
+          title="Keine offenen Einträge"
+          description="Alle Anmeldungen wurden entweder übernommen oder bereits entschieden."
+        />
       ) : (
         <ul className="space-y-3">
           {items.map((item) => {
@@ -135,7 +138,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
             return (
               <li
                 key={item.child_id}
-                className="moto-content-surface rounded-2xl border p-5 shadow-sm"
+                className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6"
               >
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <div>
@@ -168,9 +171,10 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                   >
                     Klassenstufe für nächste Phase (optional):
                   </label>
-                  <input
+                  <Input
                     id={`grade-${item.child_id}`}
                     type="number"
+                    controlSize="compact"
                     min={1}
                     max={13}
                     value={overrideValue}
@@ -185,36 +189,39 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
                         ? String(item.target_grade_level)
                         : ""
                     }
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1 text-sm"
+                    className="w-24"
                     disabled={busy}
                   />
                 </div>
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
+                  <Button
                     type="button"
+                    size="md"
+                    variant="success"
                     onClick={() => void decide(item, "keep")}
                     disabled={busy}
-                    className="bg-moto-green rounded-md px-3 py-1.5 text-xs font-medium text-gray-950 hover:opacity-90 disabled:opacity-50"
                   >
                     Behalten
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="md"
+                    variant="outline_danger"
                     onClick={() => void decide(item, "drop")}
                     disabled={busy}
-                    className="border-moto-red text-moto-red hover:bg-moto-red/10 rounded-md border px-3 py-1.5 text-xs font-medium disabled:opacity-50"
                   >
                     Abschließen
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    size="md"
+                    variant="outline"
                     onClick={() => void decide(item, "defer")}
                     disabled={busy}
-                    className="rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                   >
                     Zurückstellen
-                  </button>
+                  </Button>
                 </div>
               </li>
             );

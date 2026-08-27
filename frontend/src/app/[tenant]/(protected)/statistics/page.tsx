@@ -24,6 +24,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
 import {
@@ -434,22 +436,15 @@ export default function StatisticsPage() {
   }[view];
 
   return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Statistik
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Anwesenheit und Räume im Zeitraum
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne
-              Feiertage, Schließtage und Ferien).
-            </p>
-          </div>
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:shrink-0">
+    <div className="-mt-1.5 w-full space-y-6">
+      {/* Desktop trägt den Titel in der Breadcrumb, mobil dieser Kopf. */}
+      <PageHeaderWithSearch title="Statistik" />
+      <SectionCard
+        title="Anwesenheit und Räume im Zeitraum"
+        description="Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."
+        bodyClassName=""
+        actions={
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <DateRangePicker
               value={range}
               onChange={(next) => {
@@ -473,8 +468,8 @@ export default function StatisticsPage() {
               {exportButtons("attendance")}
             </div>
           </div>
-        </div>
-
+        }
+      >
         {exportError && (
           <div className="mt-4">
             <Alert type="error" message={exportError} />
@@ -639,7 +634,7 @@ export default function StatisticsPage() {
             </div>
           </>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

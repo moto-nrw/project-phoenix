@@ -4,7 +4,7 @@
 // eingetragenen Abwesenheitstage (Krank / Entschuldigt / Klassenfahrt) über
 // alle Kinder der sichtbaren Gruppen. Bewusst nur nach vorn gerichtet (heute
 // bis Enddatum): Gruppenzuordnungen sind nicht datiert, vergangene Einträge
-// ließen sich nicht sicher der damaligen Gruppe zuordnen — dieselbe
+// ließen sich nicht sicher der damaligen Gruppe zuordnen, dieselbe
 // Einschränkung wie bei der Tagesauswertung.
 
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
@@ -16,6 +16,8 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   berlinTodayISO,
@@ -53,7 +55,7 @@ const STATUS_FILTER_OPTIONS = [
 
 function defaultRange(todayIso: string): DateRange {
   const from = parseISODate(todayIso);
-  // Zwei Monate voraus — derselbe Zeitraum wie der Betreuungsplan auf der
+  // Zwei Monate voraus, derselbe Zeitraum wie der Betreuungsplan auf der
   // Kind-Detailseite.
   const to = new Date(from.getFullYear(), from.getMonth() + 2, from.getDate());
   return { from, to };
@@ -239,22 +241,15 @@ export default function AbsencesPage() {
   }, [todayIso]);
 
   return (
-    <div className="w-full">
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Abwesenheiten
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Eingetragene Abwesenheitstage
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von
-              heute an – zum Nachschlagen, ob für ein Kind schon etwas
-              eingetragen ist.
-            </p>
-          </div>
+    <div className="-mt-1.5 w-full">
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
+      <PageHeaderWithSearch title="Abwesenheiten" />
+
+      <SectionCard
+        title="Eingetragene Abwesenheitstage"
+        description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
+        action={
           <DateRangePicker
             value={range}
             onChange={setRange}
@@ -263,9 +258,9 @@ export default function AbsencesPage() {
             toMax={maxDate}
             className="w-full sm:w-auto"
           />
-        </div>
-
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        }
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <Input
             type="search"
             value={query}
@@ -349,7 +344,7 @@ export default function AbsencesPage() {
             )}
           </div>
         )}
-      </section>
+      </SectionCard>
     </div>
   );
 }

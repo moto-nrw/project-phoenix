@@ -4,6 +4,7 @@ import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import type { MotoDuotoneTone } from "~/lib/location-helper";
 import {
@@ -24,7 +25,7 @@ function StatTileSkeleton({
   tone: MotoDuotoneTone;
 }>) {
   return (
-    <div className="moto-content-surface relative overflow-hidden rounded-3xl border p-4 shadow-sm backdrop-blur-md md:p-6">
+    <div className="moto-content-surface relative overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
       <div className="mb-3 flex items-start justify-between">
         <div className="p-0.5">
           <MotoDuotoneIcon icon={icon} tone={tone} />
@@ -46,7 +47,7 @@ function InfoTileSkeleton({
   rows = 3,
 }: Readonly<{ title: string; concept: MotoConceptKey; rows?: number }>) {
   return (
-    <div className="moto-content-surface relative h-full overflow-hidden rounded-3xl border p-4 shadow-sm backdrop-blur-md md:p-6">
+    <div className="moto-content-surface relative h-full overflow-hidden rounded-2xl border p-4 shadow-sm backdrop-blur-md md:p-6">
       <div className="mb-4 flex items-center gap-2">
         <div className="rounded-xl bg-gray-100 p-2">
           <MotoConceptIcon concept={concept} size={20} />
@@ -85,15 +86,13 @@ export function DashboardSkeleton() {
       aria-busy="true"
       aria-label="Übersicht wird geladen"
       data-testid="dashboard-skeleton"
-      className="w-full"
+      className="-mt-1.5 w-full"
     >
+      {/* Der Kopf rendert sofort, nur die Datenregion skeletonisiert. */}
+      <PageHeaderWithSearch title="Home" />
+
       <div className="mb-6 md:mb-8">
-        <div className="ml-6 space-y-2">
-          <Skeleton className="h-8 w-64 rounded-full" />
-          <p className="mt-2 text-sm text-gray-600 md:text-base">
-            Hier ist die aktuelle Übersicht
-          </p>
-        </div>
+        <Skeleton className="h-5 w-72 rounded-full" />
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-3 md:mb-8 md:grid-cols-3 md:gap-4 xl:grid-cols-4">

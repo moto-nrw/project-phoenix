@@ -8,7 +8,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 // field section, so the loaded page swaps in without layout shift.
 //
 // `referrer` is real chrome, not data-bound (it comes straight off the
-// `?from=` query param) — when the caller already knows it, render the real
+// `?from=` query param): when the caller already knows it, render the real
 // BackButton instead of a placeholder so it's clickable immediately. The
 // route-level loading.tsx renders this with no `referrer` (it has no access
 // to the page's search params), so that placeholder path stays.
@@ -21,7 +21,7 @@ export function StudentDetailSkeleton({
       aria-busy="true"
       aria-label="Kind wird geladen"
       data-testid="student-detail-skeleton"
-      className="mx-auto max-w-7xl"
+      className="-mt-1.5 w-full"
     >
       {referrer ? (
         <BackButton referrer={referrer} />
@@ -30,7 +30,7 @@ export function StudentDetailSkeleton({
       )}
 
       <div className="mb-6 flex items-end justify-between gap-4">
-        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
+        <div className="flex flex-1 items-center gap-4">
           <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-7 w-48 rounded" />
@@ -38,7 +38,7 @@ export function StudentDetailSkeleton({
             <Skeleton className="h-4 w-56 rounded" />
           </div>
         </div>
-        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
+        <div className="flex-shrink-0 pb-3">
           <Skeleton className="h-8 w-28 rounded-full" />
         </div>
       </div>

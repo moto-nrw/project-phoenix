@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -69,14 +70,18 @@ function DocumentDirectory({
   );
 
   return (
-    <div className="-mt-1.5 w-full">
+    // Eingebettet steht das Verzeichnis schon im Seitenrahmen; nur der eigene
+    // Zweig trägt den Kopf und damit den -mt-1.5-Ausgleich.
+    <div className={embedded ? "w-full" : "-mt-1.5 w-full"}>
       {!embedded && (
         <PageHeaderWithSearch
-          title="Personalunterlagen"
+          // Titel wie in der Navigation und in der Breadcrumb; welcher
+          // Ausschnitt gezeigt wird, sagt die Sektionsüberschrift darunter.
+          title="Mitarbeiter"
           search={{
             value: search,
             onChange: setSearch,
-            placeholder: "Mitarbeiter/in suchen...",
+            placeholder: "Person suchen…",
           }}
         />
       )}
@@ -86,12 +91,19 @@ function DocumentDirectory({
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Mitarbeiter/in suchen..."
+            placeholder="Person suchen…"
             className="w-full"
           />
         </div>
       )}
-      <p className="mb-4 text-sm text-gray-600">
+      {/* Eingebettet trägt schon der Reiter diesen Titel, dann entfällt die
+          Sektionsüberschrift (kein doppelter Titel). */}
+      {!embedded && (
+        <h2 className="text-base font-semibold text-gray-900">
+          Personalunterlagen
+        </h2>
+      )}
+      <p className="mt-1 mb-4 text-sm text-gray-600">
         Wählen Sie eine Person, um die für Sie freigegebenen Dokumente zu sehen.
       </p>
       {error ? (
@@ -110,13 +122,13 @@ function DocumentDirectory({
           }
         />
       ) : (
-        <div className="divide-y divide-gray-100 rounded-lg border border-gray-200 bg-white">
+        <div className="moto-content-surface divide-y divide-gray-100 overflow-hidden rounded-2xl border shadow-sm">
           {filteredEntries.map((entry) => (
             <button
               key={entry.id}
               type="button"
               onClick={() => router.push(`/staff/${entry.id}?tab=dokumente`)}
-              className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#5080D8]"
+              className="focus-visible:outline-moto-blue flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium text-gray-900 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-[-2px]"
             >
               {entry.name}
               <span aria-hidden="true" className="text-gray-400">
@@ -125,9 +137,12 @@ function DocumentDirectory({
             </button>
           ))}
           {filteredEntries.length === 0 ? (
-            <p className="px-4 py-8 text-center text-sm text-gray-500">
-              Keine Mitarbeiter/innen gefunden.
-            </p>
+            <EmptyState
+              variant="compact"
+              className="px-4 py-6"
+              title="Keine Personen gefunden."
+              description="Passen Sie die Suche an."
+            />
           ) : null}
         </div>
       )}
@@ -171,7 +186,6 @@ function StaffPageContent() {
   // State variables for filters
   const [searchTerm, setSearchTerm] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
-  const [isMobile, setIsMobile] = useState(false);
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
   >("status");
@@ -201,16 +215,6 @@ function StaffPageContent() {
   const showDocumentDirectory =
     documentDirectoryOnly ||
     (canManageTimeTracking && canAccessDocuments && view === "documents");
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Fetch staff data with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
@@ -596,9 +600,10 @@ function StaffPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - Title only on mobile */}
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
       <PageHeaderWithSearch
-        title={isMobile ? "Mitarbeiter" : ""}
+        title="Mitarbeiter"
         badge={
           showSkeleton
             ? undefined
@@ -620,7 +625,7 @@ function StaffPageContent() {
             : {
                 value: searchTerm,
                 onChange: setSearchTerm,
-                placeholder: "Name suchen...",
+                placeholder: "Name suchen…",
               }
         }
         filters={filterConfigs}
@@ -639,7 +644,7 @@ function StaffPageContent() {
         <StaffCardsSkeleton />
       ) : (
         <>
-          {/* Sektion 1 — Verweis auf das Anfragen-Modul (#2433). Die frühere
+          {/* Sektion 1: Verweis auf das Anfragen-Modul (#2433). Die frühere
               Inbox stand hier; entschieden wird jetzt zentral unter Anfragen,
               der Zähler zeigt weiter, ob Arbeit wartet. */}
           {canReviewAbsences && (
@@ -670,10 +675,10 @@ function StaffPageContent() {
             </Link>
           )}
 
-          {/* Sektion 2 — Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
+          {/* Sektion 2: Einrichtungs-Übersicht (#1417 Tranche 2a), läuft mit users:read */}
           {canReadUsers && <SchoolOverviewSection />}
 
-          {/* Sektion 3 — Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
+          {/* Sektion 3: Mitarbeitende. Status (Karten) und Zeitkonten (Tabelle)
               beantworten verschiedene Fragen; der Umschalter erscheint nur mit
               time_tracking:manage. */}
           {canManageTimeTracking && (
@@ -764,7 +769,7 @@ function StaffPageContent() {
 
           {showCloseModal && (
             <MonthCloseReasonModal
-              title={`Monat abschließen — ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
+              title={`Monat abschließen: ${String(monthAnchor.month).padStart(2, "0")}/${monthAnchor.year}`}
               description={
                 <>
                   <p>
@@ -801,27 +806,19 @@ function StaffPageContent() {
 
           {/* Error Display */}
           {view === "status" && error && (
-            <div className="border-moto-red/20 bg-moto-red-soft text-moto-red-strong mb-4 rounded-lg border p-4">
-              {error}
+            <div className="mb-4">
+              <Alert type="error" message={error} />
             </div>
           )}
 
           {/* Staff Grid */}
           {view === "status" &&
             (filteredStaff.length === 0 ? (
-              <div className="py-12 text-center">
-                <div className="flex flex-col items-center gap-4">
-                  <MotoConceptIcon concept="staff" size={48} />
-                  <div>
-                    <h3 className="text-lg font-medium text-gray-900">
-                      Kein Personal gefunden
-                    </h3>
-                    <p className="text-gray-600">
-                      Versuchen Sie Ihre Suchkriterien anzupassen.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <EmptyState
+                icon={<MotoConceptIcon concept="staff" size={48} />}
+                title="Kein Personal gefunden"
+                description="Versuchen Sie Ihre Suchkriterien anzupassen."
+              />
             ) : (
               <div>
                 <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
@@ -836,7 +833,7 @@ function StaffPageContent() {
 
                     const canNavigateToStaff =
                       userIsAdmin || canAccessDocuments;
-                    const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
+                    const cardClassName = `group moto-content-surface moto-hover-elevated relative w-full overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-sm focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] ${canNavigateToStaff ? "cursor-pointer" : ""}`;
                     const navigateToStaff = () =>
                       router.push(
                         `/staff/${staffMember.id}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,

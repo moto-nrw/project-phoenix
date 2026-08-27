@@ -96,15 +96,15 @@ function TeamChatInboxContent() {
     }
   }, [chatEnabled, composeOpen]);
 
-  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` haelt jede
+  // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` hält jede
   // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
   // isValidating) und die Seite zeigt ewig Platzhalter, statt zu sagen, was
-  // los ist - der Fehlerzustand darunter waere unerreichbar. Gleiche Regel wie
+  // los ist. Der Fehlerzustand darunter wäre unerreichbar. Gleiche Regel wie
   // auf der Thread-Seite.
   const showSkeleton = isLoading && !threads && !loadFailed;
   // Arrays sind truthy: ein zwischengespeichertes LEERES Ergebnis aus einem
-  // frueheren erfolgreichen Abruf laesst `threads` wahr werden, obwohl der
-  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung praesentiert die
+  // früheren erfolgreichen Abruf lässt `threads` wahr werden, obwohl der
+  // aktuelle Abruf gescheitert ist. Ohne diese Zusammenfassung präsentiert die
   // Seite den Fehlschlag als belastbares "keine Nachrichten".
   const nothingToShow = !threads || threads.length === 0;
 
@@ -123,8 +123,20 @@ function TeamChatInboxContent() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Person suchen...",
+          placeholder: "Person suchen…",
         }}
+        actionButton={
+          chatEnabled ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setComposeOpen(true)}
+            >
+              Neue Nachricht
+            </Button>
+          ) : undefined
+        }
       />
 
       {chatEnabled && (
@@ -139,14 +151,6 @@ function TeamChatInboxContent() {
               { value: "unread", label: "Nur ungelesen" },
             ]}
           />
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setComposeOpen(true)}
-          >
-            Neue Nachricht
-          </Button>
         </div>
       )}
 
@@ -161,7 +165,7 @@ function TeamChatInboxContent() {
       ) : (
         <>
           {loadFailed && !nothingToShow && (
-            // Fehler NEBEN vorhandenen (moeglicherweise veralteten) Daten: die
+            // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
             // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
             // sein muss.
             <div className="mb-4">
@@ -175,8 +179,8 @@ function TeamChatInboxContent() {
           {loadFailed && nothingToShow ? (
             // Fehler OHNE Daten: nur den Fehler zeigen. Eine leere Liste
             // danebenzustellen behauptet "Sie haben keine Nachrichten",
-            // obwohl in Wahrheit niemand nachsehen konnte - und das ist die
-            // auffaelligere der beiden Aussagen.
+            // obwohl in Wahrheit niemand nachsehen konnte, und das ist die
+            // auffälligere der beiden Aussagen.
             <EmptyState
               icon={<MessagesSquare size={48} className="text-gray-400" />}
               title="Das hat leider nicht geklappt"

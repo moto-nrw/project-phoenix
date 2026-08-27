@@ -42,6 +42,31 @@ export function ThreadSkeleton() {
 }
 
 /**
+ * Nur die Blasenliste: der Kopf der Unterhaltung steht bereits (aus dem
+ * Posteingang-Cache), es lädt nur noch der Verlauf.
+ */
+export function ThreadMessagesSkeleton() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Verlauf wird geladen"
+      data-testid="thread-messages-skeleton"
+      className="space-y-3"
+    >
+      {Array.from({ length: 5 }, (_, i) => (
+        <Skeleton
+          key={i}
+          className={`h-12 rounded-2xl ${
+            i % 2 === 0 ? "w-2/3" : "ml-auto w-1/2"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+/**
  * Composer-bar placeholder for the route-level loading fallback, which
  * mounts before the page component (and its draft/send state) exists — the
  * real, interactive composer isn't available yet. `page.tsx` itself keeps the

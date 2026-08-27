@@ -76,20 +76,9 @@ export function SupervisionHeader({
 
   return (
     <PageHeaderWithSearch
-      title={
-        // Mobile only: Show title when exactly 1 supervision
-        // 1 supervision = title, 2+ supervisions = tabs (dropdown)
-        !isDesktop && totalSupervisions === 1
-          ? isSchulhofTabSelected
-            ? SCHULHOF_ROOM_NAME
-            : currentRoom
-              ? supervisionTabLabel(
-                  currentRoom,
-                  sessionInfoByActiveGroup.get(currentRoom.id) ?? null,
-                )
-              : "Aktuelle Aufsicht"
-          : ""
-      }
+      // Konstanter Seitentitel wie im Navigationseintrag; die einzelnen
+      // Aufsichten stehen mobil in der Reiterleiste darunter.
+      title="Aktuelle Aufsicht"
       badge={{
         icon: (
           <svg
@@ -146,7 +135,7 @@ export function SupervisionHeader({
       search={{
         value: searchTerm,
         onChange: onSearchChange,
-        placeholder: "Name suchen...",
+        placeholder: "Name suchen…",
       }}
       filters={filterConfigs}
       activeFilters={activeFilters}

@@ -6,6 +6,7 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -21,7 +22,6 @@ import { DatabaseFormModal } from "~/components/ui/database/database-form-modal"
 import { GroupsMasterDetail } from "@/components/groups/groups-master-detail";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -45,7 +45,6 @@ function GroupsPageContent() {
   const selectedId = searchParams.get("group");
   const [searchTerm, setSearchTerm] = useState("");
   const [roomFilter, setRoomFilter] = useState<string>("all");
-  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
@@ -256,7 +255,7 @@ function GroupsPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Gruppen" : ""}
+          title="Gruppen"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -271,7 +270,7 @@ function GroupsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Gruppen suchen...",
+            placeholder: "Gruppen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -290,8 +289,8 @@ function GroupsPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 
@@ -345,7 +344,7 @@ function GroupsPageContent() {
           title="Gruppe löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie die Gruppe{" "}

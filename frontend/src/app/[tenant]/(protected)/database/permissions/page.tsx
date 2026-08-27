@@ -21,7 +21,6 @@ import {
   formatPermissionDisplay,
   localizeDescription,
 } from "@/lib/permission-labels";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 
@@ -43,7 +42,6 @@ function PermissionsPageContent() {
   // pre-fills a permission mutation.
   const selectedId = searchParams.get("permission");
   const [searchTerm, setSearchTerm] = useState("");
-  const isMobile = useIsMobile();
 
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,7 +156,7 @@ function PermissionsPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Berechtigungen" : ""}
+          title="Berechtigungen"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -172,7 +170,7 @@ function PermissionsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Berechtigungen suchen...",
+            placeholder: "Berechtigungen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -191,8 +189,8 @@ function PermissionsPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 

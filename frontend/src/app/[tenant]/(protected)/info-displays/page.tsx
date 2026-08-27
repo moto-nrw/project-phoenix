@@ -15,6 +15,7 @@ import { Input } from "~/components/ui/input";
 import { FormModal } from "~/components/ui/form-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { DisplayModeGuard } from "~/components/tenant/display-mode-guard";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -70,7 +71,7 @@ function InfoDisplaysPageContent() {
   } = useSWRAuth<InfoDisplay[]>("info-displays", listDisplays);
 
   const loadError = displaysError
-    ? "Fehler beim Laden der Info-Displays. Bitte versuche es später erneut."
+    ? "Fehler beim Laden der Info-Displays. Bitte versuchen Sie es später erneut."
     : "";
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -235,7 +236,9 @@ function InfoDisplaysPageContent() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="-mt-1.5 w-full">
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
       <PageHeaderWithSearch
         title="Info-Displays"
         badge={{
@@ -245,7 +248,7 @@ function InfoDisplaysPageContent() {
         search={{
           value: searchQuery,
           onChange: setSearchQuery,
-          placeholder: "Display suchen …",
+          placeholder: "Display suchen…",
         }}
         actionButton={
           canManage ? (
@@ -263,38 +266,33 @@ function InfoDisplaysPageContent() {
         }
       />
 
-      {(error || loadError) && (
-        <Alert type="error" message={error || loadError} />
-      )}
+      <div className="space-y-6">
+        {(error || loadError) && (
+          <Alert type="error" message={error || loadError} />
+        )}
 
-      <DataTable
-        columns={columns}
-        rows={filtered}
-        getRowKey={(row) => row.id}
-        isLoading={permissionLoading || isLoading}
-        defaultSortKey="name"
-        emptyState={
-          loadError ? (
-            // A failed load must never masquerade as "no displays yet".
-            <div className="py-12 text-center text-gray-500">
-              <p className="font-medium">
-                Displays konnten nicht geladen werden
-              </p>
-              <p className="mt-1 text-sm">
-                Bitte lade die Seite neu oder versuche es später erneut.
-              </p>
-            </div>
-          ) : (
-            <div className="py-12 text-center text-gray-500">
-              <p className="font-medium">Noch keine Info-Displays</p>
-              <p className="mt-1 text-sm">
-                Erstelle ein Display und öffne den Link im Browser des
-                Fernsehers oder Smartboards.
-              </p>
-            </div>
-          )
-        }
-      />
+        <DataTable
+          columns={columns}
+          rows={filtered}
+          getRowKey={(row) => row.id}
+          isLoading={permissionLoading || isLoading}
+          defaultSortKey="name"
+          emptyState={
+            loadError ? (
+              // A failed load must never masquerade as "no displays yet".
+              <EmptyState
+                title="Displays konnten nicht geladen werden"
+                description="Bitte laden Sie die Seite neu oder versuchen Sie es später erneut."
+              />
+            ) : (
+              <EmptyState
+                title="Noch keine Info-Displays"
+                description="Erstellen Sie ein Display und öffnen Sie den Link im Browser des Fernsehers oder Smartboards."
+              />
+            )
+          }
+        />
+      </div>
 
       {/* Create / rename modal */}
       <FormModal
@@ -405,7 +403,7 @@ function TokenModal({
     <FormModal
       isOpen
       onClose={onClose}
-      title={`Link für „${state.displayName}"`}
+      title={`Link für „${state.displayName}“`}
       size="md"
       footer={
         <div className="flex justify-end">
@@ -418,7 +416,7 @@ function TokenModal({
       <div className="space-y-5">
         <Alert
           type="warning"
-          message="Dieser Link wird nur einmal angezeigt. Kopiere ihn jetzt oder scanne den QR-Code am Zielgerät. Bei Verlust kannst du jederzeit einen neuen Link erstellen."
+          message="Dieser Link wird nur einmal angezeigt. Kopieren Sie ihn jetzt oder scannen Sie den QR-Code am Zielgerät. Bei Verlust können Sie jederzeit einen neuen Link erstellen."
         />
         <div className="flex items-center gap-2">
           <code className="min-w-0 flex-1 truncate rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
@@ -442,7 +440,7 @@ function TokenModal({
           <QRCodeSVG value={state.url} size={192} />
         </div>
         <p className="text-sm text-gray-500">
-          Öffne den Link im Browser des Fernsehers oder Smartboards. Das
+          Öffnen Sie den Link im Browser des Fernsehers oder Smartboards. Das
           Dashboard aktualisiert sich automatisch.
         </p>
       </div>

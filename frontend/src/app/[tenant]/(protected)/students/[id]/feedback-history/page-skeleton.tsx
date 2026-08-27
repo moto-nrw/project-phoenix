@@ -2,8 +2,8 @@
 
 import { Skeleton } from "~/components/ui/skeleton";
 
-// Mirrors the header block, filter-pills row, and the proportion-bar +
-// legend + chart card of the real page, so it swaps in without layout shift.
+// Mirrors the header block, den Zeitraum-Umschalter und die Karte mit
+// Anteilsleiste, Legende und Diagramm, so it swaps in without layout shift.
 export function FeedbackHistorySkeleton() {
   return (
     <div
@@ -11,11 +11,11 @@ export function FeedbackHistorySkeleton() {
       aria-busy="true"
       aria-label="Feedbackhistorie wird geladen"
       data-testid="feedback-history-skeleton"
-      className="mx-auto max-w-7xl"
+      className="-mt-1.5 w-full"
     >
       <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
 
-      <div className="mb-6 ml-6 space-y-2">
+      <div className="mb-6 space-y-2">
         <Skeleton className="h-8 w-48 rounded" />
         <Skeleton className="h-4 w-32 rounded" />
         <div className="mt-2 flex items-center gap-2">
@@ -24,13 +24,11 @@ export function FeedbackHistorySkeleton() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
-        {Array.from({ length: 5 }, (_, i) => (
-          <Skeleton key={i} className="h-8 w-24 rounded-full" />
-        ))}
+      <div className="mb-6">
+        <Skeleton className="h-9 w-full max-w-md rounded-full" />
       </div>
 
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="p-4 sm:p-6 md:p-8">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
 

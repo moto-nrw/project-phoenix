@@ -177,14 +177,20 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
  * Ansichts-Umschalter, Primäraktion und Kontextzeile als Platzhalter — passend
  * zur neuen Kopfzeile (statt der abgebauten Werkzeugleiste + Setup-Karten).
  */
-function PlanningContextBarSkeleton() {
+export function PlanningContextBarSkeleton({
+  ariaLabel = "Betreuungsplan-Kopfzeile wird geladen",
+  testId = "timetable-header-skeleton",
+}: {
+  readonly ariaLabel?: string;
+  readonly testId?: string;
+} = {}) {
   return (
     <div
       role="status"
       aria-live="polite"
       aria-busy="true"
-      aria-label="Betreuungsplan-Kopfzeile wird geladen"
-      data-testid="timetable-header-skeleton"
+      aria-label={ariaLabel}
+      data-testid={testId}
       className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
     >
       <Skeleton className="h-7 w-40 md:hidden" />
@@ -205,7 +211,7 @@ function PlanningContextBarSkeleton() {
 
 export function TimetablePageSkeleton() {
   return (
-    <div className="flex flex-col gap-4" data-testid="timetable-page-skeleton">
+    <div className="w-full space-y-4" data-testid="timetable-page-skeleton">
       <PlanningContextBarSkeleton />
       <TimetableContentSkeleton view="week" />
     </div>

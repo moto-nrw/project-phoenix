@@ -2,7 +2,7 @@
 
 import { use, useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
@@ -49,10 +49,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
 
   return (
     <div className="w-full space-y-4">
-      <MobileBackButton
-        href={tenantPath("/dashboard")}
-        ariaLabel="Zurück zur Übersicht"
-      />
+      <BackButton referrer="/enrollment-phases" />
       {error ? <Alert type="error" message={error} /> : null}
       {phase ? (
         <RolloverForm

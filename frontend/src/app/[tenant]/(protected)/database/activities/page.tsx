@@ -6,6 +6,7 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -21,7 +22,6 @@ import { ActivitiesMasterDetail } from "@/components/activities/activities-maste
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -47,7 +47,6 @@ function ActivitiesPageContent() {
   const selectedId = searchParams.get("activity");
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
-  const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedActivityDetail, setSelectedActivityDetail] =
@@ -319,7 +318,7 @@ function ActivitiesPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Aktivitäten" : ""}
+          title="Aktivitäten"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -334,7 +333,7 @@ function ActivitiesPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Aktivitäten suchen...",
+            placeholder: "Aktivitäten suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -353,8 +352,8 @@ function ActivitiesPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 
@@ -411,7 +410,7 @@ function ActivitiesPageContent() {
           title="Aktivität löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie die Aktivität{" "}

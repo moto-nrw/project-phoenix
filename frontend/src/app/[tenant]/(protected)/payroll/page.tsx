@@ -126,7 +126,7 @@ export default function PayrollPage() {
             {duplicates.length > 0 && (
               <Alert
                 type="warning"
-                message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden — bitte prüfen.`}
+                message={`Lohnartnummer ${duplicates.join(", ")} ist mehreren Kategorien zugeordnet. Das ist zulässig, führt aber meist zu doppelt gebuchten Stunden, bitte prüfen.`}
               />
             )}
 

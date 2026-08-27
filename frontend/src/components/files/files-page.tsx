@@ -24,6 +24,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -136,10 +137,13 @@ export function FilesPage() {
 
   if (error) {
     return (
-      <Alert
-        type="error"
-        message="Die Dateiablage konnte nicht geladen werden."
-      />
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Dateien" />
+        <Alert
+          type="error"
+          message="Die Dateiablage konnte nicht geladen werden."
+        />
+      </div>
     );
   }
 
@@ -197,117 +201,120 @@ export function FilesPage() {
   );
 
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p
-            className="text-xs font-semibold tracking-wide uppercase"
-            style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-          >
-            Dateiablage
-          </p>
-          <h1 className="text-base font-semibold text-gray-900">Dateien</h1>
-          <p className="max-w-3xl text-sm leading-6 text-gray-600">
-            Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder
-            Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner
-            fest. Unterlagen zu einem Kind oder zu einer Person liegen weiter
-            beim Kind bzw. bei der Person.
-          </p>
-        </div>
-        {canManage && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setFolderModal({ open: true, folder: null })}
-          >
-            Neuer Ordner
-          </Button>
-        )}
-      </div>
-
-      {isLoading ? (
-        <div className="moto-content-surface flex-1 rounded-2xl border p-5 shadow-sm">
-          <div className="space-y-3">
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-10 w-2/3" />
-          </div>
-        </div>
-      ) : folders.length === 0 ? (
-        <div className="moto-content-surface flex flex-1 items-center justify-center rounded-2xl border p-5 shadow-sm">
-          <EmptyState
-            icon={<FolderOpen className="h-12 w-12" aria-hidden="true" />}
-            title="Noch keine Ordner"
-            description={
-              canManage
-                ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
-                : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier."
-            }
-          />
-        </div>
-      ) : (
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
-          {/* Folder list: a panel on desktop, a select on small screens */}
-          <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
-            <label
-              htmlFor="dateien-ordner"
-              className="mb-1.5 block text-xs font-medium text-gray-600"
+    <div className="-mt-1.5 w-full">
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb;
+          PageHeaderWithSearch zeigt ihn mobil und trägt die Primäraktion. */}
+      <PageHeaderWithSearch
+        title="Dateien"
+        actionButton={
+          canManage ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setFolderModal({ open: true, folder: null })}
             >
-              Ordner
-            </label>
-            <CustomSelect
-              id="dateien-ordner"
-              value={selected?.id ?? ""}
-              options={folders.map((folder) => ({
-                value: folder.id,
-                label: `${folder.name} (${folder.fileCount})`,
-              }))}
-              onChange={(value) => setSelectedId(value)}
-              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+              Neuer Ordner
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <p className="mb-4 max-w-3xl text-sm leading-6 text-gray-600">
+        Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder
+        Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest.
+        Unterlagen zu einem Kind oder zu einer Person liegen weiter beim Kind
+        bzw. bei der Person.
+      </p>
+
+      <div className="flex min-h-[28rem] flex-col gap-4">
+        {isLoading ? (
+          <div className="moto-content-surface flex-1 rounded-2xl border p-5 shadow-sm">
+            <div className="space-y-3">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-2/3" />
+            </div>
+          </div>
+        ) : folders.length === 0 ? (
+          <div className="moto-content-surface flex flex-1 items-center justify-center rounded-2xl border p-5 shadow-sm">
+            <EmptyState
+              icon={<FolderOpen className="h-12 w-12" aria-hidden="true" />}
+              title="Noch keine Ordner"
+              description={
+                canManage
+                  ? "Legen Sie den ersten Ordner an und wählen Sie, wer ihn sehen darf."
+                  : "Sobald die Leitung einen Ordner für Sie freigibt, erscheint er hier."
+              }
             />
           </div>
-          <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 shadow-sm lg:flex">
-            <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-              Ordner
-            </p>
-            <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
-            {canManage && overview && overview.maxBytes > 0 && (
-              <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                <StatCard
-                  variant="tile"
-                  label="Belegter Speicherplatz"
-                  value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
-                />
-                <StatCard
-                  variant="tile"
-                  label="Team darf hochladen"
-                  value={
-                    overview.staffUploadEnabled ? "Ja" : "Nein (Einstellungen)"
-                  }
-                />
-              </div>
-            )}
-          </aside>
-
-          {selected && (
-            <section className="moto-content-surface flex min-h-0 flex-col rounded-2xl border p-5 shadow-sm">
-              <FolderFilesPanel
-                key={selected.id}
-                folder={selected}
-                canManage={canManage}
-                canUpload={canUpload}
-                onEdit={() => setFolderModal({ open: true, folder: selected })}
-                onDelete={() => {
-                  setDeleteFolderError("");
-                  setDeleteFolderTarget(selected);
-                }}
-                onFilesChanged={() => void mutateFolders()}
+        ) : (
+          <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+            {/* Folder list: a panel on desktop, a select on small screens */}
+            <div className="moto-content-surface rounded-2xl border p-3 shadow-sm lg:hidden">
+              <label
+                htmlFor="dateien-ordner"
+                className="mb-1.5 block text-xs font-medium text-gray-600"
+              >
+                Ordner
+              </label>
+              <CustomSelect
+                id="dateien-ordner"
+                value={selected?.id ?? ""}
+                options={folders.map((folder) => ({
+                  value: folder.id,
+                  label: `${folder.name} (${folder.fileCount})`,
+                }))}
+                onChange={(value) => setSelectedId(value)}
+                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
               />
-            </section>
-          )}
-        </div>
-      )}
+            </div>
+            <aside className="moto-content-surface hidden flex-col rounded-2xl border p-3 shadow-sm lg:flex">
+              <p className="px-3 pt-1 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                Ordner
+              </p>
+              <div className="min-h-0 flex-1 overflow-y-auto">{folderNav}</div>
+              {canManage && overview && overview.maxBytes > 0 && (
+                <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                  <StatCard
+                    variant="tile"
+                    label="Belegter Speicherplatz"
+                    value={`${formatBytes(overview.usedBytes)} von ${formatBytes(overview.maxBytes)}`}
+                  />
+                  <StatCard
+                    variant="tile"
+                    label="Team darf hochladen"
+                    value={
+                      overview.staffUploadEnabled
+                        ? "Ja"
+                        : "Nein (Einstellungen)"
+                    }
+                  />
+                </div>
+              )}
+            </aside>
+
+            {selected && (
+              <section className="moto-content-surface flex min-h-0 flex-col rounded-2xl border p-5 shadow-sm">
+                <FolderFilesPanel
+                  key={selected.id}
+                  folder={selected}
+                  canManage={canManage}
+                  canUpload={canUpload}
+                  onEdit={() =>
+                    setFolderModal({ open: true, folder: selected })
+                  }
+                  onDelete={() => {
+                    setDeleteFolderError("");
+                    setDeleteFolderTarget(selected);
+                  }}
+                  onFilesChanged={() => void mutateFolders()}
+                />
+              </section>
+            )}
+          </div>
+        )}
+      </div>
 
       <FolderModal
         isOpen={folderModal.open}

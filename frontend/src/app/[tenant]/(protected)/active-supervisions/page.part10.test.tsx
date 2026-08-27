@@ -592,7 +592,7 @@ describe("Action button click handlers", () => {
 
     // Should show loading text
     await waitFor(() => {
-      expect(screen.getByText("Wird übernommen...")).toBeInTheDocument();
+      expect(screen.getByText("Wird übernommen…")).toBeInTheDocument();
     });
   });
 });

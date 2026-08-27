@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type {
   FilterConfig,
@@ -70,7 +73,6 @@ function ActivitiesPageContent() {
   const [isManagementModalOpen, setIsManagementModalOpen] = useState(false);
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
   const { success: toastSuccess } = useToast();
-  const [isMobile, setIsMobile] = useState(false);
   const router = useTenantRouter();
   const tenantPath = useTenantAwarePath();
 
@@ -151,16 +153,6 @@ function ActivitiesPageContent() {
     [pageData?.currentStaff],
   );
   const error = fetchError ? "Fehler beim Laden der Aktivitäten" : null;
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Apply filters
   useEffect(() => {
@@ -313,11 +305,13 @@ function ActivitiesPageContent() {
 
   return (
     <>
-      <div className="w-full">
-        {/* PageHeaderWithSearch - Title only on mobile */}
-        <div className="relative z-30 mb-4">
+      <div className="-mt-1.5 w-full">
+        {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+            Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md
+            aus. */}
+        <div className="relative z-30">
           <PageHeaderWithSearch
-            title={isMobile ? "Aktivitäten" : ""}
+            title="Aktivitäten"
             badge={{
               icon: <MotoConceptIcon concept="activities" size={20} />,
               count: filteredActivities.length,
@@ -326,7 +320,7 @@ function ActivitiesPageContent() {
             search={{
               value: searchTerm,
               onChange: setSearchTerm,
-              placeholder: "Aktivität suchen...",
+              placeholder: "Aktivität suchen…",
             }}
             filters={filters}
             activeFilters={activeFilters}
@@ -336,20 +330,18 @@ function ActivitiesPageContent() {
               setMyActivitiesFilter(false);
             }}
             actionButton={
-              !isMobile && (
-                <button
-                  type="button"
-                  onClick={() => setIsQuickCreateOpen(true)}
-                  className="group flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950"
-                  aria-label="Aktivität erstellen"
-                >
-                  <Plus
-                    className="relative h-5 w-5 transition-transform duration-150 group-active:rotate-90"
-                    strokeWidth={2.5}
-                    aria-hidden="true"
-                  />
-                </button>
-              )
+              // Mobil übernimmt der schwebende Knopf unten rechts, deshalb
+              // steht die Kopfaktion erst ab md.
+              <Button
+                type="button"
+                variant="primary"
+                size="icon"
+                onClick={() => setIsQuickCreateOpen(true)}
+                aria-label="Aktivität erstellen"
+                className="hidden md:inline-flex"
+              >
+                <Plus className="h-4 w-4" aria-hidden="true" />
+              </Button>
             }
           />
         </div>
@@ -368,10 +360,9 @@ function ActivitiesPageContent() {
           />
         </button>
 
-        {/* Error Alert */}
         {error && (
-          <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-            <p className="text-sm text-red-800">{error}</p>
+          <div className="mb-6">
+            <Alert type="error" message={error} />
           </div>
         )}
 
@@ -438,23 +429,19 @@ function ActivitiesPageContent() {
             })}
           </div>
         ) : (
-          <div className="flex min-h-[300px] items-center justify-center">
-            <div className="text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center">
-                <MotoConceptIcon concept="activities" size={48} />
-              </div>
-              <h3 className="mt-4 text-lg font-medium text-gray-900">
-                {searchTerm || categoryFilter !== "all"
-                  ? "Keine Aktivitäten gefunden"
-                  : "Keine Aktivitäten vorhanden"}
-              </h3>
-              <p className="mt-2 text-sm text-gray-600">
-                {searchTerm || categoryFilter !== "all"
-                  ? "Versuchen Sie andere Suchkriterien oder Filter."
-                  : "Es wurden noch keine Aktivitäten erstellt."}
-              </p>
-            </div>
-          </div>
+          <EmptyState
+            icon={<MotoConceptIcon concept="activities" size={48} />}
+            title={
+              searchTerm || categoryFilter !== "all"
+                ? "Keine Aktivitäten gefunden"
+                : "Keine Aktivitäten vorhanden"
+            }
+            description={
+              searchTerm || categoryFilter !== "all"
+                ? "Versuchen Sie andere Suchkriterien oder Filter."
+                : "Es wurden noch keine Aktivitäten erstellt."
+            }
+          />
         )}
       </div>
 

@@ -53,6 +53,12 @@ import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
+import { Input } from "~/components/ui/input";
+import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -208,24 +214,6 @@ function fromLocalInputValue(local: string): string | null {
   const d = new Date(local);
   if (Number.isNaN(d.getTime())) return null;
   return d.toISOString();
-}
-
-function formatDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export function PhasesEditor() {
@@ -455,16 +443,16 @@ export function PhasesEditor() {
         });
         if (conflicting) {
           throw new Error(
-            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entferne die Klasse oder ergänze ihre Klassenstufe.`,
+            `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
           );
         }
       }
       if (editingId === "new") {
         const created = await createPhase(payload);
-        toast.success(`Anmeldephase „${created.name}" erstellt.`);
+        toast.success(`Anmeldephase „${created.name}“ erstellt.`);
       } else if (editingId) {
         const updated = await updatePhase(editingId, payload);
-        toast.success(`Anmeldephase „${updated.name}" gespeichert.`);
+        toast.success(`Anmeldephase „${updated.name}“ gespeichert.`);
       }
       cancelEdit();
       await loadAll();
@@ -527,7 +515,7 @@ export function PhasesEditor() {
     setDeleteError("");
     try {
       await deletePhase(phase.id);
-      toast.success(`Anmeldephase „${phase.name}" gelöscht.`);
+      toast.success(`Anmeldephase „${phase.name}“ gelöscht.`);
       closeDelete();
       await loadAll();
       refreshPhaseExpiryWarnings();
@@ -611,7 +599,7 @@ export function PhasesEditor() {
     }
     const detail = summaryBits.length > 0 ? ` (${summaryBits.join(", ")})` : "";
     toast.success(
-      `Anschlussphase „${result.phase.name}" wurde erstellt${detail}.`,
+      `Anschlussphase „${result.phase.name}“ wurde erstellt${detail}.`,
     );
     void loadAll();
     refreshPhaseExpiryWarnings();
@@ -628,8 +616,8 @@ export function PhasesEditor() {
         });
         toast.success(
           updated.is_active
-            ? `Anmeldephase „${updated.name}" ist jetzt aktiv.`
-            : `Anmeldephase „${updated.name}" wurde deaktiviert.`,
+            ? `Anmeldephase „${updated.name}“ ist jetzt aktiv.`
+            : `Anmeldephase „${updated.name}“ wurde deaktiviert.`,
         );
         await loadAll();
         refreshPhaseExpiryWarnings();
@@ -775,15 +763,7 @@ export function PhasesEditor() {
 
   return (
     <div className="space-y-4">
-      {error && (
-        <div
-          className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm"
-          role="alert"
-          aria-live="polite"
-        >
-          {error}
-        </div>
-      )}
+      {error ? <Alert type="error" message={error} /> : null}
 
       {!loading && !editingId && !rolloverSource ? (
         <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
@@ -791,31 +771,33 @@ export function PhasesEditor() {
 
       <div className="moto-content-surface flex flex-col gap-4 rounded-2xl border p-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="grid gap-2 sm:grid-cols-3">
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="calendarPeriods" size={16} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
             label="Anmeldephasen"
             value={phases.length}
           />
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="careTimes" size={16} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="careTimes" size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
-          <PhaseMetric
-            icon={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+          <EnrollmentStatTile
+            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
             label="In Vorbereitung"
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
         </div>
         {!editingId && !rolloverSource && (
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="md"
             onClick={startCreate}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            className="inline-flex shrink-0 items-center justify-center gap-2"
           >
             <MotoConceptIcon concept="calendarPeriods" size={16} />
             Neue Anmeldephase
-          </button>
+          </Button>
         )}
       </div>
 
@@ -870,9 +852,9 @@ export function PhasesEditor() {
           title="Anmeldephase löschen"
           description={
             <p>
-              Möchtest du die Anmeldephase{" "}
-              <span className="font-medium">„{deleteTarget.name}"</span>{" "}
-              wirklich endgültig löschen? Sie kann jederzeit gelöscht werden –
+              Möchten Sie die Anmeldephase{" "}
+              <span className="font-medium">„{deleteTarget.name}“</span>{" "}
+              wirklich endgültig löschen? Sie kann jederzeit gelöscht werden,
               während des Betreuungszeitraums, davor und danach.
             </p>
           }
@@ -888,7 +870,7 @@ export function PhasesEditor() {
                   <p className="mt-1 text-xs">
                     Die Löschvorschau konnte nicht geladen werden. Das Löschen
                     ist erst möglich, sobald die Vorschau vorliegt. Bitte
-                    schließe den Dialog und versuche es erneut.
+                    schließen Sie den Dialog und versuchen Sie es erneut.
                   </p>
                 ) : deleteImpact ? (
                   <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
@@ -948,51 +930,30 @@ interface PhaseFormProps {
   readonly onCancel: () => void;
 }
 
-function PhaseMetric({
-  icon,
-  label,
-  value,
-}: Readonly<{
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}>) {
-  return (
-    <div className="flex items-center gap-2 rounded-xl bg-gray-50 px-3 py-2">
-      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-gray-500 shadow-sm">
-        {icon}
-      </span>
-      <span>
-        <span className="block text-sm font-semibold text-gray-900">
-          {value}
-        </span>
-        <span className="block text-xs text-gray-500">{label}</span>
-      </span>
-    </div>
-  );
-}
-
 function EmptyPhasesState({ onCreate }: Readonly<{ onCreate: () => void }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="calendarPeriods" size={24} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Noch keine Anmeldephase angelegt
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Lege zuerst fest, für welchen Zeitraum Eltern anmelden können, zum
-        Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <MotoConceptIcon concept="calendarPeriods" size={16} />
-        Erste Anmeldephase anlegen
-      </button>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="calendarPeriods" size={24} />
+          </span>
+        }
+        title="Noch keine Anmeldephase angelegt"
+        description="Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung."
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onCreate}
+            className="inline-flex items-center justify-center gap-2"
+          >
+            <MotoConceptIcon concept="calendarPeriods" size={16} />
+            Erste Anmeldephase anlegen
+          </Button>
+        }
+      />
     </section>
   );
 }
@@ -1007,8 +968,8 @@ function EnrollmentWindowCell({
 
   return (
     <span className="text-sm text-gray-700">
-      {openAt ? formatDateTime(openAt) : "Nicht gesetzt"} bis{" "}
-      {closeAt ? formatDateTime(closeAt) : "Nicht gesetzt"}
+      {openAt ? formatChatDateTime(openAt) : "Nicht gesetzt"} bis{" "}
+      {closeAt ? formatChatDateTime(closeAt) : "Nicht gesetzt"}
     </span>
   );
 }
@@ -1152,7 +1113,7 @@ function PhaseActions({
     },
     { kind: "separator" },
     {
-      label: deleting ? "Löscht..." : "Löschen",
+      label: deleting ? "Löscht…" : "Löschen",
       icon: <Trash2 className="h-4 w-4" aria-hidden />,
       destructive: true,
       disabled: deleting || saving,
@@ -1771,21 +1732,18 @@ function PhaseForm(props: PhaseFormProps) {
       </fieldset>
 
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
           disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           Abbrechen
-        </button>
-        <button
-          type="submit"
-          disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-        >
-          {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}
-        </button>
+        </Button>
+        <Button type="submit" variant="primary" size="md" disabled={saving}>
+          {saving ? "Speichert…" : editing ? "Speichern" : "Erstellen"}
+        </Button>
       </div>
     </form>
   );
@@ -1865,8 +1823,9 @@ function SchoolClassListEditor({
   return (
     <div className="mt-2">
       <div className="flex gap-2">
-        <input
+        <Input
           type="text"
+          controlSize="compact"
           value={entry}
           onChange={(e) => setEntry(e.target.value)}
           onKeyDown={(e) => {
@@ -1877,15 +1836,17 @@ function SchoolClassListEditor({
           }}
           placeholder="z. B. 2a"
           aria-label="Klasse hinzufügen"
-          className="h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="w-full"
         />
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={add}
-          className="inline-flex h-10 shrink-0 items-center rounded-lg border border-gray-200 px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          className="inline-flex shrink-0 items-center"
         >
           Hinzufügen
-        </button>
+        </Button>
       </div>
       {value.length > 0 ? (
         <ul className="mt-2 flex flex-wrap gap-2">

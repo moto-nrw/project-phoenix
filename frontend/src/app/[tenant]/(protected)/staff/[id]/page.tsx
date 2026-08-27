@@ -16,6 +16,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Avatar } from "~/components/ui/avatar";
+import { BackButton } from "~/components/ui/back-button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -81,7 +82,7 @@ function StaffHeader({
               tone={MOTO_CONCEPTS.staff.tone}
               size={18}
             />
-            <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
               Mitarbeiter-Profil
             </p>
           </div>
@@ -103,7 +104,7 @@ function StaffHeader({
 
       {/* Right side: Status badge + Kebab menu trigger */}
       <div className="flex flex-shrink-0 items-center gap-2">
-        {/* Kein Glow, kein Pulsieren — dieselbe Entscheidung wie auf den
+        {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
             Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
             (LOCATION_COLORS über getStaffLocationStatus), deshalb
             StatusDotBadge und nicht StatusBadge. */}
@@ -233,10 +234,13 @@ export default function StaffDetailContent() {
 
   if (!isLoading && (error || !staff)) {
     return (
-      <EmptyState
-        title="Mitarbeiter konnte nicht geladen werden."
-        description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
-      />
+      <div className="-mt-1.5 w-full">
+        <BackButton referrer="/staff" />
+        <EmptyState
+          title="Mitarbeiter konnte nicht geladen werden."
+          description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
+        />
+      </div>
     );
   }
 
@@ -254,6 +258,10 @@ export default function StaffDetailContent() {
 
   return (
     <div className="-mt-1.5 w-full">
+      {/* Mobiler Rückweg zur Mitarbeiterliste; auf dem Desktop übernimmt das
+          die Breadcrumb der Kopfzeile (BackButton ist md:hidden). */}
+      <BackButton referrer="/staff" />
+
       {/* Rich Header with kebab trigger. Name/status are data-bound (they
           come from `staff`), so this stays a skeleton until the fetch
           resolves — the tab bar right below doesn't need to wait. */}

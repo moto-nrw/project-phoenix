@@ -18,7 +18,11 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
+import {
+  ListSkeleton,
+  SkeletonRegion,
+  TableSkeleton,
+} from "~/components/ui/page-skeletons";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
@@ -644,7 +648,7 @@ export default function StaffCalendarPage() {
   const personalCalendar = (
     <PersonalCalendar
       title="Mein Kalender"
-      subtitle="Deine Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
+      subtitle="Ihre Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
       events={calendarError ? [] : (data?.events ?? [])}
@@ -704,8 +708,8 @@ export default function StaffCalendarPage() {
             <MotoConceptIcon concept="calendarPeriods" size={20} />
             <p className="text-sm text-gray-600">
               {editingId
-                ? "Passe Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
-                : "Lege Zeitpunkt, Antwortregel und Empfängergruppen fest."}
+                ? "Passen Sie Zeitpunkt und Details an. Empfänger und Antwortregel bleiben unverändert."
+                : "Legen Sie Zeitpunkt, Antwortregel und Empfängergruppen fest."}
             </p>
           </div>
 
@@ -1046,7 +1050,7 @@ export default function StaffCalendarPage() {
               type="submit"
               size="md"
               isLoading={submitting}
-              loadingText="Speichert..."
+              loadingText="Speichert…"
             >
               {editingId ? "Änderungen speichern" : "Termin speichern"}
             </Button>
@@ -1063,9 +1067,9 @@ export default function StaffCalendarPage() {
         widthClass="mx-4 w-[calc(100%-2rem)] max-w-xl"
       >
         {overviewLoading ? (
-          <div className="py-8 text-center text-sm text-gray-500">
-            Teilnehmer werden geladen...
-          </div>
+          <SkeletonRegion label="Teilnehmer werden geladen…">
+            <ListSkeleton rows={4} avatar={false} />
+          </SkeletonRegion>
         ) : overview ? (
           <CalendarOverviewList overview={overview} />
         ) : null}
@@ -1085,8 +1089,8 @@ export default function StaffCalendarPage() {
           <div className="space-y-5">
             <p className="text-sm text-gray-700">
               {confirmAction.mode === "delete"
-                ? "Möchtest du diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
-                : "Möchtest du diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
+                ? "Möchten Sie diesen Termin wirklich löschen? Die Empfänger sehen ihn dann nicht mehr."
+                : "Möchten Sie diesen Termin absagen? Die Empfänger sehen ihn als „Abgesagt“."}
             </p>
             {confirmAction.event.recurring ? (
               <div className="grid gap-2">

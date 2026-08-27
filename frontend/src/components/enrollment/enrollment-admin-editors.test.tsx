@@ -2640,7 +2640,7 @@ describe("EnrollmentFormEditor", () => {
     );
 
     expect(
-      await screen.findByRole("button", { name: "Speichert..." }),
+      await screen.findByRole("button", { name: "Speichert…" }),
     ).toBeDisabled();
 
     await act(async () => {
@@ -2653,7 +2653,7 @@ describe("EnrollmentFormEditor", () => {
       );
     });
     expect(
-      screen.queryByRole("button", { name: "Speichert..." }),
+      screen.queryByRole("button", { name: "Speichert…" }),
     ).not.toBeInTheDocument();
   });
 

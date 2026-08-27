@@ -2,7 +2,7 @@
 
 // Sammelimport für Klassenlisteneinträge (#2382): CSV/Excel mit genau drei
 // Spalten (Vorname, Nachname, Klasse). Bereits vorhandene Einträge und
-// bereits regulär angelegte Kinder werden übersprungen — sie stehen schon
+// bereits regulär angelegte Kinder werden übersprungen, sie stehen schon
 // auf der Klassenliste.
 
 import { useState, useCallback } from "react";
@@ -14,6 +14,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SectionCard } from "~/components/ui/section-card";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
@@ -111,7 +112,7 @@ export default function ClassListImportPage() {
       redirect("/");
     },
   });
-  // Der Import legt Einträge an — dieselbe Hürde wie das Backend
+  // Der Import legt Einträge an, dieselbe Hürde wie das Backend
   // (/api/import/class-list-entries verlangt users:create). Wer sie nicht
   // nimmt, wird zum Dashboard umgeleitet statt in einen 403 zu laufen.
   const { isReady } = useRequirePermission("users:create");
@@ -352,15 +353,23 @@ export default function ClassListImportPage() {
 
   if (status === "loading" || !isReady) {
     return (
-      <SkeletonRegion label="Klassenlisten-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <div className="-mt-1.5 w-full space-y-6">
+        <BackButton referrer="/database/students/class-list" />
+
+        <PageHeaderWithSearch title="Klassenliste importieren" />
+
+        <SkeletonRegion label="Klassenlisten-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="-mt-1.5 w-full space-y-6">
       <BackButton referrer="/database/students/class-list" />
+
+      <PageHeaderWithSearch title="Klassenliste importieren" />
 
       {/* Info Section */}
       <SectionCard
@@ -375,7 +384,7 @@ export default function ClassListImportPage() {
             Mehr braucht ein Klassenlisteneintrag nicht
           </li>
           <li>
-            Kinder, die bereits in moto angelegt sind, werden übersprungen — sie
+            Kinder, die bereits in moto angelegt sind, werden übersprungen, sie
             stehen schon auf der Klassenliste
           </li>
           <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>

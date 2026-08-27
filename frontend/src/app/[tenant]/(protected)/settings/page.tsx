@@ -8,6 +8,8 @@ import {
   PageHeaderSkeleton,
   FormSkeleton,
 } from "~/components/ui/page-skeletons";
+import { EmptyState } from "~/components/ui/empty-state";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { SettingsLayout } from "~/components/shared/settings-layout";
 import { useSettingsTabs } from "~/components/settings/settings-page";
 
@@ -35,8 +37,12 @@ function SettingsContent() {
 
   if (!settingsTabs) {
     return (
-      <div className="flex items-center justify-center py-12 text-sm text-gray-500">
-        Keine Einstellungen verfügbar.
+      <div className="-mt-1.5 w-full">
+        <PageHeaderWithSearch title="Einstellungen" />
+        <EmptyState
+          title="Keine Einstellungen verfügbar."
+          description="Für Ihre Rolle ist hier nichts freigegeben. Wenden Sie sich an Ihre Leitung, wenn Sie Einstellungen ändern müssen."
+        />
       </div>
     );
   }

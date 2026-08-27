@@ -19,6 +19,7 @@ import {
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
   Drawer,
   DrawerClose,
@@ -395,7 +396,7 @@ const STAMP_BUTTON_BASE =
 function getCheckInButtonClassName(mode: WorkMode | null): string {
   const base = `${STAMP_BUTTON_BASE} h-16 w-16 disabled:cursor-not-allowed`;
   if (mode === null)
-    return `${base} border-[#6B7280]/40 text-[#6B7280]/60 cursor-not-allowed`;
+    return `${base} border-gray-500/40 text-gray-500/60 cursor-not-allowed`;
   if (mode === "home_office")
     return `${base} border-moto-blue text-moto-blue hover:bg-moto-blue/5`;
   return `${base} border-moto-green text-moto-green hover:bg-moto-green/5`;
@@ -408,9 +409,9 @@ function getBreakButtonClassName(
   breakMins: number,
 ): string {
   const base = `${STAMP_BUTTON_BASE} h-12 w-12 disabled:opacity-60`;
-  if (isOnBreak) return `${base} border-[#F78C10] text-[#F78C10]`;
+  if (isOnBreak) return `${base} border-moto-orange text-moto-orange`;
   if (breakMins > 0)
-    return `${base} border-[#F78C10] text-[#F78C10] hover:bg-[#F78C10]/10`;
+    return `${base} border-moto-orange text-moto-orange hover:bg-moto-orange/10`;
   return `${base} border-gray-200 text-gray-400 hover:border-gray-300 hover:text-gray-500`;
 }
 
@@ -549,13 +550,13 @@ function renderTimerContent(
   ) {
     return (
       <>
-        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
+        <span className="text-moto-orange text-4xl font-light tabular-nums">
           {formatCountdown(countdownRemainingSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
+        <span className="text-moto-orange mt-0.5 text-xs font-medium">
           Pause ({plannedBreakDurationMins} Min)
         </span>
-        <span className="mt-0.5 text-center text-xs font-medium text-amber-600">
+        <span className="text-moto-amber-strong mt-0.5 text-center text-xs font-medium">
           {plannedBreakEndsAt
             ? `Automatisch weiter um ${formatTime(plannedBreakEndsAt)}`
             : "Automatisch weiter nach der Pause"}
@@ -567,10 +568,10 @@ function renderTimerContent(
   if (isOnBreak) {
     return (
       <>
-        <span className="text-4xl font-light text-[#F78C10] tabular-nums">
+        <span className="text-moto-orange text-4xl font-light tabular-nums">
           {formatCountdown(activeBreakElapsedSecs)}
         </span>
-        <span className="mt-0.5 text-xs font-medium text-[#F78C10]">
+        <span className="text-moto-orange mt-0.5 text-xs font-medium">
           Pause läuft
         </span>
       </>
@@ -583,7 +584,7 @@ function renderTimerContent(
         {formatDuration(displayMinutes)}
       </span>
       {breakWarning && (
-        <span className="mt-0.5 text-xs font-medium text-amber-600">
+        <span className="text-moto-amber-strong mt-0.5 text-xs font-medium">
           {breakWarning}
         </span>
       )}
@@ -948,9 +949,7 @@ function ClockInCard({
       <div className="relative p-4 sm:p-6">
         {/* Title + status badge */}
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Stempeluhr
-          </h2>
+          <h2 className="text-base font-semibold text-gray-900">Stempeluhr</h2>
           {statusBadge && (
             <StatusBadge label={statusBadge.label} tone={statusBadge.tone} />
           )}
@@ -982,7 +981,7 @@ function ClockInCard({
                 type="button"
                 variant="ghost"
                 onClick={onAddAbsence}
-                className={`${STAMP_BUTTON_BASE} h-16 w-16 border-[#FF3130] text-[#FF3130] hover:bg-[#FF3130]/5`}
+                className={`${STAMP_BUTTON_BASE} border-moto-red text-moto-red hover:bg-moto-red/5 h-16 w-16`}
                 aria-label="Abwesenheit melden"
               >
                 <svg
@@ -1151,7 +1150,7 @@ function ClockInCard({
                 variant="ghost"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
-                className={`${STAMP_BUTTON_BASE} h-12 w-12 border-gray-300 text-gray-500 hover:border-[#FF3130] hover:text-[#FF3130] disabled:opacity-50`}
+                className={`${STAMP_BUTTON_BASE} hover:border-moto-red hover:text-moto-red h-12 w-12 border-gray-300 text-gray-500 disabled:opacity-50`}
                 aria-label="Ausstempeln"
               >
                 {actionLoading ? (
@@ -1473,7 +1472,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "break" && seg.isActive) return "text-amber-600";
+    if (seg.type === "break" && seg.isActive) return "text-moto-amber-strong";
     if (seg.type === "break") return "text-gray-500";
     return "";
   };
@@ -1493,7 +1492,7 @@ function BreakActivityLog({
     type: "work" | "break";
     isActive: boolean;
   }) => {
-    if (seg.type === "work" && seg.isActive) return "text-[#70b525]";
+    if (seg.type === "work" && seg.isActive) return "text-moto-green-hover";
     if (seg.type === "work") return "text-gray-600";
     return "";
   };
@@ -1520,7 +1519,7 @@ function BreakActivityLog({
         {formatTimeFromDate(seg.start)}
       </span>
       <span
-        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-[#F78C10]/60" : "text-gray-300"}`}
+        className={`shrink-0 ${seg.type === "break" && seg.isActive ? "text-moto-orange/60" : "text-gray-300"}`}
       >
         &rarr;
       </span>
@@ -1582,21 +1581,20 @@ function BreakActivityLog({
 
 type StatusTone = "green" | "amber" | "gray";
 
-// Standalone value text on a white card, so it follows the app's tone map —
-// the same one KpiCard (staff-time-views), detail-modal-components and
-// school-overview-section use, so the identical Saldo reads the same on
-// /staff/[id] and here. The kit's darkened orange (#8A5600) is deliberately
-// NOT used: it is a foreground for TINTED surfaces (Alert warning, StatusBadge
-// orange) and turns brown on white.
+// Standalone value text on a white card, so it follows the app's tone map:
+// the same one StaffSessionTable and KpiCard (staff-time-views) use, so the
+// identical Saldo reads the same on /staff/[id] and here. moto-amber-strong
+// (#92400E) is the ramp step that stays legible on white; the older
+// text-amber-600 (#D97706) missed WCAG AA for normal text.
 const STATUS_TEXT: Record<StatusTone, string> = {
   green: "text-moto-green",
-  amber: "text-amber-600",
+  amber: "text-moto-amber-strong",
   gray: "text-gray-700",
 };
 
 const STATUS_BAR: Record<StatusTone, string> = {
-  green: "bg-[#83CD2D]",
-  amber: "bg-[#F78C10]",
+  green: "bg-moto-green",
+  amber: "bg-moto-orange",
   gray: "bg-gray-400",
 };
 
@@ -1905,9 +1903,7 @@ function OwnZeiterfassungSection({
   return (
     <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-        <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-          Zeiterfassung
-        </h2>
+        <h2 className="text-base font-semibold text-gray-900">Zeiterfassung</h2>
         <div className="flex flex-wrap items-center gap-2">
           <ViewToggle value={viewMode} onChange={setViewMode} />
           {ownStaffId && (
@@ -2004,10 +2000,9 @@ function OwnZeiterfassungSection({
         </div>
       )}
       {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
-        // NOT the kit <Loading />: page.test.tsx pins this placeholder by its
-        // literal "..." text ("shows loading indicator in weekly total when
-        // history is loading"), and that test predates this migration.
-        <div className="py-10 text-center text-sm text-gray-400">...</div>
+        <SkeletonRegion label="Einträge werden geladen…">
+          <TableSkeleton rows={7} columns={5} />
+        </SkeletonRegion>
       ) : (
         <>
           {shiftsError ? (
@@ -2161,7 +2156,7 @@ function WeekChart({
     <div className="moto-content-surface relative flex min-h-[280px] flex-col overflow-hidden rounded-2xl border shadow-sm md:h-full md:min-h-0">
       <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
         <div className="mb-3 flex items-baseline justify-between sm:mb-4">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
+          <h2 className="text-base font-semibold text-gray-900">
             Wochenübersicht
           </h2>
           {chartData.length > 0 && (
@@ -2750,7 +2745,7 @@ function EditSessionModal({
     <ModalActions
       onCancel={onClose}
       onConfirm={handleSave}
-      confirmLabel={saving ? "Speichern..." : "Speichern"}
+      confirmLabel={saving ? "Speichern…" : "Speichern"}
       confirmDisabled={
         saving || !startTime || !notes.trim() || hasInvalidTimeRange
       }
@@ -2765,7 +2760,7 @@ function EditSessionModal({
     <ModalActions
       onCancel={onClose}
       onConfirm={handleAbsenceSave}
-      confirmLabel={absenceSaving ? "Speichern..." : "Speichern"}
+      confirmLabel={absenceSaving ? "Speichern…" : "Speichern"}
       confirmDisabled={absenceSaving || !absDateStart || !absDateEnd}
     />
   );
@@ -2932,7 +2927,7 @@ function EditSessionModal({
                 htmlFor="edit-notes"
                 className="mb-1 block text-sm font-medium text-gray-700"
               >
-                Grund der Änderung <span className="text-red-500">*</span>
+                Grund der Änderung <span className="text-moto-red">*</span>
               </label>
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {EDIT_REASON_PRESETS.map((reason) => (
@@ -2955,7 +2950,7 @@ function EditSessionModal({
                 onChange={(e) => setNotes(e.target.value)}
                 rows={2}
                 maxLength={2000}
-                placeholder="Oder eigenen Grund eingeben..."
+                placeholder="Oder eigenen Grund eingeben…"
               />
             </div>
 
@@ -3082,7 +3077,7 @@ function EditSessionModal({
                     onChange={(e) => setAbsNote(e.target.value)}
                     rows={2}
                     maxLength={2000}
-                    placeholder="z.B. Arzttermin, Schulung ..."
+                    placeholder="z. B. Arzttermin, Schulung …"
                   />
                 </div>
 
@@ -3094,10 +3089,10 @@ function EditSessionModal({
                     size="compact"
                     onClick={handleAbsenceDelete}
                     disabled={absenceDeleting}
-                    className="px-0 text-sm text-red-600 hover:bg-transparent hover:text-red-700"
+                    className="text-moto-red hover:text-moto-red-hover px-0 text-sm hover:bg-transparent"
                   >
                     {absenceDeleting
-                      ? "Abwesenheit wird gelöscht..."
+                      ? "Abwesenheit wird gelöscht…"
                       : "Abwesenheit löschen"}
                   </Button>
                 </div>
@@ -3189,7 +3184,7 @@ function CreateAbsenceModal({
         <ModalActions
           onCancel={onClose}
           onConfirm={handleSave}
-          confirmLabel={saving ? "Speichern..." : "Speichern"}
+          confirmLabel={saving ? "Speichern…" : "Speichern"}
           confirmDisabled={saving || !dateStart || !dateEnd}
         />
       }
@@ -3272,7 +3267,7 @@ function CreateAbsenceModal({
             onChange={(e) => setNote(e.target.value)}
             rows={2}
             maxLength={2000}
-            placeholder="z.B. Arzttermin, Schulung ..."
+            placeholder="z. B. Arzttermin, Schulung …"
           />
         </div>
       </div>
@@ -3848,10 +3843,7 @@ function TimeTrackingContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* Page header - only visible on mobile where breadcrumbs are hidden */}
-      <h1 className="mb-6 text-2xl font-bold text-gray-900 md:hidden">
-        Zeiterfassung
-      </h1>
+      <PageHeaderWithSearch title="Zeiterfassung" />
 
       {/* Action zone — Stempeluhr (mit integrierten Stats) und Wochenübersicht
           50/50 nebeneinander. Drunter eine Placeholder-Section für den
@@ -3937,9 +3929,9 @@ function TimeTrackingContent() {
         }
       >
         <div className="py-4 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#F78C10]/10">
+          <div className="bg-moto-orange/10 mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full">
             <svg
-              className="h-6 w-6 text-[#8A5600]"
+              className="text-moto-orange-strong h-6 w-6"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -4047,19 +4039,22 @@ function TimeTrackingContent() {
 
 function TimeTrackingPageSkeleton() {
   return (
-    <SkeletonRegion label="Zeiterfassung wird geladen">
-      <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
-        <CardSkeleton rows={4} />
-        <CardSkeleton rows={4} />
-      </div>
-      <div className="mb-4 md:mb-6">
-        <CardSkeleton rows={2} />
-      </div>
-      <div className="mb-4 md:mb-6">
-        <CardSkeleton rows={2} />
-      </div>
-      <TableSkeleton rows={7} columns={5} />
-    </SkeletonRegion>
+    <div className="-mt-1.5 w-full">
+      <PageHeaderWithSearch title="Zeiterfassung" />
+      <SkeletonRegion label="Zeiterfassung wird geladen">
+        <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
+          <CardSkeleton rows={4} />
+          <CardSkeleton rows={4} />
+        </div>
+        <div className="mb-4 md:mb-6">
+          <CardSkeleton rows={2} />
+        </div>
+        <div className="mb-4 md:mb-6">
+          <CardSkeleton rows={2} />
+        </div>
+        <TableSkeleton rows={7} columns={5} />
+      </SkeletonRegion>
+    </div>
   );
 }
 

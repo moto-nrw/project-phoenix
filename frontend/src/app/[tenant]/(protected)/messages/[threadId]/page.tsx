@@ -4,10 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
-import { ArrowLeft } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -29,7 +29,7 @@ import { staffRequestStatusLabel } from "~/lib/messaging-status";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { ThreadSkeleton } from "./page-skeleton";
+import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -255,7 +255,7 @@ function MessageThreadContent() {
   if (!showSkeleton && !thread) {
     return (
       <div className="-mt-1.5 w-full">
-        <MessagesBackNav />
+        <BackButton referrer="/messages" />
         <Alert
           type="error"
           message={
@@ -273,7 +273,7 @@ function MessageThreadContent() {
       ref={containerRef}
       className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
-      <MessagesBackNav />
+      <BackButton referrer="/messages" />
 
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         {showSkeleton ? (
@@ -314,9 +314,7 @@ function MessageThreadContent() {
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
             >
               {messagesLoading ? (
-                <p className="py-6 text-center text-sm text-gray-400">
-                  Verlauf wird geladen...
-                </p>
+                <ThreadMessagesSkeleton />
               ) : messages.length > 0 ? (
                 messages.map((message) =>
                   message.kind === "request" ? (
@@ -361,9 +359,10 @@ function MessageThreadContent() {
                   message="Nachrichtenverlauf konnte nicht geladen werden."
                 />
               ) : (
-                <p className="py-6 text-center text-sm text-gray-500">
-                  Noch keine Nachrichten in dieser Unterhaltung.
-                </p>
+                <EmptyState
+                  title="Noch keine Nachrichten"
+                  description="In dieser Unterhaltung wurde noch nichts geschrieben."
+                />
               )}
             </div>
           </>
@@ -383,13 +382,13 @@ function MessageThreadContent() {
               onSend={() => void handleSend()}
               sending={isSending}
               disabled={snapshotUnavailable}
-              placeholder="Nachricht an die Eltern schreiben..."
+              placeholder="Nachricht an die Eltern schreiben…"
             />
           ) : (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Die Eltern-Nachrichten sind für diese Schule deaktiviert. Sie
-              können den Verlauf weiterhin lesen, aber nicht antworten.
-            </p>
+            <Alert
+              type="info"
+              message="Die Eltern-Nachrichten sind für diese Schule ausgeschaltet. Sie können den Verlauf weiterhin lesen, aber nicht antworten."
+            />
           )}
         </div>
       </div>
@@ -418,28 +417,6 @@ function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
         />
       </div>
     </div>
-  );
-}
-
-// Back navigation for the thread screen, in ONE place (it renders in both the
-// not-found and the loaded branches). Mobile uses the kit BackButton
-// (md:hidden); desktop gets an inline "Zurück zu den Nachrichten" link because
-// the kit has no desktop back component (BackButton is mobile-only by design)
-// and this screen has no breadcrumb. The two are responsive-exclusive — only
-// one shows at a time.
-function MessagesBackNav() {
-  const router = useTenantRouter();
-  return (
-    <>
-      <BackButton referrer="/messages" />
-      <button
-        type="button"
-        onClick={() => router.push("/messages")}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
-      >
-        <ArrowLeft className="h-4 w-4" /> Zurück zu den Nachrichten
-      </button>
-    </>
   );
 }
 

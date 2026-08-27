@@ -7,6 +7,7 @@ import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWith
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { EmptyState } from "~/components/ui/empty-state";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -106,12 +107,25 @@ function MessagesInboxContent() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Person oder Kind suchen...",
+          placeholder: "Person oder Kind suchen…",
         }}
+        actionButton={
+          messagingEnabled ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setComposeOpen(true)}
+            >
+              Neue Nachricht
+            </Button>
+          ) : undefined
+        }
       />
 
-      {/* A single dropdown that filters on selection — same control and
-          behaviour on desktop and mobile, no separate apply step. */}
+      {/* A single dropdown that filters on selection: same control and
+          behaviour on desktop and mobile, no separate apply step. Die
+          Primäraktion sitzt in der Kopfzeile, nicht in dieser Zeile. */}
       <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
         <CustomSelect
           ariaLabel="Nachrichten filtern"
@@ -123,16 +137,6 @@ function MessagesInboxContent() {
             { value: "unread", label: "Nur ungelesen" },
           ]}
         />
-        {messagingEnabled && (
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setComposeOpen(true)}
-          >
-            Neue Nachricht
-          </Button>
-        )}
       </div>
 
       {showSkeleton ? (
@@ -149,28 +153,16 @@ function MessagesInboxContent() {
           )}
 
           {filteredThreads.length === 0 ? (
-            <div className="py-12 text-center">
-              <div className="flex flex-col items-center gap-4">
-                <MotoConceptIcon concept="parentConversations" size={48} />
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900">
-                    Noch keine Nachrichten
-                  </h3>
-                  <p className="text-gray-600">
-                    {messagingEnabled ? (
-                      <>
-                        Hier erscheinen Unterhaltungen mit den Eltern. Über{" "}
-                        <span className="font-medium text-gray-700">
-                          Neue Nachricht
-                        </span>{" "}
-                        können Sie selbst eine beginnen.
-                      </>
-                    ) : (
-                      "Der Nachrichtenaustausch mit den Eltern ist für diese Schule deaktiviert."
-                    )}
-                  </p>
-                </div>
-                {messagingEnabled && (
+            <EmptyState
+              icon={<MotoConceptIcon concept="parentConversations" size={48} />}
+              title="Noch keine Nachrichten"
+              description={
+                messagingEnabled
+                  ? "Hier erscheinen Unterhaltungen mit den Eltern. Über „Neue Nachricht“ können Sie selbst eine beginnen."
+                  : "Der Nachrichtenaustausch mit den Eltern ist für diese Schule ausgeschaltet."
+              }
+              action={
+                messagingEnabled ? (
                   <Button
                     type="button"
                     variant="primary"
@@ -179,9 +171,9 @@ function MessagesInboxContent() {
                   >
                     Neue Nachricht
                   </Button>
-                )}
-              </div>
-            </div>
+                ) : undefined
+              }
+            />
           ) : (
             <ul className="space-y-3">
               {filteredThreads.map((thread) => {

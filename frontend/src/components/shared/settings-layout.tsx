@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -32,15 +33,17 @@ function MobileBackHeader({
 }) {
   return (
     <div className="mb-4 flex items-center gap-2 pb-4">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={onBack}
-        className="-ml-2 rounded-xl p-2 transition-all active:bg-gray-100"
+        className="-ml-2"
         aria-label="Zurück"
       >
         <ChevronLeft className="h-5 w-5 text-gray-900" />
-      </button>
-      <h2 className="text-lg font-semibold text-gray-900">
+      </Button>
+      <h2 className="text-base font-semibold text-gray-900">
         {tabList.find((t) => t.id === activeTab)?.label}
       </h2>
     </div>
@@ -56,7 +59,7 @@ function MobileTabList({
   readonly onSelect: (id: string) => void;
 }) {
   return (
-    <div className="mx-4 overflow-hidden rounded-xl bg-white shadow-sm">
+    <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       {tabs.map((tab, idx) => (
         <button
           type="button"
@@ -136,7 +139,7 @@ function DesktopSettingsTabs({
   }, [activeTab]);
 
   return (
-    <div className="relative mb-6 ml-6">
+    <div className="relative mb-6">
       {canScrollLeft && (
         <div className="pointer-events-none absolute top-0 bottom-0 left-0 z-10 w-8 bg-gradient-to-r from-gray-50 to-transparent" />
       )}
@@ -209,9 +212,10 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
 
   return (
     <div className="-mt-1.5 w-full">
-      {isMobile && activeTab === null && (
-        <PageHeaderWithSearch title="Einstellungen" />
-      )}
+      {/* Der Kopf rendert immer mit konstantem Titel: auf dem Desktop blendet
+          PageHeaderWithSearch die Überschrift selbst aus (md:hidden), dort
+          trägt die Breadcrumb den Titel. */}
+      <PageHeaderWithSearch title="Einstellungen" />
 
       {!isMobile && (
         <DesktopSettingsTabs

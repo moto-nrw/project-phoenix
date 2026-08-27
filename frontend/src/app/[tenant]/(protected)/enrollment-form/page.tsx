@@ -8,20 +8,22 @@ import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 export default function EnrollmentFormPage() {
   const { isReady } = useRequireAdmin();
-  if (!isReady)
-    return (
-      <SkeletonRegion label="Anmeldeformular wird geladen">
-        <FormSkeleton fields={6} />
-      </SkeletonRegion>
-    );
 
   return (
     <div className="-mt-1.5 w-full">
-      <DesktopOnlyNotice />
-      <div className="hidden lg:block">
-        <PageHeaderWithSearch title="Anmeldeformulare" />
-        <EnrollmentFormEditor />
-      </div>
+      <PageHeaderWithSearch title="Anmeldeformulare" />
+      {isReady ? (
+        <>
+          <DesktopOnlyNotice />
+          <div className="hidden lg:block">
+            <EnrollmentFormEditor />
+          </div>
+        </>
+      ) : (
+        <SkeletonRegion label="Anmeldeformular wird geladen" className="mt-4">
+          <FormSkeleton fields={6} />
+        </SkeletonRegion>
+      )}
     </div>
   );
 }

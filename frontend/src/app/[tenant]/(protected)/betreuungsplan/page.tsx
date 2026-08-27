@@ -8,10 +8,11 @@
 import { Suspense } from "react";
 
 import { BetreuungsplanView } from "~/components/timetable/betreuungsplan-view";
+import { TimetablePageSkeleton } from "~/components/timetable/betreuungsplan-skeleton";
 
 export default function BetreuungsplanPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<TimetablePageSkeleton />}>
       <BetreuungsplanView />
     </Suspense>
   );

@@ -2,10 +2,9 @@
 
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
-import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import {
   ConceptPageHeader,
   ConceptSectionHeader,
@@ -93,7 +92,6 @@ export default function StudentChangeHistoryPage() {
 }
 
 function StudentChangeHistoryPageContent() {
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -172,21 +170,11 @@ function StudentChangeHistoryPageContent() {
 
   if (errorCode !== null) {
     return (
-      <>
+      <div className="-mt-1.5 w-full">
+        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
-        <div className="flex min-h-[50vh] flex-col items-center justify-center">
-          <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            className="mt-4"
-            onClick={() => router.push(referrer)}
-          >
-            Zurück
-          </Button>
-        </div>
-      </>
+        <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
+      </div>
     );
   }
 
@@ -195,14 +183,14 @@ function StudentChangeHistoryPageContent() {
     : "";
 
   return (
-    <div className="w-full">
+    <div className="-mt-1.5 w-full">
       <BackButton
         referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
       />
 
       {student && (
         <ConceptPageHeader
-          className="mb-6 ml-6"
+          className="mb-6"
           title={displayName}
           eyebrow="Änderungsverlauf"
           concept="changeHistory"
@@ -215,7 +203,7 @@ function StudentChangeHistoryPageContent() {
         />
       )}
 
-      <div className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-3 sm:px-6 sm:py-4">
           <ConceptSectionHeader
             title="Änderungsverlauf"
@@ -225,11 +213,10 @@ function StudentChangeHistoryPageContent() {
         </div>
 
         {!entries || entries.length === 0 ? (
-          <div className="px-6 py-12 text-center">
-            <p className="text-sm text-gray-500">
-              Noch keine Änderungen erfasst.
-            </p>
-          </div>
+          <EmptyState
+            title="Noch keine Änderungen erfasst."
+            description="Sobald jemand Angaben zu diesem Kind ändert, erscheint der Eintrag hier."
+          />
         ) : (
           <>
             {/* Desktop table */}

@@ -81,7 +81,7 @@ export function SectionCard({
             ))}
           <div className="min-w-0">
             {kicker && (
-              <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                 {kicker}
               </p>
             )}

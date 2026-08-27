@@ -8,6 +8,9 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { BackButton } from "~/components/ui/back-button";
+import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { SectionCard } from "~/components/ui/section-card";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -396,86 +399,80 @@ export default function StaffImportPage() {
 
   if (status === "loading") {
     return (
-      <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <div className="-mt-1.5 w-full space-y-6">
+        <BackButton referrer="/database/personal" />
+
+        <PageHeaderWithSearch title="Personal importieren" />
+
+        <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
+    <div className="-mt-1.5 w-full space-y-6">
+      <BackButton referrer="/database/personal" />
+
+      <PageHeaderWithSearch title="Personal importieren" />
+
       {/* Info Section */}
-      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <Info
-              className="text-moto-blue-strong h-6 w-6"
-              aria-hidden="true"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              Import-Anleitung
-            </h3>
-            <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>
-              <li>
-                Die Spalte „Rolle" muss exakt einer vorhandenen Rolle
-                entsprechen
-                {availableRoles.length > 0 && (
-                  <>
-                    :{" "}
-                    {availableRoles.map((role, i) => (
-                      <span key={role}>
-                        {i > 0 && ", "}
-                        <span className="font-medium text-gray-900">
-                          {role}
-                        </span>
-                      </span>
-                    ))}
-                  </>
-                )}
-              </li>
-              <li>
-                Jede Zeile wird sofort in der Personalliste angelegt, mit
-                Stammdaten wie Personalnummer, Adresse und Vertragsdaten
-              </li>
-              <li>
-                Steht eine E-Mail in der Zeile, bekommt die Person zusätzlich
-                eine Einladung und setzt ihr Passwort selbst. Ohne E-Mail gibt
-                es keinen Zugang
-              </li>
-              <li>
-                Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-              </li>
-              <li>Bestätigen Sie den Import</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <SectionCard kicker="Personal" title="Import-Anleitung" icon={Info}>
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>
+          <li>
+            Die Spalte „Rolle“ muss exakt einer vorhandenen Rolle entsprechen
+            {availableRoles.length > 0 && (
+              <>
+                :{" "}
+                {availableRoles.map((role, i) => (
+                  <span key={role}>
+                    {i > 0 && ", "}
+                    <span className="font-medium text-gray-900">{role}</span>
+                  </span>
+                ))}
+              </>
+            )}
+          </li>
+          <li>
+            Jede Zeile wird sofort in der Personalliste angelegt, mit Stammdaten
+            wie Personalnummer, Adresse und Vertragsdaten
+          </li>
+          <li>
+            Steht eine E-Mail in der Zeile, bekommt die Person zusätzlich eine
+            Einladung und setzt ihr Passwort selbst. Ohne E-Mail gibt es keinen
+            Zugang
+          </li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
         <div className="relative">
           <Alert type="error" message={error} />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Download Template */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 1: Vorlage herunterladen
-        </h3>
+      <SectionCard
+        kicker="Schritt 1"
+        title="Vorlage herunterladen"
+        icon={Download}
+      >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -500,7 +497,7 @@ export default function StaffImportPage() {
               <span className="font-medium">Nachname</span>,{" "}
               <span className="font-medium">Rolle</span>. Alle weiteren Spalten
               (E-Mail, Personalnummer, Adresse, Vertrag, Qualifikationen) sind
-              optional und im Blatt „Hinweise" erklärt
+              optional und im Blatt „Hinweise“ erklärt
             </p>
           </div>
           <div className="flex-1">
@@ -524,13 +521,13 @@ export default function StaffImportPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 2: Was soll der Import tun?
-        </h3>
+      <SectionCard
+        kicker="Schritt 2"
+        title="Was soll der Import tun?"
+        icon={RefreshCw}
+      >
         <SegmentedControl
           items={IMPORT_MODE_ITEMS}
           value={mode}
@@ -543,7 +540,7 @@ export default function StaffImportPage() {
           Bekannt ist eine Zeile über Personalnummer, sonst E-Mail, sonst Vor-
           und Nachname.
         </p>
-      </div>
+      </SectionCard>
 
       {/* Upload Section */}
       <UploadSection
@@ -571,18 +568,12 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
-            <div className="border-b border-gray-100 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <ListChecks
-                  className="h-5 w-5 text-gray-600"
-                  aria-hidden="true"
-                />
-                Schritt 4: Datenvorschau
-              </h3>
-            </div>
-
-            <div className="space-y-2 p-3">
+          <SectionCard
+            kicker="Schritt 4"
+            title="Datenvorschau"
+            icon={ListChecks}
+          >
+            <div className="space-y-2">
               {previewData.map((staff, idx) => (
                 <StudentRowCard
                   key={staff.row}
@@ -599,28 +590,32 @@ export default function StaffImportPage() {
                 />
               ))}
             </div>
-          </div>
+          </SectionCard>
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
 
           {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-            <button
+          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className="flex-1"
               onClick={resetForm}
-              className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              onClick={() => void handleImport()}
+              variant="success"
+              size="md"
+              className="flex-1"
               disabled={stats.errors > 0 || isImporting || isLoading}
-              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
+              onClick={() => void handleImport()}
             >
-              {isImporting ? "Importiere..." : importLabel}
-            </button>
+              {isImporting ? "Wird importiert…" : importLabel}
+            </Button>
           </div>
         </>
       )}

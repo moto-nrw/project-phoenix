@@ -2,7 +2,7 @@
 
 import { use } from "react";
 import { AdminEnrollmentDetail } from "~/components/enrollment/admin-enrollment-detail";
-import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -24,7 +24,7 @@ export default function AdminEnrollmentDetailPage({ params }: PageProps) {
 
   return (
     <div className="w-full">
-      <MobileBackButton />
+      <BackButton referrer="/admin/enrollments" />
       <AdminEnrollmentDetail requestId={id} />
     </div>
   );

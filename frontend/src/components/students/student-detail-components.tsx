@@ -33,6 +33,7 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
 import {
   ParentVisibleBadge,
   ParentVisibilityLegend,
@@ -346,9 +347,9 @@ export function StudentDetailHeader({
   return (
     <div className="mb-6">
       <div className="flex items-end justify-between gap-4">
-        <div className="ml-0 flex flex-1 items-center gap-4 sm:ml-6">
+        <div className="flex flex-1 items-center gap-4">
           {photosEnabled ? (
-            // Header avatar — image when consent + photo are present, brand
+            // Header avatar: image when consent + photo are present, brand
             // gradient initials otherwise. xl size mirrors the detail page's
             // h1 visual weight; on mobile the flex container collapses
             // avatar+name onto one row already because of items-center.
@@ -359,7 +360,7 @@ export function StudentDetailHeader({
             />
           ) : null}
           <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 md:text-3xl">
+            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
               {student.first_name} {student.second_name}
             </h1>
             {student.group_name && (
@@ -388,7 +389,7 @@ export function StudentDetailHeader({
                 absence?.label ?? dayPlanningNotComingLabel;
               if (notComingLabel && !todayPickupActualTime) {
                 const reasonSuffix =
-                  student.sick && sickReason ? ` – ${sickReason}` : "";
+                  student.sick && sickReason ? `: ${sickReason}` : "";
                 return (
                   <div
                     data-testid="today-absence-row"
@@ -426,7 +427,7 @@ export function StudentDetailHeader({
             })()}
           </div>
         </div>
-        <div className="mr-0 flex-shrink-0 pb-3 sm:mr-4">
+        <div className="flex-shrink-0 pb-3">
           <LocationBadge
             student={badgeStudent}
             displayMode="contextAware"
@@ -542,7 +543,7 @@ function TodayTimeStatusInlineRow({
         {note && <span className="ml-1 text-gray-500">({note})</span>}
         {isException && (
           <span
-            className="ml-1.5 inline-flex h-2 w-2 rounded-full bg-orange-400"
+            className="bg-moto-orange ml-1.5 inline-flex h-2 w-2 rounded-full"
             title="Ausnahme"
           />
         )}
@@ -567,7 +568,7 @@ export function SupervisorsCard({
   if (supervisors.length === 0) return null;
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
@@ -628,14 +629,16 @@ function SupervisorItem({
         {supervisor.email && (
           <>
             <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
+              className="mt-3"
               onClick={handleEmailClick}
-              className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
             >
               <EmailIcon />
               Kontakt aufnehmen
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -740,10 +743,10 @@ export function PersonalInfoReadOnly({
   const addressDisplay = formatStudentAddress(student);
 
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
       <div className="mb-4 flex items-center justify-between gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-          <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/10 text-[#83CD2D] sm:h-10 sm:w-10">
+          <div className="bg-moto-green/10 text-moto-green flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10">
             <PersonIcon />
           </div>
           <h2 className="truncate text-base font-semibold text-gray-900 sm:text-lg">
@@ -752,14 +755,15 @@ export function PersonalInfoReadOnly({
           </h2>
         </div>
         {showEditButton && onEditClick ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={onEditClick}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
             title="Bearbeiten"
           >
             Bearbeiten
-          </button>
+          </Button>
         ) : (
           <ViewOnlyBadge />
         )}

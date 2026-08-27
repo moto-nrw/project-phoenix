@@ -312,7 +312,7 @@ describe("StudentRoomHistoryPage", () => {
     });
   });
 
-  it("renders zurück button on error page and navigates", async () => {
+  it("rendert im Fehlerfall den Rückweg zur Herkunftsliste", async () => {
     setupFetch({
       ok: false,
       status: 404,
@@ -324,13 +324,9 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
     });
 
-    // Find the styled zurück button (not the BackButton component)
-    const buttons = screen.getAllByRole("button");
-    const zurueckButton = buttons.find(
-      (b) => b.textContent === "Zurück" && b.className.includes("rounded-lg"),
-    );
-    expect(zurueckButton).toBeDefined();
-    fireEvent.click(zurueckButton!);
+    // Der Desktop-Rückweg ist die Breadcrumb; mobil bleibt der kit
+    // BackButton mit dem Referrer der Herkunftsliste.
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     expect(mockPush).toHaveBeenCalledWith("/test-tenant/students/search");
   });
 

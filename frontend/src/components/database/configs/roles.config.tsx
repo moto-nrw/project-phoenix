@@ -138,7 +138,7 @@ export const rolesConfig = defineEntityConfig<Role>({
   list: {
     title: "Rollen verwalten",
     description: "Verwalten Sie Systemrollen und deren Berechtigungen",
-    searchPlaceholder: "Rollen durchsuchen...",
+    searchPlaceholder: "Rollen durchsuchen…",
 
     // Frontend search configuration
     searchStrategy: "frontend",

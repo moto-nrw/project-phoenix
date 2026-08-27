@@ -293,7 +293,7 @@ export const activitiesConfig = defineEntityConfig<Activity>({
   list: {
     title: "Aktivität auswählen",
     description: "Verwalte Aktivitäten und deren Teilnehmer",
-    searchPlaceholder: "Aktivität suchen...",
+    searchPlaceholder: "Aktivität suchen…",
 
     // Frontend search for better UX
     searchStrategy: "frontend",

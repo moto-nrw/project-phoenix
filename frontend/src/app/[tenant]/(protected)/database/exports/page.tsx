@@ -22,9 +22,9 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
 import { Button } from "~/components/ui/button";
+import { BackButton } from "~/components/ui/back-button";
 import { InfoCard } from "~/components/ui/info-card";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
@@ -86,7 +86,6 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
  * duplicate the page that already does the job.
  */
 export default function DatabaseExportsPage() {
-  const isMobile = useIsMobile();
   const toast = useToast();
   const { data: session, status } = useSession();
   // Slot lists are part of the timetable feature; hide the entry when a tenant
@@ -110,18 +109,18 @@ export default function DatabaseExportsPage() {
   // Export folgt derselben Grenze statt auf eine Sackgasse zu verlinken.
   const canEditPlans = isAdmin(session);
   // Slot lists expose named children + presence, so the backend requires
-  // schedules:read AND users:read (#1565) — mirror that here. Der
+  // schedules:read AND users:read (#1565), mirror that here. Der
   // Betreuungsplan-Export verlangt dieselbe Kombination.
   const canUseSlotLists =
     isAdmin(session) ||
     (hasPermission(session, "schedules:read") &&
       hasPermission(session, "users:read"));
   // Die Personal-Geburtstagsliste zeigt volle Geburtsdaten und hängt deshalb
-  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542) —
+  // an derselben Grenze wie die Stammdaten, aus denen sie stammt (#1542):
   // users:read reicht bewusst nicht.
-  // Die Berechtigung heisst backendseitig `time_tracking:manage` mit
+  // Die Berechtigung heißt backendseitig `time_tracking:manage` mit
   // Unterstrich (permissions.ResourceTimeTracking); die Bindestrich-Variante
-  // trifft niemanden und haette die Karte fuer Leitungsrollen verschluckt.
+  // trifft niemanden und hätte die Karte für Leitungsrollen verschluckt.
   const canExportStaffBirthdays =
     isAdmin(session) ||
     hasPermission(session, "users:update") ||
@@ -155,13 +154,15 @@ export default function DatabaseExportsPage() {
   };
 
   return (
-    <div className="w-full">
-      {isMobile && <PageHeaderWithSearch title="Exporte" />}
+    <div className="-mt-1.5 w-full">
+      <BackButton referrer="/database" />
+
+      <PageHeaderWithSearch title="Exporte" />
 
       <div className="min-h-[60vh] space-y-6">
         <p className="max-w-3xl text-sm text-gray-600">
           Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die
-          Daten, die für die jeweilige Liste nötig sind. Bitte behandle die
+          Daten, die für die jeweilige Liste nötig sind. Bitte behandeln Sie die
           erzeugten Dateien wie jede andere personenbezogene Unterlage.
         </p>
 
@@ -318,7 +319,7 @@ export default function DatabaseExportsPage() {
             </InfoCard>
           )}
           {/* Die beiden Wochenpläne (#2079) exportieren immer die Woche, die
-              auf ihrer Seite gerade zu sehen ist — ein Datumsdialog hier wäre
+              auf ihrer Seite gerade zu sehen ist. Ein Datumsdialog hier wäre
               eine zweite, konkurrierende Bedienung derselben Sache. */}
           {canEditPlans && !timetableDisabled && (
             <InfoCard
@@ -397,7 +398,7 @@ function ExportSection({
 }: Readonly<{ title: string; children: ReactNode }>) {
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-semibold text-gray-950">{title}</h2>
+      <h2 className="text-base font-semibold text-gray-900">{title}</h2>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {children}
       </div>

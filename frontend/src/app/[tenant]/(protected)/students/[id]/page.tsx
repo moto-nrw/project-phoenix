@@ -9,7 +9,6 @@ import {
 } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { hasPermission } from "~/lib/auth-utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -18,6 +17,7 @@ import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { BackButton } from "~/components/ui/back-button";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import {
@@ -322,7 +322,7 @@ function mergeStatusDays(
 
 export default function StudentDetailPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<StudentDetailSkeleton />}>
       <StudentDetailPageContent />
     </Suspense>
   );
@@ -330,7 +330,6 @@ export default function StudentDetailPage() {
 
 function StudentDetailPageContent() {
   const { mutate } = useSWRConfig();
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -478,7 +477,7 @@ function StudentDetailPageContent() {
   const [sickLoading, setSickLoading] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const sickConfirmText = sickLoading
-    ? "Wird gespeichert..."
+    ? "Wird gespeichert…"
     : student?.sick
       ? "Gesundmelden"
       : "Krankmelden";
@@ -488,7 +487,7 @@ function StudentDetailPageContent() {
   const [excusedLoading, setExcusedLoading] = useState(false);
   const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
   const excusedConfirmText = excusedLoading
-    ? "Wird gespeichert..."
+    ? "Wird gespeichert…"
     : isQuickExcused
       ? "Entschuldigung aufheben"
       : "Entschuldigen";
@@ -724,15 +723,10 @@ function StudentDetailPageContent() {
   // Show error state
   if (error || !student) {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center">
+      <div className="-mt-1.5 w-full">
+        {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
+        <BackButton referrer={referrer} />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-        <button
-          type="button"
-          onClick={() => router.push(referrer)}
-          className="bg-moto-blue/10 text-moto-blue-strong hover:bg-moto-blue/20 mt-4 rounded px-4 py-2 transition-colors"
-        >
-          Zurück
-        </button>
       </div>
     );
   }
@@ -1121,7 +1115,7 @@ function StudentDetailPageContent() {
 
   return (
     <>
-      <div className="mx-auto max-w-7xl">
+      <div className="-mt-1.5 w-full">
         <BackButton referrer={referrer} />
 
         <StudentDetailHeader
@@ -1245,7 +1239,7 @@ function StudentDetailPageContent() {
         onClose={() => setShowConfirmCheckout(false)}
         onConfirm={handleConfirmCheckout}
         title="Kind abmelden"
-        confirmText={checkingOut ? "Wird abgemeldet..." : "Geht nach Hause"}
+        confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingOut}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
@@ -1261,7 +1255,7 @@ function StudentDetailPageContent() {
         onClose={() => setShowConfirmCheckin(false)}
         onConfirm={handleConfirmCheckin}
         title="Kind anmelden"
-        confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
+        confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
         cancelText="Abbrechen"
         isConfirmLoading={checkingIn}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"
@@ -1358,7 +1352,7 @@ function StudentDetailPageContent() {
             ? "Als krank melden?"
             : "Als entschuldigt markieren?"
         }
-        confirmText={switchLoading ? "Wird gewechselt..." : "Status wechseln"}
+        confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
         cancelText="Abbrechen"
         isConfirmLoading={switchLoading}
         confirmButtonClass="bg-gray-900 hover:bg-gray-700"

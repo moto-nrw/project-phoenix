@@ -33,6 +33,9 @@ import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
 } from "~/lib/care-offering-booking-stats";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -933,7 +936,7 @@ export function CareOfferingsEditor() {
           {!draft && !cloneSource && autoAddRules.length > 0 ? (
             <SectionCard
               title="Mitbuchungs-Regeln"
-              description="Jede Regel wirkt nur in die genannte Richtung. Ändern kannst du sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
+              description="Jede Regel wirkt nur in die genannte Richtung. Ändern können Sie sie beim jeweils mitgebuchten Angebot unter Bearbeiten."
               bodyClassName="mt-2"
             >
               <ul className="mt-2 space-y-1 text-sm text-gray-700">
@@ -1032,15 +1035,17 @@ function CareOfferingToolbar({
             />
           </label>
           {!focusMode ? (
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={onCreate}
               disabled={!selectedPhaseId}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              className="shrink-0 gap-2"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
               Neues Betreuungsangebot
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
@@ -1079,13 +1084,15 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
       role="status"
     >
       <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onRetry}
-        className="border-moto-amber/60 text-moto-amber-strong hover:bg-moto-amber/10 focus-visible:ring-moto-amber inline-flex h-9 shrink-0 items-center justify-center rounded-lg border bg-white px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none"
+        className="shrink-0 bg-white"
       >
         Erneut laden
-      </button>
+      </Button>
     </div>
   );
 }
@@ -1095,47 +1102,38 @@ function CareOfferingCatalogError({
   onRetry,
 }: Readonly<{ message: string; onRetry: () => void }>) {
   return (
-    <section
-      className="moto-content-surface border-moto-red/20 rounded-2xl border px-6 py-10 text-center shadow-sm"
-      role="alert"
-    >
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Betreuungsangebote konnten nicht geladen werden
       </h2>
-      <p className="text-moto-red-strong mx-auto mt-2 max-w-xl text-sm leading-6">
-        {message}
-      </p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-5 inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
+      <Alert type="error" message={message} />
+      <Button type="button" variant="outline" size="md" onClick={onRetry}>
         Betreuungsangebote erneut laden
-      </button>
+      </Button>
     </section>
   );
 }
 
 function NoPhaseState() {
   return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="calendarPeriods" size={28} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Erst eine Anmeldephase anlegen
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Betreuungsangebote gehören immer zu einer Anmeldephase. Lege zuerst den
-        Zeitraum an, danach kannst du die passenden Angebote ergänzen.
-      </p>
-      <Link
-        href="/enrollment-phases"
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <MotoConceptIcon concept="calendarPeriods" size={18} />
-        Anmeldephase anlegen
-      </Link>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="calendarPeriods" size={28} />
+          </span>
+        }
+        title="Erst eine Anmeldephase anlegen"
+        description="Betreuungsangebote gehören immer zu einer Anmeldephase. Legen Sie zuerst den Zeitraum an, danach können Sie die passenden Angebote ergänzen."
+        action={
+          <Link href="/enrollment-phases">
+            <Button type="button" variant="primary" size="md" className="gap-2">
+              <MotoConceptIcon concept="calendarPeriods" size={18} />
+              Anmeldephase anlegen
+            </Button>
+          </Link>
+        }
+      />
     </section>
   );
 }
@@ -1144,25 +1142,28 @@ function EmptyCareOfferingState({
   onCreate,
 }: Readonly<{ onCreate: () => void }>) {
   return (
-    <section className="moto-content-surface rounded-2xl border px-6 py-12 text-center shadow-sm backdrop-blur-md">
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-        <MotoConceptIcon concept="carePlan" size={24} />
-      </div>
-      <h2 className="mt-4 text-base font-semibold text-gray-900">
-        Noch kein Betreuungsangebot angelegt
-      </h2>
-      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-600">
-        Erstelle das erste Angebot, das Eltern auswählen können. Typisch sind
-        Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen.
-      </p>
-      <button
-        type="button"
-        onClick={onCreate}
-        className="mt-5 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-      >
-        <Plus className="h-4 w-4" aria-hidden="true" />
-        Erstes Betreuungsangebot anlegen
-      </button>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
+      <EmptyState
+        icon={
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
+            <MotoConceptIcon concept="carePlan" size={24} />
+          </span>
+        }
+        title="Noch kein Betreuungsangebot angelegt"
+        description="Erstellen Sie das erste Angebot, das Eltern auswählen können. Typisch sind Regelbetreuung, Ferienbetreuung oder ein Angebot mit Mittagessen."
+        action={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={onCreate}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Erstes Betreuungsangebot anlegen
+          </Button>
+        }
+      />
     </section>
   );
 }
@@ -1239,7 +1240,7 @@ function CareOfferingActions({
           },
           { kind: "separator" },
           {
-            label: deleting ? "Löscht..." : "Löschen",
+            label: deleting ? "Löscht…" : "Löschen",
             icon: <Trash2 className="h-4 w-4" aria-hidden />,
             destructive: true,
             disabled: deleting || saving,
@@ -1888,26 +1889,32 @@ function CareOfferingAvailabilityFields({
                   Bedingung {index + 1}
                 </p>
                 <div className="flex gap-1">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     disabled={index === 0}
                     onClick={() => moveCondition(index, -1)}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach oben`}
                   >
                     ↑
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     disabled={index === rule.conditions.length - 1}
                     onClick={() => moveCondition(index, 1)}
-                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    className="bg-white"
                     aria-label={`Bedingung ${index + 1} nach unten`}
                   >
                     ↓
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="compact"
                     onClick={() =>
                       onChange({
                         availability_rule: {
@@ -1918,11 +1925,11 @@ function CareOfferingAvailabilityFields({
                         },
                       })
                     }
-                    className="border-moto-red/30 text-moto-red-strong rounded border bg-white px-2 py-1 text-xs"
+                    className="border-moto-red/30 text-moto-red-strong bg-white"
                     aria-label={`Bedingung ${index + 1} löschen`}
                   >
                     Löschen
-                  </button>
+                  </Button>
                 </div>
               </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -2000,8 +2007,10 @@ function CareOfferingAvailabilityFields({
               </div>
             </div>
           ))}
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="md"
             onClick={() =>
               onChange({
                 availability_rule: {
@@ -2013,11 +2022,11 @@ function CareOfferingAvailabilityFields({
                 },
               })
             }
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700"
+            className="gap-2 bg-white"
           >
             <Plus className="h-4 w-4" />
             Bedingung hinzufügen
-          </button>
+          </Button>
           {error ? (
             <p
               role="alert"
@@ -2161,7 +2170,7 @@ function CareOfferingDisplayFields({
 }
 
 function submitLabel(saving: boolean, editing: boolean): string {
-  if (saving) return "Speichert...";
+  if (saving) return "Speichert…";
   return editing ? "Speichern" : "Erstellen";
 }
 
@@ -2178,21 +2187,23 @@ function CareOfferingFormActions({
 }>) {
   return (
     <div className="flex justify-end gap-2">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onCancel}
         disabled={saving}
-        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
+        variant="primary"
+        size="md"
         disabled={submitDisabled}
-        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
         {submitLabel(saving, editing)}
-      </button>
+      </Button>
     </div>
   );
 }
@@ -2249,8 +2260,8 @@ function CareOfferingForm({
             : "Neues Betreuungsangebot anlegen"}
         </h2>
         <p className="mt-1 max-w-2xl text-sm text-gray-600">
-          Lege fest, was Eltern auswählen können, welche Tage möglich sind und
-          ob Kapazität oder Zusatzleistungen angezeigt werden.
+          Legen Sie fest, was Eltern auswählen können, welche Tage möglich sind
+          und ob Kapazität oder Zusatzleistungen angezeigt werden.
         </p>
       </header>
 
@@ -2508,11 +2519,11 @@ function CloneOfferingForm({
           Duplizieren
         </p>
         <h2 className="mt-1 text-base font-semibold text-gray-900">
-          „{source.name}" in eine Anmeldephase übernehmen
+          „{source.name}“ in eine Anmeldephase übernehmen
         </h2>
         <p className="mt-1 text-sm text-gray-600">
-          Wähle die Zielphase. Danach entsteht dort ein eigenes
-          Betreuungsangebot, das du separat bearbeiten kannst.
+          Wählen Sie die Zielphase. Danach entsteht dort ein eigenes
+          Betreuungsangebot, das Sie separat bearbeiten können.
         </p>
       </header>
 
@@ -2532,21 +2543,23 @@ function CloneOfferingForm({
       </label>
 
       <div className="flex justify-end gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="md"
           onClick={onCancel}
           disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
         >
           Abbrechen
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
+          variant="primary"
+          size="md"
           disabled={saving || !targetPhaseId}
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {saving ? "Dupliziert..." : "Duplizieren"}
-        </button>
+          {saving ? "Dupliziert…" : "Duplizieren"}
+        </Button>
       </div>
     </form>
   );

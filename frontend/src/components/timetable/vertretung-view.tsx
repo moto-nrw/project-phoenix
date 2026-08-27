@@ -55,6 +55,7 @@ import {
   VertretungDayList,
   type VertretungDayListMode,
 } from "~/components/timetable/vertretung-day-list";
+import { VertretungContentSkeleton } from "~/components/timetable/vertretung-skeleton";
 import { VertretungWeekList } from "~/components/timetable/vertretung-week-list";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -592,18 +593,18 @@ function VertretungContent() {
     [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
   );
 
-  // Solange das Settings-Schema lädt, ist noch nicht entscheidbar, ob das
-  // Feature aktiv ist — nichts rendern statt kurz die Seite aufblitzen zu lassen.
-  if (status === "loading" || settingsSchemaLoading) {
-    return null;
-  }
+  // Solange die Session oder das Settings-Schema lädt, ist noch nicht
+  // entscheidbar, ob das Feature aktiv ist und welche Aktionen erlaubt sind.
+  // Wie im Dienstplan rendert die PlanningContextBar (Titel, Navigation)
+  // trotzdem sofort; nur der Inhaltsbereich fällt auf das Skelett zurück.
+  const showSkeleton = status === "loading" || settingsSchemaLoading;
 
-  if (timetableDisabled) {
+  if (!showSkeleton && timetableDisabled) {
     return <VertretungDisabledState />;
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="w-full space-y-4">
       <PlanningContextBar
         title="Vertretung"
         onPrevious={() => goToDay(shiftDayISO(dayISO, -7))}
@@ -726,19 +727,19 @@ function VertretungContent() {
         dienstplanHref={dienstplanHref}
       />
 
-      {weekErrorMessage ? (
+      {showSkeleton ? (
+        <VertretungContentSkeleton />
+      ) : weekErrorMessage ? (
         // Fehlerfläche mit Retry — NIE ein leerer Plan (Verhaltensvertrag).
         <div
           data-testid="vertretung-week-error"
-          className={`${timetableSurface} flex flex-col items-center gap-3 p-8 text-center`}
+          className={`${timetableSurface} space-y-3 p-4 sm:p-6`}
         >
-          <p className="text-sm font-semibold text-gray-900">
-            Vertretung konnte nicht geladen werden
-          </p>
-          <p className="max-w-md text-sm leading-relaxed text-gray-600">
-            Die Termine des Tages konnten nicht abgerufen werden. Bitte erneut
-            versuchen.
-          </p>
+          <Alert
+            type="error"
+            title="Vertretung konnte nicht geladen werden"
+            message="Die Termine des Tages konnten nicht abgerufen werden. Bitte erneut versuchen."
+          />
           <Button type="button" variant="outline" size="md" onClick={retryAll}>
             Erneut versuchen
           </Button>
@@ -865,7 +866,7 @@ function VertretungDisabledState() {
  */
 export function VertretungView() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<VertretungContentSkeleton withBar />}>
       <VertretungContent />
     </Suspense>
   );

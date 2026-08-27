@@ -11,6 +11,8 @@ import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
+import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -78,24 +80,13 @@ export function NoActiveSupervisionAccessView() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Aktuelle Aufsicht" />
 
-      <div className="flex min-h-[60vh] items-center justify-center px-4">
-        <div className="flex max-w-md flex-col items-center gap-6 text-center">
-          <MotoConceptIcon concept="rooms" size={48} />
-          <div className="space-y-2">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-gray-600">
-              Du bist aktuell in keinem Raum als Live-Aktivität registriert.
-            </p>
-            <p className="mt-4 text-sm text-gray-500">
-              Starte eine Aktivität{" "}
-              {nfcEnabled ? "an einem Terminal" : "in der Web-App"}, um
-              Live-Raumdaten einzusehen.
-            </p>
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        icon={<MotoConceptIcon concept="rooms" size={48} />}
+        title="Keine aktive Raum-Aufsicht"
+        description={`Sie sind aktuell in keinem Raum als Live-Aktivität registriert. Starten Sie eine Aktivität ${
+          nfcEnabled ? "an einem Terminal" : "in der Web-App"
+        }, um Live-Raumdaten einzusehen.`}
+      />
     </div>
   );
 }
@@ -122,11 +113,11 @@ export function EmptyRoomsView({
       />
 
       <PageHeaderWithSearch
-        title=""
+        title="Aktuelle Aufsicht"
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Name suchen...",
+          placeholder: "Name suchen…",
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
@@ -137,19 +128,11 @@ export function EmptyRoomsView({
         }}
       />
 
-      <div className="mt-8 flex min-h-[30vh] items-center justify-center">
-        <div className="flex max-w-md flex-col items-center gap-4 text-center">
-          <MotoConceptIcon concept="rooms" size={48} />
-          <div className="space-y-1">
-            <h3 className="text-lg font-medium text-gray-900">
-              Keine aktive Raum-Aufsicht
-            </h3>
-            <p className="text-sm text-gray-500">
-              Du beaufsichtigst aktuell keinen Raum.
-            </p>
-          </div>
-        </div>
-      </div>
+      <EmptyState
+        icon={<MotoConceptIcon concept="rooms" size={48} />}
+        title="Keine aktive Raum-Aufsicht"
+        description="Sie beaufsichtigen aktuell keinen Raum."
+      />
     </div>
   );
 }
@@ -167,11 +150,11 @@ export function ReleaseSupervisionModal({
       onConfirm={onConfirm}
       title="Aufsicht abgeben"
       confirmText="Abgeben"
-      confirmButtonClass="bg-red-600 hover:bg-red-700"
+      confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
       isConfirmLoading={isConfirmLoading}
     >
       <div className="space-y-4">
-        <div className="rounded-lg border border-red-100 bg-red-50/50 p-3">
+        <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-3">
           <div className="flex items-start gap-3">
             <MotoDuotoneIcon
               icon={WarningCircleIcon}
@@ -181,8 +164,8 @@ export function ReleaseSupervisionModal({
             />
             <div className="flex-1">
               <p className="text-sm text-gray-600">
-                Du wirst nicht mehr als Aufsicht angezeigt. Der Schulhof wird
-                dann als &quot;ohne Aufsicht&quot; angezeigt, bis eine andere
+                Sie werden nicht mehr als Aufsicht angezeigt. Der Schulhof wird
+                dann als &bdquo;ohne Aufsicht&ldquo; angezeigt, bis eine andere
                 Lehrkraft die Aufsicht übernimmt.
               </p>
             </div>
@@ -200,24 +183,25 @@ export function SchulhofNotSupervisingView({
   onToggle,
 }: SchulhofNotSupervisingViewProps) {
   return (
-    <div className="flex flex-col items-center gap-4 py-12 text-center">
-      <MotoConceptIcon concept="schoolyard" size={48} />
-      <p className="text-lg font-medium text-gray-900">
-        Schulhof ohne Aufsicht
-      </p>
-      <p className="text-sm text-gray-500">
-        {supervisorCount > 0
+    <EmptyState
+      icon={<MotoConceptIcon concept="schoolyard" size={48} />}
+      title="Schulhof ohne Aufsicht"
+      description={
+        supervisorCount > 0
           ? `Aktuelle Aufsicht: ${supervisorNames.join(", ")}`
-          : "Übernimm die Aufsicht, um Kinder zu sehen."}
-      </p>
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={isToggling}
-        className="mt-2 rounded-full bg-gray-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:opacity-50"
-      >
-        {isToggling ? "Wird übernommen..." : "Beaufsichtigen"}
-      </button>
-    </div>
+          : "Übernehmen Sie die Aufsicht, um Kinder zu sehen."
+      }
+      action={
+        <Button
+          type="button"
+          variant="primary"
+          size="md"
+          onClick={onToggle}
+          disabled={isToggling}
+        >
+          {isToggling ? "Wird übernommen…" : "Beaufsichtigen"}
+        </Button>
+      }
+    />
   );
 }

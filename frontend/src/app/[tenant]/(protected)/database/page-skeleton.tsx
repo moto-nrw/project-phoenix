@@ -8,7 +8,7 @@ function DatabaseCardSkeleton() {
   // description, footer link.
   return (
     <div className="moto-content-surface w-full overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         <div className="mb-4 flex items-start justify-between">
           <Skeleton className="h-12 w-12 rounded-2xl" />
           <Skeleton className="h-6 w-16 rounded-full" />
@@ -30,7 +30,7 @@ export function DatabaseIndexSkeleton() {
       aria-busy="true"
       aria-label="Datenverwaltung wird geladen"
       data-testid="database-index-skeleton"
-      className="w-full"
+      className="-mt-1.5 w-full"
     >
       <PageHeaderSkeleton search={false} />
       <div className="min-h-[60vh]">

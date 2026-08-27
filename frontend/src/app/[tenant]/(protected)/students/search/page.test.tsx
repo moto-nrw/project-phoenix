@@ -1715,7 +1715,7 @@ describe("StudentSearchPage", () => {
         // The transformed error message for 403
         expect(
           screen.getAllByText(
-            /Du hast keine Berechtigung, Kinderdaten anzuzeigen/,
+            /Sie haben keine Berechtigung, Kinderdaten anzuzeigen/,
           ).length,
         ).toBeGreaterThan(0);
         // P3 FIX: The error heading should now be "Keine Berechtigung" (not "Fehler")

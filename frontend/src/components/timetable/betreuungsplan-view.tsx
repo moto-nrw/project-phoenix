@@ -1273,7 +1273,7 @@ function TimetablesContent() {
     !periodsLoading && periods !== undefined && calendarPeriods.length === 0;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="w-full space-y-4">
       <PlanningContextBar
         title="Betreuungsplan"
         onPrevious={view === "series" ? undefined : handlePrev}

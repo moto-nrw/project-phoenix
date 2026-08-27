@@ -6,6 +6,7 @@ import {
   resourceGridMinWidth,
 } from "~/components/ui/resource-grid";
 import { Skeleton } from "~/components/ui/skeleton";
+import { PlanningContextBarSkeleton } from "~/components/timetable/betreuungsplan-skeleton";
 
 // Das Skelett rastert wie das echte Wochenraster (Issue #2026). Die Maße —
 // Spaltenbreiten und Zellen-Mindesthöhe — kommen aus RESOURCE_GRID_METRICS und
@@ -98,6 +99,21 @@ export function DienstplanGridSkeleton() {
       data-testid="dienstplan-grid-skeleton"
     >
       <GridSkeletonBody />
+    </div>
+  );
+}
+
+// Ganzseitiges Skelett für die Suspense-Grenze der Seite: dort existiert auch
+// die PlanningContextBar noch nicht, also steht sie hier als Platzhalter über
+// dem Raster.
+export function DienstplanPageSkeleton() {
+  return (
+    <div className="w-full space-y-4" data-testid="dienstplan-page-skeleton">
+      <PlanningContextBarSkeleton
+        ariaLabel="Dienstplan-Kopfzeile wird geladen"
+        testId="dienstplan-header-skeleton"
+      />
+      <DienstplanGridSkeleton />
     </div>
   );
 }

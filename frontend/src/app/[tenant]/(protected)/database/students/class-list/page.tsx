@@ -2,8 +2,8 @@
 
 // Klassenlisten-Verwaltung (#2382): der vollständige Klassenverband aus
 // Admin-Sicht. Reguläre Kinder erscheinen read-only ("In moto angelegt",
-// gepflegt werden sie in der Kinder-Datenbank); Klassenlisteneinträge —
-// Kinder OHNE OGS-Datensatz, nur Vorname/Nachname/Klasse — werden hier
+// gepflegt werden sie in der Kinder-Datenbank); Klassenlisteneinträge, also
+// Kinder OHNE OGS-Datensatz mit nur Vorname, Nachname und Klasse, werden hier
 // angelegt, verschoben, gelöscht und bei Dubletten bewusst einem regulären
 // Kind zugeordnet. Nur so sieht die Pflegekraft pro Klasse, welche Kinder
 // schon erfasst sind und welche noch fehlen.
@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Upload } from "lucide-react";
+import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { Button } from "~/components/ui/button";
@@ -23,6 +24,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -34,7 +36,6 @@ import {
   type ClassListEntry,
 } from "~/lib/class-list-entries-api";
 import { hasPermission } from "~/lib/auth-utils";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -70,7 +71,7 @@ async function fetchClassSuggestions(): Promise<string[]> {
 }
 
 // Minimal projection of a regular student for the roster view: this page
-// answers "wer ist schon in moto?", nicht mehr — alles Weitere gehört in die
+// answers "wer ist schon in moto?", nicht mehr; alles Weitere gehört in die
 // Kinder-Datenbank.
 interface RosterStudent {
   id: string;
@@ -171,7 +172,7 @@ export default function ClassListEntriesPage() {
   // Mirror the backend route gates (api/classlistentries): create needs
   // users:create (der Sammelimport ebenso), edit users:update, delete und
   // Zuordnen users:delete. Ohne das Recht gibt es keinen Einstieg in den
-  // Dialog — der Backend-403 bleibt Defense-in-Depth, keine UX.
+  // Dialog; der Backend-403 bleibt Defense-in-Depth, keine UX.
   const canCreate = hasPermission(session, "users:create");
   const canUpdate = hasPermission(session, "users:update");
   const canDelete = hasPermission(session, "users:delete");
@@ -207,7 +208,7 @@ export default function ClassListEntriesPage() {
   const [modalError, setModalError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   // Das Zuordnungs-Ziel: bei genau einem Kandidaten vorbelegt, bei mehreren
-  // gleichnamigen Kindern MUSS die Person bewusst wählen — sonst könnte der
+  // gleichnamigen Kindern MUSS die Person bewusst wählen, sonst könnte der
   // Eintrag dem falschen Kind zugeschlagen und dabei gelöscht werden.
   const [assignTarget, setAssignTarget] = useState<string | null>(null);
 
@@ -466,47 +467,36 @@ export default function ClassListEntriesPage() {
     <div className="w-full space-y-4">
       <BackButton referrer="/database/students" />
 
-      <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p
-              className="text-xs font-semibold tracking-wide uppercase"
-              style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-            >
-              Klassenlisteneinträge
-            </p>
-            <h2 className="mt-1 text-base font-semibold text-gray-900">
-              Der vollständige Klassenverband
-            </h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-              Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder
-              und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung,
-              Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über{" "}
-              <span className="font-medium">Eintrag anlegen</span> oder den{" "}
-              <span className="font-medium">Sammelimport</span> ergänzt.
-            </p>
-          </div>
-          {canCreate && (
+      <SectionCard
+        kicker="Klassenlisteneinträge"
+        title="Der vollständige Klassenverband"
+        bodyClassName="mt-3"
+        actions={
+          canCreate ? (
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 href="/database/students/class-list/import"
-                className="flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
                 <Upload className="h-4 w-4" aria-hidden="true" />
                 Sammelimport
               </Link>
-              <Button
-                type="button"
-                variant="primary"
-                size="md"
-                className="h-9"
+              <DatabaseCreateAction
+                label="Eintrag"
+                ariaLabel="Klassenlisteneintrag anlegen"
                 onClick={openCreate}
-              >
-                Eintrag anlegen
-              </Button>
+              />
             </div>
-          )}
-        </div>
+          ) : undefined
+        }
+      >
+        <p className="max-w-2xl text-sm leading-6 text-gray-600">
+          Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder und
+          Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung,
+          Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über{" "}
+          <span className="font-medium">Eintrag anlegen</span> oder den{" "}
+          <span className="font-medium">Sammelimport</span> ergänzt.
+        </p>
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:max-w-2xl sm:grid-cols-5">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
@@ -630,7 +620,7 @@ export default function ClassListEntriesPage() {
             }
           />
         </div>
-      </section>
+      </SectionCard>
 
       <Modal
         isOpen={modal?.kind === "create" || modal?.kind === "edit"}
@@ -775,7 +765,7 @@ export default function ClassListEntriesPage() {
                 {modal.entry.schoolClass})
               </span>{" "}
               ist inzwischen als reguläres Kind angelegt. Beim Zuordnen wird der
-              Klassenlisteneintrag entfernt — das Kind steht dann nur noch über
+              Klassenlisteneintrag entfernt, das Kind steht dann nur noch über
               seinen regulären Datensatz auf der Klassenliste.
             </p>
             {modal.entry.matchingStudentIds.length > 1 ? (

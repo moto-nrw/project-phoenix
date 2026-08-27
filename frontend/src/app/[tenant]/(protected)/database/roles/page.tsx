@@ -1,12 +1,12 @@
 "use client";
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { TriangleAlert } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
@@ -24,7 +24,6 @@ import { DatabaseFormModal } from "~/components/ui/database/database-form-modal"
 import { RolePermissionManagementModal } from "@/components/auth/role-permission-management-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
@@ -47,7 +46,6 @@ function RolesPageContent() {
   // require authenticated backend authorization and explicit confirmation.
   const selectedId = searchParams.get("role");
   const [searchTerm, setSearchTerm] = useState("");
-  const isMobile = useIsMobile();
 
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -319,7 +317,7 @@ function RolesPageContent() {
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title={isMobile ? "Rollen" : ""}
+          title="Rollen"
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -334,7 +332,7 @@ function RolesPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Rollen suchen...",
+            placeholder: "Rollen suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -352,31 +350,22 @@ function RolesPageContent() {
       </div>
 
       {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="mb-6">
+          <Alert type="error" message={error} />
         </div>
       )}
 
       {unclassifiedCount > 0 && (
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <TriangleAlert
-              className="text-moto-amber-strong mt-0.5 h-5 w-5 flex-shrink-0"
-              aria-hidden
-            />
-            <div>
-              <p className="text-sm font-medium text-amber-800">
-                {unclassifiedCount === 1
-                  ? "1 Rolle hat keine Systemrollen-Zuordnung"
-                  : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`}
-              </p>
-              <p className="mt-1 text-sm text-amber-700">
-                Ankündigungen werden möglicherweise nicht korrekt zugestellt.
-                Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine
-                Systemrolle aus.
-              </p>
-            </div>
-          </div>
+        <div className="mb-6">
+          <Alert
+            type="warning"
+            title={
+              unclassifiedCount === 1
+                ? "1 Rolle hat keine Systemrollen-Zuordnung"
+                : `${unclassifiedCount} Rollen haben keine Systemrollen-Zuordnung`
+            }
+            message="Ankündigungen werden möglicherweise nicht korrekt zugestellt. Bitte bearbeiten Sie die betroffenen Rollen und wählen Sie eine Systemrolle aus."
+          />
         </div>
       )}
 
@@ -430,7 +419,7 @@ function RolesPageContent() {
           title="Rolle löschen?"
           confirmText="Löschen"
           cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
+          confirmButtonClass="bg-moto-red hover:bg-moto-red-hover"
         >
           <p className="text-sm text-gray-700">
             Möchten Sie die Rolle{" "}

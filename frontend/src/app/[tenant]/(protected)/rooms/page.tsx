@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -137,18 +138,6 @@ function RoomsPageContent() {
   );
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // Mirror local filter state into the URL so the current history entry
   // always reflects the user's view. Without this, typing a filter while
@@ -510,9 +499,10 @@ function RoomsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - Title only on mobile */}
+      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
+          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
       <PageHeaderWithSearch
-        title={isMobile ? "Räume" : ""}
+        title="Räume"
         badge={
           showSkeleton
             ? undefined
@@ -525,7 +515,7 @@ function RoomsPageContent() {
         search={{
           value: searchTerm,
           onChange: setSearchTerm,
-          placeholder: "Raum suchen...",
+          placeholder: "Raum suchen…",
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
@@ -538,19 +528,19 @@ function RoomsPageContent() {
       />
 
       {error && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {error}
+        <div className="mb-4">
+          <Alert type="error" message={error} />
         </div>
       )}
 
       {exportError && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {exportError}
+        <div className="mb-4">
+          <Alert type="error" message={exportError} />
         </div>
       )}
 
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
-          breakpoints and per-card shape (rounded-3xl, min-h-[180px],
+          breakpoints and per-card shape (rounded-2xl, min-h-[180px],
           header row + meta line + status pill, middle content rows,
           footer hint) so the grid area doesn't visibly resize when real
           data arrives. Review feedback (#1323): a generic spinner
@@ -701,7 +691,7 @@ function RoomsPageContent() {
                           )}
                         </div>
 
-                        <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
+                        <p className="md:group-hover:text-moto-blue mt-2 text-xs text-gray-400 transition-colors duration-150">
                           Tippen für mehr Infos
                         </p>
 
