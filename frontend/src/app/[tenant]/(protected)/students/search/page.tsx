@@ -661,13 +661,13 @@ function dailyDepartureLabelForStudent(student: Student): string {
   const legacyLabel = student.departure_label?.trim();
   if (legacyLabel) return legacyLabel;
   const modes = student.departure_modes ?? [];
-  if (modes.length === 0) return "-";
+  if (modes.length === 0) return "–";
   return modes.map((mode) => DAILY_DEPARTURE_MODE_LABELS[mode]).join(", ");
 }
 
 function dailyDepartureGroupLabelForStudent(student: Student): string {
   const label = dailyDepartureLabelForStudent(student);
-  return label === "-" ? "Keine Abholregelung" : label;
+  return label === "–" ? "Keine Abholregelung" : label;
 }
 
 function arrivalLabelForStudent(student: Student): string {

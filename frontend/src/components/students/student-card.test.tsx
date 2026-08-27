@@ -510,7 +510,7 @@ describe("PickupTimeRow", () => {
   it("renders the dash fallback when no pickup time exists", () => {
     render(<PickupTimeRow isException={false} now={now} />);
 
-    expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
   });
 
   it("suppresses overdue urgency once an actual pickup time is recorded", () => {
@@ -625,7 +625,7 @@ describe("ArrivalTimeRow", () => {
   it("falls back to a dash when no arrival info exists", () => {
     render(<ArrivalTimeRow isException={false} isAbsent={false} now={now} />);
 
-    expect(screen.getByText("Ankunftszeit: —")).toBeInTheDocument();
+    expect(screen.getByText("Ankunftszeit: –")).toBeInTheDocument();
   });
 });
 

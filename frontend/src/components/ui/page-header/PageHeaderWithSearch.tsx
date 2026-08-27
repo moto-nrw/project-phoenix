@@ -639,6 +639,11 @@ function DesktopSearchSection({
                   />
                 )}
             <div className="ml-auto flex flex-shrink-0 items-center gap-2">
+              {/* Der Zähler steht neben der Aktion; eine eigene Zeile nur für
+                  eine Zahl war zu über 90 Prozent leer. */}
+              {badge ? (
+                <InlineStatusBadge badge={badge} variant="desktop" />
+              ) : null}
               {primaryAction}
               {kebabJoinsPrimaryRow ? (
                 <OverflowMenu items={overflowMenu} />
@@ -671,7 +676,8 @@ function DesktopSearchSection({
               hasTitle={hasTitle}
               actionButton={actionButton}
               statusIndicator={statusIndicator}
-              badge={badge}
+              // Der Zähler steht schon in Zeile 1 neben der Primäraktion.
+              badge={undefined}
             />
 
             {hasOverflowMenu && !kebabJoinsPrimaryRow ? (

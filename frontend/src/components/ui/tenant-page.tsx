@@ -235,7 +235,10 @@ export function TenantPage({
             // eine Seite gerade greift.
             <div
               className={cn(
-                "flex shrink-0 flex-wrap items-center gap-2",
+                // Unter sm eine eigene Zeile über die volle Breite: sonst
+                // hängen zwei Aktionen untereinander am rechten Rand und die
+                // Kopfkarte wächst um eine halbleere Zeile.
+                "flex w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto",
                 CONTROL_HEIGHT,
               )}
             >

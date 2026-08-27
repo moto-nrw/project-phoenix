@@ -24,6 +24,7 @@ import { useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
@@ -147,14 +148,11 @@ export function SchoolOverviewSection() {
       : undefined;
 
   return (
-    <section className="mb-6" aria-labelledby="einrichtungs-uebersicht-heading">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2
-          id="einrichtungs-uebersicht-heading"
-          className="text-base font-bold text-gray-800"
-        >
-          Einrichtungs-Übersicht
-        </h2>
+    // Überschrift und Zeitraum stehen IN der Karte, wie in jedem anderen
+    // Abschnitt; vorher schwebten sie über der Fläche.
+    <SectionCard
+      title="Einrichtungs-Übersicht"
+      actions={
         <SegmentedControl
           ariaLabel="Zeitraum"
           value={period}
@@ -164,8 +162,8 @@ export function SchoolOverviewSection() {
             { value: "month", label: "Monat" },
           ]}
         />
-      </div>
-
+      }
+    >
       {error && (
         <div className="mb-3 space-y-2">
           <Alert
@@ -192,7 +190,7 @@ export function SchoolOverviewSection() {
       {!summary && error ? null : isLoading && !summary ? (
         <Skeleton className="h-44 rounded-2xl sm:h-36" />
       ) : (
-        <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-gray-200">
           {/* gap-px auf grauem Grund: Haarlinien zwischen den Kacheln, die
               auch nach einem Umbruch sauber durchlaufen. */}
           <div className="grid grid-cols-2 gap-px bg-gray-200 sm:grid-cols-3 xl:grid-cols-6">
@@ -276,6 +274,6 @@ export function SchoolOverviewSection() {
           )}
         </div>
       )}
-    </section>
+    </SectionCard>
   );
 }

@@ -72,8 +72,8 @@ Gerenderte Reihenfolge, fest, nicht verhandelbar:
      Mit `containsControls`, wenn die Kachel eigene Bedienelemente trägt.
    - `StatCard` — jede Kennzahl, mit `icon`, `href` und `loading`.
    - `TenantPageHeaderSkeleton` / `CardSkeleton` — Ladezustände.
-   Kein `rounded-3xl`, kein `rounded-xl` als Karte, keine handgerollte
-   Kartenfläche und keine zweite Kennzahl-Kachel.
+     Kein `rounded-3xl`, kein `rounded-xl` als Karte, keine handgerollte
+     Kartenfläche und keine zweite Kennzahl-Kachel.
 9. **Farben** nur über Kit-Komponenten oder `LOCATION_COLORS` /
    `moto-*`-Klassen. Keine generischen Tailwind-Hues für Marken-Semantik.
 10. **Texte**: Sie-Form, echte Umlaute, keine Gender-Doppelpunkte, `…` statt

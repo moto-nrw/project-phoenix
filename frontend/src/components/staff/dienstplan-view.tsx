@@ -349,12 +349,13 @@ function DienstplanContent() {
           />
         )}
         {allShifts.length === 0 && (
-          // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
-          // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
-          // Raster, keine Alert-Box.
-          <p className="text-sm text-gray-500">
-            In dieser Woche sind keine Schichten geplant.
-          </p>
+          // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in der
+          // Woche. Als Hinweis aus dem Kit, nicht als freier Satz über dem
+          // Raster — Meldungen sind im Portal überall Alerts.
+          <Alert
+            type="info"
+            message="In dieser Woche sind keine Schichten geplant."
+          />
         )}
         <DienstplanResourceGrid
           staff={sortedStaff}

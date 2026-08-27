@@ -31,7 +31,9 @@ export function TimetableAddMenu({
   useClickOutside(containerRef, closeMenu, open);
 
   return (
-    <div className="relative w-full sm:w-auto" ref={containerRef}>
+    // Die Aktionen der Kopfkarte stehen unter sm in einer gemeinsamen Zeile;
+    // ein Knopf, der sich die volle Breite nimmt, drängt die anderen heraus.
+    <div className="relative flex-1 sm:flex-none" ref={containerRef}>
       <Button
         type="button"
         variant="primary"
@@ -40,7 +42,7 @@ export function TimetableAddMenu({
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="w-full gap-1.5 sm:w-auto"
+        className="w-full gap-1.5"
       >
         <Plus className="h-4 w-4" aria-hidden />
         Neu

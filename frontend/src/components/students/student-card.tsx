@@ -384,7 +384,7 @@ export function AbsenceIcon() {
  * and student search pages. Normalizes the three rendering branches:
  *   1. Has planned or actual time → show status-aware time row
  *   2. Exception without time → show exception reason
- *   3. Neither → show "Abholzeit: —" fallback
+ *   3. Neither → show "Abholzeit: –" fallback
  */
 function ArrivalTimeIcon() {
   return <LogIn className="h-3.5 w-3.5 text-gray-400" />;
@@ -452,7 +452,7 @@ function TimeStatusRow({
   if (!status.displayTime) {
     const fallbackIcon =
       kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
-    return <StudentInfoRow icon={fallbackIcon}>{label}: —</StudentInfoRow>;
+    return <StudentInfoRow icon={fallbackIcon}>{label}: –</StudentInfoRow>;
   }
 
   const icon = isException ? (
@@ -580,7 +580,7 @@ export function StudentPendingExcusedRow({
  * Shared arrival time display row, mirror of PickupTimeRow:
  *   1. isAbsent → "Kommt heute nicht" (with reason if provided)
  *   2. Has arrivalTime → show time with urgency/exception icon
- *   3. Neither → show "Ankunftszeit: —" fallback
+ *   3. Neither → show "Ankunftszeit: –" fallback
  */
 export function ArrivalTimeRow({
   arrivalTime,

@@ -501,18 +501,14 @@ export default function StatisticsPage() {
         </div>
       }
     >
-      {/* Inhaltskarte ohne eigenen Kopf: Titel, Zeitraum, Filter und Exporte
-          trägt die Kopfkarte darüber, die Reiter stehen darüber. */}
-      <SectionCard>
-        <div className="space-y-4">
-          {exportError && (
-            <div>
-              <Alert type="error" message={exportError} />
-            </div>
-          )}
+      {exportError && <Alert type="error" message={exportError} />}
 
-          {data && (
-            <>
+      {data && (
+        <>
+          {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter
+              ist ihre eigene. Karten stapeln sich nicht ineinander. */}
+          <SectionCard>
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
                 <StatCard
                   variant="tile"
@@ -559,90 +555,87 @@ export default function StatisticsPage() {
                 {data.excluded_days.closing_days} Schließtage,{" "}
                 {data.excluded_days.holiday_periods} Ferientage
               </p>
+            </div>
+          </SectionCard>
 
-              {/* Eigene Karte für den sichtbaren Unterabschnitt: der Hinweis ist
-                ihre description, die Exporte stehen in ihrer Titelzeile. */}
-              <SectionCard
-                title={sectionHeading.title}
-                description={sectionHeading.hint}
-                headingLevel={3}
-                className="shadow-none"
-                actions={
-                  view === "rooms" && !roomDataAllBeforeWindow ? (
-                    <div className="flex flex-wrap gap-2">
-                      {exportButtons("rooms")}
-                    </div>
-                  ) : undefined
+          {/* Der sichtbare Unterabschnitt mit seiner Tabelle. */}
+          <SectionCard
+            title={sectionHeading.title}
+            description={sectionHeading.hint}
+            actions={
+              view === "rooms" && !roomDataAllBeforeWindow ? (
+                <div className="flex flex-wrap gap-2">
+                  {exportButtons("rooms")}
+                </div>
+              ) : undefined
+            }
+          >
+            {view === "groups" && (
+              <DataTable
+                columns={groupColumns}
+                rows={data.groups}
+                getRowKey={(row) => row.group_id}
+                defaultSortKey="name"
+                emptyState={
+                  <EmptyState
+                    title="Keine Kinder im Zeitraum"
+                    description="Für die gewählten Gruppen gibt es keine Kinder."
+                  />
                 }
-              >
-                {view === "groups" && (
+              />
+            )}
+
+            {view === "students" && (
+              <DataTable
+                columns={studentColumns}
+                rows={data.students}
+                getRowKey={(row) => row.student_id}
+                defaultSortKey="name"
+                pageSize={25}
+                paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                emptyState={
+                  <EmptyState
+                    title="Keine Kinder im Zeitraum"
+                    description="Für die gewählten Gruppen gibt es keine Kinder."
+                  />
+                }
+              />
+            )}
+
+            {view === "rooms" &&
+              (roomDataAllBeforeWindow ? (
+                <EmptyState
+                  title="Keine Raumdaten für diesen Zeitraum"
+                  description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
+                />
+              ) : (
+                <>
+                  {roomDataStartsInsideWindow && (
+                    <div className="mb-3">
+                      <Alert
+                        type="info"
+                        message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
+                      />
+                    </div>
+                  )}
                   <DataTable
-                    columns={groupColumns}
-                    rows={data.groups}
-                    getRowKey={(row) => row.group_id}
-                    defaultSortKey="name"
+                    columns={roomColumns}
+                    rows={data.rooms}
+                    getRowKey={(row) => row.room_id}
+                    defaultSortKey="days"
+                    defaultSortDirection="desc"
                     emptyState={
                       <EmptyState
-                        title="Keine Kinder im Zeitraum"
-                        description="Für die gewählten Gruppen gibt es keine Kinder."
+                        title="Keine Räume"
+                        description="Es sind keine Räume angelegt."
                       />
                     }
                   />
-                )}
-
-                {view === "students" && (
-                  <DataTable
-                    columns={studentColumns}
-                    rows={data.students}
-                    getRowKey={(row) => row.student_id}
-                    defaultSortKey="name"
-                    pageSize={25}
-                    paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
-                    emptyState={
-                      <EmptyState
-                        title="Keine Kinder im Zeitraum"
-                        description="Für die gewählten Gruppen gibt es keine Kinder."
-                      />
-                    }
-                  />
-                )}
-
-                {view === "rooms" &&
-                  (roomDataAllBeforeWindow ? (
-                    <EmptyState
-                      title="Keine Raumdaten für diesen Zeitraum"
-                      description={`Wählen Sie einen Zeitraum ab ${formatDate(data.room_data_from)}.`}
-                    />
-                  ) : (
-                    <>
-                      {roomDataStartsInsideWindow && (
-                        <div className="mb-3">
-                          <Alert
-                            type="info"
-                            message={`Raumdaten können erst ab ${formatDate(data.room_data_from)} vorhanden sein. Je Kind kann die Frist kürzer sein.`}
-                          />
-                        </div>
-                      )}
-                      <DataTable
-                        columns={roomColumns}
-                        rows={data.rooms}
-                        getRowKey={(row) => row.room_id}
-                        defaultSortKey="days"
-                        defaultSortDirection="desc"
-                        emptyState={
-                          <EmptyState
-                            title="Keine Räume"
-                            description="Es sind keine Räume angelegt."
-                          />
-                        }
-                      />
-                    </>
-                  ))}
-              </SectionCard>
-            </>
-          )}
-        </div>
-      </SectionCard>
+                </>
+              ))}
+          </SectionCard>
+        </>
+      )}
     </TenantPage>
   );
 }

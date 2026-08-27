@@ -1140,7 +1140,7 @@ describe("StudentSearchPage", () => {
       // neutral dash (four-row card skeleton), never as a red "overdue"
       // time for a child who isn't coming today.
       expect(screen.queryByText(/Ankunftszeit:/)).not.toBeInTheDocument();
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
       expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
@@ -1173,7 +1173,7 @@ describe("StudentSearchPage", () => {
           screen.getByText("Kommt heute nicht (krank gemeldet)"),
         ).toBeInTheDocument();
       });
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
       expect(screen.queryByText(/Gehzeit: \d/)).not.toBeInTheDocument();
     });
 
@@ -2777,7 +2777,7 @@ describe("StudentSearchPage", () => {
       });
 
       // Should show the "Gehzeit:" em-dash fallback for students with full access but no pickup time
-      expect(screen.getByText("Gehzeit: —")).toBeInTheDocument();
+      expect(screen.getByText("Gehzeit: –")).toBeInTheDocument();
     });
   });
 
@@ -2980,7 +2980,7 @@ describe("StudentSearchPage", () => {
           "Heimweg: Geht alleine nach Hause, Bus, Wird abgeholt, Mit anderem Kind",
         ),
       ).toBeInTheDocument();
-      expect(screen.getByText("Heimweg: -")).toBeInTheDocument();
+      expect(screen.getByText("Heimweg: –")).toBeInTheDocument();
       expect(
         screen.getByRole("button", { name: /Restricted Child/ }),
       ).not.toHaveTextContent("Heimweg:");
