@@ -9,7 +9,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
@@ -399,10 +399,14 @@ export default function StaffImportPage() {
 
   if (status === "loading") {
     return (
-      <div className="-mt-1.5 w-full space-y-6">
+      <div className="w-full space-y-6">
         <BackButton referrer="/database/personal" />
 
-        <PageHeaderWithSearch title="Personal importieren" />
+        <PageIntro
+          kicker="Datenverwaltung"
+          title="Personal importieren"
+          description="Mitarbeitende aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+        />
 
         <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
           <FormSkeleton fields={2} />
@@ -412,10 +416,14 @@ export default function StaffImportPage() {
   }
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
+    <div className="w-full space-y-6">
       <BackButton referrer="/database/personal" />
 
-      <PageHeaderWithSearch title="Personal importieren" />
+      <PageIntro
+        kicker="Datenverwaltung"
+        title="Personal importieren"
+        description="Mitarbeitende aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+      />
 
       {/* Info Section */}
       <SectionCard kicker="Personal" title="Import-Anleitung" icon={Info}>

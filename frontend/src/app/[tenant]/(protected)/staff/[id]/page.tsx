@@ -21,7 +21,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { PageIntro } from "~/components/ui/page-intro";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -34,7 +34,6 @@ import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton, StaffHeaderSkeleton } from "./page-skeleton";
@@ -64,59 +63,53 @@ function StaffHeader({
   ].filter(Boolean);
 
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 flex-1 items-start gap-4">
-        {/* Kit avatar: initials fallback in the brand-green tint. The name is
-            rendered right next to it, so the avatar is decorative. */}
+    // Der Entitätskopf IST die Kopfkarte der Seite: Avatar als leading,
+    // „Mitarbeiter“ als Kicker, Name als Titel, Status und Kebab als Aktionen.
+    <PageIntro
+      className="mb-6"
+      leading={
+        // Kit avatar: initials fallback in the brand-green tint. The name is
+        // rendered right next to it, so the avatar is decorative.
         <Avatar
           name={`${staff.firstName} ${staff.lastName}`}
           size="lg"
           decorative
         />
-
-        {/* Eyebrow + Name + Subheading + meta */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
-              size={18}
+      }
+      kicker="Mitarbeiter"
+      title={`${staff.firstName} ${staff.lastName}`}
+      description={
+        subtitleParts.length > 0 || metaParts.length > 0 ? (
+          <>
+            {subtitleParts.length > 0 && (
+              <span className="block truncate font-medium text-gray-600">
+                {subtitleParts.join(" · ")}
+              </span>
+            )}
+            {metaParts.length > 0 && (
+              <span className="mt-1 block truncate text-xs text-gray-400">
+                {metaParts.join(" · ")}
+              </span>
+            )}
+          </>
+        ) : undefined
+      }
+      actions={
+        <>
+          {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
+              Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
+              (LOCATION_COLORS über getStaffLocationStatus), deshalb
+              StatusDotBadge und nicht StatusBadge. */}
+          {!staff.isLimitedProfile ? (
+            <StatusDotBadge
+              label={locationStatus.label}
+              color={locationStatus.customBgColor}
             />
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Mitarbeiter-Profil
-            </p>
-          </div>
-          <h1 className="mt-1 truncate text-2xl font-bold text-gray-900 sm:text-3xl">
-            {staff.firstName} {staff.lastName}
-          </h1>
-          {subtitleParts.length > 0 && (
-            <p className="mt-2 truncate text-base font-medium text-gray-600">
-              {subtitleParts.join(" · ")}
-            </p>
-          )}
-          {metaParts.length > 0 && (
-            <p className="mt-1 truncate text-xs text-gray-400">
-              {metaParts.join(" · ")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Right side: Status badge + Kebab menu trigger */}
-      <div className="flex flex-shrink-0 items-center gap-2">
-        {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
-            Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
-            (LOCATION_COLORS über getStaffLocationStatus), deshalb
-            StatusDotBadge und nicht StatusBadge. */}
-        {!staff.isLimitedProfile ? (
-          <StatusDotBadge
-            label={locationStatus.label}
-            color={locationStatus.customBgColor}
-          />
-        ) : null}
-        {menu}
-      </div>
-    </div>
+          ) : null}
+          {menu}
+        </>
+      }
+    />
   );
 }
 
@@ -234,7 +227,7 @@ export default function StaffDetailContent() {
 
   if (!isLoading && (error || !staff)) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         <BackButton referrer="/staff" />
         <EmptyState
           title="Mitarbeiter konnte nicht geladen werden."
@@ -257,7 +250,7 @@ export default function StaffDetailContent() {
   ];
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       {/* Mobiler Rückweg zur Mitarbeiterliste; auf dem Desktop übernimmt das
           die Breadcrumb der Kopfzeile (BackButton ist md:hidden). */}
       <BackButton referrer="/staff" />

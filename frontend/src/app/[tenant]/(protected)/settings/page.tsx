@@ -9,7 +9,7 @@ import {
   FormSkeleton,
 } from "~/components/ui/page-skeletons";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SettingsLayout } from "~/components/shared/settings-layout";
 import { useSettingsTabs } from "~/components/settings/settings-page";
 
@@ -37,8 +37,8 @@ function SettingsContent() {
 
   if (!settingsTabs) {
     return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Einstellungen" />
+      <div className="w-full">
+        <PageIntro kicker="Verwaltung" title="Einstellungen" className="mb-6" />
         <EmptyState
           title="Keine Einstellungen verfügbar."
           description="Für Ihre Rolle ist hier nichts freigegeben. Wenden Sie sich an Ihre Leitung, wenn Sie Einstellungen ändern müssen."

@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -91,9 +92,29 @@ function MessagesInboxContent() {
   const showSkeleton = isLoading && !threads;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
+          Primäraktion in EINER Karte, auf allen Breakpoints. */}
+      <PageIntro
+        kicker="Eltern"
         title="Nachrichten"
+        description="Unterhaltungen mit den Eltern, ein Verlauf je Kind."
+        actions={
+          messagingEnabled ? (
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setComposeOpen(true)}
+            >
+              Neue Nachricht
+            </Button>
+          ) : undefined
+        }
+      />
+
+      <PageHeaderWithSearch
+        title=""
         badge={
           showSkeleton
             ? undefined
@@ -109,24 +130,12 @@ function MessagesInboxContent() {
           onChange: setSearchTerm,
           placeholder: "Person oder Kind suchen…",
         }}
-        actionButton={
-          messagingEnabled ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => setComposeOpen(true)}
-            >
-              Neue Nachricht
-            </Button>
-          ) : undefined
-        }
       />
 
       {/* A single dropdown that filters on selection: same control and
           behaviour on desktop and mobile, no separate apply step. Die
-          Primäraktion sitzt in der Kopfzeile, nicht in dieser Zeile. */}
-      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+          Primäraktion sitzt in der Kopfkarte, nicht in dieser Zeile. */}
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <CustomSelect
           ariaLabel="Nachrichten filtern"
           value={onlyUnread ? "unread" : "all"}
@@ -144,7 +153,7 @@ function MessagesInboxContent() {
       ) : (
         <>
           {error && (
-            <div className="mb-4">
+            <div>
               <Alert
                 type="error"
                 message="Nachrichten konnten nicht geladen werden."

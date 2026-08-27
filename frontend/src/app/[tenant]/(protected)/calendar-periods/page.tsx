@@ -20,7 +20,7 @@ export default function CalendarPeriodsPage() {
   const { isReady } = useRequireAdmin();
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
+    <div className="w-full space-y-6">
       {/* Titel, Erklärtext und Seitenaktionen trägt die Kopfkarte des
           Editors (PageIntro), Schließtage die eigene Abschnittskarte. */}
       {isReady ? (

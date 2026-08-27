@@ -314,11 +314,24 @@ function ActivitiesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Aktivitäten",
+        description:
+          "Aktivitäten der Schule anlegen und ihre Kategorien pflegen.",
+        actions: (
+          <DatabaseCreateAction
+            label="Aktivität"
+            ariaLabel="Aktivität erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Aktivitäten"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -341,13 +354,6 @@ function ActivitiesPageContent() {
             setSearchTerm("");
             setCategoryFilter("all");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Aktivität"
-              ariaLabel="Aktivität erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
       </div>
 

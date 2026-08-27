@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { PageIntro } from "~/components/ui/page-intro";
 import { RolloverForm } from "~/components/enrollment/rollover-form";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -41,18 +42,26 @@ export default function MobileRolloverPage({ params }: PageProps) {
 
   if (!isReady || (phase === null && error === null)) {
     return (
-      <SkeletonRegion label="Anschlussphase wird geladen">
-        <DetailSkeleton sections={2} fieldsPerSection={3} />
-      </SkeletonRegion>
+      <div className="w-full space-y-4">
+        <PageIntro kicker="Anschlussphase" title="Anschlussphase erstellen" />
+        <SkeletonRegion label="Anschlussphase wird geladen">
+          <DetailSkeleton sections={2} fieldsPerSection={3} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
   return (
     <div className="w-full space-y-4">
       <BackButton referrer="/enrollment-phases" />
+      {/* Ohne geladene Phase trägt die Seite trotzdem eine Kopfkarte. */}
+      {phase ? null : (
+        <PageIntro kicker="Anschlussphase" title="Anschlussphase erstellen" />
+      )}
       {error ? <Alert type="error" message={error} /> : null}
       {phase ? (
         <RolloverForm
+          variant="page"
           source={phase}
           onCancel={() => (globalThis.location.href = tenantPath("/dashboard"))}
           onSuccess={() => {

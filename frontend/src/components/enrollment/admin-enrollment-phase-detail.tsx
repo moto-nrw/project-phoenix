@@ -52,6 +52,8 @@ import {
   DataTableStatusBadge,
 } from "~/components/ui/data-table";
 import { SkeletonRegion } from "~/components/ui/page-skeletons";
+import { PageIntro } from "~/components/ui/page-intro";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Skeleton } from "~/components/ui/skeleton";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
@@ -557,46 +559,36 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
 
   if (!phase) {
     return (
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Anmeldephase
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-          Anmeldephase nicht gefunden
-        </h1>
-        <ButtonLink
-          href={overviewHref}
-          variant="outline"
-          size="md"
-          className="mt-4 inline-flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Zurück zum Überblick
-        </ButtonLink>
-      </section>
+      <PageIntro
+        kicker="Anmeldephase"
+        title="Anmeldephase nicht gefunden"
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        actions={
+          <ButtonLink
+            href={overviewHref}
+            variant="outline"
+            size="md"
+            className="inline-flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            Zurück zum Überblick
+          </ButtonLink>
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-4">
-      <section className="moto-content-surface rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="flex flex-col gap-5 p-4 sm:p-6 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-              Anmeldephase
-            </p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-                {phase.name}
-              </h1>
-              <DataTableStatusBadge active={phase.is_active} />
-            </div>
-            <p className="mt-2 text-sm text-gray-600">
-              {formatDate(phase.service_start_date)} bis{" "}
-              {formatDate(phase.service_end_date)}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
+      {/* Entitätskopf der Seite: eine Kopfkarte mit Aktionen und Kennzahlen. */}
+      <PageIntro
+        kicker="Anmeldephase"
+        title={phase.name}
+        description={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)}`}
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <DataTableStatusBadge active={phase.is_active} />
             <ExportMenuButton
               label="Anmeldungen exportieren"
               menuAriaLabel="Exportformat auswählen"
@@ -630,9 +622,9 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
               Phase bearbeiten
             </ButtonLink>
           </div>
-        </div>
-
-        <div className="grid gap-3 px-4 pb-4 sm:px-6 sm:pb-6 md:grid-cols-4">
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-4">
           <EnrollmentStatTile
             icon={Inbox}
             label="Eingänge"
@@ -650,7 +642,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             value={stats.rejected}
           />
         </div>
-      </section>
+      </PageIntro>
 
       <section className="moto-content-surface relative z-20 overflow-visible rounded-2xl border p-4 shadow-sm backdrop-blur-md">
         <div className="flex flex-col gap-4">

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { BellSimpleRingingIcon, CaretRightIcon } from "@phosphor-icons/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
@@ -72,13 +73,20 @@ function DocumentDirectory({
 
   return (
     // Eingebettet steht das Verzeichnis schon im Seitenrahmen; nur der eigene
-    // Zweig trägt den Kopf und damit den -mt-1.5-Ausgleich.
-    <div className={embedded ? "w-full" : "-mt-1.5 w-full"}>
+    // Zweig trägt die Kopfkarte.
+    <div className="w-full">
+      {!embedded && (
+        <PageIntro
+          kicker="Personal"
+          title="Mitarbeiter"
+          description="Die für Sie freigegebenen Personalunterlagen."
+          className="mb-6"
+        />
+      )}
       {!embedded && (
         <PageHeaderWithSearch
-          // Titel wie in der Navigation und in der Breadcrumb; welcher
-          // Ausschnitt gezeigt wird, sagt die Sektionsüberschrift darunter.
-          title="Mitarbeiter"
+          // Der Titel steht in der Kopfkarte darüber.
+          title=""
           search={{
             value: search,
             onChange: setSearch,
@@ -598,11 +606,19 @@ function StaffPageContent() {
   }
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel und Erklärtext in
+          einer Karte, auf allen Breakpoints sichtbar. */}
+      <PageIntro
+        kicker="Personal"
         title="Mitarbeiter"
+        description="Personen, Zeitkonten und Unterlagen Ihrer Einrichtung an einem Ort."
+        className="mb-6"
+      />
+      {/* title="" versteckt die frühere Titelzeile; die Karte oben trägt den
+          Titel jetzt auf allen Breakpoints. */}
+      <PageHeaderWithSearch
+        title=""
         badge={
           showSkeleton
             ? undefined

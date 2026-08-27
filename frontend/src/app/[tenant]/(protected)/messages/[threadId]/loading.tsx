@@ -10,7 +10,7 @@ import { ThreadSkeleton, ThreadComposerSkeleton } from "./page-skeleton";
  */
 export default function MessageThreadLoading() {
   return (
-    <div className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden">
+    <div className="flex min-h-[20rem] w-full flex-col overflow-hidden">
       <BackButton referrer="/messages" />
 
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">

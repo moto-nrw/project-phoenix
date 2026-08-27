@@ -392,6 +392,7 @@ function DienstplanContent() {
     <div className="w-full space-y-4">
       <PlanningContextBar
         title="Dienstplan"
+        kicker="Planung"
         onPrevious={() => goToWeek(-7)}
         onNext={() => goToWeek(7)}
         previousLabel="Vorherige Woche"

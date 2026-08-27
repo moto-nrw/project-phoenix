@@ -15,18 +15,22 @@ import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleto
  */
 export function StaffHeaderSkeleton() {
   return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 flex-1 items-start gap-4">
-        <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
-        <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-3 w-32 rounded" />
-          <Skeleton className="h-7 w-48 rounded" />
-          <Skeleton className="h-4 w-40 rounded" />
+    // Spiegelt die Kopfkarte (PageIntro) des geladenen Zustands: dieselbe
+    // moto-content-surface-Karte mit Avatar, Kicker, Titel und Aktionen.
+    <div className="moto-content-surface mb-6 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <Skeleton className="h-16 w-16 flex-shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3 w-32 rounded" />
+            <Skeleton className="h-7 w-48 rounded" />
+            <Skeleton className="h-4 w-40 rounded" />
+          </div>
         </div>
-      </div>
-      <div className="flex flex-shrink-0 items-center gap-2">
-        <Skeleton className="h-7 w-24 rounded-full" />
-        <Skeleton className="h-10 w-10 rounded-full" />
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <Skeleton className="h-7 w-24 rounded-full" />
+          <Skeleton className="h-10 w-10 rounded-full" />
+        </div>
       </div>
     </div>
   );
@@ -45,7 +49,7 @@ export function StaffDetailSkeleton() {
       aria-busy="true"
       aria-label="Mitarbeiter wird geladen"
       data-testid="staff-detail-skeleton"
-      className="-mt-1.5 w-full"
+      className="w-full"
     >
       <BackButton referrer="/staff" />
 

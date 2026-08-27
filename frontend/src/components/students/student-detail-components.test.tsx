@@ -188,11 +188,14 @@ describe("StudentDetailHeader", () => {
     );
 
     // Der Kopf steht bündig wie auf der Mitarbeiter-Detailseite: kein
-    // Einzug, auf keiner Breite.
-    const identitySlot = container.querySelector(".flex.flex-1.items-center");
+    // Einzug, auf keiner Breite. Seit der Kopfkarte (PageIntro) trägt die
+    // SectionCard die Identitätszeile und den Aktionsbereich.
+    const identitySlot = container.querySelector(".flex.min-w-0.gap-3");
+    expect(identitySlot).not.toBeNull();
     expect(identitySlot?.className).not.toMatch(/\bml-/);
 
-    const badgeSlot = container.querySelector(".flex-shrink-0.pb-3");
+    const badgeSlot = container.querySelector(".shrink-0.flex-wrap");
+    expect(badgeSlot).not.toBeNull();
     expect(badgeSlot?.className).not.toMatch(/\bmr-/);
   });
 

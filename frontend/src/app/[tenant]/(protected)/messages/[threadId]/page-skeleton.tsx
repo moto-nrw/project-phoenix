@@ -21,7 +21,8 @@ export function ThreadSkeleton() {
     >
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-2">
-          <Skeleton className="h-6 w-40 rounded" />
+          <Skeleton className="h-3 w-24 rounded-full" />
+          <Skeleton className="h-7 w-40 rounded" />
           <Skeleton className="h-4 w-56 rounded" />
         </div>
         <Skeleton className="h-9 w-36 flex-shrink-0 rounded-lg" />

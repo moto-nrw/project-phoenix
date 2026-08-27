@@ -195,7 +195,7 @@ function TeamThreadContent() {
 
   if (!showSkeleton && !thread) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full space-y-4">
         <BackButton referrer="/team-chat" />
         {chatDisabled ? (
           <EmptyState
@@ -220,7 +220,7 @@ function TeamThreadContent() {
   return (
     <div
       ref={containerRef}
-      className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
+      className="flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
       <BackButton referrer="/team-chat" />
 
@@ -229,11 +229,18 @@ function TeamThreadContent() {
           <TeamThreadSkeleton />
         ) : (
           <>
+            {/* Kopf der Unterhaltung in PageIntro-Optik (Kicker, Titel,
+                Unterzeile). Eine zweite Kopfkarte darüber ist hier nicht
+                möglich: die Chat-Karte ist an das Sichtfenster gekoppelt und
+                trägt den Kopf selbst. */}
             <div className="mb-4 min-w-0">
-              <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                Team-Chat
+              </p>
+              <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
                 {thread?.counterpart_name}
               </h1>
-              <p className="mt-0.5 text-sm text-gray-500">
+              <p className="mt-1 text-sm leading-6 text-gray-600">
                 Nur Sie beide sehen diese Nachrichten.
               </p>
             </div>

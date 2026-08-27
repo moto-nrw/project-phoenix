@@ -15,7 +15,7 @@ import { compressAvatar } from "~/lib/image-utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
 import { NotificationPreferencesSection } from "~/components/settings/notification-preferences-section";
@@ -25,11 +25,16 @@ import { getInitials } from "~/lib/format-utils";
 
 const logger = createLogger({ component: "ProfilePage" });
 
-// Der Kopf gehört nicht in den Skeleton: PageHeaderWithSearch rendert sofort,
+// Der Kopf gehört nicht in den Skeleton: die Kopfkarte rendert sofort,
 // nur die Datenregion darunter skeletonisiert.
 const profileLoadingFallback = (
-  <div className="-mt-1.5 w-full">
-    <PageHeaderWithSearch title="Profil" />
+  <div className="w-full">
+    <PageIntro
+      kicker="Konto"
+      title="Profil"
+      description="Ihre persönlichen Daten, Anmeldung und Benachrichtigungen."
+      className="mb-6"
+    />
     <SkeletonRegion label="Profil wird geladen…">
       <DetailSkeleton sections={3} fieldsPerSection={3} />
     </SkeletonRegion>
@@ -137,8 +142,13 @@ function ProfileContent() {
   }
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Profil" />
+    <div className="w-full">
+      <PageIntro
+        kicker="Konto"
+        title="Profil"
+        description="Ihre persönlichen Daten, Anmeldung und Benachrichtigungen."
+        className="mb-6"
+      />
 
       <div className="max-w-3xl space-y-6 pb-8">
         {/* Avatar Section */}

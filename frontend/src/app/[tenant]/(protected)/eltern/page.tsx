@@ -144,7 +144,21 @@ function ElternCardsSkeleton() {
 
 export default function ElternPage() {
   return (
-    <Suspense fallback={<ElternCardsSkeleton />}>
+    <Suspense
+      fallback={
+        // Auch im Suspense-Fallback steht die Kopfkarte schon da: Titel und
+        // Kicker sind statisch, nur das Kachelraster skelettiert.
+        <div className="w-full">
+          <PageIntro
+            kicker="Elternbereich"
+            title="Eltern"
+            description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
+            className="mb-6"
+          />
+          <ElternCardsSkeleton />
+        </div>
+      }
+    >
       <ElternContent />
     </Suspense>
   );

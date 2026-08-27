@@ -56,6 +56,7 @@ import { createClassListEntry } from "~/lib/class-list-entries-api";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 import { MasterDetailSkeleton } from "~/components/database/master-detail-skeleton";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 
 const logger = createLogger({ component: "DatabaseStudentsPage" });
 
@@ -566,11 +567,96 @@ function StudentsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Kinder",
+        description:
+          "Stammdaten, Gruppen und Betreuungszeiten aller Kinder der OGS.",
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <>
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STUDENTS_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+                <Link
+                  href="/database/students/import"
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Importieren
+                </Link>
+              </>
+            ) : null}
+            {canUpdateStudents ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                aria-pressed={selectionMode}
+                className={cn(
+                  "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
+                  selectionMode && "ring-gray-900 hover:ring-gray-900",
+                )}
+                onClick={() => {
+                  if (selectionMode) {
+                    finishSelection();
+                    return;
+                  }
+                  handleSelect(null);
+                  setSelectionMode(true);
+                }}
+              >
+                <ListChecks className="h-4 w-4" aria-hidden />
+                Auswählen
+              </Button>
+            ) : null}
+            <DatabaseCreateAction
+              label="Kinder"
+              ariaLabel="Kind erstellen"
+              onClick={() => setShowCreateModal(true)}
+            />
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={[
+                ...(hasPermission(session, "grade_transitions:read")
+                  ? [
+                      {
+                        label: "Jahrgangswechsel",
+                        icon: <GraduationCap className="h-4 w-4" aria-hidden />,
+                        href: "/database/grade-transitions",
+                        // Navigation only: OverflowMenu verlangt onClick auch bei href.
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+                {
+                  label: "Klassenliste",
+                  icon: <ClipboardList className="h-4 w-4" aria-hidden />,
+                  href: "/database/students/class-list",
+                  onClick: () => undefined,
+                },
+                ...(canDeleteStudents
+                  ? [
+                      {
+                        label: "Beendete Betreuungen",
+                        icon: <UserMinus className="h-4 w-4" aria-hidden />,
+                        href: "/database/students/ended-care",
+                        onClick: () => undefined,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
+          </div>
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Kinder"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -593,85 +679,6 @@ function StudentsPageContent() {
             setSearchTerm("");
             setGroupFilter("all");
           }}
-          // Sekundäre Navigationsziele (Jahrgangswechsel, Klassenliste) liegen
-          // im Kebab-Menü: als vierter und fünfter Textbutton sprengten sie
-          // die Aktionszeile auf üblichen Laptop-Breiten (#2382 Review).
-          overflowMenu={[
-            ...(hasPermission(session, "grade_transitions:read")
-              ? [
-                  {
-                    label: "Jahrgangswechsel",
-                    icon: <GraduationCap className="h-4 w-4" aria-hidden />,
-                    href: "/database/grade-transitions",
-                    // Navigation only: OverflowMenu verlangt onClick auch bei href.
-                    onClick: () => undefined,
-                  },
-                ]
-              : []),
-            {
-              label: "Klassenliste",
-              icon: <ClipboardList className="h-4 w-4" aria-hidden />,
-              href: "/database/students/class-list",
-              onClick: () => undefined,
-            },
-            ...(canDeleteStudents
-              ? [
-                  {
-                    label: "Beendete Betreuungen",
-                    icon: <UserMinus className="h-4 w-4" aria-hidden />,
-                    href: "/database/students/ended-care",
-                    onClick: () => undefined,
-                  },
-                ]
-              : []),
-          ]}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <>
-                  <DatabaseGroupingToggle
-                    value={grouping}
-                    options={STUDENTS_GROUPING_OPTIONS}
-                    onChange={handleGroupingChange}
-                  />
-                  <Link
-                    href="/database/students/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
-                </>
-              ) : null}
-              {canUpdateStudents ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  aria-pressed={selectionMode}
-                  className={cn(
-                    "h-10 gap-2 px-3 shadow-none hover:ring-gray-300",
-                    selectionMode && "ring-gray-900 hover:ring-gray-900",
-                  )}
-                  onClick={() => {
-                    if (selectionMode) {
-                      finishSelection();
-                      return;
-                    }
-                    handleSelect(null);
-                    setSelectionMode(true);
-                  }}
-                >
-                  <ListChecks className="h-4 w-4" aria-hidden />
-                  Auswählen
-                </Button>
-              ) : null}
-              <DatabaseCreateAction
-                label="Kinder"
-                ariaLabel="Kind erstellen"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
       </div>
 

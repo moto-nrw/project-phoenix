@@ -22,10 +22,8 @@ import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Button } from "~/components/ui/button";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { PageIntro } from "~/components/ui/page-intro";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SectionCard } from "~/components/ui/section-card";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
@@ -897,7 +895,7 @@ function StudentRoomHistoryPageContent() {
 
   if (errorCode !== null && errorCode !== "feature_disabled") {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
@@ -910,7 +908,7 @@ function StudentRoomHistoryPageContent() {
     : "";
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       {/* Back button (mobile only). tab=historie returns to the originating tab
           on the detail page (this sub-page lives under Historie, issue #1501);
           from= still drives the detail page's own back button to the list. */}
@@ -919,12 +917,13 @@ function StudentRoomHistoryPageContent() {
       />
 
       {student && (
-        <ConceptPageHeader
+        // Der Entitätskopf ist die Kopfkarte der Seite.
+        <PageIntro
           className="mb-6"
+          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+          kicker="Anwesenheitsprotokoll"
           title={displayName}
-          eyebrow="Anwesenheitsprotokoll"
-          concept="changeHistory"
-          subtitle={
+          description={
             <>
               {student.school_class}
               {student.group_name ? ` · ${student.group_name}` : null}

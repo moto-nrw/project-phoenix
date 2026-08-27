@@ -648,6 +648,7 @@ export default function StaffCalendarPage() {
   const personalCalendar = (
     <PersonalCalendar
       title="Mein Kalender"
+      kicker="Termine"
       subtitle="Ihre Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.

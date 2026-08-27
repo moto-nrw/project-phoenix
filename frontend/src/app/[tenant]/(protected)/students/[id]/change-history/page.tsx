@@ -5,10 +5,9 @@ import { useParams, useSearchParams } from "next/navigation";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { PageIntro } from "~/components/ui/page-intro";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -170,7 +169,7 @@ function StudentChangeHistoryPageContent() {
 
   if (errorCode !== null) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
         <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
@@ -183,18 +182,19 @@ function StudentChangeHistoryPageContent() {
     : "";
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       <BackButton
         referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
       />
 
       {student && (
-        <ConceptPageHeader
+        // Der Entitätskopf ist die Kopfkarte der Seite.
+        <PageIntro
           className="mb-6"
+          leading={<ConceptIconTile concept="changeHistory" variant="page" />}
+          kicker="Änderungsverlauf"
           title={displayName}
-          eyebrow="Änderungsverlauf"
-          concept="changeHistory"
-          subtitle={
+          description={
             <>
               {student.school_class}
               {student.group_name ? ` · ${student.group_name}` : null}

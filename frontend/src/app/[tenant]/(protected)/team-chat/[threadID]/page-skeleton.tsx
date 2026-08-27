@@ -12,7 +12,9 @@ export function TeamThreadSkeleton() {
       data-testid="team-thread-skeleton"
     >
       <div className="mb-4 space-y-2">
-        <Skeleton className="h-5 w-40 rounded-full" />
+        <Skeleton className="h-3 w-24 rounded-full" />
+        <Skeleton className="h-7 w-40 rounded-full" />
+        <Skeleton className="h-4 w-56 rounded-full" />
       </div>
       <div className="space-y-3">
         <Skeleton className="h-14 w-3/5 rounded-2xl" />

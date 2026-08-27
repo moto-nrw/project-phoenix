@@ -21,6 +21,8 @@ import {
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { PageIntro } from "~/components/ui/page-intro";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import { ENROLLMENT_CHANGE_REQUEST_STATUS_META } from "~/components/enrollment/enrollment-change-request-status";
 import { Alert } from "~/components/ui/alert";
@@ -144,28 +146,30 @@ export function AdminEnrollmentChangeRequestDetail({
 
   return (
     <div className="space-y-5">
+      {/* Entitätskopf der Seite: eine Kopfkarte, kein zweiter Kopf im Inhalt. */}
+      <PageIntro
+        kicker="Anmeldungen"
+        title={
+          data.origin === "admin" ? "OGS-Korrektur" : "Änderungsanfrage prüfen"
+        }
+        description={
+          data.origin === "admin"
+            ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
+            : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."
+        }
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <ChangeRequestStatusBadge status={data.status} />
+            <span className="text-xs text-gray-500">
+              {formatChatDateTime(data.created_at)}
+            </span>
+          </div>
+        }
+      />
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-5 p-5 sm:p-6">
-            <header>
-              <div className="flex flex-wrap items-center gap-2">
-                <ChangeRequestStatusBadge status={data.status} />
-                <span className="text-xs text-gray-500">
-                  {formatChatDateTime(data.created_at)}
-                </span>
-              </div>
-              <h1 className="mt-3 text-2xl font-bold text-gray-900 sm:text-3xl">
-                {data.origin === "admin"
-                  ? "OGS-Korrektur"
-                  : "Änderungsanfrage prüfen"}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                {data.origin === "admin"
-                  ? "Diese Korrektur wurde direkt an der Anmeldung vorgenommen, in die verknüpften Stammdaten übernommen und protokolliert."
-                  : "Vergleichen Sie die eingereichten Änderungen mit dem gespeicherten Stand. Rückfragen pausieren die Prüfung, Freigabe übernimmt die Änderung in die Anmeldung."}
-              </p>
-            </header>
-
             {error ? <Alert type="error" message={error} /> : null}
             {info ? <Alert type="success" message={info} /> : null}
 

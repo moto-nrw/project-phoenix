@@ -48,6 +48,31 @@ vi.mock("~/components/ui/alert", () => ({
   ),
 }));
 
+// Mock OverflowMenu: das Aktionsmenü der Seite sitzt seit der Kopfkarte in
+// PageIntro und nicht mehr in PageHeaderWithSearch; die Testids bleiben.
+vi.mock("~/components/ui/page-header/OverflowMenu", () => ({
+  OverflowMenu: ({
+    items,
+  }: {
+    items: Array<{ label?: string; onClick?: () => void }>;
+  }) => (
+    <div data-testid="overflow-menu">
+      {items
+        .filter((item) => item.label)
+        .map((item) => (
+          <button
+            type="button"
+            key={item.label}
+            data-testid={`overflow-${item.label}`}
+            onClick={item.onClick}
+          >
+            {item.label}
+          </button>
+        ))}
+    </div>
+  ),
+}));
+
 // Mock PageHeaderWithSearch
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   PageHeaderWithSearch: ({

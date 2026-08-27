@@ -16,6 +16,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
@@ -263,7 +264,15 @@ function MeinRaumPageContent() {
     plannedNow.length === 0
   ) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
+        {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
+            einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
+        <PageIntro
+          kicker="Betrieb"
+          title="Aktuelle Aufsicht"
+          description="Die Kinder in der Aufsicht, die Sie gerade führen."
+          className="mb-6"
+        />
         {reopenBanner}
         {spontaneousStartBanner}
         <EmptyRoomsView
@@ -338,7 +347,15 @@ function MeinRaumPageContent() {
   };
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
+      {/* Kopfkarte wie auf jeder Tenant-Seite; die Reiterleiste der
+          einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
+      <PageIntro
+        kicker="Betrieb"
+        title="Aktuelle Aufsicht"
+        description="Die Kinder in der Aufsicht, die Sie gerade führen."
+        className="mb-6"
+      />
       {reopenBanner}
       <ConfirmationModal
         isOpen={actions.showCompleteConfirmation}

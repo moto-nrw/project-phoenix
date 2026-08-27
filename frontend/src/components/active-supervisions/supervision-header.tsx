@@ -76,9 +76,9 @@ export function SupervisionHeader({
 
   return (
     <PageHeaderWithSearch
-      // Konstanter Seitentitel wie im Navigationseintrag; die einzelnen
-      // Aufsichten stehen mobil in der Reiterleiste darunter.
-      title="Aktuelle Aufsicht"
+      // Der Seitentitel steht in der Kopfkarte (PageIntro) darüber; hier
+      // bleiben nur Reiterleiste, Suche, Filter und die Schulhof-Aktion.
+      title=""
       badge={{
         icon: (
           <svg

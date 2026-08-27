@@ -254,7 +254,7 @@ function MessageThreadContent() {
 
   if (!showSkeleton && !thread) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full space-y-4">
         <BackButton referrer="/messages" />
         <Alert
           type="error"
@@ -271,7 +271,7 @@ function MessageThreadContent() {
   return (
     <div
       ref={containerRef}
-      className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
+      className="flex min-h-[20rem] w-full flex-col overflow-hidden"
     >
       <BackButton referrer="/messages" />
 
@@ -281,11 +281,18 @@ function MessageThreadContent() {
         ) : (
           <>
             <div className="mb-4 flex items-start justify-between gap-3">
+              {/* Kopf der Unterhaltung in PageIntro-Optik (Kicker, Titel,
+                  Unterzeile). Eine zweite Kopfkarte darüber ist hier nicht
+                  möglich: die Chat-Karte ist an das Sichtfenster gekoppelt
+                  (useChatViewportLock) und trägt den Kopf selbst. */}
               <div className="min-w-0">
-                <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+                  Nachrichten
+                </p>
+                <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
                   {thread?.guardian_name}
                 </h1>
-                <p className="mt-0.5 truncate text-sm text-gray-500">
+                <p className="mt-1 truncate text-sm leading-6 text-gray-600">
                   {thread ? relationshipLabel(thread.relationship_type) : ""}{" "}
                   von {thread?.student_name}
                 </p>

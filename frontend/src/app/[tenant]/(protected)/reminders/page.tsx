@@ -41,6 +41,7 @@ export default function RemindersPage() {
     <div className="w-full">
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
       <PageIntro
+        kicker="Übersicht"
         title="Erinnerungen"
         description="Abholungen und Aktivitäten, die anstehen oder überfällig sind."
         className="mb-6"

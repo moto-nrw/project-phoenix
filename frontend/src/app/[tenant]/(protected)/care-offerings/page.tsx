@@ -1,7 +1,7 @@
 "use client";
 
 import { CareOfferingsEditor } from "~/components/enrollment/care-offerings-editor";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
@@ -10,10 +10,15 @@ export default function CareOfferingsPage() {
   const { isReady } = useRequireAdmin();
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      {/* Der Kopf steht bewusst außerhalb des lg-Gates: mobil ist er der
-          einzige Seitentitel, den die Kopfzeile nicht liefert. */}
-      <PageHeaderWithSearch title="Betreuungsangebote" />
+    <div className="w-full space-y-6">
+      {/* Die Kopfkarte steht bewusst außerhalb des lg-Gates: der Editor
+          darunter ist auf den Desktop beschränkt, der Seitenkopf gilt auf
+          allen Breakpoints. */}
+      <PageIntro
+        kicker="Anmeldungen"
+        title="Betreuungsangebote"
+        description="Die Angebote, aus denen Eltern in der Anmeldung wählen können."
+      />
       <DesktopOnlyNotice />
       {isReady ? (
         <div className="hidden lg:block">

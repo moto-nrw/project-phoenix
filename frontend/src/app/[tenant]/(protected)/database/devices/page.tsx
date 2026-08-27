@@ -338,11 +338,33 @@ function DevicesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Geräte",
+        description:
+          "Tablets und NFC-Geräte der Schule registrieren und verwalten.",
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={DEVICES_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
+            ) : null}
+            <DatabaseCreateAction
+              label="Gerät"
+              ariaLabel="Gerät registrieren"
+              onClick={() => setShowCreateModal(true)}
+            />
+          </div>
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Geräte"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -364,22 +386,6 @@ function DevicesPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={DEVICES_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-              ) : null}
-              <DatabaseCreateAction
-                label="Gerät"
-                ariaLabel="Gerät registrieren"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
       </div>
 

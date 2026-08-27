@@ -9,7 +9,7 @@ import {
 import { BackButton } from "~/components/ui/back-button";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { hasPermission } from "~/lib/auth-utils";
 
@@ -30,10 +30,15 @@ export default function GradeTransitionsPage() {
   const canRead = hasPermission(session, "grade_transitions:read");
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       <BackButton referrer="/database" />
 
-      <PageHeaderWithSearch title="Jahrgangswechsel" />
+      <PageIntro
+        kicker="Datenverwaltung"
+        title="Jahrgangswechsel"
+        description="Kinder zum Schuljahreswechsel in die nächste Klasse versetzen und Abgänge festhalten."
+        className="mb-6"
+      />
 
       <DesktopOnlyNotice description="Der Jahrgangswechsel ist für die Arbeit am Computer optimiert. Bitte öffnen Sie diese Seite auf einem Laptop oder Desktop-Rechner." />
 

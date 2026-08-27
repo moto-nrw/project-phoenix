@@ -422,7 +422,12 @@ describe("RoomsPage", () => {
     render(<RoomsPage />);
 
     fireEvent.click(screen.getByTestId("filter-building"));
-    fireEvent.click(screen.getByTestId("overflow-Wer ist wo als PDF"));
+    // Das Exportmenü hängt seit der Kopfkarten-Umstellung an der PageIntro
+    // (echte OverflowMenu), nicht mehr am gemockten Seitenkopf.
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /Wer ist wo als PDF/ }),
+    );
 
     await waitFor(() => {
       expect(mockExportRoomSnapshot).toHaveBeenCalledWith({

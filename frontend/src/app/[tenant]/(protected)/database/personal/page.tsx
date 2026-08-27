@@ -299,11 +299,55 @@ function TeachersPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Personal",
+        description:
+          "Stammdaten, Rollen und Gruppenzuordnungen der Mitarbeitenden pflegen.",
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <>
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STAFF_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+                <Link
+                  href="/database/personal/import"
+                  className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                  Importieren
+                </Link>
+              </>
+            ) : null}
+            {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
+                Begründung, deshalb im Menü statt als weiterer Button. */}
+            <OverflowMenu
+              ariaLabel="Weitere Import-Aktionen"
+              items={[
+                {
+                  label: "Eröffnungssalden importieren",
+                  href: "/database/personal/opening-balances",
+                  onClick: () => undefined,
+                },
+              ]}
+            />
+            {canManageUsers ? (
+              <DatabaseCreateAction
+                label="Personal"
+                ariaLabel="Personal hinzufügen"
+                onClick={() => setShowInviteModal(true)}
+              />
+            ) : null}
+          </div>
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Personal"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -325,44 +369,6 @@ function TeachersPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <>
-                  <DatabaseGroupingToggle
-                    value={grouping}
-                    options={STAFF_GROUPING_OPTIONS}
-                    onChange={handleGroupingChange}
-                  />
-                  <Link
-                    href="/database/personal/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
-                </>
-              ) : null}
-              {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
-                  Begründung, deshalb im Menü statt als weiterer Button. */}
-              <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
-                    onClick: () => undefined,
-                  },
-                ]}
-              />
-              {canManageUsers ? (
-                <DatabaseCreateAction
-                  label="Personal"
-                  ariaLabel="Personal hinzufügen"
-                  onClick={() => setShowInviteModal(true)}
-                />
-              ) : null}
-            </div>
-          }
         />
       </div>
 

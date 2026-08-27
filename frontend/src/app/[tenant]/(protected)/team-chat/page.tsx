@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -109,23 +110,14 @@ function TeamChatInboxContent() {
   const nothingToShow = !threads || threads.length === 0;
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
+          Primäraktion in EINER Karte, auf allen Breakpoints. */}
+      <PageIntro
+        kicker="Kommunikation"
         title="Team-Chat"
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MessagesSquare size={20} />,
-                count: filteredThreads.length,
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Person suchen…",
-        }}
-        actionButton={
+        description="Unterhaltungen mit einzelnen Personen aus dem Team."
+        actions={
           chatEnabled ? (
             <Button
               type="button"
@@ -139,8 +131,25 @@ function TeamChatInboxContent() {
         }
       />
 
+      <PageHeaderWithSearch
+        title=""
+        badge={
+          showSkeleton
+            ? undefined
+            : {
+                icon: <MessagesSquare size={20} />,
+                count: filteredThreads.length,
+              }
+        }
+        search={{
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Person suchen…",
+        }}
+      />
+
       {chatEnabled && (
-        <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <CustomSelect
             ariaLabel="Unterhaltungen filtern"
             value={onlyUnread ? "unread" : "all"}
@@ -168,7 +177,7 @@ function TeamChatInboxContent() {
             // Fehler NEBEN vorhandenen (möglicherweise veralteten) Daten: die
             // Liste bleibt stehen, der Hinweis sagt, dass sie nicht aktuell
             // sein muss.
-            <div className="mb-4">
+            <div>
               <Alert
                 type="error"
                 message="Die Unterhaltungen konnten nicht geladen werden."

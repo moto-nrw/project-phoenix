@@ -15,6 +15,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -498,11 +500,19 @@ function RoomsPageContent() {
   const showSkeleton = status === "loading" || loading;
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. Das
+          Exportmenü zieht mit in die Kopfkarte, damit es auch mobil erreichbar
+          bleibt (ohne Titel rendert PageHeaderWithSearch keinen Kebab). */}
+      <PageIntro
+        kicker="Betrieb"
         title="Räume"
+        description="Wer hält sich gerade wo auf, und welche Räume sind frei."
+        className="mb-6"
+        actions={<OverflowMenu items={overflowItems} />}
+      />
+      <PageHeaderWithSearch
+        title=""
         badge={
           showSkeleton
             ? undefined
@@ -519,7 +529,6 @@ function RoomsPageContent() {
         }}
         filters={filterConfigs}
         activeFilters={activeFilters}
-        overflowMenu={overflowItems}
         onClearAllFilters={() => {
           setSearchTerm("");
           setBuildingFilter("all");

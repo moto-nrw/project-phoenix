@@ -4,7 +4,7 @@ import GuardianApprovalQueue, {
   type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -58,9 +58,16 @@ export default function GuardianApprovalsPage() {
       : { status: "ready", mode: inviteMode };
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Konto-Anfragen" />
-      <div className="mt-4">
+    <div className="w-full space-y-6">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
+          Karte, auf allen Breakpoints. Die Seite hat weder Suche noch Filter,
+          deshalb entfällt PageHeaderWithSearch ganz. */}
+      <PageIntro
+        kicker="Eltern"
+        title="Konto-Anfragen"
+        description="Zugänge von Eltern zum Elternportal prüfen und freigeben."
+      />
+      <div>
         {isReady ? (
           <GuardianApprovalQueue inviteModeState={inviteModeState} />
         ) : (

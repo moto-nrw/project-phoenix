@@ -18,7 +18,7 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Modal } from "~/components/ui/modal";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
@@ -445,14 +445,17 @@ export default function DayLogPage() {
   const selectedDate = parseISODate(dateISO);
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch title="Tagesauswertung" />
+    <div className="w-full">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      <PageIntro
+        kicker="Auswertung"
+        title="Tagesauswertung"
+        description="Wer war an einem Tag anwesend, krank, entschuldigt oder fehlt ohne Meldung."
+        className="mb-6"
+      />
 
       <SectionCard
         title="Anwesenheit pro Gruppe"
-        description="Wer war anwesend, krank, entschuldigt oder fehlt ohne Meldung, für heute."
         action={
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {/* Kit-picker call-site pattern from the datepicker sweep (#2016):

@@ -35,7 +35,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -2076,12 +2076,16 @@ export default function SlotListsPage() {
     selectedOption?.label ??
     "";
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       {/* Reached from Datenverwaltung → Exporte (no sidebar entry of its own). */}
       <BackButton referrer="/database/exports" />
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch title="Tageslisten" />
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      <PageIntro
+        kicker="Planung"
+        title="Tageslisten"
+        description="Listen für einen Tag zusammenstellen, drucken und exportieren."
+        className="mb-6"
+      />
 
       {/* Selection: source + date + data mode */}
       <section

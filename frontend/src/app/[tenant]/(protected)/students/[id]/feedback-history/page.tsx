@@ -10,10 +10,9 @@ import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { BackButton } from "~/components/ui/back-button";
-import {
-  ConceptPageHeader,
-  ConceptSectionHeader,
-} from "~/components/ui/concept-section-header";
+import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { PageIntro } from "~/components/ui/page-intro";
 import { FeedbackHistorySkeleton } from "./page-skeleton";
 import { createLogger } from "~/lib/logger";
 import { fetchStudent } from "~/lib/student-api";
@@ -231,7 +230,7 @@ function StudentFeedbackHistoryPageContent() {
 
   if (error || !student) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
@@ -240,7 +239,7 @@ function StudentFeedbackHistoryPageContent() {
   }
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       {/* tab=historie returns to the originating tab on the detail page
           (this sub-page lives under Historie, issue #1501); from= still drives
           the detail page's own back button to the list. */}
@@ -248,12 +247,13 @@ function StudentFeedbackHistoryPageContent() {
         referrer={`/students/${studentId}?from=${referrer}&tab=historie`}
       />
 
-      <ConceptPageHeader
+      {/* Der Entitätskopf ist die Kopfkarte der Seite. */}
+      <PageIntro
         className="mb-6"
+        leading={<ConceptIconTile concept="feedback" variant="page" />}
+        kicker="Feedbackhistorie"
         title={student.name}
-        eyebrow="Feedbackhistorie"
-        concept="feedback"
-        subtitle={`${student.school_class} · Gruppe: ${student.group_name}`}
+        description={`${student.school_class} · Gruppe: ${student.group_name}`}
       />
 
       {/* Zeitraum ist ein Wert, kein Inhaltsreiter, also SegmentedControl. */}

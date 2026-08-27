@@ -12,15 +12,19 @@ export function RoomHistorySkeleton() {
       aria-busy="true"
       aria-label="Anwesenheitsprotokoll wird geladen"
       data-testid="room-history-skeleton"
-      className="-mt-1.5 w-full"
+      className="w-full"
     >
       <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
 
-      <div className="mb-6">
-        <Skeleton className="h-8 w-48 rounded" />
-        <div className="mt-2 flex items-center gap-2">
-          <Skeleton className="h-4 w-20 rounded" />
-          <Skeleton className="h-4 w-24 rounded" />
+      {/* Spiegelt die Kopfkarte (PageIntro) des geladenen Zustands. */}
+      <div className="moto-content-surface mb-6 rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+        <div className="flex min-w-0 gap-3">
+          <Skeleton className="h-12 w-12 flex-shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3 w-40 rounded" />
+            <Skeleton className="h-7 w-48 rounded" />
+            <Skeleton className="h-4 w-36 rounded" />
+          </div>
         </div>
       </div>
 

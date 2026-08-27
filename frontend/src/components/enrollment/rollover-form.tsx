@@ -22,6 +22,8 @@ import { Alert } from "~/components/ui/alert";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { PageIntro } from "~/components/ui/page-intro";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "RolloverForm" });
 
@@ -78,9 +80,24 @@ interface Props {
   readonly source: Phase;
   readonly onCancel: () => void;
   readonly onSuccess: (result: RolloverResult) => void;
+  /**
+   * "page": das Formular trägt den Seitenkopf, der Kopf wird als `PageIntro`
+   * über der Formularkarte gerendert (eigene Route /rollover).
+   * "embedded" (Standard): das Formular steht unter einem fremden Seitenkopf
+   * (Anmeldephasen-Editor) und behält seinen eigenen Abschnittskopf.
+   */
+  readonly variant?: "page" | "embedded";
 }
 
-export function RolloverForm({ source, onCancel, onSuccess }: Props) {
+const ROLLOVER_DESCRIPTION =
+  "Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten Schritten.";
+
+export function RolloverForm({
+  source,
+  onCancel,
+  onSuccess,
+  variant = "embedded",
+}: Props) {
   const [draft, setDraft] = useState<RolloverInput>(() =>
     prefillFromSource(source),
   );
@@ -182,241 +199,267 @@ export function RolloverForm({ source, onCancel, onSuccess }: Props) {
     }
   };
 
+  const title = `Anschlussphase für „${source.name}“ erstellen`;
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="moto-content-surface space-y-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
-    >
-      <header className="border-b border-gray-100 pb-4">
-        <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-          Anschlussphase
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Anschlussphase für „{source.name}“ erstellen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue
-          Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten
-          Schritten.
-        </p>
-      </header>
-
-      {error ? <Alert type="error" message={error} /> : null}
-
-      {loadingPreview ? (
-        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />} loading>
-          {null}
-        </InfoCard>
-      ) : previewError !== null ? (
-        <Alert type="warning" message={previewError} />
-      ) : preview ? (
-        <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <InfoItem label="Werden übernommen" value={preview.carried_count} />
-            <InfoItem
-              label="Manuell zu prüfen"
-              value={
-                <>
-                  {preview.review_count}
-                  {reviewDetails && (
-                    <span className="mt-1 block text-xs font-normal text-gray-500">
-                      {reviewDetails}
-                    </span>
-                  )}
-                </>
-              }
-            />
-            <InfoItem
-              label="Nicht übernommen"
-              value={
-                <>
-                  {preview.excluded_count}
-                  {excludedDetails && (
-                    <span className="mt-1 block text-xs font-normal text-gray-500">
-                      {excludedDetails}
-                    </span>
-                  )}
-                </>
-              }
-            />
-          </div>
-          <p className="text-xs text-gray-500">
-            Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
-            abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
-          </p>
-        </InfoCard>
-      ) : null}
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <Input
-          id="rollover-name"
-          label="Name der neuen Phase"
-          type="text"
-          controlSize="compact"
-          required
-          value={draft.name}
-          onChange={(e) => update("name", e.target.value)}
-          error={nameError ?? undefined}
+    <div className="space-y-4">
+      {variant === "page" ? (
+        <PageIntro
+          kicker="Anschlussphase"
+          title={title}
+          description={ROLLOVER_DESCRIPTION}
+          leading={<ConceptIconTile concept="enrollments" variant="page" />}
         />
-        <label
-          className="block"
-          htmlFor="rollover-kind"
-          id="rollover-kind-label"
-        >
-          <span className="block text-xs font-semibold text-gray-700">Typ</span>
-          <CustomSelect
-            ariaLabelledBy="rollover-kind-label"
-            id="rollover-kind"
-            value={draft.kind}
-            onChange={(value) => update("kind", value as RolloverInput["kind"])}
-            className="mt-1"
-            options={[
-              { value: "school_year", label: "Schuljahr" },
-              { value: "holiday", label: "Ferienbetreuung" },
-              { value: "custom", label: "Sonstiges" },
-            ]}
+      ) : null}
+      <form
+        onSubmit={handleSubmit}
+        className="moto-content-surface space-y-5 rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-6"
+      >
+        {variant === "embedded" ? (
+          <header className="border-b border-gray-100 pb-4">
+            <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+              Anschlussphase
+            </p>
+            <h2 className="mt-1 text-base font-semibold text-gray-900">
+              {title}
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">{ROLLOVER_DESCRIPTION}</p>
+          </header>
+        ) : null}
+
+        {error ? <Alert type="error" message={error} /> : null}
+
+        {loadingPreview ? (
+          <InfoCard
+            title="Vorschau"
+            icon={<Check className="h-5 w-5" />}
+            loading
+          >
+            {null}
+          </InfoCard>
+        ) : previewError !== null ? (
+          <Alert type="warning" message={previewError} />
+        ) : preview ? (
+          <InfoCard title="Vorschau" icon={<Check className="h-5 w-5" />}>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <InfoItem
+                label="Werden übernommen"
+                value={preview.carried_count}
+              />
+              <InfoItem
+                label="Manuell zu prüfen"
+                value={
+                  <>
+                    {preview.review_count}
+                    {reviewDetails && (
+                      <span className="mt-1 block text-xs font-normal text-gray-500">
+                        {reviewDetails}
+                      </span>
+                    )}
+                  </>
+                }
+              />
+              <InfoItem
+                label="Nicht übernommen"
+                value={
+                  <>
+                    {preview.excluded_count}
+                    {excludedDetails && (
+                      <span className="mt-1 block text-xs font-normal text-gray-500">
+                        {excludedDetails}
+                      </span>
+                    )}
+                  </>
+                }
+              />
+            </div>
+            <p className="text-xs text-gray-500">
+              Nur bestätigte Anmeldungen werden übernommen. Zurückgezogene,
+              abgelehnte oder noch offene Anmeldungen werden nicht fortgeführt.
+            </p>
+          </InfoCard>
+        ) : null}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <Input
+            id="rollover-name"
+            label="Name der neuen Phase"
+            type="text"
+            controlSize="compact"
+            required
+            value={draft.name}
+            onChange={(e) => update("name", e.target.value)}
+            error={nameError ?? undefined}
           />
-        </label>
-      </div>
-
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungszeitraum
-        </legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="block">
-            <label
-              htmlFor="rollover-service-start"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung von
-            </label>
-            <ISODatePicker
-              id="rollover-service-start"
-              controlSize="md"
-              ariaLabel="Betreuung von"
-              value={draft.service_start_date}
-              onChange={(next) => update("service_start_date", next)}
-              className="mt-1"
-              calendarLayout="popover"
-              // The required picker prevents deselection in the calendar; the
-              // submit validation remains the safety net for programmatic edits.
-              hideClearButton
-              required
-            />
-          </div>
-          <div className="block">
-            <label
-              htmlFor="rollover-service-end"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Betreuung bis
-            </label>
-            <ISODatePicker
-              id="rollover-service-end"
-              controlSize="md"
-              ariaLabel="Betreuung bis"
-              min={draft.service_start_date || undefined}
-              value={draft.service_end_date}
-              onChange={(next) => update("service_end_date", next)}
-              className="mt-1"
-              calendarLayout="popover"
-              hideClearButton
-              required
-            />
-          </div>
-        </div>
-      </fieldset>
-
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Elternrückmeldung
-        </legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block" htmlFor="rollover-mode">
+          <label
+            className="block"
+            htmlFor="rollover-kind"
+            id="rollover-kind-label"
+          >
             <span className="block text-xs font-semibold text-gray-700">
-              Modus
+              Typ
             </span>
             <CustomSelect
-              id="rollover-mode"
-              value={draft.rollover_mode}
+              ariaLabelledBy="rollover-kind-label"
+              id="rollover-kind"
+              value={draft.kind}
               onChange={(value) =>
-                update("rollover_mode", value as RolloverMode)
+                update("kind", value as RolloverInput["kind"])
               }
               className="mt-1"
-              ariaLabel="Modus"
               options={[
-                {
-                  value: "opt_out",
-                  label: "Opt-Out: Eltern müssen abmelden",
-                },
-                {
-                  value: "opt_in",
-                  label: "Opt-In: Eltern müssen aktiv bestätigen",
-                },
+                { value: "school_year", label: "Schuljahr" },
+                { value: "holiday", label: "Ferienbetreuung" },
+                { value: "custom", label: "Sonstiges" },
               ]}
             />
-            <p className="mt-1 text-xs text-gray-500">
-              {draft.rollover_mode === "opt_out"
-                ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
-                : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
-            </p>
           </label>
-          <div className="block">
-            <label
-              htmlFor="rollover-deadline"
-              className="block text-xs font-semibold text-gray-700"
-            >
-              Frist für die Eltern-Antwort
-            </label>
-            <DateTimePicker
-              id="rollover-deadline"
-              controlSize="md"
-              dateAriaLabel="Frist für die Eltern-Antwort"
-              timeAriaLabel="Frist Uhrzeit"
-              className="mt-1"
-              value={deadlineLocal}
-              onChange={setDeadlineLocal}
-              // A deadline without an explicit time should run to the end of the
-              // chosen day, not expire at midnight.
-              defaultTime="23:59"
-              hideClearButton
-              required
-            />
-          </div>
         </div>
-      </fieldset>
 
-      <div className="space-y-2">
-        <RolloverCheckbox
-          checked={draft.rollover_bumps_grade ?? true}
-          onChange={(checked) => update("rollover_bumps_grade", checked)}
-          label="Klassenstufe automatisch um 1 erhöhen"
-          hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
-        />
-        <RolloverCheckbox
-          checked={draft.rollover_auto_approve}
-          onChange={(checked) => update("rollover_auto_approve", checked)}
-          label="Vorgemerkte Anmeldungen automatisch genehmigen"
-          hint="Nur für Opt-Out sinnvoll. Nach Ablauf der Frist werden vorgemerkte Anmeldungen direkt bestätigt."
-        />
-      </div>
+        <fieldset className="rounded-xl border border-gray-200 p-4">
+          <legend className="px-1 text-xs font-medium text-gray-700">
+            Betreuungszeitraum
+          </legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="block">
+              <label
+                htmlFor="rollover-service-start"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                Betreuung von
+              </label>
+              <ISODatePicker
+                id="rollover-service-start"
+                controlSize="md"
+                ariaLabel="Betreuung von"
+                value={draft.service_start_date}
+                onChange={(next) => update("service_start_date", next)}
+                className="mt-1"
+                calendarLayout="popover"
+                // The required picker prevents deselection in the calendar; the
+                // submit validation remains the safety net for programmatic edits.
+                hideClearButton
+                required
+              />
+            </div>
+            <div className="block">
+              <label
+                htmlFor="rollover-service-end"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                Betreuung bis
+              </label>
+              <ISODatePicker
+                id="rollover-service-end"
+                controlSize="md"
+                ariaLabel="Betreuung bis"
+                min={draft.service_start_date || undefined}
+                value={draft.service_end_date}
+                onChange={(next) => update("service_end_date", next)}
+                className="mt-1"
+                calendarLayout="popover"
+                hideClearButton
+                required
+              />
+            </div>
+          </div>
+        </fieldset>
 
-      <div className="flex justify-end gap-2 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={onCancel}
-          disabled={submitting}
-        >
-          Abbrechen
-        </Button>
-        <Button type="submit" variant="primary" size="md" disabled={submitting}>
-          {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
-        </Button>
-      </div>
-    </form>
+        <fieldset className="rounded-xl border border-gray-200 p-4">
+          <legend className="px-1 text-xs font-medium text-gray-700">
+            Elternrückmeldung
+          </legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block" htmlFor="rollover-mode">
+              <span className="block text-xs font-semibold text-gray-700">
+                Modus
+              </span>
+              <CustomSelect
+                id="rollover-mode"
+                value={draft.rollover_mode}
+                onChange={(value) =>
+                  update("rollover_mode", value as RolloverMode)
+                }
+                className="mt-1"
+                ariaLabel="Modus"
+                options={[
+                  {
+                    value: "opt_out",
+                    label: "Opt-Out: Eltern müssen abmelden",
+                  },
+                  {
+                    value: "opt_in",
+                    label: "Opt-In: Eltern müssen aktiv bestätigen",
+                  },
+                ]}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                {draft.rollover_mode === "opt_out"
+                  ? "Anmeldungen werden automatisch übernommen. Ohne aktive Abmeldung bis zur Frist landet die Anmeldung in der Prüfung."
+                  : "Eltern müssen aktiv bestätigen. Ohne Bestätigung bis zur Frist wird die Anmeldung zurückgezogen."}
+              </p>
+            </label>
+            <div className="block">
+              <label
+                htmlFor="rollover-deadline"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                Frist für die Eltern-Antwort
+              </label>
+              <DateTimePicker
+                id="rollover-deadline"
+                controlSize="md"
+                dateAriaLabel="Frist für die Eltern-Antwort"
+                timeAriaLabel="Frist Uhrzeit"
+                className="mt-1"
+                value={deadlineLocal}
+                onChange={setDeadlineLocal}
+                // A deadline without an explicit time should run to the end of the
+                // chosen day, not expire at midnight.
+                defaultTime="23:59"
+                hideClearButton
+                required
+              />
+            </div>
+          </div>
+        </fieldset>
+
+        <div className="space-y-2">
+          <RolloverCheckbox
+            checked={draft.rollover_bumps_grade ?? true}
+            onChange={(checked) => update("rollover_bumps_grade", checked)}
+            label="Klassenstufe automatisch um 1 erhöhen"
+            hint="Für jährliche Anmeldephasen aktivieren. Für Halbjahre oder Zeiträume innerhalb eines Schuljahres deaktivieren."
+          />
+          <RolloverCheckbox
+            checked={draft.rollover_auto_approve}
+            onChange={(checked) => update("rollover_auto_approve", checked)}
+            label="Vorgemerkte Anmeldungen automatisch genehmigen"
+            hint="Nur für Opt-Out sinnvoll. Nach Ablauf der Frist werden vorgemerkte Anmeldungen direkt bestätigt."
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onCancel}
+            disabled={submitting}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            variant="primary"
+            size="md"
+            disabled={submitting}
+          >
+            {submitting ? "Wird erstellt…" : "Anschlussphase erstellen"}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 }
 

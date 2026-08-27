@@ -164,7 +164,7 @@ export function AdminEnrollmentsList() {
 
   if (loading) {
     return (
-      <SkeletonRegion label="Anmeldungen werden geladen" className="mt-4">
+      <SkeletonRegion label="Anmeldungen werden geladen">
         <CardGridSkeleton
           cards={3}
           rowsPerCard={2}
@@ -175,7 +175,7 @@ export function AdminEnrollmentsList() {
   }
 
   return (
-    <div className="mt-4 space-y-4">
+    <div className="space-y-4">
       <EnrollmentSetupGuide
         enrollmentEnabled={enrollmentEnabled}
         phaseCount={phases.length}

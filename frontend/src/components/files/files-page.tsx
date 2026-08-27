@@ -142,6 +142,7 @@ export function FilesPage() {
     return (
       <div className="w-full">
         <PageIntro
+          kicker="Ablage"
           title="Dateien"
           description={FILES_PAGE_DESCRIPTION}
           className="mb-4"
@@ -212,6 +213,7 @@ export function FilesPage() {
       {/* Kopfkarte: Titel, Erklärtext und die Primäraktion in einer Zeile,
           statt Seitenkopf plus frei stehendem Erklärabsatz darunter. */}
       <PageIntro
+        kicker="Ablage"
         title="Dateien"
         description={FILES_PAGE_DESCRIPTION}
         className="mb-4"

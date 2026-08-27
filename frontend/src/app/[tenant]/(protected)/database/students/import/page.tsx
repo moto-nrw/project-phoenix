@@ -9,7 +9,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
@@ -461,10 +461,14 @@ export default function StudentImportPage() {
 
   if (status === "loading") {
     return (
-      <div className="-mt-1.5 w-full space-y-6">
+      <div className="w-full space-y-6">
         <BackButton referrer="/database/students" />
 
-        <PageHeaderWithSearch title="Kinder importieren" />
+        <PageIntro
+          kicker="Datenverwaltung"
+          title="Kinder importieren"
+          description="Kinder aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+        />
 
         <SkeletonRegion label="Kinder-Import wird geladen…">
           <FormSkeleton fields={2} />
@@ -474,10 +478,14 @@ export default function StudentImportPage() {
   }
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
+    <div className="w-full space-y-6">
       <BackButton referrer="/database/students" />
 
-      <PageHeaderWithSearch title="Kinder importieren" />
+      <PageIntro
+        kicker="Datenverwaltung"
+        title="Kinder importieren"
+        description="Kinder aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+      />
 
       {/* Info Section */}
       <SectionCard kicker="Kinder" title="Import-Anleitung" icon={Info}>

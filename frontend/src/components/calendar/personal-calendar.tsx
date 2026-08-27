@@ -29,10 +29,12 @@ export type CalendarViewMode = "day" | "week" | "month";
 interface PersonalCalendarProps {
   /**
    * Seitenname. Er wandert in die PlanningContextBar, die ihn wie auf den
-   * übrigen Planungsflächen mobil klein anzeigt und ab md nur noch für
-   * Screenreader führt (den sichtbaren Titel trägt dort die Breadcrumb).
+   * übrigen Planungsflächen auf allen Breakpoints sichtbar als Seitentitel
+   * führt.
    */
   readonly title: string;
+  /** Blauer Overline über dem Titel, z. B. "Termine". */
+  readonly kicker?: string;
   /** Erklärzeile, erscheint in der Kontextzeile der Kopfleiste. */
   readonly subtitle?: string;
   readonly events: readonly CalendarEvent[];
@@ -393,6 +395,7 @@ function nextLabel(viewMode: CalendarViewMode): string {
 
 export function PersonalCalendar({
   title,
+  kicker,
   subtitle,
   events,
   referenceDate: rawReferenceDate,
@@ -469,6 +472,7 @@ export function PersonalCalendar({
     <div className="w-full space-y-4">
       <PlanningContextBar
         title={title}
+        kicker={kicker}
         onPrevious={() =>
           handleDateChange(shiftDate(referenceDate, viewMode, -1))
         }

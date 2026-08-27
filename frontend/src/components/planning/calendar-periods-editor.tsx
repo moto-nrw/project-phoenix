@@ -344,6 +344,7 @@ export function CalendarPeriodsEditor() {
           Modal-Zuständen dieses Editors und leben deshalb hier, nicht in
           page.tsx. */}
       <PageIntro
+        kicker="Planung"
         title="Kalenderzeiträume"
         description="Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan."
         actions={

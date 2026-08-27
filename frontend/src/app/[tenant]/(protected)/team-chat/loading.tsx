@@ -1,18 +1,25 @@
 "use client";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { TeamChatSkeleton } from "./page-skeleton";
 
 /**
- * Route-level loading UI: the real header renders immediately (real chrome
- * first, skeletonize only the data region) with a disabled no-op search field —
- * this component has no page state yet — followed by the conversation skeleton.
+ * Route-level loading UI: die echte Kopfkarte rendert sofort (Kicker, Titel
+ * und Erklärtext sind statisch), die Suchzeile bekommt ein deaktiviertes
+ * No-op-Feld, weil es hier noch keinen Seitenzustand gibt; nur die Liste
+ * skeletonisiert.
  */
 export default function TeamChatLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      <PageIntro
+        kicker="Kommunikation"
         title="Team-Chat"
+        description="Unterhaltungen mit einzelnen Personen aus dem Team."
+      />
+      <PageHeaderWithSearch
+        title=""
         search={{
           value: "",
           onChange: () => {},

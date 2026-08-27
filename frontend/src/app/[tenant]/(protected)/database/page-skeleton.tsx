@@ -1,7 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
-import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
+import { PageIntro } from "~/components/ui/page-intro";
 
 function DatabaseCardSkeleton() {
   // Mirrors a database section card: icon block, count badge, title,
@@ -30,9 +30,15 @@ export function DatabaseIndexSkeleton() {
       aria-busy="true"
       aria-label="Datenverwaltung wird geladen"
       data-testid="database-index-skeleton"
-      className="-mt-1.5 w-full"
+      className="w-full"
     >
-      <PageHeaderSkeleton search={false} />
+      {/* Kicker und Titel sind statisch, deshalb rendert die Kopfkarte sofort. */}
+      <PageIntro
+        kicker="Verwaltung"
+        title="Datenverwaltung"
+        description="Alle Stammdaten der Schule an einer Stelle: Kinder, Personal, Räume, Gruppen, Rollen und Geräte."
+        className="mb-6"
+      />
       <div className="min-h-[60vh]">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {Array.from({ length: 8 }, (_, i) => (

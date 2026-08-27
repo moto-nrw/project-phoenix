@@ -152,11 +152,17 @@ function PermissionsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Berechtigungen",
+        description:
+          "Alle Berechtigungen, die sich im System an Rollen vergeben lassen.",
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Berechtigungen"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon

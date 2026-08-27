@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import useSWR from "swr";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -209,8 +209,13 @@ function DatabaseContent() {
   }
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Datenverwaltung" />
+    <div className="w-full">
+      <PageIntro
+        kicker="Verwaltung"
+        title="Datenverwaltung"
+        description="Alle Stammdaten der Schule an einer Stelle: Kinder, Personal, Räume, Gruppen, Rollen und Geräte."
+        className="mb-6"
+      />
 
       {/* Data Sections Grid */}
       <div className="min-h-[60vh]">

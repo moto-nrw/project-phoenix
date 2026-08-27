@@ -1,19 +1,26 @@
 "use client";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { MessagesSkeleton } from "./page-skeleton";
 
 /**
- * Route-level loading UI: renders the real header immediately (Polaris: real
- * chrome first, skeletonize only the data region) with a disabled no-op
- * search field — this component has no page state yet — followed by the
- * thread-list skeleton.
+ * Route-level loading UI: renders the real chrome immediately (Polaris: real
+ * chrome first, skeletonize only the data region). Kicker, Titel und
+ * Erklärtext sind statisch, also rendert die echte Kopfkarte sofort; die
+ * Suchzeile bekommt ein deaktiviertes No-op-Feld, weil es hier noch keinen
+ * Seitenzustand gibt.
  */
 export default function MessagesLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      <PageIntro
+        kicker="Eltern"
         title="Nachrichten"
+        description="Unterhaltungen mit den Eltern, ein Verlauf je Kind."
+      />
+      <PageHeaderWithSearch
+        title=""
         search={{
           value: "",
           onChange: () => {},

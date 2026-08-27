@@ -2722,8 +2722,14 @@ describe("TimeTrackingPage", () => {
       };
 
       await openEditModal(pastSession, { absences: [pastAbsence] });
-      expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
-      expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+      // Als Rolle statt als freier Text: seit der Kopfkarte steht
+      // "Arbeitszeit" auch als Kicker auf der Seite, der Reiter ist der Knopf.
+      expect(
+        screen.getByRole("button", { name: "Arbeitszeit" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Abwesenheit" }),
+      ).toBeInTheDocument();
     });
 
     it("switches to absence tab and shows absence fields", async () => {
@@ -4864,8 +4870,14 @@ describe("empty-day hint dialog (#2361)", () => {
         screen.getByRole("button", { name: "Nachtragen" }),
       ).toBeInTheDocument();
     });
-    expect(screen.getByText("Arbeitszeit")).toBeInTheDocument();
-    expect(screen.getByText("Abwesenheit")).toBeInTheDocument();
+    // Als Rolle statt als freier Text: seit der Kopfkarte steht "Arbeitszeit"
+    // auch als Kicker auf der Seite, der Reiter ist der Knopf.
+    expect(
+      screen.getByRole("button", { name: "Arbeitszeit" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Abwesenheit" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Nachtragen" }));
     expect(push).toHaveBeenCalledWith(

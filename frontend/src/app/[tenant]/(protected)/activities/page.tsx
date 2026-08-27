@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -305,13 +306,31 @@ function ActivitiesPageContent() {
 
   return (
     <>
-      <div className="-mt-1.5 w-full">
-        {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-            Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md
-            aus. */}
+      <div className="w-full">
+        {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. Die
+            Primäraktion steht hier; mobil bleibt zusätzlich der schwebende
+            Knopf unten rechts. */}
+        <PageIntro
+          kicker="Betrieb"
+          title="Aktivitäten"
+          description="Angebote der OGS anlegen, suchen und verwalten."
+          className="mb-6"
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              className="gap-2"
+              onClick={() => setIsQuickCreateOpen(true)}
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Aktivität erstellen
+            </Button>
+          }
+        />
         <div className="relative z-30">
           <PageHeaderWithSearch
-            title="Aktivitäten"
+            title=""
             badge={{
               icon: <MotoConceptIcon concept="activities" size={20} />,
               count: filteredActivities.length,
@@ -329,20 +348,6 @@ function ActivitiesPageContent() {
               setCategoryFilter("all");
               setMyActivitiesFilter(false);
             }}
-            actionButton={
-              // Mobil übernimmt der schwebende Knopf unten rechts, deshalb
-              // steht die Kopfaktion erst ab md.
-              <Button
-                type="button"
-                variant="primary"
-                size="icon"
-                onClick={() => setIsQuickCreateOpen(true)}
-                aria-label="Aktivität erstellen"
-                className="hidden md:inline-flex"
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            }
           />
         </div>
 

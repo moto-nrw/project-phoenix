@@ -18,6 +18,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -2721,7 +2723,36 @@ function SearchPageContent() {
   // with required: true, unauthenticated users are auto-redirected to login.
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
+      {/* Kopfkarte wie auf jeder Tenant-Seite: Kicker, Titel, Erklärtext und
+          das Aktionsmenü, auf allen Breakpoints sichtbar. */}
+      <PageIntro
+        kicker="Kinder"
+        title="Alle Kinder"
+        description="Alle betreuten Kinder suchen, filtern und ihren aktuellen Aufenthaltsort sehen."
+        className="mb-6"
+        actions={
+          <OverflowMenu
+            items={[
+              {
+                // Abwesenheits-Übersicht (#2288): bewusst kein eigener
+                // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
+                // ohnehin nach einem Kind sucht.
+                label: "Abwesenheiten",
+                icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+                onClick: () => router.push("/absences"),
+              },
+              {
+                label: "Exportieren",
+                icon: <Download className="h-4 w-4" aria-hidden />,
+                onClick: () => setIsExportOpen(true),
+                badge: filteredStudents.length,
+              },
+            ]}
+            ariaLabel="Weitere Aktionen"
+          />
+        }
+      />
       {/* Page header scrolls with the rest of the page (no sticky).
           Active filters surface as a count badge on the filter pill. The
           check-in/out trigger lives in a floating FAB rendered at the
@@ -2729,7 +2760,8 @@ function SearchPageContent() {
           header on desktop via primaryAction. */}
       <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
         <PageHeaderWithSearch
-          title="Alle Kinder"
+          // Der Titel steht in der Kopfkarte darüber.
+          title=""
           badge={{
             icon: <MotoConceptIcon concept="children" size={20} />,
             count: filteredStudents.length,
@@ -2766,22 +2798,6 @@ function SearchPageContent() {
           filterVariant="quiet"
           filterSections={filterSections}
           onClearAllFilters={clearAllFilters}
-          overflowMenu={[
-            {
-              // Abwesenheits-Übersicht (#2288): bewusst kein eigener
-              // Seitenleisten-Eintrag; der Einstieg liegt hier, wo das Team
-              // ohnehin nach einem Kind sucht.
-              label: "Abwesenheiten",
-              icon: <CalendarRange className="h-4 w-4" aria-hidden />,
-              onClick: () => router.push("/absences"),
-            },
-            {
-              label: "Exportieren",
-              icon: <Download className="h-4 w-4" aria-hidden />,
-              onClick: () => setIsExportOpen(true),
-              badge: filteredStudents.length,
-            },
-          ]}
         />
       </div>
 

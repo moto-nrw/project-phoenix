@@ -17,9 +17,9 @@ describe("PlanningContextBar", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Vertretung" })).toHaveClass(
-      "md:sr-only",
-    );
+    const heading = screen.getByRole("heading", { name: "Vertretung" });
+    expect(heading).not.toHaveClass("md:sr-only");
+    expect(heading).toHaveClass("text-xl");
     fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
     expect(onPrevious).toHaveBeenCalledTimes(1);

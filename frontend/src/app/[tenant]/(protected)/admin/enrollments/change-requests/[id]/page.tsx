@@ -23,7 +23,11 @@ export default function AdminEnrollmentChangeRequestDetailPage({
         label="Änderungsanfrage wird geladen"
         className="space-y-4"
       >
-        <Skeleton className="h-6 w-56 rounded" />
+        <div className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md">
+          <Skeleton className="h-3 w-24 rounded" />
+          <Skeleton className="mt-2 h-6 w-64 rounded" />
+          <Skeleton className="mt-2 h-4 w-80 rounded" />
+        </div>
         <DetailSkeleton sections={2} fieldsPerSection={4} />
       </SkeletonRegion>
     );

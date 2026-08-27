@@ -106,6 +106,7 @@ export default function PayrollPage() {
     <div className="w-full">
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
       <PageIntro
+        kicker="Planung"
         title="Abrechnung"
         description="Zuordnung der Zeiterfassungs-Kategorien zu den Lohnarten des Lohnsystems und DATEV-Mandantendaten. Grundlage für den späteren DATEV-Export (LODAS und Lohn und Gehalt)."
         className="mb-5"

@@ -14,6 +14,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import {
   SkeletonRegion,
   PageHeaderSkeleton,
@@ -583,9 +584,16 @@ function SubstitutionPageContent() {
 
   return (
     <>
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch
+      <div className="w-full">
+        {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+        <PageIntro
+          kicker="Personal"
           title="Gruppenzugriff"
+          description="Wer darf vorübergehend auf welche Gruppe zugreifen."
+          className="mb-6"
+        />
+        <PageHeaderWithSearch
+          title=""
           badge={{
             icon: <MotoConceptIcon concept="staff" size={20} />,
             count: filteredTeachers.length,

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   FilterConfig,
@@ -118,6 +119,7 @@ const KIND_COPY: Record<
   AnnouncementKind,
   {
     title: string;
+    description: string;
     action: string;
     ariaLabel: string;
     emptyTitle: string;
@@ -126,6 +128,8 @@ const KIND_COPY: Record<
 > = {
   announcement: {
     title: "Elternmitteilungen",
+    description:
+      "Neuigkeiten an alle Eltern senden, auf Wunsch mit Benachrichtigung per E-Mail.",
     action: "Mitteilung",
     ariaLabel: "Neue Elternmitteilung erstellen",
     emptyTitle: "Keine Mitteilungen",
@@ -133,6 +137,8 @@ const KIND_COPY: Record<
   },
   poll: {
     title: "Elternumfragen",
+    description:
+      "Den Eltern eine Frage stellen und die Rückmeldungen an einer Stelle sammeln.",
     action: "Umfrage",
     ariaLabel: "Neue Umfrage erstellen",
     emptyTitle: "Keine Umfragen",
@@ -578,9 +584,30 @@ function ParentAnnouncementsContent() {
   }
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
+          Primäraktion in EINER Karte, auf allen Breakpoints. */}
+      <PageIntro
+        kicker="Eltern"
         title={copy.title}
+        description={copy.description}
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={openCreate}
+            aria-label={copy.ariaLabel}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            {copy.action}
+          </Button>
+        }
+      />
+
+      <PageHeaderWithSearch
+        title=""
         badge={{
           icon:
             kind === "poll" ? (
@@ -601,22 +628,9 @@ function ParentAnnouncementsContent() {
           setSearchTerm("");
           setStatusFilter("all");
         }}
-        actionButton={
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={openCreate}
-            aria-label={copy.ariaLabel}
-            className="gap-1.5"
-          >
-            <Plus className="h-4 w-4" aria-hidden />
-            {copy.action}
-          </Button>
-        }
       />
 
-      <div className="mb-4">
+      <div>
         <SegmentedControl
           items={kindItems}
           value={kind}
@@ -626,7 +640,7 @@ function ParentAnnouncementsContent() {
       </div>
 
       {loadError && (
-        <div className="mb-4">
+        <div>
           <Alert
             type="error"
             message="Elternmitteilungen konnten nicht geladen werden."
@@ -635,7 +649,7 @@ function ParentAnnouncementsContent() {
       )}
 
       {reminderNotice && (
-        <div className="mb-4">
+        <div>
           <Alert type="success" message={reminderNotice} />
         </div>
       )}

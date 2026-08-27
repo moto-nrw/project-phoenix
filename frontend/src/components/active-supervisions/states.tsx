@@ -7,6 +7,7 @@ import {
   CardGridSkeleton,
 } from "~/components/ui/page-skeletons";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -59,6 +60,16 @@ export function ActiveSupervisionLoadingView({
 }: Readonly<{ withHeader?: boolean }> = {}) {
   return (
     <SkeletonRegion label="Aktuelle Aufsicht wird geladen…">
+      {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
+          sofort; nur die Karten darunter skelettieren. */}
+      {withHeader && (
+        <PageIntro
+          kicker="Betrieb"
+          title="Aktuelle Aufsicht"
+          description="Die Kinder in der Aufsicht, die Sie gerade führen."
+          className="mb-6"
+        />
+      )}
       {withHeader && <PageHeaderSkeleton actions={1} />}
       <CardGridSkeleton
         cards={6}
@@ -77,8 +88,13 @@ export function NoActiveSupervisionAccessView() {
   });
 
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Aktuelle Aufsicht" />
+    <div className="w-full">
+      <PageIntro
+        kicker="Betrieb"
+        title="Aktuelle Aufsicht"
+        description="Die Kinder im Raum, den Sie gerade beaufsichtigen."
+        className="mb-6"
+      />
 
       <EmptyState
         icon={<MotoConceptIcon concept="rooms" size={48} />}
@@ -113,7 +129,8 @@ export function EmptyRoomsView({
       />
 
       <PageHeaderWithSearch
-        title="Aktuelle Aufsicht"
+        // Der Titel steht in der Kopfkarte der Seite.
+        title=""
         search={{
           value: searchTerm,
           onChange: setSearchTerm,

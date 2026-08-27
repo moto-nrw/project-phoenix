@@ -1,6 +1,7 @@
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { PageIntro } from "~/components/ui/page-intro";
 
 interface PlanningDisabledStateProps {
   readonly pageTitle: string;
@@ -16,12 +17,12 @@ export function PlanningDisabledState({
   testId,
 }: PlanningDisabledStateProps) {
   return (
-    <div className="w-full space-y-4" data-testid={testId}>
-      {/* Gleiche Titelbehandlung wie in der PlanningContextBar: mobil sichtbar,
-          ab md trägt die App-Kopfzeile den Seitennamen. */}
-      <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only">
-        {pageTitle}
-      </h1>
+    <div className="w-full space-y-6" data-testid={testId}>
+      {/* Auch der abgeschaltete Zustand beginnt mit der Kopfkarte, die jede
+          Tenant-Seite trägt: sonst hätte ausgerechnet die Seite ohne Inhalt
+          keinen sichtbaren Titel. Die Erklärung bleibt im Leerzustand
+          darunter, damit der Kopf auf allen Planungsflächen gleich aussieht. */}
+      <PageIntro kicker="Planung" title={pageTitle} />
       <div className={timetableSurface}>
         <EmptyState
           icon={<MotoConceptIcon concept="closingDays" size={42} />}

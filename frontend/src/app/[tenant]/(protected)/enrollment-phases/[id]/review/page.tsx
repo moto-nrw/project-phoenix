@@ -4,6 +4,7 @@ import { use } from "react";
 import { RolloverReviewQueue } from "~/components/enrollment/rollover-review-queue";
 import { BackButton } from "~/components/ui/back-button";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { PageIntro } from "~/components/ui/page-intro";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
 interface PageProps {
@@ -19,15 +20,18 @@ export default function RolloverReviewPage({ params }: PageProps) {
   const { isReady } = useRequireAdmin();
 
   return (
-    <div className="-mt-1.5 w-full space-y-4">
+    <div className="w-full space-y-4">
       <BackButton referrer="/enrollment-phases" />
       {/* Titel und Erklärtext trägt die Kopfkarte der Prüfliste (PageIntro). */}
       {isReady ? (
         <RolloverReviewQueue phaseID={id} />
       ) : (
-        <SkeletonRegion label="Prüfliste wird geladen">
-          <ListSkeleton rows={5} avatar={false} />
-        </SkeletonRegion>
+        <>
+          <PageIntro kicker="Anmeldungen" title="Prüfliste" />
+          <SkeletonRegion label="Prüfliste wird geladen">
+            <ListSkeleton rows={5} avatar={false} />
+          </SkeletonRegion>
+        </>
       )}
     </div>
   );

@@ -18,6 +18,9 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { BadgeDisplay } from "~/components/ui/page-header/BadgeDisplay";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -847,8 +850,8 @@ function OGSGroupPageContent() {
   // If user doesn't have access, show empty state
   if (!showSkeleton && !hasAccess) {
     return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Meine Gruppe" />
+      <div className="w-full">
+        <PageIntro kicker="Betreuung" title="Meine Gruppe" className="mb-6" />
 
         <EmptyState
           icon={<MotoConceptIcon concept="groups" size={48} />}
@@ -858,34 +861,6 @@ function OGSGroupPageContent() {
       </div>
     );
   }
-
-  // Render helper for the substitution status pill. "In Vertretung" is a
-  // passive informational badge — it just signals that the current user is
-  // covering for someone else. Active actions ("Gruppe übergeben") moved into
-  // the kebab-menu, and the check-in mode lives in the SchoolCheckinFab.
-  const renderSubstitutionBadge = (variant: "desktop" | "mobile") => {
-    if (!currentGroup?.viaSubstitution) return undefined;
-
-    if (variant === "desktop") {
-      return (
-        <div className="flex h-10 items-center gap-2 px-4">
-          <MotoConceptIcon concept="substitution" size={18} />
-          <span className="text-sm font-medium text-gray-900">
-            In Vertretung
-          </span>
-        </div>
-      );
-    }
-
-    return (
-      <div
-        className="flex h-8 w-8 items-center justify-center"
-        title="In Vertretung"
-      >
-        <MotoConceptIcon concept="substitution" size={18} />
-      </div>
-    );
-  };
 
   // Build the kebab-menu items once per render. Skip when there's no current
   // group (loading state) so the menu doesn't appear with stale handlers.
@@ -1063,28 +1038,52 @@ function OGSGroupPageContent() {
 
   return (
     <>
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
+        {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
+            die Anwesenheit der gewählten Gruppe steht als Zähler in den
+            Aktionen, daneben der Vertretungshinweis und das Kebab-Menü. */}
+        <PageIntro
+          kicker="Betreuung"
+          title="Meine Gruppe"
+          description={
+            currentGroup?.name
+              ? `Die Kinder der Gruppe ${currentGroup.name} und ihr aktueller Aufenthaltsort.`
+              : undefined
+          }
+          className="mb-6"
+          actions={
+            <>
+              {currentGroup?.viaSubstitution ? (
+                <div className="flex items-center gap-2">
+                  <MotoConceptIcon concept="substitution" size={18} />
+                  <span className="text-sm font-medium text-gray-900">
+                    In Vertretung
+                  </span>
+                </div>
+              ) : null}
+              {currentGroup?.student_count !== undefined ? (
+                <BadgeDisplay
+                  icon={<MotoConceptIcon concept="children" size={20} />}
+                  count={currentGroup.present_count ?? 0}
+                  label={`von ${currentGroup.student_count} da`}
+                />
+              ) : null}
+              {overflowItems.length > 0 ? (
+                <OverflowMenu
+                  items={overflowItems}
+                  ariaLabel="Weitere Aktionen"
+                />
+              ) : null}
+            </>
+          }
+        />
         {/* Page header, scrolls with the rest of the page (no sticky).
             Active filters surface as a count badge on the filter pill (no
-            separate chips row), and the kebab menu carries the rare
-            "Gruppe übergeben" action. */}
+            separate chips row); der mobile Gruppen-Umschalter bleibt hier. */}
         <div className="-mx-1 px-1 pb-2 sm:mx-0 sm:px-0">
           <PageHeaderWithSearch
-            title="Meine Gruppe"
-            // Der Titel bleibt konstant; die Anwesenheit der gewählten Gruppe
-            // steht als Zähler daneben (früher im mobilen Titeltext).
-            badge={
-              currentGroup?.student_count !== undefined
-                ? {
-                    icon: <MotoConceptIcon concept="children" size={20} />,
-                    count: currentGroup.present_count ?? 0,
-                    label: `von ${currentGroup.student_count} da`,
-                  }
-                : undefined
-            }
-            actionButton={renderSubstitutionBadge("desktop")}
-            mobileActionButton={renderSubstitutionBadge("mobile")}
-            overflowMenu={overflowItems}
+            // Der Titel steht in der Kopfkarte darüber.
+            title=""
             primaryAction={
               isBinaryMode ? (
                 <SchoolCheckinFab

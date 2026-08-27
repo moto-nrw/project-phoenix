@@ -58,7 +58,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -764,19 +764,15 @@ export function PhasesEditor() {
 
   return (
     <div className="space-y-4">
-      {error ? <Alert type="error" message={error} /> : null}
-
-      {!loading && !editingId && !rolloverSource ? (
-        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
-      ) : null}
-
       {/* Seitenkopf: „Neue Anmeldephase“ ist eine Seitenaktion und sitzt
           deshalb im Kopf, nicht neben den Kennzahlen. Der Kopf lebt hier und
           nicht in page.tsx, weil die Aktion an den Editor-Zustand gebunden
           ist (beim Bearbeiten oder Übertragen wird sie ausgeblendet). */}
-      <PageHeaderWithSearch
+      <PageIntro
+        kicker="Anmeldungen"
         title="Anmeldephasen"
-        actionButton={
+        description="Zeiträume, für die sich Eltern anmelden können, mit Frist, Formular und Betreuungsangeboten."
+        actions={
           !editingId && !rolloverSource ? (
             <Button
               type="button"
@@ -790,9 +786,7 @@ export function PhasesEditor() {
             </Button>
           ) : undefined
         }
-      />
-
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur">
+      >
         <div className="grid gap-2 sm:grid-cols-3">
           <EnrollmentStatTile
             leading={<MotoConceptIcon concept="calendarPeriods" size={16} />}
@@ -810,7 +804,13 @@ export function PhasesEditor() {
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
         </div>
-      </div>
+      </PageIntro>
+
+      {error ? <Alert type="error" message={error} /> : null}
+
+      {!loading && !editingId && !rolloverSource ? (
+        <PhaseExpiryWarnings onCreateSuccessor={startRolloverByID} />
+      ) : null}
 
       {rolloverSource && (
         <RolloverForm

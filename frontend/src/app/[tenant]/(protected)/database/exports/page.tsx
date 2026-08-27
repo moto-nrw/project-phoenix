@@ -154,11 +154,12 @@ export default function DatabaseExportsPage() {
   };
 
   return (
-    <div className="-mt-1.5 w-full">
+    <div className="w-full">
       <BackButton referrer="/database" />
 
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
       <PageIntro
+        kicker="Datenverwaltung"
         title="Exporte"
         description="Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere personenbezogene Unterlage."
         className="mb-6"

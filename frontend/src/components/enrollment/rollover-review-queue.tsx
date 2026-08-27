@@ -26,6 +26,9 @@ interface Props {
   readonly phaseName?: string;
 }
 
+const REVIEW_QUEUE_DESCRIPTION =
+  "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
+
 export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
   const [items, setItems] = useState<ReviewQueueItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,10 +98,18 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
   };
 
   if (loading) {
+    // Die Kopfkarte ist statisch und steht deshalb schon während des Ladens.
     return (
-      <SkeletonRegion label="Prüfliste wird geladen">
-        <ListSkeleton rows={4} avatar={false} />
-      </SkeletonRegion>
+      <div className="space-y-4">
+        <PageIntro
+          kicker={phaseName ?? "Anmeldungen"}
+          title="Prüfliste"
+          description={REVIEW_QUEUE_DESCRIPTION}
+        />
+        <SkeletonRegion label="Prüfliste wird geladen">
+          <ListSkeleton rows={4} avatar={false} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
@@ -107,9 +118,9 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
       {/* Kopfkarte der Seite: der Erklärtext steht nicht mehr frei unter dem
           Seitentitel, sondern trägt ihn selbst. */}
       <PageIntro
-        kicker={phaseName}
+        kicker={phaseName ?? "Anmeldungen"}
         title="Prüfliste"
-        description="Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen."
+        description={REVIEW_QUEUE_DESCRIPTION}
       />
 
       {error ? <Alert type="error" message={error} /> : null}

@@ -607,6 +607,7 @@ function VertretungContent() {
     <div className="w-full space-y-4">
       <PlanningContextBar
         title="Vertretung"
+        kicker="Planung"
         onPrevious={() => goToDay(shiftDayISO(dayISO, -7))}
         onNext={() => goToDay(shiftDayISO(dayISO, 7))}
         previousLabel="Vorherige Woche"

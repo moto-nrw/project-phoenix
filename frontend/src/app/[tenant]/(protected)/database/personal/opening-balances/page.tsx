@@ -34,6 +34,9 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 
+const OPENING_BALANCES_DESCRIPTION =
+  "Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo, Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich.";
+
 const logger = createLogger({ component: "OpeningBalanceImportPage" });
 
 // Wire-Format des generischen Imports (PascalCase, siehe
@@ -460,13 +463,21 @@ export default function OpeningBalanceImportPage() {
 
   if (status === "loading") {
     return (
-      <SkeletonRegion
-        label="Eröffnungssalden-Import wird geladen"
-        className="-mt-1.5 w-full space-y-5"
-      >
-        <FormSkeleton fields={4} />
-        <TableSkeleton rows={5} columns={4} />
-      </SkeletonRegion>
+      <div className="w-full space-y-5">
+        <BackButton referrer="/database/personal" />
+
+        {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
+        <PageIntro
+          kicker="Datenverwaltung"
+          title="Eröffnungssalden"
+          description={OPENING_BALANCES_DESCRIPTION}
+        />
+
+        <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
+          <FormSkeleton fields={4} />
+          <TableSkeleton rows={5} columns={4} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
@@ -486,13 +497,14 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <div className="-mt-1.5 w-full space-y-5">
+    <div className="w-full space-y-5">
       <BackButton referrer="/database/personal" />
 
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
       <PageIntro
+        kicker="Datenverwaltung"
         title="Eröffnungssalden"
-        description="Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo, Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich."
+        description={OPENING_BALANCES_DESCRIPTION}
       />
 
       {error && (

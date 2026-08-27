@@ -33,6 +33,7 @@ import {
   type StudentCompanion,
 } from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Button } from "~/components/ui/button";
 import {
   ParentVisibleBadge,
@@ -345,102 +346,104 @@ export function StudentDetailHeader({
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
 
   return (
-    <div className="mb-6">
-      <div className="flex items-end justify-between gap-4">
-        <div className="flex flex-1 items-center gap-4">
-          {photosEnabled ? (
-            // Header avatar: image when consent + photo are present, brand
-            // gradient initials otherwise. xl size mirrors the detail page's
-            // h1 visual weight; on mobile the flex container collapses
-            // avatar+name onto one row already because of items-center.
-            <Avatar
-              imageUrl={student.photo_url ?? null}
-              name={fullName}
-              size="xl"
-            />
-          ) : null}
-          <div className="min-w-0 flex-1">
-            <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
-              {student.first_name} {student.second_name}
-            </h1>
-            {student.group_name && (
-              <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.groups.icon}
-                  tone={MOTO_CONCEPTS.groups.tone}
-                  size={18}
-                />
-                <span className="truncate">{student.group_name}</span>
-              </div>
-            )}
-            {(() => {
-              // Variant B: a sick/excused child without a completed pickup
-              // should not accrue overdue pickup urgency, even if they already
-              // checked in before the absence flag was set. Once pickup is
-              // recorded, the actual resolved times can render normally.
-              const absence = getStudentAbsence({
-                sick: student.sick,
-                classTrip: student.class_trip,
-                excused: student.excused,
-              });
-              const dayPlanningNotComingLabel =
-                getDayPlanningNotComingLabel(student);
-              const notComingLabel =
-                absence?.label ?? dayPlanningNotComingLabel;
-              if (notComingLabel && !todayPickupActualTime) {
-                const reasonSuffix =
-                  student.sick && sickReason ? `: ${sickReason}` : "";
-                return (
-                  <div
-                    data-testid="today-absence-row"
-                    className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
-                  >
-                    <ClockIcon className="h-4 w-4 text-gray-400" />
-                    <span className="font-medium text-gray-900">
-                      {`Kommt heute nicht (${notComingLabel}${reasonSuffix})`}
-                    </span>
-                  </div>
-                );
-              }
-              return (
-                <>
-                  <TodayTimeStatusInlineRow
-                    kind="arrival"
-                    label="Heutige Ankunft"
-                    plannedTime={todayArrivalPlannedTime}
-                    actualTime={todayArrivalActualTime}
-                    isException={isArrivalException}
-                    note={isArrivalAbsent ? undefined : todayArrivalNote}
-                    isAbsent={isArrivalAbsent}
-                    absentReason={todayArrivalNote}
-                  />
-                  <TodayTimeStatusInlineRow
-                    kind="pickup"
-                    label="Heutige Abholung"
-                    plannedTime={todayPickupPlannedTime}
-                    actualTime={todayPickupActualTime}
-                    isException={isPickupException}
-                    note={todayPickupNote}
-                  />
-                </>
-              );
-            })()}
-          </div>
-        </div>
-        <div className="flex-shrink-0 pb-3">
-          <LocationBadge
-            student={badgeStudent}
-            displayMode="contextAware"
-            userGroups={myGroups}
-            groupRooms={myGroupRooms}
-            supervisedRooms={mySupervisedRooms}
-            variant="modern"
-            size="md"
-            showLocationSince={true}
+    // Der Entitätskopf IST die Kopfkarte der Seite (PageIntro): Foto als
+    // leading, „Kind“ als Kicker, Name als Titel, Gruppe als Unterzeile,
+    // Aufenthaltsort als Aktion, die Zeiten des heutigen Tages darunter.
+    <PageIntro
+      className="mb-6"
+      leading={
+        photosEnabled ? (
+          // Header avatar: image when consent + photo are present, brand
+          // gradient initials otherwise. xl size mirrors the detail page's
+          // h1 visual weight.
+          <Avatar
+            imageUrl={student.photo_url ?? null}
+            name={fullName}
+            size="xl"
           />
-        </div>
+        ) : undefined
+      }
+      kicker="Kind"
+      title={`${student.first_name ?? ""} ${student.second_name ?? ""}`.trim()}
+      description={
+        student.group_name ? (
+          <span className="inline-flex items-center gap-2">
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.groups.icon}
+              tone={MOTO_CONCEPTS.groups.tone}
+              size={18}
+            />
+            <span className="truncate">{student.group_name}</span>
+          </span>
+        ) : undefined
+      }
+      actions={
+        <LocationBadge
+          student={badgeStudent}
+          displayMode="contextAware"
+          userGroups={myGroups}
+          groupRooms={myGroupRooms}
+          supervisedRooms={mySupervisedRooms}
+          variant="modern"
+          size="md"
+          showLocationSince={true}
+        />
+      }
+    >
+      <div className="min-w-0">
+        {(() => {
+          // Variant B: a sick/excused child without a completed pickup
+          // should not accrue overdue pickup urgency, even if they already
+          // checked in before the absence flag was set. Once pickup is
+          // recorded, the actual resolved times can render normally.
+          const absence = getStudentAbsence({
+            sick: student.sick,
+            classTrip: student.class_trip,
+            excused: student.excused,
+          });
+          const dayPlanningNotComingLabel =
+            getDayPlanningNotComingLabel(student);
+          const notComingLabel = absence?.label ?? dayPlanningNotComingLabel;
+          if (notComingLabel && !todayPickupActualTime) {
+            const reasonSuffix =
+              student.sick && sickReason ? `: ${sickReason}` : "";
+            return (
+              <div
+                data-testid="today-absence-row"
+                className="mt-1.5 flex items-center gap-2 text-sm text-gray-600"
+              >
+                <ClockIcon className="h-4 w-4 text-gray-400" />
+                <span className="font-medium text-gray-900">
+                  {`Kommt heute nicht (${notComingLabel}${reasonSuffix})`}
+                </span>
+              </div>
+            );
+          }
+          return (
+            <>
+              <TodayTimeStatusInlineRow
+                kind="arrival"
+                label="Heutige Ankunft"
+                plannedTime={todayArrivalPlannedTime}
+                actualTime={todayArrivalActualTime}
+                isException={isArrivalException}
+                note={isArrivalAbsent ? undefined : todayArrivalNote}
+                isAbsent={isArrivalAbsent}
+                absentReason={todayArrivalNote}
+              />
+              <TodayTimeStatusInlineRow
+                kind="pickup"
+                label="Heutige Abholung"
+                plannedTime={todayPickupPlannedTime}
+                actualTime={todayPickupActualTime}
+                isException={isPickupException}
+                note={todayPickupNote}
+              />
+            </>
+          );
+        })()}
       </div>
-    </div>
+    </PageIntro>
   );
 }
 

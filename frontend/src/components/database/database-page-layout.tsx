@@ -3,12 +3,26 @@
 import type { ReactNode } from "react";
 import { MasterDetailSkeleton } from "./master-detail-skeleton";
 import { MobileBackButton } from "~/components/ui/mobile-back-button";
+import { PageIntro } from "~/components/ui/page-intro";
+
+/** Kopfkarte der Seite (PageIntro). Titel und Kicker sind statisch, deshalb
+ *  rendert die Karte auch im Ladezustand sofort. */
+interface DatabasePageIntro {
+  /** Name der Sidebar-Gruppe, in der Regel "Datenverwaltung". */
+  kicker?: string;
+  title: string;
+  description?: ReactNode;
+  /** Seitenaktionen, zum Beispiel DatabaseCreateAction oder OverflowMenu. */
+  actions?: ReactNode;
+}
 
 interface DatabasePageLayoutProps {
   /** Whether the page is in a loading state */
   loading: boolean;
   /** Whether the auth session is loading */
   sessionLoading: boolean;
+  /** Kopfkarte der Seite; entfällt nur bei Seiten ohne eigenen Kopf. */
+  intro?: DatabasePageIntro;
   /** Page content to render when not loading */
   children: ReactNode;
   /** Optional className for the content wrapper */
@@ -24,17 +38,29 @@ interface DatabasePageLayoutProps {
 export function DatabasePageLayout({
   loading,
   sessionLoading,
+  intro,
   children,
   className = "w-full",
 }: Readonly<DatabasePageLayoutProps>) {
-  if (sessionLoading || loading) {
+  const isLoading = sessionLoading || loading;
+
+  if (isLoading && !intro) {
     return <MasterDetailSkeleton />;
   }
 
   return (
     <div className={className}>
       <MobileBackButton />
-      {children}
+      {intro && (
+        <PageIntro
+          kicker={intro.kicker}
+          title={intro.title}
+          description={intro.description}
+          actions={intro.actions}
+          className="mb-4"
+        />
+      )}
+      {isLoading ? <MasterDetailSkeleton intro={false} /> : children}
     </div>
   );
 }

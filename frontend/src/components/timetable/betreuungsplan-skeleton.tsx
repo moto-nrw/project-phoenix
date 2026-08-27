@@ -193,7 +193,9 @@ export function PlanningContextBarSkeleton({
       data-testid={testId}
       className="moto-content-surface flex flex-col gap-2 rounded-2xl border px-4 py-3"
     >
-      <Skeleton className="h-7 w-40 md:hidden" />
+      {/* Der Titel steht seit der Kopfkarten-Vereinheitlichung auf allen
+          Breakpoints in der Leiste, also auch hier als Platzhalter. */}
+      <Skeleton className="h-7 w-40" />
       <div className="flex min-h-9 flex-wrap items-center gap-3">
         <Skeleton className="h-8 w-28 rounded-lg" />
         <Skeleton className="h-6 w-40" />

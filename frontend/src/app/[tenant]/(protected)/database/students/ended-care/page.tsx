@@ -23,7 +23,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { Input } from "~/components/ui/input";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
-import { SectionCard } from "~/components/ui/section-card";
+import { PageIntro } from "~/components/ui/page-intro";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -36,6 +36,9 @@ import {
 import { formatDate } from "~/lib/date-helpers";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useDebounce } from "~/lib/use-debounce";
+
+const ENDED_CARE_DESCRIPTION =
+  "Kinder, die nicht mehr in der OGS sind. Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner normalen Liste mehr und in keinem Export. Abgänge aus dem Jahrgangswechsel stehen weiterhin dort.";
 
 // Der Schlüssel-Stamm. Suche und Seite hängen daran, damit jede Kombination
 // ihren eigenen Cache-Eintrag bekommt; aktualisiert wird über den Stamm.
@@ -169,12 +172,20 @@ export default function EndedCarePage() {
 
   if (status === "loading") {
     return (
-      <SkeletonRegion
-        label="Beendete Betreuungen werden geladen"
-        className="w-full space-y-4"
-      >
-        <TableSkeleton rows={6} columns={5} />
-      </SkeletonRegion>
+      <div className="w-full space-y-4">
+        <BackButton referrer="/database/students" />
+
+        {/* Titel und Kicker sind statisch, deshalb steht die Kopfkarte sofort. */}
+        <PageIntro
+          kicker="Datenverwaltung"
+          title="Beendete Betreuungen"
+          description={ENDED_CARE_DESCRIPTION}
+        />
+
+        <SkeletonRegion label="Beendete Betreuungen werden geladen">
+          <TableSkeleton rows={6} columns={5} />
+        </SkeletonRegion>
+      </div>
     );
   }
 
@@ -191,11 +202,10 @@ export default function EndedCarePage() {
     <div className="w-full space-y-4">
       <BackButton referrer="/database/students" />
 
-      <SectionCard
-        kicker="Beendete Betreuungen"
-        title="Kinder, die nicht mehr in der OGS sind"
-        description="Die Daten dieser Kinder bleiben erhalten. Sie stehen in keiner normalen Liste mehr und in keinem Export. Abgänge aus dem Jahrgangswechsel stehen weiterhin dort."
-        bodyClassName="mt-4"
+      <PageIntro
+        kicker="Datenverwaltung"
+        title="Beendete Betreuungen"
+        description={ENDED_CARE_DESCRIPTION}
         actions={
           <div className="w-full lg:w-64">
             <Input
@@ -290,7 +300,7 @@ export default function EndedCarePage() {
             </div>
           </div>
         ) : null}
-      </SectionCard>
+      </PageIntro>
 
       {resumeTarget ? (
         <CareResumeModal

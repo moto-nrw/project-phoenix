@@ -251,11 +251,24 @@ function GroupsPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Gruppen",
+        description:
+          "Gruppen der OGS anlegen und ihnen Räume und Kinder zuordnen.",
+        actions: (
+          <DatabaseCreateAction
+            label="Gruppe"
+            ariaLabel="Gruppe erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Gruppen"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -278,13 +291,6 @@ function GroupsPageContent() {
             setSearchTerm("");
             setRoomFilter("all");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Gruppe"
-              ariaLabel="Gruppe erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
       </div>
 

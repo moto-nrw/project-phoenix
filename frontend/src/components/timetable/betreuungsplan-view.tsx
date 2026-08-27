@@ -1277,6 +1277,7 @@ function TimetablesContent() {
     <div className="w-full space-y-4">
       <PlanningContextBar
         title="Betreuungsplan"
+        kicker="Planung"
         onPrevious={view === "series" ? undefined : handlePrev}
         onNext={view === "series" ? undefined : handleNext}
         previousLabel="Zurück"

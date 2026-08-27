@@ -53,6 +53,8 @@ import {
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
+import { PageIntro } from "~/components/ui/page-intro";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -262,22 +264,16 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* Entitätskopf der Seite: eine Kopfkarte, kein zweiter Kopf im Inhalt. */}
+      <PageIntro
+        kicker="Anmeldung"
+        title={`${data.guardian_first_name} ${data.guardian_last_name}`}
+        description="Prüfen Sie die Angaben der Anmeldung, bevor Sie eine Entscheidung speichern. Die Entscheidung wird pro Kind gesetzt."
+        leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      />
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-4 sm:p-6">
-            <header>
-              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                Anmeldung prüfen
-              </p>
-              <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-                {data.guardian_first_name} {data.guardian_last_name}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                Prüfen Sie die Angaben der Anmeldung, bevor Sie eine
-                Entscheidung speichern. Die Entscheidung wird pro Kind gesetzt.
-              </p>
-            </header>
-
             {error ? <Alert type="error" message={error} /> : null}
             {info ? <Alert type="success" message={info} /> : null}
 

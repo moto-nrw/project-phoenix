@@ -16,7 +16,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
@@ -241,14 +241,16 @@ export default function AbsencesPage() {
   }, [todayIso]);
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch title="Abwesenheiten" />
+    <div className="w-full space-y-6">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      <PageIntro
+        kicker="Kinder"
+        title="Abwesenheiten"
+        description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
+      />
 
       <SectionCard
         title="Eingetragene Abwesenheitstage"
-        description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
         action={
           <DateRangePicker
             value={range}

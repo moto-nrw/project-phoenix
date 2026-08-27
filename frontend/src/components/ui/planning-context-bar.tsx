@@ -21,11 +21,10 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
  * Kopfbereich lesbar ist und nicht wie freistehende Bedienelemente über dem
  * Raster wirkt. Drei Regeln halten die drei Flächen zusammen:
  *
- * 1. Der Seitenname steht bereits in der App-Kopfzeile und wird hier nur noch
- *    für Screenreader gerendert. Die sichtbare Überschrift ist das Datum, also
- *    die Antwort auf "was sehe ich gerade". Ausnahme ist die mobile Ansicht:
- *    dort zeigt die App-Kopfzeile den Schulnamen, nicht die Seite, deshalb
- *    bleibt der Titel unter md sichtbar (klein, in der Bedienzeile).
+ * 1. Der Seitenname steht als Titelblock über der Bedienzeile, auf allen
+ *    Breakpoints sichtbar und in der Optik der PageIntro-Kopfkarte, damit die
+ *    Planungsseiten denselben Kopf haben wie jede andere Tenant-Seite. Das
+ *    Datum in der Bedienzeile beantwortet "was sehe ich gerade".
  * 2. Die Navigation ist EIN Objekt: eine gerahmte Gruppe aus Zurück, Heute und
  *    Weiter. "Heute" ist immer da (deaktiviert, wenn man schon dort steht), weil
  *    ein auftauchender und verschwindender Button die Zeile seitlich springen
@@ -55,9 +54,11 @@ const PRIMARY_ROW_MIN_H = "min-h-9";
 const CONTEXT_ROW_MIN_H = "min-h-8";
 
 interface PlanningContextBarProps {
-  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Auf kleinen
-   *  Ansichten sichtbar, ab md steht er in der App-Kopfzeile. */
+  /** Seitentitel, z. B. "Vertretung" oder "Dienstplan". Sichtbar auf allen
+   *  Breakpoints, in der Optik der PageIntro-Kopfkarte. */
   readonly title: string;
+  /** Blauer Overline über dem Titel, z. B. der Bereich "Planung". */
+  readonly kicker?: string;
   readonly onPrevious?: () => void;
   readonly onNext?: () => void;
   readonly previousLabel?: string;
@@ -82,6 +83,7 @@ interface PlanningContextBarProps {
 
 export function PlanningContextBar({
   title,
+  kicker,
   onPrevious,
   onNext,
   previousLabel = "Zurück",
@@ -97,21 +99,31 @@ export function PlanningContextBar({
 }: PlanningContextBarProps) {
   return (
     <div
-      className={`moto-content-surface flex flex-col gap-2 rounded-2xl border px-3 py-2.5 sm:px-4 sm:py-3 ${className ?? ""}`}
+      className={`moto-content-surface flex flex-col gap-3 rounded-2xl border p-5 shadow-sm backdrop-blur-md ${className ?? ""}`}
     >
+      {/* Titelblock in der Optik der PageIntro-Kopfkarte: Kicker und Titel
+          sichtbar auf allen Breakpoints, damit die Planungsseiten denselben
+          Kopf haben wie jede andere Tenant-Seite. */}
+      <div className="min-w-0">
+        {kicker && (
+          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
+            {kicker}
+          </p>
+        )}
+        <h1
+          className={`truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl ${kicker ? "mt-1" : ""}`}
+        >
+          {title}
+        </h1>
+      </div>
       <div
         className={`flex flex-wrap items-center gap-2 sm:gap-3 ${PRIMARY_ROW_MIN_H}`}
       >
-        {/* Titelblock: unter md ein zweizeiliger Block (Seitenname klein
-            darüber, Datum groß darunter), der die Zeile links füllt, während
-            die Zeitnavigation rechts sitzt. Ab md löst `contents` den Wrapper
-            auf — Überschrift und Datum werden wieder direkte Kinder der Zeile,
-            die Überschrift verschwindet in `sr-only` (die App-Kopfzeile trägt
-            den Seitennamen), und die Zeile ist exakt die alte. */}
+        {/* Datumsblock: unter md füllt er die Zeile links, die Zeitnavigation
+            sitzt rechts. Ab md löst `contents` den Wrapper auf und die
+            `md:order-*`-Klassen stellen die Zeile als Navigation, Datum,
+            Aktionen zusammen. */}
         <div className="flex min-w-0 flex-1 flex-col md:contents">
-          <h1 className="truncate text-xs font-medium tracking-wide text-gray-500 uppercase md:sr-only md:text-base md:normal-case">
-            {title}
-          </h1>
           {navigationSlot ??
             (dateLabel && (
               <p className="min-w-0 truncate text-sm font-semibold text-gray-900 tabular-nums md:order-2 md:text-base">
@@ -122,7 +134,7 @@ export function PlanningContextBar({
 
         {/* Eine Gruppe, drei Segmente: die Zeitnavigation liest sich als ein
             Bedienelement statt als zwei schwebende Pfeile mit Text dazwischen.
-            Mobil sitzt sie rechts neben dem Titelblock, ab md rückt sie per
+            Mobil sitzt sie rechts neben dem Datumsblock, ab md rückt sie per
             `order` wieder an den Anfang der Zeile. */}
         <div className="inline-flex h-8 shrink-0 divide-x divide-gray-200 overflow-hidden rounded-lg border border-gray-200 bg-white md:order-1">
           <Button

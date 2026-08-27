@@ -723,7 +723,7 @@ function StudentDetailPageContent() {
   // Show error state
   if (error || !student) {
     return (
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         {/* Mobiler Rückweg; auf dem Desktop führt die Breadcrumb zurück. */}
         <BackButton referrer={referrer} />
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
@@ -1115,7 +1115,7 @@ function StudentDetailPageContent() {
 
   return (
     <>
-      <div className="-mt-1.5 w-full">
+      <div className="w-full">
         <BackButton referrer={referrer} />
 
         <StudentDetailHeader

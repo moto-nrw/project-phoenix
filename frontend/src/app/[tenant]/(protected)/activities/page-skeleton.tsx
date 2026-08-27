@@ -1,6 +1,9 @@
 "use client";
 
+import { Plus } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Skeleton } from "~/components/ui/skeleton";
 
 // Content-shaped placeholder mirroring the activity row cards, so there is no
@@ -12,11 +15,29 @@ export function ActivitiesSkeleton() {
       aria-busy="true"
       aria-label="Aktivitäten werden geladen"
       data-testid="activities-skeleton"
-      className="-mt-1.5 w-full"
+      className="w-full"
     >
       {/* Der Kopf rendert sofort, nur die Liste skeletonisiert. */}
-      <PageHeaderWithSearch
+      <PageIntro
+        kicker="Betrieb"
         title="Aktivitäten"
+        description="Angebote der OGS anlegen, suchen und verwalten."
+        className="mb-6"
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-2"
+            disabled
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            Aktivität erstellen
+          </Button>
+        }
+      />
+      <PageHeaderWithSearch
+        title=""
         search={{
           value: "",
           onChange: () => {

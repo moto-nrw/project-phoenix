@@ -1,13 +1,22 @@
 "use client";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { RoomsGridSkeleton } from "./page-skeleton";
 
 export default function RoomsLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Kicker, Titel und Erklärtext sind statisch und rendern deshalb
+          sofort als echte Kopfkarte; nur das Raster skeletonisiert. */}
+      <PageIntro
+        kicker="Betrieb"
         title="Räume"
+        description="Wer hält sich gerade wo auf, und welche Räume sind frei."
+        className="mb-6"
+      />
+      <PageHeaderWithSearch
+        title=""
         search={{
           value: "",
           onChange: () => {},

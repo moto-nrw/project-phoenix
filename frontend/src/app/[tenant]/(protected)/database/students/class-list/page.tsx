@@ -24,7 +24,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { SectionCard } from "~/components/ui/section-card";
+import { PageIntro } from "~/components/ui/page-intro";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -467,11 +467,10 @@ export default function ClassListEntriesPage() {
     <div className="w-full space-y-4">
       <BackButton referrer="/database/students" />
 
-      <SectionCard
-        kicker="Klassenlisteneinträge"
-        title="Der vollständige Klassenverband"
-        description="Alle Kinder pro Klasse auf einen Blick: regulär angelegte Kinder und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung, Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über „Eintrag anlegen“ oder den Sammelimport ergänzt."
-        bodyClassName="mt-4"
+      <PageIntro
+        kicker="Datenverwaltung"
+        title="Klassenliste"
+        description="Der vollständige Klassenverband: regulär angelegte Kinder und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung, Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über „Eintrag anlegen“ oder den Sammelimport ergänzt."
         actions={
           canCreate ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -613,7 +612,7 @@ export default function ClassListEntriesPage() {
             }
           />
         </div>
-      </SectionCard>
+      </PageIntro>
 
       <Modal
         isOpen={modal?.kind === "create" || modal?.kind === "edit"}

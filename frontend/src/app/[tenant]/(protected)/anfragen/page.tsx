@@ -12,6 +12,7 @@ import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absenc
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -346,8 +347,12 @@ export default function AnfragenPage() {
 
   if (!isReady) {
     return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Anfragen" />
+      <div className="w-full space-y-6">
+        <PageIntro
+          kicker="Freigaben"
+          title="Anfragen"
+          description="Anträge von Eltern und aus dem Team an einer Stelle prüfen und entscheiden."
+        />
         <SkeletonRegion label="Anfragen werden geladen…">
           <ListSkeleton rows={4} avatar={false} />
         </SkeletonRegion>
@@ -370,12 +375,18 @@ export default function AnfragenPage() {
   );
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus
-          (md:hidden), wie auf der vorherigen Freigabeansicht. */}
-      <PageHeaderWithSearch
+    <div className="w-full space-y-6">
+      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in EINER
+          Karte, auf allen Breakpoints. Reiter, Suche, Filter und der
+          Ansichts-Umschalter bleiben in PageHeaderWithSearch; title="" blendet
+          dort nur die eigene (jetzt doppelte) Titelzeile aus. */}
+      <PageIntro
+        kicker="Freigaben"
         title="Anfragen"
+        description="Anträge von Eltern und aus dem Team an einer Stelle prüfen und entscheiden."
+      />
+      <PageHeaderWithSearch
+        title=""
         tabs={
           visibleTabs.length > 1
             ? {

@@ -1,13 +1,22 @@
 "use client";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
 export default function StaffLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Titel und Kicker sind statisch, also rendert die echte Kopfkarte
+          sofort; nur die Kartenliste darunter skelettiert. */}
+      <PageIntro
+        kicker="Personal"
         title="Mitarbeiter"
+        description="Personen, Zeitkonten und Unterlagen Ihrer Einrichtung an einem Ort."
+        className="mb-6"
+      />
+      <PageHeaderWithSearch
+        title=""
         search={{
           value: "",
           onChange: () => {},

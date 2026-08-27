@@ -16,7 +16,7 @@ import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { EmptyState } from "~/components/ui/empty-state";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   CardGridSkeleton,
@@ -438,11 +438,14 @@ export default function MealPlanPage() {
   const isCurrentWeek = weekOffset === 0;
 
   return (
-    <div className="-mt-1.5 w-full pb-24">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der Kopfzeile;
-          PageHeaderWithSearch zeigt ihn nur mobil (md:hidden). Das frühere h1
-          in der Kopf-Karte stand direkt unter derselben Breadcrumb. */}
-      <PageHeaderWithSearch title="Essensplan" />
+    <div className="w-full pb-24">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      <PageIntro
+        kicker="Eltern"
+        title="Essensplan"
+        description="Der Wochenplan, den Eltern im Elternportal sehen."
+        className="mb-6"
+      />
       <div className="space-y-6">
         {/* Erklärtext als description, „Vorwoche übernehmen“ in der Titelzeile:
             kein frei stehender Absatz und keine Zeile nur aus Buttons. */}

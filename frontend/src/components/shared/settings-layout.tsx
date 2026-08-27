@@ -10,7 +10,7 @@ import {
 import { useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -211,11 +211,18 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
   }, [requestedTabId, tabs]);
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Kopf rendert immer mit konstantem Titel: auf dem Desktop blendet
-          PageHeaderWithSearch die Überschrift selbst aus (md:hidden), dort
-          trägt die Breadcrumb den Titel. */}
-      <PageHeaderWithSearch title="Einstellungen" />
+    <div className="w-full">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. In der
+          mobilen Detailansicht trägt der Zurück-Kopf den Reiternamen, dort
+          wäre die Kopfkarte ein zweiter Kopf. */}
+      {!(isMobile && activeTab !== null) && (
+        <PageIntro
+          kicker="Verwaltung"
+          title="Einstellungen"
+          description="Alles, was Sie für Ihre Schule ein- und ausschalten oder anpassen können."
+          className="mb-6"
+        />
+      )}
 
       {!isMobile && (
         <DesktopSettingsTabs

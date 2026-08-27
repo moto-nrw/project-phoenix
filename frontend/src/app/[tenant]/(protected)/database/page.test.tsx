@@ -177,8 +177,9 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      expect(screen.getByTestId("page-header")).toBeInTheDocument();
-      expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { level: 1, name: "Datenverwaltung" }),
+      ).toBeInTheDocument();
     });
   });
 

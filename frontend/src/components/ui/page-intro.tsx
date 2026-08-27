@@ -18,15 +18,18 @@ export function PageIntro({
   title,
   description,
   actions,
+  leading,
   prominent = false,
   className,
   children,
 }: Readonly<{
   kicker?: string;
   title: string;
-  description?: string;
+  description?: ReactNode;
   /** Aktionen in der Titelzeile, rechts. */
   actions?: ReactNode;
+  /** Optionales Element links vom Titel, z. B. Avatar oder Konzept-Icon. */
+  leading?: ReactNode;
   prominent?: boolean;
   className?: string;
   /** Inhalt unterhalb des Kopfs, zum Beispiel Kennzahlen oder ein Hinweis. */
@@ -38,6 +41,7 @@ export function PageIntro({
       title={title}
       description={description}
       actions={actions}
+      leading={leading}
       headingLevel={1}
       titleClassName={
         prominent

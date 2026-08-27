@@ -1170,7 +1170,7 @@ function EnrollmentFormsOverview({
                 <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
                   Formularübersicht
                 </p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                <h2 className="mt-1 text-base font-semibold text-gray-900">
                   Anmeldeformulare verwalten
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">

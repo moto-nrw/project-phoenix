@@ -7,6 +7,7 @@ import { Copy, Check } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
@@ -236,21 +237,15 @@ function InfoDisplaysPageContent() {
   ];
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus. */}
-      <PageHeaderWithSearch
+    <div className="w-full">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App; die
+          Primäraktion steht in ihrer Titelzeile. */}
+      <PageIntro
+        kicker="Betrieb"
         title="Info-Displays"
-        badge={{
-          icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
-          count: displays?.length ?? 0,
-        }}
-        search={{
-          value: searchQuery,
-          onChange: setSearchQuery,
-          placeholder: "Display suchen…",
-        }}
-        actionButton={
+        description="Bildschirme in der Einrichtung anlegen und ihre Anzeige steuern."
+        className="mb-6"
+        actions={
           canManage ? (
             <Button
               type="button"
@@ -264,6 +259,18 @@ function InfoDisplaysPageContent() {
             </Button>
           ) : undefined
         }
+      />
+      <PageHeaderWithSearch
+        title=""
+        badge={{
+          icon: <MotoConceptIcon concept="infoDisplays" size={18} />,
+          count: displays?.length ?? 0,
+        }}
+        search={{
+          value: searchQuery,
+          onChange: setSearchQuery,
+          placeholder: "Display suchen…",
+        }}
       />
 
       <div className="space-y-6">

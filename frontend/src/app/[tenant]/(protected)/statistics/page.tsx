@@ -24,7 +24,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
@@ -436,9 +436,13 @@ export default function StatisticsPage() {
   }[view];
 
   return (
-    <div className="-mt-1.5 w-full space-y-6">
-      {/* Desktop trägt den Titel in der Breadcrumb, mobil dieser Kopf. */}
-      <PageHeaderWithSearch title="Statistik" />
+    <div className="w-full space-y-6">
+      {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
+      <PageIntro
+        kicker="Auswertung"
+        title="Statistik"
+        description="Anwesenheitsquoten je Kind und Gruppe sowie die Auslastung der Räume."
+      />
       <SectionCard
         title="Anwesenheit und Räume im Zeitraum"
         description="Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."

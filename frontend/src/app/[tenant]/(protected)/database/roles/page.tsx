@@ -313,11 +313,24 @@ function RolesPageContent() {
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
+      className="flex w-full flex-col"
+      intro={{
+        kicker: "Datenverwaltung",
+        title: "Rollen",
+        description:
+          "Rollen anlegen und festlegen, welche Berechtigungen sie mitbringen.",
+        actions: (
+          <DatabaseCreateAction
+            label="Rolle"
+            ariaLabel="Rolle erstellen"
+            onClick={() => setShowCreateModal(true)}
+          />
+        ),
+      }}
     >
       <div className="mb-4">
         <PageHeaderWithSearch
-          title="Rollen"
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -339,13 +352,6 @@ function RolesPageContent() {
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <DatabaseCreateAction
-              label="Rolle"
-              ariaLabel="Rolle erstellen"
-              onClick={() => setShowCreateModal(true)}
-            />
-          }
         />
       </div>
 
