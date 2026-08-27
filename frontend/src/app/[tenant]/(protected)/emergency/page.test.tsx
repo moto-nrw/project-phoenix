@@ -42,10 +42,7 @@ vi.mock("~/components/ui/button", () => ({
   ),
 }));
 
-// Der Seitenkopf (PageHeaderWithSearch) zieht weitere Lucide-Symbole nach,
-// deshalb nur die beiden Aktionssymbole ersetzen und den Rest original lassen.
-vi.mock("lucide-react", async (importOriginal) => ({
-  ...(await importOriginal<Record<string, unknown>>()),
+vi.mock("lucide-react", () => ({
   Download: (props: Record<string, unknown>) => (
     <svg data-testid="download-icon" {...props} />
   ),
@@ -65,7 +62,7 @@ describe("EmergencyPage", () => {
     render(<EmergencyPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Notfall" }),
+      screen.getByRole("heading", { name: "Notfallliste" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Notfallliste drucken/ }),
