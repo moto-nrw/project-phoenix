@@ -397,7 +397,7 @@ function MobileSearchSection({
     : "";
 
   return (
-    <div className={hideClass}>
+    <div className={`${hideClass} ${embedded ? "[&>*:last-child]:mb-0" : ""}`}>
       {search && (
         <div
           className={`mb-3 flex items-center gap-2 ${compactWrapper}`}
