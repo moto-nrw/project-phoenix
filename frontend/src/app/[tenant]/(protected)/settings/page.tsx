@@ -38,7 +38,11 @@ function SettingsContent() {
   if (!settingsTabs) {
     return (
       <div className="w-full">
-        <PageIntro title="Einstellungen" className="mb-6" />
+        <PageIntro
+          title="Einstellungen"
+          description="0 Bereiche"
+          className="mb-6"
+        />
         <EmptyState
           title="Keine Einstellungen verfügbar."
           description="Für Ihre Rolle ist hier nichts freigegeben. Wenden Sie sich an Ihre Leitung, wenn Sie Einstellungen ändern müssen."

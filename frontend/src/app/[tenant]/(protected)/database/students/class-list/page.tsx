@@ -25,6 +25,8 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -254,6 +256,12 @@ export default function ClassListEntriesPage() {
   );
 
   const classCount = classOptions.length;
+  // Statuszeile des Seitenkopfs aus den bereits geladenen Zeilen.
+  const statusLine = [
+    `${formatCount(allRows.length)} ${allRows.length === 1 ? "Kind" : "Kinder"}`,
+    `${formatCount(classCount)} ${classCount === 1 ? "Klasse" : "Klassen"}`,
+    `${formatCount(duplicateCount)} mögliche ${duplicateCount === 1 ? "Dublette" : "Dubletten"}`,
+  ].join(" · ");
   const studentCount = students?.length ?? 0;
 
   const closeModal = () => {
@@ -470,7 +478,13 @@ export default function ClassListEntriesPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Klassenliste"
-        description="Der vollständige Klassenverband: regulär angelegte Kinder und Klassenlisteneinträge (nur Name und Klasse, ohne Betreuung, Anwesenheit oder Kontaktdaten). Wer hier fehlt, wird über „Eintrag anlegen“ oder den Sammelimport ergänzt."
+        description={
+          isLoading && entries === undefined ? (
+            <Skeleton className="h-4 w-64" />
+          ) : (
+            statusLine
+          )
+        }
         actions={
           // Der Klassenfilter steht in der Titelzeile der Karte, damit er
           // nicht als eigene, fast leere Zeile über der Tabelle liegt.

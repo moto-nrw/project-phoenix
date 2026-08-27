@@ -216,15 +216,11 @@ describe("PermissionsPage", () => {
     });
   });
 
-  it("shows that the catalog is read-only without mutation controls", async () => {
+  it("shows the status line and no mutation controls", async () => {
     render(<PermissionsPage />);
 
     await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern.",
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Berechtigungen · /)).toBeInTheDocument();
     });
     expect(
       screen.queryByLabelText("Berechtigung erstellen"),

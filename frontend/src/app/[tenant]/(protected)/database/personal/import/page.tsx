@@ -397,6 +397,19 @@ export default function StaffImportPage() {
         ? `${stats.existing} Mitarbeiter aktualisieren`
         : `${stats.new + stats.existing} Mitarbeiter übernehmen`;
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Schritt 1 von 4 · noch keine Datei gewählt";
+
   if (status === "loading") {
     return (
       <div className="w-full space-y-6">
@@ -405,7 +418,7 @@ export default function StaffImportPage() {
         <PageIntro
           kicker="Datenverwaltung"
           title="Personal importieren"
-          description="Mitarbeitende aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+          description={statusLine}
         />
 
         <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
@@ -422,7 +435,7 @@ export default function StaffImportPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Personal importieren"
-        description="Mitarbeitende aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+        description={statusLine}
       />
 
       {/* Info Section */}

@@ -15,6 +15,7 @@ import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   SkeletonRegion,
   PageHeaderSkeleton,
@@ -588,7 +589,19 @@ function SubstitutionPageContent() {
         {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
         <PageIntro
           title="Gruppenzugriff"
-          description="Wer darf vorübergehend auf welche Gruppe zugreifen."
+          description={
+            // Statuszeile: verfügbare Fachkräfte und aktive Vertretungen aus
+            // den beiden Listen, die die Seite ohnehin lädt.
+            isLoading ? (
+              <Skeleton className="h-4 w-56" />
+            ) : (
+              `${teachers.length} ${teachers.length === 1 ? "Fachkraft" : "Fachkräfte"} · ${activeSubstitutions.length} ${
+                activeSubstitutions.length === 1
+                  ? "Vertretung aktiv"
+                  : "Vertretungen aktiv"
+              }`
+            )
+          }
           className="mb-6"
         >
           <PageHeaderWithSearch

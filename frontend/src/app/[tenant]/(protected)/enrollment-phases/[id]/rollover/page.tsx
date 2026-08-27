@@ -5,10 +5,8 @@ import { Alert } from "~/components/ui/alert";
 import { BackButton } from "~/components/ui/back-button";
 import { DetailSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { PageIntro } from "~/components/ui/page-intro";
-import {
-  ROLLOVER_DESCRIPTION,
-  RolloverForm,
-} from "~/components/enrollment/rollover-form";
+import { RolloverForm } from "~/components/enrollment/rollover-form";
+import { Skeleton } from "~/components/ui/skeleton";
 import { getPhase, type Phase } from "~/lib/enrollment-phase-api";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { createLogger } from "~/lib/logger";
@@ -49,7 +47,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
         <PageIntro
           kicker="Anschlussphase"
           title="Anschlussphase erstellen"
-          description={ROLLOVER_DESCRIPTION}
+          description={<Skeleton className="h-4 w-56" />}
         />
         <SkeletonRegion label="Anschlussphase wird geladen">
           <DetailSkeleton sections={2} fieldsPerSection={3} />
@@ -66,7 +64,7 @@ export default function MobileRolloverPage({ params }: PageProps) {
         <PageIntro
           kicker="Anschlussphase"
           title="Anschlussphase erstellen"
-          description={ROLLOVER_DESCRIPTION}
+          description="Quelle konnte nicht geladen werden"
         />
       )}
       {error ? <Alert type="error" message={error} /> : null}

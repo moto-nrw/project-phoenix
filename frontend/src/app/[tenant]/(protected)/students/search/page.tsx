@@ -109,6 +109,7 @@ import {
   trackingFilterChipLabel,
   type TrackingFilter,
 } from "./tracking-filter";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StudentSearchPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentSearchPage" });
@@ -2634,6 +2635,17 @@ function SearchPageContent() {
   // (review #2372). The selection bars' count/activation must come from this
   // list too — selectedIds may still hold students a live update removed,
   // and a count the bar shows must never exceed what a bulk action executes.
+  // Statuszeile unter dem Seitentitel, allein aus der bereits geladenen
+  // Kinderliste: Gesamtzahl, wie viele zuhause sind, wie viele krank.
+  const studentSummary = useMemo(() => {
+    const total = students.length;
+    const atHome = students.filter(
+      (student) => student.current_location === "Zuhause",
+    ).length;
+    const sick = students.filter((student) => student.sick === true).length;
+    return `${total} ${total === 1 ? "Kind" : "Kinder"} · ${atHome} zuhause · ${sick} krank`;
+  }, [students]);
+
   const selectedStudentsForBulk = useMemo(
     () =>
       filteredStudents.filter((student) =>
@@ -2729,6 +2741,13 @@ function SearchPageContent() {
           das Aktionsmenü, auf allen Breakpoints sichtbar. */}
       <PageIntro
         title="Alle Kinder"
+        description={
+          hasFetchedOnce && !isDateTransition ? (
+            studentSummary
+          ) : (
+            <Skeleton className="h-4 w-56" />
+          )
+        }
         className="mb-6"
         actions={
           <>

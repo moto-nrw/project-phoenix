@@ -16,6 +16,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
@@ -499,6 +500,13 @@ function RoomsPageContent() {
   // redirects on unauthenticated.
   const showSkeleton = status === "loading" || loading;
 
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
+  const roomSummary = (() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((room) => room.isOccupied).length;
+    return `${rooms.length} ${rooms.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
+  })();
+
   return (
     <div className="w-full">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. Das
@@ -506,6 +514,9 @@ function RoomsPageContent() {
           bleibt (ohne Titel rendert PageHeaderWithSearch keinen Kebab). */}
       <PageIntro
         title="Räume"
+        description={
+          showSkeleton ? <Skeleton className="h-4 w-40" /> : roomSummary
+        }
         className="mb-6"
         actions={<OverflowMenu items={overflowItems} />}
       >

@@ -149,8 +149,11 @@ function InviteModeDependentEmptyState({
 
 export default function GuardianApprovalQueue({
   inviteModeState,
+  onCountChange,
 }: {
   readonly inviteModeState: GuardianInviteModeState;
+  /** Meldet die Zahl offener Anfragen an den Seitenkopf; `null` = am Laden. */
+  readonly onCountChange?: (count: number | null) => void;
 }) {
   const [requests, setRequests] = useState<PendingApproval[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -179,6 +182,11 @@ export default function GuardianApprovalQueue({
   useEffect(() => {
     void load();
   }, [load]);
+
+  const reportedCount = isLoading ? null : requests.length;
+  useEffect(() => {
+    onCountChange?.(reportedCount);
+  }, [onCountChange, reportedCount]);
 
   const handleApprove = async (req: PendingApproval) => {
     setActingId(req.id);

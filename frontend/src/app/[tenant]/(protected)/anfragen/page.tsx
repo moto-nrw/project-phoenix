@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 
 import { useSession } from "next-auth/react";
 import type { DateRange } from "react-day-picker";
@@ -13,6 +13,7 @@ import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -123,6 +124,27 @@ export default function AnfragenPage() {
       tabs.push({ id: "mitarbeitende", label: "Mitarbeitende" });
     return tabs;
   }, [showElternTab, showMitarbeitendeTab]);
+
+  // Zeilenzahl der sichtbaren Liste, von der Liste selbst gemeldet (kein
+  // zusätzlicher Request). `count: null` = noch am Laden; `hasMore` sagt, dass
+  // die Liste paginiert und noch weitere Seiten bereitliegen.
+  const [listCount, setListCount] = useState<{
+    count: number | null;
+    hasMore: boolean;
+  }>({ count: null, hasMore: false });
+
+  // Stabile Referenzen, damit der Melde-Effekt der Listen nicht bei jedem
+  // Render neu läuft.
+  const handleParentCount = useCallback(
+    (count: number | null, hasMore: boolean) =>
+      setListCount({ count, hasMore }),
+    [],
+  );
+  // Die Abwesenheitsanträge kommen ungeteilt, dort gibt es nie ein "+".
+  const handleStaffCount = useCallback(
+    (count: number | null) => setListCount({ count, hasMore: false }),
+    [],
+  );
 
   const [selectedTab, setSelectedTab] = useState<AnfragenTabId>("eltern");
   // Fällt die Auswahl aus den sichtbaren Reitern (z. B. Session noch am
@@ -350,7 +372,7 @@ export default function AnfragenPage() {
       <div className="w-full space-y-6">
         <PageIntro
           title="Anfragen"
-          description="Offene und entschiedene Anfragen an einer Stelle."
+          description={<Skeleton className="h-4 w-40" />}
         />
         <SkeletonRegion label="Anfragen werden geladen…">
           <ListSkeleton rows={4} avatar={false} />
@@ -387,7 +409,13 @@ export default function AnfragenPage() {
           Titelzeile aus. */}
       <PageIntro
         title="Anfragen"
-        description="Offene und entschiedene Anfragen an einer Stelle."
+        description={
+          listCount.count === null ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            `${listCount.count}${listCount.hasMore ? "+" : ""} ${view === "open" ? "offen" : "entschieden"}`
+          )
+        }
         actions={hasTabs ? undefined : viewSwitcher}
       >
         <PageHeaderWithSearch
@@ -432,9 +460,17 @@ export default function AnfragenPage() {
         />
       </PageIntro>
       {staffActive ? (
-        <MitarbeitendeTab view={view} filters={staffFilters} />
+        <MitarbeitendeTab
+          view={view}
+          filters={staffFilters}
+          onCountChange={handleStaffCount}
+        />
       ) : (
-        <ElternTab view={view} filters={filters} />
+        <ElternTab
+          view={view}
+          filters={filters}
+          onCountChange={handleParentCount}
+        />
       )}
     </div>
   );
@@ -448,15 +484,22 @@ export default function AnfragenPage() {
 function ElternTab({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
+  onCountChange: (count: number | null, hasMore: boolean) => void;
 }>) {
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
-      <AggregatedRequestList key={view} view={view} filters={filters} />
+      <AggregatedRequestList
+        key={view}
+        view={view}
+        filters={filters}
+        onCountChange={onCountChange}
+      />
     </div>
   );
 }
@@ -469,14 +512,21 @@ function ElternTab({
 function MitarbeitendeTab({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: StaffAbsenceRequestFilters;
+  onCountChange: (count: number | null) => void;
 }>) {
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch. */}
-      <StaffAbsenceRequestList key={view} view={view} filters={filters} />
+      <StaffAbsenceRequestList
+        key={view}
+        view={view}
+        filters={filters}
+        onCountChange={onCountChange}
+      />
     </div>
   );
 }

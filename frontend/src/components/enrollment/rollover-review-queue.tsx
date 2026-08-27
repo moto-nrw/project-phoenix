@@ -13,6 +13,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 
 const logger = createLogger({ component: "RolloverReviewQueue" });
 
@@ -26,7 +27,7 @@ interface Props {
   readonly phaseName?: string;
 }
 
-export const REVIEW_QUEUE_DESCRIPTION =
+const REVIEW_QUEUE_DESCRIPTION =
   "Kinder, die nicht automatisch übernommen werden konnten, meist weil ihre Klassenstufe nach Erhöhung über der Höchstgrenze liegt. Wählen Sie pro Eintrag, ob Sie das Kind behalten (ggf. mit anderer Klassenstufe), aus der nächsten Phase entfernen oder vorerst zurückstellen.";
 
 export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
@@ -104,7 +105,7 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
         <PageIntro
           kicker={phaseName ?? "Anmeldungen"}
           title="Prüfliste"
-          description={REVIEW_QUEUE_DESCRIPTION}
+          description={<Skeleton className="h-4 w-44" />}
         />
         <SkeletonRegion label="Prüfliste wird geladen">
           <ListSkeleton rows={4} avatar={false} />
@@ -120,8 +121,10 @@ export function RolloverReviewQueue({ phaseID, phaseName }: Props) {
       <PageIntro
         kicker={phaseName ?? "Anmeldungen"}
         title="Prüfliste"
-        description={REVIEW_QUEUE_DESCRIPTION}
-      />
+        description={`${items.length} ${items.length === 1 ? "offener Eintrag" : "offene Einträge"}`}
+      >
+        <p className="text-sm text-gray-600">{REVIEW_QUEUE_DESCRIPTION}</p>
+      </PageIntro>
 
       {error ? <Alert type="error" message={error} /> : null}
       {info ? <Alert type="success" message={info} /> : null}

@@ -23,6 +23,7 @@ import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "RolloverForm" });
@@ -89,7 +90,7 @@ interface Props {
   readonly variant?: "page" | "embedded";
 }
 
-export const ROLLOVER_DESCRIPTION =
+const ROLLOVER_DESCRIPTION =
   "Alle bestätigten Anmeldungen aus dieser Phase werden in eine neue Phase übernommen. Eltern erhalten eine E-Mail mit den nächsten Schritten.";
 
 export function RolloverForm({
@@ -201,13 +202,25 @@ export function RolloverForm({
 
   const title = `Anschlussphase für „${source.name}“ erstellen`;
 
+  // Statuszeile des Seitenkopfs: Quelle und die Vorschau, die das Formular
+  // ohnehin lädt.
+  const statusLine = [
+    `Quelle: ${source.name}`,
+    preview ? `${preview.carried_count} werden übernommen` : null,
+    preview ? `${preview.review_count} zu prüfen` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="space-y-4">
       {variant === "page" ? (
         <PageIntro
           kicker="Anschlussphase"
           title={title}
-          description={ROLLOVER_DESCRIPTION}
+          description={
+            loadingPreview ? <Skeleton className="h-4 w-64" /> : statusLine
+          }
           leading={<ConceptIconTile concept="enrollments" variant="page" />}
         />
       ) : null}

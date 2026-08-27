@@ -330,7 +330,13 @@ function isRenameOf(
   return Boolean(schema) && trimmed.length > 0 && trimmed !== schema?.name;
 }
 
-export function EnrollmentFormEditor() {
+export function EnrollmentFormEditor({
+  onTemplateCountChange,
+}: {
+  /** Meldet die Zahl der Vorlagen an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onTemplateCountChange?: (count: number | null) => void;
+} = {}) {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
@@ -906,6 +912,11 @@ export function EnrollmentFormEditor() {
       }
     }
   };
+
+  useEffect(() => {
+    if (!onTemplateCountChange) return;
+    onTemplateCountChange(loading ? null : latestByName.length);
+  }, [loading, latestByName, onTemplateCountChange]);
 
   if (loading) {
     return (

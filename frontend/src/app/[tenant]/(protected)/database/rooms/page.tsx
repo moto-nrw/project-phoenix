@@ -7,6 +7,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -123,6 +125,13 @@ function RoomsPageContent() {
   const error = roomsError
     ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Raumliste.
+  const statusLine = useMemo(() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((r) => r.isOccupied).length;
+    return `${formatCount(rooms.length)} ${rooms.length === 1 ? "Raum" : "Räume"} · ${formatCount(occupied)} belegt`;
+  }, [roomsData]);
 
   const uniqueCategories = useMemo(() => {
     const rooms = roomsData ?? [];
@@ -349,6 +358,7 @@ function RoomsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Räume",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

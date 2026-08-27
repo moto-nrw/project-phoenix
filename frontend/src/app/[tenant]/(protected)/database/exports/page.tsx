@@ -134,6 +134,21 @@ export default function DatabaseExportsPage() {
   // rendering, so two clicks could fire the same export twice.
   const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
 
+  // Statuszeile des Seitenkopfs: was auf dieser Seite tatsächlich sichtbar
+  // ist, also nach denselben Rechte-Schaltern wie die Karten selbst.
+  const listCount =
+    STUDENT_EXPORT_PRESETS.length +
+    (canExportStaffBirthdays ? 1 : 0) +
+    1 + // Notfallliste
+    (canReadRooms ? 1 : 0);
+  const linkCount =
+    (canUseSlotLists && !timetableDisabled ? 1 : 0) +
+    (canEditPlans && !timetableDisabled ? 1 : 0) +
+    (canUseSlotLists && !timetableDisabled ? 1 : 0) +
+    (isAdmin(session) ? 1 : 0) +
+    1; // Zeitnachweis
+  const statusLine = `${listCount} ${listCount === 1 ? "Liste" : "Listen"} · ${linkCount} auf anderen Seiten`;
+
   const runExport = async (key: string, task: () => Promise<void>) => {
     setBusy((current) => new Set(current).add(key));
     try {
@@ -161,9 +176,15 @@ export default function DatabaseExportsPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Exporte"
-        description="Alle Listen der Schule an einer Stelle. Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere personenbezogene Unterlage."
+        description={statusLine}
         className="mb-6"
-      />
+      >
+        <p className="text-sm text-gray-600">
+          Jeder Export enthält nur die Daten, die für die jeweilige Liste nötig
+          sind. Bitte behandeln Sie die erzeugten Dateien wie jede andere
+          personenbezogene Unterlage.
+        </p>
+      </PageIntro>
 
       <div className="min-h-[60vh] space-y-6">
         <ExportSection title="Kinderlisten">

@@ -3,6 +3,7 @@
 import { CalendarPeriodsEditor } from "~/components/planning/calendar-periods-editor";
 import { ClosingDaysEditor } from "~/components/planning/closing-days-editor";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
@@ -36,7 +37,7 @@ export default function CalendarPeriodsPage() {
           <PageIntro
             kicker="Planung"
             title="Kalenderzeiträume"
-            description="Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan."
+            description={<Skeleton className="h-4 w-56" />}
           />
           <SkeletonRegion
             label="Kalenderzeiträume werden geladen"

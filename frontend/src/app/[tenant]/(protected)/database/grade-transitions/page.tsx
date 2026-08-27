@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
   GradeTransitionsManager,
@@ -11,6 +11,7 @@ import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { PageIntro } from "~/components/ui/page-intro";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Skeleton } from "~/components/ui/skeleton";
 import { hasPermission } from "~/lib/auth-utils";
 
 export default function GradeTransitionsPage() {
@@ -29,6 +30,33 @@ export default function GradeTransitionsPage() {
 
   const canRead = hasPermission(session, "grade_transitions:read");
 
+  // Statuszeile des Seitenkopfs: die Liste, die der Manager ohnehin lädt.
+  const [summary, setSummary] = useState<{
+    total: number;
+    applied: number;
+    latestYear: string | null;
+  } | null>(null);
+  const handleSummaryChange = useCallback(
+    (
+      next: {
+        total: number;
+        applied: number;
+        latestYear: string | null;
+      } | null,
+    ) => setSummary(next),
+    [],
+  );
+  const statusLine = (() => {
+    if (!canRead) return "Kein Zugriff auf Jahrgangswechsel";
+    if (!summary) return null;
+    if (summary.total === 0) return "Noch kein Jahrgangswechsel angelegt";
+    const parts: string[] = [];
+    if (summary.latestYear) parts.push(`Schuljahr ${summary.latestYear}`);
+    parts.push(`${summary.total} Wechsel`);
+    parts.push(`${summary.applied} angewendet`);
+    return parts.join(" · ");
+  })();
+
   return (
     <div className="w-full">
       <BackButton referrer="/database" />
@@ -36,7 +64,7 @@ export default function GradeTransitionsPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Jahrgangswechsel"
-        description="Kinder zum Schuljahreswechsel in die nächste Klasse versetzen und Abgänge festhalten."
+        description={statusLine ?? <Skeleton className="h-4 w-56" />}
         className="mb-6"
       />
 
@@ -48,7 +76,10 @@ export default function GradeTransitionsPage() {
             <ListSkeleton rows={6} />
           </SkeletonRegion>
         ) : canRead ? (
-          <GradeTransitionsManager permissions={permissions} />
+          <GradeTransitionsManager
+            permissions={permissions}
+            onSummaryChange={handleSummaryChange}
+          />
         ) : (
           <ForbiddenPage message="Sie verfügen nicht über die notwendigen Berechtigungen, um Jahrgangswechsel anzusehen." />
         )}

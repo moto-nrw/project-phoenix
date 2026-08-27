@@ -392,7 +392,18 @@ function linkedTemplateWarnings(
   return warnings;
 }
 
-export function CareOfferingsEditor() {
+export function CareOfferingsEditor({
+  onSummaryChange,
+}: {
+  /**
+   * Meldet Gesamtzahl und aktive Angebote an den Seitenkopf, damit dessen
+   * Statuszeile aus denselben Daten lebt statt aus einem zweiten Request.
+   * `null` heißt: noch am Laden.
+   */
+  readonly onSummaryChange?: (
+    summary: { total: number; active: number } | null,
+  ) => void;
+} = {}) {
   const { tenant } = useTenant();
   const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
     ? tenant.gradeLevelMax
@@ -432,6 +443,13 @@ export function CareOfferingsEditor() {
   const activeOfferingCount = offerings.filter(
     (offering) => offering.is_active,
   ).length;
+  // Statuszeile des Seitenkopfs: derselbe Katalog, den die Tabelle zeigt.
+  useEffect(() => {
+    onSummaryChange?.(
+      loading ? null : { total: offerings.length, active: activeOfferingCount },
+    );
+  }, [loading, offerings.length, activeOfferingCount, onSummaryChange]);
+
   const selectableDaysCount = new Set(
     offerings.flatMap((offering) => offering.available_days),
   ).size;

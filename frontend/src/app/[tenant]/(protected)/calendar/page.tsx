@@ -648,7 +648,15 @@ export default function StaffCalendarPage() {
   const personalCalendar = (
     <PersonalCalendar
       title="Mein Kalender"
-      subtitle="Ihre Termine, Einladungen, Dienstplan-Schichten und zugewiesenen Betreuungsangebote."
+      // Statuszeile statt Erklärsatz: die Zahl der Termine im sichtbaren
+      // Zeitraum, aus denselben Daten, die das Raster zeigt.
+      subtitle={
+        isLoading || calendarError
+          ? undefined
+          : `${data?.events.length ?? 0} ${
+              (data?.events.length ?? 0) === 1 ? "Termin" : "Termine"
+            } im Zeitraum`
+      }
       // On a load error SWR may still hold the previous range's data; don't
       // render stale appointments under the new date label.
       events={calendarError ? [] : (data?.events ?? [])}

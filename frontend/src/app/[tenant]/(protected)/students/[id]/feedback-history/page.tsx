@@ -232,12 +232,13 @@ function StudentFeedbackHistoryPageContent() {
     return <FeedbackHistorySkeleton />;
   }
 
-  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
-  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  // Statuszeile: Klasse, Gruppe und die Zahl der Einträge im gewählten
+  // Zeitraum, alles aus den Daten, die die Seite ohnehin geladen hat.
   const studentMeta = student
     ? [
         student.school_class,
         student.group_name ? `Gruppe: ${student.group_name}` : null,
+        `${totalFeedback} ${totalFeedback === 1 ? "Eintrag" : "Einträge"}`,
       ]
         .filter(Boolean)
         .join(" · ")

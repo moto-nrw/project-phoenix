@@ -18,6 +18,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   CardGridSkeleton,
   SkeletonRegion,
@@ -437,13 +438,30 @@ export default function MealPlanPage() {
       : `${shortDateWithYear(weekDates[0]!)} – ${shortDateWithYear(weekDates[4]!)}`;
   const isCurrentWeek = weekOffset === 0;
 
+  // Statuszeile unter dem Titel: Kalenderwoche, Zeitraum und wie viele der
+  // fünf Wochentage schon ein Gericht haben. Die Zahl kommt aus den bereits
+  // gespeicherten Tagen der geladenen Woche.
+  const plannedDays = weekDates.filter(
+    (date) => (originals[date]?.length ?? 0) > 0,
+  ).length;
+  const spokenRange =
+    startYear === endYear
+      ? `${shortDate(weekDates[0]!)} bis ${shortDate(weekDates[4]!)}${startYear}`
+      : `${shortDateWithYear(weekDates[0]!)} bis ${shortDateWithYear(weekDates[4]!)}`;
+  const statusLine =
+    loading && !hasLoaded ? (
+      <Skeleton className="h-4 w-64" />
+    ) : (
+      `KW ${weekNumber} · ${spokenRange} · ${plannedDays} von ${weekDates.length} Tagen geplant`
+    );
+
   return (
     <div className="w-full pb-24">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App. */}
       <PageIntro
         kicker="Eltern"
         title="Essensplan"
-        description="Der Wochenplan, den Eltern im Elternportal sehen."
+        description={statusLine}
         className="mb-6"
       />
       <div className="space-y-6">

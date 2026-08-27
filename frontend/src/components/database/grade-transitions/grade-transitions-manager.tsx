@@ -180,8 +180,18 @@ function describeRevertWarning(warning: string): string {
 
 export function GradeTransitionsManager({
   permissions = FULL_ACCESS,
+  onSummaryChange,
 }: {
   readonly permissions?: TransitionPermissions;
+  /** Meldet die geladene Liste an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onSummaryChange?: (
+    summary: {
+      total: number;
+      applied: number;
+      latestYear: string | null;
+    } | null,
+  ) => void;
 }) {
   const toast = useToast();
   const [transitions, setTransitions] = useState<GradeTransition[] | null>(
@@ -223,6 +233,22 @@ export function GradeTransitionsManager({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!onSummaryChange) return;
+    if (!transitions) {
+      onSummaryChange(null);
+      return;
+    }
+    const years = [...transitions]
+      .map((t) => t.academicYear)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    onSummaryChange({
+      total: transitions.length,
+      applied: transitions.filter((t) => t.status === "applied").length,
+      latestYear: years.at(-1) ?? null,
+    });
+  }, [transitions, onSummaryChange]);
 
   const handleApplied = (result: TransitionResult) => {
     setPreviewFor(null);

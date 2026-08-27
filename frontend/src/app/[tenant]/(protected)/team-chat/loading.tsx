@@ -2,6 +2,7 @@
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { TeamChatSkeleton } from "./page-skeleton";
 
 /**
@@ -15,7 +16,7 @@ export default function TeamChatLoading() {
     <div className="w-full space-y-6">
       <PageIntro
         title="Team-Chat"
-        description="Unterhaltungen im Kollegium, ein Verlauf je Person."
+        description={<Skeleton className="h-4 w-52" />}
       >
         <PageHeaderWithSearch
           title=""

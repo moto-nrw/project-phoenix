@@ -312,6 +312,7 @@ function ActivitiesPageContent() {
             Knopf unten rechts. */}
         <PageIntro
           title="Aktivitäten"
+          description={`${activities.length} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"} · ${categories.length} ${categories.length === 1 ? "Kategorie" : "Kategorien"}`}
           className="mb-6"
           actions={
             <Button

@@ -12,6 +12,7 @@ import {
 import { hasPermission, hasRole } from "~/lib/auth-utils";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { getSettingValue } from "~/lib/settings-api";
+import { formatStatusDate } from "~/lib/date-helpers";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 
@@ -97,11 +98,12 @@ function ElternContent() {
 
   return (
     <div className="w-full">
-      {/* Kopfkarte wie in der Eltern-App: Kicker, Titel und Erklärtext in
-          einer Karte, statt eines frei stehenden Absatzes darunter. */}
+      {/* Kopfkarte wie in der Eltern-App. Die Übersicht lädt selbst keine
+          Zahlen (Nachrichten und Konto-Anfragen liegen hinter eigenen
+          Seiten), deshalb steht in der Statuszeile der Berliner Kalendertag. */}
       <PageIntro
         title="Eltern"
-        description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
+        description={formatStatusDate()}
         className="mb-6"
       />
 
@@ -150,7 +152,7 @@ export default function ElternPage() {
         <div className="w-full">
           <PageIntro
             title="Eltern"
-            description="Alles rund um die Kommunikation mit den Eltern an einem Ort. Nachrichten, Konto-Anfragen, Mitteilungen und der Essensplan."
+            description={formatStatusDate()}
             className="mb-6"
           />
           <ElternCardsSkeleton />

@@ -562,6 +562,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       <PageIntro
         kicker="Anmeldephase"
         title="Anmeldephase nicht gefunden"
+        description="Die Phase wurde gelöscht oder gehört zu einer anderen Schule."
         leading={<ConceptIconTile concept="enrollments" variant="page" />}
         actions={
           <ButtonLink
@@ -584,7 +585,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
       <PageIntro
         kicker="Anmeldephase"
         title={phase.name}
-        description={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)}`}
+        description={`${formatDate(phase.service_start_date)} bis ${formatDate(phase.service_end_date)} · ${stats.total} ${stats.total === 1 ? "Eingang" : "Eingänge"} · ${stats.open} offen`}
         leading={<ConceptIconTile concept="enrollments" variant="page" />}
         actions={
           <div className="flex flex-wrap items-center gap-2">

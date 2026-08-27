@@ -24,6 +24,8 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { Input } from "~/components/ui/input";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { CareResumeModal } from "~/components/students/care-resume-modal";
 import { StudentDeletionModal } from "~/components/students/student-deletion-modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -170,6 +172,15 @@ export default function EndedCarePage() {
     },
   ];
 
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Seite.
+  const statusLine = [
+    `${formatCount(total)} ${total === 1 ? "Kind" : "Kinder"}`,
+    debouncedSearch ? `gefiltert nach „${debouncedSearch}“` : null,
+    totalPages > 1 ? `Seite ${page} von ${totalPages}` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   if (status === "loading") {
     return (
       <div className="w-full space-y-4">
@@ -179,7 +190,7 @@ export default function EndedCarePage() {
         <PageIntro
           kicker="Datenverwaltung"
           title="Beendete Betreuungen"
-          description={ENDED_CARE_DESCRIPTION}
+          description={<Skeleton className="h-4 w-40" />}
         />
 
         <SkeletonRegion label="Beendete Betreuungen werden geladen">
@@ -205,7 +216,13 @@ export default function EndedCarePage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Beendete Betreuungen"
-        description={ENDED_CARE_DESCRIPTION}
+        description={
+          isLoading && data === undefined ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            statusLine
+          )
+        }
         actions={
           <div className="w-full lg:w-64">
             <Input
@@ -216,6 +233,7 @@ export default function EndedCarePage() {
           </div>
         }
       >
+        <p className="mb-3 text-sm text-gray-600">{ENDED_CARE_DESCRIPTION}</p>
         <div className="grid grid-cols-2 gap-2 sm:max-w-md">
           <div className="rounded-xl bg-gray-50 px-3 py-2">
             <span className="block text-sm font-semibold text-gray-900">

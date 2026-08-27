@@ -35,6 +35,8 @@ import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnin
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatStatusDate } from "~/lib/date-helpers";
 import { hasEffectiveAdminScope } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "DashboardPage" });
@@ -239,7 +241,13 @@ function DashboardContent() {
           der Titel, der Erklärtext hängt als description darunter. */}
       <PageIntro
         title={`${greeting}, ${firstName}`}
-        description="Das Wichtigste für heute auf einen Blick."
+        description={
+          isLoading ? (
+            <Skeleton className="h-4 w-64" />
+          ) : (
+            `${formatStatusDate()} · ${dashboardData?.studentsPresent ?? 0} Kinder anwesend · ${dashboardData?.studentsSick ?? 0} krank`
+          )
+        }
         prominent
         className="mb-6 md:mb-8"
       />

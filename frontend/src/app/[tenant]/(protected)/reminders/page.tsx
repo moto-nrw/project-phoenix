@@ -8,10 +8,12 @@ import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
+  isReminderOverdue,
   reminderKey,
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
+import { Skeleton } from "~/components/ui/skeleton";
 
 function ReminderRow({ reminder }: { reminder: Reminder }) {
   return (
@@ -37,12 +39,23 @@ function ReminderRow({ reminder }: { reminder: Reminder }) {
 export default function RemindersPage() {
   const { reminders, count, error, isLoading, data } = useReminders();
 
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
+  const overdue = reminders.filter(isReminderOverdue).length;
+  const upcoming = count - overdue;
+  const summary = `${upcoming} anstehend · ${overdue} überfällig`;
+
   return (
     <div className="w-full">
       {/* Kopfkarte statt Seitenkopf plus frei stehendem Erklärabsatz. */}
       <PageIntro
         title="Erinnerungen"
-        description="Abholungen und Aktivitäten, die anstehen oder überfällig sind."
+        description={
+          isLoading && !reminders.length ? (
+            <Skeleton className="h-4 w-44" />
+          ) : (
+            summary
+          )
+        }
         className="mb-6"
       />
 

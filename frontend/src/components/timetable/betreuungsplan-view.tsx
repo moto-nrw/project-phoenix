@@ -1284,7 +1284,9 @@ function TimetablesContent() {
         nextLabel="Weiter"
         dateLabel={
           view === "series"
-            ? (visiblePeriod?.name ?? undefined)
+            ? // Ohne Planungszeitraum bleibt die Statuszeile nicht leer: dann
+              // steht dort die Woche des sichtbaren Datums.
+              (visiblePeriod?.name ?? weekLabel)
             : view === "month"
               ? monthLabel
               : weekLabel

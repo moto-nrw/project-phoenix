@@ -6,6 +6,8 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -85,6 +87,23 @@ function ActivitiesPageContent() {
   const error = activitiesError
     ? "Fehler beim Laden der Aktivitäten. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Aktivitätenliste.
+  const statusLine = useMemo(() => {
+    const activities = activitiesData ?? [];
+    const categories = new Set(
+      activities.map((a) => a.category_name).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(activities.length)} ${activities.length === 1 ? "Aktivität" : "Aktivitäten"}`,
+    ];
+    if (categories > 0) {
+      parts.push(
+        `${formatCount(categories)} ${categories === 1 ? "Kategorie" : "Kategorien"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [activitiesData]);
 
   const uniqueCategories = useMemo(() => {
     const activities = activitiesData ?? [];
@@ -318,6 +337,7 @@ function ActivitiesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Aktivitäten",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
           <DatabaseCreateAction
             label="Aktivität"

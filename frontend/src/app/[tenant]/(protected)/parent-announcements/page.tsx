@@ -17,6 +17,7 @@ import {
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import type {
   FilterConfig,
@@ -119,7 +120,6 @@ const KIND_COPY: Record<
   AnnouncementKind,
   {
     title: string;
-    description: string;
     action: string;
     ariaLabel: string;
     emptyTitle: string;
@@ -128,8 +128,6 @@ const KIND_COPY: Record<
 > = {
   announcement: {
     title: "Elternmitteilungen",
-    description:
-      "Neuigkeiten an alle Eltern senden, auf Wunsch mit Benachrichtigung per E-Mail.",
     action: "Mitteilung",
     ariaLabel: "Neue Elternmitteilung erstellen",
     emptyTitle: "Keine Mitteilungen",
@@ -137,8 +135,6 @@ const KIND_COPY: Record<
   },
   poll: {
     title: "Elternumfragen",
-    description:
-      "Den Eltern eine Frage stellen und die Rückmeldungen an einer Stelle sammeln.",
     action: "Umfrage",
     ariaLabel: "Neue Umfrage erstellen",
     emptyTitle: "Keine Umfragen",
@@ -312,6 +308,25 @@ function ParentAnnouncementsContent() {
   );
 
   const copy = KIND_COPY[kind];
+
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste:
+  // wie viele Einträge der aktiven Art es gibt und wie viele davon
+  // veröffentlicht sind.
+  const kindSummary = (() => {
+    const ofKind = list.filter((entry) => isPoll(entry) === (kind === "poll"));
+    const published = ofKind.filter(
+      (entry) => entry.status === "published",
+    ).length;
+    const noun =
+      kind === "poll"
+        ? ofKind.length === 1
+          ? "Umfrage"
+          : "Umfragen"
+        : ofKind.length === 1
+          ? "Mitteilung"
+          : "Mitteilungen";
+    return `${ofKind.length} ${noun} · ${published} veröffentlicht`;
+  })();
 
   const filterConfigs: FilterConfig[] = useMemo(
     () => [
@@ -609,7 +624,13 @@ function ParentAnnouncementsContent() {
       <PageIntro
         kicker="Eltern"
         title={copy.title}
-        description={copy.description}
+        description={
+          isLoading && !announcements ? (
+            <Skeleton className="h-4 w-52" />
+          ) : (
+            kindSummary
+          )
+        }
         actions={
           <Button
             type="button"

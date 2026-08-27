@@ -917,10 +917,17 @@ function StudentRoomHistoryPageContent() {
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
-  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
-  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  // Statuszeile: Klasse, Gruppe und die Zahl der protokollierten Tage, alles
+  // aus den Daten, die die Seite ohnehin geladen hat.
+  const dayCount = history?.days.length ?? 0;
   const studentMeta = student
-    ? [student.school_class, student.group_name].filter(Boolean).join(" · ")
+    ? [
+        student.school_class,
+        student.group_name,
+        `${dayCount} ${dayCount === 1 ? "Tag" : "Tage"} erfasst`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : "";
 
   return (

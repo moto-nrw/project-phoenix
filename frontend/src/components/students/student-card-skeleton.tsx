@@ -2,6 +2,7 @@
 // Skeleton mirror of StudentCard, shared by the OGS groups and student
 // search pages so their loading state keeps the exact card-grid footprint.
 
+import type { ReactNode } from "react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { PageHeaderSkeleton } from "~/components/ui/page-header/PageHeaderSkeleton";
 import { PageIntro } from "~/components/ui/page-intro";
@@ -66,6 +67,9 @@ export function StudentCardGridSkeleton({
   );
 }
 
+/** Stabile Vorgabe für die Statuszeile, damit sie nicht je Render neu entsteht. */
+const DEFAULT_DESCRIPTION = <Skeleton className="h-4 w-56" />;
+
 /**
  * Page-shell skeleton for the gate/Suspense states of the student-card
  * pages (ogs-groups, students/search): die echte Kopfkarte (Titel und
@@ -79,13 +83,14 @@ export function StudentCardPageSkeleton({
   testId,
   kicker,
   title,
-  description,
+  description = DEFAULT_DESCRIPTION,
 }: Readonly<{
   label: string;
   testId: string;
   kicker?: string;
   title: string;
-  description?: string;
+  /** Statuszeile unter dem Titel; ohne Angabe ein Skelett-Balken. */
+  description?: ReactNode;
 }>) {
   return (
     <div

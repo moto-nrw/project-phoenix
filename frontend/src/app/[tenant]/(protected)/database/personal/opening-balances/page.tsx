@@ -461,6 +461,25 @@ export default function OpeningBalanceImportPage() {
     [handleFileSelect],
   );
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports.
+  const balanceResult = importResult ?? previewResult;
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importResult
+          ? "Übernahme abgeschlossen"
+          : `${balanceResult?.TotalRows ?? 0} ${(balanceResult?.TotalRows ?? 0) === 1 ? "Zeile" : "Zeilen"}`,
+        !importResult && (balanceResult?.ErrorCount ?? 0) > 0
+          ? `${balanceResult?.ErrorCount} Fehler`
+          : null,
+        effectiveDate ? `Stichtag ${formatDate(effectiveDate)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : effectiveDate
+      ? `Schritt 2 von 4 · Stichtag ${formatDate(effectiveDate)}`
+      : "Schritt 1 von 4 · noch keine Datei gewählt";
+
   if (status === "loading") {
     return (
       <div className="w-full space-y-5">
@@ -470,7 +489,7 @@ export default function OpeningBalanceImportPage() {
         <PageIntro
           kicker="Datenverwaltung"
           title="Eröffnungssalden"
-          description={OPENING_BALANCES_DESCRIPTION}
+          description={statusLine}
         />
 
         <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
@@ -504,8 +523,10 @@ export default function OpeningBalanceImportPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Eröffnungssalden"
-        description={OPENING_BALANCES_DESCRIPTION}
-      />
+        description={statusLine}
+      >
+        <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
+      </PageIntro>
 
       {error && (
         <div className="relative">

@@ -37,6 +37,7 @@ import {
 import {
   berlinTodayISO,
   formatDate,
+  formatStatusDate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
@@ -443,6 +444,16 @@ export default function DayLogPage() {
 
   const selectedDate = parseISODate(dateISO);
 
+  // Statuszeile unter dem Titel: gewählter Tag und die Zahl der Kinder aus dem
+  // geladenen Protokoll. Während des Ladens hält ein Skeleton die Zeile.
+  const statusLine = loading ? (
+    <Skeleton className="h-4 w-48" />
+  ) : data ? (
+    `${formatStatusDate(dateISO)} · ${data.counters.total} Kinder`
+  ) : (
+    formatStatusDate(dateISO)
+  );
+
   return (
     <div className="w-full">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Tagesdatum
@@ -450,6 +461,7 @@ export default function DayLogPage() {
           trägt. */}
       <PageIntro
         title="Tagesauswertung"
+        description={statusLine}
         className="mb-6"
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">

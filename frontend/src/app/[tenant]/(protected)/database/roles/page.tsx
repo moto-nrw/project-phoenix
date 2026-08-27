@@ -6,6 +6,8 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -115,6 +117,18 @@ function RolesPageContent() {
         : [],
     [searchTerm],
   );
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Rollenliste.
+  const statusLine = useMemo(() => {
+    const systemRoles = roles.filter((r) => r.isSystem).length;
+    const parts = [
+      `${formatCount(roles.length)} ${roles.length === 1 ? "Rolle" : "Rollen"}`,
+    ];
+    if (systemRoles > 0) {
+      parts.push(`${formatCount(systemRoles)} vom System`);
+    }
+    return parts.join(" · ");
+  }, [roles]);
 
   const unclassifiedCount = useMemo(
     () => roles.filter((r) => !r.isSystem && !r.baseRole).length,
@@ -317,6 +331,7 @@ function RolesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Rollen",
+        description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
         actions: (
           <DatabaseCreateAction
             label="Rolle"

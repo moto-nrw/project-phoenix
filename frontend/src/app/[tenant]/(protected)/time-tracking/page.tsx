@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   Drawer,
   DrawerClose,
@@ -3848,7 +3849,19 @@ function TimeTrackingContent() {
           deshalb entfällt die Suchkopfzeile ganz. */}
       <PageIntro
         title="Zeiterfassung"
-        description="Ihre Arbeitszeiten, Pausen und Abwesenheiten an einem Ort."
+        description={
+          // Statuszeile aus denselben server-gerechneten Zahlen wie die
+          // Stempeluhr-Kacheln (usePeriodMetrics); solange sie fehlen, hält ein
+          // Skeleton die Zeile.
+          ownMetrics.week === null ||
+          ownMetrics.accountBalanceMinutes === null ? (
+            <Skeleton className="h-4 w-56" />
+          ) : (
+            `Diese Woche ${formatDuration(ownMetrics.week.ist)} von ${formatDuration(
+              ownMetrics.week.soll,
+            )} · Saldo ${formatSignedDuration(ownMetrics.accountBalanceMinutes)}`
+          )
+        }
         className="mb-4 md:mb-6"
       />
 
@@ -4051,7 +4064,7 @@ function TimeTrackingPageSkeleton() {
           sofort; nur die Datenbereiche skeletonisieren. */}
       <PageIntro
         title="Zeiterfassung"
-        description="Ihre Arbeitszeiten, Pausen und Abwesenheiten an einem Ort."
+        description={<Skeleton className="h-4 w-56" />}
         className="mb-4 md:mb-6"
       />
       <SkeletonRegion label="Zeiterfassung wird geladen">

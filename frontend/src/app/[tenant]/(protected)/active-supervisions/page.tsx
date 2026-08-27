@@ -226,6 +226,16 @@ function MeinRaumPageContent() {
     return <NoActiveSupervisionAccessView />;
   }
 
+  // Statuszeile unter dem Seitentitel: welche Aufsicht gerade offen ist und
+  // wie viele Kinder in ihr geführt werden. Beides steht schon im geladenen
+  // Dashboard-Zustand.
+  const supervisionName = isSchulhofTabSelected
+    ? SCHULHOF_ROOM_NAME
+    : (currentRoom?.name ?? currentRoom?.room_name ?? null);
+  const supervisionSummary = supervisionName
+    ? `${supervisionName} · ${students.length} ${students.length === 1 ? "Kind" : "Kinder"}`
+    : "Keine Aufsicht aktiv";
+
   const spontaneousStartBanner = dashboard.webSpontaneousActivitiesEnabled ? (
     <SpontaneousActivityStart
       currentStaffId={currentStaffId}
@@ -269,7 +279,7 @@ function MeinRaumPageContent() {
             einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
         <PageIntro
           title="Aktuelle Aufsicht"
-          description="Die Kinder in Ihren laufenden Aufsichten und ihr aktueller Aufenthaltsort."
+          description={supervisionSummary}
           className="mb-6"
         />
         {reopenBanner}
@@ -351,7 +361,7 @@ function MeinRaumPageContent() {
           einzelnen Aufsichten steht weiter unten im Seitenkopf. */}
       <PageIntro
         title="Aktuelle Aufsicht"
-        description="Die Kinder in Ihren laufenden Aufsichten und ihr aktueller Aufenthaltsort."
+        description={supervisionSummary}
         className="mb-6"
       />
       {reopenBanner}

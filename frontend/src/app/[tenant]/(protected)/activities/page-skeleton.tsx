@@ -20,6 +20,7 @@ export function ActivitiesSkeleton() {
       {/* Der Kopf rendert sofort, nur die Liste skeletonisiert. */}
       <PageIntro
         title="Aktivitäten"
+        description={<Skeleton className="h-4 w-48" />}
         className="mb-6"
         actions={
           <Button

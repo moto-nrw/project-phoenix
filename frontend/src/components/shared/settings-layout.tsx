@@ -222,7 +222,7 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
       {!(isMobile && activeTab !== null) && (
         <PageIntro
           title="Einstellungen"
-          description="Alle Einstellungen dieser Schule, nach Bereichen sortiert."
+          description={`${tabs.length} ${tabs.length === 1 ? "Bereich" : "Bereiche"}`}
           className="mb-6"
         >
           {!isMobile && (

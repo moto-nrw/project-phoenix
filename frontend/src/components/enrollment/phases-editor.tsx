@@ -59,6 +59,7 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
 import {
   DataTable,
@@ -771,7 +772,13 @@ export function PhasesEditor() {
       <PageIntro
         kicker="Anmeldungen"
         title="Anmeldephasen"
-        description="Zeiträume, für die sich Eltern anmelden können, mit Frist, Formular und Betreuungsangeboten."
+        description={
+          loading ? (
+            <Skeleton className="h-4 w-52" />
+          ) : (
+            `${activePhaseCount} aktiv · ${Math.max(phases.length - activePhaseCount, 0)} in Vorbereitung`
+          )
+        }
         actions={
           !editingId && !rolloverSource ? (
             <Button

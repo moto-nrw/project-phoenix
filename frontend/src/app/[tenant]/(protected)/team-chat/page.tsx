@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { MessagesSquare } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -108,13 +109,24 @@ function TeamChatInboxContent() {
   // Seite den Fehlschlag als belastbares "keine Nachrichten".
   const nothingToShow = !threads || threads.length === 0;
 
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Liste.
+  const threadList = threads ?? [];
+  const unreadThreads = threadList.filter(
+    (thread) => thread.unread_count > 0,
+  ).length;
+  const chatSummary = chatEnabled
+    ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
+    : "Team-Chat ist nicht eingeschaltet";
+
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
           Primäraktion in EINER Karte, auf allen Breakpoints. */}
       <PageIntro
         title="Team-Chat"
-        description="Unterhaltungen im Kollegium, ein Verlauf je Person."
+        description={
+          showSkeleton ? <Skeleton className="h-4 w-52" /> : chatSummary
+        }
         actions={
           chatEnabled ? (
             <Button

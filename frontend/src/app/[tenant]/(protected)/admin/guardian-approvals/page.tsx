@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
+
 import GuardianApprovalQueue, {
   type GuardianInviteMode,
   type GuardianInviteModeState,
 } from "~/components/admin/guardian-approval-queue";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
@@ -25,6 +28,9 @@ function parseInviteMode(value: unknown): GuardianInviteMode | undefined {
 // otherwise the queue is simply empty.
 export default function GuardianApprovalsPage() {
   const { isReady } = useRequireAdmin();
+  // Zeilenzahl der Warteschlange, von ihr selbst gemeldet (kein zusätzlicher
+  // Request). `null` = noch am Laden.
+  const [pendingCount, setPendingCount] = useState<number | null>(null);
   // The queue is empty by design in the other two invite modes, so the empty
   // state needs to know which one is active. The queue still mounts while this
   // independent request runs; only its empty-result copy waits for the mode.
@@ -65,11 +71,20 @@ export default function GuardianApprovalsPage() {
       <PageIntro
         kicker="Eltern"
         title="Konto-Anfragen"
-        description="Zugänge von Eltern zum Elternportal prüfen und freigeben."
+        description={
+          pendingCount === null ? (
+            <Skeleton className="h-4 w-32" />
+          ) : (
+            `${pendingCount} offen`
+          )
+        }
       />
       <div>
         {isReady ? (
-          <GuardianApprovalQueue inviteModeState={inviteModeState} />
+          <GuardianApprovalQueue
+            inviteModeState={inviteModeState}
+            onCountChange={setPendingCount}
+          />
         ) : (
           <SkeletonRegion label="Konto-Anfragen werden geladen">
             <ListSkeleton rows={5} />

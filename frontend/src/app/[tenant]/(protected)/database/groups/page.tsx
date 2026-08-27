@@ -6,6 +6,8 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -79,6 +81,12 @@ function GroupsPageContent() {
   const error = groupsError
     ? "Fehler beim Laden der Gruppen. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Gruppenliste.
+  const statusLine = useMemo(() => {
+    const groups = groupsData ?? [];
+    return `${formatCount(groups.length)} ${groups.length === 1 ? "Gruppe" : "Gruppen"}`;
+  }, [groupsData]);
 
   const uniqueRooms = useMemo(() => {
     const groups = groupsData ?? [];
@@ -255,6 +263,7 @@ function GroupsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Gruppen",
+        description: loading ? <Skeleton className="h-4 w-40" /> : statusLine,
         actions: (
           <DatabaseCreateAction
             label="Gruppe"

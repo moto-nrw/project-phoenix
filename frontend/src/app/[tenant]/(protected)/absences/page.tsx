@@ -18,6 +18,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { PageIntro } from "~/components/ui/page-intro";
 import { SectionCard } from "~/components/ui/section-card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { StatusDotBadge } from "~/components/ui/status-dot-badge";
 import {
   berlinTodayISO,
@@ -240,13 +241,24 @@ export default function AbsencesPage() {
     );
   }, [todayIso]);
 
+  // Statuszeile unter dem Titel: gezählte Einträge der aktuellen Seite und der
+  // gewählte Zeitraum. Beim ersten Laden hält ein Skeleton die Zeile.
+  const statusLine =
+    isLoading || !entries ? (
+      <Skeleton className="h-4 w-56" />
+    ) : (
+      `${entries.length} ${entries.length === 1 ? "Eintrag" : "Einträge"}${
+        displayedPage > 1 || hasMore ? ` auf Seite ${displayedPage}` : ""
+      } · ${formatDate(effectiveFromIso!)} bis ${formatDate(effectiveToIso!)}`
+    );
+
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum
           rechts im Kopf, Such- und Filterzeile darunter in derselben Karte. */}
       <PageIntro
         title="Abwesenheiten"
-        description="Alle gemeldeten Krank-, Entschuldigt- und Klassenfahrt-Tage von heute an, zum Nachschlagen, ob für ein Kind schon etwas eingetragen ist."
+        description={statusLine}
         actions={
           <DateRangePicker
             value={range}
@@ -281,12 +293,6 @@ export default function AbsencesPage() {
             ariaLabel="Nach Gruppe filtern"
             className="w-full sm:w-52"
           />
-          {entries && (
-            <span className="text-sm text-gray-500 sm:ml-auto">
-              {entries.length} {entries.length === 1 ? "Eintrag" : "Einträge"}{" "}
-              auf Seite {displayedPage}
-            </span>
-          )}
         </div>
       </PageIntro>
 

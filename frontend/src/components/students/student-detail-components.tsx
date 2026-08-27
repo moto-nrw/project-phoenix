@@ -366,16 +366,31 @@ export function StudentDetailHeader({
       kicker="Kind"
       title={`${student.first_name ?? ""} ${student.second_name ?? ""}`.trim()}
       description={
-        student.group_name ? (
-          <span className="inline-flex items-center gap-2">
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.groups.icon}
-              tone={MOTO_CONCEPTS.groups.tone}
-              size={18}
-            />
-            <span className="truncate">{student.group_name}</span>
+        // Statuszeile unter dem Titel: Klasse und Gruppe des Kindes, beides
+        // steht schon im geladenen Datensatz. Fehlt beides, sagt die Zeile
+        // genau das, statt zu verschwinden.
+        student.group_name || student.school_class ? (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            {student.school_class ? (
+              <span className="truncate">Klasse {student.school_class}</span>
+            ) : null}
+            {student.school_class && student.group_name ? (
+              <span aria-hidden="true">·</span>
+            ) : null}
+            {student.group_name ? (
+              <span className="inline-flex items-center gap-2">
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.groups.icon}
+                  tone={MOTO_CONCEPTS.groups.tone}
+                  size={18}
+                />
+                <span className="truncate">{student.group_name}</span>
+              </span>
+            ) : null}
           </span>
-        ) : undefined
+        ) : (
+          "Keine Klasse und keine Gruppe hinterlegt"
+        )
       }
       actions={
         <LocationBadge

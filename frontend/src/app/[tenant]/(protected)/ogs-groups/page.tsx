@@ -19,8 +19,8 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { BadgeDisplay } from "~/components/ui/page-header/BadgeDisplay";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -853,7 +853,7 @@ function OGSGroupPageContent() {
       <div className="w-full">
         <PageIntro
           title="Meine Gruppe"
-          description="Die Kinder Ihrer OGS-Gruppe und ihr aktueller Aufenthaltsort."
+          description="Keine Gruppe zugeordnet"
           className="mb-6"
         />
 
@@ -1044,14 +1044,25 @@ function OGSGroupPageContent() {
     <>
       <div className="w-full">
         {/* Kopfkarte wie auf jeder Tenant-Seite. Der Titel bleibt konstant;
-            die Anwesenheit der gewählten Gruppe steht als Zähler in den
-            Aktionen, daneben der Vertretungshinweis und das Kebab-Menü. */}
+            Gruppe und Anwesenheit stehen in der Statuszeile darunter, in den
+            Aktionen nur noch der Vertretungshinweis und das Kebab-Menü. */}
         <PageIntro
           title="Meine Gruppe"
           description={
-            currentGroup?.name
-              ? `Die Kinder der Gruppe ${currentGroup.name} und ihr aktueller Aufenthaltsort.`
-              : undefined
+            // Statuszeile aus den bereits geladenen Gruppendaten:
+            // Gruppenname und Anwesenheit.
+            showSkeleton ? (
+              <Skeleton className="h-4 w-48" />
+            ) : (
+              [
+                currentGroup?.name,
+                currentGroup?.student_count !== undefined
+                  ? `${currentGroup.present_count ?? 0} von ${currentGroup.student_count} da`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Keine Gruppe zugeordnet"
+            )
           }
           className="mb-6"
           actions={
@@ -1063,13 +1074,6 @@ function OGSGroupPageContent() {
                     In Vertretung
                   </span>
                 </div>
-              ) : null}
-              {currentGroup?.student_count !== undefined ? (
-                <BadgeDisplay
-                  icon={<MotoConceptIcon concept="children" size={20} />}
-                  count={currentGroup.present_count ?? 0}
-                  label={`von ${currentGroup.student_count} da`}
-                />
               ) : null}
               {overflowItems.length > 0 ? (
                 <OverflowMenu

@@ -8,6 +8,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, DataTableStatusBadge } from "~/components/ui/data-table";
 import type { DataTableColumn } from "~/components/ui/data-table";
@@ -242,6 +243,13 @@ function InfoDisplaysPageContent() {
           Primäraktion steht in ihrer Titelzeile. */}
       <PageIntro
         title="Info-Displays"
+        description={
+          permissionLoading || isLoading ? (
+            <Skeleton className="h-4 w-32" />
+          ) : (
+            `${displays?.length ?? 0} ${(displays?.length ?? 0) === 1 ? "Display" : "Displays"}`
+          )
+        }
         className="mb-6"
         actions={
           canManage ? (

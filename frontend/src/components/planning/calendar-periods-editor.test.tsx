@@ -196,9 +196,8 @@ describe("CalendarPeriodsEditor", () => {
       name: "Zeitraum anlegen",
     });
     const actions = createPeriodButton.parentElement;
-    const description = screen.getByText(
-      /Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis/,
-    );
+    // Statuszeile statt Erklärsatz (Kopfkarten-Sweep): gezählte Zeiträume.
+    const description = screen.getByText(/1 Zeitraum · 1 aktiv/);
 
     // Seit der Umstellung auf die Kopfkarte (PageIntro/SectionCard) umbrechen
     // die Aktionen auf jeder Breite, und der Textblock bleibt schrumpfbar.

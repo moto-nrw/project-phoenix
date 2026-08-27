@@ -32,10 +32,10 @@ export function DatabaseIndexSkeleton() {
       data-testid="database-index-skeleton"
       className="w-full"
     >
-      {/* Kicker und Titel sind statisch, deshalb rendert die Kopfkarte sofort. */}
+      {/* Titel ist statisch, die Statuszeile kommt mit den Zahlen. */}
       <PageIntro
         title="Datenverwaltung"
-        description="Alle Stammdaten der Schule an einer Stelle."
+        description={<Skeleton className="h-4 w-48" />}
         className="mb-6"
       />
       <div className="min-h-[60vh]">

@@ -7,6 +7,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -119,6 +121,13 @@ function DevicesPageContent() {
   // async and useSearchParams lags one render behind it, so any effect that
   // compares createdDevice.id to selectedId would race the URL update and
   // wipe the api_key before it could render.
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Geräteliste.
+  const statusLine = useMemo(() => {
+    const devices = devicesData ?? [];
+    const online = devices.filter((d) => d.is_online).length;
+    return `${formatCount(devices.length)} ${devices.length === 1 ? "Gerät" : "Geräte"} · ${formatCount(online)} online`;
+  }, [devicesData]);
 
   const filters: FilterConfig[] = useMemo(() => [], []);
 
@@ -342,6 +351,7 @@ function DevicesPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Geräte",
+        description: loading ? <Skeleton className="h-4 w-44" /> : statusLine,
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

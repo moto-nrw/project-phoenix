@@ -191,10 +191,17 @@ function StudentChangeHistoryPageContent() {
   const displayName = student
     ? (student.name ?? `${student.first_name} ${student.second_name}`)
     : "";
-  // Klasse und Gruppe als Unterzeile; fehlen beide, erklärt stattdessen ein
-  // Satz die Seite, damit die Kopfkarte nie nur den Namen trägt.
+  // Statuszeile: Klasse, Gruppe und die Zahl der geladenen Einträge. Beides
+  // steht schon im Datensatz der Seite, es entsteht kein weiterer Request.
+  const entryCount = entries?.length ?? 0;
   const studentMeta = student
-    ? [student.school_class, student.group_name].filter(Boolean).join(" · ")
+    ? [
+        student.school_class,
+        student.group_name,
+        `${entryCount} ${entryCount === 1 ? "Eintrag" : "Einträge"}`,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : "";
 
   return (

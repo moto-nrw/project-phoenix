@@ -5,6 +5,7 @@ import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -90,6 +91,13 @@ function MessagesInboxContent() {
   // immediately regardless — only the thread list skeletonizes.
   const showSkeleton = isLoading && !threads;
 
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Inbox.
+  const threadList: InboxThread[] = threads ?? [];
+  const unreadThreads = threadList.filter(
+    (thread) => thread.unread_count > 0,
+  ).length;
+  const inboxSummary = `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
+
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte wie in der Eltern-App: Kicker, Titel, Erklärtext und die
@@ -97,7 +105,9 @@ function MessagesInboxContent() {
       <PageIntro
         kicker="Eltern"
         title="Nachrichten"
-        description="Unterhaltungen mit den Eltern, ein Verlauf je Kind."
+        description={
+          showSkeleton ? <Skeleton className="h-4 w-52" /> : inboxSummary
+        }
         actions={
           messagingEnabled ? (
             <Button

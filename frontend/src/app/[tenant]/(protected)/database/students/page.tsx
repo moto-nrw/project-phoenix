@@ -17,6 +17,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -268,6 +270,23 @@ function StudentsPageContent() {
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
   });
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Kinderliste.
+  const statusLine = useMemo(() => {
+    const students = studentsData ?? [];
+    const classes = new Set(
+      students.map((s) => s.school_class?.trim()).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(students.length)} ${students.length === 1 ? "Kind" : "Kinder"}`,
+    ];
+    if (classes > 0) {
+      parts.push(
+        `${formatCount(classes)} ${classes === 1 ? "Klasse" : "Klassen"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [studentsData]);
 
   const filteredStudents = useMemo(() => {
     const students = studentsData ?? [];
@@ -571,6 +590,7 @@ function StudentsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Kinder",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

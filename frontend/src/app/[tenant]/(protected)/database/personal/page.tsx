@@ -8,6 +8,8 @@ import { DatabaseCreateAction } from "~/components/database/database-create-acti
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -133,6 +135,21 @@ function TeachersPageContent() {
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Personalliste.
+  const statusLine = useMemo(() => {
+    const teachers = teachersData ?? [];
+    const roles = new Set(
+      teachers.map((t) => t.account_role?.trim()).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(teachers.length)} ${teachers.length === 1 ? "Person" : "Personen"}`,
+    ];
+    if (roles > 0) {
+      parts.push(`${formatCount(roles)} ${roles === 1 ? "Rolle" : "Rollen"}`);
+    }
+    return parts.join(" · ");
+  }, [teachersData]);
 
   const existingPositions = useMemo(() => {
     const teachers = teachersData ?? [];
@@ -303,6 +320,7 @@ function TeachersPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Personal",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
         actions: (
           <div className="flex items-center gap-2">
             {!isMobile ? (

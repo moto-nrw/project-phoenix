@@ -292,9 +292,14 @@ function MessageThreadContent() {
                 <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
                   {thread?.guardian_name}
                 </h1>
+                {/* Statuszeile unter dem Titel: Beziehung, Kind und die Zahl
+                    der geladenen Nachrichten. */}
                 <p className="mt-1 truncate text-sm leading-6 text-gray-600">
                   {thread ? relationshipLabel(thread.relationship_type) : ""}{" "}
-                  von {thread?.student_name}
+                  von {thread?.student_name} ·{" "}
+                  {messagesLoading
+                    ? "Nachrichten werden geladen"
+                    : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`}
                 </p>
               </div>
               <Button

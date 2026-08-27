@@ -4,6 +4,8 @@ import { Suspense } from "react";
 import { PhasesEditor } from "~/components/enrollment/phases-editor";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatStatusDate } from "~/lib/date-helpers";
 import { SkeletonRegion, TableSkeleton } from "~/components/ui/page-skeletons";
 import { useRequireAdmin } from "~/lib/hooks/use-require-admin";
 
@@ -28,7 +30,7 @@ export default function EnrollmentPhasesPage() {
           <PageIntro
             kicker="Anmeldungen"
             title="Anmeldephasen"
-            description="Zeiträume, für die sich Eltern anmelden können, mit Frist, Formular und Betreuungsangeboten."
+            description={<Skeleton className="h-4 w-52" />}
           />
           <PhasesEditorSkeleton />
         </>
@@ -40,7 +42,7 @@ export default function EnrollmentPhasesPage() {
             <PageIntro
               kicker="Anmeldungen"
               title="Anmeldephasen"
-              description="Zeiträume, für die sich Eltern anmelden können, mit Frist, Formular und Betreuungsangeboten."
+              description={formatStatusDate()}
             />
           </div>
           <DesktopOnlyNotice />

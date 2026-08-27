@@ -12,6 +12,7 @@ import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
 import { DatabaseIndexSkeleton } from "./page-skeleton";
+import { formatCount } from "~/lib/format-utils";
 
 import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -182,6 +183,26 @@ const baseDataSections: DataSection[] = [
 
 const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
+/** Statuszeile des Seitenkopfs: die Bestände, die der Zugriff hergibt.
+ *  Zahlen stammen aus /api/database/counts, das die Seite ohnehin lädt. */
+function buildDatabaseStatusLine(counts: DatabaseCounts): string {
+  const permissions = counts.permissions;
+  const parts: string[] = [];
+  if (permissions.canViewStudents) {
+    parts.push(`${formatCount(counts.students)} Kinder`);
+  }
+  if (permissions.canViewTeachers) {
+    parts.push(`${formatCount(counts.teachers)} Personen`);
+  }
+  if (permissions.canViewRooms) {
+    parts.push(`${formatCount(counts.rooms)} Räume`);
+  }
+  if (permissions.canViewGroups) {
+    parts.push(`${formatCount(counts.groups)} Gruppen`);
+  }
+  return parts.join(" · ");
+}
+
 function DatabaseContent() {
   const { data: session } = useSession();
   const nfcEnabled = useNFCEnabled();
@@ -208,11 +229,13 @@ function DatabaseContent() {
     return <DatabaseIndexSkeleton />;
   }
 
+  const statusLine = buildDatabaseStatusLine(counts);
+
   return (
     <div className="w-full">
       <PageIntro
         title="Datenverwaltung"
-        description="Alle Stammdaten der Schule an einer Stelle."
+        description={statusLine}
         className="mb-6"
       />
 

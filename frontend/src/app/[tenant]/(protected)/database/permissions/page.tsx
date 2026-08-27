@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import { Alert } from "~/components/ui/alert";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -96,6 +98,20 @@ function PermissionsPageContent() {
     [searchTerm],
   );
 
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Berechtigungsliste.
+  const statusLine = useMemo(() => {
+    const resources = new Set(permissions.map((p) => p.resource)).size;
+    const parts = [
+      `${formatCount(permissions.length)} ${permissions.length === 1 ? "Berechtigung" : "Berechtigungen"}`,
+    ];
+    if (resources > 0) {
+      parts.push(
+        `${formatCount(resources)} ${resources === 1 ? "Bereich" : "Bereiche"}`,
+      );
+    }
+    return parts.join(" · ");
+  }, [permissions]);
+
   const filteredPermissions = useMemo(() => {
     let arr = [...permissions];
     if (searchTerm) {
@@ -156,8 +172,7 @@ function PermissionsPageContent() {
       intro={{
         kicker: "Datenverwaltung",
         title: "Berechtigungen",
-        description:
-          "Sie können Berechtigungen ansehen. Nur das moto-Team kann sie ändern.",
+        description: loading ? <Skeleton className="h-4 w-56" /> : statusLine,
       }}
       search={
         <PageHeaderWithSearch

@@ -2,6 +2,7 @@
 
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import { MessagesSkeleton } from "./page-skeleton";
 
 /**
@@ -17,7 +18,7 @@ export default function MessagesLoading() {
       <PageIntro
         kicker="Eltern"
         title="Nachrichten"
-        description="Unterhaltungen mit den Eltern, ein Verlauf je Kind."
+        description={<Skeleton className="h-4 w-52" />}
       >
         <PageHeaderWithSearch
           title=""

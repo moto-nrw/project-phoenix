@@ -31,7 +31,7 @@ import {
 } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatCard } from "~/components/ui/stat-card";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, formatStatusDate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
 import {
   filesService,
@@ -50,8 +50,13 @@ import { FolderModal } from "./folder-modal";
 
 const logger = createLogger({ component: "FilesPage" });
 
-const FILES_PAGE_DESCRIPTION =
-  "Gemeinsame Dateien der OGS, zum Beispiel Konzeption, Formulare oder Notfallpläne. Wer einen Ordner sieht, legt die Leitung pro Ordner fest. Unterlagen zu einem Kind oder zu einer Person liegen weiter beim Kind bzw. bei der Person.";
+/** Statuszeile unter dem Titel: gezählte Ordner und Dateien der Ablage. */
+function filesStatusLine(folders: readonly FileFolder[]): string {
+  const fileCount = folders.reduce((sum, folder) => sum + folder.fileCount, 0);
+  return `${folders.length} Ordner · ${fileCount} ${
+    fileCount === 1 ? "Datei" : "Dateien"
+  }`;
+}
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg";
 const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024;
@@ -143,7 +148,7 @@ export function FilesPage() {
       <div className="w-full">
         <PageIntro
           title="Dateien"
-          description={FILES_PAGE_DESCRIPTION}
+          description={formatStatusDate()}
           className="mb-4"
         />
         <Alert
@@ -213,7 +218,13 @@ export function FilesPage() {
           statt Seitenkopf plus frei stehendem Erklärabsatz darunter. */}
       <PageIntro
         title="Dateien"
-        description={FILES_PAGE_DESCRIPTION}
+        description={
+          isLoading ? (
+            <Skeleton className="h-4 w-40" />
+          ) : (
+            filesStatusLine(folders)
+          )
+        }
         className="mb-4"
         actions={
           canManage ? (

@@ -262,13 +262,23 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   ).length;
   const hasRestorableChildren = withdrawnChildCount > 0;
 
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Anmeldung.
+  const statusLine = [
+    `${data.children.length} ${data.children.length === 1 ? "Kind" : "Kinder"}`,
+    `${childStats.open} offen`,
+    `${childStats.approved} bestätigt`,
+    data.phase_name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return (
     <div className="space-y-5">
       {/* Entitätskopf der Seite: eine Kopfkarte, kein zweiter Kopf im Inhalt. */}
       <PageIntro
         kicker="Anmeldung"
         title={`${data.guardian_first_name} ${data.guardian_last_name}`}
-        description="Prüfen Sie die Angaben der Anmeldung, bevor Sie eine Entscheidung speichern. Die Entscheidung wird pro Kind gesetzt."
+        description={statusLine}
         leading={<ConceptIconTile concept="enrollments" variant="page" />}
       />
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">

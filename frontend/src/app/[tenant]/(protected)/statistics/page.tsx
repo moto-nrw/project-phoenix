@@ -31,6 +31,7 @@ import { StatCard } from "~/components/ui/stat-card";
 import {
   berlinTodayISO,
   formatDate,
+  formatStatusDate,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
@@ -435,6 +436,17 @@ export default function StatisticsPage() {
     },
   }[view];
 
+  // Statuszeile unter dem Titel: echter Zeitraum, gezählte Betreuungstage und
+  // Kinder aus dem geladenen Bericht. Während des Ladens hält ein Skeleton die
+  // Zeile, damit der Kopf nie ohne Status dasteht.
+  const statusLine = loading ? (
+    <Skeleton className="h-4 w-48" />
+  ) : data ? (
+    `${formatDate(data.from)} bis ${formatDate(data.to)} · ${data.care_days} Betreuungstage · ${data.totals.student_count} Kinder`
+  ) : (
+    formatStatusDate(todayISO)
+  );
+
   return (
     <div className="w-full space-y-6">
       {/* Kopfkarte auf allen Breakpoints, wie in der Eltern-App: Zeitraum,
@@ -442,7 +454,7 @@ export default function StatisticsPage() {
           nur den Titel trägt. */}
       <PageIntro
         title="Statistik"
-        description="Quote = Tage mit Anmeldung geteilt durch Betreuungstage (ohne Feiertage, Schließtage und Ferien)."
+        description={statusLine}
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
             <DateRangePicker

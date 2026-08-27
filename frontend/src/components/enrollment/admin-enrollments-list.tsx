@@ -67,7 +67,19 @@ interface CareOfferingStats {
   readonly activeInActivePhases: number;
 }
 
-export function AdminEnrollmentsList() {
+export interface AdminEnrollmentsSummary {
+  readonly activePhases: number;
+  readonly requests: number;
+  readonly openChangeRequests: number;
+}
+
+export function AdminEnrollmentsList({
+  onSummaryChange,
+}: {
+  /** Meldet die geladenen Zahlen an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onSummaryChange?: (summary: AdminEnrollmentsSummary | null) => void;
+} = {}) {
   const tenantSlug = useTenantSlugSafe();
   const tenantPath = useTenantAwarePath();
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -161,6 +173,23 @@ export function AdminEnrollmentsList() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!onSummaryChange) return;
+    if (loading) {
+      onSummaryChange(null);
+      return;
+    }
+    onSummaryChange({
+      activePhases: phases.filter((phase) => phase.is_active).length,
+      requests: allRequests.length,
+      openChangeRequests: changeRequests.filter(
+        (request) =>
+          request.status === "pending_review" ||
+          request.status === "needs_parent_response",
+      ).length,
+    });
+  }, [loading, phases, allRequests, changeRequests, onSummaryChange]);
 
   if (loading) {
     return (

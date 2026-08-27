@@ -240,8 +240,10 @@ function TeamThreadContent() {
               <h1 className="mt-1 truncate text-xl leading-tight font-semibold tracking-tight text-gray-900 sm:text-2xl">
                 {thread?.counterpart_name}
               </h1>
+              {/* Statuszeile unter dem Titel: die Zahl der geladenen
+                  Nachrichten dieser Unterhaltung. */}
               <p className="mt-1 text-sm leading-6 text-gray-600">
-                Nur Sie beide sehen diese Nachrichten.
+                {`${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"} · nur Sie beide sehen sie`}
               </p>
             </div>
 

@@ -12,6 +12,7 @@ import { Alert } from "~/components/ui/alert";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import type {
@@ -80,7 +81,7 @@ function DocumentDirectory({
         // Titel trägt und nicht zwei fast leere Zeilen übereinander liegen.
         <PageIntro
           title="Mitarbeiter"
-          description="Die für Sie freigegebenen Personalunterlagen."
+          description={`${entries.length} ${entries.length === 1 ? "Person" : "Personen"} mit Unterlagen`}
           className="mb-6"
         >
           <PageHeaderWithSearch
@@ -586,6 +587,31 @@ function StaffPageContent() {
     view,
   ]);
 
+  // Statuszeile unter dem Seitentitel: nur aus den Daten, die die Seite
+  // ohnehin lädt (Personalliste bzw. Zeitkonten-Tabelle).
+  const staffSummary = (() => {
+    if (canReadUsers) {
+      const absent = staff.filter((member) =>
+        absenceLocations.has(member.currentLocation ?? "Abwesend"),
+      ).length;
+      const clockedIn = staff.filter((member) => {
+        const location = member.currentLocation ?? "Abwesend";
+        return (
+          location !== "Zuhause" &&
+          location !== "Abwesend" &&
+          !absenceLocations.has(location)
+        );
+      }).length;
+      return `${staff.length} ${staff.length === 1 ? "Person" : "Personen"} · ${absent} heute abwesend · ${clockedIn} eingestempelt`;
+    }
+    if (canManageTimeTracking) {
+      const count = accounts?.rows.length ?? 0;
+      return `${count} ${count === 1 ? "Zeitkonto" : "Zeitkonten"}`;
+    }
+    const count = documentDirectory?.length ?? 0;
+    return `${count} ${count === 1 ? "Person" : "Personen"} mit Unterlagen`;
+  })();
+
   const showSkeleton =
     status === "loading" || isLoading || isDocumentDirectoryLoading;
 
@@ -611,7 +637,13 @@ function StaffPageContent() {
           einer Karte, auf allen Breakpoints sichtbar. */}
       {/* Der Verweis auf die Anfragen (#2433) steht in der Kopfkarte, nicht als
           eigene Zeile zwischen Suchzeile und Einrichtungs-Übersicht. */}
-      <PageIntro title="Mitarbeiter" className="mb-6">
+      <PageIntro
+        title="Mitarbeiter"
+        description={
+          showSkeleton ? <Skeleton className="h-4 w-64" /> : staffSummary
+        }
+        className="mb-6"
+      >
         {!showSkeleton && canReviewAbsences ? (
           <Link
             href={tenantPath("/anfragen")}

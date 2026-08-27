@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { DesktopFilters } from "~/components/ui/page-header/DesktopFilters";
 import { ActiveFilterChips } from "~/components/ui/page-header/ActiveFilterChips";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -45,6 +46,7 @@ import { getSettingValue } from "~/lib/settings-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   berlinTodayISO,
+  formatStatusDate,
   isValidISODate,
   parseISODate,
   toISODate,
@@ -2085,6 +2087,15 @@ export default function SlotListsPage() {
       <PageIntro
         kicker="Planung"
         title="Tageslisten"
+        description={
+          // Statuszeile: der gewählte Tag und die geplanten Kinder aus den
+          // Zählern der geladenen Liste.
+          isLoading || !result ? (
+            <Skeleton className="h-4 w-56" />
+          ) : (
+            `${formatStatusDate(dateISO)} · ${result.counters.planned} Kinder geplant`
+          )
+        }
         className="mb-6"
         actions={
           <div className="flex w-full items-center gap-2 sm:w-auto">

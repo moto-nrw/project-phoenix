@@ -20,6 +20,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -335,6 +336,20 @@ export function CalendarPeriodsEditor() {
     [beginEdit, usageTotal],
   );
 
+  // Statuszeile unter dem Titel: der heute laufende Zeitraum plus die Zahl der
+  // angelegten Zeiträume, beides aus der bereits geladenen Liste.
+  const today = todayISO();
+  const currentPeriod = periods.find(
+    (period) => period.startDate <= today && period.endDate >= today,
+  );
+  const statusLine = loading ? (
+    <Skeleton className="h-4 w-56" />
+  ) : (
+    `${currentPeriod ? `${currentPeriod.name} · ` : ""}${periods.length} ${
+      periods.length === 1 ? "Zeitraum" : "Zeiträume"
+    } · ${periods.filter((period) => period.isActive).length} aktiv`
+  );
+
   return (
     <div className="space-y-4">
       {error && <Alert type="error" message={error} />}
@@ -346,7 +361,7 @@ export function CalendarPeriodsEditor() {
       <PageIntro
         kicker="Planung"
         title="Kalenderzeiträume"
-        description="Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan."
+        description={statusLine}
         actions={
           <>
             <Button

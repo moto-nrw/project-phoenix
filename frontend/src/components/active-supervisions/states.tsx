@@ -8,6 +8,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { PageIntro } from "~/components/ui/page-intro";
+import { Skeleton } from "~/components/ui/skeleton";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -65,7 +66,7 @@ export function ActiveSupervisionLoadingView({
       {withHeader && (
         <PageIntro
           title="Aktuelle Aufsicht"
-          description="Die Kinder in Ihren laufenden Aufsichten und ihr aktueller Aufenthaltsort."
+          description={<Skeleton className="h-4 w-48" />}
           className="mb-6"
         />
       )}
@@ -90,7 +91,7 @@ export function NoActiveSupervisionAccessView() {
     <div className="w-full">
       <PageIntro
         title="Aktuelle Aufsicht"
-        description="Die Kinder in Ihren laufenden Aufsichten und ihr aktueller Aufenthaltsort."
+        description="Keine Aufsicht aktiv"
         className="mb-6"
       />
 

@@ -351,6 +351,19 @@ export default function ClassListImportPage() {
     errors: (importResult?.ErrorCount ?? 0) - existingCount,
   };
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Schritt 1 von 3 · noch keine Datei gewählt";
+
   if (status === "loading" || !isReady) {
     return (
       <div className="w-full space-y-6">
@@ -359,7 +372,7 @@ export default function ClassListImportPage() {
         <PageIntro
           kicker="Datenverwaltung"
           title="Klassenliste importieren"
-          description="Klassenlisteneinträge aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+          description={statusLine}
         />
 
         <SkeletonRegion label="Klassenlisten-Import wird geladen…">
@@ -376,7 +389,7 @@ export default function ClassListImportPage() {
       <PageIntro
         kicker="Datenverwaltung"
         title="Klassenliste importieren"
-        description="Klassenlisteneinträge aus einer Tabelle übernehmen, statt sie einzeln anzulegen."
+        description={statusLine}
       />
 
       {/* Info Section */}
