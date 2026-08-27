@@ -667,7 +667,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	})
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
-	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable)
+	api.School = schoolAPI.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, api.Services.UserContext, db)
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
@@ -858,6 +858,11 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// whitelisted triggers (parent_message) for the tenants of the guardian's
 	// children.
 	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
+
+	// School-portal SSE stream (#2208): account-addressed triggers only
+	// (Team-Chat), authenticated with SchoolMiddleware. Root-mounted for the
+	// same reason as /parent-sse.
+	a.Router.Mount("/school-sse", a.SSE.SchoolRouter())
 }
 
 // registerTenantRoutes mounts all tenant API resources under the /api prefix.

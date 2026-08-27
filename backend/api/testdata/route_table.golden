@@ -527,8 +527,13 @@ GET /public/calendar/{token}
 GET /public/enrollment-form-legal-documents/{filename}
 GET /public/enrollment-legal-documents/{filename}
 GET /public/login-image/{filename}
+GET /school-sse/events
 GET /school/class-day/
 GET /school/class-day/classes
+GET /school/staff-messages/
+GET /school/staff-messages/recipients
+GET /school/staff-messages/threads/{threadID}
+GET /school/staff-messages/unread-count
 GET /school/supervisions/
 GET /school/supervisions/{id}/roster
 GET /school/supervisions/{id}/students/{student_id}/sheet
@@ -858,6 +863,8 @@ POST /school/auth/mfa/verify
 POST /school/auth/password-reset
 POST /school/auth/password-reset/confirm
 POST /school/auth/switch-school
+POST /school/staff-messages/threads/open
+POST /school/staff-messages/threads/{threadID}
 POST /school/supervisions/{id}/complete
 POST /school/supervisions/{id}/start
 POST /school/supervisions/{id}/students/{student_id}/check-in

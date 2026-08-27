@@ -66,7 +66,9 @@ type ThreadDetail struct {
 	ThreadID             int64
 	CounterpartAccountID int64
 	CounterpartName      string
-	Messages             []*usersModels.StaffMessage
+	// CounterpartRoleKind: one of the usersModels.StaffRoleKind constants.
+	CounterpartRoleKind string
+	Messages            []*usersModels.StaffMessage
 }
 
 // Service is the OGS-internal messaging service.
@@ -144,7 +146,22 @@ func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModel
 	if err != nil {
 		return nil, err
 	}
-	return s.ReadRepo.ListInbox(ctx, accountID, onlyUnread)
+	rows, err := s.ReadRepo.ListInbox(ctx, accountID, onlyUnread)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.CounterpartAccountID)
+	}
+	kinds, err := s.ReadRepo.StaffRoleKinds(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		row.CounterpartRoleKind = kinds[row.CounterpartAccountID]
+	}
+	return rows, nil
 }
 
 // UnreadMessageCount is the caller's sidebar badge.
@@ -168,7 +185,22 @@ func (s *Service) ListMessageableStaff(ctx context.Context) ([]*usersModels.Mess
 	if err != nil {
 		return nil, err
 	}
-	return s.ReadRepo.ListMessageableStaff(ctx, accountID)
+	rows, err := s.ReadRepo.ListMessageableStaff(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.AccountID)
+	}
+	kinds, err := s.ReadRepo.StaffRoleKinds(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		row.RoleKind = kinds[row.AccountID]
+	}
+	return rows, nil
 }
 
 // authorizeThread loads a thread and verifies the caller takes part in it.
@@ -409,6 +441,13 @@ func (s *Service) buildDetail(ctx context.Context, thread *usersModels.StaffMess
 			detail.CounterpartName = s.resolveSenderName(ctx, id)
 			break
 		}
+	}
+	if detail.CounterpartAccountID != 0 {
+		kinds, err := s.ReadRepo.StaffRoleKinds(ctx, []int64{detail.CounterpartAccountID})
+		if err != nil {
+			return nil, err
+		}
+		detail.CounterpartRoleKind = kinds[detail.CounterpartAccountID]
 	}
 	return detail, nil
 }

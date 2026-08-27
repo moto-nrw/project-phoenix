@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/classday"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/school"
+	"github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -53,10 +55,22 @@ func setupSchoolTest(t *testing.T) (*bun.DB, *services.Factory, int64, string) {
 func newSchoolRouter(db *bun.DB, factory *services.Factory, mfa authService.MFAService) http.Handler {
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
 	timetableResource := newSchoolTimetableResource(db, factory)
+	staffMessagingResource := staffmessaging.NewResource(factory.StaffMessaging, db)
 	if mfa == nil {
-		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource).Router()
+		return school.NewResource(factory.Auth, factory.MFA, classDayResource, timetableResource, staffMessagingResource).Router()
 	}
-	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource).Router()
+	return school.NewResource(factory.Auth, mfa, classDayResource, timetableResource, staffMessagingResource).Router()
+}
+
+// newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
+// the testutil helpers that want a chi.Router.
+func newSchoolChiRouter(db *bun.DB, factory *services.Factory) chi.Router {
+	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
+	return school.NewResource(
+		factory.Auth, factory.MFA, classDayResource,
+		newSchoolTimetableResource(db, factory),
+		staffmessaging.NewResource(factory.StaffMessaging, db),
+	).Router()
 }
 
 // newSchoolTimetableResource builds the timetable resource behind
@@ -97,7 +111,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classday.NewResource(factory.EnrollmentReport, factory.UserContext, db, nil)
-	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory)).Router()
+	schoolRouter := school.NewResource(factory.Auth, factory.MFA, classDayResource, newSchoolTimetableResource(db, factory), staffmessaging.NewResource(factory.StaffMessaging, db)).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

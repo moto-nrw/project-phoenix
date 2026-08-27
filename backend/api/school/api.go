@@ -26,6 +26,7 @@ import (
 	"github.com/go-chi/render"
 
 	classdayAPI "github.com/moto-nrw/project-phoenix/api/classday"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/api/staffmessaging"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
@@ -37,6 +38,7 @@ type Resource struct {
 	MFAService      authService.MFAService
 	ClassDay        *classdayAPI.Resource
 	Timetable       *timetableAPI.Resource
+	StaffMessaging  *staffMessagingAPI.Resource
 	authRateLimiter func(http.Handler) http.Handler
 }
 
@@ -46,12 +48,14 @@ func NewResource(
 	mfa authService.MFAService,
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
+	staffMessaging *staffMessagingAPI.Resource,
 ) *Resource {
 	return &Resource{
-		AuthService: auth,
-		MFAService:  mfa,
-		ClassDay:    classDay,
-		Timetable:   timetable,
+		AuthService:    auth,
+		MFAService:     mfa,
+		ClassDay:       classDay,
+		Timetable:      timetable,
+		StaffMessaging: staffMessaging,
 	}
 }
 
@@ -124,6 +128,14 @@ func (rs *Resource) Router() chi.Router {
 	// see timetable.SchoolSupervisionRouter.
 	if rs.Timetable != nil {
 		r.Mount("/supervisions", rs.Timetable.SchoolSupervisionRouter())
+	}
+
+	// Team-Chat for Lehrkräfte (#2208): the same 1:1 conversations as the
+	// OGS portal's /api/staff-messages, reached with a school token. One
+	// service, one thread store — a Lehrkraft and a Betreuungskraft read the
+	// same conversation from their respective portals.
+	if rs.StaffMessaging != nil {
+		r.Mount("/staff-messages", rs.StaffMessaging.SchoolRouter())
 	}
 
 	return r

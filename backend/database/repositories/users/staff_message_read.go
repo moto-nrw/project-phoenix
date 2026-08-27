@@ -243,3 +243,52 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 	}
 	return exists, nil
 }
+
+// roleKindRow is the projection StaffRoleKinds scans into.
+type roleKindRow struct {
+	AccountID   int64 `bun:"account_id"`
+	IsAdmin     bool  `bun:"is_admin"`
+	IsLehrkraft bool  `bun:"is_lehrkraft"`
+}
+
+// StaffRoleKinds classifies accounts by their roles at the current tenant.
+//
+// "admin" is the system admin role itself (seeded without a base_role) or any
+// custom role whose base_role is admin, "lehrkraft" the platform system role of that
+// name (name-matched and narrowed to system roles exactly like
+// services/auth.IsLehrkraftSystemRole, so a school's own custom role that
+// happens to share the label does not count). Precedence admin > lehrkraft >
+// staff, see the StaffRoleKind constants.
+func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
+	out := make(map[int64]string, len(accountIDs))
+	for _, id := range accountIDs {
+		out[id] = users.StaffRoleKindStaff
+	}
+	if len(accountIDs) == 0 {
+		return out, nil
+	}
+
+	var rows []roleKindRow
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`auth.account_roles AS "ar"`).
+		ColumnExpr(`ar.account_id AS account_id`).
+		ColumnExpr(`bool_or(role.base_role = ? OR (role.is_system AND lower(btrim(role.name)) = ?)) AS is_admin`, authModels.BaseRoleAdmin, authModels.BaseRoleAdmin).
+		ColumnExpr(`bool_or(role.is_system AND lower(btrim(role.name)) = 'lehrkraft') AS is_lehrkraft`).
+		Join(`JOIN auth.roles AS "role" ON role.id = ar.role_id`).
+		Where(`ar.tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`ar.account_id IN (?)`, bun.List(accountIDs)).
+		GroupExpr(`ar.account_id`).
+		Scan(ctx, &rows)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: err}
+	}
+	for _, row := range rows {
+		switch {
+		case row.IsAdmin:
+			out[row.AccountID] = users.StaffRoleKindAdmin
+		case row.IsLehrkraft:
+			out[row.AccountID] = users.StaffRoleKindLehrkraft
+		}
+	}
+	return out, nil
+}
