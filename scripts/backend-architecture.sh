@@ -13,6 +13,10 @@ case "${1:-}" in
     shift
     exec go run ./internal/architecture/cmd explain "$@"
     ;;
+  audit-issues)
+    shift
+    exec go run ./internal/architecture/cmd audit-issues "$@"
+    ;;
   legacy-check)
     go_arch_lint=$(go -C tools tool -n go-arch-lint)
     exec "$go_arch_lint" check \
@@ -42,7 +46,7 @@ case "${1:-}" in
     echo "$output"
     ;;
   *)
-    echo "Usage: $0 {check [--project path] [--policy path]|explain|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
+    echo "Usage: $0 {check [--project path] [--policy path] [--baseline path] [--base-ref sha]|explain|audit-issues --baseline path|legacy-check|diagram [output.svg]|dependencies [output.svg] [goda-expression]}" >&2
     exit 2
     ;;
 esac

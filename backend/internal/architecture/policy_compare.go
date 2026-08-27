@@ -1,0 +1,350 @@
+package architecture
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+func ComparePolicyStrictness(base, candidate *Policy) error {
+	problems := append([]string{}, ownershipLoosenings(base, candidate)...)
+	problems = append(problems, classificationLoosenings(base, candidate)...)
+	problems = append(problems, readProjectionLoosenings(base, candidate)...)
+	problems = append(problems, compositionLoosenings(base, candidate)...)
+	problems = append(problems, importLoosenings(base, candidate)...)
+	problems = append(problems, ruleLoosenings(base, candidate)...)
+	if len(problems) == 0 {
+		return nil
+	}
+	sort.Strings(problems)
+	return fmt.Errorf("architecture policy loosening detected (%d):\n%s", len(problems), strings.Join(problems, "\n"))
+}
+
+func ownershipLoosenings(base, candidate *Policy) []string {
+	var problems []string
+	baseOwners := ownersByID(base)
+	candidateOwners := ownersByID(candidate)
+	for id, owner := range candidateOwners {
+		if _, exists := baseOwners[id]; !exists {
+			problems = append(problems, fmt.Sprintf("owner %s with kind %s was added", id, owner.Kind))
+		}
+	}
+	for id, baseOwner := range baseOwners {
+		if current, exists := candidateOwners[id]; exists && current.Kind != baseOwner.Kind {
+			problems = append(problems, fmt.Sprintf("owner %s changed kind from %s to %s", id, baseOwner.Kind, current.Kind))
+		}
+	}
+	baseObjects := dataObjectsByName(base)
+	for name, current := range dataObjectsByName(candidate) {
+		baseObject, exists := baseObjects[name]
+		if !exists {
+			problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
+		} else if current.WriteOwner != baseObject.WriteOwner {
+			problems = append(problems, fmt.Sprintf("data object %s changed write owner from %s to %s", name, baseObject.WriteOwner, current.WriteOwner))
+		}
+	}
+	return problems
+}
+
+func classificationLoosenings(base, candidate *Policy) []string {
+	basePackages := base.packageMap()
+	var problems []string
+	for path, current := range candidate.packageMap() {
+		previous, exists := basePackages[path]
+		if !exists {
+			continue
+		}
+		if current.Owner != previous.Owner {
+			problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
+		}
+		if semanticRoleLoosens(previous.Role, current.Role) {
+			problems = append(problems, fmt.Sprintf("package %s changed role from %s to %s and disables semantic checks", path, previous.Role, current.Role))
+		}
+	}
+	return problems
+}
+
+func semanticRoleLoosens(base, candidate string) bool {
+	baseContract := base == "public" || base == "contract"
+	candidateContract := candidate == "public" || candidate == "contract"
+	baseRuntime := base != "migration" && base != "test-support"
+	candidateRuntime := candidate != "migration" && candidate != "test-support"
+	baseDirectDB := base == "postgres" || base == "migration" || base == "test-support"
+	candidateDirectDB := candidate == "postgres" || candidate == "migration" || candidate == "test-support"
+	return (baseContract && !candidateContract) || (baseRuntime && !candidateRuntime) || (!baseDirectDB && candidateDirectDB)
+}
+
+func readProjectionLoosenings(base, candidate *Policy) []string {
+	baseGrants := projectionGrants(base)
+	var problems []string
+	for grant := range projectionGrants(candidate) {
+		if _, exists := baseGrants[grant]; !exists {
+			problems = append(problems, "new tenant-safe read projection grant "+grant)
+		}
+	}
+	return problems
+}
+
+func compositionLoosenings(base, candidate *Policy) []string {
+	candidateSymbols := compositionSymbols(candidate)
+	var problems []string
+	for symbol := range compositionSymbols(base) {
+		if _, exists := candidateSymbols[symbol]; !exists {
+			problems = append(problems, "legacy composition symbol is no longer guarded: "+symbol)
+		}
+	}
+	return problems
+}
+
+func importLoosenings(base, candidate *Policy) []string {
+	basePackages := base.packageMap()
+	candidatePackages := candidate.packageMap()
+	var problems []string
+	for sourcePath, source := range candidatePackages {
+		baseSource, sourceExists := basePackages[sourcePath]
+		if !sourceExists {
+			continue
+		}
+		problems = append(problems, firstPartyImportLoosenings(base, candidate, sourcePath, baseSource, source, basePackages, candidatePackages)...)
+		problems = append(problems, externalImportLoosenings(base, candidate, sourcePath, baseSource, source)...)
+	}
+	return uniqueStrings(problems)
+}
+
+func ruleLoosenings(base, candidate *Policy) []string {
+	owners := ruleUniverseOwners(base, candidate)
+	roles := sortedAllowedRoles()
+	baseEvaluator := policyWithOwners(base, owners)
+	candidateEvaluator := policyWithOwners(candidate, owners)
+	var problems []string
+	for _, rule := range candidate.Rules {
+		if candidateRuleCoveredDirectly(rule, base.Rules) {
+			continue
+		}
+		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
+			problems = append(problems, problem)
+		}
+	}
+	return problems
+}
+
+func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {
+	for _, base := range baseRules {
+		if sameRulePermission(candidate, base) && scopesContain(base.Scopes, candidate.Scopes) {
+			return true
+		}
+	}
+	return false
+}
+
+func sameRulePermission(left, right Rule) bool {
+	return left.SourceOwner == right.SourceOwner && left.SourceOwnerKind == right.SourceOwnerKind && left.SourceRole == right.SourceRole &&
+		left.TargetOwner == right.TargetOwner && left.TargetOwnerKind == right.TargetOwnerKind && left.TargetRole == right.TargetRole &&
+		left.TargetClass == right.TargetClass && left.SameOwner == right.SameOwner
+}
+
+func scopesContain(container, values []string) bool {
+	for _, value := range values {
+		if !sliceContains(container, value) {
+			return false
+		}
+	}
+	return true
+}
+
+func sliceContains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func uncoveredRulePermission(rule Rule, base, candidate *Policy, owners []Owner, roles []string) string {
+	for _, rawScope := range rule.Scopes {
+		scope := Scope(rawScope)
+		for _, source := range matchingOwnerRoles(candidate, rule, owners, roles) {
+			if rule.TargetClass != "" {
+				if !policyAllowsExternal(base, scope, rulePointPackage(source), ExternalPackage{Class: rule.TargetClass}) {
+					return fmt.Sprintf("rule %s newly allows %s %s/%s -> external class %s", rule.ID, scope, source.Owner.ID, source.Role, rule.TargetClass)
+				}
+				continue
+			}
+			if problem := uncoveredFirstPartyPermission(rule, base, candidate, scope, source, owners); problem != "" {
+				return problem
+			}
+		}
+	}
+	return ""
+}
+
+type ownerRole struct {
+	Owner Owner
+	Role  string
+}
+
+func matchingOwnerRoles(policy *Policy, rule Rule, owners []Owner, roles []string) []ownerRole {
+	var matches []ownerRole
+	for _, owner := range owners {
+		for _, candidateRole := range roles {
+			point := ownerRole{Owner: owner, Role: candidateRole}
+			if policy.matchesSource(rule, rulePointPackage(point)) {
+				matches = append(matches, point)
+			}
+		}
+	}
+	return matches
+}
+
+func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Scope, source ownerRole, owners []Owner) string {
+	sourcePackage := rulePointPackage(source)
+	for _, target := range owners {
+		targetPackage := rulePointPackage(ownerRole{Owner: target, Role: rule.TargetRole})
+		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
+			continue
+		}
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) {
+			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
+		}
+	}
+	return ""
+}
+
+func rulePointPackage(point ownerRole) Package {
+	return Package{Owner: point.Owner.ID, Role: point.Role, InternalTestRole: point.Role, ExternalTestRole: point.Role}
+}
+
+func ruleUniverseOwners(base, candidate *Policy) []Owner {
+	byKey := make(map[string]Owner)
+	for _, owner := range append(append([]Owner{}, base.Owners...), candidate.Owners...) {
+		byKey[owner.ID+"|"+owner.Kind] = owner
+	}
+	for kind := range allowedOwnerKinds {
+		owner := Owner{ID: "__kind_" + kind, Kind: kind}
+		byKey[owner.ID+"|"+owner.Kind] = owner
+	}
+	keys := make([]string, 0, len(byKey))
+	for key := range byKey {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	owners := make([]Owner, 0, len(keys))
+	for _, key := range keys {
+		owners = append(owners, byKey[key])
+	}
+	return owners
+}
+
+func policyWithOwners(policy *Policy, owners []Owner) *Policy {
+	policyCopy := *policy
+	policyCopy.Owners = owners
+	return &policyCopy
+}
+
+func sortedAllowedRoles() []string {
+	roles := make([]string, 0, len(allowedRoles))
+	for role := range allowedRoles {
+		roles = append(roles, role)
+	}
+	sort.Strings(roles)
+	return roles
+}
+
+func firstPartyImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package, basePackages, candidatePackages map[string]Package) []string {
+	var problems []string
+	for targetPath, target := range candidatePackages {
+		baseTarget, exists := basePackages[targetPath]
+		if !exists {
+			continue
+		}
+		for _, scope := range allScopes() {
+			if policyAllowsFirstParty(candidate, scope, source, target) && !policyAllowsFirstParty(base, scope, baseSource, baseTarget) {
+				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
+			}
+		}
+	}
+	return problems
+}
+
+func externalImportLoosenings(base, candidate *Policy, sourcePath string, baseSource, source Package) []string {
+	baseExternal := base.externalPackageMap()
+	var problems []string
+	for targetPath, target := range candidate.externalPackageMap() {
+		baseTarget, exists := baseExternal[targetPath]
+		if !exists {
+			continue
+		}
+		for _, scope := range allScopes() {
+			if policyAllowsExternal(candidate, scope, source, target) && !policyAllowsExternal(base, scope, baseSource, baseTarget) {
+				problems = append(problems, Violation{Scope: scope, Rule: "imports.forbidden", Source: sourcePath, Target: targetPath}.Key())
+			}
+		}
+	}
+	return problems
+}
+
+func policyAllowsFirstParty(policy *Policy, scope Scope, source, target Package) bool {
+	source = source.inScope(scope)
+	decision := decideRules(policy.firstPartyRules(scope, source, target))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0
+}
+
+func policyAllowsExternal(policy *Policy, scope Scope, source Package, target ExternalPackage) bool {
+	source = source.inScope(scope)
+	decision := decideRules(policy.externalRules(scope, source, target.Class))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0
+}
+
+func ownersByID(policy *Policy) map[string]Owner {
+	result := make(map[string]Owner, len(policy.Owners))
+	for _, owner := range policy.Owners {
+		result[owner.ID] = owner
+	}
+	return result
+}
+
+func dataObjectsByName(policy *Policy) map[string]DataObject {
+	result := make(map[string]DataObject, len(policy.DataObjects))
+	for _, object := range policy.DataObjects {
+		result[object.Name] = object
+	}
+	return result
+}
+
+func projectionGrants(policy *Policy) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, projection := range policy.ReadProjections {
+		for _, object := range projection.DataObjects {
+			result[policy.absolutePackage(projection.Package)+"|"+object] = struct{}{}
+		}
+	}
+	return result
+}
+
+func compositionSymbols(policy *Policy) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, legacy := range policy.LegacyComposition {
+		for _, symbol := range legacy.Symbols {
+			result[policy.absolutePackage(legacy.Package)+"."+symbol] = struct{}{}
+		}
+	}
+	return result
+}
+
+func allScopes() []Scope {
+	return []Scope{ScopeProduction, ScopeInternalTest, ScopeExternalTest}
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, exists := seen[value]; exists {
+			continue
+		}
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+	return result
+}

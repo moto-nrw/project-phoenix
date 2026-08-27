@@ -11,6 +11,13 @@ Run commands from the repository root:
 
 ```bash
 scripts/backend-architecture.sh check
+scripts/backend-architecture.sh check \
+  --baseline architecture/legacy.jsonl
+scripts/backend-architecture.sh check \
+  --baseline architecture/legacy.jsonl \
+  --base-ref "$BASE_SHA"
+scripts/backend-architecture.sh audit-issues \
+  --baseline architecture/legacy.jsonl
 scripts/backend-architecture.sh explain \
   --scope production \
   --source github.com/moto-nrw/project-phoenix/services/mealplan \
@@ -50,9 +57,35 @@ ever created by a migration. Access to an obsolete table with no target owner
 therefore remains a `tables.unclassified` finding until that access and table
 are removed; do not invent an owner merely to make the check quiet.
 
-The current backend still violates the target policy. Issue #2583 will add the
-exact shrinking legacy manifest. Until the CI cutover, CI runs `legacy-check`
-to keep the existing go-arch-lint gate active.
+The current backend still violates the target policy. `check --baseline` enables
+the exact shrinking-ratchet mechanics, but this slice intentionally does not
+commit or activate the production baseline. Until the CI cutover, CI runs
+`legacy-check` to keep the existing go-arch-lint gate active.
+
+## Exact legacy ratchet
+
+The legacy baseline is canonical JSONL sorted by `scope|rule|source|target`.
+Each record has exactly these fields in this order:
+
+```json
+{"scope":"production","rule":"imports.forbidden","source":"example/source","target":"example/target","issue":"https://github.com/moto-nrw/project-phoenix/issues/1234"}
+```
+
+The first four fields identify one exact violation. `issue` identifies its one
+open migration ticket. Wildcards, package-family patterns, blank lines,
+duplicates, unsorted records, non-canonical JSON, and issue reassignment are
+errors. The normal command has no init, approve, update, or rebaseline mode.
+
+Local mode requires exact equality between the current violations and the
+candidate baseline. PR mode adds `--base-ref` with the event's full 40-character
+base commit SHA and reads the baseline and policy directly from that Git object.
+Candidate entries must be a subset of the base entries, unchanged entries must
+keep their issue, and candidate policy, package classification, and ownership
+changes may not weaken the checks enforced by the base policy.
+
+`audit-issues` performs the network-dependent GitHub liveness check separately.
+It accepts `GITHUB_TOKEN` for authenticated requests. A GitHub or network error
+fails only this audit and cannot change the deterministic `check` result.
 
 ## Changing the policy
 
