@@ -14,7 +14,7 @@ import (
 // ReachabilityNoPortal AND have a delivered mail; the staff matrix shows both
 // columns side by side (#2384).
 const (
-	// ReachabilityOK — a mail was queued for this person.
+	// ReachabilityOK — the recipient has an address and portal access.
 	ReachabilityOK = "ok"
 	// ReachabilityNoEmail — the guardian profile has no e-mail address. Not a
 	// delivery failure: missing data the school can fix.

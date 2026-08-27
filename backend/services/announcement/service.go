@@ -44,6 +44,7 @@ type DeliveryRecorder interface {
 	ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []*platformModels.EmailDelivery) error
 	DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error)
 	ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]*platformModels.EmailDeliveryStatus, error)
+	AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error
 }
 
 const (
@@ -905,6 +906,9 @@ func normalizeDelivery(in *Input) error {
 	}
 	if !usersModels.ValidAnnouncementEmailAudience(in.EmailAudience) {
 		return fmt.Errorf("%w: email_audience %q", ErrValidation, in.EmailAudience)
+	}
+	if in.EmailAudience == usersModels.EmailAudienceAllContacts && in.DeliveryMode != usersModels.ParentAnnouncementDeliveryLetter {
+		return fmt.Errorf("%w: email_audience %q requires an Elternbrief", ErrValidation, in.EmailAudience)
 	}
 
 	if in.DeliveryMode == usersModels.ParentAnnouncementDeliveryLetter {

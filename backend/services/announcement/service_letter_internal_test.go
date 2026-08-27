@@ -179,6 +179,22 @@ func TestNormalizeDeliveryRejectsWideAudienceWithoutEmail(t *testing.T) {
 	}
 }
 
+func TestNormalizeDeliveryRejectsWideAudienceForStandardAnnouncement(t *testing.T) {
+	t.Parallel()
+
+	in := Input{
+		Title:         "Info",
+		Body:          "Text",
+		DeliveryMode:  usersModels.ParentAnnouncementDeliveryStandard,
+		EmailAudience: usersModels.EmailAudienceAllContacts,
+		SendEmail:     true,
+		Targets:       []TargetInput{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+	}
+	if err := normalizeDelivery(&in); !errors.Is(err, ErrValidation) {
+		t.Fatalf("error = %v, want ErrValidation", err)
+	}
+}
+
 // normalizeInput is the real entry point; this pins that it runs the delivery
 // rules rather than leaving them to a caller that might forget.
 func TestNormalizeInputAppliesDeliveryRules(t *testing.T) {

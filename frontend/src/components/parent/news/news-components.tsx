@@ -124,7 +124,7 @@ function NewsCardMeta({
           <span className="text-gray-300" aria-hidden="true">
             ·
           </span>
-          <span className="text-[#9A4F00]">{t("newsLetterBadge")}</span>
+          <span className="text-moto-amber-strong">{t("newsLetterBadge")}</span>
         </>
       )}
       {item.priority === "important" && (
@@ -132,7 +132,7 @@ function NewsCardMeta({
           <span className="text-gray-300" aria-hidden="true">
             ·
           </span>
-          <span className="text-[#9A4F00]">{t("newsImportant")}</span>
+          <span className="text-moto-amber-strong">{t("newsImportant")}</span>
         </>
       )}
     </span>

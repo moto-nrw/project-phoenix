@@ -62,7 +62,7 @@ func (s *service) enqueueTrackedEmails(ctx context.Context, a *usersModels.Paren
 			reachability: classifyReachability(r, a),
 		})
 	}
-	s.applyEmailOptOuts(ctx, recipients)
+	s.applyEmailOptOuts(ctx, a, recipients)
 
 	if err := s.queueLetterMails(ctx, a, recipients); err != nil {
 		return err
@@ -104,10 +104,14 @@ func classifyReachability(r *usersModels.AnnouncementDeliveryRecipient, a *users
 	if r.Email == "" {
 		return platformModels.ReachabilityNoEmail
 	}
-	if !r.HasPortalAccess && !a.ReachesContactsWithoutPortal() {
+	if !r.HasPortalAccess {
 		return platformModels.ReachabilityNoPortal
 	}
 	return platformModels.ReachabilityOK
+}
+
+func canQueueLetterMail(r *letterRecipient, a *usersModels.ParentAnnouncement) bool {
+	return r.src.Email != "" && (r.src.HasPortalAccess || a.ReachesContactsWithoutPortal())
 }
 
 // applyEmailOptOuts downgrades recipients who explicitly refused this
@@ -118,13 +122,13 @@ func classifyReachability(r *usersModels.AnnouncementDeliveryRecipient, a *users
 //
 // A preference lookup failure is deliberately non-fatal: it must not roll back a
 // publish. Failing open matches the pre-#2384 behaviour of this channel.
-func (s *service) applyEmailOptOuts(ctx context.Context, recipients []*letterRecipient) {
+func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAnnouncement, recipients []*letterRecipient) {
 	if s.preferences == nil {
 		return
 	}
 	accountIDs := make([]int64, 0, len(recipients))
 	for _, r := range recipients {
-		if r.reachability == platformModels.ReachabilityOK && r.src.AccountID != nil {
+		if canQueueLetterMail(r, a) && r.src.AccountID != nil {
 			accountIDs = append(accountIDs, *r.src.AccountID)
 		}
 	}
@@ -143,7 +147,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, recipients []*letterRec
 	}
 	excluded := 0
 	for _, r := range recipients {
-		if r.reachability != platformModels.ReachabilityOK || r.src.AccountID == nil {
+		if !canQueueLetterMail(r, a) || r.src.AccountID == nil {
 			continue
 		}
 		if _, ok := allowed[*r.src.AccountID]; !ok {
@@ -190,7 +194,7 @@ func (s *service) queueLetterMails(ctx context.Context, a *usersModels.ParentAnn
 	byAddress := make(map[string]*int64, len(recipients))
 	queued := 0
 	for _, r := range recipients {
-		if r.reachability != platformModels.ReachabilityOK {
+		if !canQueueLetterMail(r, a) || r.reachability == platformModels.ReachabilityExcluded {
 			continue
 		}
 		address := strings.ToLower(strings.TrimSpace(r.src.Email))
@@ -258,7 +262,7 @@ func (s *service) letterPortalURL(announcementID int64) string {
 func letterIdempotencyKey(a *usersModels.ParentAnnouncement, address string) string {
 	stamp := int64(0)
 	if a.PublishedAt != nil {
-		stamp = a.PublishedAt.UTC().Unix()
+		stamp = a.PublishedAt.UTC().UnixNano()
 	}
 	return fmt.Sprintf("parent_announcement:%d:%d:%s", a.ID, stamp, address)
 }
@@ -376,7 +380,7 @@ func (s *service) RemindOutstanding(ctx context.Context, id int64) (int, error) 
 	if a.IsPoll() {
 		return s.RemindUnanswered(ctx, id)
 	}
-	if !a.RequiresAcknowledgement {
+	if !a.IsLetter() || !a.RequiresAcknowledgement {
 		// Nothing is owed, so there is nobody to remind. Refusing beats sending a
 		// nag about a notice that never asked for anything.
 		return 0, ErrNothingOutstanding
@@ -417,14 +421,7 @@ func (s *service) remindUnacknowledged(ctx context.Context, a *usersModels.Paren
 	if err != nil {
 		return 0, err
 	}
-	pushed, err := s.pushPollReminder(ctx, a, recipients)
-	if err != nil {
-		return 0, err
-	}
-	delivered := make(map[int64]struct{}, len(pushed)+len(emailed))
-	for _, accountID := range pushed {
-		delivered[accountID] = struct{}{}
-	}
+	delivered := make(map[int64]struct{}, len(emailed))
 	for _, accountID := range emailed {
 		delivered[accountID] = struct{}{}
 	}
@@ -480,36 +477,49 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 	}
 
 	resent := 0
+	byAddress := make(map[string]*platformModels.EmailOutbox)
 	for _, row := range rows {
 		if row.EmailStatus != "failed" || row.RecipientEmail == nil || *row.RecipientEmail == "" {
 			continue
 		}
 		address := strings.ToLower(strings.TrimSpace(*row.RecipientEmail))
-		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:   address,
-				emailPayloadFirstName:   row.FirstName,
-				emailPayloadLastName:    row.LastName,
-				emailPayloadTitle:       a.Title,
-				emailPayloadSchoolName:  schoolName,
-				emailPayloadPortalURL:   portalURL,
-				emailPayloadLogoURL:     logoURL,
-				emailPayloadMotoLogoURL: motoLogoURL,
-				emailPayloadKicker:      kicker,
-				emailPayloadIntro:       intro,
-				emailPayloadBody:        body,
-				emailPayloadAckRequired: a.RequiresAcknowledgement,
-			},
-			RelatedEntityType: relatedEntityTypeAnnouncement,
-			RelatedEntityID:   a.ID,
-			// A retry needs a key of its own, otherwise the original publication's
-			// key would swallow it as a duplicate and nothing would be sent.
-			IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), row.DeliveryID),
-		}); err != nil {
-			return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
+		outboxRow, ok := byAddress[address]
+		if !ok {
+			var err error
+			outboxRow, err = s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+				Kind: platformModels.EmailKindParentAnnouncement,
+				Payload: map[string]any{
+					emailPayloadRecipient:   address,
+					emailPayloadFirstName:   row.FirstName,
+					emailPayloadLastName:    row.LastName,
+					emailPayloadTitle:       a.Title,
+					emailPayloadSchoolName:  schoolName,
+					emailPayloadPortalURL:   portalURL,
+					emailPayloadLogoURL:     logoURL,
+					emailPayloadMotoLogoURL: motoLogoURL,
+					emailPayloadKicker:      kicker,
+					emailPayloadIntro:       intro,
+					emailPayloadBody:        body,
+					emailPayloadAckRequired: a.RequiresAcknowledgement,
+				},
+				RelatedEntityType: relatedEntityTypeAnnouncement,
+				RelatedEntityID:   a.ID,
+				// A retry needs a key of its own, otherwise the original publication's
+				// key would swallow it as a duplicate and nothing would be sent.
+				IdempotencyKey: fmt.Sprintf("%s:retry:%d", letterIdempotencyKey(a, address), time.Now().UTC().UnixNano()),
+			})
+			if err != nil {
+				return 0, fmt.Errorf("announcement: resend failed e-mail: %w", err)
+			}
+			byAddress[address] = outboxRow
+			resent++
 		}
-		resent++
+		if outboxRow == nil || outboxRow.ID <= 0 {
+			return 0, fmt.Errorf("announcement: resend failed e-mail did not create an outbox row")
+		}
+		if err := s.deliveries.AttachOutbox(ctx, tenantID, row.DeliveryID, outboxRow.ID); err != nil {
+			return 0, fmt.Errorf("announcement: attach resend outbox row: %w", err)
+		}
 	}
 	s.logger.Info("parent announcement failed e-mails re-queued",
 		slog.Int64("announcement_id", id),

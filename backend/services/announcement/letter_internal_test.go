@@ -86,6 +86,7 @@ type letterDeliveries struct {
 	list     []*platformModels.EmailDeliveryStatus
 	replaced int
 	deleted  int
+	attached map[int64]int64
 }
 
 func (d *letterDeliveries) ReplaceForEntity(_ context.Context, _ int64, _ string, _ int64, rows []*platformModels.EmailDelivery) error {
@@ -103,6 +104,14 @@ func (d *letterDeliveries) DeleteForEntity(_ context.Context, _ int64, _ string,
 
 func (d *letterDeliveries) ListForEntity(_ context.Context, _ int64, _ string, _ int64) ([]*platformModels.EmailDeliveryStatus, error) {
 	return d.list, nil
+}
+
+func (d *letterDeliveries) AttachOutbox(_ context.Context, _ int64, deliveryID, outboxID int64) error {
+	if d.attached == nil {
+		d.attached = make(map[int64]int64)
+	}
+	d.attached[deliveryID] = outboxID
+	return nil
 }
 
 func contact(profileID int64, accountID *int64, email string, portal bool) *usersModels.AnnouncementDeliveryRecipient {
@@ -284,8 +293,8 @@ func TestPublishLetterAllContactsMailsGuardiansWithoutPortal(t *testing.T) {
 		if !row.Queued() {
 			t.Errorf("guardian %d: expected a queued mail with all_contacts", *row.GuardianProfileID)
 		}
-		if *row.GuardianProfileID == 3 && row.Reachability != platformModels.ReachabilityOK {
-			t.Errorf("guardian 3: reachability = %q, want ok once mailed", row.Reachability)
+		if *row.GuardianProfileID == 3 && row.Reachability != platformModels.ReachabilityNoPortal {
+			t.Errorf("guardian 3: reachability = %q, want no_portal despite the queued mail", row.Reachability)
 		}
 	}
 }
@@ -370,7 +379,7 @@ func TestLetterIdempotencyKeyChangesWithPublication(t *testing.T) {
 	if keyA == letterIdempotencyKey(a, "papa@example.test") {
 		t.Error("different addresses must produce different keys")
 	}
-	second := first.Add(time.Hour)
+	second := first.Add(time.Nanosecond)
 	a.PublishedAt = &second
 	if keyA == letterIdempotencyKey(a, "mama@example.test") {
 		t.Error("a republication must produce a new key so the correction is delivered")
@@ -528,6 +537,51 @@ func TestRemindOutstandingLetterMailsUnconfirmedFamilies(t *testing.T) {
 	}
 }
 
+func TestRemindOutstandingLetterDoesNotUsePollPush(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	repo := &letterRepo{
+		announcement: a,
+		reminders: []*usersModels.AnnouncementPollReminderRecipient{
+			{AccountID: 11, Email: "mama@example.test"},
+		},
+	}
+	notifier := &fakeNotifier{}
+	svc := NewService(ServiceConfig{
+		Repo:       repo,
+		Settings:   &fakeSettings{enabled: true},
+		Notifier:   notifier,
+		Outbox:     &letterOutbox{},
+		Deliveries: &letterDeliveries{},
+		ParentsURL: "https://eltern.example.test",
+		Logger:     slog.Default(),
+	})
+
+	if _, err := svc.RemindOutstanding(context.Background(), a.ID); err != nil {
+		t.Fatalf("RemindOutstanding: %v", err)
+	}
+	if len(notifier.events) != 0 {
+		t.Fatalf("sent %d push event(s), want none for a letter reminder", len(notifier.events))
+	}
+}
+
+func TestRemindOutstandingRefusesAcknowledgementStandardAnnouncement(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryStandard, usersModels.EmailAudiencePortalOnly)
+	a.RequiresAcknowledgement = true
+	a.PublishedAt = &published
+	svc := newLetterService(&letterRepo{announcement: a}, &letterOutbox{}, &letterDeliveries{})
+
+	if _, err := svc.RemindOutstanding(context.Background(), a.ID); err != ErrNothingOutstanding {
+		t.Fatalf("error = %v, want ErrNothingOutstanding", err)
+	}
+}
+
 // Reminding about a notice that never asked for anything would be pure noise.
 func TestRemindOutstandingRefusesAnnouncementWithoutAcknowledgement(t *testing.T) {
 	t.Parallel()
@@ -587,11 +641,40 @@ func TestResendFailedEmailsOnlyRetriesFailures(t *testing.T) {
 	if key := outbox.requests[0].IdempotencyKey; !strings.Contains(key, "retry") {
 		t.Errorf("idempotency key = %q, want a retry-scoped key", key)
 	}
+	if got := deliveries.attached[2]; got != outbox.nextID {
+		t.Errorf("failed delivery linked to outbox %d, want %d", got, outbox.nextID)
+	}
 	// A recipient with no address must not be retried — nothing changed for them.
 	for _, req := range outbox.requests {
 		if addr, _ := req.Payload[emailPayloadRecipient].(string); addr == "" {
 			t.Error("queued a mail with an empty address")
 		}
+	}
+}
+
+func TestResendFailedEmailsDeduplicatesSharedAddress(t *testing.T) {
+	t.Parallel()
+
+	published := time.Now().Add(-time.Hour)
+	a := letterDraft(usersModels.ParentAnnouncementDeliveryLetter, usersModels.EmailAudiencePortalOnly)
+	a.PublishedAt = &published
+	address := "familie@example.test"
+	deliveries := &letterDeliveries{list: []*platformModels.EmailDeliveryStatus{
+		{DeliveryID: 1, RecipientEmail: &address, EmailStatus: "failed"},
+		{DeliveryID: 2, RecipientEmail: &address, EmailStatus: "failed"},
+	}}
+	outbox := &letterOutbox{}
+	svc := newLetterService(&letterRepo{announcement: a}, outbox, deliveries)
+
+	count, err := svc.ResendFailedEmails(context.Background(), 42)
+	if err != nil {
+		t.Fatalf("ResendFailedEmails: %v", err)
+	}
+	if count != 1 || len(outbox.requests) != 1 {
+		t.Fatalf("queued %d addresses in %d request(s), want one", count, len(outbox.requests))
+	}
+	if deliveries.attached[1] != deliveries.attached[2] {
+		t.Errorf("shared address attached to different outbox rows: %v", deliveries.attached)
 	}
 }
 

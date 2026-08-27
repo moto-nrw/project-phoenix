@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -45,7 +45,7 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			slog.Error("rollback parent letter delivery migration", "error", err)
 		}
 	}()
 
@@ -198,9 +198,6 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		ALTER TABLE platform.email_delivery ENABLE ROW LEVEL SECURITY;
-		ALTER TABLE platform.email_delivery FORCE ROW LEVEL SECURITY;
-
 		DO $$
 		BEGIN
 			IF NOT EXISTS (
