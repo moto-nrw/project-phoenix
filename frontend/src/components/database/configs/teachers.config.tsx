@@ -272,7 +272,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     sections: [
       {
         title: "Persönliche Daten",
-        titleColor: "text-blue-800",
         items: [
           {
             label: "Name",
@@ -294,7 +293,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Berufliche Informationen",
-        titleColor: "text-indigo-800",
         items: [
           {
             label: "Fachgebiet",
@@ -320,7 +318,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
       },
       {
         title: "Konto-Status",
-        titleColor: "text-purple-800",
         items: [
           {
             label: "Konto-Informationen",
@@ -403,13 +400,6 @@ export const teachersConfig = defineEntityConfig<Teacher>({
           return initials || "L";
         },
       },
-      badges: [
-        {
-          label: (teacher: Teacher) => teacher.role ?? "",
-          color: "bg-moto-purple-soft text-moto-purple-strong",
-          showWhen: (teacher: Teacher) => !!teacher.role,
-        },
-      ],
     },
   },
 

@@ -141,30 +141,11 @@ export const groupsConfig = defineEntityConfig<Group>({
         text: (group: Group) => group.name?.[0] ?? "G",
         size: "lg",
       },
-      badges: [
-        {
-          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-green-400/80",
-          showWhen: () => true,
-        },
-        {
-          label: "Raum zugewiesen",
-          color: "bg-blue-400/80",
-          showWhen: (group: Group) => !!group.room_name,
-        },
-        {
-          label: (group: Group) =>
-            `${group.supervisors?.length ?? 0} Gruppenleitung${(group.supervisors?.length ?? 0) === 1 ? "" : "en"}`,
-          color: "bg-indigo-400/80",
-          showWhen: (group: Group) => (group.supervisors?.length ?? 0) > 0,
-        },
-      ],
     },
 
     sections: [
       {
         title: "Gruppendetails",
-        titleColor: "text-green-800",
         items: [
           {
             label: "Gruppenname",
@@ -248,18 +229,6 @@ export const groupsConfig = defineEntityConfig<Group>({
       avatar: {
         text: (group: Group) => group.name?.[0] ?? "G",
       },
-      badges: [
-        {
-          label: (group: Group) => group.room_name ?? "Kein Raum",
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: (group: Group) => !!group.room_name,
-        },
-        {
-          label: (group: Group) => `${group.student_count ?? 0} Kinder`,
-          color: "bg-moto-green-soft text-moto-green-strong",
-          showWhen: () => true,
-        },
-      ],
     },
   },
 

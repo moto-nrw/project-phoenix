@@ -7,7 +7,6 @@ import { busDaysFromToggle, formatBusDays } from "@/lib/student-helpers";
 import dynamic from "next/dynamic";
 import {
   LOCATION_STATUSES,
-  isHomeLocation,
   isPresentLocation,
   isSchoolyardLocation,
   isTransitLocation,
@@ -182,39 +181,11 @@ export const studentsConfig = defineEntityConfig<Student>({
           `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`,
         size: "lg",
       },
-      badges: [
-        {
-          label: "Im Haus",
-          color: "bg-green-400/80",
-          showWhen: (student) => isPresentLocation(student.current_location),
-        },
-        {
-          label: "Unterwegs",
-          color: "bg-fuchsia-400/80",
-          showWhen: (student) => isTransitLocation(student.current_location),
-        },
-        {
-          label: "Schulhof",
-          color: "bg-yellow-400/80",
-          showWhen: (student) => isSchoolyardLocation(student.current_location),
-        },
-        {
-          label: "Zuhause",
-          color: "bg-red-400/80",
-          showWhen: (student) => isHomeLocation(student.current_location),
-        },
-        {
-          label: "Bus",
-          color: "bg-orange-400/80",
-          showWhen: (student) => !!student.bus,
-        },
-      ],
     },
 
     sections: [
       {
         title: "Persönliche Daten",
-        titleColor: "text-blue-800",
         items: [
           {
             label: "Vorname",
@@ -248,7 +219,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Erziehungsberechtigte",
-        titleColor: "text-purple-800",
         items: [
           {
             label: "Name",
@@ -262,7 +232,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Zusätzliche Informationen",
-        titleColor: "text-gray-800",
         items: [
           {
             label: "Notizen",
@@ -273,7 +242,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Status",
-        titleColor: "text-green-800",
         columns: 2,
         items: [
           {
@@ -372,7 +340,6 @@ export const studentsConfig = defineEntityConfig<Student>({
       },
       {
         title: "Datenverwaltung",
-        titleColor: "text-yellow-800",
         items: [
           {
             label: "Datenschutzeinstellungen",
@@ -435,24 +402,6 @@ export const studentsConfig = defineEntityConfig<Student>({
         text: (student: Student) =>
           `${student.first_name?.[0] ?? ""}${student.second_name?.[0] ?? ""}`,
       },
-      badges: [
-        {
-          label: (student: Student) => student.school_class ?? "Keine Klasse",
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: (student: Student) => !!student.school_class,
-        },
-        {
-          label: (student: Student) => student.group_name ?? "Keine Gruppe",
-          color: "bg-moto-purple-soft text-moto-purple-strong",
-          showWhen: (student: Student) => !!student.group_name,
-        },
-        {
-          field: "bus",
-          label: "Bus",
-          color: "bg-moto-orange-soft text-moto-orange-strong",
-          showWhen: (student: Student) => !!student.bus,
-        },
-      ],
     },
   },
 

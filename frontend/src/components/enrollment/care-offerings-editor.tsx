@@ -35,6 +35,7 @@ import {
 } from "~/lib/care-offering-booking-stats";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
@@ -1576,19 +1577,13 @@ function CareOfferingWeekdayFields({
         {WEEKDAY_KEYS.map((day) => {
           const active = draft.available_days.includes(day);
           return (
-            <button
+            <ToggleChip
               key={day}
-              type="button"
-              aria-pressed={active}
-              onClick={() => toggleDay(day)}
-              className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                active
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              pressed={active}
+              onPressedChange={() => toggleDay(day)}
             >
               {DAY_LABELS[day]}
-            </button>
+            </ToggleChip>
           );
         })}
       </div>
@@ -1762,20 +1757,14 @@ function CareOfferingAutomationFields({
               const aboveCurrentCap =
                 gradeLevelMax !== null && grade > gradeLevelMax;
               return (
-                <button
+                <ToggleChip
                   key={grade}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => toggleAutoAddGrade(grade)}
-                  className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    active
-                      ? "border-gray-900 bg-gray-900 text-white"
-                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                  }`}
+                  pressed={active}
+                  onPressedChange={() => toggleAutoAddGrade(grade)}
                 >
                   Klasse {grade}
                   {aboveCurrentCap ? " (bestehend)" : ""}
-                </button>
+                </ToggleChip>
               );
             })}
           </div>
@@ -2001,21 +1990,19 @@ function CareOfferingAvailabilityFields({
                   {gradeOptions.map((grade) => {
                     const active = condition.value.includes(grade);
                     return (
-                      <button
+                      <ToggleChip
                         key={grade}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() =>
+                        pressed={active}
+                        onPressedChange={() =>
                           updateCondition(index, {
                             value: [
                               ...toggleSetValue(condition.value, grade),
                             ].sort((a, b) => a - b),
                           })
                         }
-                        className={`h-8 rounded-lg border px-3 text-xs font-medium ${active ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700"}`}
                       >
                         Klasse {grade}
-                      </button>
+                      </ToggleChip>
                     );
                   })}
                 </div>

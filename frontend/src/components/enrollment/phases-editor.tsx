@@ -55,6 +55,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -1796,19 +1797,14 @@ function GradeLevelListEditor({
       {grades.map((grade) => {
         const selected = value.includes(grade);
         return (
-          <button
+          <ToggleChip
             key={grade}
-            type="button"
-            onClick={() => toggle(grade)}
-            aria-pressed={selected}
-            className={`inline-flex h-9 min-w-11 items-center justify-center rounded-full border px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              selected
-                ? "border-moto-green bg-moto-green text-gray-950"
-                : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-            }`}
+            shape="pill"
+            pressed={selected}
+            onPressedChange={() => toggle(grade)}
           >
             {grade}
-          </button>
+          </ToggleChip>
         );
       })}
     </div>

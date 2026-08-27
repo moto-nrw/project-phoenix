@@ -139,18 +139,10 @@ export const permissionsConfig = defineEntityConfig<Permission>({
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
         size: "lg",
       },
-      badges: [
-        {
-          label: (p: Permission) => p.name || "Systemberechtigung",
-          color: "bg-indigo-400/80",
-          showWhen: () => true,
-        },
-      ],
     },
     sections: [
       {
         title: "Technische Daten",
-        titleColor: "text-indigo-800",
         items: [
           {
             label: "Ressource",
@@ -211,7 +203,6 @@ export const permissionsConfig = defineEntityConfig<Permission>({
       avatar: {
         text: (p: Permission) => (p.resource?.[0] ?? "P").toUpperCase(),
       },
-      badges: [],
     },
   },
 

@@ -38,6 +38,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { Button } from "~/components/ui/button";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
@@ -2678,33 +2679,15 @@ function LegalBlockModeControl({
   onModeChange: (isNotice: boolean) => void;
 }>) {
   return (
-    <div
-      className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1"
-      aria-label="Darstellung im Elternformular"
-    >
-      {[
-        { label: "Mit Checkbox", isNotice: false },
-        { label: "Nur Hinweis", isNotice: true },
-      ].map((option) => {
-        const selected = option.isNotice === isNotice;
-        return (
-          <button
-            key={option.label}
-            type="button"
-            disabled={disabled}
-            aria-pressed={selected}
-            onClick={() => onModeChange(option.isNotice)}
-            className={`h-8 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-              selected
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      ariaLabel="Darstellung im Elternformular"
+      value={isNotice ? "hinweis" : "checkbox"}
+      onChange={(next) => onModeChange(next === "hinweis")}
+      items={[
+        { value: "checkbox", label: "Mit Checkbox", disabled },
+        { value: "hinweis", label: "Nur Hinweis", disabled },
+      ]}
+    />
   );
 }
 

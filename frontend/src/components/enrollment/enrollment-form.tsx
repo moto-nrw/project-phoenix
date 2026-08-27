@@ -45,6 +45,8 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -2866,25 +2868,17 @@ function OfferingCard({
             const automatic = automaticDays?.has(day) ?? false;
             const selected = picked || automatic;
             return (
-              <button
+              <ToggleChip
                 key={day}
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
+                pressed={selected}
+                disabled={automatic}
+                onPressedChange={() => {
                   if (automatic) return;
                   onToggleDay(day);
                 }}
-                disabled={automatic}
-                className={`rounded-md border px-2 py-0.5 text-xs font-medium transition-colors disabled:cursor-not-allowed ${
-                  selected
-                    ? "border-moto-green bg-moto-green text-gray-950"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
-                }`}
-                aria-pressed={selected}
               >
                 {weekdayLabels[day] ?? day}
-              </button>
+              </ToggleChip>
             );
           })}
         </div>
@@ -4470,31 +4464,22 @@ function WeekdayModeInput({
               <span className="w-20 shrink-0 text-xs font-medium text-gray-600">
                 {weekdayLabels[w] ?? w}
               </span>
-              <div className="grid flex-1 grid-cols-2 gap-1">
-                {DEPARTURE_MODE_OPTIONS.map((mode) => {
-                  const active = current === mode;
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      aria-pressed={active}
-                      onClick={() => {
-                        const next = { ...modes };
-                        if (mode === "alone") delete next[w];
-                        else next[w] = mode;
-                        onChange(next);
-                      }}
-                      className={`flex h-9 items-center justify-center rounded-md border px-1 text-xs font-medium transition-colors ${
-                        active
-                          ? "border-gray-900 bg-gray-900 text-white"
-                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                      }`}
-                    >
-                      {departureModeLabels[mode] ?? mode}
-                    </button>
-                  );
-                })}
-              </div>
+              <SegmentedControl
+                className="flex-1"
+                fullWidth
+                ariaLabel={`Heimweg ${weekdayLabels[w] ?? w}`}
+                value={current}
+                onChange={(mode) => {
+                  const next = { ...modes };
+                  if (mode === "alone") delete next[w];
+                  else next[w] = mode;
+                  onChange(next);
+                }}
+                items={DEPARTURE_MODE_OPTIONS.map((mode) => ({
+                  value: mode,
+                  label: departureModeLabels[mode] ?? mode,
+                }))}
+              />
             </div>
           );
         })}

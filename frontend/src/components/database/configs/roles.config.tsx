@@ -78,20 +78,11 @@ export const rolesConfig = defineEntityConfig<Role>({
         text: (role: Role) => getRoleDisplayName(role.name)?.[0] ?? "R",
         size: "lg",
       },
-      badges: [
-        {
-          label: (role: Role) =>
-            `${role.permissions?.length ?? 0} Berechtigungen`,
-          color: "bg-blue-400/80",
-          showWhen: () => true,
-        },
-      ],
     },
 
     sections: [
       {
         title: "Rolleninformationen",
-        titleColor: "text-gray-800",
         items: [
           {
             label: "Name",
@@ -153,7 +144,6 @@ export const rolesConfig = defineEntityConfig<Role>({
       avatar: {
         text: (role: Role) => getRoleDisplayName(role.name)?.[0] ?? "R",
       },
-      badges: [],
     },
   },
 

@@ -201,29 +201,11 @@ export const activitiesConfig = defineEntityConfig<Activity>({
         text: getActivityEmoji,
         size: "lg",
       },
-      badges: [
-        {
-          label: (activity) =>
-            activity.max_participant == null
-              ? `${activity.participant_count ?? 0} Teilnehmende`
-              : `${activity.participant_count ?? 0}/${activity.max_participant}`,
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: () => true,
-        },
-        {
-          label: "Voll",
-          color: "bg-moto-red-soft text-moto-red-strong",
-          showWhen: (activity: Activity) =>
-            activity.max_participant != null &&
-            (activity.participant_count ?? 0) >= activity.max_participant,
-        },
-      ],
     },
 
     sections: [
       {
         title: "Grundinformationen",
-        titleColor: "text-red-800",
         items: [
           {
             label: "Name",
@@ -251,7 +233,6 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       },
       {
         title: "Betreuer",
-        titleColor: "text-purple-800",
         items: [
           {
             label: "Hauptbetreuer",
@@ -377,29 +358,6 @@ export const activitiesConfig = defineEntityConfig<Activity>({
       avatar: {
         text: getActivityEmoji,
       },
-      badges: [
-        {
-          label: (activity: Activity) =>
-            activity.category_name ?? "Keine Kategorie",
-          color: "bg-moto-purple-soft text-moto-purple-strong",
-          showWhen: () => true,
-        },
-        {
-          label: (activity: Activity) =>
-            activity.max_participant == null
-              ? `${activity.participant_count ?? 0} Teilnehmende`
-              : `${activity.participant_count ?? 0}/${activity.max_participant}`,
-          color: "bg-moto-blue-soft text-moto-blue-strong",
-          showWhen: () => true,
-        },
-        {
-          label: "Voll",
-          color: "bg-moto-red-soft text-moto-red-strong",
-          showWhen: (activity: Activity) =>
-            activity.max_participant != null &&
-            (activity.participant_count ?? 0) >= activity.max_participant,
-        },
-      ],
     },
   },
 
