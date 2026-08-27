@@ -67,7 +67,8 @@ export function SectionCard({
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const Heading = `h${headingLevel}` as "h1" | "h2" | "h3";
   const headerActions = actions ?? action;
-  const showBody = children != null && !(collapsible && collapsed);
+  const hasBody = children != null && children !== false && children !== "";
+  const showBody = hasBody && !(collapsible && collapsed);
 
   return (
     <section

@@ -225,14 +225,18 @@ export function SettingsLayout({ tabs, renderTab }: SettingsLayoutProps) {
           description={`${tabs.length} ${tabs.length === 1 ? "Bereich" : "Bereiche"}`}
           className="mb-6"
         >
-          {!isMobile && (
+          {/* Bewusst `undefined` statt `false` im Mobilfall: die Kopfkarte
+              rendert ihren Rumpf, sobald children nicht null/undefined ist —
+              ein `false` erzeugte mobil einen leeren mt-4-Block unter der
+              Statuszeile. */}
+          {!isMobile ? (
             <DesktopSettingsTabs
               tabs={tabs}
               activeTab={activeTab ?? tabs[0]?.id ?? ""}
               onTabChange={setActiveTab}
               className="mt-3 -mb-2"
             />
-          )}
+          ) : undefined}
         </PageIntro>
       )}
 

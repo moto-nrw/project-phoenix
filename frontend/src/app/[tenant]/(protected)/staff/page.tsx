@@ -54,6 +54,18 @@ import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
 
+/**
+ * Die gemeldeten Abwesenheitsarten. Bewusst OHNE "Abwesend": dieser Wert
+ * bedeutet in `currentLocation` nur "heute nicht eingestempelt" und ist der
+ * Standard für jede Person ohne Stempelung.
+ */
+const REPORTED_ABSENCE_LOCATIONS = new Set([
+  "Krank",
+  "Urlaub",
+  "Fortbildung",
+  "Freizeitausgleich",
+]);
+
 function DocumentDirectory({
   entries,
   error,
@@ -591,8 +603,11 @@ function StaffPageContent() {
   // ohnehin lädt (Personalliste bzw. Zeitkonten-Tabelle).
   const staffSummary = (() => {
     if (canReadUsers) {
+      // "Abwesend" heißt in currentLocation nur "nicht eingestempelt" und ist
+      // deshalb KEINE gemeldete Abwesenheit — sonst zählte jede Person ohne
+      // Stempelung als abwesend. Gezählt werden nur die echten Arten.
       const absent = staff.filter((member) =>
-        absenceLocations.has(member.currentLocation ?? "Abwesend"),
+        REPORTED_ABSENCE_LOCATIONS.has(member.currentLocation ?? "Abwesend"),
       ).length;
       const clockedIn = staff.filter((member) => {
         const location = member.currentLocation ?? "Abwesend";
