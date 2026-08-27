@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 
 type SortDirection = "asc" | "desc";
@@ -228,13 +229,15 @@ function StackedRows<T>({
         </ul>
       </div>
       {hasMore && (
-        <button
+        <Button
           type="button"
+          variant="surface"
+          size="md"
           onClick={loadMore}
-          className="w-full rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
+          className="w-full"
         >
           {`Mehr laden (${rows.length} von ${totalCount})`}
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -535,13 +538,14 @@ export function DataTable<T>({
                     colSpan={columns.length}
                     className="px-5 py-3 text-center"
                   >
-                    <button
+                    <Button
                       type="button"
+                      variant="surface"
+                      size="md"
                       onClick={loadMore}
-                      className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
                     >
                       {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               )}
